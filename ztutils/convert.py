@@ -2,12 +2,8 @@ import torch
 import numpy as np
 
 
-def get_np(x):
+def to_np(x):
     """
-    adsfads
-    adf
-    aaa
-    ##
     """
     if isinstance(x, torch.Tensor):
         return x.cpu().detach().numpy()

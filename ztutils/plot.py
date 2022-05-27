@@ -1,36 +1,65 @@
+"""ZettaAI Python plotting utilities."""
 import numpy as np
+import numpy.typing as npt
+import matplotlib.pyplot as plt # type: ignore
+
+import ztutils as zu
 
 
-def visualize_residuals(res, figsize=(10,10), x_coords=None, y_coords=None, vec_grid=50):
-    res = prepare_for_show(res)
-    if res.shape[0] == 2:
-        res = np.transpose(res, (1, 2, 0))
+def render_vectors(
+    vec: zu.types.Array,
+    grid_size: int = 50,
+    alpha: float = 0.6,
+    linewidth: float = 0.5,
+    figsize: tuple[int, int] = (10, 10),
+) -> npt.NDArray:
+    """
+    Render the given vector field to an RGB numpy image.
 
-    assert res.shape[0] == res.shape[1]
-    plt.figure(figsize=figsize)
-    n = res.shape[0]
+    Args:
+        vec (zu.types.Array): An array of shape [(1,) H, W, 2] representing
+            a 2D vector field.
+        grid_side (int): Number of arrows per side.
+
+    Returns:
+        npt.NDArray: RGB rendering of the vector field.
+    """
+    vec = zu.types.to_np(vec).squeeze()
+    if vec.shape[0] == 2:
+        vec = np.transpose(vec, (1, 2, 0))
+
+    assert vec.shape[0] == vec.shape[1]
+
+    n = vec.shape[0]
     y, x = np.mgrid[0:n, 0:n]
 
-    if x_coords is None:
-        x_coords = [0, res.shape[0]]
-    if y_coords is None:
-        y_coords = [0, res.shape[1]]
+    x_coords = [0, vec.shape[0]]
+    y_coords = [0, vec.shape[1]]
 
-    ex = (1) * res[:, :, 0]
-    ey = res[:, :, 1]
+    ex = (1) * vec[:, :, 0]
+    ey = vec[:, :, 1]
     r = np.arctan2(ex, ey)
 
-    interval = (x_coords[1] - x_coords[0]) // vec_grid
+    interval = (x_coords[1] - x_coords[0]) // grid_size
 
-    plt.quiver(  x[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                 y[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                ex[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                ey[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                 r[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval], alpha=0.6)
-    plt.quiver(x[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                 y[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                ex[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval],
-                ey[x_coords[0]:x_coords[1]:interval, y_coords[0]:y_coords[1]:interval], edgecolor='k', facecolor='None', linewidth=.5)
+    plt.figure(figsize=figsize)
+    plt.quiver(
+        x[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        y[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        ex[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        ey[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        r[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        alpha=alpha,
+    )
+    plt.quiver(
+        x[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        y[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        ex[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        ey[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
+        edgecolor="k",
+        facecolor="None",
+        linewidth=linewidth,
+    )
     plt.gca().invert_yaxis()
 
-d
+    return np.array([10, 10])

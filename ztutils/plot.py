@@ -62,4 +62,4 @@ def render_vectors(
     )
     plt.gca().invert_yaxis()
 
-    return np.array([20, 10])
+    return np.array([10, 10])

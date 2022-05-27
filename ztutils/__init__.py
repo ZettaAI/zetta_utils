@@ -1,4 +1,4 @@
-from . import types
-from . import plot
+from . import zt_types
+from . import widgets
 from . import viz
 

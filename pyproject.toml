@@ -27,6 +27,9 @@ ignore-comments = "yes"
 ignore-docstrings = "yes"
 ignore-imports = "yes"
 
+[tool.pylint.master]
+extension-pkg-whitelist="numpy,cc3d,fastremap"
+
 [tool.pytest.ini_options]
 addopts = "-ra --cov=dsdk --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short"
 testpaths = ["test"]

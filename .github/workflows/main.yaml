@@ -7,7 +7,7 @@ on:
     branches: [ main ]
   
 jobs:  
-  ci-pipeline:  
+  formatting:  
     runs-on: ubuntu-latest  
     steps:  
       - name: Checkout  

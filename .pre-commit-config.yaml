@@ -23,4 +23,12 @@ repos:
     language: system
     types: [python]
     args:
-    - "--rcfile=pyproject.toml" # Link to your config file
+    - "--rcfile=pyproject.toml"
+
+- repo: local
+  hooks:
+  - id: mypy
+    name: mypy
+    entry: mypy
+    language: system
+    types: [python]

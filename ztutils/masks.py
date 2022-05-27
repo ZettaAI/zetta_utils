@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import copy
 from typing import Literal, Union
-from typing_extensions import Final
 import numpy.typing as npt
 import numpy as np
-import fastremap #type: ignore
-import cc3d #type: ignore
+import fastremap  # type: ignore
+import cc3d  # type: ignore
+
 
 def filter_cc(
     a: npt.NDArray,
-    mode: Union[Literal["keep_large"], Literal["keep_small"]] = 'keep_small',
+    mode: Union[Literal["keep_large"], Literal["keep_small"]] = "keep_small",
     thr: int = 100,
 ):
     """
@@ -30,9 +30,9 @@ def filter_cc(
     cc_labels = cc3d.connected_components(a != 0)
     segids, counts = np.unique(cc_labels, return_counts=True)
     if mode == "keep_large":
-        segids = [ segid for segid, ct in zip(segids, counts) if ct > thr ]
+        segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
     else:
-        segids = [ segid for segid, ct in zip(segids, counts) if ct <= thr ]
+        segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
 
     filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
 

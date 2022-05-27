@@ -1,7 +1,7 @@
 """ZettaAI Python plotting utilities."""
 import numpy as np
 import numpy.typing as npt
-import matplotlib.pyplot as plt # type: ignore
+import matplotlib.pyplot as plt  # type: ignore
 
 import ztutils as zu
 

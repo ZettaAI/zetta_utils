@@ -9,6 +9,7 @@ import numpy.typing as npt
 
 Array = typing.Union[torch.Tensor, npt.NDArray]
 
+
 def to_np(a: Array) -> npt.NDArray:
     """
     Convert the given array to numpy.

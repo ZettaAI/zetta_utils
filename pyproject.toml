@@ -3,11 +3,11 @@ requires = ["setuptools >= 40.6.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
-line-length = 88 
+line-length = 88
 target-version = ["py37","py38","py39"]
 
 [tool.pylint.format]
-max-line-length = 88 
+max-line-length = 88
 
 [tool.pylint.basic]
 good-names = '''a,b,c,d,df,do_POST,e,i,id,logger,n,on,ok,tz,x,y,z,r,ex,ey'''
@@ -35,4 +35,3 @@ addopts = "-ra --cov=dsdk --cov-report=term-missing --strict-markers --ignore=.e
 testpaths = ["test"]
 norecursedirs = ".env .git .venv build dist"
 python_files = "test.py tests.py test_*.py *_test.py"
-

@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 import numpy as np
 
-import ztutils as zu
+import zetta_utils as zu
 
 
 def test_filter_cc_small():

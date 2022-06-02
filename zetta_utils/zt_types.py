@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import typing
 import torch
+import numpy as np
 import numpy.typing as npt
 
 
@@ -23,7 +24,7 @@ def to_np(a: Array) -> npt.NDArray:
     if isinstance(a, torch.Tensor):
         return a.cpu().detach().numpy()
 
-    if isinstance(a, npt.NDArray):
+    if isinstance(a, np.ndarray):
         return a
-
+    # else:
     raise ValueError(f"Expected input of type {Array}, got {type(a)}")

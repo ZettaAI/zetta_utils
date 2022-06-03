@@ -35,7 +35,7 @@ def main():
         "-r",
         type=str,
         default="us-east1",
-        choices=list("us-east1"),
+        choices=["us-east1", "us-central1"],
         help="GCP region (e.g. us-east-1).",
     )
     parser.add_argument(

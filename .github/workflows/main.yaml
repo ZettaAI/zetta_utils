@@ -29,7 +29,7 @@ jobs:
           cache: 'pip'
       - name: Install dependencies
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pip install -e '.[test, viz]'
+        run: pip install -e '.[all]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}

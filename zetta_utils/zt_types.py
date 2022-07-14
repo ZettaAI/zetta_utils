@@ -1,4 +1,4 @@
-"""Type annotations."""
+"""Definitions used for type annotations."""
 
 from __future__ import annotations
 

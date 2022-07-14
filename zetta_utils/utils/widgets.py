@@ -26,7 +26,10 @@ def entry_loader(
     plt.imshow(entry_rendered)
 
 
-def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=zu.viz.Renderer()):
+def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):
+    if renderer is None:
+        renderer = zu.utils.viz.Renderer()
+
     if isinstance(entries, list):
         entries = {i: entries[i] for i in range(len(entries))}
 

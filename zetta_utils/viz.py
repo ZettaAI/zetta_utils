@@ -47,7 +47,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.seg_kwargs = common_kwargs | seg_kwargs
 
     def __call__(self, a):  # pragma: no cover
-        a = zu.zt_types.to_np(a).squeeze()
+        a = zu.convert.to_np(a).squeeze()
         if len(a.shape) == 3:
             return render_fld(a, **self.fld_kwargs)
         if a.dtype == np.bool:
@@ -104,7 +104,7 @@ render_seg = render_img
 
 
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
-    fld: zu.zt_types.Array,
+    fld: zu.basic_types.Array,
     figsize: tuple[int, int],
     dpi: int,
     grid_size: int = 50,
@@ -117,14 +117,14 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     The field is assumed to be in a residual format and pixel units.
 
     Args:
-        fld (zu.zt_types.Array): An array of shape [(1,) H, W, 2] representing
+        fld (zu.basic_types.Array): An array of shape [(1,) H, W, 2] representing
             a 2D vector field.
         grid_side (int): Number of arrows per side.
 
     Returns:
         npt.NDArray: RGB rendering of the vector field.
     """
-    fld = zu.zt_types.to_np(fld).squeeze()
+    fld = zu.convert.to_np(fld).squeeze()
     if fld.shape[0] == 2:
         fld = np.transpose(fld, (1, 2, 0))
 

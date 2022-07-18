@@ -1,17 +1,14 @@
-"""Type conversion function and definitions used for type annotations."""
-
+"""Type conversion functions."""
 from __future__ import annotations
 
-import typing
 import torch
 import numpy as np
 import numpy.typing as npt
 
+import zetta_utils as zu
 
-Array = typing.Union[torch.Tensor, npt.NDArray]
 
-
-def to_np(a: Array) -> npt.NDArray:
+def to_np(a: zu.basic_types.Array) -> npt.NDArray:
     """
     Convert the given array to numpy.
 
@@ -27,4 +24,4 @@ def to_np(a: Array) -> npt.NDArray:
     if isinstance(a, np.ndarray):
         return a
     # else:
-    raise ValueError(f"Expected input of type {Array}, got {type(a)}")
+    raise ValueError(f"Expected input of type {zu.basic_types.Array}, got {type(a)}")

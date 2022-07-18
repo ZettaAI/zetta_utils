@@ -11,7 +11,7 @@ import cachetools  # type: ignore
 from cloudvolume import CloudVolume  # type: ignore
 
 import zetta_utils as zu
-from .common import BaseLayer
+from zetta_utils.data_layers.common import BaseLayer
 
 
 @dataclass

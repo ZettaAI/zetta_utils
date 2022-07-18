@@ -2,3 +2,4 @@
 training and inference."""
 
 from . import common
+from . import volumetric

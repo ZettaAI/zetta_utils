@@ -23,7 +23,7 @@ def test_filter_cc_small():
         ]
     )
 
-    result = zu.utils.masks.filter_cc(
+    result = zu.masks.filter_cc(
         a,
         mode="keep_small",
         thr=2,
@@ -50,7 +50,7 @@ def test_filter_cc_big():
         ]
     )
 
-    result = zu.utils.masks.filter_cc(
+    result = zu.masks.filter_cc(
         a,
         mode="keep_large",
         thr=2,

@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring
-"""ZettaAI Python plotting utilities."""
+"""ZettaAI Python plotting utilities. Most of the plotting functions are not included
+in automated testing, as they're not meand for production use."""
 
 import io
 import copy
@@ -25,7 +26,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         img_kwargs=None,
         msk_kwargs=None,
         seg_kwargs=None,
-    ):
+    ):  # pragma: no cover
         if common_kwargs is None:
             common_kwargs = copy.deepcopy(DEFAULT_COMMON_KWARGS)
         else:
@@ -45,7 +46,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.fld_kwargs = common_kwargs | fld_kwargs
         self.seg_kwargs = common_kwargs | seg_kwargs
 
-    def __call__(self, a):
+    def __call__(self, a):  # pragma: no cover
         a = zu.zt_types.to_np(a).squeeze()
         if len(a.shape) == 3:
             return render_fld(a, **self.fld_kwargs)
@@ -60,7 +61,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
 def get_img_from_fig(
     fig: matplotlib.figure.Figure,
     dpi: int,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     """
     Render matplotlib image to an RGB numpy array.
 
@@ -92,7 +93,7 @@ def render_img(
     figsize: tuple[int, int],
     dpi: int,
     cmap: str = "gray",
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     fig = plt.figure(figsize=figsize)
     plt.imshow(img, cmap=cmap)
     return get_img_from_fig(fig, dpi=dpi)
@@ -109,7 +110,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     grid_size: int = 50,
     alpha: float = 0.6,
     linewidth: float = 0.5,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     """
     Render the given vector field to an RGB numpy image.
 

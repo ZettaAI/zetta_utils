@@ -1,0 +1,6 @@
+[run]
+omit =
+    */zetta_utils/*
+[report]
+omit =
+    */zetta_utils/*

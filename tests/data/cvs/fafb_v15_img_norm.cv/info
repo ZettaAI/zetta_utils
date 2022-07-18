@@ -1,0 +1,241 @@
+{
+  "data_type": "float32",
+  "num_channels": 1,
+  "scales": [
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "4_4_40",
+      "resolution": [
+        4,
+        4,
+        40
+      ],
+      "size": [
+        262144,
+        131072,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "8_8_40",
+      "resolution": [
+        8,
+        8,
+        40
+      ],
+      "size": [
+        131072,
+        65536,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "16_16_40",
+      "resolution": [
+        16,
+        16,
+        40
+      ],
+      "size": [
+        65536,
+        32768,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "32_32_40",
+      "resolution": [
+        32,
+        32,
+        40
+      ],
+      "size": [
+        32768,
+        16384,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "64_64_40",
+      "resolution": [
+        64,
+        64,
+        40
+      ],
+      "size": [
+        16384,
+        8192,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "128_128_40",
+      "resolution": [
+        128,
+        128,
+        40
+      ],
+      "size": [
+        8192,
+        4096,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "256_256_40",
+      "resolution": [
+        256,
+        256,
+        40
+      ],
+      "size": [
+        4096,
+        2048,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "raw",
+      "key": "512_512_40",
+      "resolution": [
+        512,
+        512,
+        40
+      ],
+      "size": [
+        2048,
+        1024,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "chunk_sizes": [
+        [
+          1024,
+          1024,
+          1
+        ]
+      ],
+      "encoding": "jpeg",
+      "key": "1024_1024_40",
+      "resolution": [
+        1024,
+        1024,
+        40
+      ],
+      "size": [
+        1024,
+        512,
+        7064
+      ],
+      "voxel_offset": [
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "type": "image"
+}

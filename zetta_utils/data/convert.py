@@ -4,10 +4,12 @@ from __future__ import annotations
 import torch
 import numpy as np
 import numpy.typing as npt
+from typeguard import typechecked
 
 import zetta_utils as zu
 
 
+@typechecked
 def to_np(a: zu.typing.Array) -> npt.NDArray:
     """
     Convert the given array to numpy.

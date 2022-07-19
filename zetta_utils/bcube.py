@@ -1,11 +1,14 @@
 # pylint: disable=missing-docstring
+from __future__ import annotations
 import copy
 
-# from math import floor, ceil
+from math import floor
 
 from typing import List, Union, Optional
+from typeguard import typechecked
 
 
+@typechecked
 class BoundingCube:
     """Represents a 3D cuboid in space."""
 
@@ -81,35 +84,36 @@ class BoundingCube:
                 end_coord[2] * resolution[2],
             ]
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return (
-            (self.z_range == other.z_range)
+            isinstance(other, BoundingCube)
+            and (self.z_range == other.z_range)
             and (self.y_range == other.y_range)
             and (self.x_range == other.x_range)
             and (self.unit_name == other.unit_name)
         )
 
-    def get_x_range(self, x_res: int = 1):
+    def get_x_range(self, x_res: int = 1) -> List[int]:
         # scale_factor = 2 ** mip
         # xl = int(round((self.m0_x[1] - self.m0_x[0]) / scale_factor))
         # xs = floor(self.m0_x[0] / scale_factor)
         # return [xs, xs + xl]
 
         return [
-            self.x_range[0] / x_res,
-            self.x_range[1] / x_res,
+            floor(self.x_range[0] / x_res),
+            int(round(self.x_range[1] / x_res)),
         ]
 
-    def get_y_range(self, y_res: int = 1):
+    def get_y_range(self, y_res: int = 1) -> List[int]:
         return [
-            self.y_range[0] / y_res,
-            self.y_range[1] / y_res,
+            floor(self.y_range[0] / y_res),
+            int(round(self.y_range[1] / y_res)),
         ]
 
-    def get_z_range(self, z_res: int = 1):
+    def get_z_range(self, z_res: int = 1) -> List[int]:
         return [
-            self.z_range[0] / z_res,
-            self.z_range[1] / z_res,
+            floor(self.z_range[0] / z_res),
+            int(round(self.z_range[1] / z_res)),
         ]
 
     def pad(
@@ -119,7 +123,7 @@ class BoundingCube:
         z_pad: int = 0,
         in_place: bool = False,
         resolution: Optional[List[int]] = None,
-    ):
+    ) -> Optional[BoundingCube]:
         """Pads the bounding box. Pad values are measured by the given resolution.
         if not provided, resolution defaults to [1, 1, 1]"""
         if resolution is None:
@@ -144,13 +148,13 @@ class BoundingCube:
         )
         return result
 
-    def clone(self):  # pragma: no cover
+    def clone(self) -> BoundingCube:  # pragma: no cover
         return copy.deepcopy(self)
 
-    def copy(self):  # pragma: no cover
+    def copy(self) -> BoundingCube:  # pragma: no cover
         return self.clone()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             "BoundingCube("
             f"z: {self.z_range[0]}-{self.z_range[1]}, "

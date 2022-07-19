@@ -7,8 +7,10 @@ import numpy.typing as npt
 import numpy as np
 import fastremap  # type: ignore
 import cc3d  # type: ignore
+from typeguard import typechecked
 
 
+@typechecked
 def filter_cc(
     a: npt.NDArray,
     mode: Union[Literal["keep_large"], Literal["keep_small"]] = "keep_small",

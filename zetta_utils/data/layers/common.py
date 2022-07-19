@@ -2,13 +2,17 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
+from typing import Dict
+from typeguard import typechecked
 
+
+@typechecked
 class BaseLayer:
     """Base Layer class."""
 
     def __init__(
         self,
-        index_range_specs=None,
+        index_range_specs: Dict = None,
         readonly: bool = True,
         read_index_adjs: list = None,
         read_postprocs: list = None,

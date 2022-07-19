@@ -7,12 +7,15 @@ import json
 from dataclasses import dataclass
 from typing import Literal, Union, Optional, List
 import cachetools  # type: ignore
+import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume  # type: ignore
+from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.data.layers.common import BaseLayer
 
 
+@typechecked
 @dataclass
 class VolumetricIndex:
     """Index for volumetric layers."""
@@ -21,9 +24,10 @@ class VolumetricIndex:
     bcube: zu.bcube.BoundingCube  # Spatial Bounding Cube
 
 
+@typechecked
 def _convert_to_vol_idx(
     in_idx: Union[VolumetricIndex, list], index_resolution: Optional[List[int]] = None
-):
+) -> VolumetricIndex:
     if isinstance(in_idx, VolumetricIndex):
         return in_idx
 
@@ -61,6 +65,7 @@ def _convert_to_vol_idx(
     return VolumetricIndex(bcube=bcube, resolution=resolution)  # type: ignore
 
 
+@typechecked
 class VolumetricLayer(BaseLayer):
     """Volumetric Layer."""
 
@@ -83,16 +88,16 @@ class VolumetricLayer(BaseLayer):
         self.index_resolution = index_resolution
         self.rescaling_method = rescaling_method
 
-    def _write(self, idx: Union[VolumetricIndex, list], value):
+    def _write(self, idx: Union[VolumetricIndex, list], value) -> None:
         # self._write_volume(idx, value)
         raise NotImplementedError()
 
-    def __getitem__(self, in_idx: Union[VolumetricIndex, list]):
+    def __getitem__(self, in_idx: Union[VolumetricIndex, list]) -> zu.typing.Array:
         idx = _convert_to_vol_idx(in_idx, index_resolution=self.index_resolution)
         result = self.read(idx)
         return result
 
-    def _read(self, idx: VolumetricIndex):
+    def _read(self, idx: VolumetricIndex) -> zu.typing.Array:
         """Handles data resolution redirection and rescaling."""
         read_resolution = idx.resolution
         # If the user didn't specify read resolution in the idnex, we
@@ -121,12 +126,12 @@ class VolumetricLayer(BaseLayer):
 
         return result
 
-    def _read_volume(self, idx: VolumetricIndex):
+    def _read_volume(self, idx: VolumetricIndex) -> zu.typing.Array:
         raise NotImplementedError(
             "`_read_volume` method not implemented for a volumetric layer type."
         )
 
-    def _write_volume(self, idx: VolumetricIndex, value):
+    def _write_volume(self, idx: VolumetricIndex, value: zu.typing.Array) -> None:
         raise NotImplementedError(
             "`_write` method not implemented for a volumetric layer type."
         )
@@ -158,6 +163,7 @@ class CachedCloudVolume(CloudVolume):
         return super().__new__(cls, *args, **kwargs)
 
 
+@typechecked
 class CVLayer(VolumetricLayer):
     """CloudVolume volumetric layer implementation."""
 
@@ -178,24 +184,26 @@ class CVLayer(VolumetricLayer):
         self.cv_params.setdefault("delete_black_uploads", True)
         self.cv_params.setdefault("agglomerate", True)
 
-    def _get_cv_at_resolution(self, resolution):
+    def _get_cv_at_resolution(
+        self, resolution: List[int]
+    ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long
         result = CloudVolume(mip=resolution, **self.cv_params)
         return result
 
-    def _write_volume(self, idx: VolumetricIndex, value):
+    def _write_volume(self, idx: VolumetricIndex, value: zu.typing.Array) -> None:
         raise NotImplementedError()
 
-    def _read_volume(self, idx: VolumetricIndex):
+    def _read_volume(self, idx: VolumetricIndex) -> zu.typing.Array:
         if idx.resolution is None:
             raise ValueError(
                 "Attempting to read from a CVLayer without "
                 "specifying read resolution."
             )
-        cv = self._get_cv_at_resolution(idx.resolution)
+        cvol = self._get_cv_at_resolution(idx.resolution)
         x_range = idx.bcube.get_x_range(x_res=idx.resolution[0])
         y_range = idx.bcube.get_y_range(y_res=idx.resolution[1])
         z_range = idx.bcube.get_z_range(z_res=idx.resolution[2])
-        result = cv[
+        result = cvol[
             x_range[0] : x_range[1], y_range[0] : y_range[1], z_range[0] : z_range[1]
         ]
 

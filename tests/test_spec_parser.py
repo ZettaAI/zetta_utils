@@ -59,7 +59,7 @@ def test_must_build_exc(value):
 
 @pytest.mark.parametrize("value", [1, ["yo"]])
 def test_nondict_exc(value):
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         zu.spec_parser.build(value)
 
 

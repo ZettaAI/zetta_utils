@@ -9,6 +9,7 @@ import numpy.typing as npt
 import matplotlib  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import cv2  # type: ignore
+from typeguard import typechecked
 
 import zetta_utils as zu
 
@@ -18,6 +19,7 @@ DEFAULT_COMMON_KWARGS = {
 }
 
 
+@typechecked
 class Renderer:  # pylint: disable=too-few-public-methods
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -58,6 +60,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         return render_img(a, **self.img_kwargs)
 
 
+@typechecked
 def get_img_from_fig(
     fig: matplotlib.figure.Figure,
     dpi: int,
@@ -88,8 +91,9 @@ def get_img_from_fig(
     return img
 
 
+@typechecked
 def render_img(
-    img,
+    img: zu.typing.Array,
     figsize: tuple[int, int],
     dpi: int,
     cmap: str = "gray",
@@ -103,6 +107,7 @@ render_msk = render_img
 render_seg = render_img
 
 
+@typechecked
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     fld: zu.typing.Array,
     figsize: tuple[int, int],

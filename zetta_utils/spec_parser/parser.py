@@ -1,14 +1,16 @@
 """Bulding objects from nested specs."""
 import copy
-from typing import Any
+from typing import Any, Callable
 from collections import defaultdict
+from typeguard import typechecked
 
 REGISTRY: dict = defaultdict(dict)
 PARSE_KEY = "_parse_as"
 RECURSE_KEY = "_recursive_parse"
 
 
-def register(name: str, versions=None):
+@typechecked
+def register(name: str, versions=None) -> Callable:
     """Decorator for registering classes to be buildable through a spec."""
     if versions is not None:
         raise NotImplementedError()  # pragma: no test
@@ -21,17 +23,16 @@ def register(name: str, versions=None):
     return register_fn
 
 
+@typechecked
 def get_cls_from_name(name: str) -> Any:
     """Translates a string containing a type name used in a spec to the
     class registered to that name."""
     return REGISTRY[name]
 
 
+@typechecked
 def build(spec: dict, must_build=True) -> Any:
     """Builds an object from the given spec."""
-    if not isinstance(spec, dict):
-        raise ValueError(f"Expected a dictionary spec, got `{type(spec)}`")
-
     if PARSE_KEY in spec:
         result = _build(spec)
     else:
@@ -45,6 +46,7 @@ def build(spec: dict, must_build=True) -> Any:
     return result
 
 
+@typechecked
 def _build(field: Any) -> Any:
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any

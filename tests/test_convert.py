@@ -15,5 +15,5 @@ def test_to_np(x, expected):
 
 
 def test_to_np_exc():
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         zu.data.convert.to_np("hello")

@@ -70,6 +70,8 @@ def empty_bcube():
             BoundingCube(start_coord="-1, -3, -5", end_coord="1, 3, 5"),
         ],
         [
+            BoundingCube(start_coord="0, 0, 0", end_coord="0, 0, 0"),
+            {"x_pad": 1, "y_pad": 3, "z_pad": 5, "resolution": [1, 3, 5]},
             BoundingCube(start_coord="-1, -9, -25", end_coord="1, 9, 25"),
         ],
     ],

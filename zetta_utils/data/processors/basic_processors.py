@@ -1,5 +1,5 @@
 # pylint: disable=all
-from zetta_utils.data_layers.processors.common import func_processor
+from zetta_utils.data.processors.common import func_processor
 
 
 @func_processor

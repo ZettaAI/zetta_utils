@@ -5,7 +5,7 @@ from typing import List, Union
 import pytest
 import numpy as np
 
-from zetta_utils.data_layers.volumetric import (
+from zetta_utils.data.layers.volumetric import (
     VolumetricIndex,
     CVLayer,
     _convert_to_vol_idx,

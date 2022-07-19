@@ -5,8 +5,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Literal, Union, Optional
-import numpy as np
+from typing import Literal, Union, Optional, List
 import cachetools  # type: ignore
 from cloudvolume import CloudVolume  # type: ignore
 
@@ -18,43 +17,48 @@ from zetta_utils.data_layers.common import BaseLayer
 class VolumetricIndex:
     """Index for volumetric layers."""
 
-    xy_res: Optional[int]
-    bcube: zu.bcube.BoundingCube
+    resolution: Optional[List[int]]  # The read/write resolution
+    bcube: zu.bcube.BoundingCube  # Spatial Bounding Cube
 
 
 def _convert_to_vol_idx(
-    in_idx: Union[VolumetricIndex, list], index_xy_res: Optional[int] = None
+    in_idx: Union[VolumetricIndex, list], index_resolution: Optional[List[int]] = None
 ):
     if isinstance(in_idx, VolumetricIndex):
         return in_idx
 
     bcube = None
-    xy_res = None
+    resolution = None
 
     if isinstance(
         in_idx[-1], zu.bcube.BoundingCube
-    ):  # [bcube] or [xy_res, bcube] indexing
+    ):  # [bcube] or [resolution, bcube] indexing
         bcube = in_idx[-1]
-        if len(in_idx) == 2:  # [xy_res, bcube]
-            xy_res = in_idx[0]
+        if len(in_idx) == 2:  # [resolution, bcube]
+            resolution = in_idx[0]
         elif len(in_idx) != 1:  # not [bcube]
             raise ValueError(f"Malformed volumetric index '{in_idx}'")
     elif isinstance(
         in_idx[-1], str
-    ):  # [xy_res, start_coord, end_coord] or [start_coord, end_coord] indexing
+    ):  # [resolution, start_coord, end_coord] or [start_coord, end_coord] indexing
         raise NotImplementedError()
     else:
-        if index_xy_res is None:
-            raise ValueError("Slice indexing used without `index_xy_res` provided.")
+        if index_resolution is None:
+            raise ValueError(
+                "Attempting to convert slice based index to volumetric "
+                "index used without `index_resolution` provided."
+            )
 
-        if len(in_idx) == 4:  # [xy_res, z_slice, y_slice, x_slice] indexing
-            xy_res = in_idx[0]
-            bcube = zu.bcube.BoundingCube(slices=in_idx[1:], xy_res=index_xy_res)
+        if len(in_idx) == 4:  # [resolution, z_slice, y_slice, x_slice] indexing
+            resolution = in_idx[0]
+            bcube = zu.bcube.BoundingCube(
+                slices=in_idx[1:], resolution=index_resolution
+            )
         elif len(in_idx) == 3:  # [z_slice, y_slice, x_slice] or
-            bcube = zu.bcube.BoundingCube(slices=in_idx, xy_res=index_xy_res)
+            bcube = zu.bcube.BoundingCube(slices=in_idx, resolution=index_resolution)
 
     # mypy doesn't see that bcube is always not None
-    return VolumetricIndex(bcube=bcube, xy_res=xy_res)  # type: ignore
+    return VolumetricIndex(bcube=bcube, resolution=resolution)  # type: ignore
 
 
 class VolumetricLayer(BaseLayer):
@@ -62,8 +66,8 @@ class VolumetricLayer(BaseLayer):
 
     def __init__(
         self,
-        index_xy_res: int,
-        data_xy_res: Optional[int] = None,
+        index_resolution: List[int] = None,
+        data_resolution: Optional[List[int]] = None,
         rescaling_method: Optional[
             Union[
                 Literal["img"],
@@ -75,8 +79,8 @@ class VolumetricLayer(BaseLayer):
     ):
         super().__init__(**kwargs)
 
-        self.data_xy_res = data_xy_res
-        self.index_xy_res = index_xy_res
+        self.data_resolution = data_resolution
+        self.index_resolution = index_resolution
         self.rescaling_method = rescaling_method
 
     def _write(self, idx: Union[VolumetricIndex, list], value):
@@ -84,33 +88,33 @@ class VolumetricLayer(BaseLayer):
         raise NotImplementedError()
 
     def __getitem__(self, in_idx: Union[VolumetricIndex, list]):
-        idx = _convert_to_vol_idx(in_idx, index_xy_res=self.index_xy_res)
+        idx = _convert_to_vol_idx(in_idx, index_resolution=self.index_resolution)
         result = self.read(idx)
         return result
 
     def _read(self, idx: VolumetricIndex):
-        """Handles data xy_res redirection and rescaling."""
-        read_xy_res = idx.xy_res
+        """Handles data resolution redirection and rescaling."""
+        read_resolution = idx.resolution
         # If the user didn't specify read resolution in the idnex, we
         # take the data resolution as the read resolution. If data
         # resolution is also None, we take the indexing resolution as
         # the read resolution.
-        if read_xy_res is None:
-            if self.data_xy_res is not None:
-                read_xy_res = self.data_xy_res
+        if read_resolution is None:
+            if self.data_resolution is not None:
+                read_resolution = self.data_resolution
             else:
-                read_xy_res = self.index_xy_res
+                read_resolution = self.index_resolution
 
         # If data resolution is not specified for the volume, data will be
         # fetched from the read resolution.
-        data_xy_res = self.data_xy_res
-        if data_xy_res is None:
-            data_xy_res = read_xy_res
+        data_resolution = self.data_resolution
+        if data_resolution is None:
+            data_resolution = read_resolution
 
-        idx.xy_res = data_xy_res
+        idx.resolution = data_resolution
         vol_data = self._read_volume(idx)
 
-        if data_xy_res != read_xy_res:  # output rescaling needed
+        if data_resolution != read_resolution:  # output rescaling needed
             raise NotImplementedError()
         # else:
         result = vol_data
@@ -160,12 +164,9 @@ class CVLayer(VolumetricLayer):
     def __init__(
         self,
         cv_params: dict,
-        z_res: int,
-        return_format: Union[Literal["zcyx"], Literal["xyzc"]] = "zcyx",
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.z_res = z_res
         assert "mip" not in cv_params
         self.cv_params = cv_params
         self.cv_params.setdefault("bounded", False)
@@ -176,29 +177,26 @@ class CVLayer(VolumetricLayer):
         self.cv_params.setdefault("fill_missing", True)
         self.cv_params.setdefault("delete_black_uploads", True)
         self.cv_params.setdefault("agglomerate", True)
-        self.return_format = return_format
 
-    def _get_cv_at_xy_res(self, xy_res):
-        result = CloudVolume(mip=[xy_res, xy_res, self.z_res], **self.cv_params)
+    def _get_cv_at_resolution(self, resolution):
+        result = CloudVolume(mip=resolution, **self.cv_params)
         return result
 
     def _write_volume(self, idx: VolumetricIndex, value):
         raise NotImplementedError()
 
     def _read_volume(self, idx: VolumetricIndex):
-        cv = self._get_cv_at_xy_res(idx.xy_res)
-        x_range = idx.bcube.get_x_range(xy_res=idx.xy_res)
-        y_range = idx.bcube.get_y_range(xy_res=idx.xy_res)
-        z_range = idx.bcube.get_z_range()
+        if idx.resolution is None:
+            raise ValueError(
+                "Attempting to read from a CVLayer without "
+                "specifying read resolution."
+            )
+        cv = self._get_cv_at_resolution(idx.resolution)
+        x_range = idx.bcube.get_x_range(x_res=idx.resolution[0])
+        y_range = idx.bcube.get_y_range(y_res=idx.resolution[1])
+        z_range = idx.bcube.get_z_range(z_res=idx.resolution[2])
         result = cv[
             x_range[0] : x_range[1], y_range[0] : y_range[1], z_range[0] : z_range[1]
         ]
-
-        if self.return_format == "zcyx":
-            result = np.transpose(result, (2, 3, 1, 0))
-        elif self.return_format == "xyzc":
-            pass
-        else:
-            raise ValueError(f"Unsupported `return_format`: '{self.return_format}'")
 
         return result

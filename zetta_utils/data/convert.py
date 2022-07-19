@@ -8,7 +8,7 @@ import numpy.typing as npt
 import zetta_utils as zu
 
 
-def to_np(a: zu.basic_types.Array) -> npt.NDArray:
+def to_np(a: zu.typing.Array) -> npt.NDArray:
     """
     Convert the given array to numpy.
 
@@ -24,4 +24,4 @@ def to_np(a: zu.basic_types.Array) -> npt.NDArray:
     if isinstance(a, np.ndarray):
         return a
     # else:
-    raise ValueError(f"Expected input of type {zu.basic_types.Array}, got {type(a)}")
+    raise ValueError(f"Expected input of type {zu.typing.Array}, got {type(a)}")

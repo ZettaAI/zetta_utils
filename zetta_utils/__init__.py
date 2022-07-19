@@ -1,7 +1,7 @@
 """Zetta AI Computational Connectomics Toolkit."""
 
 from . import cue
-from . import basic_types
+from . import typing
 from . import spec_parser
 from . import data
 from . import bcube

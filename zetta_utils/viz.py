@@ -104,7 +104,7 @@ render_seg = render_img
 
 
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
-    fld: zu.basic_types.Array,
+    fld: zu.typing.Array,
     figsize: tuple[int, int],
     dpi: int,
     grid_size: int = 50,
@@ -117,7 +117,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     The field is assumed to be in a residual format and pixel units.
 
     Args:
-        fld (zu.basic_types.Array): An array of shape [(1,) H, W, 2] representing
+        fld (zu.typing.Array): An array of shape [(1,) H, W, 2] representing
             a 2D vector field.
         grid_side (int): Number of arrows per side.
 

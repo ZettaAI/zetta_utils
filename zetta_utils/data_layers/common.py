@@ -2,8 +2,6 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-import zetta_utils as zu
-
 
 class BaseLayer:
     """Base Layer class."""
@@ -12,22 +10,19 @@ class BaseLayer:
         self,
         index_range_specs=None,
         readonly: bool = True,
-        read_index_adj_specs: list = None,
-        postprocessor_specs: list = None,
+        read_index_adjs: list = None,
+        read_postprocs: list = None,
     ):
         self.readonly = readonly
         self.index_range_specs = index_range_specs
 
-        if read_index_adj_specs is None:
-            read_index_adj_specs = []
-        if postprocessor_specs is None:
-            postprocessor_specs = []
-        self.read_index_adjs = [
-            zu.spec_parser.build(spec) for spec in read_index_adj_specs
-        ]
-        self.postprocessors = [
-            zu.spec_parser.build(spec) for spec in postprocessor_specs
-        ]
+        if read_index_adjs is None:
+            read_index_adjs = []
+        if read_postprocs is None:
+            read_postprocs = []
+
+        self.read_index_adjs = read_index_adjs
+        self.postprocessors = read_postprocs
 
         if index_range_specs is not None:
             raise NotImplementedError("Index range layer specs is not yet implemented.")

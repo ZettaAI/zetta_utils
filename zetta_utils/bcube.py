@@ -3,48 +3,7 @@ import copy
 
 # from math import floor, ceil
 
-from typing import Optional, List, Union
-
-# TODO: delete
-DEFAULT_RESOLUTION = 1
-
-
-def dim_name_to_idx(dim_name: str):
-    dim_name = dim_name.lower()
-    if dim_name == "x":
-        dim_idx = 0
-    elif dim_name == "y":
-        dim_idx = 1
-    elif dim_name == "z":
-        dim_idx = 2
-    else:
-        raise ValueError(f"Unsupported dimension '{dim_name}'")
-
-    return dim_idx
-
-
-def ___get_dim_res(
-    dim: Union[str, int], resolution: Optional[Union[int, List[int]]] = None
-):
-    res = DEFAULT_RESOLUTION
-
-    if isinstance(resolution, int):
-        # if only one int is given as resolution, assumed it's for the dimension
-        # of iterest
-        res = resolution
-    else:
-        assert isinstance(resolution, list)
-
-        if isinstance(dim, str):
-            dim_idx = dim_name_to_idx(dim)
-        else:
-            dim_idx = dim
-
-        assert dim_idx >= 0
-        assert dim_idx < 3
-        res = resolution[dim_idx]
-
-    return res
+from typing import List, Union, Optional
 
 
 class BoundingCube:
@@ -53,13 +12,13 @@ class BoundingCube:
     def __init__(
         self,
         slices: Optional[list] = None,
-        start_coord: Optional[str] = None,
-        end_coord: Optional[str] = None,
+        start_coord: Optional[Union[str, List[int]]] = None,
+        end_coord: Optional[Union[str, List[int]]] = None,
         unit_name: str = "nm",
         resolution: Optional[List[int]] = None,
     ):
         if resolution is None:
-            resolution = [DEFAULT_RESOLUTION] * 3
+            resolution = [1] * 3
 
         self.x_range = [0, 0]
         self.y_range = [0, 0]
@@ -68,9 +27,11 @@ class BoundingCube:
         self.unit_name = unit_name
 
         if slices is not None:
-            assert (
-                start_coord is None and end_coord is None
-            )  # TODO: raise appropriate exc
+            if start_coord is not None or end_coord is not None:
+                raise ValueError(
+                    "Both `slices` and `start_coord/end_coord` provided to "
+                    "bounding cube constructor."
+                )
             assert len(slices) == 3
             for s in slices:
                 assert s.step is None
@@ -87,10 +48,38 @@ class BoundingCube:
                 slices[2].start * resolution[2],
                 slices[2].stop * resolution[2],
             ]
+        elif start_coord is not None or end_coord is not None:
+            if start_coord is None:
+                raise ValueError(
+                    "`end_coord` provided to bounding cube constructor, "
+                    "but `start_coord` is `None`."
+                )
+            if end_coord is None:
+                raise ValueError(
+                    "`start_coord` provided to bounding cube constructor, "
+                    "but `end_coord` is `None`."
+                )
 
-        if start_coord is not None:
-            raise NotImplementedError()
-            # TODO: raise appropriate exc
+            if isinstance(start_coord, str):
+                start_coord = [int(i) for i in start_coord.split(",")]
+            if isinstance(end_coord, str):
+                end_coord = [int(i) for i in end_coord.split(",")]
+
+            assert len(start_coord) == 3
+            assert len(end_coord) == 3
+
+            self.x_range = [
+                start_coord[0] * resolution[0],
+                end_coord[0] * resolution[0],
+            ]
+            self.y_range = [
+                start_coord[1] * resolution[1],
+                end_coord[1] * resolution[1],
+            ]
+            self.z_range = [
+                start_coord[2] * resolution[2],
+                end_coord[2] * resolution[2],
+            ]
 
     def __eq__(self, other):
         return (
@@ -140,29 +129,25 @@ class BoundingCube:
             raise NotImplementedError()
 
         result = BoundingCube(
-            slices=[
-                [
-                    self.x_range[0] - x_pad * resolution[0],
-                    self.x_range[1] + x_pad * resolution[0],
-                ],
-                [
-                    self.y_range[0] - y_pad * resolution[1],
-                    self.y_range[1] + y_pad * resolution[1],
-                ],
-                [
-                    self.z_range[0] - z_pad * resolution[2],
-                    self.z_range[1] + z_pad * resolution[2],
-                ],
+            start_coord=[
+                self.x_range[0] - x_pad * resolution[0],
+                self.y_range[0] - y_pad * resolution[1],
+                self.z_range[0] - z_pad * resolution[2],
+            ],
+            end_coord=[
+                self.x_range[1] + x_pad * resolution[0],
+                self.y_range[1] + y_pad * resolution[1],
+                self.z_range[1] + z_pad * resolution[2],
             ],
             resolution=[1, 1, 1],
             unit_name=self.unit_name,
         )
         return result
 
-    def clone(self):
+    def clone(self):  # pragma: no cover
         return copy.deepcopy(self)
 
-    def copy(self):
+    def copy(self):  # pragma: no cover
         return self.clone()
 
     def __repr__(self):

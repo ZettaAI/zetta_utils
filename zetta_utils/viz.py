@@ -47,7 +47,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.seg_kwargs = common_kwargs | seg_kwargs
 
     def __call__(self, a):  # pragma: no cover
-        a = zu.convert.to_np(a).squeeze()
+        a = zu.data.convert.to_np(a).squeeze()
         if len(a.shape) == 3:
             return render_fld(a, **self.fld_kwargs)
         if a.dtype == np.bool:
@@ -124,7 +124,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     Returns:
         npt.NDArray: RGB rendering of the vector field.
     """
-    fld = zu.convert.to_np(fld).squeeze()
+    fld = zu.data.convert.to_np(fld).squeeze()
     if fld.shape[0] == 2:
         fld = np.transpose(fld, (1, 2, 0))
 

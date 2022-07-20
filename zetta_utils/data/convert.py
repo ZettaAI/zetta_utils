@@ -25,7 +25,7 @@ def to_np(a: zu.typing.Array) -> npt.NDArray:
     elif isinstance(a, np.ndarray):
         result = a
     else:
-        assert False, "Type checking error"
+        assert False, "Type checking error"  # pragma: no cover
     return result
 
 
@@ -45,5 +45,5 @@ def to_torch(a: zu.typing.Array) -> torch.Tensor:
     elif isinstance(a, np.ndarray):
         result = torch.from_numpy(a)
     else:
-        assert False, "Type checking error"
+        assert False, "Type checking error"  # pragma: no cover
     return result

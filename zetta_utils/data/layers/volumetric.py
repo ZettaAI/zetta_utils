@@ -27,6 +27,40 @@ StandardVolumetricIndex = Tuple[
 ]
 
 
+def translate_volumetric_index(  # pylint: disable=missing-docstring
+    idx: VolumetricIndex,
+    offset: Tuple[int, int, int],
+    offset_resolution: zu.bcube.VolumetricResolution = None,
+) -> VolumetricIndex:
+    if isinstance(idx, zu.bcube.BoundingCube):  # [bcube] indexing
+        if offset_resolution is None:
+            offset_resolution = (1, 1, 1)
+        result = idx.translate(offset, offset_resolution)  # type: VolumetricIndex
+    elif isinstance(
+        idx[-1], zu.bcube.BoundingCube
+    ):  # [bcube,] or [resolution, bcube] indexing
+        if offset_resolution is None:
+            offset_resolution = (1, 1, 1)
+        bcube = idx[-1].translate(offset, offset_resolution)
+        if len(idx) == 2:
+            result = (idx[0], bcube)  # type: ignore # doens't know idx[0] == resolution
+        else:
+            assert len(idx) == 1, "Type checker error."
+            result = (bcube,)
+    else:
+        x_slice = slice(idx[-3].start + offset[0], idx[-3].stop + offset[0])
+        y_slice = slice(idx[-2].start + offset[1], idx[-2].stop + offset[1])
+        z_slice = slice(idx[-1].start + offset[2], idx[-1].stop + offset[2])
+
+        if len(idx) == 4:  # [resolution, x_slice, y_slice, z_slice] indexing
+            result = (idx[0], x_slice, y_slice, z_slice)  # type: ignore
+        else:
+            assert len(idx) == 3, "Type checker error."
+            result = (x_slice, y_slice, z_slice)
+
+    return result
+
+
 @typechecked
 def _standardize_vol_idx(
     in_idx: VolumetricIndex,
@@ -44,10 +78,6 @@ def _standardize_vol_idx(
             resolution = in_idx[0]  # type: ignore
         elif len(in_idx) != 1:  # not [bcube, ]
             raise ValueError(f"Malformed volumetric index '{in_idx}'")
-    elif isinstance(
-        in_idx[-1], str
-    ):  # [resolution, start_coord, end_coord] or [start_coord, end_coord] indexing
-        raise NotImplementedError()
     else:
         if index_resolution is None:
             raise ValueError(
@@ -55,12 +85,12 @@ def _standardize_vol_idx(
                 "index used without `index_resolution` provided."
             )
 
-        if len(in_idx) == 4:  # [resolution, z_slice, y_slice, x_slice] indexing
+        if len(in_idx) == 4:  # [resolution, x_slice, y_slice, z_slice] indexing
             resolution = in_idx[0]  # type: ignore
             bcube = zu.bcube.BoundingCube(
                 slices=in_idx[1:], resolution=index_resolution  # type: ignore
             )
-        elif len(in_idx) == 3:  # [z_slice, y_slice, x_slice] indexing
+        elif len(in_idx) == 3:  # [x_slice, y_slice, z_slice] indexing
             bcube = zu.bcube.BoundingCube(
                 slices=in_idx, resolution=index_resolution  # type: ignore
             )  # pylint: disable=line-too-long

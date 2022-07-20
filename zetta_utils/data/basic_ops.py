@@ -29,7 +29,7 @@ def int_divide(data, x):  # pragma: no cover
 
 @typechecked
 def unsqueeze(
-    data: zu.typing.Array, dim: Union[SupportsIndex, Tuple[SupportsIndex, ...]]
+    data: zu.typing.Array, dim: Union[SupportsIndex, Tuple[SupportsIndex, ...]] = 0
 ) -> zu.typing.Array:
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int):
@@ -58,10 +58,7 @@ def squeeze(
                 f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'"
             )
     elif isinstance(data, np.ndarray):
-        if dim is not None:
-            result = data.squeeze(dim)
-        else:
-            raise ValueError(f"Cannot use `np.squeeze` with dim of type '{type(dim)}'")
+        result = data.squeeze(axis=dim)  # type: ignore # mypy doesn't see None is Ok
     else:
         assert False, "Type checking failure"  # pragma: no cover
 
@@ -108,7 +105,7 @@ def interpolate(
             or (isinstance(scale_factor, list) and sum([i < 1.0 for i in scale_factor]))
             > 0
         ):
-            raise NotImplementedError()
+            raise NotImplementedError()  # pragma: no cover
     else:
         interp_mode = mode
 
@@ -178,12 +175,16 @@ def compare(
         assert False, "Type checker failure."  # pragma: no cover
 
     if binarize:
+        if fill is not None:
+            raise ValueError("`fill` must be set to None when `binarize` == True")
+
         result = mask
     else:
         if fill is None:
             raise ValueError(
                 "`fill` must be set to a floating point value when `binarize` == False"
             )
+        result = data
         result[mask] = fill
 
     return result

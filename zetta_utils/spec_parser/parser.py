@@ -13,7 +13,7 @@ RECURSE_KEY = "_recursive_parse"
 def register(name: str, versions=None) -> Callable:
     """Decorator for registering classes to be buildable through a spec."""
     if versions is not None:
-        raise NotImplementedError()  # pragma: no test
+        raise NotImplementedError()  # pragma: no cover
 
     def register_fn(cls):
         REGISTRY[name] = cls

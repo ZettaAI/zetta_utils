@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring, no-else-raise
 from __future__ import annotations
 import copy
 
@@ -25,11 +25,8 @@ class BoundingCube:
         start_coord: Optional[VolumetricCoord] = None,
         end_coord: Optional[VolumetricCoord] = None,
         unit_name: str = "nm",
-        resolution: Optional[VolumetricResolution] = None,
+        resolution: VolumetricResolution = (1, 1, 1),
     ):
-        if resolution is None:
-            resolution = (1, 1, 1)
-
         self.x_range = (0, 0)
         self.y_range = (0, 0)
         self.z_range = (0, 0)
@@ -84,7 +81,7 @@ class BoundingCube:
         if isinstance(start_coord, str):
             start_coord_int = tuple(int(i) for i in start_coord.split(","))
         else:
-            start_coord_int = start_coord  #
+            start_coord_int = start_coord
 
         if isinstance(end_coord, str):
             end_coord_int = tuple(int(i) for i in end_coord.split(","))
@@ -93,7 +90,8 @@ class BoundingCube:
 
         if len(start_coord_int) != 3:
             raise ValueError(f"Invalid `start_coord`: {start_coord_int}")
-        if len(start_coord_int) != 3:
+
+        if len(end_coord_int) != 3:
             raise ValueError(f"Invalid `end_coord`: {end_coord_int}")
 
         self.x_range = (
@@ -147,30 +145,52 @@ class BoundingCube:
         y_pad: int = 0,
         z_pad: int = 0,
         in_place: bool = False,
-        resolution: Optional[VolumetricResolution] = None,
-    ) -> Optional[BoundingCube]:
+        resolution: VolumetricResolution = (1, 1, 1),
+    ) -> BoundingCube:
         """Pads the bounding box. Pad values are measured by the given resolution.
         if not provided, resolution defaults to (1, 1, 1)"""
-        if resolution is None:
-            resolution = (1, 1, 1)
-
         if in_place:
-            raise NotImplementedError()
+            raise NotImplementedError  # pragma: no cover
+        else:
+            result = BoundingCube(
+                start_coord=(
+                    self.x_range[0] - x_pad * resolution[0],
+                    self.y_range[0] - y_pad * resolution[1],
+                    self.z_range[0] - z_pad * resolution[2],
+                ),
+                end_coord=(
+                    self.x_range[1] + x_pad * resolution[0],
+                    self.y_range[1] + y_pad * resolution[1],
+                    self.z_range[1] + z_pad * resolution[2],
+                ),
+                resolution=(1, 1, 1),
+                unit_name=self.unit_name,
+            )
+        return result
 
-        result = BoundingCube(
-            start_coord=(
-                self.x_range[0] - x_pad * resolution[0],
-                self.y_range[0] - y_pad * resolution[1],
-                self.z_range[0] - z_pad * resolution[2],
-            ),
-            end_coord=(
-                self.x_range[1] + x_pad * resolution[0],
-                self.y_range[1] + y_pad * resolution[1],
-                self.z_range[1] + z_pad * resolution[2],
-            ),
-            resolution=(1, 1, 1),
-            unit_name=self.unit_name,
-        )
+    def translate(
+        self,
+        offset: Tuple[int, int, int],
+        resolution: VolumetricResolution = (1, 1, 1),
+        in_place: bool = False,
+    ) -> BoundingCube:
+        if in_place:
+            raise NotImplementedError  # pragma: no cover
+        else:
+            result = BoundingCube(
+                start_coord=(
+                    self.x_range[0] - offset[0] * resolution[0],
+                    self.y_range[0] - offset[1] * resolution[1],
+                    self.z_range[0] - offset[2] * resolution[2],
+                ),
+                end_coord=(
+                    self.x_range[1] + offset[0] * resolution[0],
+                    self.y_range[1] + offset[1] * resolution[1],
+                    self.z_range[1] + offset[2] * resolution[2],
+                ),
+                resolution=(1, 1, 1),
+                unit_name=self.unit_name,
+            )
         return result
 
     def clone(self) -> BoundingCube:  # pragma: no cover
@@ -179,7 +199,7 @@ class BoundingCube:
     def copy(self) -> BoundingCube:  # pragma: no cover
         return self.clone()
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return (
             "BoundingCube("
             f"z: {self.z_range[0]}-{self.z_range[1]}, "

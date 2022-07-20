@@ -6,8 +6,12 @@ import zetta_utils as zu
 
 Array = zu.typing.Array
 
-TorchInterpolationModes = zu.data.basic_ops.TorchInterpolationModes
-CustomInterpolationModes = zu.data.basic_ops.CustomInterpolationModes
-InterpolationModes = zu.data.basic_ops.InterpolationModes
+TorchInterpolationMode = zu.data.basic_ops.TorchInterpolationMode
+CustomInterpolationMode = zu.data.basic_ops.CustomInterpolationMode
+InterpolationMode = zu.data.basic_ops.InterpolationMode
+CompareMode = zu.data.basic_ops.CompareMode
 
-DimOrder = zu.data.layers.volumetric.DimOrder
+VolumetricResolution = zu.bcube.VolumetricResolution
+VolumetricCoord = zu.bcube.VolumetricCoord
+VolumetricSlices = zu.bcube.VolumetricSlices
+VolumetricDimOrder = zu.data.layers.volumetric.VolumetricDimOrder

@@ -4,8 +4,7 @@ raw data from a different MIP, followed by (up/down)sampling."""
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from typing import Literal, Union, Optional, List
+from typing import Literal, Union, Optional, Tuple
 import cachetools  # type: ignore
 import numpy as np
 import cloudvolume as cv  # type: ignore
@@ -15,33 +14,35 @@ from typeguard import typechecked
 import zetta_utils as zu
 from zetta_utils.data.layers.common import BaseLayer
 
+VolumetricIndex = Union[
+    zu.bcube.BoundingCube,
+    Tuple[zu.bcube.BoundingCube],
+    Tuple[slice, slice, slice],
+    Tuple[Optional[zu.bcube.VolumetricResolution], zu.bcube.BoundingCube],
+    Tuple[Optional[zu.bcube.VolumetricResolution], slice, slice, slice],
+]
+
+StandardVolumetricIndex = Tuple[
+    Optional[zu.bcube.VolumetricResolution], zu.bcube.BoundingCube
+]
+
 
 @typechecked
-@dataclass
-class VolumetricIndex:
-    """Index for volumetric layers."""
+def _standardize_vol_idx(
+    in_idx: VolumetricIndex,
+    index_resolution: Optional[zu.bcube.VolumetricResolution] = None,
+) -> StandardVolumetricIndex:
+    resolution = None  # type: Optional[zu.bcube.VolumetricResolution]
 
-    resolution: Optional[List[int]]  # The read/write resolution
-    bcube: zu.bcube.BoundingCube  # Spatial Bounding Cube
-
-
-@typechecked
-def _convert_to_vol_idx(
-    in_idx: Union[VolumetricIndex, list], index_resolution: Optional[List[int]] = None
-) -> VolumetricIndex:
-    if isinstance(in_idx, VolumetricIndex):
-        return in_idx
-
-    bcube = None
-    resolution = None
-
-    if isinstance(
+    if isinstance(in_idx, zu.bcube.BoundingCube):
+        bcube = in_idx  # [bcube] indexing
+    elif isinstance(
         in_idx[-1], zu.bcube.BoundingCube
-    ):  # [bcube] or [resolution, bcube] indexing
+    ):  # [bcube,] or [resolution, bcube] indexing
         bcube = in_idx[-1]
         if len(in_idx) == 2:  # [resolution, bcube]
-            resolution = in_idx[0]
-        elif len(in_idx) != 1:  # not [bcube]
+            resolution = in_idx[0]  # type: ignore
+        elif len(in_idx) != 1:  # not [bcube, ]
             raise ValueError(f"Malformed volumetric index '{in_idx}'")
     elif isinstance(
         in_idx[-1], str
@@ -55,15 +56,16 @@ def _convert_to_vol_idx(
             )
 
         if len(in_idx) == 4:  # [resolution, z_slice, y_slice, x_slice] indexing
-            resolution = in_idx[0]
+            resolution = in_idx[0]  # type: ignore
             bcube = zu.bcube.BoundingCube(
-                slices=in_idx[1:], resolution=index_resolution
+                slices=in_idx[1:], resolution=index_resolution  # type: ignore
             )
-        elif len(in_idx) == 3:  # [z_slice, y_slice, x_slice] or
-            bcube = zu.bcube.BoundingCube(slices=in_idx, resolution=index_resolution)
+        elif len(in_idx) == 3:  # [z_slice, y_slice, x_slice] indexing
+            bcube = zu.bcube.BoundingCube(
+                slices=in_idx, resolution=index_resolution  # type: ignore
+            )  # pylint: disable=line-too-long
 
-    # mypy doesn't see that bcube is always not None
-    return VolumetricIndex(bcube=bcube, resolution=resolution)  # type: ignore
+    return (resolution, bcube)
 
 
 @typechecked
@@ -72,9 +74,9 @@ class VolumetricLayer(BaseLayer):
 
     def __init__(
         self,
-        index_resolution: List[int] = None,
-        data_resolution: Optional[List[int]] = None,
-        interpolation_mode: Optional[zu.data.basic_ops.InterpolationModes] = None,
+        index_resolution: Optional[zu.bcube.VolumetricResolution] = None,
+        data_resolution: Optional[zu.bcube.VolumetricResolution] = None,
+        interpolation_mode: Optional[zu.data.basic_ops.InterpolationMode] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -83,18 +85,18 @@ class VolumetricLayer(BaseLayer):
         self.index_resolution = index_resolution
         self.interpolation_mode = interpolation_mode
 
-    def _write(self, idx: Union[VolumetricIndex, list], value) -> None:
+    def _write(self, idx: VolumetricIndex, value) -> None:
         # self._write_volume(idx, value)
         raise NotImplementedError()
 
-    def __getitem__(self, in_idx: Union[VolumetricIndex, list]) -> zu.typing.Array:
-        idx = _convert_to_vol_idx(in_idx, index_resolution=self.index_resolution)
+    def __getitem__(self, in_idx: VolumetricIndex) -> zu.typing.Array:
+        idx = _standardize_vol_idx(in_idx, index_resolution=self.index_resolution)
         result = self.read(idx)
         return result
 
-    def _read(self, idx: VolumetricIndex) -> zu.typing.Array:
+    def _read(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
         """Handles data resolution redirection and rescaling."""
-        read_resolution = idx.resolution
+        read_resolution, bcube = idx
         # If the user didn't specify read resolution in the idnex, we
         # take the data resolution as the read resolution. If data
         # resolution is also None, we take the indexing resolution as
@@ -111,8 +113,8 @@ class VolumetricLayer(BaseLayer):
         if data_resolution is None:
             data_resolution = read_resolution
 
-        idx.resolution = data_resolution
-        vol_data = self._read_volume(idx)
+        final_idx = (data_resolution, bcube)
+        vol_data = self._read_volume(final_idx)
 
         if data_resolution != read_resolution:  # output rescaling needed
             if self.interpolation_mode is None:
@@ -126,12 +128,14 @@ class VolumetricLayer(BaseLayer):
 
         return result
 
-    def _read_volume(self, idx: VolumetricIndex) -> zu.typing.Array:
+    def _read_volume(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
         raise NotImplementedError(
             "`_read_volume` method not implemented for a volumetric layer type."
         )
 
-    def _write_volume(self, idx: VolumetricIndex, value: zu.typing.Array) -> None:
+    def _write_volume(
+        self, idx: StandardVolumetricIndex, value: zu.typing.Array
+    ) -> None:
         raise NotImplementedError(
             "`_write` method not implemented for a volumetric layer type."
         )
@@ -163,7 +167,7 @@ class CachedCloudVolume(CloudVolume):
         return super().__new__(cls, *args, **kwargs)
 
 
-DimOrder = Literal["xyzc", "cxyz"]
+VolumetricDimOrder = Literal["xyzc", "cxyz"]
 
 
 @typechecked
@@ -173,7 +177,7 @@ class CVLayer(VolumetricLayer):
     def __init__(
         self,
         cv_params: dict,
-        dim_order: DimOrder = "cxyz",
+        dim_order: VolumetricDimOrder = "cxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -190,24 +194,27 @@ class CVLayer(VolumetricLayer):
         self.dim_order = dim_order
 
     def _get_cv_at_resolution(
-        self, resolution: List[int]
+        self, resolution: zu.bcube.VolumetricResolution
     ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long
         result = CloudVolume(mip=resolution, **self.cv_params)
         return result
 
-    def _write_volume(self, idx: VolumetricIndex, value: zu.typing.Array) -> None:
+    def _write_volume(
+        self, idx: StandardVolumetricIndex, value: zu.typing.Array
+    ) -> None:
         raise NotImplementedError()
 
-    def _read_volume(self, idx: VolumetricIndex) -> zu.typing.Array:
-        if idx.resolution is None:
+    def _read_volume(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
+        resolution, bcube = idx
+        if resolution is None:
             raise ValueError(
                 "Attempting to read from a CVLayer without "
                 "specifying read resolution."
             )
-        cvol = self._get_cv_at_resolution(idx.resolution)
-        x_range = idx.bcube.get_x_range(x_res=idx.resolution[0])
-        y_range = idx.bcube.get_y_range(y_res=idx.resolution[1])
-        z_range = idx.bcube.get_z_range(z_res=idx.resolution[2])
+        cvol = self._get_cv_at_resolution(resolution)
+        x_range = bcube.get_x_range(x_res=resolution[0])
+        y_range = bcube.get_y_range(y_res=resolution[1])
+        z_range = bcube.get_z_range(z_res=resolution[2])
         raw_result = cvol[
             x_range[0] : x_range[1], y_range[0] : y_range[1], z_range[0] : z_range[1]
         ]

@@ -1,5 +1,5 @@
 # pylint: disable=all
-from typing import Union, Literal, List
+from typing import Union, Literal, List, SupportsIndex, Tuple, Optional
 import numpy as np
 import torch
 from typeguard import typechecked
@@ -15,12 +15,12 @@ def add(data, x):  # pragma: no cover
     return x * data
 
 
-def to_power(data, x):  # pragma: no cover
+def power(data, x):  # pragma: no cover
     return data ** x
 
 
 def divide(data, x):  # pragma: no cover
-    return data // x
+    return data / x
 
 
 def int_divide(data, x):  # pragma: no cover
@@ -28,9 +28,16 @@ def int_divide(data, x):  # pragma: no cover
 
 
 @typechecked
-def unsqueeze(data: zu.typing.Array, dim: int) -> zu.typing.Array:
+def unsqueeze(
+    data: zu.typing.Array, dim: Union[SupportsIndex, Tuple[SupportsIndex, ...]]
+) -> zu.typing.Array:
     if isinstance(data, torch.Tensor):
-        result = data.unsqueeze(dim)  # type: zu.typing.Array
+        if isinstance(dim, int):
+            result = data.unsqueeze(dim)  # type: zu.typing.Array
+        else:
+            raise ValueError(
+                f"Cannot use `torch.unsqueeze` with dim of type '{type(dim)}'"
+            )
     elif isinstance(data, np.ndarray):
         result = np.expand_dims(data, dim)
     else:
@@ -39,22 +46,44 @@ def unsqueeze(data: zu.typing.Array, dim: int) -> zu.typing.Array:
     return result
 
 
-TorchInterpolationModes = Union[
-    Literal["nearest"],
-    Literal["nearest-exact"],
-    Literal["linear"],
-    Literal["bilinear"],
-    Literal["bicubic"],
-    Literal["trilinear"],
-    Literal["area"],
+@typechecked
+def squeeze(
+    data: zu.typing.Array, dim: Union[SupportsIndex, Tuple[SupportsIndex, ...]] = None
+) -> zu.typing.Array:
+    if isinstance(data, torch.Tensor):
+        if isinstance(dim, int) or dim is None:
+            result = data.squeeze(dim)  # type: zu.typing.Array
+        else:
+            raise ValueError(
+                f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'"
+            )
+    elif isinstance(data, np.ndarray):
+        if dim is not None:
+            result = data.squeeze(dim)
+        else:
+            raise ValueError(f"Cannot use `np.squeeze` with dim of type '{type(dim)}'")
+    else:
+        assert False, "Type checking failure"  # pragma: no cover
+
+    return result
+
+
+TorchInterpolationMode = Literal[
+    "nearest",
+    "nearest-exact",
+    "linear",
+    "bilinear",
+    "bicubic",
+    "trilinear",
+    "area",
 ]
-CustomInterpolationModes = Union[
-    Literal["img"],
-    Literal["field"],
-    Literal["mask"],
-    Literal["segmentation"],
+CustomInterpolationMode = Literal[
+    "img",
+    "field",
+    "mask",
+    "segmentation",
 ]
-InterpolationModes = Union[TorchInterpolationModes, CustomInterpolationModes]
+InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 
 @typechecked
@@ -62,7 +91,7 @@ def interpolate(
     data: zu.typing.Array,
     size=None,
     scale_factor: Union[float, List[float]] = None,
-    mode: InterpolationModes = "img",
+    mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
 ):
 
@@ -105,5 +134,56 @@ def interpolate(
         result = zu.data.convert.to_np(raw_result)
     else:
         assert False, "Type checker error."  # pragma: no cover
+
+    return result
+
+
+CompareMode = Literal[
+    "eq",
+    "==",
+    "noeq",
+    "!=",
+    "gt",
+    ">",
+    "gte",
+    ">=",
+    "lt",
+    "<",
+    "lte",
+    "<=",
+]
+
+
+@typechecked
+def compare(
+    data: zu.typing.Array,
+    mode: CompareMode,
+    operand: float,
+    binarize: bool = True,
+    fill: Optional[float] = None,
+):
+    if mode in ["eq", "=="]:
+        mask = data == operand
+    elif mode in ["neq", "!="]:
+        mask = data != operand
+    elif mode in ["gt", ">"]:
+        mask = data > operand
+    elif mode in ["gte", ">="]:
+        mask = data >= operand
+    elif mode in ["lt", "<"]:
+        mask = data < operand
+    elif mode in ["lte", "<="]:
+        mask = data <= operand
+    else:
+        assert False, "Type checker failure."  # pragma: no cover
+
+    if binarize:
+        result = mask
+    else:
+        if fill is None:
+            raise ValueError(
+                "`fill` must be set to a floating point value when `binarize` == False"
+            )
+        result[mask] = fill
 
     return result

@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 from typing import Literal, Union, Optional, List
 import cachetools  # type: ignore
+import numpy as np
 import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume  # type: ignore
 from typeguard import typechecked
@@ -170,6 +171,7 @@ class CVLayer(VolumetricLayer):
     def __init__(
         self,
         cv_params: dict,
+        dim_order: Union[Literal["xyzc"], Literal["cxyz"]] = "cxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -183,6 +185,7 @@ class CVLayer(VolumetricLayer):
         self.cv_params.setdefault("fill_missing", True)
         self.cv_params.setdefault("delete_black_uploads", True)
         self.cv_params.setdefault("agglomerate", True)
+        self.dim_order = dim_order
 
     def _get_cv_at_resolution(
         self, resolution: List[int]
@@ -203,8 +206,11 @@ class CVLayer(VolumetricLayer):
         x_range = idx.bcube.get_x_range(x_res=idx.resolution[0])
         y_range = idx.bcube.get_y_range(y_res=idx.resolution[1])
         z_range = idx.bcube.get_z_range(z_res=idx.resolution[2])
-        result = cvol[
+        raw_result = cvol[
             x_range[0] : x_range[1], y_range[0] : y_range[1], z_range[0] : z_range[1]
         ]
-
+        if self.dim_order == "cxyz":
+            result = np.transpose(raw_result, (3, 0, 1, 2))
+        elif self.dim_order == "xyzc":
+            result = raw_result
         return result

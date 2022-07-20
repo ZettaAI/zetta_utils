@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring
 import pathlib
-from typing import List, Union
+from typing import List, Union, Literal
 
 import pytest
 import numpy as np
@@ -63,6 +63,7 @@ def build_cvl(
     readonly: bool = False,
     data_resolution: List[int] = None,
     index_resolution: List[int] = None,
+    dim_order: Literal["cxyz", "xyzc"] = "xyzc",
 ):
     if index_resolution is None:
         index_resolution = [4, 4, 40]
@@ -71,6 +72,7 @@ def build_cvl(
         index_resolution=index_resolution,
         data_resolution=data_resolution,
         readonly=readonly,
+        dim_order=dim_order,
     )
 
 
@@ -86,10 +88,15 @@ BCUBE_X1 = BoundingCube(slices=SLICES_X1, resolution=[4, 4, 40])
     "cvl, idx, reference_npy_path",
     [
         [
-            build_fafb_cvl(),
+            build_fafb_cvl(dim_order="xyzc"),
             VolumetricIndex(resolution=[64, 64, 40], bcube=BCUBE_X1),
-            TEST_DATA_PATH / "reference/fafb_64nm_x1.npy",
-        ]
+            TEST_DATA_PATH / "reference/fafb_64nm_x1_xyzc.npy",
+        ],
+        [
+            build_fafb_cvl(dim_order="cxyz"),
+            VolumetricIndex(resolution=[64, 64, 40], bcube=BCUBE_X1),
+            TEST_DATA_PATH / "reference/fafb_64nm_x1_cxyz.npy",
+        ],
     ],
 )
 def test_cv_layer_read(cvl: CVLayer, idx: VolumetricIndex, reference_npy_path: str):

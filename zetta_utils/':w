@@ -52,7 +52,7 @@ class BoundingCube:
                 )
             self.set_to_coords(start_coord, end_coord, resolution)
 
-    def set_to_slices(self, slices: zu.typing.Slice3D, resolution: zu.typing.Vec3D):
+    def set_to_slices(self, slices: zu.typing.Slice3D, resolution: zu.typing.Slice3D):
         assert len(slices) == 3
         for s in slices:
             assert s.step is None
@@ -143,12 +143,12 @@ class BoundingCube:
         y_pad: int = 0,
         z_pad: int = 0,
         in_place: bool = False,
-        resolution: zu.typing.Vec3D = (1, 1, 1),
+        resolution: VolumetricResolution = (1, 1, 1),
     ) -> BoundingCube:
         """Pads the bounding box. Pad values are measured by the given resolution.
         if not provided, resolution defaults to (1, 1, 1)"""
         if in_place:
-            raise NotImplementedError  # pragma: no cover
+            raise NotImplementedError # pragma: no cover
         else:
             result = BoundingCube(
                 start_coord=(
@@ -168,18 +168,18 @@ class BoundingCube:
 
     def translate(
         self,
-        offset: zu.typing.Vec3D,
-        resolution: zu.typing.Vec3D = (1, 1, 1),
+        offset: Tuple[int, int, int],
+        resolution: VolumetricResolution = (1, 1, 1),
         in_place: bool = False,
     ) -> BoundingCube:
         if in_place:
-            raise NotImplementedError  # pragma: no cover
+            raise NotImplementedError # pragma: no cover
         else:
             result = BoundingCube(
                 start_coord=(
-                    self.x_range[0] + offset[0] * resolution[0],
-                    self.y_range[0] + offset[1] * resolution[1],
-                    self.z_range[0] + offset[2] * resolution[2],
+                    self.x_range[0] - offset[0] * resolution[0],
+                    self.y_range[0] - offset[1] * resolution[1],
+                    self.z_range[0] - offset[2] * resolution[2],
                 ),
                 end_coord=(
                     self.x_range[1] + offset[0] * resolution[0],
@@ -197,7 +197,7 @@ class BoundingCube:
     def copy(self) -> BoundingCube:  # pragma: no cover
         return self.clone()
 
-    def __repr__(self) -> str:  # pragma: no cover
+    def __repr__(self) -> str: # pragma: no cover
         return (
             "BoundingCube("
             f"z: {self.z_range[0]}-{self.z_range[1]}, "

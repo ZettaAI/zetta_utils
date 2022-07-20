@@ -17,20 +17,18 @@ from zetta_utils.data.layers.common import BaseLayer
 VolumetricIndex = Union[
     zu.bcube.BoundingCube,
     Tuple[zu.bcube.BoundingCube],
-    Tuple[slice, slice, slice],
-    Tuple[Optional[zu.bcube.VolumetricResolution], zu.bcube.BoundingCube],
-    Tuple[Optional[zu.bcube.VolumetricResolution], slice, slice, slice],
+    zu.typing.Slice3D,
+    Tuple[Optional[zu.typing.Vec3D], zu.bcube.BoundingCube],
+    Tuple[Optional[zu.typing.Vec3D], slice, slice, slice],
 ]
 
-StandardVolumetricIndex = Tuple[
-    Optional[zu.bcube.VolumetricResolution], zu.bcube.BoundingCube
-]
+StandardVolumetricIndex = Tuple[Optional[zu.typing.Vec3D], zu.bcube.BoundingCube]
 
 
 def translate_volumetric_index(  # pylint: disable=missing-docstring
     idx: VolumetricIndex,
     offset: Tuple[int, int, int],
-    offset_resolution: zu.bcube.VolumetricResolution = None,
+    offset_resolution: zu.typing.Vec3D = None,
 ) -> VolumetricIndex:
     if isinstance(idx, zu.bcube.BoundingCube):  # [bcube] indexing
         if offset_resolution is None:
@@ -64,9 +62,9 @@ def translate_volumetric_index(  # pylint: disable=missing-docstring
 @typechecked
 def _standardize_vol_idx(
     in_idx: VolumetricIndex,
-    index_resolution: Optional[zu.bcube.VolumetricResolution] = None,
+    index_resolution: Optional[zu.typing.Vec3D] = None,
 ) -> StandardVolumetricIndex:
-    resolution = None  # type: Optional[zu.bcube.VolumetricResolution]
+    resolution = None  # type: Optional[zu.typing.Vec3D]
 
     if isinstance(in_idx, zu.bcube.BoundingCube):
         bcube = in_idx  # [bcube] indexing
@@ -104,8 +102,8 @@ class VolumetricLayer(BaseLayer):
 
     def __init__(
         self,
-        index_resolution: Optional[zu.bcube.VolumetricResolution] = None,
-        data_resolution: Optional[zu.bcube.VolumetricResolution] = None,
+        index_resolution: Optional[zu.typing.Vec3D] = None,
+        data_resolution: Optional[zu.typing.Vec3D] = None,
         interpolation_mode: Optional[zu.data.basic_ops.InterpolationMode] = None,
         **kwargs,
     ):
@@ -224,7 +222,7 @@ class CVLayer(VolumetricLayer):
         self.dim_order = dim_order
 
     def _get_cv_at_resolution(
-        self, resolution: zu.bcube.VolumetricResolution
+        self, resolution: zu.typing.Vec3D
     ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long
         result = CloudVolume(mip=resolution, **self.cv_params)
         return result

@@ -12,18 +12,38 @@ import zetta_utils as zu
 @typechecked
 def to_np(a: zu.typing.Array) -> npt.NDArray:
     """
-    Convert the given array to numpy.
+    Convert the given array to numpy.ndarray.
 
     Args:
         a (zu.types.Array): Input array.
 
     Returns:
-        npt.NDArray: Input array in numpy format.
+        npt.NDArray: Input array in numpy.ndarray format.
     """
     if isinstance(a, torch.Tensor):
-        return a.cpu().detach().numpy()
+        result = a.cpu().detach().numpy()
+    elif isinstance(a, np.ndarray):
+        result = a
+    else:
+        assert False, "Type checking error"
+    return result
 
-    if isinstance(a, np.ndarray):
-        return a
-    # else:
-    raise ValueError(f"Expected input of type {zu.typing.Array}, got {type(a)}")
+
+@typechecked
+def to_torch(a: zu.typing.Array) -> torch.Tensor:
+    """
+    Convert the given array to torch tensor.
+
+    Args:
+        a (zu.types.Array): Input array.
+
+    Returns:
+        torch.Tensor: Input array in torch tensro format.
+    """
+    if isinstance(a, torch.Tensor):
+        result = a
+    elif isinstance(a, np.ndarray):
+        result = torch.from_numpy(a)
+    else:
+        assert False, "Type checking error"
+    return result

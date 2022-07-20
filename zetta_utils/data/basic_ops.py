@@ -1,5 +1,5 @@
 # pylint: disable=all
-from typing import Union, Literal
+from typing import Union, Literal, List
 import numpy as np
 import torch
 from typeguard import typechecked
@@ -34,23 +34,25 @@ def unsqueeze(data: zu.typing.Array, dim: int) -> zu.typing.Array:
     elif isinstance(data, np.ndarray):
         result = np.expand_dims(data, dim)
     else:
-        assert False, "Type checking failure"
+        assert False, "Type checking failure"  # pragma: no cover
 
     return result
 
 
-PytorchInterpModes = Union[
+TorchInterpModes = Union[
     Literal["nearest"],
+    Literal["nearest-exact"],
     Literal["linear"],
     Literal["bilinear"],
     Literal["bicubic"],
     Literal["trilinear"],
     Literal["area"],
 ]
-CommonInterpModes = Union[
+CustomInterpModes = Union[
     Literal["img"],
     Literal["field"],
     Literal["mask"],
+    Literal["segmentation"],
 ]
 
 
@@ -58,7 +60,49 @@ CommonInterpModes = Union[
 def interpolate(
     data: zu.typing.Array,
     size=None,
-    scale_factor=None,
-    mode: Union[PytorchInterpModes, CommonInterpModes] = "img",
+    scale_factor: Union[float, List[float]] = None,
+    mode: Union[TorchInterpModes, CustomInterpModes] = "img",
+    mask_value_thr: float = 0,
 ):
-    pass
+
+    data_in = zu.data.convert.to_torch(data).float()
+    if mode == "img" or mode == "field":
+        interp_mode = "bilinear"
+    elif mode == "mask":
+        interp_mode = "area"
+    elif mode == "segmentation":
+        interp_mode = "nearest-exact"
+        if (
+            scale_factor is None
+            or (isinstance(scale_factor, float) and scale_factor < 1.0)
+            or (isinstance(scale_factor, list) and sum([i < 1.0 for i in scale_factor]))
+            > 0
+        ):
+            raise NotImplementedError()
+    else:
+        interp_mode = mode
+
+    raw_result = torch.nn.functional.interpolate(
+        data_in,
+        size=size,
+        scale_factor=scale_factor,
+        mode=interp_mode,
+    )
+
+    if mode == "field":
+        assert scale_factor is not None
+        assert isinstance(scale_factor, float)
+        raw_result *= scale_factor
+    elif mode == "mask":
+        raw_result = raw_result > mask_value_thr
+    elif mode == "segmentation":
+        raw_result = raw_result.int()
+
+    if isinstance(data, torch.Tensor):
+        result = zu.data.convert.to_torch(raw_result)  # type: zu.typing.Array
+    elif isinstance(data, np.ndarray):
+        result = zu.data.convert.to_np(raw_result)
+    else:
+        assert False, "Type checker error."  # pragma: no cover
+
+    return result

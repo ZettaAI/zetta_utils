@@ -1,9 +1,11 @@
 # pylint: disable=missing-docstring
 import pathlib
-from typing import List, Union, Literal
+from typing import List, Union
 
 import pytest
 import numpy as np
+
+import zetta_utils as zu
 
 from zetta_utils.data.layers.volumetric import (
     VolumetricIndex,
@@ -63,7 +65,7 @@ def build_cvl(
     readonly: bool = False,
     data_resolution: List[int] = None,
     index_resolution: List[int] = None,
-    dim_order: Literal["cxyz", "xyzc"] = "xyzc",
+    dim_order: zu.types.DimOrder = "xyzc",
 ):
     if index_resolution is None:
         index_resolution = [4, 4, 40]

@@ -7,3 +7,4 @@ from . import data
 from . import bcube
 from . import viz
 from . import widgets
+from . import types

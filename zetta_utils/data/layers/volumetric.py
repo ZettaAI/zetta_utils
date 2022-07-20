@@ -74,20 +74,14 @@ class VolumetricLayer(BaseLayer):
         self,
         index_resolution: List[int] = None,
         data_resolution: Optional[List[int]] = None,
-        rescaling_method: Optional[
-            Union[
-                Literal["img"],
-                Literal["mask"],
-                Literal["field"],
-            ]
-        ] = None,
+        interpolation_mode: Optional[zu.data.basic_ops.InterpolationModes] = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
 
         self.data_resolution = data_resolution
         self.index_resolution = index_resolution
-        self.rescaling_method = rescaling_method
+        self.interpolation_mode = interpolation_mode
 
     def _write(self, idx: Union[VolumetricIndex, list], value) -> None:
         # self._write_volume(idx, value)
@@ -121,6 +115,11 @@ class VolumetricLayer(BaseLayer):
         vol_data = self._read_volume(idx)
 
         if data_resolution != read_resolution:  # output rescaling needed
+            if self.interpolation_mode is None:
+                raise ValueError(
+                    "`data_resolution` differs from `read_resolution`, but "
+                    "`interpolation_method` is not set for the layer"
+                )
             raise NotImplementedError()
         # else:
         result = vol_data
@@ -164,6 +163,9 @@ class CachedCloudVolume(CloudVolume):
         return super().__new__(cls, *args, **kwargs)
 
 
+DimOrder = Literal["xyzc", "cxyz"]
+
+
 @typechecked
 class CVLayer(VolumetricLayer):
     """CloudVolume volumetric layer implementation."""
@@ -171,7 +173,7 @@ class CVLayer(VolumetricLayer):
     def __init__(
         self,
         cv_params: dict,
-        dim_order: Union[Literal["xyzc"], Literal["cxyz"]] = "cxyz",
+        dim_order: DimOrder = "cxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)

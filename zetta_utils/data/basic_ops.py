@@ -39,7 +39,7 @@ def unsqueeze(data: zu.typing.Array, dim: int) -> zu.typing.Array:
     return result
 
 
-TorchInterpModes = Union[
+TorchInterpolationModes = Union[
     Literal["nearest"],
     Literal["nearest-exact"],
     Literal["linear"],
@@ -48,12 +48,13 @@ TorchInterpModes = Union[
     Literal["trilinear"],
     Literal["area"],
 ]
-CustomInterpModes = Union[
+CustomInterpolationModes = Union[
     Literal["img"],
     Literal["field"],
     Literal["mask"],
     Literal["segmentation"],
 ]
+InterpolationModes = Union[TorchInterpolationModes, CustomInterpolationModes]
 
 
 @typechecked
@@ -61,7 +62,7 @@ def interpolate(
     data: zu.typing.Array,
     size=None,
     scale_factor: Union[float, List[float]] = None,
-    mode: Union[TorchInterpModes, CustomInterpModes] = "img",
+    mode: InterpolationModes = "img",
     mask_value_thr: float = 0,
 ):
 

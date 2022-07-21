@@ -31,9 +31,11 @@ jobs:
           python-version: 3.9.0
           architecture: x64
           cache: 'pip'
-      - name: Install dependencies
+      - name: Install Python dependencies
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pip install -e '.[all]'
+      - name: Install CUE
+        uses: cue-lang/setup-cue@v1
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}

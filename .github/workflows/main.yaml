@@ -35,7 +35,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pip install -e '.[all]'
       - name: Install CUE
-        uses: cue-lang/setup-cue@v1
+        uses: cue-lang/setup-cue
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}

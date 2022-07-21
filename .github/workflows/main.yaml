@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  install:
+  installation:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,22 +36,46 @@ jobs:
         run: pip install -e '.[all]'
   formatting:
     runs-on: ubuntu-latest
-    needs: ['install']
+    needs: ['installation']
     steps:
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
   testing:
     runs-on: ubuntu-latest
-    needs: ['install', 'formatting']
+    needs: ['installation']
     steps:
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pytest tests
   typechecking:
     runs-on: ubuntu-latest
-    needs: ['install', 'formatting']
+    needs: ['installation']
     steps:
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .

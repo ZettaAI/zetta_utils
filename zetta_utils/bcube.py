@@ -4,13 +4,31 @@ import copy
 
 from math import floor
 
-from typing import Tuple, Union, Optional
+from typing import Optional, Union
 from typeguard import typechecked
 
-import zetta_utils as zu
+from zetta_utils.typing import (
+    Coord3D,
+    Slice3D,
+    Vec3D,
+    Dim3D,
+    DimIdx3D,
+    Padding3D,
+    Number,
+)
 
 
-VolumetricCoord = Union[str, zu.typing.IntVec3D]
+def get_dim_idx(dim: Dim3D) -> DimIdx3D:  # pragma: no cover
+    if dim == "x":
+        result = 0  # type: DimIdx3D
+    elif dim == "y":
+        result = 1
+    elif dim == "z":
+        result = 2
+    else:
+        result = dim
+
+    return result
 
 
 @typechecked
@@ -19,15 +37,17 @@ class BoundingCube:
 
     def __init__(
         self,
-        slices: Optional[zu.typing.Slice3D] = None,
-        start_coord: Optional[VolumetricCoord] = None,
-        end_coord: Optional[VolumetricCoord] = None,
+        slices: Optional[Slice3D] = None,
+        start_coord: Optional[Coord3D] = None,
+        end_coord: Optional[Coord3D] = None,
         unit_name: str = "nm",
-        resolution: zu.typing.Vec3D = (1, 1, 1),
+        resolution: Vec3D = (1, 1, 1),
     ):
-        self.x_range = (0, 0)
-        self.y_range = (0, 0)
-        self.z_range = (0, 0)
+        self.ranges = (
+            (0.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        )
 
         self.unit_name = unit_name
 
@@ -52,114 +72,123 @@ class BoundingCube:
                 )
             self.set_to_coords(start_coord, end_coord, resolution)
 
-    def set_to_slices(self, slices: zu.typing.Slice3D, resolution: zu.typing.Vec3D):
-        assert len(slices) == 3
+    def set_to_slices(self, slices: Slice3D, resolution: Vec3D):
         for s in slices:
             assert s.step is None
 
-        self.x_range = (
-            slices[0].start * resolution[0],
-            slices[0].stop * resolution[0],
-        )
-        self.y_range = (
-            slices[1].start * resolution[1],
-            slices[1].stop * resolution[1],
-        )
-        self.z_range = (
-            slices[2].start * resolution[2],
-            slices[2].stop * resolution[2],
+        self.ranges = (
+            (slices[0].start * resolution[0], slices[0].stop * resolution[0]),
+            (slices[1].start * resolution[1], slices[1].stop * resolution[1]),
+            (slices[2].start * resolution[2], slices[2].stop * resolution[2]),
         )
 
     def set_to_coords(
         self,
-        start_coord: VolumetricCoord,
-        end_coord: VolumetricCoord,
-        resolution: zu.typing.Vec3D,
+        start_coord: Coord3D,
+        end_coord: Coord3D,
+        resolution: Vec3D,
     ):
         if isinstance(start_coord, str):
-            start_coord_int = tuple(int(i) for i in start_coord.split(","))
+            start_coord_ = tuple(float(i) for i in start_coord.split(","))
         else:
-            start_coord_int = start_coord
+            start_coord_ = start_coord
 
         if isinstance(end_coord, str):
-            end_coord_int = tuple(int(i) for i in end_coord.split(","))
+            end_coord_ = tuple(float(i) for i in end_coord.split(","))
         else:
-            end_coord_int = end_coord
+            end_coord_ = end_coord
 
-        if len(start_coord_int) != 3:
-            raise ValueError(f"Invalid `start_coord`: {start_coord_int}")
+        if len(start_coord_) != 3:
+            raise ValueError(f"Invalid `start_coord`: {start_coord_}")
 
-        if len(end_coord_int) != 3:
-            raise ValueError(f"Invalid `end_coord`: {end_coord_int}")
+        if len(end_coord_) != 3:
+            raise ValueError(f"Invalid `end_coord`: {end_coord_}")
 
-        self.x_range = (
-            start_coord_int[0] * resolution[0],
-            end_coord_int[0] * resolution[0],
-        )
-        self.y_range = (
-            start_coord_int[1] * resolution[1],
-            end_coord_int[1] * resolution[1],
-        )
-        self.z_range = (
-            start_coord_int[2] * resolution[2],
-            end_coord_int[2] * resolution[2],
+        self.ranges = (
+            (start_coord_[0] * resolution[0], end_coord_[0] * resolution[0]),
+            (start_coord_[1] * resolution[1], end_coord_[1] * resolution[1]),
+            (start_coord_[2] * resolution[2], end_coord_[2] * resolution[2]),
         )
 
     def __eq__(self, other) -> bool:
         return (
             isinstance(other, BoundingCube)
-            and (self.z_range == other.z_range)
-            and (self.y_range == other.y_range)
-            and (self.x_range == other.x_range)
+            and (self.ranges == other.ranges)
             and (self.unit_name == other.unit_name)
         )
 
-    def get_x_range(self, x_res: int = 1) -> Tuple[int, int]:
-        # scale_factor = 2 ** mip
-        # xl = int(round((self.m0_x[1] - self.m0_x[0]) / scale_factor))
-        # xs = floor(self.m0_x[0] / scale_factor)
-        # return [xs, xs + xl]
+    def get_slice(
+        self,
+        dim: Dim3D,
+        resolution: Union[Vec3D, Number],
+        allow_rounding: bool = False,
+    ) -> slice:
+        dim_idx = get_dim_idx(dim)
 
-        return (
-            floor(self.x_range[0] / x_res),
-            int(round(self.x_range[1] / x_res)),
-        )
+        if isinstance(resolution, (int, float)):
+            dim_res = resolution
+        else:
+            dim_res = resolution[dim_idx]
 
-    def get_y_range(self, y_res: int = 1) -> Tuple[int, int]:
-        return (
-            floor(self.y_range[0] / y_res),
-            int(round(self.y_range[1] / y_res)),
-        )
+        dim_range_start_raw = self.ranges[dim_idx][0] / dim_res
+        dim_range_end_raw = self.ranges[dim_idx][1] / dim_res
 
-    def get_z_range(self, z_res: int = 1) -> Tuple[int, int]:
-        return (
-            floor(self.z_range[0] / z_res),
-            int(round(self.z_range[1] / z_res)),
+        if not allow_rounding:
+            if dim_range_start_raw != round(dim_range_start_raw):
+                raise ValueError(
+                    f"{self} results in slice_start == "
+                    f"{dim_range_start_raw} along dimension {dim_idx} "
+                    f"at resolution == {resolution} while "
+                    "`allow_rounding` == False."
+                )
+            if dim_range_end_raw != round(dim_range_end_raw):
+                raise ValueError(
+                    f"{self} results in slice_end == "
+                    f"{dim_range_end_raw} along dimension {dim_idx} "
+                    f"at resolution == {resolution} while "
+                    "`allow_rounding` == False."
+                )
+        slice_length = int(round(dim_range_end_raw - dim_range_start_raw))
+        result = slice(
+            floor(dim_range_start_raw),
+            floor(dim_range_start_raw) + slice_length,
         )
+        return result
+
+    def get_slices(self, resolution: Vec3D, allow_rounding: bool = False) -> Slice3D:
+        result = (
+            self.get_slice(0, resolution[0], allow_rounding),
+            self.get_slice(1, resolution[1], allow_rounding),
+            self.get_slice(2, resolution[2], allow_rounding),
+        )
+        return result
 
     def pad(
         self,
-        x_pad: int = 0,
-        y_pad: int = 0,
-        z_pad: int = 0,
+        pad: Padding3D,
         in_place: bool = False,
-        resolution: zu.typing.Vec3D = (1, 1, 1),
+        resolution: Vec3D = (1, 1, 1),
     ) -> BoundingCube:
-        """Pads the bounding box. Pad values are measured by the given resolution.
-        if not provided, resolution defaults to (1, 1, 1)"""
         if in_place:
             raise NotImplementedError  # pragma: no cover
         else:
+            double_sided_pad = []
+            for i in pad:
+                if isinstance(i, (int, float)):
+                    double_sided_pad += [(i, i)]
+                else:
+                    double_sided_pad += [i]  # type: ignore
+
             result = BoundingCube(
                 start_coord=(
-                    self.x_range[0] - x_pad * resolution[0],
-                    self.y_range[0] - y_pad * resolution[1],
-                    self.z_range[0] - z_pad * resolution[2],
+                    self.ranges[0][0] - double_sided_pad[0][0] * resolution[0],
+                    self.ranges[1][0] - double_sided_pad[1][0] * resolution[1],
+                    self.ranges[2][0] - double_sided_pad[2][0] * resolution[2],
                 ),
                 end_coord=(
-                    self.x_range[1] + x_pad * resolution[0],
-                    self.y_range[1] + y_pad * resolution[1],
-                    self.z_range[1] + z_pad * resolution[2],
+                    self.ranges[0][1] + double_sided_pad[0][1] * resolution[0],
+                    self.ranges[1][1] + double_sided_pad[1][1] * resolution[1],
+                    self.ranges[2][1] + double_sided_pad[2][1] * resolution[2],
                 ),
                 resolution=(1, 1, 1),
                 unit_name=self.unit_name,
@@ -168,8 +197,8 @@ class BoundingCube:
 
     def translate(
         self,
-        offset: zu.typing.Vec3D,
-        resolution: zu.typing.Vec3D = (1, 1, 1),
+        offset: Vec3D,
+        resolution: Vec3D = (1, 1, 1),
         in_place: bool = False,
     ) -> BoundingCube:
         if in_place:
@@ -177,18 +206,19 @@ class BoundingCube:
         else:
             result = BoundingCube(
                 start_coord=(
-                    self.x_range[0] + offset[0] * resolution[0],
-                    self.y_range[0] + offset[1] * resolution[1],
-                    self.z_range[0] + offset[2] * resolution[2],
+                    self.ranges[0][0] + offset[0] * resolution[0],
+                    self.ranges[1][0] + offset[1] * resolution[1],
+                    self.ranges[2][0] + offset[2] * resolution[2],
                 ),
                 end_coord=(
-                    self.x_range[1] + offset[0] * resolution[0],
-                    self.y_range[1] + offset[1] * resolution[1],
-                    self.z_range[1] + offset[2] * resolution[2],
+                    self.ranges[0][1] + offset[0] * resolution[0],
+                    self.ranges[1][1] + offset[1] * resolution[1],
+                    self.ranges[2][1] + offset[2] * resolution[2],
                 ),
                 resolution=(1, 1, 1),
                 unit_name=self.unit_name,
             )
+
         return result
 
     def clone(self) -> BoundingCube:  # pragma: no cover
@@ -200,7 +230,7 @@ class BoundingCube:
     def __repr__(self) -> str:  # pragma: no cover
         return (
             "BoundingCube("
-            f"z: {self.z_range[0]}-{self.z_range[1]}, "
-            f"y: {self.y_range[0]}-{self.y_range[1]}{self.unit_name}, "
-            f"x: {self.x_range[0]}-{self.x_range[1]}{self.unit_name})"
+            f"x: {self.ranges[0][0]}-{self.ranges[0][1]}{self.unit_name}, "
+            f"y: {self.ranges[1][0]}-{self.ranges[1][1]}{self.unit_name}, "
+            f"z: {self.ranges[2][0]}-{self.ranges[2][1]}{self.unit_name})"
         )

@@ -13,22 +13,21 @@ from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.data.layers.common import BaseLayer
+from zetta_utils.typing import Array, Slice3D, Vec3D
 
 VolumetricIndex = Union[
     zu.bcube.BoundingCube,
-    Tuple[zu.bcube.BoundingCube],
-    zu.typing.Slice3D,
-    Tuple[Optional[zu.typing.Vec3D], zu.bcube.BoundingCube],
-    Tuple[Optional[zu.typing.Vec3D], slice, slice, slice],
+    Slice3D,
+    Tuple[Optional[Vec3D], zu.bcube.BoundingCube],
+    Tuple[Optional[Vec3D], slice, slice, slice],
 ]
-
-StandardVolumetricIndex = Tuple[Optional[zu.typing.Vec3D], zu.bcube.BoundingCube]
+StandardVolumetricIndex = Tuple[Optional[Vec3D], zu.bcube.BoundingCube]
 
 
 def translate_volumetric_index(  # pylint: disable=missing-docstring
     idx: VolumetricIndex,
     offset: Tuple[int, int, int],
-    offset_resolution: zu.typing.Vec3D = None,
+    offset_resolution: Optional[Vec3D] = None,
 ) -> VolumetricIndex:
     if isinstance(idx, zu.bcube.BoundingCube):  # [bcube] indexing
         if offset_resolution is None:
@@ -43,9 +42,13 @@ def translate_volumetric_index(  # pylint: disable=missing-docstring
         if len(idx) == 2:
             result = (idx[0], bcube)  # type: ignore # doens't know idx[0] == resolution
         else:
-            assert len(idx) == 1, "Type checker error."
-            result = (bcube,)
+            raise TypeError  # pragma: no cover
     else:
+        if offset_resolution is not None:
+            raise ValueError(
+                "`ofset_resoluiton` is not supported for slice-based index translation"
+            )
+
         x_slice = slice(idx[-3].start + offset[0], idx[-3].stop + offset[0])
         y_slice = slice(idx[-2].start + offset[1], idx[-2].stop + offset[1])
         z_slice = slice(idx[-1].start + offset[2], idx[-1].stop + offset[2])
@@ -62,9 +65,9 @@ def translate_volumetric_index(  # pylint: disable=missing-docstring
 @typechecked
 def _standardize_vol_idx(
     in_idx: VolumetricIndex,
-    index_resolution: Optional[zu.typing.Vec3D] = None,
+    index_resolution: Optional[Vec3D] = None,
 ) -> StandardVolumetricIndex:
-    resolution = None  # type: Optional[zu.typing.Vec3D]
+    resolution = None  # type: Optional[Vec3D]
 
     if isinstance(in_idx, zu.bcube.BoundingCube):
         bcube = in_idx  # [bcube] indexing
@@ -74,13 +77,13 @@ def _standardize_vol_idx(
         bcube = in_idx[-1]
         if len(in_idx) == 2:  # [resolution, bcube]
             resolution = in_idx[0]  # type: ignore
-        elif len(in_idx) != 1:  # not [bcube, ]
-            raise ValueError(f"Malformed volumetric index '{in_idx}'")
+        else:
+            raise TypeError  # pragma: no cover
     else:
         if index_resolution is None:
             raise ValueError(
-                "Attempting to convert slice based index to volumetric "
-                "index used without `index_resolution` provided."
+                "Attempting standardize slice based index to volumetric "
+                "index without providing `index_resolution`."
             )
 
         if len(in_idx) == 4:  # [resolution, x_slice, y_slice, z_slice] indexing
@@ -96,15 +99,19 @@ def _standardize_vol_idx(
     return (resolution, bcube)
 
 
+DimOrder3D = Literal["cxy", "bcxy", "cxyz", "bcxyz"]
+
+
 @typechecked
 class VolumetricLayer(BaseLayer):
     """Volumetric Layer."""
 
     def __init__(
         self,
-        index_resolution: Optional[zu.typing.Vec3D] = None,
-        data_resolution: Optional[zu.typing.Vec3D] = None,
+        index_resolution: Optional[Vec3D] = None,
+        data_resolution: Optional[Vec3D] = None,
         interpolation_mode: Optional[zu.data.basic_ops.InterpolationMode] = None,
+        dim_order: DimOrder3D = "cxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -112,17 +119,18 @@ class VolumetricLayer(BaseLayer):
         self.data_resolution = data_resolution
         self.index_resolution = index_resolution
         self.interpolation_mode = interpolation_mode
+        self.dim_order = dim_order
 
     def _write(self, idx: VolumetricIndex, value) -> None:
         # self._write_volume(idx, value)
-        raise NotImplementedError()
+        raise NotImplementedError  # pragma: no cover
 
-    def __getitem__(self, in_idx: VolumetricIndex) -> zu.typing.Array:
+    def __getitem__(self, in_idx: VolumetricIndex) -> Array:
         idx = _standardize_vol_idx(in_idx, index_resolution=self.index_resolution)
         result = self.read(idx)
         return result
 
-    def _read(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
+    def _read(self, idx: StandardVolumetricIndex) -> Array:
         """Handles data resolution redirection and rescaling."""
         read_resolution, bcube = idx
         # If the user didn't specify read resolution in the idnex, we
@@ -133,6 +141,10 @@ class VolumetricLayer(BaseLayer):
             if self.data_resolution is not None:
                 read_resolution = self.data_resolution
             else:
+                if self.index_resolution is None:
+                    raise ValueError(
+                        "Attempting to read without `index_resolution` specified."
+                    )
                 read_resolution = self.index_resolution
 
         # If data resolution is not specified for the volume, data will be
@@ -148,30 +160,47 @@ class VolumetricLayer(BaseLayer):
             if self.interpolation_mode is None:
                 raise ValueError(
                     "`data_resolution` differs from `read_resolution`, but "
-                    "`interpolation_method` is not set for the layer"
+                    "`interpolation_mode` is not set for the layer"
                 )
-            raise NotImplementedError()
-        # else:
-        result = vol_data
+            scale_factor = tuple(
+                data_resolution[i] / read_resolution[i] for i in range(3)
+            )
 
+            # if vol_data.ndim == 3:  # cxx
+            # elif vol_data.ndim == 4:  # cxxx
+            #    vol_data_in = np.expand_dims(vol_data, 0)  # type: Array
+            # else:  # bcxxx
+            #    vol_data_in = vol_data
+
+            result = zu.data.basic_ops.interpolate(
+                vol_data,
+                scale_factor=scale_factor,
+                mode=self.interpolation_mode,
+            )
+            if vol_data.ndim == 4:
+                result = result.squeeze(0)
+            # raise NotImplementedError
+        else:
+            result = vol_data
+
+        # import pdb; pdb.set_trace()
+        # print(result.shape)
         return result
 
-    def _read_volume(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
-        raise NotImplementedError(
+    def _read_volume(self, idx: StandardVolumetricIndex) -> Array:
+        raise NotImplementedError(  # pragma: no cover
             "`_read_volume` method not implemented for a volumetric layer type."
         )
 
-    def _write_volume(
-        self, idx: StandardVolumetricIndex, value: zu.typing.Array
-    ) -> None:
-        raise NotImplementedError(
+    def _write_volume(self, idx: StandardVolumetricIndex, value: Array) -> None:
+        raise NotImplementedError(  # pragma: no cover
             "`_write` method not implemented for a volumetric layer type."
         )
 
 
 def _jsonize_key(*args, **kwargs):
     result = ""
-    for a in args[1:]:
+    for a in args[1:]:  # pragma: no cover
         result += json.dumps(a)
         result += "_"
 
@@ -179,7 +208,7 @@ def _jsonize_key(*args, **kwargs):
     return result
 
 
-def _cv_is_cached(*kargs, **kwargs):
+def _cv_is_cached(*kargs, **kwargs):  # pragma: no cover
     key = _jsonize_key(*kargs, **kwargs)
     return key in cv_cache
 
@@ -195,9 +224,6 @@ class CachedCloudVolume(CloudVolume):
         return super().__new__(cls, *args, **kwargs)
 
 
-VolumetricDimOrder = Literal["xyzc", "cxyz"]
-
-
 @typechecked
 class CVLayer(VolumetricLayer):
     """CloudVolume volumetric layer implementation."""
@@ -205,7 +231,6 @@ class CVLayer(VolumetricLayer):
     def __init__(
         self,
         cv_params: dict,
-        dim_order: VolumetricDimOrder = "cxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -219,20 +244,17 @@ class CVLayer(VolumetricLayer):
         self.cv_params.setdefault("fill_missing", True)
         self.cv_params.setdefault("delete_black_uploads", True)
         self.cv_params.setdefault("agglomerate", True)
-        self.dim_order = dim_order
 
     def _get_cv_at_resolution(
-        self, resolution: zu.typing.Vec3D
+        self, resolution: Vec3D
     ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long
-        result = CloudVolume(mip=resolution, **self.cv_params)
+        result = CachedCloudVolume(mip=resolution, **self.cv_params)
         return result
 
-    def _write_volume(
-        self, idx: StandardVolumetricIndex, value: zu.typing.Array
-    ) -> None:
-        raise NotImplementedError()
+    def _write_volume(self, idx: StandardVolumetricIndex, value: Array) -> None:
+        raise NotImplementedError()  # pragma: no cover
 
-    def _read_volume(self, idx: StandardVolumetricIndex) -> zu.typing.Array:
+    def _read_volume(self, idx: StandardVolumetricIndex) -> Array:
         resolution, bcube = idx
         if resolution is None:
             raise ValueError(
@@ -240,14 +262,22 @@ class CVLayer(VolumetricLayer):
                 "specifying read resolution."
             )
         cvol = self._get_cv_at_resolution(resolution)
-        x_range = bcube.get_x_range(x_res=resolution[0])
-        y_range = bcube.get_y_range(y_res=resolution[1])
-        z_range = bcube.get_z_range(z_res=resolution[2])
-        raw_result = cvol[
-            x_range[0] : x_range[1], y_range[0] : y_range[1], z_range[0] : z_range[1]
-        ]
-        if self.dim_order == "cxyz":
+        slices = bcube.get_slices(resolution)
+        raw_result = cvol[slices]
+
+        if self.dim_order.endswith("cxy"):
             result = np.transpose(raw_result, (3, 0, 1, 2))
-        elif self.dim_order == "xyzc":
-            result = raw_result
+            if result.shape[-1] != 1:
+                raise ValueError(
+                    "Attempting to read multiple sections while "
+                    "the layer is configured to use 'cxy' (no z) "
+                    "dimension order."
+                )
+            result = result[..., 0]
+        elif self.dim_order.endswith("cxyz"):
+            result = np.transpose(raw_result, (3, 0, 1, 2))
+
+        if self.dim_order.endswith("cxy"):
+            result = np.expand_dims(result, 0)
+
         return result

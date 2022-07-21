@@ -83,18 +83,63 @@ CustomInterpolationMode = Literal[
 InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 
+def _standardize_scale_factor(
+    data_ndim: int,
+    scale_factor: Optional[Union[float, List[float], Tuple[float, ...]]] = None,
+    default_space_ndim: int = 2,
+) -> Optional[Tuple[float, ...]]:
+    if scale_factor is None:
+        result = None
+    else:
+        data_space_ndim = data_ndim - 2  # Batch + Channel
+        if isinstance(scale_factor, float):
+            result = (scale_factor,) * min(data_space_ndim, default_space_ndim)
+        else:
+            result = tuple(scale_factor)
+
+        while len(result) < data_space_ndim:
+            result = (1.0,) + result
+
+    return result
+
+
 @typechecked
 def interpolate(
     data: zu.typing.Array,
     size=None,
-    scale_factor: Union[float, List[float]] = None,
+    scale_factor: Optional[Union[float, List[float], Tuple[float, ...]]] = None,
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
+    default_space_ndim: int = 2,
 ):
+    scale_factor = _standardize_scale_factor(
+        data_ndim=data.ndim,
+        scale_factor=scale_factor,
+        default_space_ndim=default_space_ndim,
+    )
 
-    data_in = zu.data.convert.to_torch(data).float()
+    if scale_factor is not None:
+        spatial_ndim = len(scale_factor)
+    else:
+        if size is None:
+            raise ValueError(
+                "Neither `size` nor `scale_factor` provided to `interpolate()`"
+            )
+        spatial_ndim = len(size)
+
     if mode == "img" or mode == "field":
-        interp_mode = "bilinear"
+        if spatial_ndim == 3:
+            interp_mode = "trilinear"
+        elif spatial_ndim == 2:
+            interp_mode = "bilinear"
+        else:
+            if spatial_ndim != 1:
+                raise ValueError(
+                    f"Unsupported number of spatial dimensions with data.shape = {data.shape}, "
+                    f"scale_factor = {scale_factor}, size = {size}"
+                )
+            interp_mode = "linear"
+
     elif mode == "mask":
         interp_mode = "area"
     elif mode == "segmentation":
@@ -109,6 +154,7 @@ def interpolate(
     else:
         interp_mode = mode
 
+    data_in = zu.data.convert.to_torch(data).float()
     raw_result = torch.nn.functional.interpolate(
         data_in,
         size=size,
@@ -117,9 +163,27 @@ def interpolate(
     )
 
     if mode == "field":
-        assert scale_factor is not None
-        assert isinstance(scale_factor, float)
-        raw_result *= scale_factor
+        if scale_factor is None:
+            raise NotImplementedError(  # pragma: no cover
+                "`size`-based field interpolation is not currently supported."
+            )
+
+        if all(e == scale_factor[0] for e in scale_factor):
+            multiplier = scale_factor[0]
+        else:
+            raise NotImplementedError(  # pragma: no cover
+                "Non-isotropic field interpolation (scale_factor={scale_factor}) "
+                "is not currently supported."
+            )
+            # For when we support non-isotropic scale factor
+            # if raw_result.shape[1] != spatial_ndim:
+            #     raise ValueError(
+            #         f"Malformed field shape: {raw_result.shape}. Number "
+            #         f"of channels ({raw_result.shape[1]}) must be equal to "
+            #         f"the number of spatial dimensions ({spatial_ndim})."
+            #     )
+
+        raw_result *= multiplier
     elif mode == "mask":
         raw_result = raw_result > mask_value_thr
     elif mode == "segmentation":

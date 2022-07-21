@@ -3,7 +3,7 @@ from typing import Callable
 from functools import partial
 
 
-def func_to_proc(func: Callable) -> Callable:  # pragma: no cover
+def func_to_proc(func):  # pragma: no cover
     """Converting a vanilla function to buildable processor."""
 
     def wrapped(**kwargs):

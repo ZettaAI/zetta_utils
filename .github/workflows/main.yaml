@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  "Tests_and_Formatting_Checks":
+  "tests-and-formatting":
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

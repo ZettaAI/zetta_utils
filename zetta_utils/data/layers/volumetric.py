@@ -12,7 +12,7 @@ from cloudvolume import CloudVolume  # type: ignore
 from typeguard import typechecked
 
 import zetta_utils as zu
-from zetta_utils.data.layers.common import BaseLayer
+from zetta_utils.data.layers.common import Layer
 from zetta_utils.typing import Array, Slice3D, Vec3D
 
 VolumetricIndex = Union[
@@ -103,7 +103,7 @@ DimOrder3D = Literal["cxy", "bcxy", "cxyz", "bcxyz"]
 
 
 @typechecked
-class VolumetricLayer(BaseLayer):
+class VolumetricLayer(Layer):
     """Volumetric Layer."""
 
     def __init__(
@@ -111,7 +111,7 @@ class VolumetricLayer(BaseLayer):
         index_resolution: Optional[Vec3D] = None,
         data_resolution: Optional[Vec3D] = None,
         interpolation_mode: Optional[zu.data.basic_ops.InterpolationMode] = None,
-        dim_order: DimOrder3D = "cxyz",
+        dim_order: DimOrder3D = "bcxyz",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -142,8 +142,9 @@ class VolumetricLayer(BaseLayer):
                 read_resolution = self.data_resolution
             else:
                 if self.index_resolution is None:
-                    raise ValueError(
-                        "Attempting to read without `index_resolution` specified."
+                    raise RuntimeError(
+                        "Attempting to read with neither read resolution specified "
+                        "nor `index_resolution` specified for the volume."
                     )
                 read_resolution = self.index_resolution
 
@@ -155,31 +156,34 @@ class VolumetricLayer(BaseLayer):
 
         final_idx = (data_resolution, bcube)
         vol_data = self._read_volume(final_idx)
-
         if data_resolution != read_resolution:  # output rescaling needed
             if self.interpolation_mode is None:
-                raise ValueError(
+                raise RuntimeError(
                     "`data_resolution` differs from `read_resolution`, but "
-                    "`interpolation_mode` is not set for the layer"
+                    f"`interpolation_mode` == None for {self}."
                 )
-            scale_factor = tuple(
-                data_resolution[i] / read_resolution[i] for i in range(3)
-            )
+            if "b" not in self.dim_order:
+                raise RuntimeError(
+                    "Missing batch dimension: `data_resolution` differs from "
+                    "`read_resolution`, but "
+                    f"`dim_order` == '{self.dim_order}' for {self}. "
+                    f"Consider using '{'b' + self.dim_order}' to support interpolation."
+                )
 
-            # if vol_data.ndim == 3:  # cxx
-            # elif vol_data.ndim == 4:  # cxxx
-            #    vol_data_in = np.expand_dims(vol_data, 0)  # type: Array
-            # else:  # bcxxx
-            #    vol_data_in = vol_data
-
+            if self.dim_order.endswith("xyz"):
+                scale_factor = tuple(
+                    data_resolution[i] / read_resolution[i] for i in range(3)
+                )
+            else:
+                assert self.dim_order.endswith("xy")
+                scale_factor = tuple(
+                    data_resolution[i] / read_resolution[i] for i in range(2)
+                )
             result = zu.data.basic_ops.interpolate(
                 vol_data,
                 scale_factor=scale_factor,
                 mode=self.interpolation_mode,
             )
-            if vol_data.ndim == 4:
-                result = result.squeeze(0)
-            # raise NotImplementedError
         else:
             result = vol_data
 
@@ -256,11 +260,8 @@ class CVLayer(VolumetricLayer):
 
     def _read_volume(self, idx: StandardVolumetricIndex) -> Array:
         resolution, bcube = idx
-        if resolution is None:
-            raise ValueError(
-                "Attempting to read from a CVLayer without "
-                "specifying read resolution."
-            )
+        assert resolution is not None  # pragma: no test
+
         cvol = self._get_cv_at_resolution(resolution)
         slices = bcube.get_slices(resolution)
         raw_result = cvol[slices]
@@ -268,7 +269,7 @@ class CVLayer(VolumetricLayer):
         if self.dim_order.endswith("cxy"):
             result = np.transpose(raw_result, (3, 0, 1, 2))
             if result.shape[-1] != 1:
-                raise ValueError(
+                raise RuntimeError(
                     "Attempting to read multiple sections while "
                     "the layer is configured to use 'cxy' (no z) "
                     "dimension order."
@@ -277,7 +278,10 @@ class CVLayer(VolumetricLayer):
         elif self.dim_order.endswith("cxyz"):
             result = np.transpose(raw_result, (3, 0, 1, 2))
 
-        if self.dim_order.endswith("cxy"):
+        if self.dim_order.startswith("b"):
             result = np.expand_dims(result, 0)
 
         return result
+
+    def __repr__(self):
+        return f"CVLayer(cloudpath='{self.cv_params['cloudpath']}')"

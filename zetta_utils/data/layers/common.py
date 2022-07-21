@@ -2,20 +2,20 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Dict
+from typing import Dict, List, Tuple, Callable, Optional, Union
 from typeguard import typechecked
 
 
 @typechecked
-class BaseLayer:
+class Layer:
     """Base Layer class."""
 
     def __init__(
         self,
         index_range_specs: Dict = None,
-        readonly: bool = True,
-        read_index_adjs: list = None,
-        read_postprocs: list = None,
+        readonly: bool = False,
+        read_index_adjs: Optional[Union[List[Callable], Tuple[Callable, ...]]] = None,
+        read_postprocs: Optional[Union[List[Callable], Tuple[Callable, ...]]] = None,
     ):
         self.readonly = readonly
         self.index_range_specs = index_range_specs
@@ -29,7 +29,9 @@ class BaseLayer:
         self.postprocessors = read_postprocs
 
         if index_range_specs is not None:
-            raise NotImplementedError("Index range layer specs is not yet implemented.")
+            raise NotImplementedError(
+                "Index range layer specs is not yet implemented."
+            )  # pragma: no cover
 
     def write(self, idx, value):
         if self.readonly:
@@ -45,10 +47,16 @@ class BaseLayer:
         return res
 
     def _write(self, idx, value):
-        raise NotImplementedError("`_write` method not overriden for a layer type.")
+        raise NotImplementedError(
+            "`_write` method not overriden for a layer type."
+        )  # pragma: no cover
 
     def _read(self, idx):
-        raise NotImplementedError("`_read` method not overriden for a layer type.")
+        raise NotImplementedError(
+            "`_read` method not overriden for a layer type."
+        )  # pragma: no cover
 
     def __repr__(self):
-        raise NotImplementedError("`__repr__` method not overriden for a layer type.")
+        raise NotImplementedError(
+            "`__repr__` method not overriden for a layer type."
+        )  # pragma: no cover

@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 import numpy as np
 
-import zetta_utils as zu
+from zetta_utils.data import mask_ops
 
 
 def test_filter_cc_small():
@@ -23,7 +23,7 @@ def test_filter_cc_small():
         ]
     )
 
-    result = zu.data.masks.filter_cc(
+    result = mask_ops.filter_cc(
         a,
         mode="keep_small",
         thr=2,
@@ -50,7 +50,7 @@ def test_filter_cc_big():
         ]
     )
 
-    result = zu.data.masks.filter_cc(
+    result = mask_ops.filter_cc(
         a,
         mode="keep_large",
         thr=2,

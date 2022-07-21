@@ -1,5 +1,5 @@
 """Data utilities."""
 from . import convert
-from . import masks
+from . import mask_ops
 from . import basic_ops
 from . import layers

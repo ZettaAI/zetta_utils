@@ -25,7 +25,7 @@ from zetta_utils.data.basic_ops import (
 )
 
 
-from zetta_utils.data.layers.common import BaseLayer
+from zetta_utils.data.layers.common import Layer
 from zetta_utils.data.layers.volumetric import (
     DimOrder3D,
     VolumetricLayer,

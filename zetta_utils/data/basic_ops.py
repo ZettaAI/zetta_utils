@@ -111,6 +111,7 @@ def interpolate(
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     default_space_ndim: int = 2,
+    allow_shape_rounding: bool = False,
 ):
     scale_factor = _standardize_scale_factor(
         data_ndim=data.ndim,
@@ -120,6 +121,19 @@ def interpolate(
 
     if scale_factor is not None:
         spatial_ndim = len(scale_factor)
+        if not allow_shape_rounding:
+            result_spatial_shape = [
+                data.shape[2 + i] * scale_factor[i] for i in range(spatial_ndim)
+            ]
+            for i in range(spatial_ndim):
+                if round(result_spatial_shape[i]) != result_spatial_shape[i]:
+                    raise RuntimeError(
+                        f"Interpolation of array with shape {data.shape} and scale "
+                        "factor {scale_factor} would result in a non-integer shape "
+                        f"along spatial dimention {i} "
+                        f"({data.shape[2 + i]} -> {result_spatial_shape[i]}) while "
+                        "`allow_shape_rounding` == False ."
+                    )
     else:
         if size is None:
             raise ValueError(
@@ -134,7 +148,7 @@ def interpolate(
             interp_mode = "bilinear"
         else:
             if spatial_ndim != 1:
-                raise ValueError(
+                raise RuntimeError(
                     f"Unsupported number of spatial dimensions with data.shape = {data.shape}, "
                     f"scale_factor = {scale_factor}, size = {size}"
                 )
@@ -153,7 +167,6 @@ def interpolate(
             raise NotImplementedError()  # pragma: no cover
     else:
         interp_mode = mode
-
     data_in = zu.data.convert.to_torch(data).float()
     raw_result = torch.nn.functional.interpolate(
         data_in,

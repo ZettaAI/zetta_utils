@@ -2,7 +2,8 @@
 import pytest
 import numpy as np
 import torch
-import zetta_utils as zu
+
+from zetta_utils.data import basic_ops
 from .utils import assert_array_equal
 
 
@@ -17,7 +18,7 @@ from .utils import assert_array_equal
     ],
 )
 def test_unsqueeze(data, dim, expected_shape):
-    result = zu.data.basic_ops.unsqueeze(data, dim)
+    result = basic_ops.unsqueeze(data, dim)
     assert result.shape == expected_shape
 
 
@@ -29,7 +30,7 @@ def test_unsqueeze(data, dim, expected_shape):
 )
 def test_unsqueeze_exc(data, dim):
     with pytest.raises(ValueError):
-        zu.data.basic_ops.unsqueeze(data, dim)
+        basic_ops.unsqueeze(data, dim)
 
 
 @pytest.mark.parametrize(
@@ -43,7 +44,7 @@ def test_unsqueeze_exc(data, dim):
     ],
 )
 def test_squeeze(data, dim, expected_shape):
-    result = zu.data.basic_ops.squeeze(data, dim)
+    result = basic_ops.squeeze(data, dim)
     assert result.shape == expected_shape
 
 
@@ -55,7 +56,7 @@ def test_squeeze(data, dim, expected_shape):
 )
 def test_squeeze_exc(data, dim):
     with pytest.raises(ValueError):
-        zu.data.basic_ops.squeeze(data, dim)
+        basic_ops.squeeze(data, dim)
 
 
 @pytest.fixture
@@ -342,7 +343,7 @@ def array_x1_avg_pool():
 )
 def test_interpolate(data_name, mode, kwargs, expected_name, request):
     data = request.getfixturevalue(data_name)
-    result = zu.data.basic_ops.interpolate(data, mode=mode, **kwargs)
+    result = basic_ops.interpolate(data, mode=mode, **kwargs)
     expected = request.getfixturevalue(expected_name)
     assert_array_equal(result, expected)
 
@@ -369,16 +370,16 @@ def array_6d():
 
 
 @pytest.mark.parametrize(
-    "data_name, mode, kwargs",
+    "data_name, mode, kwargs, expected_exc",
     [
-        ["array_2d_x0", "img", {}],
-        ["array_6d", "img", {"scale_factor": 0.5}],
+        ["array_2d_x0", "img", {}, ValueError],
+        ["array_6d", "img", {"scale_factor": 0.5}, RuntimeError],
     ],
 )
-def test_interpolate_exc(data_name, mode, kwargs, request):
+def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):
     data = request.getfixturevalue(data_name)
-    with pytest.raises(ValueError):
-        zu.data.basic_ops.interpolate(data, mode=mode, **kwargs)
+    with pytest.raises(expected_exc):
+        basic_ops.interpolate(data, mode=mode, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -436,7 +437,7 @@ def test_interpolate_exc(data_name, mode, kwargs, request):
     ],
 )
 def test_compare(data, mode, operand, kwargs, expected):
-    result = zu.data.basic_ops.compare(data, mode, operand, **kwargs)
+    result = basic_ops.compare(data, mode, operand, **kwargs)
     assert_array_equal(result, expected)
 
 
@@ -459,4 +460,4 @@ def test_compare(data, mode, operand, kwargs, expected):
 )
 def test_compare_exc(data, mode, operand, kwargs):
     with pytest.raises(ValueError):
-        zu.data.basic_ops.compare(data, mode, operand, **kwargs)
+        basic_ops.compare(data, mode, operand, **kwargs)

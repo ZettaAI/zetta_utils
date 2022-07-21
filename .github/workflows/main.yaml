@@ -36,21 +36,21 @@ jobs:
         run: pip install -e '.[all]'
   formatting:
     runs-on: ubuntu-latest
-    needs: ['setup']
+    needs: ['install']
     steps:
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
   testing:
     runs-on: ubuntu-latest
-    needs: ['setup', 'formatting']
+    needs: ['install', 'formatting']
     steps:
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pytest tests
   typechecking:
     runs-on: ubuntu-latest
-    needs: ['setup', 'formatting']
+    needs: ['install', 'formatting']
     steps:
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}

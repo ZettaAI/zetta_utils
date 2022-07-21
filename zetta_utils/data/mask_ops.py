@@ -2,16 +2,20 @@
 from __future__ import annotations
 
 import copy
-from typing import Literal, Union
+from typing import Literal
 import numpy.typing as npt
 import numpy as np
 import fastremap  # type: ignore
 import cc3d  # type: ignore
+from typeguard import typechecked
+
+MaskFilteringModes = Literal["keep_large", "keep_small"]
 
 
+@typechecked
 def filter_cc(
     a: npt.NDArray,
-    mode: Union[Literal["keep_large"], Literal["keep_small"]] = "keep_small",
+    mode: MaskFilteringModes = "keep_small",
     thr: int = 100,
 ):
     """

@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring
-"""ZettaAI Python plotting utilities."""
+"""ZettaAI Python plotting utilities. Most of the plotting functions are not included
+in automated testing, as they're not meand for production use."""
 
 import io
 import copy
@@ -8,6 +9,7 @@ import numpy.typing as npt
 import matplotlib  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
 import cv2  # type: ignore
+from typeguard import typechecked
 
 import zetta_utils as zu
 
@@ -17,6 +19,7 @@ DEFAULT_COMMON_KWARGS = {
 }
 
 
+@typechecked
 class Renderer:  # pylint: disable=too-few-public-methods
     def __init__(  # pylint: disable=too-many-arguments
         self,
@@ -25,7 +28,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         img_kwargs=None,
         msk_kwargs=None,
         seg_kwargs=None,
-    ):
+    ):  # pragma: no cover
         if common_kwargs is None:
             common_kwargs = copy.deepcopy(DEFAULT_COMMON_KWARGS)
         else:
@@ -45,8 +48,8 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.fld_kwargs = common_kwargs | fld_kwargs
         self.seg_kwargs = common_kwargs | seg_kwargs
 
-    def __call__(self, a):
-        a = zu.zt_types.to_np(a).squeeze()
+    def __call__(self, a):  # pragma: no cover
+        a = zu.data.convert.to_np(a).squeeze()
         if len(a.shape) == 3:
             return render_fld(a, **self.fld_kwargs)
         if a.dtype == np.bool:
@@ -57,10 +60,11 @@ class Renderer:  # pylint: disable=too-few-public-methods
         return render_img(a, **self.img_kwargs)
 
 
+@typechecked
 def get_img_from_fig(
     fig: matplotlib.figure.Figure,
     dpi: int,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     """
     Render matplotlib image to an RGB numpy array.
 
@@ -87,12 +91,13 @@ def get_img_from_fig(
     return img
 
 
+@typechecked
 def render_img(
-    img,
+    img: zu.typing.Array,
     figsize: tuple[int, int],
     dpi: int,
     cmap: str = "gray",
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     fig = plt.figure(figsize=figsize)
     plt.imshow(img, cmap=cmap)
     return get_img_from_fig(fig, dpi=dpi)
@@ -102,28 +107,29 @@ render_msk = render_img
 render_seg = render_img
 
 
+@typechecked
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
-    fld: zu.zt_types.Array,
+    fld: zu.typing.Array,
     figsize: tuple[int, int],
     dpi: int,
     grid_size: int = 50,
     alpha: float = 0.6,
     linewidth: float = 0.5,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     """
     Render the given vector field to an RGB numpy image.
 
     The field is assumed to be in a residual format and pixel units.
 
     Args:
-        fld (zu.zt_types.Array): An array of shape [(1,) H, W, 2] representing
+        fld (zu.typing.Array): An array of shape [(1,) H, W, 2] representing
             a 2D vector field.
         grid_side (int): Number of arrows per side.
 
     Returns:
         npt.NDArray: RGB rendering of the vector field.
     """
-    fld = zu.zt_types.to_np(fld).squeeze()
+    fld = zu.data.convert.to_np(fld).squeeze()
     if fld.shape[0] == 2:
         fld = np.transpose(fld, (1, 2, 0))
 

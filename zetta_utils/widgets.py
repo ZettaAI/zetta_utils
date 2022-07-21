@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring
-"""Jupyter widgets."""
+"""Jupyter widgets. Most widget code is excluded from automated testing."""
 import ipywidgets as widgets  # type: ignore
 from ipywidgets import interact  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
@@ -9,9 +9,9 @@ import zetta_utils as zu
 
 def entry_loader(
     entries, renderer, choice, grid_size, grid_x, grid_y
-):  # pylint: disable=too-many-arguments
+):  # pylint: disable=too-many-arguments # pragma: no cover
     entry = entries[choice].squeeze()
-    entry = zu.zt_types.to_np(entry)
+    entry = zu.data.convert.to_np(entry)
 
     x_size = entry.shape[-2] // grid_size
     y_size = entry.shape[-1] // grid_size
@@ -26,7 +26,12 @@ def entry_loader(
     plt.imshow(entry_rendered)
 
 
-def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=zu.viz.Renderer()):
+def list_viz(
+    entries, grid_size=1, grid_x=0, grid_y=0, renderer=None
+):  # pragma: no cover
+    if renderer is None:
+        renderer = zu.viz.Renderer()
+
     if isinstance(entries, list):
         entries = {i: entries[i] for i in range(len(entries))}
 

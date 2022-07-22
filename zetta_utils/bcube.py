@@ -17,6 +17,8 @@ from zetta_utils.typing import (
     Number,
 )
 
+ABC = 1
+
 
 def get_dim_idx(dim: Dim3D) -> DimIdx3D:  # pragma: no cover
     if dim == "x":

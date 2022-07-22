@@ -57,7 +57,7 @@ jobs:
         if: ${{ always()  }}
         with:
           #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-          files: /home/runner/work/zetta_utils/zetta_util/coverage.xml
+          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
           #flags: unittests # optional
           #name: codecov-umbrella # optional
           #fail_ci_if_error: true # optional (default = false)

@@ -1,7 +1,7 @@
 # Zetta Utils
 
 ![CI Pipeline](https://github.com/ZettaAI/ztutils/actions/workflows/main.yaml/badge.svg)
-![Coverage](https://github.com/ZettaAI/ztutils/actions/workflows/main.yaml/coverage.svg)
+[![codecov](https://codecov.io/gh/ZettaAI/zetta_utils/branch/main/graph/badge.svg?token=MGT3MDVTYZ)](https://codecov.io/gh/ZettaAI/zetta_utils)
 
 Utility functionality used by multiple components of ZettaAI EM
 processing pipeline

@@ -143,8 +143,9 @@ class VolumetricLayer(Layer):
             else:
                 if self.index_resolution is None:
                     raise RuntimeError(
-                        "Attempting to read with neither read resolution specified "
-                        "nor `index_resolution` specified for the volume."
+                        "Attempting to read without read resolution specified, "
+                        "while the layer `index_resolution` is None and "
+                        "`data_resolution` is None."
                     )
                 read_resolution = self.index_resolution
 
@@ -156,6 +157,7 @@ class VolumetricLayer(Layer):
 
         final_idx = (data_resolution, bcube)
         vol_data = self._read_volume(final_idx)
+
         if data_resolution != read_resolution:  # output rescaling needed
             if self.interpolation_mode is None:
                 raise RuntimeError(
@@ -179,6 +181,7 @@ class VolumetricLayer(Layer):
                 scale_factor = tuple(
                     data_resolution[i] / read_resolution[i] for i in range(2)
                 )
+
             result = zu.data.basic_ops.interpolate(
                 vol_data,
                 scale_factor=scale_factor,
@@ -187,8 +190,6 @@ class VolumetricLayer(Layer):
         else:
             result = vol_data
 
-        # import pdb; pdb.set_trace()
-        # print(result.shape)
         return result
 
     def _read_volume(self, idx: StandardVolumetricIndex) -> Array:
@@ -202,9 +203,9 @@ class VolumetricLayer(Layer):
         )
 
 
-def _jsonize_key(*args, **kwargs):
+def _jsonize_key(*args, **kwargs):  # pragma: no cover
     result = ""
-    for a in args[1:]:  # pragma: no cover
+    for a in args[1:]:
         result += json.dumps(a)
         result += "_"
 
@@ -220,7 +221,7 @@ def _cv_is_cached(*kargs, **kwargs):  # pragma: no cover
 cv_cache = cachetools.LRUCache(maxsize=500)
 
 
-class CachedCloudVolume(CloudVolume):
+class CachedCloudVolume(CloudVolume):  # pragma: no cover
     """Caching wrapper around CloudVolume."""
 
     @cachetools.cached(cv_cache, key=_jsonize_key)
@@ -251,7 +252,7 @@ class CVLayer(VolumetricLayer):
 
     def _get_cv_at_resolution(
         self, resolution: Vec3D
-    ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long
+    ) -> cv.frontends.precomputed.CloudVolumePrecomputed:  # CloudVolume is not a CloudVolume # pylint: disable=line-too-long # pragma: no cover
         result = CachedCloudVolume(mip=resolution, **self.cv_params)
         return result
 
@@ -260,7 +261,7 @@ class CVLayer(VolumetricLayer):
 
     def _read_volume(self, idx: StandardVolumetricIndex) -> Array:
         resolution, bcube = idx
-        assert resolution is not None  # pragma: no test
+        assert resolution is not None
 
         cvol = self._get_cv_at_resolution(resolution)
         slices = bcube.get_slices(resolution)
@@ -283,5 +284,5 @@ class CVLayer(VolumetricLayer):
 
         return result
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return f"CVLayer(cloudpath='{self.cv_params['cloudpath']}')"

@@ -50,7 +50,7 @@ jobs:
         run: ls .coverage
       - name: Update coverage badge
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage-badge
+        run: ls -lah && coverage-badge
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .

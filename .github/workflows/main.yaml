@@ -45,7 +45,7 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
         #if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m py.test . && pwd && ls -lah
+        run: coverage run -m py.test . ; pwd && ls -lah
         #curl -Os https://uploader.codecov.io/latest/linux/codecov chmod +x codecov ./codecov
         #$- name: Verify Changed files
         #run: ls .coverage

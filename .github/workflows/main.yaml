@@ -45,7 +45,7 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m py.test .
+        run: coverage run -m py.test . && pwd && ls -lah
         #curl -Os https://uploader.codecov.io/latest/linux/codecov chmod +x codecov ./codecov
         #$- name: Verify Changed files
         #run: ls .coverage
@@ -63,9 +63,9 @@ jobs:
         #  path: coverage.svg
         #
       - uses: codecov/codecov-action@v3
-        #with:
+        with:
           #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-          #files: ../coverage.xml
+          files: ../coverage.xml
           #flags: unittests # optional
           #name: codecov-umbrella # optional
           #fail_ci_if_error: true # optional (default = false)

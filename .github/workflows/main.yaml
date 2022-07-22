@@ -49,3 +49,22 @@ jobs:
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
+
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Coverage Badge
+        uses: tj-actions/coverage-badge-py@v1.8
+
+      - name: Verify Changed files
+        uses: tj-actions/verify-changed-files@v9
+        id: changed_files
+        with:
+          files: coverage.svg
+
+      - name: Archive code coverage results
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage.svg
+          path: coverage.svg

@@ -45,22 +45,10 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m pytest
+        run: coverage run -m pytest && coverage-badge
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
-
-      - name: Coverage Badge
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: tj-actions/coverage-badge-py@v1.8
-
-      - name: Verify Changed files
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: tj-actions/verify-changed-files@v9
-        id: changed_files
-        with:
-          files: coverage.svg
-
       - name: Archive code coverage results
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/upload-artifact@v3

@@ -17,14 +17,13 @@ from zetta_utils.typing import (
     Number,
 )
 
-ABC = 1
-
 
 def get_dim_idx(dim: Dim3D) -> DimIdx3D:  # pragma: no cover
     if dim == "x":
         result = 0  # type: DimIdx3D
     elif dim == "y":
         result = 1
+        # ABC = 1
     elif dim == "z":
         result = 2
     else:

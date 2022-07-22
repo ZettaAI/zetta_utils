@@ -45,12 +45,9 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m pytest
+        run: coverage run -m py.test .
       - name: Verify Changed files
-        uses: tj-actions/verify-changed-files@v9
-        id: changed_files
-        with:
-          files: .coverage
+        run: ls .coverage
       - name: Update coverage badge
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: coverage-badge

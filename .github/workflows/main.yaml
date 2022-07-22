@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          lfs: 'true'
+          lfs: 'false'
           submodules: 'recursive'
           ssh-key: ${{ secrets.git_ssh_key  }}
       - name: Get changed files
@@ -25,7 +25,7 @@ jobs:
             py_modified:
               - added|modified: "./**/*.py"
       - name: Setup Python
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        #if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
           python-version: 3.9.0
@@ -36,7 +36,7 @@ jobs:
         with:
           go-version: '1.18.4'
       - name: Install Python dependencies
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        #if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pip install -e '.[all]'
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@latest
@@ -44,8 +44,31 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pytest tests
+        #if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: coverage run -m py.test ./tests/unit ; pwd && ls -lah
+        #curl -Os https://uploader.codecov.io/latest/linux/codecov chmod +x codecov ./codecov
+        #$- name: Verify Changed files
+        #run: ls .coverage
+        #- name: Update coverage badge
+        #if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        #run: ls -lah && coverage-badge
+      - name: Send coverage repot to codecov
+        uses: codecov/codecov-action@v3
+        if: ${{ always()  }}
+        with:
+          #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
+          #flags: unittests # optional
+          #name: codecov-umbrella # optional
+          #fail_ci_if_error: true # optional (default = false)
+          #verbose: true # optional (default = false)
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
+        #- name: Archive code coverage results
+        #if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        #uses: actions/upload-artifact@v3
+        #with:
+        #  name: coverage.svg
+        #  path: coverage.svg
+        #

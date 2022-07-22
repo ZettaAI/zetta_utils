@@ -52,6 +52,16 @@ jobs:
         #- name: Update coverage badge
         #if: ${{ steps.filter.outputs.py_modified == 'true' }}
         #run: ls -lah && coverage-badge
+      - name: Send coverage repot to codecov
+        uses: codecov/codecov-action@v3
+        if: ${{ always()  }}
+        with:
+          #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          files: /home/runner/work/zetta_utils/zetta_util/coverage.xml
+          #flags: unittests # optional
+          #name: codecov-umbrella # optional
+          #fail_ci_if_error: true # optional (default = false)
+          #verbose: true # optional (default = false)
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
@@ -62,11 +72,3 @@ jobs:
         #  name: coverage.svg
         #  path: coverage.svg
         #
-      - uses: codecov/codecov-action@v3
-        with:
-          #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
-          files: /home/runner/work/zetta_utils/zetta_util/coverage.xml
-          #flags: unittests # optional
-          #name: codecov-umbrella # optional
-          #fail_ci_if_error: true # optional (default = false)
-          #verbose: true # optional (default = false)

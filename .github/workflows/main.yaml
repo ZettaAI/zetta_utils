@@ -45,7 +45,7 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pytest tests
+        run: coverage run -m pytest
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .

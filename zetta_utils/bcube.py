@@ -23,7 +23,6 @@ def get_dim_idx(dim: Dim3D) -> DimIdx3D:  # pragma: no cover
         result = 0  # type: DimIdx3D
     elif dim == "y":
         result = 1
-        result = 1
     elif dim == "z":
         result = 2
     else:

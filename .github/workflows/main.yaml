@@ -13,7 +13,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
         with:
-          lfs: 'true'
+          lfs: 'false'
           submodules: 'recursive'
           ssh-key: ${{ secrets.git_ssh_key  }}
       - name: Get changed files

@@ -374,6 +374,7 @@ def array_6d():
     [
         ["array_2d_x0", "img", {}, ValueError],
         ["array_6d", "img", {"scale_factor": 0.5}, RuntimeError],
+        ["array_1d_x0", "img", {"scale_factor": 0.357}, RuntimeError],
     ],
 )
 def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):

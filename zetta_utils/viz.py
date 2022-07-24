@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 """ZettaAI Python plotting utilities. Most of the plotting functions are not included
 in automated testing, as they're not meand for production use."""
+from __future__ import annotations
 
 import io
 import copy

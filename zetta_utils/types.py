@@ -32,4 +32,3 @@ from zetta_utils.data.layers.volumetric import (
     VolumetricIndex,
     CVLayer,
 )
-from zetta_utils.data.layers.layer_set import LayerSet

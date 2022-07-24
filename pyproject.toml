@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools >= 40.6.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py37","py38","py39"]
+
+[tool.pylint.format]
+max-line-length = 88
+
+[tool.pylint.basic]
+good-names = '''a,b,c,d,df,do_POST,e,i,j,k,id,logger,n,on,ok,tz,x,y,z,r,ex,ey,cv,s'''
+
+[tool.pylint.message_control]
+disable = '''duplicate-code,C0330,too-many-arguments,cyclic-import'''
+extension-pkg-allow-list = [
+  "pymssql._mssql",
+]
+
+[tool.pylint.miscellaneous]
+notes = '''FIXME,XXX'''
+
+[tool.pylint.similarities]
+min-similarity-lines = 4
+ignore-comments = "yes"
+ignore-docstrings = "yes"
+ignore-imports = "yes"
+
+[tool.pylint.main]
+extension-pkg-whitelist="numpy,cc3d,fastremap"
+
+[tool.pylint.options]
+generated-members="torch.*"
+
+[tool.pytest.ini_options]
+#addopts = "-ra --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short"
+addopts = "-ra --cov=zetta_utils --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short --junitxml=test-results.xml --cov-report=html --cov-report=xml"
+testpaths = ["tests"]
+norecursedirs = ".env .git .venv build dist"
+python_files = "test.py tests.py test_*.py *_test.py"
+
+#source = ["zetta_utils"]
+#omit = ["zetta_utils/widgets.py", "utils/widgets.py"]

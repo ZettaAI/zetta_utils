@@ -54,7 +54,7 @@ py-modules = []
 
 [tool.black]
 line-length = 99
-target-version = ["py38","py39","py310"]
+target-version = ["py38","py39"]
 
 [tool.pylint.format]
 max-line-length = 99

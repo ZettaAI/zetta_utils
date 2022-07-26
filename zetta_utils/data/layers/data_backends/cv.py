@@ -7,7 +7,7 @@ import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 
 from zetta_utils.data.layers.data_backends.base import BaseDataBackend
-from zetta_utils.data.layers.indexers.volumetric import VolumetricIndex
+from zetta_utils.data.layers.indexes.volumetric import VolumetricIndex
 from zetta_utils.typing import Vec3D
 
 

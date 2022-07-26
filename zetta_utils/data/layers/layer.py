@@ -8,6 +8,7 @@ from typeguard import typechecked
 
 import zetta_utils as zu
 
+
 @typechecked
 @attrs.mutable
 class Layer:
@@ -21,7 +22,7 @@ class Layer:
             raise IOError(f"Attempting to write to a read only layer {self}")
 
         if self.indexer is not None:
-            idx_final, processors = self.indexer(idx, mode='write')
+            idx_final, processors = self.indexer(idx, mode="write")
         else:
             idx_final = idx
             processors = []
@@ -34,7 +35,7 @@ class Layer:
 
     def read(self, idx, **kwargs):
         if self.indexer is not None:
-            idx_final, processors = self.indexer.read(idx, mode='read')
+            idx_final, processors = self.indexer.read(idx, mode="read")
         else:
             idx_final = idx
             processors = []

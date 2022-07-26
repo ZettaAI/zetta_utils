@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from zetta_utils.data.layers.common import Layer
 
+
 class LayerSet(Layer):
     def __init__(self, layers: Dict[str, Layer]):
         self.layers = layers
@@ -15,4 +16,3 @@ class LayerSet(Layer):
 
     def _write(self, idx, value):
         pass
-

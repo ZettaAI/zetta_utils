@@ -13,7 +13,6 @@ Slices3D = Tuple[slice, slice, slice]
 Vec3D = Tuple[Number, Number, Number]
 
 
-
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover
     """Type checking that works for type generics"""
     result = True

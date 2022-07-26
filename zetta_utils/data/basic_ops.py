@@ -35,9 +35,7 @@ def unsqueeze(
         if isinstance(dim, int):
             result = data.unsqueeze(dim)  # type: zu.typing.Array
         else:
-            raise ValueError(
-                f"Cannot use `torch.unsqueeze` with dim of type '{type(dim)}'"
-            )
+            raise ValueError(f"Cannot use `torch.unsqueeze` with dim of type '{type(dim)}'")
     elif isinstance(data, np.ndarray):
         result = np.expand_dims(data, dim)
     else:
@@ -54,9 +52,7 @@ def squeeze(
         if isinstance(dim, int) or dim is None:
             result = data.squeeze(dim)  # type: zu.typing.Array
         else:
-            raise ValueError(
-                f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'"
-            )
+            raise ValueError(f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'")
     elif isinstance(data, np.ndarray):
         result = data.squeeze(axis=dim)  # type: ignore # mypy doesn't see None is Ok
     else:
@@ -136,9 +132,7 @@ def interpolate(
                     )
     else:
         if size is None:
-            raise ValueError(
-                "Neither `size` nor `scale_factor` provided to `interpolate()`"
-            )
+            raise ValueError("Neither `size` nor `scale_factor` provided to `interpolate()`")
         spatial_ndim = len(size)
 
     if mode == "img" or mode == "field":
@@ -161,8 +155,7 @@ def interpolate(
         if (
             scale_factor is None
             or (isinstance(scale_factor, float) and scale_factor < 1.0)
-            or (isinstance(scale_factor, list) and sum([i < 1.0 for i in scale_factor]))
-            > 0
+            or (isinstance(scale_factor, list) and sum([i < 1.0 for i in scale_factor])) > 0
         ):
             raise NotImplementedError()  # pragma: no cover
     else:

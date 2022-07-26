@@ -22,12 +22,12 @@ ConvertibleToVolumetricIndex = Union[
     Tuple[Optional[Vec3D], slice, slice, slice],
 ]
 
+
 @attrs.frozen
-class VolumetricIndex: # pylint: disable=too-few-public-methods
+class VolumetricIndex:  # pylint: disable=too-few-public-methods
     resolution: Vec3D
     bcube: zu.bcube.BoundingCube
-    dims: Literal["cxy", "bcxy", "cxyz", "bcxyz"] = 'bcxyz'
-
+    dims: Literal["cxy", "bcxy", "cxyz", "bcxyz"] = "bcxyz"
 
 
 def translate_volumetric_index(
@@ -39,9 +39,7 @@ def translate_volumetric_index(
         if offset_resolution is None:
             offset_resolution = (1, 1, 1)
         result = idx.translate(offset, offset_resolution)  # type: VolumetricIndex
-    elif isinstance(
-        idx[-1], zu.bcube.BoundingCube
-    ):  # [bcube,] or [resolution, bcube] indexing
+    elif isinstance(idx[-1], zu.bcube.BoundingCube):  # [bcube,] or [resolution, bcube] indexing
         if offset_resolution is None:
             offset_resolution = (1, 1, 1)
         bcube = idx[-1].translate(offset, offset_resolution)
@@ -77,9 +75,7 @@ def _standardize_vol_idx(
 
     if isinstance(in_idx, zu.bcube.BoundingCube):
         bcube = in_idx  # [bcube] indexing
-    elif isinstance(
-        in_idx[-1], zu.bcube.BoundingCube
-    ):  # [bcube,] or [resolution, bcube] indexing
+    elif isinstance(in_idx[-1], zu.bcube.BoundingCube):  # [bcube,] or [resolution, bcube] indexing
         bcube = in_idx[-1]
         if len(in_idx) == 2:  # [resolution, bcube]
             resolution = in_idx[0]  # type: ignore
@@ -103,8 +99,6 @@ def _standardize_vol_idx(
             )  # pylint: disable=line-too-long
 
     return (resolution, bcube)
-
-
 
 
 @typechecked
@@ -178,14 +172,10 @@ class VolumetricLayer(Layer):
                 )
 
             if self.dim_order.endswith("xyz"):
-                scale_factor = tuple(
-                    data_resolution[i] / read_resolution[i] for i in range(3)
-                )
+                scale_factor = tuple(data_resolution[i] / read_resolution[i] for i in range(3))
             else:
                 assert self.dim_order.endswith("xy")
-                scale_factor = tuple(
-                    data_resolution[i] / read_resolution[i] for i in range(2)
-                )
+                scale_factor = tuple(data_resolution[i] / read_resolution[i] for i in range(2))
 
             result = zu.data.basic_ops.interpolate(
                 vol_data,

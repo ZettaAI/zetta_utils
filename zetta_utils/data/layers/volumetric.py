@@ -1,3 +1,4 @@
+# pylint: disable=missing-docstring
 """Volumetric layers are referenced by [(MIP), z, x, y] and
 support a `data_mip` parameter which can allow reading
 raw data from a different MIP, followed by (up/down)sampling."""
@@ -6,6 +7,7 @@ from __future__ import annotations
 import json
 from typing import Literal, Union, Optional, Tuple
 import cachetools  # type: ignore
+import attrs
 import numpy as np
 import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume  # type: ignore
@@ -13,18 +15,22 @@ from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.data.layers.common import Layer
-from zetta_utils.typing import Array, Slice3D, Vec3D
+from zetta_utils.typing import Array, Slices3D, Vec3D
 
-VolumetricIndex = Union[
-    zu.bcube.BoundingCube,
-    Slice3D,
+ConvertibleToVolumetricIndex = Union[
     Tuple[Optional[Vec3D], zu.bcube.BoundingCube],
     Tuple[Optional[Vec3D], slice, slice, slice],
 ]
-StandardVolumetricIndex = Tuple[Optional[Vec3D], zu.bcube.BoundingCube]
+
+@attrs.frozen
+class VolumetricIndex: # pylint: disable=too-few-public-methods
+    resolution: Vec3D
+    bcube: zu.bcube.BoundingCube
+    dims: Literal["cxy", "bcxy", "cxyz", "bcxyz"] = 'bcxyz'
 
 
-def translate_volumetric_index(  # pylint: disable=missing-docstring
+
+def translate_volumetric_index(
     idx: VolumetricIndex,
     offset: Tuple[int, int, int],
     offset_resolution: Optional[Vec3D] = None,
@@ -99,7 +105,6 @@ def _standardize_vol_idx(
     return (resolution, bcube)
 
 
-DimOrder3D = Literal["cxy", "bcxy", "cxyz", "bcxyz"]
 
 
 @typechecked

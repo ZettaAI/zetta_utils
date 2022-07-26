@@ -6,13 +6,8 @@ This file is imported last, so should not be used within the library.
 
 from zetta_utils.typing import (
     Array,
-    IntVec3D,
-    FloatVec3D,
     Vec3D,
-    Slice3D,
-    Padding3D,
-    Dim3D,
-    Coord3D,
+    Slices3D,
 )
 
 from zetta_utils.bcube import BoundingCube

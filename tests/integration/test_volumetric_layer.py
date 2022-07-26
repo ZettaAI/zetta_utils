@@ -188,9 +188,7 @@ def read_fafb_setup(request):
         ],
     ],
 )
-def test_cv_layer_read(
-    fixture_name, bcube_name, dim_order, read_res, volumetric_kwargs, request
-):
+def test_cv_layer_read(fixture_name, bcube_name, dim_order, read_res, volumetric_kwargs, request):
     fixture_val = request.getfixturevalue(fixture_name)
     cvl = fixture_val["cvl"]  # type: CVLayer
     idx = fixture_val["idx"]  # type: VolumetricIndex

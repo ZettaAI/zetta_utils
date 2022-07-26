@@ -2,39 +2,36 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Union, Sequence, Tuple, Optional
+from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
 
 import attrs
-from typeguard import typechecked
 from zetta_utils.typing import Number
-from zetta_utils.bbox import DEFAULT_UNIT
 
 
-@typechecked
+def assert_equal_len(**kwargs: Sequence):
+    len_map = {k: len(v) for k, v in kwargs.items()}
+    if len(set(len_map.values())) != 1:  # means there are unequal lengths
+        raise ValueError(
+            f"Lengths of all of the '{list(len_map.keys())}' has to be equal. Got: {len_map}"
+        )
+
+
+DEFAULT_UNIT = "nm"
+
+# TODO: Currently both SlicesT and VecT have to be passed independently.
+# Ideally, we'd parametrize BoundingBoxND by the number of dimensions,
+# and slice and vector types would be infered from it.
+# (PEP 646 https://peps.python.org/pep-0646/ )
+
+SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
+VecT = TypeVar("VecT", bound=Tuple[Number, ...])
+# @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
-class BoundingBoxND:
+class BoundingBoxND(Generic[SlicesT, VecT]):
     """Represents a N-D cuboid in space."""
 
     bounds: Sequence[Tuple[Number, Number]]
-    unit: str = DEFAULT_UNIT
-    expected_ndim: Optional[int] = None
-
-    @classmethod
-    def validate_lengths(cls, **kwargs):
-        len_map = {k: len(v) for k, v in kwargs.items()}
-
-        if cls.expected_ndim is None:
-            if not all(e == cls.expected_ndim for e in len_map.values()):
-                raise ValueError(
-                    f"Lengths of all of the '{list(len_map.keys())}' has to be "
-                    "equal to {self.expected_ndim}. Got: {len_map}"
-                )
-        else:
-            if len(set(len_map.values())) != 1:  # there are unequal lengths
-                raise ValueError(
-                    f"Lengths of all of the '{list(len_map.keys())}' has to be "
-                    "equal. Got: {len_map}"
-                )
+    unit_name: str = DEFAULT_UNIT
 
     @property
     def ndim(self) -> int:
@@ -43,11 +40,14 @@ class BoundingBoxND:
     @classmethod
     def from_slices(
         cls,
-        slices: Sequence[slice],
-        resolution: Sequence[Number],
-        unit: str = DEFAULT_UNIT,
-    ) -> BoundingBoxND:
-        cls.validate_lengths(
+        slices: SlicesT,
+        resolution: Optional[VecT] = None,
+        unit_name: str = DEFAULT_UNIT,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        if resolution is None:
+            resolution = cast(VecT, tuple(1 for _ in range(len(slices))))
+
+        assert_equal_len(
             slices=slices,
             resoluiton=resolution,
         )
@@ -60,18 +60,18 @@ class BoundingBoxND:
             (slices[i].start * resolution[i], slices[i].stop * resolution[i])
             for i in range(len(resolution))
         )
-        result = cls(bounds=bounds, unit=unit, expected_ndim=len(bounds))
+        result = cls(bounds=bounds, unit_name=unit_name)
         return result
 
     @classmethod
     def from_coords(
         cls,
-        start_coord: Sequence[Number],
-        end_coord: Sequence[Number],
-        resolution: Sequence[Number],
-        unit: str = DEFAULT_UNIT,
-    ) -> BoundingBoxND:
-        cls.validate_lengths(
+        start_coord: VecT,
+        end_coord: VecT,
+        resolution: VecT,
+        unit_name: str = DEFAULT_UNIT,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        assert_equal_len(
             start_coord=start_coord,
             end_coord=end_coord,
             resoluiton=resolution,
@@ -80,13 +80,13 @@ class BoundingBoxND:
             (start_coord[i] * resolution[i], end_coord[i] * resolution[i])
             for i in range(len(resolution))
         )
-        result = cls(bounds=bounds, unit=unit, expected_ndim=len(bounds))
+        result = cls(bounds=bounds, unit_name=unit_name)
         return result
 
     def get_slice(
         self,
         dim: int,
-        resolution: Union[int, float, Sequence[Number]],
+        resolution: Union[int, float, VecT],
         allow_rounding: bool = False,
     ) -> slice:
         if isinstance(resolution, (int, float)):
@@ -119,26 +119,25 @@ class BoundingBoxND:
         )
         return result
 
-    def to_slices(
-        self, resolution: Sequence[Number], allow_rounding: bool = False
-    ) -> Sequence[slice]:
+    def to_slices(self, resolution: VecT, allow_rounding: bool = False) -> SlicesT:
         result = tuple(self.get_slice(i, resolution[i], allow_rounding) for i in range(self.ndim))
+        result = cast(SlicesT, result)
 
         return result
 
     def pad(
         self,
         pad: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],
-        resolution: Sequence[Number],
+        resolution: VecT,
         in_place: bool = False,
-    ) -> BoundingBoxND:
+    ) -> BoundingBoxND[SlicesT, VecT]:
         if len(pad) != self.ndim:
             raise ValueError(
                 f"Length of the padding specification ({len(pad)}) != "
                 f"BoundingCube ndim ({self.ndim})."
             )
 
-        self.validate_lengths(
+        assert_equal_len(
             pad=pad,
             bounds=self.bounds,
             resoluiton=resolution,
@@ -152,39 +151,59 @@ class BoundingBoxND:
                     double_sided_pad += [(i, i)]
                 else:
                     double_sided_pad += [i]
-
-            result = BoundingBoxND.from_slices(
-                slices=[
+            slices = cast(
+                SlicesT,
+                tuple(
                     slice(
                         self.bounds[i][0] - double_sided_pad[i][0] * resolution[i],
                         self.bounds[i][1] + double_sided_pad[i][1] * resolution[i],
                     )
                     for i in range(self.ndim)
-                ],
-                resolution=tuple(1 for _ in range(self.ndim)),
-                unit=self.unit,
+                ),
             )
+
+            result = BoundingBoxND[SlicesT, VecT].from_slices(
+                slices=slices,
+                unit_name=self.unit_name,
+            )
+
         return result
 
     def translate(
         self,
-        offset: Sequence[Number],
-        resolution: Sequence[Number],
+        offset: Sequence[Union[int, float]],
+        resolution: Sequence[Union[int, float]],
         in_place: bool = False,
-    ) -> BoundingBoxND:
+    ) -> BoundingBoxND[SlicesT, VecT]:
         if in_place:
             raise NotImplementedError  # pragma: no cover
         else:
-            result = BoundingBoxND.from_slices(
-                slices=tuple(
+            slices = cast(
+                SlicesT,
+                tuple(
                     slice(
                         self.bounds[i][0] + offset[i] * resolution[i],
                         self.bounds[i][1] + offset[i] * resolution[i],
                     )
                     for i in range(self.ndim)
                 ),
-                resolution=tuple(1 for _ in range(self.ndim)),
-                unit=self.unit,
+            )
+
+            result = BoundingBoxND[SlicesT, VecT].from_slices(
+                slices=slices,
+                unit_name=self.unit_name,
             )
 
         return result
+
+    def __repr__(self) -> str:  # pragma: no cover
+        parts = ["BoundingCube("]
+        for i in range(self.ndim):  # pylint: disable=unused-variable
+            parts.append(f"[Dim {i}] {self.bounds[i][0]}:{self.bounds[i][1]}{self.unit_name},")
+        parts.append(")")
+        result = "".join(parts)
+        return result
+
+
+BoundingBox = BoundingBoxND[Tuple[slice, slice], Tuple[Number, Number]]
+BoundingCube = BoundingBoxND[Tuple[slice, slice, slice], Tuple[Number, Number, Number]]

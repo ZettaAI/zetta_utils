@@ -10,7 +10,7 @@ from zetta_utils.typing import Number
 from zetta_utils.bbox import DEFAULT_UNIT
 
 
-@typechecked  # typechecking disabled because of subscripted generics
+@typechecked
 @attrs.frozen()
 class BoundingBoxND:
     """Represents a N-D cuboid in space."""

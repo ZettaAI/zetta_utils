@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring, no-else-raise
 from __future__ import annotations
 
-from typing import Union, Sequence, Tuple, TypeVar, overload, Optional, cast, Literal
+from typing import Union, Sequence, Tuple, cast, Literal
 
 import attrs
 from typeguard import typechecked
 
-from zetta_utils.typing import Number, Slices3D, Vec3D
+from zetta_utils.typing import Number
 from zetta_utils.bbox import BoundingBoxND, DEFAULT_UNIT
 
 @typechecked

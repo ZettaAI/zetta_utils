@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Union, Sequence, Tuple, TypeVar, overload, Optional, cast
+from typing import Union, Sequence, Tuple, Optional
 
 import attrs
 from typeguard import typechecked
-from zetta_utils.typing import Number, Slices3D, Vec3D
+from zetta_utils.typing import Number
 from zetta_utils.bbox import DEFAULT_UNIT
 
 

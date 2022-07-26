@@ -27,6 +27,14 @@ class IndexAdjuster(ABC, Generic[BoundedIndex]):  # pylint: disable=too-few-publ
         Modifies incoming canonical index.
         """
 
+    @classmethod
+    def from_func(cls, func, required_keys):
+        new_cls = attrs.make_class(
+            f"IndexAdjuster_{func.__name__}",
+            {k: attrs.field() for k in required_keys},
+            bases=(IndexAdjuster,)
+        )
+
 
 class IndexAdjusterWithProcessors(
     ABC, Generic[BoundedIndex]

@@ -5,7 +5,6 @@ from zetta_utils.processor import func_to_proc
 from . import ops
 from . import convert
 
-
 ToNp = register("Multiply")(func_to_proc(convert.to_np))
 ToTorch = register("Add")(func_to_proc(convert.to_torch))
 ToTorch = register("AsType")(func_to_proc(convert.astype))

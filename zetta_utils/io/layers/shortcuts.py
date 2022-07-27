@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring
 from typing import Dict, Union, Callable, Optional, Any, Iterable, List
 
-from zetta_utils.data.layers import Layer
-from zetta_utils.data.indexes import IndexAdjusterWithProcessors, Index
-from zetta_utils.data.indexes.volumetric import AdjustDataResolution, VolumetricIndexConverter
-from zetta_utils.data.backends import CVBackend
+from zetta_utils.io.layers import Layer
+from zetta_utils.io.indexes import IndexAdjusterWithProcessors, Index
+from zetta_utils.io.indexes.volumetric import AdjustDataResolution, VolumetricIndexConverter
+from zetta_utils.io.backends import CVBackend
 from zetta_utils.typing import Vec3D
-from zetta_utils.data.basic_ops import InterpolationMode
+from zetta_utils.tensor.ops import InterpolationMode
 
 
 def CVLayer(  # pylint: disable=invalid-name

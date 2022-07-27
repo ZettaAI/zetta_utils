@@ -8,7 +8,7 @@ import attrs
 from typeguard import typechecked
 
 import zetta_utils as zu
-from zetta_utils.data.indexes import (
+from zetta_utils.io.indexes import (
     Index,
     IndexAdjusterWithProcessors,
 )
@@ -17,7 +17,7 @@ from zetta_utils.data.indexes import (
 @typechecked
 @attrs.mutable
 class Layer:
-    data_backend: zu.data.backends.DataBackend
+    data_backend: zu.io.backends.IOBackend
     readonly: bool = False
     index_adjs: Iterable[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
     index_converter: Optional[Callable] = None

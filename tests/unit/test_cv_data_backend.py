@@ -2,191 +2,98 @@
 import pytest
 import numpy as np
 
-from zetta_utils.data.layers.volumetric import translate_volumetric_index
-from zetta_utils.data.layers.volumetric import _standardize_vol_idx
-from zetta_utils.types import (
-    VolumetricIndex,
-    BoundingCube,
-    Vec3D,
-    Array,
-    CVLayer,
-    VolumetricLayer,
-)
+from zetta_utils.data.backends import CVBackend
+from zetta_utils.data.indexes import VolumetricIndex
 
 
+def test_backend_get_index_type():
+    index_type = CVBackend.get_index_type()
+    assert index_type == VolumetricIndex
 
-def test_volumetric_getitem(mocker):
-    cvl = VolumetricLayer()
-    std_idx = ((1, 1, 1), BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1))))
-    expected = np.array([5566])
-    std_idx_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric._standardize_vol_idx", return_value=std_idx
+
+def test_cv_backend_constructor():
+    cvb = CVBackend(bounded=True)
+    assert cvb.kwargs["bounded"]
+    assert not cvb.kwargs["autocrop"]
+
+
+def test_cv_backend_constructor_exc():
+    with pytest.raises(ValueError):
+        CVBackend(mip=4)
+
+
+def test_get_cv_at_res(mocker):
+    cv_fn = mocker.patch(
+        "zetta_utils.data.backends.cv.CachedCloudVolume",
+        return_value="correct",
     )
-    read_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric.VolumetricLayer._read",
-        return_value=expected,
-    )
-    result = cvl[0:0, 0:0, 0:0]
-    np.testing.assert_array_equal(result, expected)
-    std_idx_fn.assert_called_with((slice(0, 0), slice(0, 0), slice(0, 0)), index_resolution=None)
-    read_fn.assert_called_with(idx=std_idx)
+    cvb = CVBackend()
+    result = cvb._get_cv_at_resolution((1, 1, 1))
+    assert result == "correct"
+    cv_fn.assert_called_with(mip=(1, 1, 1), **cvb.kwargs)
 
 
+# Don't know how to make a better dummy
 class DummyCV:
     def __init__(self, expected):
         self.expected = expected
+        self.last_call_args = None
+        self.last_call_kwargs = None
 
-    def __getitem__(self, *arg):
+    def __getitem__(self, *args, **kwargs):
+        self.last_call_args = args
+        self.last_call_kwargs = kwargs
+        return self.expected
+
+    def __setitem__(self, *args, **kwargs):
+        self.last_call_args = args
+        self.last_call_kwargs = kwargs
         return self.expected
 
 
-@pytest.mark.parametrize(
-    "data_read, dim_order, expected",
-    [
-        [np.ones((1, 2, 3, 1)), "cxyz", np.ones((1, 1, 2, 3))],
-        [np.ones((1, 2, 3, 1)), "bcxyz", np.ones((1, 1, 1, 2, 3))],
-        [np.ones((3, 2, 1, 1)), "cxy", np.ones((1, 3, 2))],
-        [np.ones((3, 2, 1, 1)), "bcxy", np.ones((1, 1, 3, 2))],
-    ],
-)
-def test_cvb_read(data_read, dim_order, expected, mocker):
-    cvl = CVLayer({}, dim_order=dim_order)
+def test_cv_backend_read(mocker):
+    data_read = np.ones([3, 4, 5, 2])
+    expected = np.ones([1, 2, 3, 4, 5])
 
-    get_cv_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric.CVLayer._get_cv_at_resolution",
-        return_value=DummyCV(data_read),
-    )
-
-    std_idx = ((1, 1, 1), BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1))))
-    result = cvl._read_volume(std_idx)
-
-    np.testing.assert_array_equal(result, expected)
-    get_cv_fn.assert_called_with((1, 1, 1))
-
-
-@pytest.mark.parametrize(
-    "data_read, dim_order, expected_exc",
-    [
-        [np.ones((3, 2, 3, 1)), "cxy", RuntimeError],
-    ],
-)
-def test_cvl_read_volume_exc(data_read, dim_order, expected_exc, mocker):
-    cvl = CVLayer({}, dim_order=dim_order)
-
+    dummy = DummyCV(data_read)
     mocker.patch(
-        "zetta_utils.data.layers.volumetric.CVLayer._get_cv_at_resolution",
-        return_value=DummyCV(data_read),
+        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
     )
-
-    std_idx = ((1, 1, 1), BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1))))
-
-    with pytest.raises(expected_exc):
-        cvl._read_volume(std_idx)
-
-
-@pytest.mark.parametrize(
-    "data_res, index_res, read_res, expected",
-    [
-        [(1, 1, 1), (2, 2, 2), (3, 3, 3), (1, 1, 1)],
-        [(1, 1, 1), None, None, (1, 1, 1)],
-        [None, (2, 2, 2), (3, 3, 3), (3, 3, 3)],
-        [None, (2, 2, 2), None, (2, 2, 2)],
-    ],
-)
-def test_cvl_read_correct_res(data_res, index_res, read_res, expected, mocker):
-    cvl = CVLayer({}, data_resolution=data_res, index_resolution=index_res)
-
-    bcube = BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1)))
-
-    idx = (read_res, bcube)
-
-    _read_volume_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric.CVLayer._read_volume",
-        side_effect=SystemExit,
-    )
-
-    try:
-        cvl._read(idx)
-    except SystemExit:
-        pass
-
-    _read_volume_fn.assert_called_with((expected, bcube))
-
-
-@pytest.mark.parametrize(
-    "data_res, index_res, read_res, expected_exc",
-    [
-        [None, None, None, RuntimeError],
-    ],
-)
-def test_cvl_read_correct_res_exc(data_res, index_res, read_res, expected_exc, mocker):
-    cvl = CVLayer({}, data_resolution=data_res, index_resolution=index_res)
-
-    bcube = BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1)))
-
-    idx = (read_res, bcube)
-
-    with pytest.raises(RuntimeError):
-        cvl._read(idx)
-
-
-@pytest.mark.parametrize(
-    "data_res, read_res, data_read, dim_order, expected",
-    [
-        [None, (2, 2, 2), np.ones((1, 1, 1, 2, 3)), "bcxyz", np.ones((1, 1, 1, 2, 3))],
-        [
-            (4, 4, 4),
-            (2, 2, 2),
-            np.ones((1, 1, 1, 2, 3)),
-            "bcxyz",
-            np.ones((1, 1, 2, 4, 6)),
-        ],
-        [(4, 4, 4), (2, 2, 2), np.ones((1, 1, 2, 3)), "bcxy", np.ones((1, 1, 4, 6))],
-    ],
-)
-def test_cvl_read(data_res, read_res, data_read, dim_order, expected, mocker):
-    cvl = CVLayer(
-        {"cloudpath": "dummy"},
-        data_resolution=data_res,
-        dim_order=dim_order,
-        interpolation_mode="img",
-    )
-
-    bcube = BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1)))
-
-    idx = (read_res, bcube)
-
-    _read_volume_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric.CVLayer._read_volume",
-        return_value=data_read,
-    )
-
-    result = cvl._read(idx)
+    cvb = CVBackend()
+    index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
+    result = cvb.read(index)
     np.testing.assert_array_equal(result, expected)
+    assert dummy.last_call_args == (index.slices,)
+
+
+def test_cv_backend_write(mocker):
+    dummy = DummyCV(None)
+    mocker.patch(
+        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
+    )
+    cvb = CVBackend()
+    value = np.ones([1, 2, 3, 4, 5])
+    expected_written = np.ones([3, 4, 5, 2])
+    index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
+    cvb.write(index, value)
+    assert dummy.last_call_args[0] == index.slices
+    np.testing.assert_array_equal(dummy.last_call_args[1], expected_written)
 
 
 @pytest.mark.parametrize(
-    "data_res, read_res, data_read, dim_order, interp_mode, expected_exc",
+    "data_in,expected_exc",
     [
-        [(4, 4, 4), (2, 2, 2), np.ones((1, 1, 2, 3)), "cxyz", "img", RuntimeError],
-        [(4, 4, 4), (2, 2, 2), np.ones((1, 1, 1, 2, 3)), "bcxyz", None, RuntimeError],
+        [np.ones((1, 2, 3, 4)), ValueError],
+        [np.ones((1, 2, 3, 4, 5, 6)), ValueError],
+        [np.ones((2, 3, 4, 5, 6)), ValueError],
     ],
 )
-def test_cvl_read_exc(data_res, read_res, data_read, dim_order, interp_mode, expected_exc, mocker):
-    cvl = CVLayer(
-        {"cloudpath": "dummy"},
-        data_resolution=data_res,
-        dim_order=dim_order,
-        interpolation_mode=interp_mode,
+def test_cv_backend_write_exc(data_in, expected_exc, mocker):
+    dummy = DummyCV(None)
+    mocker.patch(
+        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
     )
-
-    bcube = BoundingCube(slices=(slice(1, 1), slice(1, 1), slice(1, 1)))
-
-    idx = (read_res, bcube)
-
-    _read_volume_fn = mocker.patch(
-        "zetta_utils.data.layers.volumetric.CVLayer._read_volume",
-        return_value=data_read,
-    )
+    cvb = CVBackend()
+    index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     with pytest.raises(expected_exc):
-        cvl._read(idx)
+        cvb.write(index, data_in)

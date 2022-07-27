@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterable, Callable, Tuple, Any, Literal, Generic, TypeVar
+from typing import Iterable, Callable, Tuple, Literal, Generic, TypeVar
 
 
 class Index(ABC):  # pylint: disable=too-few-public-methods
@@ -26,14 +26,6 @@ class IndexAdjuster(ABC, Generic[BoundedIndex]):  # pylint: disable=too-few-publ
         """
         Modifies incoming canonical index.
         """
-
-    @classmethod
-    def from_func(cls, func, required_keys):
-        new_cls = attrs.make_class(
-            f"IndexAdjuster_{func.__name__}",
-            {k: attrs.field() for k in required_keys},
-            bases=(IndexAdjuster,)
-        )
 
 
 class IndexAdjusterWithProcessors(

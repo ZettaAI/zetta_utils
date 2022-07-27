@@ -9,7 +9,7 @@ import zetta_utils as zu
 from zetta_utils.typing import Vec3D, Slices3D
 from zetta_utils.data.basic_ops import InterpolationMode
 from zetta_utils.data.processors import Interpolate
-from zetta_utils.data.layers.indexes.base import (
+from zetta_utils.data.indexes.base import (
     Index,
     IndexConverter,
     IndexAdjuster,
@@ -28,38 +28,35 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
     resolution: Vec3D
     slices: Slices3D
 
-
-@typechecked
-@attrs.mutable
-class VolumetricIndexConverter(
-    IndexConverter[VolumetricIndex]
-):  # pylint: disable=too-few-public-methods
-    index_resolution: Optional[Vec3D] = None
-    default_desired_resolution: Optional[Vec3D] = None
-
-    def __call__(self, raw_idx: RawVolumetricIndex) -> VolumetricIndex:
-        if len(raw_idx) == 3:  # Tuple[slice, slice, sclie], default index
-            specified_resolution = None
-            slices_raw = raw_idx  # type: Tuple[slice, slice, slice] # type: ignore
+    @classmethod
+    def convert(
+        cls,
+        idx_raw: RawVolumetricIndex,
+        index_resolution: Optional[Vec3D] = None,
+        default_desired_resolution: Optional[Vec3D] = None,
+    ):
+        if len(idx_raw) == 3:  # Tuple[slice, slice, sclie], default index
+            specified_resolution = None  # type: Optional[Vec3D]
+            slices_raw = idx_raw  # type: Tuple[slice, slice, slice] # type: ignore
         else:
-            assert len(raw_idx) == 4
-            specified_resolution = raw_idx[0]  # type: Vec3D # type: ignore
-            slices_raw = raw_idx[1:]  # type: ignore # Dosn't know the idx[1:] type
+            assert len(idx_raw) == 4
+            specified_resolution = idx_raw[0]  # type: ignore
+            slices_raw = idx_raw[1:]  # type: ignore
 
         if specified_resolution is not None:
             desired_resolution = specified_resolution
-        elif self.default_desired_resolution is not None:
-            specified_resolution = self.default_desired_resolution
+        elif default_desired_resolution is not None:
+            specified_resolution = default_desired_resolution
             desired_resolution = specified_resolution
         else:
             raise ValueError(
-                "VolumetrixIndexConverter unable to infer desired resolution: resolution not "
-                f"given as a part of index {raw_idx} while `self.default_desired_resolution` "
-                "is None."
+                f"Unable to convert {idx_raw} to VolumetricResolution: cannot infer "
+                "desired resolutionresolution. Resolution not given as a part of index "
+                "and `default_desired_resolution` is None."
             )
 
-        if self.index_resolution is not None:
-            slice_resolution = self.index_resolution
+        if index_resolution is not None:
+            slice_resolution = index_resolution
         else:
             slice_resolution = specified_resolution
 
@@ -71,6 +68,53 @@ class VolumetricIndexConverter(
             slices=slices_final,
         )
 
+        return result
+
+
+@typechecked
+@attrs.mutable
+class VolumetricIndexConverter(
+    IndexConverter[VolumetricIndex]
+):  # pylint: disable=too-few-public-methods
+    index_resolution: Optional[Vec3D] = None
+    default_desired_resolution: Optional[Vec3D] = None
+
+    def __call__(self, idx_raw: RawVolumetricIndex) -> VolumetricIndex:
+        result = VolumetricIndex.convert(
+            idx_raw=idx_raw,
+            index_resolution=self.index_resolution,
+            default_desired_resolution=self.default_desired_resolution,
+        )
+        return result
+
+
+@typechecked
+def translate_volumetric_index(idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D):
+    bcube = zu.bbox.BoundingCube.from_slices(slices=idx.slices, resolution=idx.resolution)
+    bcube_trans = bcube.translate(offset, resolution)
+    result = VolumetricIndex(
+        slices=bcube_trans.to_slices(idx.resolution),
+        resolution=idx.resolution,
+    )
+    return result
+
+
+# TODO: it's possible to simplify indexer creation such that the below definition would be:
+# TranslateVolumetricIndex = IndexAdjuster[VolumetricIndex].from_func(translate_volumetric_index)
+# This can be done through dynamically creating a class. For now it's not done for the sake of
+# codebase simplicity. Same can be done for converters and other processors in general.
+@typechecked
+@attrs.mutable
+class TranslateVolumetricIndex(
+    IndexAdjuster[VolumetricIndex]
+):  # pylint: disable=too-few-public-methods
+    offset: Vec3D
+    resolution: Vec3D
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        result = translate_volumetric_index(
+            idx=idx, offset=self.offset, resolution=self.resolution
+        )
         return result
 
 
@@ -101,26 +145,6 @@ class AdjustDataResolution(
             else:
                 scale_factor = tuple(idx.resolution[i] / idx_final.resolution[i] for i in range(3))
 
-            processors.append(
-                Interpolate(scale_factor=scale_factor, interpolation_mode=self.interpolation_mode)
-            )
+            processors.append(Interpolate(scale_factor=scale_factor, mode=self.interpolation_mode))
 
         return idx_final, processors
-
-
-@typechecked
-@attrs.mutable
-class TranslateVolumetricIndex(
-    IndexAdjuster[VolumetricIndex]
-):  # pylint: disable=too-few-public-methods
-    offset: Vec3D
-    offset_resolution: Vec3D
-
-    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
-        bcube = zu.bbox.BoundingCube.from_slices(slices=idx.slices, resolution=idx.resolution)
-        bcube_trans = bcube.translate(self.offset, self.offset_resolution)
-        result = VolumetricIndex(
-            slices=bcube_trans.to_slices(idx.resolution),
-            resolution=idx.resolution,
-        )
-        return result

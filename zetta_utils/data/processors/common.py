@@ -1,6 +1,6 @@
 # pylint: disable=all
 import attrs
-from typing import Callable
+from typing import Callable, Any
 from typeguard import typechecked
 
 
@@ -10,8 +10,8 @@ class ComparablePartial:
     func: Callable
     kwargs: dict = {}
 
-    def __call__(self, **kwargs):
-        return self.func(**self.kwargs, **kwargs)
+    def __call__(self, *args, **kwargs) -> Any:  # pragma: no cover
+        return self.func(*args, **self.kwargs, **kwargs)
 
 
 def func_to_proc(func):

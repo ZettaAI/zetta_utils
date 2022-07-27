@@ -1,4 +1,3 @@
-# type: ignore
 """Buildable data processors."""
 import zetta_utils as zu
 

@@ -8,7 +8,7 @@ import typeguard
 
 # number_types = (int, float)
 Number = Union[int, float]
-Array = Union[torch.Tensor, npt.NDArray]
+Tensor = Union[torch.Tensor, npt.NDArray]
 Slices3D = Tuple[slice, slice, slice]
 Vec3D = Tuple[Number, Number, Number]
 

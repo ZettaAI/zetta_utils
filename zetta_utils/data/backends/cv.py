@@ -1,13 +1,16 @@
 # pylint: disable=missing-docstring
 import json
 
+import attrs
+import numpy as np
 import numpy.typing as npt
 import cachetools  # type: ignore
 import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 
-from zetta_utils.data.layers.data_backends.base import BaseDataBackend
-from zetta_utils.data.layers.indexes.volumetric import VolumetricIndex
+import zetta_utils as zu
+from zetta_utils.data.backends.base import DataBackend
+from zetta_utils.data.indexes import VolumetricIndex
 from zetta_utils.typing import Vec3D
 
 
@@ -32,7 +35,8 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
         return super().__new__(cls, *args, **kwargs)
 
 
-class CVBackend(BaseDataBackend):  # pylint: disable=too-few-public-methods
+@attrs.mutable(init=False)
+class CVBackend(DataBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         **kwargs,
@@ -59,10 +63,31 @@ class CVBackend(BaseDataBackend):  # pylint: disable=too-few-public-methods
         result = CachedCloudVolume(mip=resolution, **self.kwargs)
         return result
 
-    def read(self, idx: VolumetricIndex, **kwargs) -> npt.NDArray:
-        if len(kwargs) > 0:
-            raise ValueError(f"Unsupported `kwargs`: {kwargs}")
+    def read(self, idx: VolumetricIndex) -> npt.NDArray:
+        # Data out: bcxyz
+        cvol = self._get_cv_at_resolution(idx.resolution)
+        data_raw = cvol[idx.slices]
+
+        result = np.expand_dims(np.transpose(data_raw, (3, 0, 1, 2)), 0)
+
+        return result
+
+    def write(self, idx: VolumetricIndex, value: zu.typing.Tensor):
+        # Data in: bcxyz
+        # Write format: xyzc (b == 1)
+        value = zu.data.convert.to_np(value)
+        if len(value.shape) != 5:
+            raise ValueError(
+                "Data written to CloudVolume backend must be in `bcxyz` dimension format, "
+                f"but, got a tensor of with ndim == {value.ndim}"
+            )
+
+        if value.shape[0] != 1:
+            raise ValueError(
+                "Data written to CloudVolume backend must have batch size of 1, "
+                f"but, got a tensor of with shape == {value.shape} (b == {value.shape[0]})"
+            )
+        value_final = np.transpose(value[0], (1, 2, 3, 0))
 
         cvol = self._get_cv_at_resolution(idx.resolution)
-        result = cvol[idx.slices]
-        return result
+        cvol[idx.slices] = value_final

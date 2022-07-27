@@ -2,7 +2,7 @@
 import pytest
 
 from zetta_utils.typing import Vec3D, Slices3D
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BoundingCube
 
 
 @pytest.mark.parametrize(
@@ -193,12 +193,31 @@ def test_pad(bcube: BoundingCube, pad, resolution: Vec3D, expected: BoundingCube
     result = bcube.pad(pad=pad, resolution=resolution)
     assert result == expected
 
+
+@pytest.mark.parametrize(
+    "bcube, pad, resolution, expected_exc",
+    [
+        [
+            BoundingCube(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 3, 5, 3),
+            (1, 1, 1),
+            ValueError,
+        ],
+    ],
+)
+def test_pad_exc(bcube: BoundingCube, pad, resolution: Vec3D, expected_exc):
+    with pytest.raises(expected_exc):
+        bcube.pad(pad=pad, resolution=resolution)
+
+
 @pytest.mark.parametrize(
     "bcube, offset, resolution, in_place, expected",
     [
         [
             BoundingCube(bounds=((0, 1), (0, 1), (0, 1))),
-            (10, 10, 10), (1, 1, 1), False,
+            (10, 10, 10),
+            (1, 1, 1),
+            False,
             BoundingCube(bounds=((10, 11), (10, 11), (10, 11))),
         ],
     ],

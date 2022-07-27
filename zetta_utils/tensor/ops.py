@@ -369,6 +369,24 @@ def compare(
 MaskFilteringModes = Literal["keep_large", "keep_small"]
 
 
+@overload
+def filter_cc(
+    data: torch.Tensor,
+    mode: MaskFilteringModes = ...,
+    thr: int = ...,
+) -> torch.Tensor:
+    ...
+
+
+@overload
+def filter_cc(
+    data: npt.NDArray,
+    mode: MaskFilteringModes = ...,
+    thr: int = ...,
+) -> npt.NDArray:
+    ...
+
+
 @typechecked
 def filter_cc(
     data: zu.typing.Tensor,

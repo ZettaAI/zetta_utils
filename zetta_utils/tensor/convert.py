@@ -11,43 +11,63 @@ from typeguard import typechecked
 import zetta_utils as zu
 
 
+@overload
+def to_np(data: torch.Tensor) -> npt.NDArray:
+    ...
+
+
+@overload
+def to_np(data: npt.NDArray) -> npt.NDArray:
+    ...
+
+
 @typechecked
-def to_np(a: zu.typing.Tensor) -> npt.NDArray:
+def to_np(data: zu.typing.Tensor) -> npt.NDArray:
     """
     Convert the given tensor to numpy.ndarray.
 
     Args:
-        a (zu.types.Tensor): Input tensor.
+        data (zu.types.Tensor): Input tensor.
 
     Returns:
         npt.NDArray: Input tensor in numpy.ndarray format.
     """
-    if isinstance(a, torch.Tensor):
-        result = a.cpu().detach().numpy()
-    elif isinstance(a, np.ndarray):
-        result = a
+    if isinstance(data, torch.Tensor):
+        result = data.cpu().detach().numpy()
     else:
-        assert False, "Type checking error"  # pragma: no cover
+        assert isinstance(data, np.ndarray)
+        result = data
+
     return result
 
 
+@overload
+def to_torch(data: torch.Tensor) -> torch.Tensor:
+    ...
+
+
+@overload
+def to_torch(data: npt.NDArray) -> torch.Tensor:
+    ...
+
+
 @typechecked
-def to_torch(a: zu.typing.Tensor) -> torch.Tensor:
+def to_torch(data: zu.typing.Tensor) -> torch.Tensor:
     """
     Convert the given tensor to torch tensor.
 
     Args:
-        a (zu.types.Tensor): Input tensor.
+        data (zu.types.Tensor): Input tensor.
 
     Returns:
         torch.Tensor: Input tensor in torch tensro format.
     """
-    if isinstance(a, torch.Tensor):
-        result = a
-    elif isinstance(a, np.ndarray):
-        result = torch.from_numpy(a)
+    if isinstance(data, torch.Tensor):
+        result = data
     else:
-        assert False, "Type checking error"  # pragma: no cover
+        assert isinstance(data, np.ndarray)
+        result = torch.from_numpy(data)
+
     return result
 
 

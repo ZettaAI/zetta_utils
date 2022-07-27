@@ -12,12 +12,12 @@ import zetta_utils as zu
 
 
 @overload
-def to_np(data: torch.Tensor) -> npt.NDArray:
+def to_np(data: torch.Tensor) -> npt.NDArray:  # pragma: no cover
     ...
 
 
 @overload
-def to_np(data: npt.NDArray) -> npt.NDArray:
+def to_np(data: npt.NDArray) -> npt.NDArray:  # pragma: no cover
     ...
 
 
@@ -42,12 +42,12 @@ def to_np(data: zu.typing.Tensor) -> npt.NDArray:
 
 
 @overload
-def to_torch(data: torch.Tensor) -> torch.Tensor:
+def to_torch(data: torch.Tensor) -> torch.Tensor:  # pragma: no cover
     ...
 
 
 @overload
-def to_torch(data: npt.NDArray) -> torch.Tensor:
+def to_torch(data: npt.NDArray) -> torch.Tensor:  # pragma: no cover
     ...
 
 

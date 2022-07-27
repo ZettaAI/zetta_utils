@@ -374,7 +374,7 @@ def filter_cc(
     data: torch.Tensor,
     mode: MaskFilteringModes = ...,
     thr: int = ...,
-) -> torch.Tensor:
+) -> torch.Tensor:  # pragma: no cover
     ...
 
 
@@ -383,7 +383,7 @@ def filter_cc(
     data: npt.NDArray,
     mode: MaskFilteringModes = ...,
     thr: int = ...,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     ...
 
 

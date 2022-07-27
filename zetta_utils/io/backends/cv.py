@@ -9,8 +9,8 @@ import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 
 import zetta_utils as zu
-from zetta_utils.data.backends.base import DataBackend
-from zetta_utils.data.indexes import VolumetricIndex
+from zetta_utils.io.backends.base import DataBackend
+from zetta_utils.io.indexes import VolumetricIndex
 from zetta_utils.typing import Vec3D
 
 
@@ -75,7 +75,7 @@ class CVBackend(DataBackend[VolumetricIndex]):  # pylint: disable=too-few-public
     def write(self, idx: VolumetricIndex, value: zu.typing.Tensor):
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
-        value = zu.data.convert.to_np(value)
+        value = zu.tensor.convert.to_np(value)
         if len(value.shape) != 5:
             raise ValueError(
                 "Data written to CloudVolume backend must be in `bcxyz` dimension format, "

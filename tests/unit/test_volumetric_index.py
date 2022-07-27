@@ -2,14 +2,14 @@
 from typing import Literal, Tuple, Iterable, Callable
 import pytest
 
-from zetta_utils.data.indexes.volumetric import (
+from zetta_utils.io.indexes.volumetric import (
     VolumetricIndexConverter,
     RawVolumetricIndex,
     VolumetricIndex,
     AdjustDataResolution,
     TranslateVolumetricIndex,
 )
-from zetta_utils.data.processors import Interpolate
+from zetta_utils.tensor.processors import Interpolate
 
 
 @pytest.mark.parametrize(

@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring # pragma: no cover
 from typing import Generic, TypeVar
 from abc import ABC, abstractmethod
-from zetta_utils.data.indexes import Index
+from zetta_utils.io.indexes import Index
 
 IndexT = TypeVar("IndexT", bound=Index)
 

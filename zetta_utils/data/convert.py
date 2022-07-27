@@ -10,12 +10,12 @@ import zetta_utils as zu
 
 
 @typechecked
-def to_np(a: zu.typing.Array) -> npt.NDArray:
+def to_np(a: zu.typing.Tensor) -> npt.NDArray:
     """
     Convert the given array to numpy.ndarray.
 
     Args:
-        a (zu.types.Array): Input array.
+        a (zu.types.Tensor): Input array.
 
     Returns:
         npt.NDArray: Input array in numpy.ndarray format.
@@ -30,12 +30,12 @@ def to_np(a: zu.typing.Array) -> npt.NDArray:
 
 
 @typechecked
-def to_torch(a: zu.typing.Array) -> torch.Tensor:
+def to_torch(a: zu.typing.Tensor) -> torch.Tensor:
     """
     Convert the given array to torch tensor.
 
     Args:
-        a (zu.types.Array): Input array.
+        a (zu.types.Tensor): Input array.
 
     Returns:
         torch.Tensor: Input array in torch tensro format.

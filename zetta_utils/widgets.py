@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 """Jupyter widgets. Most widget code is excluded from automated testing."""
 import ipywidgets as widgets  # type: ignore
-from ipywidgets import interact  # type: ignore
+from ipywidgets import interact
 import matplotlib.pyplot as plt  # type: ignore
 
 import zetta_utils as zu
@@ -26,9 +26,7 @@ def entry_loader(
     plt.imshow(entry_rendered)
 
 
-def list_viz(
-    entries, grid_size=1, grid_x=0, grid_y=0, renderer=None
-):  # pragma: no cover
+def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover
     if renderer is None:
         renderer = zu.viz.Renderer()
 
@@ -45,12 +43,8 @@ def list_viz(
     grid_size_selector = widgets.IntText(
         value=grid_size, description="Section Count:", disabled=False
     )
-    grid_x_selector = widgets.IntText(
-        value=grid_x, description="X section:", disabled=False
-    )
-    grid_y_selector = widgets.IntText(
-        value=grid_y, description="Y section:", disabled=False
-    )
+    grid_x_selector = widgets.IntText(value=grid_x, description="X section:", disabled=False)
+    grid_y_selector = widgets.IntText(value=grid_y, description="Y section:", disabled=False)
 
     def this_entry_loader(**kwargs):
         return entry_loader(entries=entries, renderer=renderer, **kwargs)

@@ -16,9 +16,7 @@ def load(cue_file):
     else:
         raise ValueError("Invalid input.")
 
-    command_result = run(
-        [cue_exe, "export", file_name], capture_output=True, check=True
-    )
+    command_result = run([cue_exe, "export", file_name], capture_output=True, check=True)
     result_str = command_result.stdout
     result = json.loads(result_str)
     return result

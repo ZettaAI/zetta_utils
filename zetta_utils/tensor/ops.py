@@ -1,9 +1,14 @@
 # pylint: disable=missing-docstring
+import copy
 from typing import Union, Literal, SupportsIndex, Optional, overload, Sequence
 import numpy as np
 import numpy.typing as npt
 import torch
 from typeguard import typechecked
+
+import fastremap  # type: ignore
+import cc3d  # type: ignore
+
 import zetta_utils as zu
 from zetta_utils.typing import Tensor
 
@@ -245,8 +250,8 @@ def interpolate(
         mode=mode,
     )
 
-    data_in = zu.data.convert.to_torch(data).float()
-    raw_result = torch.nn.functional.interpolate(
+    data_in = zu.tensor.convert.to_torch(data).float()
+    result_raw = torch.nn.functional.interpolate(
         data_in,
         size=size,
         scale_factor=scale_factor,
@@ -267,26 +272,20 @@ def interpolate(
                 "is not currently supported."
             )
             # For when we support non-isotropic scale factor
-            # if raw_result.shape[1] != spatial_ndim:
+            # if result_raw.shape[1] != spatial_ndim:
             #     raise ValueError(
-            #         f"Malformed field shape: {raw_result.shape}. Number "
-            #         f"of channels ({raw_result.shape[1]}) must be equal to "
+            #         f"Malformed field shape: {result_raw.shape}. Number "
+            #         f"of channels ({result_raw.shape[1]}) must be equal to "
             #         f"the number of spatial dimensions ({spatial_ndim})."
             #     )
 
-        raw_result *= multiplier
+        result_raw *= multiplier
     elif mode == "mask":
-        raw_result = raw_result > mask_value_thr
+        result_raw = result_raw > mask_value_thr
     elif mode == "segmentation":
-        raw_result = raw_result.int()
+        result_raw = result_raw.int()
 
-    if isinstance(data, torch.Tensor):
-        result = zu.data.convert.to_torch(raw_result)  # type: zu.typing.Tensor
-    elif isinstance(data, np.ndarray):
-        result = zu.data.convert.to_np(raw_result)
-    else:
-        assert False, "Type checker error."  # pragma: no cover
-
+    result = zu.tensor.convert.astype(result_raw, data)
     return result
 
 
@@ -313,7 +312,7 @@ def compare(
     operand: float,
     binarize: bool = ...,
     fill: Optional[float] = ...,
-) -> npt.NDArray:
+) -> npt.NDArray:  # pragma: no cover
     ...
 
 
@@ -324,7 +323,7 @@ def compare(
     operand: float,
     binarize: bool = ...,
     fill: Optional[float] = ...,
-) -> torch.Tensor:
+) -> torch.Tensor:  # pragma: no cover
     ...
 
 
@@ -364,4 +363,61 @@ def compare(
         result = data
         result[mask] = fill
 
+    return result
+
+
+MaskFilteringModes = Literal["keep_large", "keep_small"]
+
+
+@overload
+def filter_cc(
+    data: torch.Tensor,
+    mode: MaskFilteringModes = ...,
+    thr: int = ...,
+) -> torch.Tensor:  # pragma: no cover
+    ...
+
+
+@overload
+def filter_cc(
+    data: npt.NDArray,
+    mode: MaskFilteringModes = ...,
+    thr: int = ...,
+) -> npt.NDArray:  # pragma: no cover
+    ...
+
+
+@typechecked
+def filter_cc(
+    data: zu.typing.Tensor,
+    mode: MaskFilteringModes = "keep_small",
+    thr: int = 100,
+) -> zu.typing.Tensor:
+    """
+    Remove connected components from the given input tensor.
+
+    Clustering is performed based on non-zero values.
+
+    Args:
+        data (zu.typing.Tensor): Input tensor.
+        mode (Literal["keep_large", "keep_small"]): Filtering mode.
+        thr (int): Pixel size threshold.
+
+    Returns:
+        zu.typing.Tensor: Tensor with the filtered clusters removed.
+    """
+    data_np = zu.tensor.convert.to_np(data)
+    cc_labels = cc3d.connected_components(data_np != 0)
+    segids, counts = np.unique(cc_labels, return_counts=True)
+    if mode == "keep_large":
+        segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
+    else:
+        segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
+
+    filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
+
+    result_raw = copy.copy(data_np)
+    result_raw[filtered_mask == 0] = 0
+
+    result = zu.tensor.convert.astype(result_raw, data)
     return result

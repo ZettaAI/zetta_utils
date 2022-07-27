@@ -7,8 +7,8 @@ import pytest
 import numpy as np
 
 from zetta_utils.bbox import BoundingCube
-from zetta_utils.data.basic_ops import InterpolationMode
-from zetta_utils.data.layers import CVLayer
+from zetta_utils.tensor.ops import InterpolationMode
+from zetta_utils.io.layers import CVLayer
 
 from zetta_utils.typing import (
     Vec3D,

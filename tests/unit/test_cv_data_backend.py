@@ -2,8 +2,8 @@
 import pytest
 import numpy as np
 
-from zetta_utils.data.backends import CVBackend
-from zetta_utils.data.indexes import VolumetricIndex
+from zetta_utils.io.backends import CVBackend
+from zetta_utils.io.indexes import VolumetricIndex
 
 
 def test_backend_get_index_type():
@@ -24,7 +24,7 @@ def test_cv_backend_constructor_exc():
 
 def test_get_cv_at_res(mocker):
     cv_fn = mocker.patch(
-        "zetta_utils.data.backends.cv.CachedCloudVolume",
+        "zetta_utils.io.backends.cv.CachedCloudVolume",
         return_value="correct",
     )
     cvb = CVBackend()
@@ -56,9 +56,7 @@ def test_cv_backend_read(mocker):
     expected = np.ones([1, 2, 3, 4, 5])
 
     dummy = DummyCV(data_read)
-    mocker.patch(
-        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
-    )
+    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
     cvb = CVBackend()
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     result = cvb.read(index)
@@ -68,9 +66,7 @@ def test_cv_backend_read(mocker):
 
 def test_cv_backend_write(mocker):
     dummy = DummyCV(None)
-    mocker.patch(
-        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
-    )
+    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
     cvb = CVBackend()
     value = np.ones([1, 2, 3, 4, 5])
     expected_written = np.ones([3, 4, 5, 2])
@@ -90,9 +86,7 @@ def test_cv_backend_write(mocker):
 )
 def test_cv_backend_write_exc(data_in, expected_exc, mocker):
     dummy = DummyCV(None)
-    mocker.patch(
-        "zetta_utils.data.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy
-    )
+    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
     cvb = CVBackend()
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     with pytest.raises(expected_exc):

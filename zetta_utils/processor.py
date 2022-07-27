@@ -1,6 +1,5 @@
-# pylint: disable=all
-import attrs
 from typing import Callable, Any
+import attrs
 from typeguard import typechecked
 
 

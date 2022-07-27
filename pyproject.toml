@@ -69,7 +69,7 @@ max-line-length = 99
 good-names = '''a,b,c,d,df,do_POST,e,i,j,k,id,logger,n,on,ok,tz,x,y,z,r,ex,ey,cv,s'''
 
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]

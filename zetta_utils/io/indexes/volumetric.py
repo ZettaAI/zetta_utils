@@ -7,9 +7,9 @@ from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.typing import Vec3D, Slices3D
-from zetta_utils.data.basic_ops import InterpolationMode
-from zetta_utils.data.processors import Interpolate
-from zetta_utils.data.indexes.base import (
+from zetta_utils.tensor.ops import InterpolationMode
+from zetta_utils.tensor.processors import Interpolate
+from zetta_utils.io.indexes.base import (
     Index,
     IndexConverter,
     IndexAdjuster,

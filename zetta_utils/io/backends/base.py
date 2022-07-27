@@ -6,7 +6,7 @@ from zetta_utils.io.indexes import Index
 IndexT = TypeVar("IndexT", bound=Index)
 
 
-class DataBackend(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
+class IOBackend(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
     def read(self, idx: IndexT):
         """Reads data from the given index"""

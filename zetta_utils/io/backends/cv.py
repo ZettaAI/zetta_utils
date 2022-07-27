@@ -9,7 +9,7 @@ import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 
 import zetta_utils as zu
-from zetta_utils.io.backends.base import DataBackend
+from zetta_utils.io.backends.base import IOBackend
 from zetta_utils.io.indexes import VolumetricIndex
 from zetta_utils.typing import Vec3D
 
@@ -36,7 +36,7 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
 
 
 @attrs.mutable(init=False)
-class CVBackend(DataBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
+class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
     def __init__(
         self,
         **kwargs,

@@ -17,7 +17,7 @@ from zetta_utils.io.indexes import (
 @typechecked
 @attrs.mutable
 class Layer:
-    data_backend: zu.io.backends.DataBackend
+    data_backend: zu.io.backends.IOBackend
     readonly: bool = False
     index_adjs: Iterable[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
     index_converter: Optional[Callable] = None

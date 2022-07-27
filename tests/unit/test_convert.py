@@ -6,9 +6,7 @@ import torch
 from zetta_utils.data import convert
 
 
-@pytest.mark.parametrize(
-    "x, expected", [[np.ones(3), np.ones(3)], [torch.ones(3), np.ones(3)]]
-)
+@pytest.mark.parametrize("x, expected", [[np.ones(3), np.ones(3)], [torch.ones(3), np.ones(3)]])
 def test_to_np(x, expected):
     result = convert.to_np(x)
     np.testing.assert_array_equal(result, expected)

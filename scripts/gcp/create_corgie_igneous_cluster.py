@@ -10,9 +10,7 @@ CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLU
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Creates a corgie/igneous cluster on GCP."
-    )
+    parser = argparse.ArgumentParser(description="Creates a corgie/igneous cluster on GCP.")
     parser.add_argument(
         "--cluster_name", "-n", type=str, required=True, help="Name of the new cluster."
     )
@@ -63,12 +61,8 @@ def main():
     # cluster_version = args.cluster_version
     # if cluster_version is None:
 
-    gpu_zones = [
-        f"{args.region}-{zone_letter}" for zone_letter in args.gpu_zones.split(",")
-    ]
-    cpu_zones = [
-        f"{args.region}-{zone_letter}" for zone_letter in args.cpu_zones.split(",")
-    ]
+    gpu_zones = [f"{args.region}-{zone_letter}" for zone_letter in args.gpu_zones.split(",")]
+    cpu_zones = [f"{args.region}-{zone_letter}" for zone_letter in args.cpu_zones.split(",")]
 
     create_command = CREATE_COMMAND_TMPL
     create_command = create_command.replace("{REGION}", args.region)
@@ -84,16 +78,12 @@ def main():
         add_gpu_command = add_gpu_command.replace("{REGION}", args.region)
         add_gpu_command = add_gpu_command.replace("{PROJECT_NAME}", args.project_name)
         add_gpu_command = add_gpu_command.replace("{CLUSTER_NAME}", args.cluster_name)
-        add_gpu_command = add_gpu_command.replace(
-            "{NODE_LOCATIONS}", ",".join(gpu_zones)
-        )
+        add_gpu_command = add_gpu_command.replace("{NODE_LOCATIONS}", ",".join(gpu_zones))
         print(f"Running: \n{add_gpu_command}")
         subprocess.call(add_gpu_command, shell=True)
 
         configure_drivers_command = CONFIGURE_DRIVERS_COMMAND_TMPL
-        configure_drivers_command = configure_drivers_command.replace(
-            "{REGION}", args.region
-        )
+        configure_drivers_command = configure_drivers_command.replace("{REGION}", args.region)
         configure_drivers_command = configure_drivers_command.replace(
             "{PROJECT_NAME}", args.project_name
         )

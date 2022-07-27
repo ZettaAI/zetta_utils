@@ -32,14 +32,16 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 viz = [
+    "matplotlib >= 3.5.2",
     "ipywidgets >= 7.7.0",
     "opencv-python >= 4.5.5"
 ]
 test = [
     "black == 21.9b0",
+    "click ==8.0.1", # for black to work
     "pydocstyle == 6.1.1",
     "flake8 == 4.0.1",
-    "mypy == 0.960",
+    "mypy == 0.971",
     "pytest == 7.1.1",
     "pytest-cov == 3.0.0",
     "pytest-mock == 3.8.2",
@@ -47,6 +49,10 @@ test = [
     "pylint == 2.13.9",
     "isort == 5.10.1",
     "pre-commit == 2.19.0",
+]
+all = [
+    "zetta_utils[test]",
+    "zetta_utils[viz]",
 ]
 
 [tool.setuptools]
@@ -63,7 +69,7 @@ max-line-length = 99
 good-names = '''a,b,c,d,df,do_POST,e,i,j,k,id,logger,n,on,ok,tz,x,y,z,r,ex,ey,cv,s'''
 
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,too-many-arguments,cyclic-import'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]
@@ -84,11 +90,19 @@ extension-pkg-whitelist="numpy,cc3d,fastremap"
 generated-members="torch.*"
 
 [tool.pytest.ini_options]
-#addopts = "-ra --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short"
 addopts = "-ra --cov=zetta_utils --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short --junitxml=test-results.xml --cov-report=html --cov-report=xml"
 testpaths = ["tests"]
 norecursedirs = ".env .git .venv build dist"
 python_files = "test.py tests.py test_*.py *_test.py"
 
-#source = ["zetta_utils"]
-#omit = ["zetta_utils/widgets.py", "utils/widgets.py"]
+[tool.mypy]
+    warn_unreachable = true
+    warn_unused_ignores = true
+    warn_redundant_casts = true
+    warn_unused_configs = true
+    #incremental = false
+    #disallow_untyped_defs = true
+    #check_untyped_defs = true
+    #strict_equality = true
+    implicit_reexport = true
+    no_implicit_optional = true

@@ -17,7 +17,6 @@ def register(name: str, versions=None) -> Callable:
 
     def register_fn(cls):
         REGISTRY[name] = cls
-        cls._spec_name = name  # pylint: disable=protected-access
         return cls
 
     return register_fn

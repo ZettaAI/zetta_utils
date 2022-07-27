@@ -65,7 +65,6 @@ def test_nondict_exc(value):
 
 def test_register(register_dummy_a):
     assert spec_parser.parser.REGISTRY["dummy_a"] == DummyA
-    assert DummyA._spec_name == "dummy_a"  # pylint: disable=no-member
 
 
 @pytest.mark.parametrize(

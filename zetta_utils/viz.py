@@ -94,7 +94,7 @@ def get_img_from_fig(
 
 @typechecked
 def render_img(
-    img: zu.typing.Array,
+    img: zu.typing.Tensor,
     figsize: tuple[int, int],
     dpi: int,
     cmap: str = "gray",
@@ -110,7 +110,7 @@ render_seg = render_img
 
 @typechecked
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
-    fld: zu.typing.Array,
+    fld: zu.typing.Tensor,
     figsize: tuple[int, int],
     dpi: int,
     grid_size: int = 50,
@@ -123,7 +123,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     The field is assumed to be in a residual format and pixel units.
 
     Args:
-        fld (zu.typing.Array): An array of shape [(1,) H, W, 2] representing
+        fld (zu.typing.Tensor): An array of shape [(1,) H, W, 2] representing
             a 2D vector field.
         grid_side (int): Number of arrows per side.
 

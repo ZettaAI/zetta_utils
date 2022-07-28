@@ -33,7 +33,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     """Represents a N-D cuboid in space."""
 
     bounds: Sequence[Tuple[Number, Number]]
-    unit_name: str = DEFAULT_UNIT
+    unit: str = DEFAULT_UNIT
 
     @property
     def ndim(self) -> int:
@@ -44,7 +44,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         cls,
         slices: SlicesT,
         resolution: Optional[VecT] = None,
-        unit_name: str = DEFAULT_UNIT,
+        unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
         if resolution is None:
             resolution = cast(VecT, tuple(1 for _ in range(len(slices))))
@@ -62,7 +62,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             (slices[i].start * resolution[i], slices[i].stop * resolution[i])
             for i in range(len(resolution))
         )
-        result = cls(bounds=bounds, unit_name=unit_name)
+        result = cls(bounds=bounds, unit=unit)
         return result
 
     @classmethod
@@ -71,7 +71,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         start_coord: VecT,
         end_coord: VecT,
         resolution: VecT,
-        unit_name: str = DEFAULT_UNIT,
+        unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
         assert_equal_len(
             start_coord=start_coord,
@@ -82,7 +82,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             (start_coord[i] * resolution[i], end_coord[i] * resolution[i])
             for i in range(len(resolution))
         )
-        result = cls(bounds=bounds, unit_name=unit_name)
+        result = cls(bounds=bounds, unit=unit)
         return result
 
     def get_slice(
@@ -166,7 +166,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
             result = BoundingBoxND[SlicesT, VecT].from_slices(
                 slices=slices,
-                unit_name=self.unit_name,
+                unit=self.unit,
             )
 
         return result
@@ -193,7 +193,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
             result = BoundingBoxND[SlicesT, VecT].from_slices(
                 slices=slices,
-                unit_name=self.unit_name,
+                unit=self.unit,
             )
 
         return result
@@ -201,7 +201,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     def __repr__(self) -> str:  # pragma: no cover
         parts = ["BoundingCube("]
         for i in range(self.ndim):  # pylint: disable=unused-variable
-            parts.append(f"[Dim {i}] {self.bounds[i][0]}:{self.bounds[i][1]}{self.unit_name},")
+            parts.append(f"[Dim {i}] {self.bounds[i][0]}:{self.bounds[i][1]}{self.unit},")
         parts.append(")")
         result = "".join(parts)
         return result

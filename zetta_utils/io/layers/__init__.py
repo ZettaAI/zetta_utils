@@ -2,4 +2,4 @@
 training and inference."""
 
 from .layer import Layer
-from .shortcuts import cv_layer, layer_set
+from .shortcuts import build_cv_layer, build_layer_set

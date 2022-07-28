@@ -31,6 +31,9 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
+docs = [
+    "piccolo_theme >= 0.11.1"
+]
 viz = [
     "matplotlib >= 3.5.2",
     "ipywidgets >= 7.7.0",
@@ -53,6 +56,7 @@ test = [
 all = [
     "zetta_utils[test]",
     "zetta_utils[viz]",
+    "zetta_utils[docs]",
 ]
 
 [tool.setuptools]
@@ -85,6 +89,7 @@ ignore-imports = "yes"
 
 [tool.pylint.main]
 extension-pkg-whitelist="numpy,cc3d,fastremap"
+ignore-paths=["^docs/*"]
 
 [tool.pylint.options]
 generated-members="torch.*"

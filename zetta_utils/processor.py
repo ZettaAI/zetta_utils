@@ -3,6 +3,7 @@ import attrs
 from typeguard import typechecked
 
 
+# Need this class to make our processors comparable
 @typechecked
 @attrs.frozen
 class ComparablePartial:
@@ -13,11 +14,22 @@ class ComparablePartial:
         return self.func(*args, **self.kwargs, **kwargs)
 
 
-def func_to_proc(func):
-    def wrapped(**kwargs):
+# Need this class for a pretty print in the registry
+@typechecked
+@attrs.frozen(repr=False)
+class FuncProcessorBuilder:
+    func: Callable
+
+    def __call__(self, **kwargs):
         return ComparablePartial(
-            func=func,
+            func=self.func,
             kwargs=kwargs,
         )
 
-    return wrapped
+    def __repr__(self):
+        return f"FuncProcessorBuilder(func={self.func.__module__}.{self.func.__qualname__})"
+
+
+def func_to_proc(func):
+    builder = FuncProcessorBuilder(func)
+    return builder

@@ -23,7 +23,7 @@ DEFAULT_UNIT = "nm"
 # TODO: Currently both SlicesT and VecT have to be passed independently.
 # Ideally, we'd parametrize BoundingBoxND by the number of dimensions,
 # and slice and vector types would be infered from it.
-# (PEP 646 https://peps.python.org/pep-0646/ )
+# Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
 VecT = TypeVar("VecT", bound=Tuple[Number, ...])

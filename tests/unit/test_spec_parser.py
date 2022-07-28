@@ -6,6 +6,10 @@ import pytest
 from zetta_utils import spec_parser
 
 
+PARSE_KEY = "<type>"
+RECURSIVE_KEY = "<recursive_parse>"
+
+
 @dataclass
 class DummyA:
     a: Any
@@ -71,27 +75,27 @@ def test_register(register_dummy_a):
     "spec, expected",
     [
         [{"a": "b"}, {"a": "b"}],
-        [{"_parse_as": "dummy_a", "a": 2}, DummyA(a=2)],
-        [{"_parse_as": "dummy_b", "b": 2}, DummyB(b=2)],
+        [{PARSE_KEY: "dummy_a", "a": 2}, DummyA(a=2)],
+        [{PARSE_KEY: "dummy_b", "b": 2}, DummyB(b=2)],
         [
-            {"_parse_as": "dummy_a", "a": [{"_parse_as": "dummy_b", "b": 3}]},
+            {PARSE_KEY: "dummy_a", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
             DummyA(a=[DummyB(b=3)]),
         ],
         [
             {
-                "_parse_as": "dummy_a",
-                "_recursive_parse": True,
-                "a": [{"_parse_as": "dummy_b", "b": 3}],
+                PARSE_KEY: "dummy_a",
+                RECURSIVE_KEY: True,
+                "a": [{PARSE_KEY: "dummy_b", "b": 3}],
             },
             DummyA(a=[DummyB(b=3)]),
         ],
         [
             {
-                "_parse_as": "dummy_a",
-                "_recursive_parse": False,
-                "a": [{"_parse_as": "dummy_b", "b": 3}],
+                PARSE_KEY: "dummy_a",
+                RECURSIVE_KEY: False,
+                "a": [{PARSE_KEY: "dummy_b", "b": 3}],
             },
-            DummyA(a=[{"_parse_as": "dummy_b", "b": 3}]),
+            DummyA(a=[{PARSE_KEY: "dummy_b", "b": 3}]),
         ],
     ],
 )

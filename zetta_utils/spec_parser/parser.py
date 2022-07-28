@@ -5,8 +5,8 @@ from collections import defaultdict
 from typeguard import typechecked
 
 REGISTRY: dict = defaultdict(dict)
-PARSE_KEY = "_parse_as"
-RECURSE_KEY = "_recursive_parse"
+PARSE_KEY = "<type>"
+RECURSE_KEY = "<recursive_parse>"
 
 
 @typechecked
@@ -51,6 +51,8 @@ def _build(field: Any) -> Any:
         result = field  # type: Any
     elif isinstance(field, list):
         result = [_build(i) for i in field]
+    elif isinstance(field, tuple):
+        result = tuple(_build(i) for i in field)
     elif isinstance(field, dict):
         if PARSE_KEY in field:
             cls = get_cls_from_name(field[PARSE_KEY])
@@ -69,5 +71,7 @@ def _build(field: Any) -> Any:
             result = cls(**field_)
         else:
             result = {k: _build(v) for k, v in field.items()}
+    else:
+        raise ValueError(f"Unsupported type: {type(field)}")  # pragma: no cover
 
     return result

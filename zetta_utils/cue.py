@@ -1,10 +1,10 @@
 """cuelang parsing."""
 import json
 import pathlib
-from os import environ
+import os
 from subprocess import run
 
-cue_exe = environ.get("CUE_EXE", "cue")
+cue_exe = os.environ.get("CUE_EXE", "cue")
 
 
 def load(cue_file):
@@ -16,7 +16,16 @@ def load(cue_file):
     else:
         raise ValueError("Invalid input.")
 
-    command_result = run([cue_exe, "export", file_name], capture_output=True, check=True)
+    if not os.path.exists(file_name):
+        # CUE will raise an exception here, but it will look for the file as a moudle if
+        # the file extension is not correct. We raise manually for more descriptive error
+        raise FileNotFoundError(file_name)  # pragma: no cover
+
+    command_result = run([cue_exe, "export", file_name], capture_output=True, check=False)
+    if command_result.returncode != 0:
+        raise RuntimeError(  # pragma: no cover
+            f"CUE failed parsing {file_name}: {command_result.stderr}"
+        )
     result_str = command_result.stdout
     result = json.loads(result_str)
     return result

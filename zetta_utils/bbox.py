@@ -5,6 +5,8 @@ from math import floor
 from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
 
 import attrs
+
+from zetta_utils import spec_parser
 from zetta_utils.typing import Number
 
 
@@ -206,4 +208,6 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
 
 BoundingBox = BoundingBoxND[Tuple[slice, slice], Tuple[Number, Number]]
+
 BoundingCube = BoundingBoxND[Tuple[slice, slice, slice], Tuple[Number, Number, Number]]
+spec_parser.register("BoundingCube")(BoundingCube.from_coords)

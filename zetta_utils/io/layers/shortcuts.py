@@ -1,16 +1,16 @@
 # pylint: disable=missing-docstring
 from typing import Dict, Union, Callable, Optional, Any, Iterable, List
 
-import zetta_utils as zu
+from zetta_utils import spec_parser
+from zetta_utils.typing import Vec3D
 from zetta_utils.io.layers import Layer
 from zetta_utils.io.indexes import IndexAdjusterWithProcessors, Index
 from zetta_utils.io.indexes.volumetric import AdjustDataResolution, VolumetricIndexConverter
 from zetta_utils.io.backends import CVBackend
-from zetta_utils.typing import Vec3D
 from zetta_utils.tensor.ops import InterpolationMode
 
 
-@zu.spec_parser.register("CVLayer")
+@spec_parser.register("CVLayer")
 def CVLayer(  # pylint: disable=invalid-name, too-many-locals
     path: str,
     cv_params: Optional[Dict] = None,

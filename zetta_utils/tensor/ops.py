@@ -148,7 +148,7 @@ def _get_spatial_ndim(
                 if round(result_spatial_shape[i]) != result_spatial_shape[i]:
                     raise RuntimeError(
                         f"Interpolation of array with shape {data_shape} and scale "
-                        "factor {scale_factor} would result in a non-integer shape "
+                        f"factor {scale_factor} would result in a non-integer shape "
                         f"along spatial dimention {i} "
                         f"({data_shape[2 + i]} -> {result_spatial_shape[i]}) while "
                         "`allow_shape_rounding` == False ."
@@ -268,7 +268,7 @@ def interpolate(
             multiplier = scale_factor[0]
         else:
             raise NotImplementedError(  # pragma: no cover
-                "Non-isotropic field interpolation (scale_factor={scale_factor}) "
+                f"Non-isotropic field interpolation (scale_factor={scale_factor}) "
                 "is not currently supported."
             )
             # For when we support non-isotropic scale factor

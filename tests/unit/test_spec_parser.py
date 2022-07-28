@@ -41,6 +41,7 @@ def register_dummy_b():
         1,
         "abc",
         [1, "abc"],
+        (1, "abc"),
         {"int": 1, "str": "abc", "list": [1, 2, 3], "dict": {"yes": "sir"}},
     ],
 )

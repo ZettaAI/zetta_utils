@@ -2,7 +2,7 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Iterable, Callable, Optional, Union, Literal, List, Tuple
+from typing import Sequence, Callable, Optional, Union, Literal, List, Tuple
 
 import attrs
 from typeguard import typechecked
@@ -18,18 +18,18 @@ from zetta_utils.io.indexes import (
 @typechecked
 @attrs.mutable
 class Layer:
-    data_backend: zu.io.backends.IOBackend
+    io_backend: zu.io.backends.IOBackend
     readonly: bool = False
-    index_adjs: Iterable[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
+    index_adjs: Sequence[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
     index_converter: Optional[Callable] = None
-    read_postprocs: Iterable[Callable] = attrs.Factory(list)
-    write_preprocs: Iterable[Callable] = attrs.Factory(list)
+    read_postprocs: Sequence[Callable] = attrs.Factory(list)
+    write_preprocs: Sequence[Callable] = attrs.Factory(list)
 
     def _convert_index(self, idx_raw) -> Index:
         if self.index_converter is not None:
             result = self.index_converter(idx_raw)  # pylint: disable=not-callable
         else:
-            result = self.data_backend.get_index_type().convert(idx_raw)
+            result = self.io_backend.get_index_type().convert(idx_raw)
         return result
 
     def _apply_index_adjs(
@@ -48,7 +48,7 @@ class Layer:
     def read(self, idx_raw):
         idx = self._convert_index(idx_raw)
         idx_final, initial_procs = self._apply_index_adjs(idx, "read")
-        result_raw = self.data_backend.read(idx=idx_final)
+        result_raw = self.io_backend.read(idx=idx_final)
 
         result = result_raw
         for proc in list(initial_procs) + list(self.read_postprocs):
@@ -68,7 +68,7 @@ class Layer:
         for proc in list(initial_procs) + list(self.write_preprocs):
             value = proc(value)
 
-        self.data_backend.write(idx=idx_final, value=value)
+        self.io_backend.write(idx=idx_final, value=value)
 
     def __getitem__(self, idx_raw):  # pragma: no cover
         return self.read(idx_raw)

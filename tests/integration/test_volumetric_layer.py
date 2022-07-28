@@ -8,7 +8,7 @@ import numpy as np
 
 from zetta_utils.bbox import BoundingCube
 from zetta_utils.tensor.ops import InterpolationMode
-from zetta_utils.io.layers import cv_layer
+from zetta_utils.io.layers import build_cv_layer
 
 from zetta_utils.typing import (
     Vec3D,
@@ -28,9 +28,9 @@ def build_cvl(
     default_desired_resolution: Optional[Vec3D] = None,
     interpolation_mode: InterpolationMode = "img",
 ):
-    return cv_layer(
+    return build_cv_layer(
         path=path,
-        cv_params=cv_kwargs,
+        cv_kwargs=cv_kwargs,
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,
         data_resolution=data_resolution,

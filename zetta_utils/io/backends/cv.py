@@ -35,6 +35,7 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
         return super().__new__(cls, *args, **kwargs)
 
 
+@zu.spec_parser.register("CVBackend")
 @attrs.mutable(init=False)
 class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
     def __init__(

@@ -86,7 +86,11 @@ def test_volumetric_indexer_exc(
                 VolumetricIndex(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
-                [Interpolate(mode="img", scale_factor=(2.0, 2.0, 2.0))],
+                [
+                    Interpolate(
+                        mode="img", scale_factor=(2.0, 2.0, 2.0), allow_shape_rounding=False
+                    )
+                ],
             ),
         ],
         [
@@ -97,7 +101,11 @@ def test_volumetric_indexer_exc(
                 VolumetricIndex(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
-                [Interpolate(mode="img", scale_factor=(0.5, 0.5, 0.5))],
+                [
+                    Interpolate(
+                        mode="img", scale_factor=(0.5, 0.5, 0.5), allow_shape_rounding=False
+                    )
+                ],
             ),
         ],
     ],

@@ -22,6 +22,7 @@ RawVolumetricIndex = Union[
 ]
 
 
+@zu.spec_parser.register("VolumetricIndex")
 @typechecked
 @attrs.frozen
 class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
@@ -34,6 +35,7 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
         idx_raw: RawVolumetricIndex,
         index_resolution: Optional[Vec3D] = None,
         default_desired_resolution: Optional[Vec3D] = None,
+        allow_rounding: bool = False,
     ):
         if len(idx_raw) == 3:  # Tuple[slice, slice, sclie], default index
             specified_resolution = None  # type: Optional[Vec3D]
@@ -61,7 +63,7 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
             slice_resolution = specified_resolution
 
         bcube = zu.bbox.BoundingCube.from_slices(slices=slices_raw, resolution=slice_resolution)
-        slices_final = bcube.to_slices(desired_resolution)
+        slices_final = bcube.to_slices(desired_resolution, allow_rounding=allow_rounding)
 
         result = VolumetricIndex(
             resolution=desired_resolution,
@@ -71,6 +73,7 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
         return result
 
 
+@zu.spec_parser.register("VolumetricIndexConverter")
 @typechecked
 @attrs.mutable
 class VolumetricIndexConverter(
@@ -78,22 +81,26 @@ class VolumetricIndexConverter(
 ):  # pylint: disable=too-few-public-methods
     index_resolution: Optional[Vec3D] = None
     default_desired_resolution: Optional[Vec3D] = None
+    allow_rounding: bool = False
 
     def __call__(self, idx_raw: RawVolumetricIndex) -> VolumetricIndex:
         result = VolumetricIndex.convert(
             idx_raw=idx_raw,
             index_resolution=self.index_resolution,
             default_desired_resolution=self.default_desired_resolution,
+            allow_rounding=self.allow_rounding,
         )
         return result
 
 
 @typechecked
-def translate_volumetric_index(idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D):
+def translate_volumetric_index(
+    idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D, allow_rounding: bool = False
+):
     bcube = zu.bbox.BoundingCube.from_slices(slices=idx.slices, resolution=idx.resolution)
     bcube_trans = bcube.translate(offset, resolution)
     result = VolumetricIndex(
-        slices=bcube_trans.to_slices(idx.resolution),
+        slices=bcube_trans.to_slices(idx.resolution, allow_rounding=allow_rounding),
         resolution=idx.resolution,
     )
     return result
@@ -103,6 +110,7 @@ def translate_volumetric_index(idx: VolumetricIndex, offset: Vec3D, resolution: 
 # TranslateVolumetricIndex = IndexAdjuster[VolumetricIndex].from_func(translate_volumetric_index)
 # This can be done through dynamically creating a class. For now it's not done for the sake of
 # codebase simplicity. Same can be done for converters and other processors in general.
+@zu.spec_parser.register("TranslateVolumetricIndex")
 @typechecked
 @attrs.mutable
 class TranslateVolumetricIndex(
@@ -110,14 +118,19 @@ class TranslateVolumetricIndex(
 ):  # pylint: disable=too-few-public-methods
     offset: Vec3D
     resolution: Vec3D
+    allow_rounding: bool = False
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
-            idx=idx, offset=self.offset, resolution=self.resolution
+            idx=idx,
+            offset=self.offset,
+            resolution=self.resolution,
+            allow_rounding=self.allow_rounding,
         )
         return result
 
 
+@zu.spec_parser.register("AdjustDataResolution")
 @typechecked
 @attrs.mutable
 class AdjustDataResolution(
@@ -125,6 +138,7 @@ class AdjustDataResolution(
 ):  # pylint: disable=too-few-public-methods
     data_resolution: Vec3D
     interpolation_mode: InterpolationMode
+    allow_rounding: bool = False
 
     def __call__(
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
@@ -136,7 +150,10 @@ class AdjustDataResolution(
         else:
             bcube = zu.bbox.BoundingCube.from_slices(idx.slices, idx.resolution)
             idx_final = VolumetricIndex(
-                slices=bcube.to_slices(self.data_resolution),
+                slices=bcube.to_slices(
+                    self.data_resolution,
+                    allow_rounding=self.allow_rounding,
+                ),
                 resolution=self.data_resolution,
             )
 
@@ -145,6 +162,12 @@ class AdjustDataResolution(
             else:
                 scale_factor = tuple(idx.resolution[i] / idx_final.resolution[i] for i in range(3))
 
-            processors.append(Interpolate(scale_factor=scale_factor, mode=self.interpolation_mode))
+            processors.append(
+                Interpolate(
+                    scale_factor=scale_factor,
+                    mode=self.interpolation_mode,
+                    allow_shape_rounding=self.allow_rounding,
+                )
+            )
 
         return idx_final, processors

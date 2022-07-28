@@ -1,5 +1,6 @@
 """Zetta AI Computational Connectomics Toolkit."""
 
+from . import log
 from . import cue
 from . import typing
 from . import spec_parser

@@ -66,7 +66,7 @@ target-version = ["py38","py39"]
 max-line-length = 99
 
 [tool.pylint.basic]
-good-names = '''a,b,c,d,df,do_POST,e,i,j,k,id,logger,n,on,ok,tz,x,y,z,r,ex,ey,cv,s'''
+good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s'''
 
 [tool.pylint.message_control]
 disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods'''

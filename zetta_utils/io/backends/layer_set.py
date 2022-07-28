@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 import attrs
 
 from zetta_utils import spec_parser
@@ -15,23 +15,24 @@ from zetta_utils.io.indexes import SetSelectionIndex
 class LayerSetBackend(IOBackend[SetSelectionIndex]):  # pylint: disable=too-few-public-methods
     layers: Dict[str, io.layers.Layer]
 
-    def read(self, idx: SetSelectionIndex) -> Dict[str, Any]:
-        if idx.selected_layers is None:
-            selected_layers = tuple(self.layers.keys())
+    def _get_layer_selection(self, idx: SetSelectionIndex) -> Tuple[str, ...]:
+        if idx.layer_selection is None:
+            result = tuple(self.layers.keys())
         else:
-            selected_layers = idx.selected_layers
+            result = idx.layer_selection
+        return result
+
+    def read(self, idx: SetSelectionIndex) -> Dict[str, Any]:
+        layer_selection = self._get_layer_selection(idx)
 
         # TODO: can be parallelized
-        result = {k: self.layers[k].read(idx.layer_idx) for k in selected_layers}
+        result = {k: self.layers[k].read(idx.layer_idx) for k in layer_selection}
 
         return result
 
     def write(self, idx: SetSelectionIndex, value: Dict[str, Any]):
-        if idx.selected_layers is None:
-            selected_layers = tuple(self.layers.keys())
-        else:
-            selected_layers = idx.selected_layers
+        layer_selection = self._get_layer_selection(idx)
 
         # TODO: can be parallelized
-        for k in selected_layers:
-            self.layers[k][idx.layer_idx] = value[k]
+        for k in layer_selection:
+            self.layers[k].write(idx.layer_idx, value[k])

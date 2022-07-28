@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Tuple, Optional, Union
+from typing import Tuple, Optional, Union, Any
 
 import attrs
 from typeguard import typechecked
@@ -10,38 +10,36 @@ from zetta_utils.io.indexes.base import (
     Index,
 )
 
-RawSetIndex = Union[
-    Index,
-    Tuple[None, Index],
-    Tuple[str, Index],
-    Tuple[Tuple[str], Index],
+RawSetSelectionIndex = Union[
+    Tuple[None, Any],
+    Tuple[str, Any],
+    Tuple[Tuple[str, ...], Any],
 ]
 
 
 @typechecked
 @attrs.frozen
 class SetSelectionIndex(Index):  # pylint: disable=too-few-public-methods
-    selected_layers: Optional[Tuple[str]]
-    layer_idx: Index
+    layer_selection: Optional[Tuple[str, ...]]
+    layer_idx: Any
 
     @classmethod
     def convert(
         cls,
-        idx_raw: RawSetIndex,
+        idx_raw: RawSetSelectionIndex,
     ):
-        if isinstance(idx_raw, tuple):
-            selection_raw = idx_raw[0]
-            layer_idx = idx_raw[1]
+        selection_raw = idx_raw[0]
+        layer_idx = idx_raw[1]
 
-            if isinstance(selection_raw, tuple):
-                selected_layers = selection_raw
-            elif selection_raw is not None:
-                selected_layers = (selection_raw,)
-            else:
-                selected_layers = None
+        if isinstance(selection_raw, tuple):
+            layer_selection = selection_raw
+        elif selection_raw is not None:
+            layer_selection = (selection_raw,)
+        else:
+            layer_selection = None
 
         result = cls(
-            selected_layers=selected_layers,
+            layer_selection=layer_selection,
             layer_idx=layer_idx,
         )
 

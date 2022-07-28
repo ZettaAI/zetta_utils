@@ -8,7 +8,7 @@ import numpy as np
 
 from zetta_utils.bbox import BoundingCube
 from zetta_utils.tensor.ops import InterpolationMode
-from zetta_utils.io.layers import CVLayer
+from zetta_utils.io.layers import cv_layer
 
 from zetta_utils.typing import (
     Vec3D,
@@ -28,7 +28,7 @@ def build_cvl(
     default_desired_resolution: Optional[Vec3D] = None,
     interpolation_mode: InterpolationMode = "img",
 ):
-    return CVLayer(
+    return cv_layer(
         path=path,
         cv_params=cv_kwargs,
         index_resolution=index_resolution,
@@ -155,7 +155,7 @@ def read_fafb_setup(request):
 )
 def test_cv_layer_read(fixture_name, bcube_name, read_res, volumetric_kwargs, request):
     fixture_val = request.getfixturevalue(fixture_name)
-    cvl = fixture_val["cvl"]  # type: CVLayer
+    cvl = fixture_val["cvl"]  # type: cv_layer
     idx = fixture_val["idx"]  # type: VolumetricIndex
     expected = fixture_val["expected"]  # type: Tensor
     result = cvl[idx]

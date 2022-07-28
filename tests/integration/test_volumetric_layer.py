@@ -20,6 +20,7 @@ TEST_DATA_PATH = THIS_DIR_PATH / "assets"
 
 
 def build_cvl(
+    path,
     cv_kwargs,
     readonly: bool = False,
     data_resolution: Optional[Vec3D] = None,
@@ -28,6 +29,7 @@ def build_cvl(
     interpolation_mode: InterpolationMode = "img",
 ):
     return CVLayer(
+        path=path,
         cv_params=cv_kwargs,
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,
@@ -40,8 +42,7 @@ def build_cvl(
 def build_fafb_cvl(cv_kwargs: Optional[dict] = None, **kwargs):
     if cv_kwargs is None:
         cv_kwargs = {}
-    cv_kwargs["cloudpath"] = f"file://{TEST_DATA_PATH / 'cvs/fafb_v15_img_norm.cv'}"
-    return build_cvl(cv_kwargs, **kwargs)
+    return build_cvl(f"file://{TEST_DATA_PATH / 'cvs/fafb_v15_img_norm.cv'}", cv_kwargs, **kwargs)
 
 
 def test_cv_layer_construct():

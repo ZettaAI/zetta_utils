@@ -2,12 +2,14 @@ from typing import Any
 
 import attrs
 import torch
-import zetta_utils as zu
+from typeguard import typechecked
 
+import zetta_utils as zu
 from zetta_utils.training.datasets.sample_indexers import SampleIndexer
 
 
 @zu.spec_parser.register("LayerDataset")
+@typechecked
 @attrs.frozen
 class LayerDataset(torch.utils.data.Dataset):
     layer: zu.io.layers.Layer

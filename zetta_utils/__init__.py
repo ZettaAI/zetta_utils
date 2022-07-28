@@ -8,5 +8,6 @@ from . import processor
 from . import bbox
 from . import tensor
 from . import io
+from . import training
 from . import viz
 from . import widgets

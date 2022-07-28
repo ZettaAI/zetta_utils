@@ -8,5 +8,5 @@ class SampleIndexer(ABC):
         """Size of the dataset"""
 
     @abstractmethod
-    def __getitem__(self, idx: int) -> Any:
+    def __call__(self, idx: int) -> Any:
         """Returns full sample index at the given index ID."""

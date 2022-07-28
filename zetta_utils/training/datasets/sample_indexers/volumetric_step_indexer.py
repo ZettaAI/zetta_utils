@@ -66,7 +66,7 @@ class VolumetricStepIndexer(SampleIndexer):
         result = self.step_limits[0] * self.step_limits[1] * self.step_limits[2]
         return result
 
-    def __getitem__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
+    def __call__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
         steps_along_dim = [
             idx % self.step_limits[0],
             (idx // self.step_limits[0]) % self.step_limits[1],

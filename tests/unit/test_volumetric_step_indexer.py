@@ -44,6 +44,6 @@ def test_volumetric_step_indexer_getitem(mocker):
         step_size_resolution=(1, 1, 10),
         index_resolution=(1, 1, 1),
     )
-    assert vsi[0] == (None, slice(10, 11), slice(200, 202), slice(3000, 3003))
-    assert vsi[1] == (None, slice(10, 11), slice(202, 204), slice(3000, 3003))
-    assert vsi[10] == (None, slice(10, 11), slice(200, 202), slice(3100, 3103))
+    assert vsi(0) == (None, slice(10, 11), slice(200, 202), slice(3000, 3003))
+    assert vsi(1) == (None, slice(10, 11), slice(202, 204), slice(3000, 3003))
+    assert vsi(10) == (None, slice(10, 11), slice(200, 202), slice(3100, 3103))

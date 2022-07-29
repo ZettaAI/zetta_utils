@@ -20,16 +20,16 @@ license = {text = "MIT"}
 urls = {Homepage = "https://github.com/zettaai/zetta_utils"}
 requires-python = ">= 3.8"
 dependencies = [
-    "attrs >= 21.3",
-    "typeguard >= 2.13.3",
-    "torch >= 1.11.0",
-    "numpy >= 1.23.1",
-    "connected-components-3d >= 3.10.0",
-    "fastremap >= 1.12.2",
-    "cloud-volume >= 8.7.0",
-    "matplotlib >= 3.5.2",
-    "ipywidgets >= 7.7.0",
-    "opencv-python >= 4.5.5"
+    #"attrs >= 21.3",
+    #"typeguard >= 2.13.3",
+    #"torch >= 1.11.0",
+    #"numpy >= 1.23.1",
+    #"connected-components-3d >= 3.10.0",
+    #"fastremap >= 1.12.2",
+    #"cloud-volume >= 8.7.0",
+    #"matplotlib >= 3.5.2",
+    #"ipywidgets >= 7.7.0",
+    #"opencv-python >= 4.5.5"
 ]
 dynamic = ["version"]
 

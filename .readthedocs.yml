@@ -24,7 +24,7 @@ python:
     - requirements: docs/requirements.txt
       #- method: pip
     - method: pip
-      path: zetta_utils
+      path: .
     #  - method: setuptools
     # - method: pip
     #  path: piccolo_theme

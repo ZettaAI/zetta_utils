@@ -25,7 +25,7 @@ python:
       package: sphinx_autodoc_typehints
     - method: pip
       package: piccolo_theme
-    #- method: pip
-      #path: .
-      #extra_requirements:
-        #- [docs]
+    - method: pip
+      path: .
+      extra_requirements:
+        - [docs]

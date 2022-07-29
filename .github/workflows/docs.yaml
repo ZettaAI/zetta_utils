@@ -51,7 +51,7 @@ jobs:
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './docs/build/thml'
+          path: './build/thml'
       - name: Deploy to GitHub Pages
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         id: deployment

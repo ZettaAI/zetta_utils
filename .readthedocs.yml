@@ -22,11 +22,12 @@ python:
   version: 3.8
   install:
     #  - method: setuptools
+    - requirements: docs/requirements.txt
     - method: pip
       path: .
     #  - method: setuptools
-    - method: pip
-      path: piccolo_theme
+    # - method: pip
+    #  path: piccolo_theme
       #  extra_requirements:
       #  - [docs]
   #install:

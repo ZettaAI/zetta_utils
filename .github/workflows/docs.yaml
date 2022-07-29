@@ -45,13 +45,15 @@ jobs:
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[all]'
       - name: Build Docs
-        run: cd ./docs; make html ; pwd ; ls -lah
+        run: cd ./docs; make html
+      - name: Check
+        run: pwd ; ls -lah
 
       - name: Upload artifact
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './build/thml'
+          path: './build/html'
       - name: Deploy to GitHub Pages
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         id: deployment

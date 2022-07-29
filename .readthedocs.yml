@@ -21,9 +21,9 @@ formats:
 python:
   version: 3.8
   install:
-    #  - method: setuptools
     - requirements: docs/requirements.txt
-    - method: pip
+      #- method: pip
+    - method: setuptools
       path: .
     #  - method: setuptools
     # - method: pip

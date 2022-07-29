@@ -45,7 +45,7 @@ jobs:
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[all]'
       - name: Build Docs
-        run: cd ./docs; make html
+        run: cd ./docs; make html ; pwd ; ls -lah
 
       - name: Upload artifact
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}

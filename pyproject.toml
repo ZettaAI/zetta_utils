@@ -37,6 +37,8 @@ dynamic = ["version"]
 docs = [
     "piccolo_theme >= 0.11.1",
     "sphinx-autodoc-typehints >= 1.19.0",
+    "sphinx-notfound-page >= 0.8.3",
+    "sphinx_copybutton >= 0.5.0",
 ]
 test = [
     "black == 21.9b0",

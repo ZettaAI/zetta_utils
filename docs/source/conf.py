@@ -17,8 +17,20 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
-    #    "sphinx_autodoc_typehints",
+    "sphinx_autodoc_typehints",
+    "sphinx.ext.todo",
+    "notfound.extension",
+    "sphinx_copybutton",
 ]
+
+doctest_global_setup = """
+import zetta_utils as zu
+"""
+
+default_role = "any"
+
+copybutton_prompt_text = r">>> |\.\.\. |\$ |In \[\d*\]: | {2,5}\.\.\.: | {5,8}: "
+copybutton_prompt_is_regexp = True
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3/", None),
@@ -31,6 +43,13 @@ templates_path = ["_templates"]
 # -- Options for HTML output
 
 html_theme = "piccolo_theme"
+html_show_sphinx = False
+html_show_copyright = False
+html_static_path = ["_static"]
+html_domain_indices = True
+html_use_index = True
+html_split_index = False
+html_show_sourcelink = False
 
 # -- Options for EPUB output
 epub_show_urls = "footnote"

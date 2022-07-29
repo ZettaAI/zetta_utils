@@ -53,7 +53,7 @@ jobs:
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         uses: actions/upload-pages-artifact@v1
         with:
-          path: './build/html'
+          path: './docs/build/html'
       - name: Deploy to GitHub Pages
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         id: deployment

@@ -3,11 +3,9 @@ name: CI Pipeline
 on:
   pull_request:
     type: [ opened, synchronize ]
-  push:
-    branches: [ main ]
 
 jobs:
-  pytest:
+  docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -34,6 +32,5 @@ jobs:
       - name: Install Python dependencies
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[all]'
-      - uses: ammaraskar/sphinx-action@master
-        with:
-          docs-folder: "docs/"
+      - name: Build Docs
+        run: cd ./docs; make html

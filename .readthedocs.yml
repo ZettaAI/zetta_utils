@@ -24,6 +24,9 @@ python:
     #  - method: setuptools
     - method: pip
       path: .
+    #  - method: setuptools
+    - method: pip
+      path: piccolo_theme
       #  extra_requirements:
       #  - [docs]
   #install:

@@ -46,16 +46,14 @@ jobs:
         run: pip install -e '.[docs]'
       - name: Build Docs
         run: cd ./docs; make html
-      - name: Check
-        run: pwd ; ls -lah
-      - run: echo ${{ steps.deployment.outputs.page_url }}
-        continue-on-error: true
       - name: Upload artifact
+        if: ${{ github.ref == 'refs/heads/main'  }}
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         uses: actions/upload-pages-artifact@v1
         with:
           path: './docs/build/html'
       - name: Deploy to GitHub Pages
+        if: ${{ github.ref == 'refs/heads/main'  }}
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         id: deployment
         uses: actions/deploy-pages@main

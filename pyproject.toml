@@ -35,8 +35,8 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 docs = [
-    "piccolo_theme >= 0.11.1",
-    "sphinx-autodoc-typehints >= 1.19.0",
+    #"piccolo_theme >= 0.11.1",
+    #"sphinx-autodoc-typehints >= 1.19.0",
 ]
 test = [
     "black == 21.9b0",

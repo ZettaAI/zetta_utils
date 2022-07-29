@@ -23,8 +23,8 @@ python:
   install:
     - requirements: docs/requirements.txt
       #- method: pip
-    - method: setuptools
-      path: .
+    - method: pip
+      path: zetta_utils
     #  - method: setuptools
     # - method: pip
     #  path: piccolo_theme

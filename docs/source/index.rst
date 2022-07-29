@@ -3,7 +3,12 @@
 Welcome to ``zetta_utils`` documentation!
 =======================================
 
-**zetta_utils** is a colleciton of core components used in Zetta AI's connectomics pipeline.
+.. include:: ../README.rst
+      :start-after: teaser-begin
+      :end-before: teaser-end
+
+..
+   **zetta_utils** is a colleciton of core components used in Zetta AI's connectomics pipeline.
 
 .. note::
 

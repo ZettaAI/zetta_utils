@@ -1,17 +1,23 @@
-Welcome to Lumache's documentation!
+Welcome to `zetta_utils` documentation!
 ===================================
 
-**Lumache** (/lu'make/) is a Python library for cooks and food lovers
-that creates recipes mixing random ingredients.
-It pulls data from the `Open Food Facts database <https://world.openfoodfacts.org/>`_
-and offers a *simple* and *intuitive* API.
+`zetta_utils` is a colleciton of core components used in Zetta AI's connectomics pipeline.
+It consists of multplie largely indendent componets, including:
 
-Check out the :doc:`usage` section for further information, including
-how to :ref:`installation` the project.
+* `spec_parser`: A utility for building python objects from dictionaries. It is an
+  improved extension of `procspec <https://github.com/seunglab/procspec>`_ and
+  `artificery <https://github.com/seung-lab/artificery>`_ packages previously used by SeungLab.
+
+* `tensor`: A unified set of operations each of which supports _both_ np.ndarray and torch.Tensor types.
+
+* `io`: A toolkit for flexible data IO from diverse backends, suitable for both training and inference.
+
+* `training`:
+
 
 .. note::
 
-   This project is under active development.
+   This project is under active development, so some of the APIs are subject to change.
 
 Contents
 --------

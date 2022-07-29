@@ -25,6 +25,8 @@ python:
       #- method: pip
     - method: pip
       path: .
+    - method: pip
+      path: .
     #  - method: setuptools
     # - method: pip
     #  path: piccolo_theme

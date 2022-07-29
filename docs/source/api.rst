@@ -4,4 +4,4 @@ API
 .. autosummary::
    :toctree: generated
 
-   zetta-utils
+   zetta_utils

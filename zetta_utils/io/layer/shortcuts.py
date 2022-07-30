@@ -3,15 +3,15 @@ from typing import Dict, Union, Callable, Optional, Any, Sequence, List
 import copy
 
 from zetta_utils import io
-from zetta_utils import spec_parser
+from zetta_utils import builder
 from zetta_utils.typing import Vec3D
-from zetta_utils.io.layers import Layer
+from zetta_utils.io.layer import Layer
 from zetta_utils.io.indexes import IndexAdjusterWithProcessors, Index
 from zetta_utils.io.indexes.volumetric import AdjustDataResolution, VolumetricIndexConverter
 from zetta_utils.tensor.ops import InterpolationMode
 
 
-@spec_parser.register("CVLayer")
+@builder.register("CVLayer")
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
     cv_kwargs: Optional[Dict] = None,
@@ -58,7 +58,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     return result
 
 
-@spec_parser.register("LayerSet")
+@builder.register("LayerSet")
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,

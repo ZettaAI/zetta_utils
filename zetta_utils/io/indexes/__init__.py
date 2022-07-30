@@ -1,4 +1,4 @@
-# pylint: disable=missing-docstring
+"""Data indexing schemes."""
 from . import base
 from . import volumetric
 from . import set_selection

@@ -19,8 +19,8 @@ cv_cache = cachetools.LRUCache(maxsize=500)
 
 def _jsonize_key(*args, **kwargs):  # pragma: no cover
     result = ""
-    for a in args[1:]:
-        result += json.dumps(a)
+    for e in args[1:]:
+        result += json.dumps(e)
         result += "_"
 
     result += json.dumps(kwargs, sort_keys=True)
@@ -35,7 +35,7 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
         return super().__new__(cls, *args, **kwargs)
 
 
-@zu.spec_parser.register("CVBackend")
+@zu.builder.register("CVBackend")
 @attrs.mutable(init=False)
 class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
     def __init__(

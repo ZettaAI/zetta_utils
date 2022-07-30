@@ -1,10 +1,9 @@
 """Bulding objects from nested specs."""
 import copy
 from typing import Any, Callable
-from collections import defaultdict
 from typeguard import typechecked
 
-REGISTRY: dict = defaultdict(dict)
+REGISTRY: dict = {}
 PARSE_KEY = "<type>"
 RECURSE_KEY = "<recursive_parse>"
 

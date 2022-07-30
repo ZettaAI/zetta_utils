@@ -6,7 +6,7 @@ from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
 
 import attrs
 
-from zetta_utils import spec_parser
+from zetta_utils import builder
 from zetta_utils.typing import Number
 
 
@@ -198,16 +198,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def __repr__(self) -> str:  # pragma: no cover
-        parts = ["BoundingCube("]
-        for i in range(self.ndim):  # pylint: disable=unused-variable
-            parts.append(f"[Dim {i}] {self.bounds[i][0]}:{self.bounds[i][1]}{self.unit},")
-        parts.append(")")
-        result = "".join(parts)
-        return result
-
 
 BoundingBox = BoundingBoxND[Tuple[slice, slice], Tuple[Number, Number]]
 
 BoundingCube = BoundingBoxND[Tuple[slice, slice, slice], Tuple[Number, Number, Number]]
-spec_parser.register("BoundingCube")(BoundingCube.from_coords)
+builder.register("BoundingCube")(BoundingCube.from_coords)

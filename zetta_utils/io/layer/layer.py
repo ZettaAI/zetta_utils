@@ -14,7 +14,7 @@ from zetta_utils.io.indexes import (
 )
 
 
-@zu.spec_parser.register("Layer")
+@zu.builder.register("Layer")
 @typechecked
 @attrs.mutable
 class Layer:

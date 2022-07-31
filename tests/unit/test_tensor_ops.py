@@ -1,10 +1,10 @@
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring,invalid-name
 import pytest
 import numpy as np
 import torch
 
 from zetta_utils.tensor import ops
-from .utils import assert_array_equal
+from .helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(

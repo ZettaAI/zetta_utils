@@ -4,6 +4,8 @@ import numpy as np
 
 from zetta_utils.training.datasets import LayerDataset
 
+from .helpers import assert_array_equal
+
 
 def test_layer_dataset(mocker):
     layer_m = mocker.Mock()
@@ -18,7 +20,6 @@ def test_layer_dataset(mocker):
                 2,
             )
         ),
-        "str": "abc",
         "list": [1, 2, 3],
         "torch": torch.ones(
             (
@@ -32,9 +33,9 @@ def test_layer_dataset(mocker):
             (
                 2,
                 2,
-            )
+            ),
+            dtype=torch.double,
         ),
-        "str": "abc",
         "list": [1, 2, 3],
         "torch": torch.ones(
             (
@@ -47,4 +48,7 @@ def test_layer_dataset(mocker):
 
     lds = LayerDataset(layer_m, indexer_m)
     assert len(lds) == 10
-    assert lds[0] == data_expected
+    result = lds[0]
+    assert_array_equal(result["np"], data_expected["np"])
+    assert_array_equal(result["torch"], data_expected["torch"])
+    assert result["list"] == data_expected["list"]

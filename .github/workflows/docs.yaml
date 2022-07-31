@@ -3,15 +3,13 @@ name: CI Pipeline
 on:
   pull_request:
     type: [ opened, synchronize ]
-  #push:
-  #  branches: ["main"]
+  push:
+    branches: ["main"]
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
-
 
 jobs:
   docs:
@@ -46,8 +44,10 @@ jobs:
       - name: Install Python dependencies
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[docs]'
+      - name: Doctest
+        run: cd ./docs; make doctest;
       - name: Build Docs
-        run: cd ./docs; make html
+        run: make html
       - name: Upload artifact
         if: ${{ github.ref == 'refs/heads/main'  }}
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}

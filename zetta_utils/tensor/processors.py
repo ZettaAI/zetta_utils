@@ -1,5 +1,5 @@
 """Buildable tensor.processors."""
-from zetta_utils.spec_parser import register
+from zetta_utils.builder import register
 from zetta_utils.processor import func_to_proc
 
 from . import ops

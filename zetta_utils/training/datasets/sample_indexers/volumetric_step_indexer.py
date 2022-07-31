@@ -4,14 +4,14 @@ import attrs
 
 from typeguard import typechecked
 
-from zetta_utils import spec_parser
+from zetta_utils import builder
 from zetta_utils.log import logger
 from zetta_utils.training.datasets.sample_indexers import SampleIndexer
 from zetta_utils.typing import Vec3D
 from zetta_utils.bbox import BoundingCube
 
 
-@spec_parser.register("VolumetricStepIndexer")
+@builder.register("VolumetricStepIndexer")
 @typechecked
 @attrs.frozen
 class VolumetricStepIndexer(SampleIndexer):

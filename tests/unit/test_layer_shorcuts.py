@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
 import pytest
 
-from zetta_utils.io.layers import build_cv_layer, build_layer_set
+from zetta_utils.io.layer import build_cv_layer, build_layer_set
 
 
 def test_cv_layer_exc(mocker):
@@ -58,4 +58,4 @@ def test_layer_set(mocker):
         }
     }
     layer_set = build_layer_set(**kwargs)
-    assert layer_set.io_backend.layers == kwargs["layers"]
+    assert layer_set.io_backend.layer == kwargs["layers"]

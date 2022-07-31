@@ -11,9 +11,8 @@ from zetta_utils.io.indexes.base import (
 )
 
 RawSetSelectionIndex = Union[
-    Tuple[None, Any],
-    Tuple[str, Any],
-    Tuple[Tuple[str, ...], Any],
+    Tuple[Tuple[str, ...], Any],  # Specificeation
+    Tuple[Any, ...],  # All Layers
 ]
 
 
@@ -28,15 +27,14 @@ class SetSelectionIndex(Index):  # pylint: disable=too-few-public-methods
         cls,
         idx_raw: RawSetSelectionIndex,
     ):
-        selection_raw = idx_raw[0]
-        layer_idx = idx_raw[1]
-
-        if isinstance(selection_raw, tuple):
-            layer_selection = selection_raw
-        elif selection_raw is not None:
-            layer_selection = (selection_raw,)
+        # Check if the first element is a suitable layer name spec
+        # If so, assume that's what it's meant to be
+        if isinstance(idx_raw[0], tuple) and all(isinstance(e, str) for e in idx_raw[0]):
+            layer_selection = idx_raw[0]
+            layer_idx = idx_raw[1:]
         else:
             layer_selection = None
+            layer_idx = idx_raw
 
         result = cls(
             layer_selection=layer_selection,

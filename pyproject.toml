@@ -26,15 +26,19 @@ dependencies = [
     "numpy >= 1.23.1",
     "connected-components-3d >= 3.10.0",
     "fastremap >= 1.12.2",
-    "cloud-volume >= 8.7.0"
+    "cloud-volume >= 8.7.0",
+    "matplotlib >= 3.5.2",
+    "ipywidgets >= 7.7.0",
+    "opencv-python >= 4.5.5"
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
-viz = [
-    "matplotlib >= 3.5.2",
-    "ipywidgets >= 7.7.0",
-    "opencv-python >= 4.5.5"
+docs = [
+    "piccolo_theme >= 0.11.1",
+    "sphinx-autodoc-typehints >= 1.19.0",
+    "sphinx-notfound-page >= 0.8.3",
+    "sphinx_copybutton >= 0.5.0",
 ]
 test = [
     "black == 21.9b0",
@@ -52,7 +56,7 @@ test = [
 ]
 all = [
     "zetta_utils[test]",
-    "zetta_utils[viz]",
+    "zetta_utils[docs]",
 ]
 
 [tool.setuptools]
@@ -85,6 +89,7 @@ ignore-imports = "yes"
 
 [tool.pylint.main]
 extension-pkg-whitelist="numpy,cc3d,fastremap"
+ignore-paths=["^docs/*"]
 
 [tool.pylint.options]
 generated-members="torch.*"

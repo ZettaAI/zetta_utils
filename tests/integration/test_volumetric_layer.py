@@ -8,7 +8,7 @@ import numpy as np
 
 from zetta_utils.bbox import BoundingCube
 from zetta_utils.tensor.ops import InterpolationMode
-from zetta_utils.io.layers import build_cv_layer
+from zetta_utils.io.layer import build_cv_layer
 
 from zetta_utils.typing import (
     Vec3D,

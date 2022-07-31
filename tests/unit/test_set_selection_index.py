@@ -8,16 +8,20 @@ from zetta_utils.io.indexes.set_selection import SetSelectionIndex, RawSetSelect
     "idx_raw, expected",
     [
         [
+            (42,),
+            SetSelectionIndex(layer_selection=None, layer_idx=(42,)),
+        ],
+        [
             (None, 42),
-            SetSelectionIndex(layer_selection=None, layer_idx=42),
+            SetSelectionIndex(layer_selection=None, layer_idx=(None, 42)),
         ],
         [
             ("123", 42),
-            SetSelectionIndex(layer_selection=("123",), layer_idx=42),
+            SetSelectionIndex(layer_selection=None, layer_idx=("123", 42)),
         ],
         [
             (("123", "456"), 42),
-            SetSelectionIndex(layer_selection=("123", "456"), layer_idx=42),
+            SetSelectionIndex(layer_selection=("123", "456"), layer_idx=(42,)),
         ],
     ],
 )

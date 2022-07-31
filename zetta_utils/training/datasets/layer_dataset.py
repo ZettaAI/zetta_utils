@@ -2,17 +2,29 @@ from typing import Any
 
 import attrs
 import torch
+import numpy as np
 from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.training.datasets.sample_indexers import SampleIndexer
 
 
-@zu.spec_parser.register("LayerDataset")
+def _convert_to_torch_nested(data):
+    if isinstance(data, np.ndarray):
+        result = zu.tensor.convert.to_torch(data)
+    elif isinstance(data, dict):
+        result = {k: _convert_to_torch_nested(v) for k, v in data.items()}
+    else:
+        result = data
+
+    return result
+
+
+@zu.builder.register("LayerDataset")
 @typechecked
 @attrs.frozen
 class LayerDataset(torch.utils.data.Dataset):
-    layer: zu.io.layers.Layer
+    layer: zu.io.layer.Layer
     sample_indexer: SampleIndexer
 
     def __attrs_pre_init__(self):
@@ -23,5 +35,6 @@ class LayerDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> Any:
         layer_idx = self.sample_indexer(idx)
-        sample = self.layer[layer_idx]
+        sample_raw = self.layer[layer_idx]
+        sample = _convert_to_torch_nested(sample_raw)
         return sample

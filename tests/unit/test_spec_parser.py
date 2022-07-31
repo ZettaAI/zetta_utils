@@ -1,9 +1,9 @@
-# pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name
+# pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name,invalid-name
 from dataclasses import dataclass
 from typing import Any
 import pytest
 
-from zetta_utils import spec_parser
+from zetta_utils import builder
 
 
 PARSE_KEY = "<type>"
@@ -22,16 +22,16 @@ class DummyB:
 
 @pytest.fixture
 def register_dummy_a():
-    spec_parser.parser.register("dummy_a")(DummyA)
+    builder.parser.register("dummy_a")(DummyA)
     yield
-    del spec_parser.parser.REGISTRY["dummy_a"]
+    del builder.parser.REGISTRY["dummy_a"]
 
 
 @pytest.fixture
 def register_dummy_b():
-    spec_parser.parser.register("dummy_b")(DummyB)
+    builder.parser.register("dummy_b")(DummyB)
     yield
-    del spec_parser.parser.REGISTRY["dummy_b"]
+    del builder.parser.REGISTRY["dummy_b"]
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,7 @@ def register_dummy_b():
     ],
 )
 def test_identity_builds(value):
-    result = spec_parser.parser._build(value)
+    result = builder.parser._build(value)
     assert result == value
 
 
@@ -59,17 +59,17 @@ def test_identity_builds(value):
 )
 def test_must_build_exc(value):
     with pytest.raises(Exception):
-        spec_parser.build(value)
+        builder.build(value)
 
 
 @pytest.mark.parametrize("value", [1, ["yo"]])
 def test_nondict_exc(value):
     with pytest.raises(TypeError):
-        spec_parser.build(value)
+        builder.build(value)
 
 
 def test_register(register_dummy_a):
-    assert spec_parser.parser.REGISTRY["dummy_a"] == DummyA
+    assert builder.parser.REGISTRY["dummy_a"] == DummyA
 
 
 @pytest.mark.parametrize(
@@ -101,5 +101,5 @@ def test_register(register_dummy_a):
     ],
 )
 def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
-    result = spec_parser.build(spec, must_build=False)
+    result = builder.build(spec, must_build=False)
     assert result == expected

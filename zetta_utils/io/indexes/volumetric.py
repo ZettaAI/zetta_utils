@@ -22,7 +22,7 @@ RawVolumetricIndex = Union[
 ]
 
 
-@zu.spec_parser.register("VolumetricIndex")
+@zu.builder.register("VolumetricIndex")
 @typechecked
 @attrs.frozen
 class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
@@ -73,7 +73,7 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
         return result
 
 
-@zu.spec_parser.register("VolumetricIndexConverter")
+@zu.builder.register("VolumetricIndexConverter")
 @typechecked
 @attrs.mutable
 class VolumetricIndexConverter(
@@ -110,7 +110,7 @@ def translate_volumetric_index(
 # TranslateVolumetricIndex = IndexAdjuster[VolumetricIndex].from_func(translate_volumetric_index)
 # This can be done through dynamically creating a class. For now it's not done for the sake of
 # codebase simplicity. Same can be done for converters and other processors in general.
-@zu.spec_parser.register("TranslateVolumetricIndex")
+@zu.builder.register("TranslateVolumetricIndex")
 @typechecked
 @attrs.mutable
 class TranslateVolumetricIndex(
@@ -130,7 +130,7 @@ class TranslateVolumetricIndex(
         return result
 
 
-@zu.spec_parser.register("AdjustDataResolution")
+@zu.builder.register("AdjustDataResolution")
 @typechecked
 @attrs.mutable
 class AdjustDataResolution(

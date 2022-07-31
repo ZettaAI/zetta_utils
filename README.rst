@@ -5,14 +5,14 @@ Zetta Utils
 
 .. teaser-begin
 
-``zetta_utils`` is a colleciton of core components used in Zetta AI's connectomics pipeline. It includes tools for data IO, visualization, logging, training utilities and more. 
+``zetta_utils`` is a colleciton of core components used in Zetta AI's connectomics pipeline. It includes tools for data IO, visualization, logging, training utilities and more.
 
-Its main goal is to provide clean and powerful abstractions to accelerate connectomics research.
+Its main goal is to provide clean, powerful abstractions and accelerate connectomics research.
 
 .. teaser-end
 
 
-.. -project-information-
+.. project-info-begin
 
 Project Information
 ===================
@@ -22,8 +22,10 @@ Project Information
 - **Documentation**:  http://zetta.ai/zetta_utils/index.html
 - **Supported Python Versions**: 3.8 and later
 
-.. 
-  - **Changelog**: 
+.. project-info-end
+
+..
+  - **Changelog**:
   - **PyPI**: https://pypi.org/project/a
 
 
@@ -31,7 +33,7 @@ Project Information
 
 .. |Codecov Badge| image:: https://codecov.io/gh/ZettaAI/zetta_utils/branch/main/graph/badge.svg?token=MGT3MDVTYZ
   :target: https://codecov.io/gh/ZettaAI/zetta_utils
-  
+
 .. |Docs Badge| image:: https://readthedocs.org/projects/zetta-utils/badge/?version=latest
   :target: http://zetta.ai/zetta_utils/index.html
 

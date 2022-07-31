@@ -1,9 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access
 import pytest
 
-# from unittest import mock
-
-from zetta_utils.io.layers import Layer
+from zetta_utils.io.layer import Layer
 from zetta_utils.io.indexes import IndexAdjusterWithProcessors
 
 
@@ -65,8 +63,8 @@ def test_read(mocker):
 
     layer = Layer(dummy_backend, read_postprocs=[proc1])
 
-    mocker.patch("zetta_utils.io.layers.Layer._convert_index", return_value=idx1)
-    mocker.patch("zetta_utils.io.layers.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
+    mocker.patch("zetta_utils.io.layer.Layer._convert_index", return_value=idx1)
+    mocker.patch("zetta_utils.io.layer.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
 
     result = layer.read(idx0)
     assert result == value2
@@ -91,8 +89,8 @@ def test_write(mocker):
 
     layer = Layer(dummy_backend, write_preprocs=[proc1])
 
-    mocker.patch("zetta_utils.io.layers.Layer._convert_index", return_value=idx1)
-    mocker.patch("zetta_utils.io.layers.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
+    mocker.patch("zetta_utils.io.layer.Layer._convert_index", return_value=idx1)
+    mocker.patch("zetta_utils.io.layer.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
 
     layer.write(idx0, value0)
 

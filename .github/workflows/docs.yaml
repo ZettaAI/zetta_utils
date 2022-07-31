@@ -3,19 +3,9 @@ name: CI Pipeline
 on:
   pull_request:
     type: [ opened, synchronize ]
-  push:
-    branches: ["main"]
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
 
 jobs:
   docs:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

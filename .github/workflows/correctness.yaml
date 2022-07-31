@@ -49,13 +49,8 @@ jobs:
         uses: codecov/codecov-action@v3
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         with:
-          #token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
-          #flags: unittests # optional
-          #name: codecov-umbrella # optional
-          #fail_ci_if_error: true # optional (default = false)
-          #verbose: true # optional (default = false)
-          #
+
   pylint:
     runs-on: ubuntu-latest
     steps:
@@ -86,3 +81,67 @@ jobs:
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
+      - name: Setup Python
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Install Python dependencies
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: pip install -e '.[test]'
+      - name: Run mypy
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: mypy .
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            docs_modified:
+              - added|modified: "./docs/*"
+            py_modified:
+              - added|modified: "./zetta_utils/**/*.py"
+      - name: Setup Python
+        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Install Python dependencies
+        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        run: pip install -e '.[all]'
+        #- name: Doctest make doctest;
+      - name: Build Docs
+        run: cd docs; make html

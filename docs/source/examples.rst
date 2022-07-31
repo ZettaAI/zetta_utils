@@ -209,6 +209,12 @@ To make objects of a class buildable with ``zu.builder``:
    ... class MyClass:
    ...    def __init__(self, a):
    ...       self.a = a
+
+After an object type is registered, you can represent them as dictionaries by including the matching ``<type>`` key
+and providing the initialization parameters::
+
+.. doctest::
+
    >>> spec = {
    ...    "<type>": "MyClass",
    ...    "a": 100
@@ -219,11 +225,11 @@ To make objects of a class buildable with ``zu.builder``:
    >>> print (obj.a)
    100
 
-User-facing ``zetta_utils`` objects are all registered with ``zu.builder``. You can check out the state of the current registry
+All user-facing ``zetta_utils`` objects are all registered with ``zu.builder``. You can check out the state of the current registry
 by inspecting ``zu.builder.REGISTRY``
 
 ``zu.builder`` will build your objects recursively. That means that you can specify complex structures,
-such as the dataset from earlier example:
+such as the dataset from the earlier example:
 
 .. doctest::
 

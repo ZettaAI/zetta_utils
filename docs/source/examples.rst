@@ -258,11 +258,3 @@ such as the dataset from earlier example:
    ['img', 'img_norm']
    >>> print (sample['img'].shape)
    torch.Size([1, 1, 128, 128, 1])
-
-.. note::
-
-   **What are the advantages of builder based specs?**
-   Comparing to building custom parsers for each project/workflow, builder based specs reduce code duplication,
-   remove the need to update parser logic when object representations change, and can handle difficulty in dealing with nested structures.
-   * *Over python based specs*: Absense of loops and conditionals makes
-   *

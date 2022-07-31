@@ -35,6 +35,5 @@ jobs:
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[all]'
         #- name: Doctest make doctest;
-      - run: cd ./docs;
       - name: Build Docs
-        run: make html
+        run: cd docs; make html

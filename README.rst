@@ -34,7 +34,5 @@ Project Information
 .. |Codecov Badge| image:: https://codecov.io/gh/ZettaAI/zetta_utils/branch/main/graph/badge.svg?token=MGT3MDVTYZ
   :target: https://codecov.io/gh/ZettaAI/zetta_utils
 
-.. |Docs Badge| image:: https://readthedocs.org/projects/zetta-utils/badge/?version=latest
-  :target: http://zetta.ai/zetta_utils/index.html
-
+.. |Docs Badge| image:: https://github.com/ZettaAI/ztutils/actions/workflows/docs.yaml/badge.svg
 .. |Python Badge| image:: https://img.shields.io/badge/python-3.8+-blue.svg

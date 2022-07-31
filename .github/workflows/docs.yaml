@@ -34,7 +34,7 @@ jobs:
       - name: Install Python dependencies
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[all]'
-        #- name: Doctest
-        #run: cd ./docs; make doctest;
+        #- name: Doctest make doctest;
+      - run: cd ./docs;
       - name: Build Docs
         run: make html

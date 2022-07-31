@@ -1,0 +1,148 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    type: [ opened, synchronize ]
+  push:
+    branches: [ main ]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
+      - name: Setup Python
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Setup Go
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        uses: actions/setup-go@v3
+        with:
+          go-version: '1.18.4'
+      - name: Install Python dependencies
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: pip install -e '.[test]'
+      - name: Install CUE
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: go install cuelang.org/go/cmd/cue@latest
+      - name: Run pytest
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: coverage run -m py.test ./tests/unit
+      - name: Send coverage repot to codecov
+        uses: codecov/codecov-action@v3
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        with:
+          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
+
+  pylint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
+      - name: Setup Python
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Install Python dependencies
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: pip install -e '.[test]'
+      - name: Run pylint
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: pylint ${{ steps.filter.outputs.py_modified_files }}
+
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            py_modified:
+              - added|modified: "./**/*.py"
+      - name: Setup Python
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Install Python dependencies
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: pip install -e '.[test]'
+      - name: Run mypy
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: mypy .
+
+  test_docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          lfs: 'false'
+          submodules: 'recursive'
+          ssh-key: ${{ secrets.git_ssh_key  }}
+      - name: Get changed files
+        uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          list-files: shell
+          filters: |
+            docs_modified:
+              - added|modified: "./docs/*"
+            py_modified:
+              - added|modified: "./zetta_utils/**/*.py"
+      - name: Setup Python
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9.0
+          architecture: x64
+          cache: 'pip'
+      - name: Install Python dependencies
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        run: pip install -e '.[docs]'
+        #- name: Doctest make doctest;
+      - name: Build Docs
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        run: cd docs; make html

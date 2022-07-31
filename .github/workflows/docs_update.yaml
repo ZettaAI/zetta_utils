@@ -1,11 +1,19 @@
 name: CI Pipeline
 
 on:
-  pull_request:
-    type: [ opened, synchronize ]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   docs:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,8 +41,15 @@ jobs:
           cache: 'pip'
       - name: Install Python dependencies
         #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
-        run: pip install -e '.[all]'
-        #- name: Doctest
-        #run: cd ./docs; make doctest;
+        run: pip install -e '.[docs]'
       - name: Build Docs
-        run: make html
+        run: cd ./docs; make html
+      - name: Upload artifact
+        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: './docs/build/html'
+      - name: Deploy to GitHub Pages
+        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        id: deployment
+        uses: actions/deploy-pages@main

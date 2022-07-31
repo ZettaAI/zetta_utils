@@ -38,14 +38,3 @@ jobs:
         run: cd ./docs; make doctest;
       - name: Build Docs
         run: make html
-      - name: Upload artifact
-        if: ${{ github.ref == 'refs/heads/main'  }}
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
-        uses: actions/upload-pages-artifact@v1
-        with:
-          path: './docs/build/html'
-      - name: Deploy to GitHub Pages
-        if: ${{ github.ref == 'refs/heads/main'  }}
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
-        id: deployment
-        uses: actions/deploy-pages@main

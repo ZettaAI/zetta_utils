@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 jobs:
-  deploy_docs:
+  docs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -33,23 +33,24 @@ jobs:
             py_modified:
               - added|modified: "./zetta_utils/**/*.py"
       - name: Setup Python
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || seps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
           python-version: 3.9.0
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || seps.filter.outputs.py_modified == 'true'}}
         run: pip install -e '.[docs]'
       - name: Build Docs
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || seps.filter.outputs.py_modified == 'true'}}
         run: cd ./docs; make html
       - name: Upload artifact
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || seps.filter.outputs.py_modified == 'true'}}
         uses: actions/upload-pages-artifact@v1
         with:
           path: './docs/build/html'
       - name: Deploy to GitHub Pages
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || seps.filter.outputs.py_modified == 'true'}}
         id: deployment
         uses: actions/deploy-pages@main

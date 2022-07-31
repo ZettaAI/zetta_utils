@@ -18,7 +18,7 @@ def multiply(data: Tensor, x) -> Tensor:  # pragma: no cover
 
 
 def add(data: Tensor, x) -> Tensor:  # pragma: no cover
-    return x * data
+    return x + data
 
 
 def power(data: Tensor, x) -> Tensor:  # pragma: no cover

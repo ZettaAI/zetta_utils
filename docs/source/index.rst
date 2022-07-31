@@ -1,11 +1,11 @@
 .. module:: zetta_utils
 
 Welcome to ``zetta_utils`` documentation!
-=======================================
+=========================================
 
-.. include:: ../README.rst
-      :start-after: teaser-begin
-      :end-before: teaser-end
+.. include:: ../../README.rst
+  :start-after: teaser-begin
+  :end-before: teaser-end
 
 ..
    **zetta_utils** is a colleciton of core components used in Zetta AI's connectomics pipeline.
@@ -32,11 +32,8 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
 
 The next steps will get you up and running in no time:
 
-- `overview` will show you a simple example of ``zetta_utils`` in action and introduce you to its philosophy.
-  Afterwards, you can start incorporating ``zetta_utils`` components into your Connectomics workflows
-  and understand what drives ``zetta_utils``'s design.
 - `examples` will give you a comprehensive tour of ``zetta_utils``'s features.
-  After reading, you will know about our advanced features and how to use them.
+- **Module documentation** will show you how each individual module is intended to be used.
 - `developer_guide` will give you all of the information necessary to contribute to ``zetta_utils``.
 - If at any point you get confused by some terminology, please check out our `glossary`.
 
@@ -62,8 +59,9 @@ Day-to-Day Usage
   `artificery <https://github.com/seung-lab/artificery>`_ packages previously used by SeungLab.
 
 
-.. include:: ../README.rst
-   :start-after: -project-information-
+.. include:: ../../README.rst
+   :start-after: project-info-begin
+   :end-before: project-info-end
 
 ----
 
@@ -75,7 +73,6 @@ Full Table of Contents
   :maxdepth: 2
   :caption: Contents:
 
-  overview
   examples
   zetta_utils.log
   zetta_utils.widgets
@@ -85,6 +82,7 @@ Full Table of Contents
   zetta_utils.training
   zetta_utils.builder
   developer_guide
+  glossary
 
 .. toctree::
   :maxdepth: 1

@@ -34,15 +34,17 @@ jobs:
           filters: |
             docs_modified:
               - added|modified: "./docs/*"
+            py_modified:
+              - added|modified: "./zetta_utils/**/*.py"
       - name: Setup Python
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' or steps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
           python-version: 3.9.0
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
-        #if: ${{ steps.filter.outputs.docs_modified == 'true' }}
+        if: ${{ steps.filter.outputs.docs_modified == 'true' }}
         run: pip install -e '.[docs]'
       - name: Build Docs
         run: cd ./docs; make html

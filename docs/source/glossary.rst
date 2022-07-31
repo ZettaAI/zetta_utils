@@ -17,5 +17,5 @@ Glossary
    SQS
       TODO
 
-   MIP
+   MIP, MIP level
       TODO

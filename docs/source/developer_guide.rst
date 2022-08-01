@@ -65,6 +65,8 @@ Testing
             return x * data
    ..
 
+   Also feel free to include ``# pragma: no cover`` for any visualization-only code.
+
 2. Use ``@pytest.mark.parametrize``, ``@pytest.fixture``, and ``mocker`` fixture for building unit tests. If you're unfamiliar with pytest,
    start off by readying this `guide <https://www.nerdwallet.com/blog/engineering/5-pytest-best-practices/>`_.
 

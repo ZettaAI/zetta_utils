@@ -27,6 +27,19 @@ def entry_loader(
 
 
 def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover
+    """Interactive visualizer for a list of images.
+
+    :param entries: A list of images to be visualized. Images will be squeezed before being
+        rendered.
+    :param grid_size: The input image will be broken into a uniform grid, and only one cell of
+        that grid will be shown at a time. ``grid_size`` determines how many pieces the image
+        will be broken into long each dimension. When ``grid_size == 1`` the whole image will
+        be shown, when ``grid_size == 2`` the image will be broken into 4 equally sized
+        rectangles, etc.
+    :param grid_x: Default position on the X axis of the grid.
+    :param grid_y: Default position on the Y axis of the grid.
+
+    """
     if renderer is None:
         renderer = zu.viz.Renderer()
 

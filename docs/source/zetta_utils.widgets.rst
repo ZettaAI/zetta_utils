@@ -1,4 +1,4 @@
 ``zetta_utils.widgets``
 =======================
 
-TODO
+.. autofunction:: zetta_utils.widgets.list_viz

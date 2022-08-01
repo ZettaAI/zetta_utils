@@ -15,6 +15,20 @@ from zetta_utils.bbox import BoundingCube
 @typechecked
 @attrs.frozen
 class VolumetricStepIndexer(SampleIndexer):
+    """Indexer which takes samples from a volumetric region at uniform intervals.
+
+    :param bcube: Bounding cube representing the whole volume to be indexed.
+    :param sample_size: Size of a training sample.
+    :param sample_size_resolution: Resoluiton at which ``sample_size`` is given.
+    :param step_size: Distance between neighboring samples along each dimension.
+    :param step_size_resolution: Resoluiton at which ``step_size`` is given.
+    :param index_resolution: Resoluiton at at which to form an index for each sample.
+    :param desired_resolution: Desired resoluiton which will be indicated as a part
+        of index for each sample. When ``desired_resolution is None``, no desired
+        resolution will be specified in the index.
+
+    """
+
     bcube: BoundingCube
     sample_size: Vec3D
     sample_size_resolution: Vec3D
@@ -72,6 +86,14 @@ class VolumetricStepIndexer(SampleIndexer):
         return result
 
     def __call__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
+        """Translate a sample index to a volumetric region in space.
+
+        :param idx: Integer sample index.
+        :return: Volumetric index for the training sample patch, including
+            ``self.desired_resolution`` and the slice representation of the region
+            at ``self.index_resolution``.
+
+        """
         steps_along_dim = [
             idx % self.step_limits[0],
             (idx // self.step_limits[0]) % self.step_limits[1],

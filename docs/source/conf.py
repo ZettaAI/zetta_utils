@@ -17,8 +17,9 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
-    "sphinx_autodoc_typehints",
+    "sphinx.ext.napoleon",
     "sphinx.ext.todo",
+    "sphinx_autodoc_typehints",
     "notfound.extension",
     "sphinx_copybutton",
 ]

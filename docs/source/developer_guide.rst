@@ -100,3 +100,4 @@ You can check documentation build status locally by executing the following in `
 
 Until ``zetta_utils`` library matures and sees heavy development, we will use ``suqash mode`` for merging PRs to master.
 So for now, you don't have to worry about the commit history when forming a PR.
+

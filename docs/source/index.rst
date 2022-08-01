@@ -21,7 +21,6 @@ Getting Started
 ..
   _`hosted on PyPI <https://pypi.org/project/>`_.
 
-``zetta_ai`` is a Python-only package.
 The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-installing into a `virtualenv <https://hynek.me/articles/virtualenv-lives/>`_:
 
 .. code-block:: console

@@ -7,6 +7,7 @@ import numpy.typing as npt
 import cachetools  # type: ignore
 import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
+from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.io.backends.base import IOBackend
@@ -36,6 +37,7 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
 
 
 @zu.builder.register("CVBackend")
+@typechecked
 @attrs.mutable(init=False)
 class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
     def __init__(

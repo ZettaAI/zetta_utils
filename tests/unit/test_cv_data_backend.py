@@ -23,13 +23,14 @@ def test_cv_backend_constructor_exc():
 
 
 def test_get_cv_at_res(mocker):
+    expected = mocker.Mock()
     cv_fn = mocker.patch(
         "zetta_utils.io.backends.cv.CachedCloudVolume",
-        return_value="correct",
+        return_value=expected,
     )
     cvb = CVBackend()
     result = cvb._get_cv_at_resolution((1, 1, 1))
-    assert result == "correct"
+    assert result == expected
     cv_fn.assert_called_with(mip=(1, 1, 1), **cvb.kwargs)
 
 

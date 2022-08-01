@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 from typing import Dict, Union, Callable, Optional, Any, Sequence, List
 import copy
+from typeguard import typechecked
 
 from zetta_utils import io
 from zetta_utils import builder
@@ -11,6 +12,7 @@ from zetta_utils.io.indexes.volumetric import AdjustDataResolution, VolumetricIn
 from zetta_utils.tensor.ops import InterpolationMode
 
 
+@typechecked
 @builder.register("CVLayer")
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
@@ -83,6 +85,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     return result
 
 
+@typechecked
 @builder.register("LayerSet")
 def build_layer_set(
     layers: Dict[str, Layer],

@@ -10,7 +10,12 @@ RECURSE_KEY = "<recursive_parse>"
 
 @typechecked
 def register(name: str, versions=None) -> Callable:
-    """Decorator for registering classes to be buildable through a spec."""
+    """Decorator for registering classes to be buildable.
+
+    :param name: Name which will be used for to indicate an object of the
+        decorated type.
+
+    """
     if versions is not None:
         raise NotImplementedError()  # pragma: no cover
 
@@ -23,14 +28,25 @@ def register(name: str, versions=None) -> Callable:
 
 @typechecked
 def get_cls_from_name(name: str) -> Any:
-    """Translates a string containing a type name used in a spec to the
-    class registered to that name."""
+    """Translate a string to the class registered with that name.
+
+    :param name: Name to be translated.
+    :return: Corresponding class.
+
+    """
     return REGISTRY[name]
 
 
 @typechecked
 def build(spec: dict, must_build=True) -> Any:
-    """Builds an object from the given spec."""
+    """Build an object from the given spec.
+
+    :param spec: Input dictionary.
+    :param must_build: Whether to throw a ``ValueError`` when the dictionary
+        does not contain the ``<type>`` key in the outermost level.
+    :return: Object build according to the specification.
+
+    """
     if PARSE_KEY in spec:
         result = _build(spec)
     else:

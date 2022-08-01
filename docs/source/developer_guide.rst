@@ -9,6 +9,22 @@ Dev Environment
 
 This subsection describes ``zetta_utils`` development setup.
 
+The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-installing into a `virtualenv <https://hynek.me/articles/virtualenv-lives/>`_. For development purposes, install the package with ``[all]`` extras, which include tools for running tests and building documentation:
+
+.. code-block:: console
+
+   $ git clone git@github.com:ZettaAI/zetta_utils.git
+   $ cd zetta_utils
+   $ pip install -e '.[all]'
+
+After installaciton completes, install ``pre-commit`` hooks:
+
+.. code-block:: console
+
+   $ pre-commit install
+
+
+
 Dev Guidelines
 --------------
 
@@ -100,4 +116,3 @@ You can check documentation build status locally by executing the following in `
 
 Until ``zetta_utils`` library matures and sees heavy development, we will use ``suqash mode`` for merging PRs to master.
 So for now, you don't have to worry about the commit history when forming a PR.
-

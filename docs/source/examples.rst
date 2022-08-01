@@ -80,7 +80,7 @@ Layers for CloudVolume IO:
 
 .. doctest::
 
-   >>> # Vanilla CloudVolume Analogue
+   >>> # Vanilla CloudVolume Analog
    >>> cvl = zu.io.build_cv_layer(
    ...    path="gs://fafb_v15_aligned/v0/img/img_norm"
    ... )

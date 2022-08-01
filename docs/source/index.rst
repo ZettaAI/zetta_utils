@@ -41,10 +41,6 @@ The next steps will get you up and running in no time:
 Day-to-Day Usage
 ================
 
-- `zetta_utils.log` provides a well formated disk backed logging system.
-
-- `zetta_utils.widgets` provides nifty visualization tools for `Jupyter <https://jupyter.org/>`_.
-
 - `zetta_utils.tensor` is a unified set of operations that support *both* ``np.ndarray`` and ``torch.Tensor`` tensor types.
   Use ``zetta_utils.tensor.ops.unsqueeze(t)`` without worrying which type ``t`` is.
 
@@ -53,6 +49,10 @@ Day-to-Day Usage
 - `zetta_utils.io` is flexible toolkit for data IO from diverse backends suitable for both training and inference.
 
 - `zetta_utils.training` includes tools such as CloudVolume based training datasets, Pytorch Lightning integration (WIP) and more.
+
+- `zetta_utils.log` provides a well formated disk backed logging system.
+
+- `zetta_utils.widgets` provides nifty visualization tools for `Jupyter <https://jupyter.org/>`_.
 
 - `zetta_utils.builder` is utility for building python objects and workflows from nested dictionaries. It is an
   improved extension of `procspec <https://github.com/seunglab/procspec>`_ and
@@ -74,12 +74,12 @@ Full Table of Contents
   :caption: Contents:
 
   examples
-  zetta_utils.log
-  zetta_utils.widgets
   zetta_utils.tensor
   zetta_utils.bbox
   zetta_utils.io
   zetta_utils.training
+  zetta_utils.log
+  zetta_utils.widgets
   zetta_utils.builder
   developer_guide
   glossary

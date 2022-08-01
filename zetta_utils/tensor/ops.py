@@ -231,7 +231,23 @@ def interpolate(
     mask_value_thr: float = 0,
     default_space_ndim: int = 2,
     allow_shape_rounding: bool = False,
-):
+) -> zu.typing.Tensor:
+    """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
+
+    :param data: Input tensor with batch and channel dimensions.
+    :param size: Desired result shape.
+    :param scale_factor: Interpolation scale factor. Takes precedence over ``size``.
+    :param mode: Algorithm according to which the tensor should be interpolated.
+    :param mask_value_thr: When ``mode == 'mask'``, threshold above which the interpolated
+        value will be considered as ``True``.
+    :param default_space_ndim: The default number of spatial dimensions that will be used
+        when ``scale_factor`` is a single number.
+    :param allow_shape_rounding: Whether to allow interpolation with scale factors that
+        result in non-integer tensor shapes.
+    :return: Interpolated tensor of the same type as the input tensor.
+
+    """
+
     scale_factor = _standardize_scale_factor(
         data_ndim=data.ndim,
         scale_factor=scale_factor,

@@ -25,6 +25,31 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     read_postprocs: Sequence[Callable[..., Any]] = (),
     write_preprocs: Sequence[Callable[..., Any]] = (),
 ) -> Layer:
+    """Build a CloudVolume layer.
+
+    :param path: Path to the CloudVolume.
+    :param cv_kwargs: Keyword arguments passed to the CloudVolume constructor.
+    :param default_desired_resolution: Default resolution used when the desired resolution
+        is not given as a part of an index.
+    :param index_resolution: Resolution at which slices of the index will be given.
+    :param data_resolution: Resolution at which data will be read from the CloudVolume backend.
+        When ``data_resolution`` differs from ``desired_resolution``, data will be interpolated
+        from ``data_resolution`` to ``desired_resolution`` using the given ``interpolation_mode``.
+    :param interpolation_mode: Specification of the interpolation mode to use when
+        ``data_resolution`` differs from ``desired_resolution``.
+    :param readonly: Whether layer is read only.
+    :param allow_shape_rounding: Whether layer allows IO operations where the specified index
+        corresponds to a non-integer number of pixels at the desired resolution. When
+        ``allow_shape_rounding == True``, shapes will be rounded to nearest integer.
+    :param index_adjs: List of adjustors that will be applied to the index given by the user
+        prior to IO operations.
+    :param read_postprocs: List of processors that will be applied to the read data before
+        returning it to the user.
+    :param write_preprocs: List of processors that will be applied to the data given by
+        the user before writing it to the backend.
+    :return: Layer built according to the spec.
+
+    """
     if cv_kwargs is None:
         cv_kwargs = {}
 
@@ -66,6 +91,19 @@ def build_layer_set(
     read_postprocs: Sequence[Callable[..., Any]] = (),
     write_preprocs: Sequence[Callable[..., Any]] = (),
 ) -> Layer:
+    """Build a layer representing a set of layers given as input.
+
+    :param layers: Mapping from layer names to layers.
+    :param readonly: Whether layer is read only.
+    :param index_adjs: List of adjustors that will be applied to the index given by the user
+        prior to IO operations.
+    :param read_postprocs: List of processors that will be applied to the read data before
+        returning it to the user.
+    :param write_preprocs: List of processors that will be applied to the data given by
+        the user before writing it to the backend.
+    :return: Layer built according to the spec.
+
+    """
     backend = io.backends.LayerSetBackend(layers)
 
     result = Layer(

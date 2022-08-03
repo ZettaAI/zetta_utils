@@ -1,6 +1,8 @@
+Built-in Components
+===================
 
 .. toctree::
-  :maxdepth: 2
+  :maxdepth: 1
 
   zetta_utils.log
   zetta_utils.typing

@@ -1,4 +1,4 @@
-# pylint: disable=unused-import
+# pylint: disable=unused-import, import-outside-toplevel
 """Zetta AI Computational Connectomics Toolkit."""
 
 from . import log

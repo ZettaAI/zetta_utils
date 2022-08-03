@@ -142,7 +142,9 @@ jobs:
       - name: Install Python dependencies
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run: pip install -e '.[docs]'
-        #- name: Doctest make doctest;
+      - name: Doctest make
+        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        run: make doctest
       - name: Build Docs
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run: cd docs; make html

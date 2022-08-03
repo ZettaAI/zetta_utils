@@ -1,6 +1,8 @@
 ``zetta_utils.tensor``
 ======================
 
+Handling tensor operations. Each opperation must support both :class:`np.ndarray` and :class:`torch.Tensor` input types.
+
 ``zetta_utils.tensor.convert``
 ------------------------------
 

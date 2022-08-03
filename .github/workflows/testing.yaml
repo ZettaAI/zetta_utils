@@ -21,6 +21,7 @@ jobs:
         id: filter
         with:
           list-files: shell
+          base: 'main'
           filters: |
             py_modified:
               - added|modified: "./**/*.py"
@@ -64,6 +65,7 @@ jobs:
         uses: dorny/paths-filter@v2
         id: filter
         with:
+          base: 'main'
           list-files: shell
           filters: |
             py_modified:
@@ -96,6 +98,7 @@ jobs:
         id: filter
         with:
           list-files: shell
+          base: 'main'
           filters: |
             py_modified:
               - added|modified: "./**/*.py"
@@ -127,9 +130,10 @@ jobs:
         id: filter
         with:
           list-files: shell
+          base: 'main'
           filters: |
             docs_modified:
-              - added|modified: '**/*' #"./**/*.rst"
+              - added|modified: "./**/*.rst"
             py_modified:
               - added|modified: "./**/*.py"
       - name: Setup Python

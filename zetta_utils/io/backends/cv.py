@@ -3,16 +3,16 @@ import json
 
 import attrs
 import numpy as np
-import numpy.typing as npt
+import torch
 import cachetools  # type: ignore
 import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 from typeguard import typechecked
 
-import zetta_utils as zu
+from zetta_utils import tensor, builder
 from zetta_utils.io.backends.base import IOBackend
 from zetta_utils.io.indexes import VolumetricIndex
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import Vec3D, Tensor
 
 
 cv_cache = cachetools.LRUCache(maxsize=500)
@@ -36,12 +36,25 @@ class CachedCloudVolume(CloudVolume):  # pragma: no cover # pylint: disable=too-
         return super().__new__(cls, *args, **kwargs)
 
 
-@zu.builder.register("CVBackend")
+@builder.register("CVBackend")
 @typechecked
 @attrs.mutable(init=False)
 class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
+    """
+    Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
+    Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
+    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``BCXYZ``
+    dimension order.
+
+    :param device: Device name where read tensors will reside in torch format.
+    :param kwargs: Parameters that will be passed to the CloudVolume constructor.
+        ``mip`` keyword must not be present in ``kwargs``, as the read resolution
+        is passed in as a part of index to the backend.
+    """
+
     def __init__(
         self,
+        device: str = "cpu",
         **kwargs,
     ):
         if "mip" in kwargs:
@@ -50,6 +63,7 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
                 "Please provide the intended resolution through the index"
             )
 
+        self.device = device
         self.kwargs = kwargs
         self.kwargs.setdefault("bounded", False)
         self.kwargs.setdefault("progress", False)
@@ -66,19 +80,19 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
         result = CachedCloudVolume(mip=resolution, **self.kwargs)
         return result
 
-    def read(self, idx: VolumetricIndex) -> npt.NDArray:
+    def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: bcxyz
         cvol = self._get_cv_at_resolution(idx.resolution)
         data_raw = cvol[idx.slices]
 
-        result = np.expand_dims(np.transpose(data_raw, (3, 0, 1, 2)), 0)
-
+        result_np = np.expand_dims(np.transpose(data_raw, (3, 0, 1, 2)), 0)
+        result = tensor.to_torch(result_np, device=self.device)
         return result
 
-    def write(self, idx: VolumetricIndex, value: zu.typing.Tensor):
+    def write(self, idx: VolumetricIndex, value: Tensor):
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
-        value = zu.tensor.convert.to_np(value)
+        value = tensor.convert.to_np(value)
         if len(value.shape) != 5:
             raise ValueError(
                 "Data written to CloudVolume backend must be in `bcxyz` dimension format, "

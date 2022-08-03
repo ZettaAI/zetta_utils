@@ -9,6 +9,7 @@ Import ``logger`` object from ``zetta_utils.log`` and use it instead of ``print`
 
 .. doctest::
 
+   >>> import zetta_utils as zu
    >>> from zetta_utils.log import logger
    >>> logger.warn("This is a warning")
    >>> logger.info("Info message")
@@ -22,6 +23,8 @@ Generic ops:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import tensor
    >>> import numpy as np
    >>> a = np.ones((2, 2))
    >>> a = zu.tensor.ops.unsqueeze(a)
@@ -31,6 +34,8 @@ Generic ops:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import tensor
    >>> import torch
    >>> t = torch.ones((2, 2))
    >>> t = zu.tensor.ops.unsqueeze(t)
@@ -41,6 +46,8 @@ Generic conversion:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import tensor
    >>> import numpy as np
    >>> a = np.ones((2, 2))
    >>> a = zu.tensor.convert.to_torch(a)
@@ -50,6 +57,8 @@ Generic conversion:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import tensor
    >>> import torch
    >>> t = torch.ones((2, 2))
    >>> t = zu.tensor.convert.to_torch(t)
@@ -62,6 +71,7 @@ BoundingCube
 
 .. doctest::
 
+   >>> import zetta_utils as zu
    >>> bcube = zu.bbox.BoundingCube.from_coords(
    ...    start_coord=(100, 100, 10),
    ...    end_coord=(200, 200, 20),
@@ -79,7 +89,8 @@ Layers
 Layers for CloudVolume IO:
 
 .. doctest::
-
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import io
    >>> # Vanilla CloudVolume Analog
    >>> # Differences with Vanilla CV:
    >>> #   1. Read data type: ``torch.Tensor``.
@@ -92,6 +103,8 @@ Layers for CloudVolume IO:
    torch.Size([1, 1, 100, 100, 1])
 
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import io
    >>> # Advanced features:
    >>> # Custom index resolution, desired resolution, data resolution
    >>> cvl = zu.io.build_cv_layer(
@@ -109,6 +122,8 @@ Layer sets for grouping layers together:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import io
    >>> cvl_x0 = zu.io.build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
    ... )
@@ -145,6 +160,8 @@ In this example we will make a dataset out of a simple 2-layer layer set:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import io
    >>> lset = zu.io.build_layer_set(layers={
    ...    'img': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"),
    ...    'img_norm': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"),
@@ -157,6 +174,8 @@ In this example, we will be using ``VolumetricStepIndexer``:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import training 
    >>> indexer = zu.training.datasets.sample_indexers.VolumetricStepIndexer(
    ...    # Range over which to sample
    ...    bcube=zu.bbox.BoundingCube.from_coords(
@@ -209,6 +228,7 @@ To make objects of a class buildable with ``zu.builder``:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
    >>> @zu.builder.register("MyClass")
    ... class MyClass:
    ...    def __init__(self, a):
@@ -229,14 +249,17 @@ and providing the initialization parameters::
    >>> print (obj.a)
    100
 
-All user-facing ``zetta_utils`` objects are all registered with ``zu.builder``. You can check out the state of the current registry
-by inspecting ``zu.builder.REGISTRY``
+All user-facing ``zetta_utils`` objects are registered with ``zu.builder`` on module import. 
+Don't forget to import all ``zetta_utils`` modules that you want the builder to know about.
+You can check out the state of the current registry by inspecting ``zu.builder.REGISTRY``
 
 ``zu.builder`` will build your objects recursively. That means that you can specify complex structures,
 such as the dataset from the earlier example:
 
 .. doctest::
 
+   >>> import zetta_utils as zu
+   >>> from zetta_utils import  training 
    >>> spec = {
    ...    "<type>": "LayerDataset",
    ...    "layer": {

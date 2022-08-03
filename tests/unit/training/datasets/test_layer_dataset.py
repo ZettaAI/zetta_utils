@@ -4,7 +4,7 @@ import numpy as np
 
 from zetta_utils.training.datasets import LayerDataset
 
-from .helpers import assert_array_equal
+from ...helpers import assert_array_equal
 
 
 def test_layer_dataset(mocker):

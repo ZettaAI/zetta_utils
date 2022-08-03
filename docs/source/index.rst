@@ -73,13 +73,8 @@ Full Table of Contents
   :caption: Contents:
 
   examples
-  zetta_utils.tensor
-  zetta_utils.bbox
-  zetta_utils.io
-  zetta_utils.training
-  zetta_utils.log
-  zetta_utils.widgets
-  zetta_utils.builder
+  built_in_components
+  modules  
   developer_guide
   glossary
 

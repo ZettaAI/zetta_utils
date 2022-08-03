@@ -17,6 +17,7 @@ from zetta_utils.tensor.ops import InterpolationMode
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
     cv_kwargs: Optional[Dict] = None,
+    device: str = "cpu",
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,
@@ -31,6 +32,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
 
     :param path: Path to the CloudVolume.
     :param cv_kwargs: Keyword arguments passed to the CloudVolume constructor.
+    :param device: Device name on which read tensors will reside.
     :param default_desired_resolution: Default resolution used when the desired resolution
         is not given as a part of an index.
     :param index_resolution: Resolution at which slices of the index will be given.
@@ -55,7 +57,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     if cv_kwargs is None:
         cv_kwargs = {}
 
-    backend = io.backends.CVBackend(cloudpath=path, **cv_kwargs)
+    backend = io.backends.CVBackend(cloudpath=path, device=device, **cv_kwargs)
     index_converter = VolumetricIndexConverter(
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,

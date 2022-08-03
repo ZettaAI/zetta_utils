@@ -20,8 +20,8 @@ from zetta_utils.io.indexes import (
 class Layer:
     io_backend: zu.io.backends.IOBackend
     readonly: bool = False
-    index_adjs: Sequence[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
     index_converter: Optional[Callable] = None
+    index_adjs: Sequence[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
     read_postprocs: Sequence[Callable] = attrs.Factory(list)
     write_preprocs: Sequence[Callable] = attrs.Factory(list)
 

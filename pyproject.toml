@@ -22,18 +22,30 @@ requires-python = ">= 3.8"
 dependencies = [
     "attrs >= 21.3",
     "typeguard >= 2.13.3",
-    "torch >= 1.11.0",
-    "numpy >= 1.23.1",
-    "connected-components-3d >= 3.10.0",
-    "fastremap >= 1.12.2",
-    "cloud-volume >= 8.7.0",
-    "matplotlib >= 3.5.2",
-    "ipywidgets >= 7.7.0",
-    "opencv-python >= 4.5.5"
+    "cachetools >= 5.2.0",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
+viz = [
+    "matplotlib >= 3.5.2",
+    "ipywidgets >= 7.7.0",
+    "opencv-python >= 4.5.5"
+]
+tensor = [
+    "torch >= 1.11.0",
+    "numpy >= 1.23.1",
+    "connected-components-3d >= 3.10.0",
+    "fastremap >= 1.12.2",
+]
+io = [
+    "cloud-volume >= 8.7.0",
+    "zetta_utils[tensor]"
+]
+training = [
+    "zetta_utils[tensor,io]",
+    "pytorch-lightning >= 1.6.4"
+]
 docs = [
     "piccolo_theme >= 0.11.1",
     "sphinx-autodoc-typehints >= 1.19.0",
@@ -42,7 +54,7 @@ docs = [
 ]
 test = [
     "black == 21.9b0",
-    "click ==8.0.1", # for black to work
+    "click == 8.0.1", # for black to work
     "pydocstyle == 6.1.1",
     "flake8 == 4.0.1",
     "mypy == 0.971",
@@ -54,9 +66,11 @@ test = [
     "isort == 5.10.1",
     "pre-commit == 2.19.0",
 ]
-all = [
-    "zetta_utils[test]",
-    "zetta_utils[docs]",
+all = [ # put them in order of dependencies
+    "zetta_utils[docs,test]",
+    "zetta_utils[tensor]", 
+    "zetta_utils[io, viz]",
+    "zetta_utils[training]",
 ]
 
 [tool.setuptools]

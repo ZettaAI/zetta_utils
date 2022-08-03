@@ -6,7 +6,7 @@ import torch
 
 import zetta_utils as zu
 
-from .. import helpers
+from ... import helpers
 
 
 # if you use ``attrs``, no need to test constructor

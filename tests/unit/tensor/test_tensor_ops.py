@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from zetta_utils.tensor import ops
-from .helpers import assert_array_equal
+from ..helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(

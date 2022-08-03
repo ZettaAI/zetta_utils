@@ -39,20 +39,21 @@ def to_np(data: zu.typing.Tensor) -> npt.NDArray:
 
 
 @overload
-def to_torch(data: torch.Tensor) -> torch.Tensor:  # pragma: no cover
+def to_torch(data: torch.Tensor, device: str = ...) -> torch.Tensor:  # pragma: no cover
     ...
 
 
 @overload
-def to_torch(data: npt.NDArray) -> torch.Tensor:  # pragma: no cover
+def to_torch(data: npt.NDArray, device: str = ...) -> torch.Tensor:  # pragma: no cover
     ...
 
 
 @typechecked
-def to_torch(data: zu.typing.Tensor) -> torch.Tensor:
+def to_torch(data: zu.typing.Tensor, device: str = "cpu") -> torch.Tensor:
     """Convert the given tensor to :class:`torch.Tensor`.
 
     :param data: Input tensor.
+    :param device: Device name on which the torch tensor will reside.
     :return: Input tensor in :class:`torch.Tensor` format.
 
     """
@@ -60,7 +61,7 @@ def to_torch(data: zu.typing.Tensor) -> torch.Tensor:
         result = data
     else:
         assert isinstance(data, np.ndarray)
-        result = torch.from_numpy(data)
+        result = torch.from_numpy(data).to(device)
 
     return result
 

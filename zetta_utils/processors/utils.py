@@ -28,8 +28,3 @@ class FuncProcessorBuilder:
 
     def __repr__(self):  # pragma: no cover
         return f"FuncProcessorBuilder(func={self.func.__module__}.{self.func.__qualname__})"  # pragma: no cover # pylint: disable=line-too-long
-
-
-def func_to_proc(func):
-    builder = FuncProcessorBuilder(func)
-    return builder

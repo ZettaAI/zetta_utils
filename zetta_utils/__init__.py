@@ -4,7 +4,7 @@ from . import log
 from . import cue
 from . import typing
 from . import builder
-from . import processor
+from . import processors
 from . import bbox
 from . import tensor
 from . import io

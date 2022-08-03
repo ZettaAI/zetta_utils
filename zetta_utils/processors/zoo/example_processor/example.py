@@ -48,3 +48,7 @@ class ExampleProcessor:
             raise ValueError("Unexpected input")
 
         return result
+
+
+# After you finished implementing your processor, don't forget to make sure
+# it's included by modifying the ``__init__.py``'s

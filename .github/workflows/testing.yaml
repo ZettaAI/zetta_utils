@@ -129,7 +129,7 @@ jobs:
           list-files: shell
           filters: |
             docs_modified:
-              - added|modified: "./**/*.rst"
+              - added|modified: '**/*' #"./**/*.rst"
             py_modified:
               - added|modified: "./**/*.py"
       - name: Setup Python
@@ -145,7 +145,7 @@ jobs:
       - run: cd docs
       - name: Doctest make
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
-        run: make doctest
+        run: pwd; make doctest
       - name: Build Docs
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run:  make html

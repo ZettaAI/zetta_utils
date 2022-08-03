@@ -79,7 +79,7 @@ jobs:
           cache: 'pip'
       - name: Install Python dependencies
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pip install -e '.[test]'
+        run: pip install -e '.[modules, test]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
@@ -111,7 +111,7 @@ jobs:
           cache: 'pip'
       - name: Install Python dependencies
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pip install -e '.[test]'
+        run: pip install -e '.[modules, test]'
       - name: Run mypy
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
@@ -145,7 +145,7 @@ jobs:
           cache: 'pip'
       - name: Install Python dependencies
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
-        run: pip install -e '.[docs]'
+        run: pip install -e '.[modules, docs]'
       - name: Doctest
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run: make -C docs doctest

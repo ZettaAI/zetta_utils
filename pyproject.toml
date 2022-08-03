@@ -66,11 +66,13 @@ test = [
     "isort == 5.10.1",
     "pre-commit == 2.19.0",
 ]
-all = [ # put them in order of dependencies
-    "zetta_utils[docs,test]",
+modules = [ # put them in order of dependencies
     "zetta_utils[tensor]", 
     "zetta_utils[io, viz]",
     "zetta_utils[training]",
+]
+all = [
+    "zetta_utils[modules,docs,test]",
 ]
 
 [tool.setuptools]

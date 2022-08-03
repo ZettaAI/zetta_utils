@@ -82,7 +82,7 @@ Layers for CloudVolume IO:
 
    >>> # Vanilla CloudVolume Analog
    >>> cvl = zu.io.build_cv_layer(
-   ...    path="gs://fafb_v15_aligned/v0/img/img_norm"
+   ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
    >>> data = cvl[(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
    >>> data.shape # batch, channel, x, y, z
@@ -91,7 +91,7 @@ Layers for CloudVolume IO:
 
    >>> # Custom index resolution, desired resolution, data resolution
    >>> cvl = zu.io.build_cv_layer(
-   ...    path="gs://fafb_v15_aligned/v0/img/img_norm",
+   ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm",
    ...    default_desired_resolution=(64, 64, 40),
    ...    index_resolution=(4, 4, 40),
    ...    data_resolution=(128, 128, 40),
@@ -106,10 +106,10 @@ Layer sets for grouping layers together:
 .. doctest::
 
    >>> cvl_x0 = zu.io.build_cv_layer(
-   ...    path="gs://fafb_v15_aligned/v0/img/img"
+   ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
    ... )
    >>> cvl_x1 = zu.io.build_cv_layer(
-   ...    path="gs://fafb_v15_aligned/v0/img/img_norm"
+   ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
    >>> # Combine the two layers
    >>> lset = zu.io.build_layer_set(
@@ -142,8 +142,8 @@ In this example we will make a dataset out of a simple 2-layer layer set:
 .. doctest::
 
    >>> lset = zu.io.build_layer_set(layers={
-   ...    'img': zu.io.build_cv_layer(path="gs://fafb_v15_aligned/v0/img/img"),
-   ...    'img_norm': zu.io.build_cv_layer(path="gs://fafb_v15_aligned/v0/img/img_norm"),
+   ...    'img': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"),
+   ...    'img_norm': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"),
    ... })
 
 Now that we have the layer that will serve as the basis for our datast, we need to specify how each sample index number,
@@ -238,8 +238,8 @@ such as the dataset from the earlier example:
    ...    "layer": {
    ...       "<type>": "LayerSet",
    ...       "layers": {
-   ...          "img": {"<type>": "CVLayer", "path": "gs://fafb_v15_aligned/v0/img/img"},
-   ...          "img_norm": {"<type>": "CVLayer", "path": "gs://fafb_v15_aligned/v0/img/img_norm"}
+   ...          "img": {"<type>": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"},
+   ...          "img_norm": {"<type>": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"}
    ...       }
    ...    },
    ...    "sample_indexer": {

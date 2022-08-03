@@ -5,7 +5,7 @@ import pytest
 from zetta_utils import cue
 
 THIS_DIR = pathlib.Path(__file__).parent.resolve()
-TEST_DATA_DIR = THIS_DIR / "data/params/"
+TEST_DATA_DIR = THIS_DIR / "assets/params/"
 TEST_FILE_PATH = TEST_DATA_DIR / "file_x0.cue"
 UNEXISTING_FILE_PATH = TEST_DATA_DIR / "no_file_x0.cue"
 

@@ -40,9 +40,8 @@ def register_dummy_b():
         None,
         1,
         "abc",
-        [1, "abc"],
         (1, "abc"),
-        {"int": 1, "str": "abc", "list": [1, 2, 3], "dict": {"yes": "sir"}},
+        {"int": 1, "str": "abc", "tuple": (1, 2, 3), "dict": {"yes": "sir"}},
     ],
 )
 def test_identity_builds(value):
@@ -80,23 +79,23 @@ def test_register(register_dummy_a):
         [{PARSE_KEY: "dummy_b", "b": 2}, DummyB(b=2)],
         [
             {PARSE_KEY: "dummy_a", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
-            DummyA(a=[DummyB(b=3)]),
+            DummyA(a=(DummyB(b=3),)),
         ],
         [
             {
                 PARSE_KEY: "dummy_a",
                 RECURSIVE_KEY: True,
-                "a": [{PARSE_KEY: "dummy_b", "b": 3}],
+                "a": ({PARSE_KEY: "dummy_b", "b": 3},),
             },
-            DummyA(a=[DummyB(b=3)]),
+            DummyA(a=(DummyB(b=3),)),
         ],
         [
             {
                 PARSE_KEY: "dummy_a",
                 RECURSIVE_KEY: False,
-                "a": [{PARSE_KEY: "dummy_b", "b": 3}],
+                "a": ({PARSE_KEY: "dummy_b", "b": 3},),
             },
-            DummyA(a=[{PARSE_KEY: "dummy_b", "b": 3}]),
+            DummyA(a=({PARSE_KEY: "dummy_b", "b": 3},)),
         ],
     ],
 )

@@ -8,7 +8,6 @@ cue_exe = os.environ.get("CUE_EXE", "cue")
 
 
 def load(cue_file):
-    """Validate from files"""
     if isinstance(cue_file, (str, pathlib.PosixPath)):
         file_name = str(cue_file)
     elif hasattr(cue_file, "name"):  # File pointers

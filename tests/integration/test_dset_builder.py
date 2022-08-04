@@ -13,10 +13,10 @@ def test_dataset_builder():
     result = zu.builder.build(zu.cue.load(dset_spec_path))
     reference_path = TEST_DATA_DIR / "reference/built_dataset_x0_sample_100_data_in.pkl"
     data = result[100]["data_in"]
-    with open(reference_path, "rb") as f:
-        pickle.dump(data, f)
+    # with open(reference_path, "wb") as f:
+    # pickle.dump(data, f)
 
     with open(reference_path, "rb") as f:
         reference = pickle.load(f)
 
-    assert (data.squeeze() == reference.squeeze()).all()
+    assert (data == reference).all()

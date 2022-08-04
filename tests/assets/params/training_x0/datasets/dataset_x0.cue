@@ -16,10 +16,6 @@ layer: {
 					dim:      -1
 				},
 				{
-					"<type>": "Squeeze"
-					dim:      0
-				},
-				{
 					"<type>": "Divide"
 					x:        256.0
 				},

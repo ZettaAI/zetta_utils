@@ -46,10 +46,11 @@ io = [
     "zetta_utils[tensor]"
 ]
 convnet = [
-    "torch >= 1.11.0",
+    "torch == 1.11.0",
     "artificery >= 0.0.3.3"
 ]
 training = [
+    "torch == 1.11.0",
     "zetta_utils[tensor,io,convnet]",
     "pytorch-lightning >= 1.6.4"
 ]

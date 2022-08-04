@@ -39,7 +39,7 @@ def get_cls_from_name(name: str) -> Any:
 
 
 @typechecked
-def build(spec: dict, must_build=True, lists_to_tuples: bool = True) -> Any:
+def build(spec: dict, must_build=True) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.
@@ -49,7 +49,7 @@ def build(spec: dict, must_build=True, lists_to_tuples: bool = True) -> Any:
 
     """
     if PARSE_KEY in spec:
-        result = _build(spec, lists_to_tuples)
+        result = _build(spec)
     else:
         if must_build:
             raise ValueError(
@@ -62,13 +62,11 @@ def build(spec: dict, must_build=True, lists_to_tuples: bool = True) -> Any:
 
 
 @typechecked
-def _build(field: Any, lists_to_tuples: bool = True) -> Any:
+def _build(field: Any) -> Any:
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any
     elif isinstance(field, list):
         result = [_build(i) for i in field]
-        if lists_to_tuples:
-            result = tuple(result)
     elif isinstance(field, tuple):
         result = tuple(_build(i) for i in field)
     elif isinstance(field, dict):

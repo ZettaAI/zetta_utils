@@ -31,9 +31,9 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
             loss_map = (target - result) ** 2
             if "loss_weights" in batch:
                 loss_weights = batch["loss_weights"]
-                loss = (loss_map * loss_weights).sum()
+                loss = (loss_map * loss_weights).mean()
             else:
-                loss = loss_map.sum()
+                loss = loss_map.mean()
             self.log("train_loss", loss)
         return loss
 

@@ -10,7 +10,7 @@ import fastremap  # type: ignore
 import cc3d  # type: ignore
 
 import zetta_utils as zu
-from zetta_utils.typing import Tensor
+from zetta_utils.typing import Tensor, Number
 
 
 def multiply(data: Tensor, x) -> Tensor:  # pragma: no cover
@@ -114,56 +114,24 @@ InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 def _standardize_scale_factor(
     data_ndim: int,
-    scale_factor: Optional[Union[float, Sequence[float]]] = None,
-    default_space_ndim: int = 2,
+    scale_factor: Optional[Union[Number, Sequence[Number]]] = None,
 ) -> Optional[Sequence[float]]:
     if scale_factor is None:
         result = None
     else:
         data_space_ndim = data_ndim - 2  # Batch + Channel
-        if isinstance(scale_factor, float):
-            result = (scale_factor,) * min(data_space_ndim, default_space_ndim)
+        if isinstance(scale_factor, (float, int)):
+            result = (scale_factor,) * data_space_ndim
         else:
             result = tuple(scale_factor)
-
-        while len(result) < data_space_ndim:
-            result = (1.0,) + result
+            while len(result) < data_space_ndim:
+                result = (1.0,) + result
 
     return result
 
 
-def _get_spatial_ndim(
-    size: Optional[Sequence[int]],
-    scale_factor: Optional[Sequence[float]],
-    data_shape: Sequence[int],
-    allow_shape_rounding: bool,
-) -> int:
-    if scale_factor is not None:
-        spatial_ndim = len(scale_factor)
-        if not allow_shape_rounding:
-            result_spatial_shape = [
-                data_shape[2 + i] * scale_factor[i] for i in range(spatial_ndim)
-            ]
-            for i in range(spatial_ndim):
-                if round(result_spatial_shape[i]) != result_spatial_shape[i]:
-                    raise RuntimeError(
-                        f"Interpolation of array with shape {data_shape} and scale "
-                        f"factor {scale_factor} would result in a non-integer shape "
-                        f"along spatial dimention {i} "
-                        f"({data_shape[2 + i]} -> {result_spatial_shape[i]}) while "
-                        "`allow_shape_rounding` == False ."
-                    )
-    else:
-        if size is None:
-            raise ValueError("Neither `size` nor `scale_factor` provided to `interpolate()`")
-        spatial_ndim = len(size)
-
-    return spatial_ndim
-
-
 def _get_torch_interp_mode(
-    size: Optional[Sequence[int]],
-    scale_factor: Optional[Sequence[float]],
+    scale_factor_tuple: Optional[Sequence[float]],
     spatial_ndim: int,
     mode: InterpolationMode,
 ) -> TorchInterpolationMode:
@@ -173,27 +141,66 @@ def _get_torch_interp_mode(
         elif spatial_ndim == 2:
             torch_interp_mode = "bilinear"
         else:
-            if spatial_ndim != 1:
-                raise RuntimeError(
-                    f"Unsupported number of spatial dimensions {spatial_ndim} "
-                    f"scale_factor = {scale_factor}, size = {size}"
-                )
+            assert spatial_ndim == 1, "Setting validation error."
+
             torch_interp_mode = "linear"
     elif mode == "mask":
         torch_interp_mode = "area"
     elif mode == "segmentation":
         torch_interp_mode = "nearest-exact"
 
-        if scale_factor is None:
+        if scale_factor_tuple is None:
             raise NotImplementedError()  # pragma: no cover
-        if isinstance(scale_factor, float) and scale_factor < 1.0:
-            raise NotImplementedError()  # pragma: no cover
-        if isinstance(scale_factor, list) and sum([i < 1.0 for i in scale_factor]):
+        if sum([i < 1.0 for i in scale_factor_tuple]):
             raise NotImplementedError()  # pragma: no cover
     else:
         torch_interp_mode = mode  # type: ignore # has to fit at this point
 
     return torch_interp_mode
+
+
+def _validate_interpolation_setting(
+    data: zu.typing.Tensor,
+    size: Optional[Sequence[int]],
+    scale_factor_tuple: Optional[Sequence[float]],
+    allow_shape_rounding: bool,
+):
+    # Torch checks for some of these, but we need to check preemptively
+    # as some of our pre-processing code assumes a valid setting.
+
+    if data.ndim > 5:
+        raise ValueError(f"Number of dimensions must be <= 5. Got: {data.ndim}")
+
+    if scale_factor_tuple is None and size is None:
+        raise ValueError("Neither `size` nor `scale_factor` provided to `interpolate()`")
+    if scale_factor_tuple is not None and size is not None:
+        raise ValueError(
+            "Both `size` and `scale_factor` provided to `interpolate()`. "
+            "Exactly one of them must be provided."
+        )
+
+    spatial_ndim = data.ndim - 2
+    if size is not None:
+        if len(size) != spatial_ndim:
+            raise ValueError(
+                "`len(size)` must be equal to `data.ndim - 2`. "
+                f"Got `len(size)` == {len(size)},  `data.ndim` == {data.ndim}."
+            )
+
+    if scale_factor_tuple is not None:
+        if not allow_shape_rounding:
+            result_spatial_shape = [
+                data.shape[2 + i] * scale_factor_tuple[i] for i in range(spatial_ndim)
+            ]
+            for i in range(spatial_ndim):
+                if round(result_spatial_shape[i]) != result_spatial_shape[i]:
+                    raise RuntimeError(
+                        f"Interpolation of array with shape {data.shape} and scale "
+                        f"factor {scale_factor_tuple} would result in a non-integer shape "
+                        f"along spatial dimention {i} "
+                        f"({data.shape[2 + i]} -> {result_spatial_shape[i]}) while "
+                        "`allow_shape_rounding` == False ."
+                    )
 
 
 @overload
@@ -203,8 +210,8 @@ def interpolate(
     scale_factor: Optional[Union[float, Sequence[float]]] = ...,
     mode: InterpolationMode = ...,
     mask_value_thr: float = ...,
-    default_space_ndim: int = ...,
     allow_shape_rounding: bool = ...,
+    unsqueeze_to: Optional[int] = ...,
 ) -> npt.NDArray:  # pragma: no cover
     ...
 
@@ -216,8 +223,8 @@ def interpolate(
     scale_factor: Optional[Union[float, Sequence[float]]] = ...,
     mode: InterpolationMode = ...,
     mask_value_thr: float = ...,
-    default_space_ndim: int = ...,
     allow_shape_rounding: bool = ...,
+    unsqueeze_to: Optional[int] = ...,
 ) -> torch.Tensor:  # pragma: no cover
     ...
 
@@ -229,7 +236,6 @@ def interpolate(  # pylint: disable=too-many-locals
     scale_factor: Optional[Union[float, Sequence[float]]] = None,
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
-    default_space_ndim: int = 2,
     allow_shape_rounding: bool = False,
     unsqueeze_to: Optional[int] = None,
 ) -> zu.typing.Tensor:
@@ -237,12 +243,11 @@ def interpolate(  # pylint: disable=too-many-locals
 
     :param data: Input tensor with batch and channel dimensions.
     :param size: Desired result shape.
-    :param scale_factor: Interpolation scale factor. Takes precedence over ``size``.
+    :param scale_factor: Interpolation scale factor.
+        When provided as ``float``, applied to all spatial dimensions of the data.
     :param mode: Algorithm according to which the tensor should be interpolated.
     :param mask_value_thr: When ``mode == 'mask'``, threshold above which the interpolated
         value will be considered as ``True``.
-    :param default_space_ndim: The default number of spatial dimensions that will be used
-        when ``scale_factor`` is a single number.
     :param allow_shape_rounding: Whether to allow interpolation with scale factors that
         result in non-integer tensor shapes.
     :param unsqueeze_to: If provided, the tensor will be unsqueezed to the given number
@@ -258,21 +263,21 @@ def interpolate(  # pylint: disable=too-many-locals
             data = unsqueeze(data, 0)
             unsqueeze_count += 1
 
-    scale_factor = _standardize_scale_factor(
+    scale_factor_tuple = _standardize_scale_factor(
         data_ndim=data.ndim,
         scale_factor=scale_factor,
-        default_space_ndim=default_space_ndim,
     )
-    spatial_ndim = _get_spatial_ndim(
+
+    _validate_interpolation_setting(
+        data=data,
         size=size,
-        scale_factor=scale_factor,
-        data_shape=data.shape,
+        scale_factor_tuple=scale_factor_tuple,
         allow_shape_rounding=allow_shape_rounding,
     )
+
     torch_interp_mode = _get_torch_interp_mode(
-        size=size,
-        scale_factor=scale_factor,
-        spatial_ndim=spatial_ndim,
+        scale_factor_tuple=scale_factor_tuple,
+        spatial_ndim=data.ndim - 2,
         mode=mode,
     )
 
@@ -280,21 +285,20 @@ def interpolate(  # pylint: disable=too-many-locals
     result_raw = torch.nn.functional.interpolate(
         data_in,
         size=size,
-        scale_factor=scale_factor,
+        scale_factor=scale_factor_tuple,
         mode=torch_interp_mode,
     )
 
     if mode == "field":
-        if scale_factor is None:
+        if scale_factor_tuple is None:
             raise NotImplementedError(  # pragma: no cover
                 "`size`-based field interpolation is not currently supported."
             )
-
-        if all(e == scale_factor[0] for e in scale_factor):
-            multiplier = scale_factor[0]
+        if all(e == scale_factor_tuple[0] for e in scale_factor_tuple):
+            multiplier = scale_factor_tuple[0]
         else:
             raise NotImplementedError(  # pragma: no cover
-                f"Non-isotropic field interpolation (scale_factor={scale_factor}) "
+                f"Non-isotropic field interpolation (scale_factor={scale_factor_tuple}) "
                 "is not currently supported."
             )
 

@@ -168,6 +168,7 @@ class AdjustDataResolution(
                     scale_factor=scale_factor,
                     mode=self.interpolation_mode,
                     allow_shape_rounding=self.allow_rounding,
+                    unsqueeze_to=5,  # b + c + xyz
                 )
             )
 

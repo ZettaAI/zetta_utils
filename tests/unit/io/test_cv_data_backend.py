@@ -54,7 +54,7 @@ class DummyCV:
 
 def test_cv_backend_read(mocker):
     data_read = np.ones([3, 4, 5, 2])
-    expected = np.ones([1, 2, 3, 4, 5])
+    expected = np.ones([2, 3, 4, 5])
 
     dummy = DummyCV(data_read)
     mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
@@ -69,7 +69,7 @@ def test_cv_backend_write(mocker):
     dummy = DummyCV(None)
     mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
     cvb = CVBackend()
-    value = np.ones([1, 2, 3, 4, 5])
+    value = np.ones([2, 3, 4, 5])
     expected_written = np.ones([3, 4, 5, 2])
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     cvb.write(index, value)
@@ -80,9 +80,7 @@ def test_cv_backend_write(mocker):
 @pytest.mark.parametrize(
     "data_in,expected_exc",
     [
-        [np.ones((1, 2, 3, 4)), ValueError],
         [np.ones((1, 2, 3, 4, 5, 6)), ValueError],
-        [np.ones((2, 3, 4, 5, 6)), ValueError],
     ],
 )
 def test_cv_backend_write_exc(data_in, expected_exc, mocker):

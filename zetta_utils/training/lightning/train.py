@@ -2,14 +2,15 @@ import typeguard
 import pytorch_lightning as pl
 
 from zetta_utils import builder
-from .regimes import TrainingRegime
 
 builder.register("LightningTrainer")(pl.Trainer)
 
 
 @builder.register("lightning_train")
 @typeguard.typechecked
-def train(trainer, regime: TrainingRegime, train_dataloader, val_dataloader=None, ckpt_path=None):
+def train(
+    trainer, regime: pl.LightningModule, train_dataloader, val_dataloader=None, ckpt_path=None
+):
     """trainer = pl.Trainer(
         callbacks=callbacks,
         accelerator=accelerator,
@@ -18,7 +19,6 @@ def train(trainer, regime: TrainingRegime, train_dataloader, val_dataloader=None
         max_epochs=max_epochs,
         default_root_dir=root_dir,
     )"""
-
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,

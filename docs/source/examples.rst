@@ -94,13 +94,13 @@ Layers for CloudVolume IO:
    >>> # Vanilla CloudVolume Analog
    >>> # Differences with Vanilla CV:
    >>> #   1. Read data type: ``torch.Tensor``.
-   >>> #   2. Dimension order: BCXYZ (dummy batch of is 1 always added)
+   >>> #   2. Dimension order: CXYZ
    >>> cvl = zu.io.build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
    >>> data = cvl[(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
-   >>> data.shape # batch, channel, x, y, z
-   torch.Size([1, 1, 100, 100, 1])
+   >>> data.shape # channel, x, y, z
+   torch.Size([1, 100, 100, 1])
 
 
    >>> import zetta_utils as zu
@@ -115,8 +115,8 @@ Layers for CloudVolume IO:
    ...    interpolation_mode="img",
    ... )
    >>> data = cvl[16000:17600, 16000:17600, 2000:2001] # (4, 4, 40) indexing
-   >>> data.shape # batch, channel, x, y, z
-   torch.Size([1, 1, 100, 100, 1])
+   >>> data.shape # channel, x, y, z
+   torch.Size([1, 100, 100, 1])
 
 Layer sets for grouping layers together:
 
@@ -145,7 +145,7 @@ Layer sets for grouping layers together:
    >>> print(list(data_x0.keys()))
    ['img', 'img_norm']
    >>> print(data_x0['img'].shape)
-   torch.Size([1, 1, 100, 100, 1])
+   torch.Size([1, 100, 100, 1])
    >>> # Select read layers as a part of the index
    >>> data_x1 = lset[('img', ), (64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
    >>> print(list(data_x1.keys()))
@@ -175,7 +175,7 @@ In this example, we will be using ``VolumetricStepIndexer``:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import training 
+   >>> from zetta_utils import training
    >>> indexer = zu.training.datasets.sample_indexers.VolumetricStepIndexer(
    ...    # Range over which to sample
    ...    bcube=zu.bbox.BoundingCube.from_coords(
@@ -213,7 +213,7 @@ In this example, we will be using ``VolumetricStepIndexer``:
    >>> print (list(sample.keys()))
    ['img', 'img_norm']
    >>> print (sample['img'].shape)
-   torch.Size([1, 1, 128, 128, 1])
+   torch.Size([1, 128, 128, 1])
 
 
 
@@ -249,7 +249,7 @@ and providing the initialization parameters::
    >>> print (obj.a)
    100
 
-All user-facing ``zetta_utils`` objects are registered with ``zu.builder`` on module import. 
+All user-facing ``zetta_utils`` objects are registered with ``zu.builder`` on module import.
 Don't forget to import all ``zetta_utils`` modules that you want the builder to know about.
 You can check out the state of the current registry by inspecting ``zu.builder.REGISTRY``
 
@@ -259,7 +259,7 @@ such as the dataset from the earlier example:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import  training 
+   >>> from zetta_utils import  training
    >>> spec = {
    ...    "<type>": "LayerDataset",
    ...    "layer": {
@@ -290,4 +290,4 @@ such as the dataset from the earlier example:
    >>> print (list(sample.keys()))
    ['img', 'img_norm']
    >>> print (sample['img'].shape)
-   torch.Size([1, 1, 128, 128, 1])
+   torch.Size([1, 128, 128, 1])

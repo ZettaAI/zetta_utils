@@ -27,6 +27,9 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
+cli = [
+    "click >= 8.0.0"
+]
 viz = [
     "matplotlib >= 3.5.2",
     "ipywidgets >= 7.7.0",
@@ -67,13 +70,16 @@ test = [
     "pre-commit == 2.19.0",
 ]
 modules = [ # put them in order of dependencies
-    "zetta_utils[tensor, viz]", 
+    "zetta_utils[tensor, viz, cli]",
     "zetta_utils[io]",
     "zetta_utils[training]",
 ]
 all = [
     "zetta_utils[modules,docs,test]",
 ]
+
+[project.scripts]
+zetta = "zetta_utils.cli.main:cli"
 
 [tool.setuptools]
 py-modules = []

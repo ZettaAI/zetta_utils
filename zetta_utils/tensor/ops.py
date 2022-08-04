@@ -223,7 +223,7 @@ def interpolate(
 
 
 @typechecked
-def interpolate(
+def interpolate(  # pylint: disable=too-many-locals
     data: zu.typing.Tensor,
     size: Optional[Sequence[int]] = None,
     scale_factor: Optional[Union[float, Sequence[float]]] = None,
@@ -231,6 +231,7 @@ def interpolate(
     mask_value_thr: float = 0,
     default_space_ndim: int = 2,
     allow_shape_rounding: bool = False,
+    unsqueeze_to: Optional[int] = None,
 ) -> zu.typing.Tensor:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
 
@@ -244,9 +245,18 @@ def interpolate(
         when ``scale_factor`` is a single number.
     :param allow_shape_rounding: Whether to allow interpolation with scale factors that
         result in non-integer tensor shapes.
+    :param unsqueeze_to: If provided, the tensor will be unsqueezed to the given number
+        of dimensions before interpolating. New dimensions are alwyas added to the front
+        (dim 0). Result is squeezed back to the original number of dimensions before
+        returning.
     :return: Interpolated tensor of the same type as the input tensor.
 
     """
+    unsqueeze_count = 0
+    if unsqueeze_to is not None:
+        while data.ndim < unsqueeze_to:
+            data = unsqueeze(data, 0)
+            unsqueeze_count += 1
 
     scale_factor = _standardize_scale_factor(
         data_ndim=data.ndim,
@@ -287,13 +297,6 @@ def interpolate(
                 f"Non-isotropic field interpolation (scale_factor={scale_factor}) "
                 "is not currently supported."
             )
-            # For when we support non-isotropic scale factor
-            # if result_raw.shape[1] != spatial_ndim:
-            #     raise ValueError(
-            #         f"Malformed field shape: {result_raw.shape}. Number "
-            #         f"of channels ({result_raw.shape[1]}) must be equal to "
-            #         f"the number of spatial dimensions ({spatial_ndim})."
-            #     )
 
         result_raw *= multiplier
     elif mode == "mask":
@@ -302,6 +305,10 @@ def interpolate(
         result_raw = result_raw.int()
 
     result = zu.tensor.convert.astype(result_raw, data)
+
+    for _ in range(unsqueeze_count):
+        result = squeeze(result, 0)
+
     return result
 
 

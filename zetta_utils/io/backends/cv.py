@@ -85,7 +85,7 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
         cvol = self._get_cv_at_resolution(idx.resolution)
         data_raw = cvol[idx.slices]
 
-        result_np = np.expand_dims(np.transpose(data_raw, (3, 0, 1, 2)), 0)
+        result_np = np.transpose(data_raw, (3, 0, 1, 2))
         result = tensor.to_torch(result_np, device=self.device)
         return result
 
@@ -93,18 +93,13 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
         value = tensor.convert.to_np(value)
-        if len(value.shape) != 5:
+        if len(value.shape) != 4:
             raise ValueError(
-                "Data written to CloudVolume backend must be in `bcxyz` dimension format, "
+                "Data written to CloudVolume backend must be in `cxyz` dimension format, "
                 f"but, got a tensor of with ndim == {value.ndim}"
             )
 
-        if value.shape[0] != 1:
-            raise ValueError(
-                "Data written to CloudVolume backend must have batch size of 1, "
-                f"but, got a tensor of with shape == {value.shape} (b == {value.shape[0]})"
-            )
-        value_final = np.transpose(value[0], (1, 2, 3, 0))
+        value_final = np.transpose(value, (1, 2, 3, 0))
 
         cvol = self._get_cv_at_resolution(idx.resolution)
         cvol[idx.slices] = value_final

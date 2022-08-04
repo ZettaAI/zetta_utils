@@ -1,6 +1,8 @@
+Modules
+=======
 
 .. toctree::
-  :maxdepth: 2
+  :maxdepth: 1
 
   zetta_utils.tensor
   zetta_utils.io

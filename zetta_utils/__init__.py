@@ -9,7 +9,7 @@ from . import bbox
 from . import processors
 
 
-def _load_all_modules():
+def load_all_modules():
     from . import tensor
     from . import io
     from . import training

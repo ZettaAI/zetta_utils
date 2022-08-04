@@ -322,11 +322,18 @@ def array_x1_avg_pool():
         [
             "array_2d_x0",
             "img",
+            {"scale_factor": [1.0, 0.5, 0.5], "unsqueeze_to": 5},
+            "array_2d_x0_avg_pool",
+        ],
+        ["array_2d_x0", "img", {"scale_factor": 0.5}, "array_2d_x0_avg_pool"],
+        [
+            "array_2d_x0",
+            "img",
             {"scale_factor": None, "size": [2, 2]},
             "array_2d_x0_avg_pool",
         ],
         ["array_2d_x0", "bilinear", {"scale_factor": 0.5}, "array_2d_x0_avg_pool"],
-        ["array_x1", "img", {"scale_factor": 0.5}, "array_x1_avg_pool"],
+        ["array_x1", "img", {"scale_factor": (0.5, 0.5)}, "array_x1_avg_pool"],
         ["mask_x0", "mask", {"scale_factor": 0.5}, "mask_x0_max_pool"],
         [
             "mask_x0",
@@ -373,8 +380,11 @@ def array_6d():
     "data_name, mode, kwargs, expected_exc",
     [
         ["array_2d_x0", "img", {}, ValueError],
-        ["array_6d", "img", {"scale_factor": 0.5}, RuntimeError],
+        ["array_6d", "img", {"scale_factor": 0.5}, ValueError],
         ["array_1d_x0", "img", {"scale_factor": 0.357}, RuntimeError],
+        ["array_1d_x0", "img", {"scale_factor": 1, "size": (1,)}, ValueError],
+        ["array_1d_x0", "img", {"size": (1, 1, 1)}, ValueError],
+        ["array_2d_x0", "img", {"scale_factor": [1.0, 0.5, 0.5]}, ValueError],
     ],
 )
 def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):

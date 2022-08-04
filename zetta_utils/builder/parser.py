@@ -3,6 +3,7 @@ import copy
 from typing import Any, Callable
 from typeguard import typechecked
 
+
 REGISTRY: dict = {}
 PARSE_KEY = "<type>"
 RECURSE_KEY = "<recursive_parse>"
@@ -38,7 +39,7 @@ def get_cls_from_name(name: str) -> Any:
 
 
 @typechecked
-def build(spec: dict, must_build=True) -> Any:
+def build(spec: dict, must_build=True, lists_to_tuples: bool = True) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.
@@ -48,7 +49,7 @@ def build(spec: dict, must_build=True) -> Any:
 
     """
     if PARSE_KEY in spec:
-        result = _build(spec)
+        result = _build(spec, lists_to_tuples)
     else:
         if must_build:
             raise ValueError(
@@ -61,11 +62,13 @@ def build(spec: dict, must_build=True) -> Any:
 
 
 @typechecked
-def _build(field: Any) -> Any:
+def _build(field: Any, lists_to_tuples: bool = True) -> Any:
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any
     elif isinstance(field, list):
         result = [_build(i) for i in field]
+        if lists_to_tuples:
+            result = tuple(result)
     elif isinstance(field, tuple):
         result = tuple(_build(i) for i in field)
     elif isinstance(field, dict):

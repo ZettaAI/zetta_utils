@@ -150,9 +150,9 @@ def _get_torch_interp_mode(
         torch_interp_mode = "nearest-exact"
 
         if scale_factor_tuple is None:
-            raise NotImplementedError()  # pragma: no cover
+            raise NotImplementedError()
         if sum([i < 1.0 for i in scale_factor_tuple]):
-            raise NotImplementedError()  # pragma: no cover
+            raise NotImplementedError()
     else:
         torch_interp_mode = mode  # type: ignore # has to fit at this point
 

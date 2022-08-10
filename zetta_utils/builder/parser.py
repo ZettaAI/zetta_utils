@@ -5,8 +5,8 @@ from typeguard import typechecked
 
 
 REGISTRY: dict = {}
-PARSE_KEY = "<type>"
-RECURSE_KEY = "<recursive_parse>"
+PARSE_KEY = "@type"
+RECURSE_KEY = "@recursive_parse"
 
 
 @typechecked
@@ -44,7 +44,7 @@ def build(spec: dict, must_build=True) -> Any:
 
     :param spec: Input dictionary.
     :param must_build: Whether to throw a ``ValueError`` when the dictionary
-        does not contain the ``<type>`` key in the outermost level.
+        does not contain the ``@type`` key in the outermost level.
     :return: Object build according to the specification.
 
     """

@@ -18,7 +18,7 @@ def lighning_train(
     train_dataloader,
     val_dataloader=None,
     ckpt_path=None,
-):
+):  # pragma: no cover
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,

@@ -6,8 +6,8 @@ import pytest
 from zetta_utils import builder
 
 
-PARSE_KEY = "<type>"
-RECURSIVE_KEY = "<recursive_parse>"
+PARSE_KEY = "@type"
+RECURSIVE_KEY = "@recursive_parse"
 
 
 @dataclass

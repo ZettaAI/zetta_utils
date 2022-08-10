@@ -52,7 +52,8 @@ convnet = [
 training = [
     "torch == 1.11.0",
     "zetta_utils[tensor,io,convnet]",
-    "pytorch-lightning >= 1.6.4"
+    "pytorch-lightning == 1.6.5",
+    "neptune-client",
 ]
 docs = [
     "piccolo_theme >= 0.11.1",
@@ -127,14 +128,23 @@ testpaths = ["tests"]
 norecursedirs = ".env .git .venv build dist"
 python_files = "test.py tests.py test_*.py *_test.py"
 
+[tool.coverage]
+    [tool.coverage.run]
+
+    omit = ['']
+
+    [tool.coverage.report]
+    exclude_lines = [
+    ]
+
 [tool.mypy]
-    warn_unreachable = true
-    warn_unused_ignores = true
-    warn_redundant_casts = true
-    warn_unused_configs = true
-    #incremental = false
-    #disallow_untyped_defs = true
-    #check_untyped_defs = true
-    #strict_equality = true
-    implicit_reexport = true
-    no_implicit_optional = true
+warn_unreachable = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+#incremental = false
+#disallow_untyped_defs = true
+#check_untyped_defs = true
+#strict_equality = true
+implicit_reexport = true
+no_implicit_optional = true

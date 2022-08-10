@@ -234,13 +234,13 @@ To make objects of a class buildable with ``zu.builder``:
    ...    def __init__(self, a):
    ...       self.a = a
 
-After an object type is registered, you can represent them as dictionaries by including the matching ``<type>`` key
+After an object type is registered, you can represent them as dictionaries by including the matching ``@type`` key
 and providing the initialization parameters::
 
 .. doctest::
 
    >>> spec = {
-   ...    "<type>": "MyClass",
+   ...    "@type": "MyClass",
    ...    "a": 100
    ... }
    >>> obj = zu.builder.build(spec)
@@ -261,18 +261,18 @@ such as the dataset from the earlier example:
    >>> import zetta_utils as zu
    >>> from zetta_utils import  training
    >>> spec = {
-   ...    "<type>": "LayerDataset",
+   ...    "@type": "LayerDataset",
    ...    "layer": {
-   ...       "<type>": "LayerSet",
+   ...       "@type": "LayerSet",
    ...       "layers": {
-   ...          "img": {"<type>": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"},
-   ...          "img_norm": {"<type>": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"}
+   ...          "img": {"@type": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"},
+   ...          "img_norm": {"@type": "CVLayer", "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"}
    ...       }
    ...    },
    ...    "sample_indexer": {
-   ...        "<type>": "VolumetricStepIndexer",
+   ...        "@type": "VolumetricStepIndexer",
    ...        "bcube": {
-   ...           "<type>": "BoundingCube",
+   ...           "@type": "BoundingCube",
    ...           "start_coord": (1000, 1000, 2000),
    ...           "end_coord": (2000, 2000, 2100),
    ...           "resolution": (64, 64, 40),

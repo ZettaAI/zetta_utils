@@ -1,10 +1,67 @@
-		// parameters
 #EXP_NAME:      "encoding_coarsener"
-#EXP_VERSION:   "x0"
+#EXP_VERSION:   "x0_arti"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
-#LAST_CKPT_PATH: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
-#ENC_CV:         "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
+// #FULL_STATE_CKPT wile load the WHOLE TRAINING STATE.
+// This will resume training from the checkpoint AND DISREGARD OTHER
+// PARAMETERS IN THIS FILE, such as new learning rates etc.
+//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
+#FULL_STATE_CKPT: null
+#ENC_CV:          "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
+
+#ENCODER_ARCH: {
+	"@type": "ArtificerySpec"
+	spec: {
+		type: "TransparentSeq"
+		modules: [
+			{
+				type: "convblock"
+				arch_desc: {
+					fms: [1, 32, 32, 32]
+					k: 3
+				}
+			},
+			{
+				type: "custom_layer"
+				"import": ["torch"]
+				"code": "result = torch.nn.AvgPool2d(2, count_include_pad=False)"
+			},
+			{
+				type: "convblock"
+				arch_desc: {
+					fms: [32, 32, 32, 1]
+					k: 3
+				}
+			},
+		]
+	}
+}
+
+#DECODER_ARCH: {
+	"@type": "ArtificerySpec"
+	spec: {
+		type: "TransparentSeq"
+		modules: [
+			{
+				type: "convblock"
+				arch_desc: {
+					fms: [1, 32, 32, 32]
+					k: 3
+				}
+			},
+			{
+				type: "interpolate"
+			},
+			{
+				type: "convblock"
+				arch_desc: {
+					fms: [32, 32, 32, 1]
+					k: 3
+				}
+			},
+		]
+	}
+}
 
 //dset specs
 #dset_settings: {
@@ -64,23 +121,13 @@
 	}
 }
 "@type": "lightning_train"
-// use for resuming the WHOLE TRAINING STATE. This will resume training from the checkpoint
-// AND DISREGARD PARAMETERS IN THIS FILE, such as new learning rates etc.
-// The whole state will be taken from the checkpoint. This is done to maximize reproducibility.
-// If you want to load only the weights of the model, it is responsibility of your regime!
-// This way, reproducibility is increased
-// ckpt_path: #LAST_CKPT_PATH
+
+ckpt_path: #FULL_STATE_CKPT
 regime: {
 	"@type": "EncodingCoarsener"
 	lr:      4e-4
-	encoder: {
-		"@type": "parse_artificery"
-		path:    "/mnt/disks/sergiy-x0/code/artificery/params/autoenc/encoder.json"
-	}
-	decoder: {
-		"@type": "parse_artificery"
-		path:    "/mnt/disks/sergiy-x0/code/artificery/params/autoenc/decoder.json"
-	}
+	encoder: #ENCODER_ARCH
+	decoder: #DECODER_ARCH
 	// model_ckpt_path: #LAST_CKPT_PATH
 }
 trainer: {

@@ -1,5 +1,5 @@
 #EXP_NAME:      "encoding_coarsener"
-#EXP_VERSION:   "x0_arti"
+#EXP_VERSION:   "inver_x0_debug_x0"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 // #FULL_STATE_CKPT wile load the WHOLE TRAINING STATE.
@@ -7,8 +7,44 @@
 // PARAMETERS IN THIS FILE, such as new learning rates etc.
 //#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 #FULL_STATE_CKPT: null
-#ENC_CV:          "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
+#ENC_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
+
+///////////////////////////////////////////////////////////////////
+//////////////////////// Training Spec ////////////////////////////
+///////////////////////////////////////////////////////////////////
+
+"@type":   "lightning_train"
+ckpt_path: #FULL_STATE_CKPT
+regime: {
+	"@type": "EncodingCoarsener"
+	lr:      4e-4
+	encoder: #ENCODER_ARCH
+	decoder: #DECODER_ARCH
+	invar_angle_range: [1, 180]
+	invar_mse_weight: 0.1
+	// model_ckpt_path: #LAST_CKPT_PATH
+}
+trainer: {
+	"@type":            "ZettaDefaultTrainer"
+	accelerator:        "gpu"
+	devices:            1
+	max_epochs:         100
+	default_root_dir:   #TRAINING_ROOT
+	experiment_name:    #EXP_NAME
+	experiment_version: #EXP_VERSION
+	log_every_n_steps:  500
+	val_check_interval: 500
+	checkpointing_kwargs: {
+		//update_every_n_secs: 20
+		// backup_every_n_secs: 900
+	}
+	profiler: "simple"
+}
+
+///////////////////////////////////////////////////////////////////
+////////////////////// Architecture Spec //////////////////////////
+///////////////////////////////////////////////////////////////////
 #ENCODER_ARCH: {
 	"@type": "ArtificerySpec"
 	spec: {
@@ -63,7 +99,9 @@
 	}
 }
 
-//dset specs
+///////////////////////////////////////////////////////////////////
+///////////////////////// Dataset Spec ////////////////////////////
+///////////////////////////////////////////////////////////////////
 #dset_settings: {
 	"@type": "LayerDataset"
 	layer: {
@@ -119,32 +157,6 @@
 			resolution: [4, 4, 40]
 		}
 	}
-}
-"@type": "lightning_train"
-
-ckpt_path: #FULL_STATE_CKPT
-regime: {
-	"@type": "EncodingCoarsener"
-	lr:      4e-4
-	encoder: #ENCODER_ARCH
-	decoder: #DECODER_ARCH
-	// model_ckpt_path: #LAST_CKPT_PATH
-}
-trainer: {
-	"@type":            "ZettaDefaultTrainer"
-	accelerator:        "gpu"
-	devices:            1
-	max_epochs:         100
-	default_root_dir:   #TRAINING_ROOT
-	experiment_name:    #EXP_NAME
-	experiment_version: #EXP_VERSION
-	log_every_n_steps:  500
-	val_check_interval: 500
-	checkpointing_kwargs: {
-		//update_every_n_secs: 20
-		// backup_every_n_secs: 900
-	}
-	profiler: "simple"
 }
 train_dataloader: {
 	"@type":     "TorchDataLoader"

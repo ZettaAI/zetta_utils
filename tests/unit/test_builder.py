@@ -6,8 +6,8 @@ import pytest
 from zetta_utils import builder
 
 
-PARSE_KEY = "<type>"
-RECURSIVE_KEY = "<recursive_parse>"
+PARSE_KEY = "@type"
+RECURSIVE_KEY = "@recursive_parse"
 
 
 @dataclass
@@ -79,7 +79,7 @@ def test_register(register_dummy_a):
         [{PARSE_KEY: "dummy_b", "b": 2}, DummyB(b=2)],
         [
             {PARSE_KEY: "dummy_a", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
-            DummyA(a=(DummyB(b=3),)),
+            DummyA(a=[DummyB(b=3)]),
         ],
         [
             {

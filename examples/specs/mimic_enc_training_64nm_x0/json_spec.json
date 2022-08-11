@@ -1,0 +1,114 @@
+{
+    "@type": "lightning_train",
+    "trainer": {
+        "@type": "ZettaDefaultTrainer",
+        "accelerator": "gpu",
+        "devices": 1,
+        "max_epochs": 2,
+        "default_root_dir": "~/tmp/zetta_training/training_x0",
+        "checkpointing_kwargs": {
+            "every_n_steps": 100
+        }
+    },
+    "train_dataloader": {
+        "@type": "TorchDataLoader",
+        "batch_size": 4,
+        "shuffle": true,
+        "num_workers": 8,
+        "dataset": {
+            "@type": "LayerDataset",
+            "layer": {
+                "@type": "LayerSet",
+                "layers": {
+                    "data_in": {
+                        "@type": "CVLayer",
+                        "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img",
+                        "read_postprocs": [
+                            {
+                                "@type": "Squeeze",
+                                "dim": -1
+                            },
+                            {
+                                "@type": "Divide",
+                                "x": 256.0
+                            },
+                            {
+                                "@type": "Add",
+                                "x": -0.5
+                            }
+                        ]
+                    },
+                    "target": {
+                        "@type": "CVLayer",
+                        "path": "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0",
+                        "read_postprocs": [
+                            {
+                                "@type": "Squeeze",
+                                "dim": -1
+                            }
+                        ]
+                    }
+                }
+            },
+            "sample_indexer": {
+                "@type": "VolumetricStepIndexer",
+                "desired_resolution": [
+                    64,
+                    64,
+                    40
+                ],
+                "index_resolution": [
+                    64,
+                    64,
+                    40
+                ],
+                "sample_size_resolution": [
+                    64,
+                    64,
+                    40
+                ],
+                "sample_size": [
+                    1024,
+                    1024,
+                    1
+                ],
+                "bcube": {
+                    "@type": "BoundingCube",
+                    "start_coord": [
+                        70000,
+                        20000,
+                        2000
+                    ],
+                    "end_coord": [
+                        240000,
+                        90000,
+                        2100
+                    ],
+                    "resolution": [
+                        4,
+                        4,
+                        40
+                    ]
+                },
+                "step_size": [
+                    256,
+                    256,
+                    1
+                ],
+                "step_size_resolution": [
+                    64,
+                    64,
+                    40
+                ]
+            }
+        }
+    },
+    "regime": {
+        "@type": "NaiveSupervised",
+        "lr": 0.001,
+        "model": {
+            "@type": "parse_artificery",
+            "path": "/mnt/disks/sergiy-x0/code/artificery/params/mimic_emb/embedder_5x5_nonorm.json"
+        }
+    }
+}

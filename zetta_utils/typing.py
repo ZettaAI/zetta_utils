@@ -1,7 +1,7 @@
 """Basic type definitions used for type annotations."""
 from __future__ import annotations
 
-from typing import Union, Any, Tuple
+from typing import Union, Any, Tuple, List
 import torch
 import numpy.typing as npt
 import typeguard
@@ -10,7 +10,7 @@ import typeguard
 Number = Union[int, float]
 Tensor = Union[torch.Tensor, npt.NDArray]
 Slices3D = Tuple[slice, slice, slice]
-Vec3D = Tuple[Number, Number, Number]
+Vec3D = Union[Tuple[Number, Number, Number], List[Number]]
 
 
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover

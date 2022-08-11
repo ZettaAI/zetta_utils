@@ -53,7 +53,7 @@ training = [
     "torch == 1.11.0",
     "zetta_utils[tensor,io,convnet]",
     "pytorch-lightning == 1.6.5",
-    "neptune-client",
+    "wandb >= 0.13.1",
 ]
 docs = [
     "piccolo_theme >= 0.11.1",

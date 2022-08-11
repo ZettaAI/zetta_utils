@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools >= 40.6.0", "wheel"]
+requires = ["setuptools >= 44.6.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -128,15 +128,6 @@ addopts = "-ra --cov=zetta_utils --cov-report=term-missing --strict-markers --ig
 testpaths = ["tests"]
 norecursedirs = ".env .git .venv build dist"
 python_files = "test.py tests.py test_*.py *_test.py"
-
-[tool.coverage]
-    [tool.coverage.run]
-
-    omit = ['']
-
-    [tool.coverage.report]
-    exclude_lines = [
-    ]
 
 [tool.mypy]
     warn_unreachable = true

@@ -2,6 +2,7 @@ from typing import Optional, List
 import os
 import datetime
 import pytorch_lightning as pl
+import wandb
 import typeguard
 from zetta_utils import builder
 
@@ -15,6 +16,8 @@ def build_default_trainer(
     progress_bar_kwargs: Optional[dict] = None,
     **kwargs,
 ) -> pl.Trainer:
+    if not os.environ["WANDB_MODE"] == "offline":
+        wandb.login()
     logger = pl.loggers.WandbLogger(
         project=experiment_name,
         name=experiment_version,

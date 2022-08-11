@@ -29,6 +29,11 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
    $ cd zetta_utils
    $ pip install -e .
 
+.. note::
+
+    If you are planning to use `zetta_utils.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_. 
+    It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
+
 The next steps will get you up and running in no time:
 
 - `examples` will give you a comprehensive tour of ``zetta_utils``'s features.

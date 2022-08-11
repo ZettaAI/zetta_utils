@@ -16,7 +16,7 @@ def build_default_trainer(
     progress_bar_kwargs: Optional[dict] = None,
     **kwargs,
 ) -> pl.Trainer:
-    if not os.environ["WANDB_MODE"] == "offline":
+    if not os.environ.get("WANDB_MODE", None) == "offline":
         wandb.login()  # pragma: no cover
 
     logger = pl.loggers.WandbLogger(

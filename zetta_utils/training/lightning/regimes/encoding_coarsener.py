@@ -45,8 +45,8 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
     def log_results(mode: str, title_suffix: str = "", **kwargs):
         wandb.log(
             {
-                f"results/{mode}_slider": [
-                    wandb.Image(v.squeeze(), caption=k + title_suffix) for k, v in kwargs.items()
+                f"results/{mode}_{title_suffix}_slider": [
+                    wandb.Image(v.squeeze(), caption=k) for k, v in kwargs.items()
                 ]
             }
         )
@@ -56,7 +56,8 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
     def validation_epoch_end(self, _):
         self.log_results(
-            "val_worst",
+            "val",
+            "worst",
             **self.worst_val_sample,
         )
         self.worst_val_loss = 0
@@ -126,6 +127,9 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"{setting_name}_recons",
                     sample_name,
                     data_in=data_in,
+                    naive=zu.tensor.ops.interpolate(
+                        data_in, size=(enc.shape[-2], enc.shape[-1]), mode="img"
+                    ),
                     enc=enc,
                     recons=recons,
                     loss_map_recons=loss_map_recons,

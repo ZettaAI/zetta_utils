@@ -1,7 +1,8 @@
-			// parameters
-#EXP_NAME:       "mimic_encodings"
-#EXP_VERSION:    "x17"
-#TRAINING_ROOT:  "gs://sergiy_exp/training_artifacts"
+		// parameters
+#EXP_NAME:      "mimic_encodings"
+#EXP_VERSION:   "tmp_x0"
+#TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
+
 #LAST_CKPT_PATH: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 #IMG_CV:         "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
 #ENC_CV:         "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
@@ -14,7 +15,7 @@
 		layers: {
 			data_in: {
 				"@type": "CVLayer"
-				path:    IMG_CV
+				path:    #IMG_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
 					{
@@ -33,7 +34,7 @@
 			}
 			target: {
 				"@type": "CVLayer"
-				path:    ENC_CV
+				path:    #ENC_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
 					{
@@ -88,7 +89,7 @@
 // The whole state will be taken from the checkpoint. This is done to maximize reproducibility.
 // If you want to load only the weights of the model, it is responsibility of your regime!
 // This way, reproducibility is increased
-ckpt_path: #LAST_CKPT_PATH
+// ckpt_path: #LAST_CKPT_PATH
 regime: {
 	"@type": "NaiveSupervised"
 	lr:      4e-4

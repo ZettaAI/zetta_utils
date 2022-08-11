@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "inver_diffkeep_deg5_weight05_apply2x_128nm_x1"
+#EXP_VERSION: "inver_diffkeep_deg5_weight05_apply2x_128nm_x2"
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
@@ -34,7 +34,7 @@ regime: {
 	invar_angle_range: [1, 180]
 	invar_mse_weight: 0.1
 	diffkeep_angle_range: [1, 5]
-	diffkeep_weight:   0.5
+	diffkeep_weight:   0.1
 	encoder_ckpt_path: #ENCODER_CKPT
 	decoder_ckpt_path: #DECODER_CKPT
 }

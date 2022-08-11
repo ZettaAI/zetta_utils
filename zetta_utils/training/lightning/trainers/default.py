@@ -17,7 +17,8 @@ def build_default_trainer(
     **kwargs,
 ) -> pl.Trainer:
     if not os.environ["WANDB_MODE"] == "offline":
-        wandb.login()
+        wandb.login()  # pragma: no cover
+
     logger = pl.loggers.WandbLogger(
         project=experiment_name,
         name=experiment_version,

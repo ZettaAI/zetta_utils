@@ -8,6 +8,7 @@ on:
 
 env:
   WANDB_MODE: offline
+  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
   pytest:

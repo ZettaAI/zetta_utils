@@ -7,7 +7,7 @@ from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Number
+from zetta_utils.typing import Number, Vec3D, Slices3D
 
 
 def _assert_equal_len(**kwargs: Sequence):
@@ -26,7 +26,7 @@ DEFAULT_UNIT = "nm"
 # Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
-VecT = TypeVar("VecT", bound=Tuple[Number, ...])
+VecT = TypeVar("VecT", bound=Sequence[Number])
 # @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
 class BoundingBoxND(Generic[SlicesT, VecT]):
@@ -259,11 +259,5 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         return result
 
 
-BoundingBox = BoundingBoxND[
-    Tuple[slice, slice], Tuple[Number, Number]
-]  # 2D version of BoundingBoxND
-
-BoundingCube = BoundingBoxND[
-    Tuple[slice, slice, slice], Tuple[Number, Number, Number]
-]  # 3D version of BoundingBoxND
+BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
 builder.register("BoundingCube")(BoundingCube.from_coords)

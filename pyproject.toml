@@ -45,9 +45,16 @@ io = [
     "cloud-volume >= 8.7.0",
     "zetta_utils[tensor]"
 ]
+convnet = [
+    "torch == 1.11.0",
+    "artificery >= 0.0.3.3"
+]
 training = [
-    "zetta_utils[tensor,io]",
-    "pytorch-lightning >= 1.6.4"
+    "torch == 1.11.0",
+    "zetta_utils[tensor,io,convnet]",
+    "pytorch-lightning == 1.6.5",
+    "wandb >= 0.13.1",
+    "rich >= 12.5.1",
 ]
 docs = [
     "piccolo_theme >= 0.11.1",
@@ -92,7 +99,7 @@ target-version = ["py38","py39"]
 max-line-length = 99
 
 [tool.pylint.basic]
-good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s'''
+good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f'''
 
 [tool.pylint.message_control]
 disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation'''
@@ -122,14 +129,23 @@ testpaths = ["tests"]
 norecursedirs = ".env .git .venv build dist"
 python_files = "test.py tests.py test_*.py *_test.py"
 
+[tool.coverage]
+    [tool.coverage.run]
+
+    omit = ['']
+
+    [tool.coverage.report]
+    exclude_lines = [
+    ]
+
 [tool.mypy]
     warn_unreachable = true
     warn_unused_ignores = true
     warn_redundant_casts = true
     warn_unused_configs = true
-    #incremental = false
-    #disallow_untyped_defs = true
-    #check_untyped_defs = true
-    #strict_equality = true
+#incremental = false
+#disallow_untyped_defs = true
+#check_untyped_defs = true
+#strict_equality = true
     implicit_reexport = true
     no_implicit_optional = true

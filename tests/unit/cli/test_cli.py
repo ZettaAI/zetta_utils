@@ -21,7 +21,7 @@ def register_dummy():
     "spec, expected_output",
     [
         [
-            {"<type>": "dummy", "i": {"a": "b"}},
+            {"@type": "dummy", "i": {"a": "b"}},
             {"a": "b"},
         ],
     ],

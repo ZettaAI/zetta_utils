@@ -17,13 +17,13 @@ To make objects of a class buildable with ``zu.builder``:
    ...    def __init__(self, a):
    ...       self.a = a
 
-After an object type is registered, you can represent them as dictionaries by including the matching ``<type>`` key
+After an object type is registered, you can represent them as dictionaries by including the matching ``@type`` key
 and providing the initialization parameters::
 
 .. doctest::
 
    >>> spec = {
-   ...    "<type>": "MyClass",
+   ...    "@type": "MyClass",
    ...    "a": 100
    ... }
    >>> obj = zu.builder.build(spec)

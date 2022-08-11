@@ -139,13 +139,13 @@ python_files = "test.py tests.py test_*.py *_test.py"
     ]
 
 [tool.mypy]
-warn_unreachable = true
-warn_unused_ignores = true
-warn_redundant_casts = true
-warn_unused_configs = true
+    warn_unreachable = true
+    warn_unused_ignores = true
+    warn_redundant_casts = true
+    warn_unused_configs = true
 #incremental = false
 #disallow_untyped_defs = true
 #check_untyped_defs = true
 #strict_equality = true
-implicit_reexport = true
-no_implicit_optional = true
+    implicit_reexport = true
+    no_implicit_optional = true

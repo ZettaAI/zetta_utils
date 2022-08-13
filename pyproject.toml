@@ -46,15 +46,16 @@ io = [
     "zetta_utils[tensor]"
 ]
 convnet = [
-    "torch == 1.11.0",
+    "torch >= 1.11.0",
     "artificery >= 0.0.3.3"
 ]
 training = [
-    "torch == 1.11.0",
     "zetta_utils[tensor,io,convnet]",
-    "pytorch-lightning == 1.6.5",
+    "torch >= 1.11.0",
+    "pytorch-lightning >= 1.6.5",
     "wandb >= 0.13.1",
     "rich >= 12.5.1",
+    "gcsfs >= 2022.7.1"
 ]
 docs = [
     "piccolo_theme >= 0.11.1",

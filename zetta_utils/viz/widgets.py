@@ -5,6 +5,7 @@ from ipywidgets import interact
 import matplotlib.pyplot as plt  # type: ignore
 
 import zetta_utils as zu
+from . import rendering
 
 
 def entry_loader(
@@ -41,7 +42,7 @@ def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma
 
     """
     if renderer is None:
-        renderer = zu.viz.Renderer()
+        renderer = rendering.Renderer()
 
     if isinstance(entries, list):
         entries = {i: entries[i] for i in range(len(entries))}

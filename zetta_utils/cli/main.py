@@ -1,3 +1,5 @@
+import os
+import json
 import pprint
 import click
 
@@ -26,6 +28,8 @@ def cli():
 def run(path, pdb):
     """Perform ``zu.builder.build`` action on file contents."""
     spec = zu.cue.load(path)
+    os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
+
     result = zu.builder.build(spec)
     pprint.pprint(result)
     if pdb:

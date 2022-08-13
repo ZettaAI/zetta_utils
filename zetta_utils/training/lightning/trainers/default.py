@@ -1,9 +1,10 @@
 from typing import Optional, List
 import os
+import json
 import datetime
 import pytorch_lightning as pl
-import wandb
 import typeguard
+import wandb
 from zetta_utils import builder
 
 
@@ -18,12 +19,13 @@ def build_default_trainer(
 ) -> pl.Trainer:
     if not os.environ.get("WANDB_MODE", None) == "offline":
         wandb.login()  # pragma: no cover
-
     logger = pl.loggers.WandbLogger(
         project=experiment_name,
         name=experiment_version,
         id=experiment_version,
     )
+    if "ZETTA_RUN_SPEC" in os.environ:
+        logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
 
     # Progress bar needs to be appended first to avoid default TQDM
     # bar being appended

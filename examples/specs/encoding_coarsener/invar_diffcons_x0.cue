@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "inver_diffkeep_deg5_weight05_apply2x_128nm_x2"
+#EXP_VERSION: "inver_diffkeep_deg5_weight05_apply2x_128nm_x3"
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 

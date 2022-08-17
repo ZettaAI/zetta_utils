@@ -18,7 +18,7 @@ To make objects of a class buildable with ``zu.builder``:
    ...       self.a = a
 
 After an object type is registered, you can represent them as dictionaries by including the matching ``@type`` key
-and providing the initialization parameters::
+and providing the initialization parameters:
 
 .. doctest::
 

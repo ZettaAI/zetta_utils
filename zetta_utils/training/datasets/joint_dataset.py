@@ -12,8 +12,8 @@ from zetta_utils.log import logger
 @typechecked
 @attrs.frozen
 class JointDataset(torch.utils.data.Dataset):
-    """PyTorch dataset wrapper to allow using multiple ``torch.utils.data.Dataset``s
-        simultaneously.
+    """PyTorch dataset wrapper to allow using multiple ``torch.utils.data.Dataset`` datasets
+    simultaneously.
 
     :param mode: String indicating whether the dataset is horizontally or vertically joined.
         ``horizontal`` means that the LayerDatasets will be sampled all at once and returned
@@ -66,7 +66,7 @@ class JointDataset(torch.utils.data.Dataset):
         elif self.mode == "vertical":
             sum_num_samples = 0
             for key in self.datasets.keys():
-                sum_num_samples_new = sum_num_samples + self.datasets[key]
+                sum_num_samples_new = sum_num_samples + len(self.datasets[key])
                 if idx < sum_num_samples_new:
                     sample = self.datasets[key][idx - sum_num_samples]
                     break

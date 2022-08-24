@@ -30,11 +30,12 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover
     def __call__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
         """Translate a sample index to a volumetric region in space.
 
-        :param idx: Integer sample index.
+        :param idx: Integer sample index, kept for compatibility even
+        though it is unused.
         :return: Volumetric index for the training sample patch, including
             ``self.desired_resolution`` and the slice representation of the region
             at ``self.index_resolution``.
 
         """
-        rand_idx = randint(0, len(self.indexer))
+        rand_idx = randint(0, len(self.indexer) - 1)
         return self.indexer(rand_idx)

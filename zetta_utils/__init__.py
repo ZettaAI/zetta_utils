@@ -14,4 +14,3 @@ def load_all_modules():
     from . import io
     from . import training
     from . import viz
-    from . import widgets

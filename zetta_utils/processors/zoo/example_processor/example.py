@@ -4,7 +4,7 @@ import attrs
 import typeguard
 
 import zetta_utils as zu
-from zetta_utils import builder, tensor
+from zetta_utils import builder, tensor_ops
 from zetta_utils.log import logger  # If you need to print output, use logger
 
 
@@ -43,7 +43,7 @@ class ExampleProcessor:
         if self.field1 > 0:
             result = data * 2 ** self.field1
         elif self.field2 is not None:
-            result = tensor.ops.multiply(data, self.field2)
+            result = tensor_ops.common.multiply(data, self.field2)
         else:
             raise ValueError("Unexpected input")
 

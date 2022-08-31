@@ -12,7 +12,7 @@ def entry_loader(
     entries, renderer, choice, grid_size, grid_x, grid_y
 ):  # pylint: disable=too-many-arguments # pragma: no cover
     entry = entries[choice].squeeze()
-    entry = zu.tensor.convert.to_np(entry)
+    entry = zu.tensor_ops.convert.to_np(entry)
 
     x_size = entry.shape[-2] // grid_size
     y_size = entry.shape[-1] // grid_size

@@ -151,7 +151,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"loss/{setting_name}_diffkeep", loss_diffkeep, on_step=True, on_epoch=True
                 )
             else:
-                loss_inv = 0
+                loss_diffkeep = 0
 
             loss = (
                 loss_recons

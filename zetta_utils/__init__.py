@@ -10,7 +10,7 @@ from . import processors
 
 
 def load_all_modules():
-    from . import tensor
+    from . import tensor_ops
     from . import io
     from . import training
     from . import viz

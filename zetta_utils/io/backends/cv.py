@@ -9,7 +9,7 @@ import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 from typeguard import typechecked
 
-from zetta_utils import tensor, builder
+from zetta_utils import tensor_ops, builder
 from zetta_utils.io.backends.base import IOBackend
 from zetta_utils.io.indexes import VolumetricIndex
 from zetta_utils.typing import Vec3D, Tensor
@@ -86,13 +86,13 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
         data_raw = cvol[idx.slices]
 
         result_np = np.transpose(data_raw, (3, 0, 1, 2))
-        result = tensor.to_torch(result_np, device=self.device)
+        result = tensor_ops.to_torch(result_np, device=self.device)
         return result
 
     def write(self, idx: VolumetricIndex, value: Tensor):
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
-        value = tensor.convert.to_np(value)
+        value = tensor_ops.convert.to_np(value)
         if len(value.shape) != 4:
             raise ValueError(
                 "Data written to CloudVolume backend must be in `cxyz` dimension format, "

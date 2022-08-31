@@ -25,7 +25,7 @@ def to_np(data: npt.NDArray) -> npt.NDArray:  # pragma: no cover
 def to_np(data: zu.typing.Tensor) -> npt.NDArray:
     """Convert the given tensor to :class:`numpy.ndarray`.
 
-    :param data: Input tensor.
+    :param data: Input tensor_ops.
     :return: Input tensor in :class:`np.ndarray` format.
 
     """
@@ -52,7 +52,7 @@ def to_torch(data: npt.NDArray, device: str = ...) -> torch.Tensor:  # pragma: n
 def to_torch(data: zu.typing.Tensor, device: str = "cpu") -> torch.Tensor:
     """Convert the given tensor to :class:`torch.Tensor`.
 
-    :param data: Input tensor.
+    :param data: Input tensor_ops.
     :param device: Device name on which the torch tensor will reside.
     :return: Input tensor in :class:`torch.Tensor` format.
 
@@ -83,15 +83,15 @@ def astype(
 @typechecked
 def astype(data: zu.typing.Tensor, reference: zu.typing.Tensor) -> zu.typing.Tensor:
     """Convert the given tensor to :class:`np.ndarray` or :class:`torch.Tensor`
-    depending on the type of reference tensor.
+    depending on the type of reference tensor_ops.
 
-    :param data: Input tensor.
-    :param reference: Reference type tensor.
+    :param data: Input tensor_ops.
+    :param reference: Reference type tensor_ops.
     :return: Input tensor converted to the reference type.
 
     """
     if isinstance(reference, torch.Tensor):
-        result = zu.tensor.convert.to_torch(data)  # type: zu.typing.Tensor
+        result = zu.tensor_ops.convert.to_torch(data)  # type: zu.typing.Tensor
     elif isinstance(reference, np.ndarray):
-        result = zu.tensor.convert.to_np(data)
+        result = zu.tensor_ops.convert.to_np(data)
     return result

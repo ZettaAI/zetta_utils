@@ -9,7 +9,7 @@ from zetta_utils.io.indexes.volumetric import (
     AdjustDataResolution,
     TranslateVolumetricIndex,
 )
-from zetta_utils import processors
+from zetta_utils import tensor_ops, builder
 
 
 @pytest.mark.parametrize(
@@ -87,7 +87,8 @@ def test_volumetric_indexer_exc(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
                 [
-                    processors.tensor.Interpolate(
+                    builder.ComparablePartial(
+                        tensor_ops.interpolate,
                         mode="img",
                         scale_factor=(2.0, 2.0, 2.0),
                         allow_shape_rounding=False,
@@ -105,7 +106,8 @@ def test_volumetric_indexer_exc(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
                 [
-                    processors.tensor.Interpolate(
+                    builder.ComparablePartial(
+                        tensor_ops.interpolate,
                         mode="img",
                         scale_factor=(0.5, 0.5, 0.5),
                         allow_shape_rounding=False,

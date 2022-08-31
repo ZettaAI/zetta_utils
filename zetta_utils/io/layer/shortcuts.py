@@ -9,7 +9,7 @@ from zetta_utils.typing import Vec3D
 from zetta_utils.io.layer import Layer
 from zetta_utils.io.indexes import IndexAdjusterWithProcessors, Index
 from zetta_utils.io.indexes.volumetric import AdjustDataResolution, VolumetricIndexConverter
-from zetta_utils.tensor.ops import InterpolationMode
+from zetta_utils.tensor_ops import InterpolationMode
 
 
 @typechecked

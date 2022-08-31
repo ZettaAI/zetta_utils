@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import torch
 
-from zetta_utils.tensor import convert
+from zetta_utils.tensor_ops import convert
 
 
 @pytest.mark.parametrize("x, expected", [[np.ones(3), np.ones(3)], [torch.ones(3), np.ones(3)]])

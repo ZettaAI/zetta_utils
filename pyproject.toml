@@ -35,7 +35,7 @@ viz = [
     "ipywidgets >= 7.7.0",
     "opencv-python >= 4.5.5"
 ]
-tensor = [
+tensor_ops = [
     "torch >= 1.11.0",
     "numpy >= 1.23.1",
     "connected-components-3d >= 3.10.0",
@@ -43,14 +43,14 @@ tensor = [
 ]
 io = [
     "cloud-volume >= 8.7.0",
-    "zetta_utils[tensor]"
+    "zetta_utils[tensor_ops]"
 ]
 convnet = [
     "torch >= 1.11.0",
     "artificery >= 0.0.3.3"
 ]
 training = [
-    "zetta_utils[tensor,io,convnet]",
+    "zetta_utils[tensor_ops,io,convnet]",
     "torch >= 1.11.0",
     "pytorch-lightning >= 1.6.5",
     "wandb >= 0.13.1",
@@ -78,7 +78,7 @@ test = [
     "pre-commit == 2.19.0",
 ]
 modules = [ # put them in order of dependencies
-    "zetta_utils[tensor, viz, cli]",
+    "zetta_utils[tensor_ops, viz, cli]",
     "zetta_utils[io]",
     "zetta_utils[training]",
 ]

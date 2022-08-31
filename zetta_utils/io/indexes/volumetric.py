@@ -8,7 +8,7 @@ from typeguard import typechecked
 import zetta_utils as zu
 from zetta_utils.typing import Vec3D, Slices3D
 
-from zetta_utils import tensor, processors
+from zetta_utils import tensor_ops, builder
 
 from zetta_utils.io.indexes.base import (
     Index,
@@ -138,7 +138,7 @@ class AdjustDataResolution(
     IndexAdjusterWithProcessors[VolumetricIndex]
 ):  # pylint: disable=too-few-public-methods
     data_resolution: Vec3D
-    interpolation_mode: tensor.ops.InterpolationMode
+    interpolation_mode: tensor_ops.InterpolationMode
     allow_rounding: bool = False
 
     def __call__(
@@ -164,7 +164,8 @@ class AdjustDataResolution(
                 scale_factor = tuple(idx.resolution[i] / idx_final.resolution[i] for i in range(3))
 
             procs.append(
-                processors.tensor.Interpolate(
+                builder.ComparablePartial(
+                    tensor_ops.interpolate,
                     scale_factor=scale_factor,
                     mode=self.interpolation_mode,
                     allow_shape_rounding=self.allow_rounding,

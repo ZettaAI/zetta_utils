@@ -10,7 +10,7 @@ import torchvision  # type: ignore
 import wandb
 
 import zetta_utils as zu
-from zetta_utils import builder, convnet, tensor  # pylint: disable=unused-import
+from zetta_utils import builder, convnet, tensor_ops  # pylint: disable=unused-import
 
 
 @builder.register("EncodingCoarsener")
@@ -127,7 +127,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"{setting_name}_recons",
                     sample_name,
                     data_in=data_in,
-                    naive=zu.tensor.ops.interpolate(
+                    naive=zu.tensor_ops.interpolate(
                         data_in, size=(enc.shape[-2], enc.shape[-1]), mode="img"
                     ),
                     enc=enc,
@@ -230,7 +230,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         )
         data_in_diff = (data_in - data_in_rot) ** 2
         enc_diff = (enc - enc_rot) ** 2
-        data_in_diff_downs = zu.tensor.ops.interpolate(
+        data_in_diff_downs = zu.tensor_ops.interpolate(
             data_in_diff, size=enc_diff.shape[-2:], mode="img"
         )
         loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs()

@@ -40,6 +40,7 @@ tensor_ops = [
     "numpy >= 1.23.1",
     "connected-components-3d >= 3.10.0",
     "fastremap >= 1.12.2",
+    "einops >= 0.4.1",
 ]
 io = [
     "cloud-volume >= 8.7.0",

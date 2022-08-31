@@ -24,10 +24,10 @@ Generic ops:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import tensor
+   >>> from zetta_utils import tensor_ops
    >>> import numpy as np
    >>> a = np.ones((2, 2))
-   >>> a = zu.tensor.ops.unsqueeze(a)
+   >>> a = zu.tensor_ops.unsqueeze(a)
    >>> print (a.shape)
    (1, 2, 2)
 
@@ -35,10 +35,10 @@ Generic ops:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import tensor
+   >>> from zetta_utils import tensor_ops
    >>> import torch
    >>> t = torch.ones((2, 2))
-   >>> t = zu.tensor.ops.unsqueeze(t)
+   >>> t = zu.tensor_ops.unsqueeze(t)
    >>> print (t.shape)
    torch.Size([1, 2, 2])
 
@@ -47,10 +47,10 @@ Generic conversion:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import tensor
+   >>> from zetta_utils import tensor_ops
    >>> import numpy as np
    >>> a = np.ones((2, 2))
-   >>> a = zu.tensor.convert.to_torch(a)
+   >>> a = zu.tensor_ops.convert.to_torch(a)
    >>> print (type(a))
    <class 'torch.Tensor'>
 
@@ -58,10 +58,10 @@ Generic conversion:
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import tensor
+   >>> from zetta_utils import tensor_ops
    >>> import torch
    >>> t = torch.ones((2, 2))
-   >>> t = zu.tensor.convert.to_torch(t)
+   >>> t = zu.tensor_ops.convert.to_torch(t)
    >>> print (type(t))
    <class 'torch.Tensor'>
 
@@ -235,7 +235,7 @@ To make objects of a class buildable with ``zu.builder``:
    ...       self.a = a
 
 After an object type is registered, you can represent them as dictionaries by including the matching ``@type`` key
-and providing the initialization parameters::
+and providing the initialization parameters:
 
 .. doctest::
 

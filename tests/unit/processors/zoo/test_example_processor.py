@@ -35,7 +35,7 @@ def test_example_processor_mode2(mocker):
     expected = mocker.Mock()
     # Use mocker to patch code that's not yours.
     multiply_m = mocker.patch(
-        "zetta_utils.tensor.ops.multiply",
+        "zetta_utils.tensor_ops.common.multiply",
         return_value=expected,  # Return mocks, as they always pass all type checks.
     )
     field1 = -1

@@ -5,13 +5,13 @@ import torch
 import numpy as np
 from typeguard import typechecked
 
-from zetta_utils import io, tensor, builder
+from zetta_utils import io, tensor_ops, builder
 from zetta_utils.training.datasets.sample_indexers import SampleIndexer
 
 
 def _convert_to_torch_nested(data):
     if isinstance(data, np.ndarray):
-        result = tensor.convert.to_torch(data)
+        result = tensor_ops.convert.to_torch(data)
     elif isinstance(data, dict):
         result = {k: _convert_to_torch_nested(v) for k, v in data.items()}
     else:

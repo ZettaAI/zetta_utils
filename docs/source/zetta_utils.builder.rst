@@ -8,7 +8,7 @@ Overview
 as dictionaries. This can be used to pass in flexible parameters to CLI tools and to allow flexible,
 readable specifications of training and inference workflow through ``json``/``yaml``/``cue`` fiels.
 
-To make objects of a class buildable with ``zu.builder``:
+Use ``builder.register()`` to make a callable accessibule with ``zu.builder``:
 
 .. doctest::
 
@@ -17,7 +17,7 @@ To make objects of a class buildable with ``zu.builder``:
    ...    def __init__(self, a):
    ...       self.a = a
 
-After an object type is registered, you can represent them as dictionaries by including the matching ``@type`` key
+After a callable is registered, you can represent them as dictionaries by including the matching ``@type`` key
 and providing the initialization parameters:
 
 .. doctest::
@@ -42,4 +42,4 @@ API reference
 
 .. autofunction:: zetta_utils.builder.build
 
-.. autofunction:: zetta_utils.builder.get_cls_from_name
+.. autofunction:: zetta_utils.builder.get_callable_from_name

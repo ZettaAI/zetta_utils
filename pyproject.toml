@@ -35,7 +35,7 @@ viz = [
     "ipywidgets >= 7.7.0",
     "opencv-python >= 4.5.5"
 ]
-tensor_ops = [
+tensor-ops = [
     "torch >= 1.11.0",
     "numpy >= 1.23.1",
     "connected-components-3d >= 3.10.0",

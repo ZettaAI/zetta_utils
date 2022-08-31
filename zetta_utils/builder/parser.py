@@ -2,10 +2,11 @@
 import copy
 from typing import Any, Callable
 from typeguard import typechecked
-
+from .partial import ComparablePartial
 
 REGISTRY: dict = {}
 PARSE_KEY = "@type"
+MODE_KEY = "@mode"
 RECURSE_KEY = "@recursive_parse"
 
 
@@ -28,8 +29,8 @@ def register(name: str, versions=None) -> Callable:
 
 
 @typechecked
-def get_cls_from_name(name: str) -> Any:
-    """Translate a string to the class registered with that name.
+def get_callable_from_name(name: str) -> Any:
+    """Translate a string to the callable registered with that name.
 
     :param name: Name to be translated.
     :return: Corresponding class.
@@ -71,23 +72,31 @@ def _build(field: Any) -> Any:
         result = tuple(_build(i) for i in field)
     elif isinstance(field, dict):
         if PARSE_KEY in field:
-            cls = get_cls_from_name(field[PARSE_KEY])
-            field_ = copy.copy(field)
-            del field_[PARSE_KEY]
+            registered_fn = get_callable_from_name(field[PARSE_KEY])
+            mode = field.get(MODE_KEY, "regular")
 
             recurse = False
-            if RECURSE_KEY not in field_ or field[RECURSE_KEY]:
+            if RECURSE_KEY not in field or field[RECURSE_KEY]:
                 recurse = True
 
-            if RECURSE_KEY in field_:
-                del field_[RECURSE_KEY]
+            fn_kwargs = copy.copy(field)
+            del fn_kwargs[PARSE_KEY]
+            fn_kwargs.pop(MODE_KEY, None)  # deletes if exits
+            fn_kwargs.pop(RECURSE_KEY, None)  # deletes if exits
 
             if recurse:
-                field_ = _build(field_)
-            result = cls(**field_)
+                fn_kwargs = _build(fn_kwargs)
+
+            if mode == "regular":
+                result = registered_fn(**fn_kwargs)
+            elif mode == "partial":
+                result = ComparablePartial(registered_fn, **fn_kwargs)
+            else:
+                raise ValueError(f"Unsupported mode: {mode}")
+
         else:
             result = {k: _build(v) for k, v in field.items()}
     else:
-        raise ValueError(f"Unsupported type: {type(field)}")  # pragma: no cover
+        raise ValueError(f"Unsupported type: {type(field)}")
 
     return result

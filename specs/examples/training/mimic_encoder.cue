@@ -29,7 +29,9 @@ regime: {
 			}
 		}
 		ckpt_path: #MODEL_CKPT
-		component_names: ['model']
+		component_names: [
+			'model',
+		]
 	}
 }
 trainer: {

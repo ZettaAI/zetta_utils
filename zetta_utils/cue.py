@@ -18,11 +18,6 @@ def load(cue_file):
     else:
         raise ValueError("Invalid input.")
 
-    if not os.path.exists(path):
-        # CUE will raise an exception here, but it will look for the file as a moudle if
-        # the file extension is not correct. We raise manually for more descriptive error
-        raise FileNotFoundError(path)  # pragma: no cover
-
     # Files are always copied to a tempfolder to avoid different cases for local/remote
     with tempfile.TemporaryDirectory() as tmp_dir:
         local_tmp_path = os.path.join(tmp_dir, "remote_file.cue")

@@ -100,6 +100,8 @@ def render_img(
     cmap: str = "gray",
 ) -> npt.NDArray:  # pragma: no cover
     fig = plt.figure(figsize=figsize)
+    plt.tight_layout()
+    plt.axis("off")
     plt.imshow(img, cmap=cmap)
     return get_img_from_fig(fig, dpi=dpi)
 

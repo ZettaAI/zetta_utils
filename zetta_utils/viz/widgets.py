@@ -19,12 +19,13 @@ def entry_loader(
 
     x_coords = (x_size * grid_x, x_size * (grid_x + 1))
     y_coords = (y_size * grid_y, y_size * (grid_y + 1))
-
     entry = entry[..., x_coords[0] : x_coords[1], y_coords[0] : y_coords[1]]
     entry_rendered = renderer(entry)
     plt.axis("off")
     plt.tight_layout()
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.imshow(entry_rendered)
+    plt.show()
 
 
 def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover

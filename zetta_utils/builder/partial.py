@@ -4,7 +4,7 @@ import attrs
 
 # Need this class to make our processors comparable
 @typechecked
-@attrs.mutable(repr=False, init=False)
+@attrs.mutable(repr=False, init=False, slots=False)
 class ComparablePartial:
     func: Callable
     kwargs: dict

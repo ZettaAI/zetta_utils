@@ -19,8 +19,6 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
     encoder: torch.nn.Module
     decoder: torch.nn.Module
     lr: float
-    encoder_ckpt_path: Optional[str] = None
-    decoder_ckpt_path: Optional[str] = None
     apply_counts: List[int] = [1]
     invar_angle_range: List[Union[int, float]] = [1, 180]
     invar_mse_weight: float = 0.0
@@ -33,13 +31,6 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
     def __attrs_pre_init__(self):
         super().__init__()
-
-    def __attrs_post_init__(self):
-        if self.encoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.encoder_ckpt_path, ["encoder"])
-
-        if self.decoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.decoder_ckpt_path, ["decoder"])
 
     @staticmethod
     def log_results(mode: str, title_suffix: str = "", **kwargs):

@@ -1,5 +1,9 @@
 [build-system]
-requires = ["setuptools >= 44.6.0", "wheel"]
+requires = [
+    "setuptools >= 44.6.0",
+    "setuptools < 64.0.0",
+    "wheel"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -101,7 +105,7 @@ target-version = ["py38","py39"]
 max-line-length = 99
 
 [tool.pylint.basic]
-good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f'''
+good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v'''
 
 [tool.pylint.message_control]
 disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation'''

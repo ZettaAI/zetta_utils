@@ -63,7 +63,7 @@ def build(spec: dict, must_build=True) -> Any:
 
 
 @typechecked
-def _build(field: Any) -> Any:
+def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any
     elif isinstance(field, list):
@@ -93,6 +93,11 @@ def _build(field: Any) -> Any:
                 result = ComparablePartial(registered_fn, **fn_kwargs)
             else:
                 raise ValueError(f"Unsupported mode: {mode}")
+
+            # save the spec that was used to create the object if possible
+            # slotted classes won't allow adding new attributes
+            if hasattr(result, "__dict__"):
+                object.__setattr__(result, "__init_builder_spec", field)
 
         else:
             result = {k: _build(v) for k, v in field.items()}

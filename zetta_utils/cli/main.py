@@ -15,7 +15,7 @@ def cli():
 
 
 @click.command()
-@click.argument("path", type=click.Path(exists=True))
+@click.argument("path", type=click.Path())
 @click.option(
     "--pdb",
     "-d",

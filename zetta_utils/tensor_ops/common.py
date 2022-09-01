@@ -9,9 +9,9 @@ from typeguard import typechecked
 import zetta_utils as zu
 from zetta_utils.typing import Tensor, Number
 
-zu.builder.register("einops.rearrange")(einops.rearrange)
-zu.builder.register("einpos.reduce")(einops.reduce)
-zu.builder.register("einpos.repeat")(einops.repeat)
+zu.builder.register("rearrange")(einops.rearrange)
+zu.builder.register("reduce")(einops.reduce)
+zu.builder.register("repeat")(einops.repeat)
 
 
 @zu.builder.register("multiply")

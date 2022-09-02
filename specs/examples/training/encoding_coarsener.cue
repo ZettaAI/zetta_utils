@@ -37,7 +37,7 @@ regime: {
 		ckpt_path: #DECODER_CKPT
 		component_names: ["decoder"]
 	}
-	apply_counts: [1, 2, 3]
+	apply_count: [1, 2, 3]
 	invar_angle_range: [1, 180]
 	invar_mse_weight: 0.1
 	diffkeep_angle_range: [1, 5]

@@ -70,7 +70,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         if len(losses_clean) == 0:
             loss = None
         else:
-            loss = sum(losses_clean)
+            loss = sum(losses_clean) / len(losses_clean)
             self.log("loss/train", loss, on_step=True, on_epoch=True)
         return loss
 
@@ -85,7 +85,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         if len(losses_clean) == 0:
             loss = None
         else:
-            loss = sum(losses_clean)
+            loss = sum(losses_clean) / len(losses_clean)
             self.log("loss/train", loss, on_step=True, on_epoch=True)
         return loss
 
@@ -110,7 +110,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
             for _ in range(apply_count):
                 recons = self.decoder(recons)
 
-            loss_map_recons = (data_in - recons) ** 2
+            loss_map_recons = (data_in - recons) ** 2 / (data_in ** 2).mean()
 
             loss_recons = loss_map_recons.mean()
             if log_row:
@@ -187,7 +187,23 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         rot_input_enc = data_in_rot
         for _ in range(apply_count):
             rot_input_enc = self.encoder(rot_input_enc)
-        loss_map_invar = (enc_rot - rot_input_enc) ** 2
+        loss_map_invar = (enc_rot - rot_input_enc) ** 2 / (enc_rot ** 2).mean()
+        with torch.no_grad():
+            loss_ignore = (
+                torchvision.transforms.functional.rotate(
+                    img=torch.ones_like(enc),
+                    angle=angle,
+                    interpolation=PIL.Image.BILINEAR,
+                )
+                < 0.95
+            )
+            loss_ignore[..., :2, :] = 1
+            loss_ignore[..., -2:, :] = 1
+            loss_ignore[..., :, -2:] = 1
+            loss_ignore[..., :, :2] = 1
+            loss_ignore = zu.tensor_ops.mask.coarsen(loss_ignore, width=4)
+
+        loss_map_invar[loss_ignore] = 0
         result = loss_map_invar.mean()
         if log_row:
             self.log_results(
@@ -197,6 +213,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                 rot_input_enc=rot_input_enc,
                 enc_rot=enc_rot,
                 loss_map_invar=loss_map_invar,
+                loss_ignore=loss_ignore.float(),
             )
         return result
 
@@ -224,7 +241,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         data_in_diff_downs = zu.tensor_ops.interpolate(
             data_in_diff, size=enc_diff.shape[-2:], mode="img"
         )
-        loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs()
+        loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs() / data_in_diff_downs.abs().mean()
 
         result = loss_map_diffkeep.mean()
         if log_row:

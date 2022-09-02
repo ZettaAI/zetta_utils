@@ -66,3 +66,40 @@ def filter_cc(
 
     result = zu.tensor_ops.convert.astype(result_raw, data)
     return result
+
+
+@overload
+def coarsen(
+    data: npt.NDArray, width: int = ..., thr: int = ...
+) -> npt.NDArray:  # pragma: no cover
+    ...
+
+
+@overload
+def coarsen(
+    data: torch.Tensor, width: int = ..., thr: int = ...
+) -> torch.Tensor:  # pragma: no cover
+    ...
+
+
+@zu.builder.register("coarsen_mask")
+@typechecked
+def coarsen(data: zu.typing.Tensor, width: int = 1, thr: int = 1) -> zu.typing.Tensor:
+
+    data_torch = zu.tensor_ops.convert.to_torch(data).float()
+    kernel = torch.ones(
+        [1, 1]
+        + [
+            3,
+        ]
+        * (data_torch.ndim - 2),
+        device=data_torch.device,
+    )
+    result_torch = data_torch
+    for _ in range(width):
+        conved = torch.nn.functional.conv2d(result_torch, kernel, padding=1)
+        result_torch = (conved >= thr).float()
+
+    result_torch = result_torch > 0
+    result = zu.tensor_ops.convert.astype(result_torch, data)
+    return result

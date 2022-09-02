@@ -56,3 +56,43 @@ def test_filter_cc_big():
         thr=2,
     )
     np.testing.assert_array_equal(result, expected)
+
+
+def test_coarsen_width1():
+    a = (
+        np.array(
+            [
+                [
+                    [
+                        [1, 1, 0, 0],
+                        [1, 1, 0, 0],
+                        [0, 0, 0, 0],
+                        [0, 0, 0, 1],
+                    ]
+                ]
+            ]
+        )
+        > 0
+    )
+
+    expected = (
+        np.array(
+            [
+                [
+                    [
+                        [1, 1, 1, 0],
+                        [1, 1, 1, 0],
+                        [1, 1, 1, 1],
+                        [0, 0, 1, 1],
+                    ]
+                ]
+            ]
+        )
+        > 0
+    )
+
+    result = mask.coarsen(
+        a,
+        width=1,
+    )
+    np.testing.assert_array_equal(result, expected)

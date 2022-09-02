@@ -32,7 +32,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 }
                 spec_path = f"{filepath}.{k}.spec.json"
                 with fsspec.open(spec_path, "w") as f:
-                    json.dump(spec, f)
+                    json.dump(spec, f, indent=3)
 
 
 @builder.register("ZettaDefaultTrainer")

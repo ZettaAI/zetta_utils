@@ -5,25 +5,27 @@ from ipywidgets import interact
 import matplotlib.pyplot as plt  # type: ignore
 
 import zetta_utils as zu
+from . import rendering
 
 
 def entry_loader(
     entries, renderer, choice, grid_size, grid_x, grid_y
 ):  # pylint: disable=too-many-arguments # pragma: no cover
     entry = entries[choice].squeeze()
-    entry = zu.tensor.convert.to_np(entry)
+    entry = zu.tensor_ops.convert.to_np(entry)
 
     x_size = entry.shape[-2] // grid_size
     y_size = entry.shape[-1] // grid_size
 
     x_coords = (x_size * grid_x, x_size * (grid_x + 1))
     y_coords = (y_size * grid_y, y_size * (grid_y + 1))
-
     entry = entry[..., x_coords[0] : x_coords[1], y_coords[0] : y_coords[1]]
     entry_rendered = renderer(entry)
     plt.axis("off")
     plt.tight_layout()
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.imshow(entry_rendered)
+    plt.show()
 
 
 def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover
@@ -41,7 +43,7 @@ def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma
 
     """
     if renderer is None:
-        renderer = zu.viz.Renderer()
+        renderer = rendering.Renderer()
 
     if isinstance(entries, list):
         entries = {i: entries[i] for i in range(len(entries))}

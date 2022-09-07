@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 import torch
 
-from zetta_utils.tensor import ops
+from zetta_utils.tensor_ops import common
 from ..helpers import assert_array_equal
 
 
@@ -18,7 +18,7 @@ from ..helpers import assert_array_equal
     ],
 )
 def test_unsqueeze(data, dim, expected_shape):
-    result = ops.unsqueeze(data, dim)
+    result = common.unsqueeze(data, dim)
     assert result.shape == expected_shape
 
 
@@ -30,7 +30,7 @@ def test_unsqueeze(data, dim, expected_shape):
 )
 def test_unsqueeze_exc(data, dim):
     with pytest.raises(ValueError):
-        ops.unsqueeze(data, dim)
+        common.unsqueeze(data, dim)
 
 
 @pytest.mark.parametrize(
@@ -44,7 +44,7 @@ def test_unsqueeze_exc(data, dim):
     ],
 )
 def test_squeeze(data, dim, expected_shape):
-    result = ops.squeeze(data, dim)
+    result = common.squeeze(data, dim)
     assert result.shape == expected_shape
 
 
@@ -56,7 +56,7 @@ def test_squeeze(data, dim, expected_shape):
 )
 def test_squeeze_exc(data, dim):
     with pytest.raises(ValueError):
-        ops.squeeze(data, dim)
+        common.squeeze(data, dim)
 
 
 @pytest.fixture
@@ -350,7 +350,7 @@ def array_x1_avg_pool():
 )
 def test_interpolate(data_name, mode, kwargs, expected_name, request):
     data = request.getfixturevalue(data_name)
-    result = ops.interpolate(data, mode=mode, **kwargs)
+    result = common.interpolate(data, mode=mode, **kwargs)
     expected = request.getfixturevalue(expected_name)
     assert_array_equal(result, expected)
 
@@ -390,7 +390,7 @@ def array_6d():
 def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):
     data = request.getfixturevalue(data_name)
     with pytest.raises(expected_exc):
-        ops.interpolate(data, mode=mode, **kwargs)
+        common.interpolate(data, mode=mode, **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -448,7 +448,7 @@ def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):
     ],
 )
 def test_compare(data, mode, operand, kwargs, expected):
-    result = ops.compare(data, mode, operand, **kwargs)
+    result = common.compare(data, mode, operand, **kwargs)
     assert_array_equal(result, expected)
 
 
@@ -471,58 +471,4 @@ def test_compare(data, mode, operand, kwargs, expected):
 )
 def test_compare_exc(data, mode, operand, kwargs):
     with pytest.raises(ValueError):
-        ops.compare(data, mode, operand, **kwargs)
-
-
-def test_filter_cc_small():
-    a = np.array(
-        [
-            [1, 1, 0, 1],
-            [1, 1, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 1, 1],
-        ]
-    )
-
-    expected = np.array(
-        [
-            [0, 0, 0, 1],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 1, 1],
-        ]
-    )
-
-    result = ops.filter_cc(
-        a,
-        mode="keep_small",
-        thr=2,
-    )
-    np.testing.assert_array_equal(result, expected)
-
-
-def test_filter_cc_big():
-    a = np.array(
-        [
-            [1, 1, 0, 1],
-            [1, 1, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 1, 1],
-        ]
-    )
-
-    expected = np.array(
-        [
-            [1, 1, 0, 0],
-            [1, 1, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-        ]
-    )
-
-    result = ops.filter_cc(
-        a,
-        mode="keep_large",
-        thr=2,
-    )
-    np.testing.assert_array_equal(result, expected)
+        common.compare(data, mode, operand, **kwargs)

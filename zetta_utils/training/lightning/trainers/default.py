@@ -1,10 +1,38 @@
-from typing import Optional, List
+from typing import Optional, List, Any
 import os
+import json
 import datetime
+import fsspec  # type: ignore
 import pytorch_lightning as pl
-import wandb
 import typeguard
+import wandb
+
 from zetta_utils import builder
+
+
+class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def save_checkpoint(
+        self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
+    ):
+        super().save_checkpoint(filepath, weights_only, storage_options)
+        regime = self.lightning_module
+        for k, v in regime._modules.items():  # pylint: disable=protected-access
+            if hasattr(v, "__init_builder_spec"):
+                model_spec = getattr(v, "__init_builder_spec")  # pylint: disable=protected-access
+                spec = {
+                    "@type": "load_weights_file",
+                    "model": model_spec,
+                    "ckpt_path": filepath,
+                    "component_names": [k],
+                    "remove_component_prefix": True,
+                    "strict": True,
+                }
+                spec_path = f"{filepath}.{k}.spec.json"
+                with fsspec.open(spec_path, "w") as f:
+                    json.dump(spec, f, indent=3)
 
 
 @builder.register("ZettaDefaultTrainer")
@@ -33,7 +61,7 @@ def build_default_trainer(
         **progress_bar_kwargs,
     )
     assert "callbacks" not in kwargs
-    trainer = pl.Trainer(callbacks=prog_bar_callbacks, logger=logger, **kwargs)
+    trainer = ZettaDefaultTrainer(callbacks=prog_bar_callbacks, logger=logger, **kwargs)
 
     # Checkpoint callbacks need `default_root_dir`, so they're created
     # after

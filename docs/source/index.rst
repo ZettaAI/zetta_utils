@@ -29,10 +29,17 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
    $ cd zetta_utils
    $ pip install -e .
 
-.. note::
 
-    If you are planning to use `zetta_utils.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_. 
-    It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
+If you are planning to use `zetta_utils.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
+It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
+
+If you are planning to use `zetta_utils.viz` toolkit, you will need to install nodejs:
+
+.. code-block:: console
+
+    $ curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+    $ sudo apt install -y nodejs
+
 
 The next steps will get you up and running in no time:
 
@@ -46,7 +53,7 @@ Day-to-Day Usage
 ================
 
 - `zetta_utils.tensor` is a unified set of operations that support *both* ``np.ndarray`` and ``torch.Tensor`` tensor types.
-  Use ``zetta_utils.tensor.ops.unsqueeze(t)`` without worrying which type ``t`` is.
+  Use ``zetta_utils.tensor_ops.unsqueeze(t)`` without worrying which type ``t`` is.
 
 - `zetta_utils.bbox` is generalizable implementation of N-dimensional bounding boxes that support custom resoluiton at each of the axis.
 
@@ -79,7 +86,7 @@ Full Table of Contents
 
   examples
   built_in_components
-  modules  
+  modules
   developer_guide
   glossary
 

@@ -6,10 +6,7 @@ import torch
 import pytorch_lightning as pl
 import wandb
 
-import zetta_utils as zu
-
-
-from zetta_utils import builder, convnet  # pylint: disable=unused-import
+from zetta_utils import builder
 
 
 @builder.register("NaiveSupervised")
@@ -17,7 +14,6 @@ from zetta_utils import builder, convnet  # pylint: disable=unused-import
 class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module
     lr: float
-    model_ckpt_path: Optional[str] = None
     min_nonz_frac: float = 0.2
     worst_val_loss: float = attrs.field(init=False, default=0)
     worst_val_sample: dict = attrs.field(init=False, default=attrs.Factory(dict))
@@ -25,13 +21,6 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
 
     def __attrs_pre_init__(self):
         super().__init__()
-
-    def __attrs_post_init__(self):
-        if self.model_ckpt_path is not None:
-            convnet.utils.load_model(self, self.model_ckpt_path, ["model"])
-
-    def save_model(self, path: str):
-        zu.convnet.utils.save_model(self.model, path)
 
     @staticmethod
     def log_results(

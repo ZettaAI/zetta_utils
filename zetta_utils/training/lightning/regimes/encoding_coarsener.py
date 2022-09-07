@@ -10,7 +10,7 @@ import torchvision  # type: ignore
 import wandb
 
 import zetta_utils as zu
-from zetta_utils import builder, convnet, tensor  # pylint: disable=unused-import
+from zetta_utils import builder, convnet, tensor_ops  # pylint: disable=unused-import
 
 
 @builder.register("EncodingCoarsener")
@@ -19,8 +19,6 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
     encoder: torch.nn.Module
     decoder: torch.nn.Module
     lr: float
-    encoder_ckpt_path: Optional[str] = None
-    decoder_ckpt_path: Optional[str] = None
     apply_counts: List[int] = [1]
     invar_angle_range: List[Union[int, float]] = [1, 180]
     invar_mse_weight: float = 0.0
@@ -33,13 +31,6 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
     def __attrs_pre_init__(self):
         super().__init__()
-
-    def __attrs_post_init__(self):
-        if self.encoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.encoder_ckpt_path, ["encoder"])
-
-        if self.decoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.decoder_ckpt_path, ["decoder"])
 
     @staticmethod
     def log_results(mode: str, title_suffix: str = "", **kwargs):
@@ -127,7 +118,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"{setting_name}_recons",
                     sample_name,
                     data_in=data_in,
-                    naive=zu.tensor.ops.interpolate(
+                    naive=zu.tensor_ops.interpolate(
                         data_in, size=(enc.shape[-2], enc.shape[-1]), mode="img"
                     ),
                     enc=enc,
@@ -151,7 +142,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"loss/{setting_name}_diffkeep", loss_diffkeep, on_step=True, on_epoch=True
                 )
             else:
-                loss_inv = 0
+                loss_diffkeep = 0
 
             loss = (
                 loss_recons
@@ -230,7 +221,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         )
         data_in_diff = (data_in - data_in_rot) ** 2
         enc_diff = (enc - enc_rot) ** 2
-        data_in_diff_downs = zu.tensor.ops.interpolate(
+        data_in_diff_downs = zu.tensor_ops.interpolate(
             data_in_diff, size=enc_diff.shape[-2:], mode="img"
         )
         loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs()

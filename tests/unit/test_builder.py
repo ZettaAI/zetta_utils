@@ -8,6 +8,7 @@ from zetta_utils import builder
 
 PARSE_KEY = "@type"
 RECURSIVE_KEY = "@recursive_parse"
+MODE_KEY = "@mode"
 
 
 @dataclass
@@ -50,20 +51,19 @@ def test_identity_builds(value):
 
 
 @pytest.mark.parametrize(
-    "value",
+    "value, expected_exc",
     [
-        {},
-        {"a": "b"},
+        [1, TypeError],
+        ["yo", TypeError],
+        [{}, ValueError],
+        [{"a": "b"}, ValueError],
+        [{"@type": "something_not_registered"}, KeyError],
+        [{"@type": "dummy_a", "a": 1, "@mode": "unsupported_mode_5566"}, ValueError],
+        [{"@type": "dummy_a", "a": TypeError}, ValueError],
     ],
 )
-def test_must_build_exc(value):
-    with pytest.raises(Exception):
-        builder.build(value)
-
-
-@pytest.mark.parametrize("value", [1, ["yo"]])
-def test_nondict_exc(value):
-    with pytest.raises(TypeError):
+def test_parse_exc(value, expected_exc, register_dummy_a):
+    with pytest.raises(expected_exc):
         builder.build(value)
 
 
@@ -97,8 +97,14 @@ def test_register(register_dummy_a):
             },
             DummyA(a=({PARSE_KEY: "dummy_b", "b": 3},)),
         ],
+        [
+            {PARSE_KEY: "dummy_a", MODE_KEY: "partial", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
+            builder.ComparablePartial(DummyA, a=[DummyB(b=3)]),
+        ],
     ],
 )
 def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
     result = builder.build(spec, must_build=False)
     assert result == expected
+    if hasattr(result, "__dict__"):
+        assert result.__init_builder_spec == spec

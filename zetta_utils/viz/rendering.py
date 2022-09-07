@@ -49,16 +49,16 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.fld_kwargs = common_kwargs | fld_kwargs
         self.seg_kwargs = common_kwargs | seg_kwargs
 
-    def __call__(self, a):  # pragma: no cover
-        a = zu.tensor.convert.to_np(a).squeeze()
-        if len(a.shape) == 3:
-            return render_fld(a, **self.fld_kwargs)
-        if a.dtype == np.bool:
-            return render_msk(a, **self.msk_kwargs)
-        if np.issubdtype(a.dtype, np.integer):
-            return render_seg(a, **self.seg_kwargs)
+    def __call__(self, x):  # pragma: no cover
+        x = zu.tensor_ops.convert.to_np(x).squeeze()
+        if len(x.shape) == 3:
+            return render_fld(x, **self.fld_kwargs)
+        if x.dtype == np.bool:
+            return render_msk(x, **self.msk_kwargs)
+        if np.issubdtype(x.dtype, np.integer):
+            return render_seg(x, **self.seg_kwargs)
         # else:
-        return render_img(a, **self.img_kwargs)
+        return render_img(x, **self.img_kwargs)
 
 
 @typechecked
@@ -100,6 +100,8 @@ def render_img(
     cmap: str = "gray",
 ) -> npt.NDArray:  # pragma: no cover
     fig = plt.figure(figsize=figsize)
+    plt.tight_layout()
+    plt.axis("off")
     plt.imshow(img, cmap=cmap)
     return get_img_from_fig(fig, dpi=dpi)
 
@@ -130,7 +132,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     Returns:
         npt.NDArray: RGB rendering of the vector field.
     """
-    fld = zu.tensor.convert.to_np(fld).squeeze()
+    fld = zu.tensor_ops.convert.to_np(fld).squeeze()
     if fld.shape[0] == 2:
         fld = np.transpose(fld, (1, 2, 0))
 

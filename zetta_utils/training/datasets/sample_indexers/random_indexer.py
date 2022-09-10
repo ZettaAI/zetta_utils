@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Any
 from random import randint
 
 import attrs
@@ -7,7 +7,6 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.training.datasets.sample_indexers import SampleIndexer
-from zetta_utils.typing import Vec3D
 
 
 @builder.register("RandomIndexer")
@@ -27,14 +26,12 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover
         num_samples = len(self.indexer)
         return num_samples
 
-    def __call__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
-        """Translate a sample index to a volumetric region in space.
+    def __call__(self, idx: int) -> Any:
+        """Yield a sample index from an indexer given a dummy index.
 
         :param idx: Integer sample index, kept for compatibility even
         though it is unused.
-        :return: Volumetric index for the training sample patch, including
-            ``self.desired_resolution`` and the slice representation of the region
-            at ``self.index_resolution``.
+        :return: Index of the type used by the wrapped SampleIndexer.
 
         """
         rand_idx = randint(0, len(self.indexer) - 1)

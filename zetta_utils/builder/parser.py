@@ -2,7 +2,7 @@
 import copy
 from typing import Any, Callable
 from typeguard import typechecked
-from .partial import ComparablePartial
+from zetta_utils.partial import ComparablePartial
 
 REGISTRY: dict = {}
 PARSE_KEY = "@type"

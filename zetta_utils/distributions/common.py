@@ -1,38 +1,35 @@
-from typing import Union, Protocol, runtime_checkable, overload, Literal
-import scipy # type: ignore
+from typing import Union, Protocol, runtime_checkable
+import random
 
 from typeguard import typechecked
-import numpy.typing as npt
 from zetta_utils import builder
+from zetta_utils.partial import ComparablePartial
+from zetta_utils.typing import Number
+
 
 @runtime_checkable
-class Distribution(Protocol):
-    def rvs(self) -> Union[float, int]:
-        ...
-
-    @overload
-    def rvs(self, *args, size: Literal[1], **kwargs) -> Union[float, int]:
-        ...
-
-    def rvs(self, *args, size: int = ..., **kwargs) -> Union[npt.NDArray, float, int]:
+class Distribution(Protocol):  # pragma: no cover
+    def __call__(self, /) -> Number:
         ...
 
 
-#Distribution = Union[
-#    scipy.stats._distn_infrastructure.rv_generic, # pylint: disable=protected-access
-#    scipy.stats._distn_infrastructure.rv_frozen, # pylint: disable=protected-access
-#]
+@builder.register("uniform_dist")
+@typechecked
+def uniform_dist(a: Number, b: Number) -> Distribution:  # pragma: no cover
+    return ComparablePartial(random.uniform, a=a, b=b)
+
+
+@builder.register("gauss_dist")
+@typechecked
+def gauss_dist(mu: Number, sigma: Number) -> Distribution:  # pragma: no cover
+    return ComparablePartial(random.gauss, mu=mu, sigma=sigma)
+
 
 @typechecked
-def to_distribution(
-        x: Union[Distribution, int, float]
-) -> Distribution:
+def to_distribution(x: Union[Distribution, Number]) -> Distribution:
     result: Distribution
     if isinstance(x, (int, float)):
-        result = scipy.stats._continuous_distns.uniform_gen(a=x, b=x)
+        result = uniform_dist(x, x)
     else:
         result = x
     return result
-
-builder.register("uniform_dist")(scipy.stats.uniform)
-builder.register("norm_dist")(scipy.stats.norm)

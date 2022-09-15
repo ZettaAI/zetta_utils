@@ -2,6 +2,7 @@
 from typing import Literal, Tuple, Iterable, Callable
 import pytest
 
+from zetta_utils.partial import ComparablePartial
 from zetta_utils.io.indexes.volumetric import (
     VolumetricIndexConverter,
     RawVolumetricIndex,
@@ -9,7 +10,7 @@ from zetta_utils.io.indexes.volumetric import (
     AdjustDataResolution,
     TranslateVolumetricIndex,
 )
-from zetta_utils import tensor_ops, builder
+from zetta_utils import tensor_ops
 
 
 @pytest.mark.parametrize(
@@ -87,7 +88,7 @@ def test_volumetric_indexer_exc(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
                 [
-                    builder.ComparablePartial(
+                    ComparablePartial(
                         tensor_ops.interpolate,
                         mode="img",
                         scale_factor=(2.0, 2.0, 2.0),
@@ -106,7 +107,7 @@ def test_volumetric_indexer_exc(
                     slices=(slice(0, 2), slice(0, 2), slice(0, 2)), resolution=(1, 1, 1)
                 ),
                 [
-                    builder.ComparablePartial(
+                    ComparablePartial(
                         tensor_ops.interpolate,
                         mode="img",
                         scale_factor=(0.5, 0.5, 0.5),

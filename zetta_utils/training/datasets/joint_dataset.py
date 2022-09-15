@@ -60,15 +60,15 @@ class JointDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx: int) -> Any:
         if self.mode == "horizontal":
             sample = {}
-            for key in self.datasets.keys():
-                sample[key] = self.datasets[key][idx]
+            for key, dset in self.datasets.items():
+                sample[key] = dset[idx]
 
         elif self.mode == "vertical":
             sum_num_samples = 0
-            for key in self.datasets.keys():
-                sum_num_samples_new = sum_num_samples + len(self.datasets[key])
+            for dset in self.datasets.values():
+                sum_num_samples_new = sum_num_samples + len(dset)
                 if idx < sum_num_samples_new:
-                    sample = self.datasets[key][idx - sum_num_samples]
+                    sample = dset[idx - sum_num_samples]
                     break
                 sum_num_samples = sum_num_samples_new
         return sample

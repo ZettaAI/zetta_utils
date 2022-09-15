@@ -1,13 +1,13 @@
 """Basic type definitions used for type annotations."""
 from __future__ import annotations
 
-from typing import Union, Any, Tuple, List
+from typing import Union, Any, Tuple, List, TypeVar
 import torch
 import numpy.typing as npt
 import typeguard
 
-# number_types = (int, float)
 Number = Union[int, float]
+TensorTypeVar = TypeVar("TensorTypeVar", torch.Tensor, npt.NDArray)
 Tensor = Union[torch.Tensor, npt.NDArray]
 Slices3D = Tuple[slice, slice, slice]
 Vec3D = Union[Tuple[Number, Number, Number], List[Number]]

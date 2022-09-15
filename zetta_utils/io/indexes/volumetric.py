@@ -7,8 +7,8 @@ from typeguard import typechecked
 
 import zetta_utils as zu
 from zetta_utils.typing import Vec3D, Slices3D
-
-from zetta_utils import tensor_ops, builder
+from zetta_utils.partial import ComparablePartial
+from zetta_utils import tensor_ops
 
 from zetta_utils.io.indexes.base import (
     Index,
@@ -164,7 +164,7 @@ class AdjustDataResolution(
                 scale_factor = tuple(idx.resolution[i] / idx_final.resolution[i] for i in range(3))
 
             procs.append(
-                builder.ComparablePartial(
+                ComparablePartial(
                     tensor_ops.interpolate,
                     scale_factor=scale_factor,
                     mode=self.interpolation_mode,

@@ -1,28 +1,17 @@
 """Type conversion functions."""
 from __future__ import annotations
 
-from typing import overload
-
 import torch
 import numpy as np
 import numpy.typing as npt
 from typeguard import typechecked
 
 import zetta_utils as zu
-
-
-@overload
-def to_np(data: torch.Tensor) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def to_np(data: npt.NDArray) -> npt.NDArray:  # pragma: no cover
-    ...
+from zetta_utils.typing import TensorTypeVar, Tensor
 
 
 @typechecked
-def to_np(data: zu.typing.Tensor) -> npt.NDArray:
+def to_np(data: Tensor) -> npt.NDArray:
     """Convert the given tensor to :class:`numpy.ndarray`.
 
     :param data: Input tensor_ops.
@@ -38,18 +27,8 @@ def to_np(data: zu.typing.Tensor) -> npt.NDArray:
     return result
 
 
-@overload
-def to_torch(data: torch.Tensor, device: str = ...) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@overload
-def to_torch(data: npt.NDArray, device: str = ...) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
 @typechecked
-def to_torch(data: zu.typing.Tensor, device: str = "cpu") -> torch.Tensor:
+def to_torch(data: Tensor, device: str = "cpu") -> torch.Tensor:
     """Convert the given tensor to :class:`torch.Tensor`.
 
     :param data: Input tensor_ops.
@@ -66,22 +45,8 @@ def to_torch(data: zu.typing.Tensor, device: str = "cpu") -> torch.Tensor:
     return result
 
 
-@overload
-def astype(
-    data: torch.Tensor, reference: zu.typing.Tensor
-) -> torch.Tensor:  # pylint: disable=missing-docstring # pragma: no cover
-    ...
-
-
-@overload
-def astype(
-    data: npt.NDArray, reference: zu.typing.Tensor
-) -> npt.NDArray:  # pylint: disable=missing-docstring # pragma: no cover
-    ...
-
-
 @typechecked
-def astype(data: zu.typing.Tensor, reference: zu.typing.Tensor) -> zu.typing.Tensor:
+def astype(data: Tensor, reference: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to :class:`np.ndarray` or :class:`torch.Tensor`
     depending on the type of reference tensor_ops.
 
@@ -91,7 +56,7 @@ def astype(data: zu.typing.Tensor, reference: zu.typing.Tensor) -> zu.typing.Ten
 
     """
     if isinstance(reference, torch.Tensor):
-        result = zu.tensor_ops.convert.to_torch(data)  # type: zu.typing.Tensor
+        result = zu.tensor_ops.convert.to_torch(data)
     elif isinstance(reference, np.ndarray):
         result = zu.tensor_ops.convert.to_np(data)
     return result

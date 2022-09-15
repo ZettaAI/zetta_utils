@@ -46,13 +46,11 @@ def build_default_trainer(
 ) -> pl.Trainer:
     if not os.environ.get("WANDB_MODE", None) == "offline":
         wandb.login()  # pragma: no cover
-
     logger = pl.loggers.WandbLogger(
         project=experiment_name,
         name=experiment_version,
         id=experiment_version,
     )
-
     # Progress bar needs to be appended first to avoid default TQDM
     # bar being appended
     if progress_bar_kwargs is None:

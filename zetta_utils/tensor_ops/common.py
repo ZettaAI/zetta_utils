@@ -1,98 +1,68 @@
 # pylint: disable=missing-docstring
-from typing import Union, Literal, Optional, overload, Sequence, SupportsIndex
+from typing import Union, Literal, Optional, Sequence, SupportsIndex
 import numpy as np
-import numpy.typing as npt
 import torch
 import einops  # type: ignore
 from typeguard import typechecked
 
-import zetta_utils as zu
-from zetta_utils.typing import Tensor, Number
+from zetta_utils import builder, tensor_ops
+from zetta_utils.typing import Tensor, Number, TensorTypeVar
 
-zu.builder.register("rearrange")(einops.rearrange)
-zu.builder.register("reduce")(einops.reduce)
-zu.builder.register("repeat")(einops.repeat)
+builder.register("rearrange")(einops.rearrange)
+builder.register("reduce")(einops.reduce)
+builder.register("repeat")(einops.repeat)
 
 
-@zu.builder.register("multiply")
-def multiply(data: Tensor, x) -> Tensor:  # pragma: no cover
+@builder.register("multiply")
+def multiply(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
     return x * data
 
 
-@zu.builder.register("add")
-def add(data: Tensor, x) -> Tensor:  # pragma: no cover
+@builder.register("add")
+def add(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
     return x + data
 
 
-@zu.builder.register("power")
-def power(data: Tensor, x) -> Tensor:  # pragma: no cover
+@builder.register("power")
+def power(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
     return data ** x
 
 
-@zu.builder.register("divide")
-def divide(data: Tensor, x) -> Tensor:  # pragma: no cover
+@builder.register("divide")
+def divide(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
     return data / x
 
 
-@zu.builder.register("int_divide")
-def int_divide(data: Tensor, x) -> Tensor:  # pragma: no cover
+@builder.register("int_divide")
+def int_divide(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
     return data // x
 
 
-@overload
-def unsqueeze(
-    data: npt.NDArray, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = ...
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def unsqueeze(
-    data: torch.Tensor, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = ...
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("unsqueeze")
+@builder.register("unsqueeze")
 @typechecked
 def unsqueeze(
-    data: zu.typing.Tensor, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
-) -> zu.typing.Tensor:
+    data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
+) -> TensorTypeVar:
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int):
-            result = data.unsqueeze(dim)  # type: zu.typing.Tensor
+            result = data.unsqueeze(dim)
         else:
             raise ValueError(f"Cannot use `torch.unsqueeze` with dim of type '{type(dim)}'")
-    elif isinstance(data, np.ndarray):
-        result = np.expand_dims(data, dim)
     else:
-        assert False, "Type checking failure"  # pragma: no cover
+        assert isinstance(data, np.ndarray), "Type checking failure"
+        result = np.expand_dims(data, dim)
 
     return result
 
 
-@overload
-def squeeze(
-    data: npt.NDArray, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = ...
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def squeeze(
-    data: torch.Tensor, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = ...
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("squeeze")
+@builder.register("squeeze")
 @typechecked
 def squeeze(
-    data: zu.typing.Tensor, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None
-) -> zu.typing.Tensor:
+    data: TensorTypeVar, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None
+) -> TensorTypeVar:
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int) or dim is None:
-            result = data.squeeze(dim)  # type: zu.typing.Tensor
+            result = data.squeeze(dim)
         else:
             raise ValueError(f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'")
     else:
@@ -168,7 +138,7 @@ def _get_torch_interp_mode(
 
 
 def _validate_interpolation_setting(
-    data: zu.typing.Tensor,
+    data: Tensor,
     size: Optional[Sequence[int]],
     scale_factor_tuple: Optional[Sequence[float]],
     allow_shape_rounding: bool,
@@ -211,43 +181,17 @@ def _validate_interpolation_setting(
                     )
 
 
-@overload
-def interpolate(
-    data: npt.NDArray,
-    size: Optional[Sequence[int]] = ...,
-    scale_factor: Optional[Union[float, Sequence[float]]] = ...,
-    mode: InterpolationMode = ...,
-    mask_value_thr: float = ...,
-    allow_shape_rounding: bool = ...,
-    unsqueeze_to: Optional[int] = ...,
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def interpolate(
-    data: torch.Tensor,
-    size: Optional[Sequence[int]] = ...,
-    scale_factor: Optional[Union[float, Sequence[float]]] = ...,
-    mode: InterpolationMode = ...,
-    mask_value_thr: float = ...,
-    allow_shape_rounding: bool = ...,
-    unsqueeze_to: Optional[int] = ...,
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("interpolate")
+@builder.register("interpolate")
 @typechecked
 def interpolate(  # pylint: disable=too-many-locals
-    data: zu.typing.Tensor,
+    data: TensorTypeVar,
     size: Optional[Sequence[int]] = None,
     scale_factor: Optional[Union[float, Sequence[float]]] = None,
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     allow_shape_rounding: bool = False,
     unsqueeze_to: Optional[int] = None,
-) -> zu.typing.Tensor:
+) -> TensorTypeVar:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
 
     :param data: Input tensor with batch and channel dimensions.
@@ -290,7 +234,7 @@ def interpolate(  # pylint: disable=too-many-locals
         mode=mode,
     )
 
-    data_in = zu.tensor_ops.convert.to_torch(data).float()
+    data_in = tensor_ops.convert.to_torch(data).float()
     result_raw = torch.nn.functional.interpolate(
         data_in,
         size=size,
@@ -317,7 +261,7 @@ def interpolate(  # pylint: disable=too-many-locals
     elif mode == "segmentation":
         result_raw = result_raw.int()
 
-    result = zu.tensor_ops.convert.astype(result_raw, data)
+    result = tensor_ops.convert.astype(result_raw, data)
 
     for _ in range(unsqueeze_count):
         result = squeeze(result, 0)
@@ -341,37 +285,15 @@ CompareMode = Literal[
 ]
 
 
-@overload
-def compare(
-    data: npt.NDArray,
-    mode: CompareMode,
-    operand: float,
-    binarize: bool = ...,
-    fill: Optional[float] = ...,
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def compare(
-    data: torch.Tensor,
-    mode: CompareMode,
-    operand: float,
-    binarize: bool = ...,
-    fill: Optional[float] = ...,
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("compare")
+@builder.register("compare")
 @typechecked
 def compare(
-    data: Tensor,
+    data: TensorTypeVar,
     mode: CompareMode,
     operand: float,
     binarize: bool = True,
     fill: Optional[float] = None,
-) -> Tensor:
+) -> TensorTypeVar:
     if mode in ["eq", "=="]:
         mask = data == operand
     elif mode in ["neq", "!="]:

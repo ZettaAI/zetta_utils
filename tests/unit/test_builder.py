@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any
 import pytest
 
+from zetta_utils.partial import ComparablePartial
 from zetta_utils import builder
 
 
@@ -99,7 +100,7 @@ def test_register(register_dummy_a):
         ],
         [
             {PARSE_KEY: "dummy_a", MODE_KEY: "partial", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
-            builder.ComparablePartial(DummyA, a=[DummyB(b=3)]),
+            ComparablePartial(DummyA, a=[DummyB(b=3)]),
         ],
     ],
 )

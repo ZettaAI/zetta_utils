@@ -1,43 +1,26 @@
-from typing import Literal, overload
+from typing import Literal
 import copy
 import torch
 import numpy as np
-import numpy.typing as npt
 from typeguard import typechecked
 
 import cc3d  # type: ignore
 import fastremap  # type: ignore
-import zetta_utils as zu
+
+from zetta_utils import builder, tensor_ops
+from zetta_utils.typing import TensorTypeVar
 
 
 MaskFilteringModes = Literal["keep_large", "keep_small"]
 
 
-@overload
-def filter_cc(
-    data: torch.Tensor,
-    mode: MaskFilteringModes = ...,
-    thr: int = ...,
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@overload
-def filter_cc(
-    data: npt.NDArray,
-    mode: MaskFilteringModes = ...,
-    thr: int = ...,
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("filter_cc")
+@builder.register("filter_cc")
 @typechecked
 def filter_cc(
-    data: zu.typing.Tensor,
+    data: TensorTypeVar,
     mode: MaskFilteringModes = "keep_small",
     thr: int = 100,
-) -> zu.typing.Tensor:
+) -> TensorTypeVar:
     """
     Remove connected components from the given input tensor_ops.
 
@@ -51,7 +34,7 @@ def filter_cc(
     Returns:
         zu.typing.Tensor: Tensor with the filtered clusters removed.
     """
-    data_np = zu.tensor_ops.convert.to_np(data)
+    data_np = tensor_ops.convert.to_np(data)
     cc_labels = cc3d.connected_components(data_np != 0)
     segids, counts = np.unique(cc_labels, return_counts=True)
     if mode == "keep_large":
@@ -64,29 +47,15 @@ def filter_cc(
     result_raw = copy.copy(data_np)
     result_raw[filtered_mask == 0] = 0
 
-    result = zu.tensor_ops.convert.astype(result_raw, data)
+    result = tensor_ops.convert.astype(result_raw, data)
     return result
 
 
-@overload
-def coarsen(
-    data: npt.NDArray, width: int = ..., thr: int = ...
-) -> npt.NDArray:  # pragma: no cover
-    ...
-
-
-@overload
-def coarsen(
-    data: torch.Tensor, width: int = ..., thr: int = ...
-) -> torch.Tensor:  # pragma: no cover
-    ...
-
-
-@zu.builder.register("coarsen_mask")
+@builder.register("coarsen_mask")
 @typechecked
-def coarsen(data: zu.typing.Tensor, width: int = 1, thr: int = 1) -> zu.typing.Tensor:
+def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
 
-    data_torch = zu.tensor_ops.convert.to_torch(data).float()
+    data_torch = tensor_ops.convert.to_torch(data).float()
     kernel = torch.ones(
         [1, 1]
         + [
@@ -101,5 +70,5 @@ def coarsen(data: zu.typing.Tensor, width: int = 1, thr: int = 1) -> zu.typing.T
         result_torch = (conved >= thr).float()
 
     result_torch = result_torch > 0
-    result = zu.tensor_ops.convert.astype(result_torch, data)
+    result = tensor_ops.convert.astype(result_torch, data)
     return result

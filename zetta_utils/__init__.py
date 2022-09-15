@@ -11,6 +11,8 @@ from . import processors
 
 def load_all_modules():
     from . import tensor_ops
+    from . import distributions
+    from . import augmentations
     from . import io
     from . import training
     from . import viz

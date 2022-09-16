@@ -9,18 +9,30 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import Tensor, Number, TensorTypeVar
 
 
+def _einops_check(*args, **kwargs):  # pragma: no test
+    if len(args) > 0:
+        raise RuntimeError(
+            "Positional arguments not allowed for einops wrappers. "
+            "To use positional arguments, use einops library directly. "
+            f"Got: args {args}, kwargs {kwargs}"
+        )
+
+
 @builder.register("rearrange")
 def rearrange(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    _einops_check()
     return einops.rearrange(tensor=data, *args, **kwargs)
 
 
 @builder.register("reduce")
 def reduce(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    _einops_check()
     return einops.reduce(tensor=data, *args, **kwargs)
 
 
 @builder.register("repeat")
 def repeat(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    _einops_check()
     return einops.repeat(tensor=data, *args, **kwargs)
 
 

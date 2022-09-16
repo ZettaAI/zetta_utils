@@ -28,7 +28,7 @@ class ExampleProcessor:
         logger.info(f"Example Processor f{self} created")
 
     # Your processor must be callable. This is how users will expect to interact with it.
-    def __call__(self, data: zu.typing.Tensor) -> zu.typing.Tensor:
+    def __call__(self, data: zu.typing.TensorTypeVar) -> zu.typing.TensorTypeVar:
         """
         Document the ``__call__`` function. Don't explain what it does here -- that should be
         explained in the class docstring.

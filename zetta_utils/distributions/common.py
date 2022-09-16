@@ -34,7 +34,7 @@ def uniform_dist(low: Number = 0.0, high: Number = 1.0) -> Distribution:  # prag
 
 @builder.register("normal_dist")
 @typechecked
-def normal_dist_dist(loc: Number = 0.0, scale: Number = 1.0) -> Distribution:
+def normal_dist_dist(loc: Number = 0.0, scale: Number = 1.0) -> Distribution:  # pragma: no cover
     # We know that this comparable becomes a distribution, so can ignore types here
     return ComparablePartial(np.random.normal, loc=loc, scale=scale)  # type: ignore
 

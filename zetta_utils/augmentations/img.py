@@ -8,32 +8,55 @@ from zetta_utils.typing import TensorTypeVar, Number, Tensor
 from .common import prob_aug
 
 
+def _get_weights_mask(
+    data: TensorTypeVar,
+    mask_fn: Optional[Callable[..., Tensor]] = None,
+) -> TensorTypeVar:
+    data_ = tensor_ops.to_torch(data)
+    if mask_fn is not None:
+        mask = tensor_ops.to_torch(mask_fn(data_))
+    else:
+        mask = torch.ones_like(data_, dtype=torch.bool)
+
+    result = tensor_ops.astype(mask, data)
+    return result
+
+
 @builder.register("brightness_aug")
 @typechecked
 @prob_aug
 def brightness_aug(
     data: TensorTypeVar,
     adj: Union[distributions.Distribution, Number],
-    low_cap: Optional[Union[distributions.Distribution, Number]] = None,
-    high_cap: Optional[Union[distributions.Distribution, Number]] = None,
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ) -> TensorTypeVar:
     data_ = tensor_ops.to_torch(data).float()
-    if mask_fn is not None:
-        mask = tensor_ops.to_torch(mask_fn(data_))
-    else:
-        mask = torch.ones_like(data_, dtype=torch.bool)
+    weights_mask = _get_weights_mask(data_, mask_fn).float()
+    adj_v = distributions.to_distribution(adj)() * weights_mask
+    data_ += adj_v
+    result = tensor_ops.astype(data_, data)
+    return result
 
-    adj_v = distributions.to_distribution(adj)()
-    data_[mask] += adj_v
 
-    if high_cap is not None:
-        high_cap_v = distributions.to_distribution(high_cap)()
-        data_[mask & (data_ > high_cap_v)] = high_cap_v
+@builder.register("clamp_values_aug")
+@typechecked
+@prob_aug
+def clamp_values_aug(
+    data: TensorTypeVar,
+    low: Optional[Union[distributions.Distribution, Number]] = None,
+    high: Optional[Union[distributions.Distribution, Number]] = None,
+    mask_fn: Optional[Callable[..., Tensor]] = None,
+):
+    data_ = tensor_ops.to_torch(data).float()
+    mask = _get_weights_mask(data_, mask_fn).bool()
 
-    if low_cap is not None:
-        low_cap_v = distributions.to_distribution(low_cap)()
-        data_[mask & (data_ < low_cap_v)] = low_cap_v
+    if high is not None:
+        high_v = distributions.to_distribution(high)()
+        data_[mask & (data_ > high_v)] = high_v
+
+    if low is not None:
+        low_v = distributions.to_distribution(low)()
+        data_[mask & (data_ < low_v)] = low_v
 
     result = tensor_ops.astype(data_, data)
     return result

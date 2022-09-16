@@ -9,7 +9,7 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import Tensor, Number, TensorTypeVar
 
 
-def _einops_check(*args, **kwargs):  # pragma: no test
+def _einops_check(*args, **kwargs):  # pragma: no cover
     if len(args) > 0:
         raise RuntimeError(
             "Positional arguments not allowed for einops wrappers. "

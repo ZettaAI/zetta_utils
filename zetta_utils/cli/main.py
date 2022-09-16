@@ -1,5 +1,5 @@
 import pprint
-import click # type: ignore
+import click  # type: ignore
 
 import zetta_utils as zu
 

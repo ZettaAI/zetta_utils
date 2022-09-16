@@ -16,6 +16,7 @@ RECURSE_KEY = "@recursive_parse"
 R = TypeVar("R")
 P = ParamSpec("P")
 
+
 @typechecked
 def register(name: str, versions=None) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator for registering classes to be buildable.

@@ -8,9 +8,10 @@ from zetta_utils.partial import ComparablePartial
 from zetta_utils.typing import Number
 
 NoneType = type(None)
+
+
 @runtime_checkable
 class Distribution(Protocol):  # pragma: no cover
-
     @overload
     def __call__(self, size: int) -> npt.NDArray:
         ...
@@ -23,22 +24,19 @@ class Distribution(Protocol):  # pragma: no cover
     def __call__(self, size: Optional[NoneType] = None) -> Number:
         ...
 
+
 @builder.register("uniform_dist")
 @typechecked
-def uniform_dist(
-    low: Number = 0.0, high: Number = 1.0
-) -> Distribution: # pragma: no cover
+def uniform_dist(low: Number = 0.0, high: Number = 1.0) -> Distribution:  # pragma: no cover
     # We know that this comparable becomes a distribution, so can ignore types here
-    return ComparablePartial(np.random.uniform, low=low, high=high) # type: ignore
+    return ComparablePartial(np.random.uniform, low=low, high=high)  # type: ignore
 
 
 @builder.register("normal_dist")
 @typechecked
-def normal_dist_dist(
-    loc: Number = 0.0, scale: Number = 1.0
-) -> Distribution:
+def normal_dist_dist(loc: Number = 0.0, scale: Number = 1.0) -> Distribution:
     # We know that this comparable becomes a distribution, so can ignore types here
-    return ComparablePartial(np.random.normal, loc=loc, scale=scale) # type: ignore
+    return ComparablePartial(np.random.normal, loc=loc, scale=scale)  # type: ignore
 
 
 @typechecked

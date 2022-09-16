@@ -1,6 +1,9 @@
 """Bulding objects from nested specs."""
+from __future__ import annotations
+
 import copy
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
+from typing_extensions import ParamSpec
 from typeguard import typechecked
 from zetta_utils.partial import ComparablePartial
 
@@ -10,8 +13,12 @@ MODE_KEY = "@mode"
 RECURSE_KEY = "@recursive_parse"
 
 
+R = TypeVar("R")
+P = ParamSpec("P")
+
+
 @typechecked
-def register(name: str, versions=None) -> Callable:
+def register(name: str, versions=None) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """Decorator for registering classes to be buildable.
 
     :param name: Name which will be used for to indicate an object of the
@@ -21,7 +28,7 @@ def register(name: str, versions=None) -> Callable:
     if versions is not None:
         raise NotImplementedError()  # pragma: no cover
 
-    def register_fn(cls):
+    def register_fn(cls: Callable[P, R]) -> Callable[P, R]:
         REGISTRY[name] = cls
         return cls
 

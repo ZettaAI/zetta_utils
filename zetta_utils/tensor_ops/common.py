@@ -45,7 +45,7 @@ def unsqueeze(
 ) -> TensorTypeVar:
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int):
-            result = data.unsqueeze(dim)
+            result = data.unsqueeze(dim)  # type: TensorTypeVar
         else:
             raise ValueError(f"Cannot use `torch.unsqueeze` with dim of type '{type(dim)}'")
     else:

@@ -20,7 +20,10 @@ from ... import helpers
     ],
 )
 def test_example_processor_mode1(
-    field1: int, field2: typing.Optional[float], data: zu.typing.Tensor, expected: zu.typing.Tensor
+    field1: int,
+    field2: typing.Optional[float],
+    data: zu.typing.TensorTypeVar,
+    expected: zu.typing.TensorTypeVar,
 ):
     proc = zu.processors.zoo.example_processor.ExampleProcessor(field1=field1, field2=field2)
     result = proc(data)

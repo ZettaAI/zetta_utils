@@ -7,7 +7,9 @@ import numpy.typing as npt
 import typeguard
 
 Number = Union[int, float]
-TensorTypeVar = TypeVar("TensorTypeVar", torch.Tensor, npt.NDArray)
+TensorTypeVar = TypeVar(
+    "TensorTypeVar", torch.Tensor, npt.NDArray, Union[torch.Tensor, npt.NDArray]
+)
 
 Tensor = Union[torch.Tensor, npt.NDArray]
 Slices3D = Tuple[slice, slice, slice]

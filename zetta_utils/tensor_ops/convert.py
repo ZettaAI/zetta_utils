@@ -56,7 +56,7 @@ def astype(data: Tensor, reference: TensorTypeVar) -> TensorTypeVar:
 
     """
     if isinstance(reference, torch.Tensor):
-        result = zu.tensor_ops.convert.to_torch(data)
+        result = zu.tensor_ops.convert.to_torch(data)  # type: TensorTypeVar
     elif isinstance(reference, np.ndarray):
         result = zu.tensor_ops.convert.to_np(data)
     return result

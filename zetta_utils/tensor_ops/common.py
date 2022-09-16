@@ -8,9 +8,20 @@ from typeguard import typechecked
 from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import Tensor, Number, TensorTypeVar
 
-builder.register("rearrange")(einops.rearrange)
-builder.register("reduce")(einops.reduce)
-builder.register("repeat")(einops.repeat)
+
+@builder.register("rearrange")
+def rearrange(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.rearrange(tensor=data, *args, **kwargs)
+
+
+@builder.register("reduce")
+def reduce(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.reduce(tensor=data, *args, **kwargs)
+
+
+@builder.register("repeat")
+def repeat(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.repeat(tensor=data, *args, **kwargs)
 
 
 @builder.register("multiply")

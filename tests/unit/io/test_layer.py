@@ -69,7 +69,7 @@ def test_read(mocker):
     result = layer.read(idx0)
     assert result == value2
     dummy_backend.read.assert_called_with(idx=idx2)
-    proc1.assert_called_with(value1)
+    proc1.assert_called_with(data=value1)
 
 
 def test_write(mocker):
@@ -95,7 +95,7 @@ def test_write(mocker):
     layer.write(idx0, value0)
 
     dummy_backend.write.assert_called_with(idx=idx2, value=value2)
-    proc1.assert_called_with(value1)
+    proc1.assert_called_with(data=value1)
 
 
 def test_write_exc(mocker):

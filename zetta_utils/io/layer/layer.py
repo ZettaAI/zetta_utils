@@ -53,7 +53,7 @@ class Layer:
         result = result_raw
         for proc in list(initial_procs) + list(self.read_postprocs):
             # import pdb; pdb.set_trace()
-            result = proc(result)
+            result = proc(data=result)
 
         return result
 
@@ -66,7 +66,7 @@ class Layer:
 
         value = value_raw
         for proc in list(initial_procs) + list(self.write_preprocs):
-            value = proc(value)
+            value = proc(data=value)
 
         self.io_backend.write(idx=idx_final, value=value)
 

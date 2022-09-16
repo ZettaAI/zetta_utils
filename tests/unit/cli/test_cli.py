@@ -1,7 +1,7 @@
 # pylint: disable=unused-argument,redefined-outer-name
 import json
 import pytest
-from click.testing import CliRunner
+from click.testing import CliRunner  # type: ignore
 
 import zetta_utils as zu
 from zetta_utils import cli  # pylint: disable=unused-import

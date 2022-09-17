@@ -15,5 +15,6 @@ def load_all_modules():
     from . import tensor_ops
     from . import augmentations
     from . import io
+    from . import convnet
     from . import training
     from . import viz

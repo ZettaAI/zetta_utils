@@ -20,7 +20,7 @@ builder.register("InstanceNorm3d")(torch.nn.InstanceNorm3d)
 @builder.register("GroupNorm")
 def compatible_group_norm(
     num_channels, num_groups, eps=1e-05, affine=True
-) -> torch.nn.GroupNorm:  # pragma: no test
+) -> torch.nn.GroupNorm:  # pragma: no cover
     return torch.nn.GroupNorm(num_groups, num_channels, eps, affine)
 
 

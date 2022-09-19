@@ -16,9 +16,15 @@ class ApplyPerChannelRange(torch.nn.Module):
         super().__init__()
 
     def __attr_post_init__(self):
-        assert len(self.apply_fns) == len(self.channel_ranges)
+        if len(self.apply_fns) != len(self.channel_ranges):
+            raise ValueError(
+                f"Number of `apply_fns` == {len(self.apply_fns)} is not "
+                f"equal to the number of ranges == {len(self.channel_ranges)}"
+            )
+
         for e in self.channel_ranges:
-            assert len(e) == 2
+            if len(e) != 2:
+                raise ValueError("Invalid range specification: {e}.")
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         result_pieces = []

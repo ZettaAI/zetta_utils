@@ -1,7 +1,6 @@
 # pylint: disable=protected-access
 import pytest
 import torch
-import zetta_utils
 from zetta_utils import convnet
 from ..helpers import assert_array_equal
 
@@ -17,6 +16,7 @@ from ..helpers import assert_array_equal
 def test_channel_number(num_channels: list[int]):
     block = convnet.pieces.ConvBlock(num_channels=num_channels)
 
+    block = convnet.pieces.ConvBlock(num_channels=num_channels)
     conv_count = 0
     for e in block.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):

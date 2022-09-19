@@ -1,6 +1,9 @@
 import torch
 from zetta_utils import builder
 
+# Sequence
+builder.register("Sequential")(torch.nn.Sequential)
+
 # Activation
 builder.register("LeakyReLU")(torch.nn.LeakyReLU)
 builder.register("ReLU")(torch.nn.ReLU)

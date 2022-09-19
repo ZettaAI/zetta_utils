@@ -1,2 +1,2 @@
 from .convblock import ConvBlock
-from . import individual_layers
+from . import primitives

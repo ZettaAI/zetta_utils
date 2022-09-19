@@ -14,9 +14,9 @@ from ..helpers import assert_array_equal
     ],
 )
 def test_channel_number(num_channels: list[int]):
-    block = convnet.pieces.ConvBlock(num_channels=num_channels)
+    block = convnet.architecture.ConvBlock(num_channels=num_channels)
 
-    block = convnet.pieces.ConvBlock(num_channels=num_channels)
+    block = convnet.architecture.ConvBlock(num_channels=num_channels)
     conv_count = 0
     for e in block.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):
@@ -37,7 +37,7 @@ def test_channel_number(num_channels: list[int]):
     ],
 )
 def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
-    block = convnet.pieces.ConvBlock(num_channels=[1, 2, 3], kernel_sizes=kernel_sizes)
+    block = convnet.architecture.ConvBlock(num_channels=[1, 2, 3], kernel_sizes=kernel_sizes)
 
     conv_count = 0
     for e in block.layers:
@@ -47,7 +47,7 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
 
 
 def test_norm():
-    block = convnet.pieces.convblock.ConvBlock(
+    block = convnet.architecture.convblock.ConvBlock(
         num_channels=[1, 2, 3], normalization=torch.nn.BatchNorm2d
     )
     norm_count = 0
@@ -58,7 +58,7 @@ def test_norm():
 
 
 def test_norm_last():
-    block = convnet.pieces.ConvBlock(
+    block = convnet.architecture.ConvBlock(
         num_channels=[1, 2, 3], normalization=torch.nn.BatchNorm2d, normalize_last=True
     )
     norm_count = 0
@@ -70,7 +70,7 @@ def test_norm_last():
 
 def not_test_forward_naive(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
-    block = convnet.pieces.ConvBlock(num_channels=[1, 2, 3, 4, 5])
+    block = convnet.architecture.ConvBlock(num_channels=[1, 2, 3, 4, 5])
     result = block(torch.zeros([1, 1, 1, 1]))
     assert_array_equal(
         result.cpu().detach().numpy(), torch.zeros([1, 1, 1, 1]).cpu().detach().numpy()
@@ -79,7 +79,9 @@ def not_test_forward_naive(mocker):
 
 def test_forward_skips(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
-    block = convnet.pieces.ConvBlock(num_channels=[1, 2, 3, 4, 5], skips={"0": 2, "1": 2, "2": 3})
+    block = convnet.architecture.ConvBlock(
+        num_channels=[1, 2, 3, 4, 5], skips={"0": 2, "1": 2, "2": 3}
+    )
     result = block(torch.ones([1, 1, 1, 1]))
     assert_array_equal(
         result.cpu().detach().numpy(), 6 * torch.ones([1, 1, 1, 1]).cpu().detach().numpy()

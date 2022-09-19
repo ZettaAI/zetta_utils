@@ -25,15 +25,15 @@ def _get_weights_mask(
 @builder.register("brightness_aug")
 @typechecked
 @prob_aug
-def brightness_aug(
+def add_scalar_aug(
     data: TensorTypeVar,
-    adj: Union[distributions.Distribution, Number],
+    value: Union[distributions.Distribution, Number],
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ) -> TensorTypeVar:
     data_ = tensor_ops.to_torch(data).float()
     weights_mask = _get_weights_mask(data_, mask_fn).float()
-    adj_v = distributions.to_distribution(adj)() * weights_mask
-    data_ += adj_v
+    value_v = distributions.to_distribution(value)() * weights_mask
+    data_ += value_v
     result = tensor_ops.astype(data_, data)
     return result
 

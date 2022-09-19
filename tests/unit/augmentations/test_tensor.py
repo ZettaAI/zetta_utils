@@ -10,7 +10,7 @@ from ..helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(
-    "data, adj, mask_fn, expected",
+    "data, value, mask_fn, expected",
     [
         [
             np.array([0, 1, 2]),
@@ -34,11 +34,11 @@ from ..helpers import assert_array_equal
 )
 def test_brightness(
     data: TensorTypeVar,
-    adj: Union[distributions.Distribution, Number],
+    value: Union[distributions.Distribution, Number],
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
-    result = augmentations.img.brightness_aug(data=data, adj=adj, mask_fn=mask_fn)
+    result = augmentations.tensor.add_scalar_aug(data=data, value=value, mask_fn=mask_fn)
     assert_array_equal(result, expected)
 
 
@@ -75,5 +75,5 @@ def test_clamp_values(
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
-    result = augmentations.img.clamp_values_aug(data=data, low=low, high=high, mask_fn=mask_fn)
+    result = augmentations.tensor.clamp_values_aug(data=data, low=low, high=high, mask_fn=mask_fn)
     assert_array_equal(result, expected)

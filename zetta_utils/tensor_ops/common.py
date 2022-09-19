@@ -37,28 +37,28 @@ def repeat(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no
 
 
 @builder.register("multiply")
-def multiply(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
-    return x * data
+def multiply(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
+    return value * data
 
 
 @builder.register("add")
-def add(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
-    return x + data
+def add(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
+    return value + data
 
 
 @builder.register("power")
-def power(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
-    return data ** x
+def power(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
+    return data ** value
 
 
 @builder.register("divide")
-def divide(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
-    return data / x
+def divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
+    return data / value
 
 
 @builder.register("int_divide")
-def int_divide(data: TensorTypeVar, x) -> TensorTypeVar:  # pragma: no cover
-    return data // x
+def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
+    return data // value
 
 
 @builder.register("unsqueeze")
@@ -313,22 +313,22 @@ CompareMode = Literal[
 def compare(
     data: TensorTypeVar,
     mode: CompareMode,
-    operand: float,
+    value: float,
     binarize: bool = True,
     fill: Optional[float] = None,
 ) -> TensorTypeVar:
     if mode in ["eq", "=="]:
-        mask = data == operand
+        mask = data == value
     elif mode in ["neq", "!="]:
-        mask = data != operand
+        mask = data != value
     elif mode in ["gt", ">"]:
-        mask = data > operand
+        mask = data > value
     elif mode in ["gte", ">="]:
-        mask = data >= operand
+        mask = data >= value
     elif mode in ["lt", "<"]:
-        mask = data < operand
+        mask = data < value
     elif mode in ["lte", "<="]:
-        mask = data <= operand
+        mask = data <= value
     else:
         assert False, "Type checker failure."  # pragma: no cover
 

@@ -34,17 +34,18 @@ dynamic = ["version"]
 cli = [
     "click >= 8.0.1"
 ]
-viz = [
-    "matplotlib >= 3.5.2",
-    "ipywidgets >= 7.7.0",
-    "opencv-python >= 4.5.5"
-]
 tensor-ops = [
     "torch >= 1.11.0",
     "numpy >= 1.23.1",
     "connected-components-3d >= 3.10.0",
     "fastremap >= 1.12.2",
     "einops >= 0.4.1",
+]
+viz = [
+    "zetta_utils[tensor_ops]",
+    "matplotlib >= 3.5.2",
+    "ipywidgets >= 7.7.0",
+    "opencv-python >= 4.5.5"
 ]
 io = [
     "cloud-volume >= 8.7.0",

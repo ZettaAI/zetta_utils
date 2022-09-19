@@ -85,7 +85,13 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
 
             interval = 25
             if batch_idx % interval == 0:
-                self.log_results(f"val_{batch_idx // interval}", data_in, result, target, loss_map)
+                self.log_results(
+                    f"val_{batch_idx // interval}",
+                    data_in=data_in,
+                    target=target,
+                    result=result,
+                    loss_map=loss_map,
+                )
         return loss
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
@@ -105,7 +111,9 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
 
             self.log("loss/train", loss, on_step=True, on_epoch=True)
             if batch_idx % 500 == 0:
-                self.log_results("train", data_in, result, target, loss_map)
+                self.log_results(
+                    "train", data_in=data_in, target=target, result=result, loss_map=loss_map
+                )
         return loss
 
     def configure_optimizers(self):

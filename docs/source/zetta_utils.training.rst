@@ -1,4 +1,4 @@
-``zetta_utils.training``
+``zetta_utils.convnet``
 ========================
 
 ``zetta_utils.training.datasets``

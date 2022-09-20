@@ -24,6 +24,30 @@ class ConvBlock(nn.Module):
         normalize_last: bool = False,
         activate_last: bool = False,
     ):
+        """
+        A block with sequential convolutions with activations, optional normalization and residual
+        connections.
+
+        :param num_channels: List of integers specifying the number of channels of each
+            convolution. For example, specification [1, 2, 3] will correspond to a sequence of
+            2 convolutions, where the first one has 1 input channel and two output channels and
+            the second one has 2 input channels and 3 output channels.
+        :param conv: Constructor for convolution layers.
+        :param activation: Constructor for activation layers.
+        :param normalization: Constructor for activation layers. Normalization will
+            be applied after convolution before activation.
+        :param padding_mode: Convolution padding mode.
+        :param kernel_sizes: Convolution kernel sizes. When specified as a single integer or a
+            tuple, it will be passes as `k` parameter to all convolution constructors.
+            When specified as a list, each item in the list will be passed as `k` to the
+            corresponding convolution in order. The list length must match the number of
+            convolutions.
+        :param skips: Specification for residual skip connection. For example,
+            `skips={"0": 2}` specifies a single residual skip connection from the output of the
+            first convolution (index 0) to the third covnolution (index 2).
+        :param normalize_last: Whether to apply normalization after the last layer.
+        :param activate_last: Whether to apply activation after the last layer.
+        """
         super().__init__()
         if skips is None:
             self.skips = {}

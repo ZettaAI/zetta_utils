@@ -12,11 +12,11 @@ def _get_weights_mask(
     data: TensorTypeVar,
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ) -> TensorTypeVar:
-    data_ = tensor_ops.to_torch(data)
+    data_torch = tensor_ops.to_torch(data)
     if mask_fn is not None:
-        mask = tensor_ops.to_torch(mask_fn(data_))
+        mask = tensor_ops.to_torch(mask_fn(data_torch))
     else:
-        mask = torch.ones_like(data_, dtype=torch.bool)
+        mask = torch.ones_like(data_torch, dtype=torch.bool)
 
     result = tensor_ops.astype(mask, data)
     return result
@@ -27,14 +27,14 @@ def _get_weights_mask(
 @prob_aug
 def add_scalar_aug(
     data: TensorTypeVar,
-    value: Union[distributions.Distribution, Number],
+    value_distr: Union[distributions.Distribution, Number],
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ) -> TensorTypeVar:
-    data_ = tensor_ops.to_torch(data).float()
-    weights_mask = _get_weights_mask(data_, mask_fn).float()
-    value_v = distributions.to_distribution(value)() * weights_mask
-    data_ += value_v
-    result = tensor_ops.astype(data_, data)
+    data_torch = tensor_ops.to_torch(data).float()
+    weights_mask = _get_weights_mask(data_torch, mask_fn).float()
+    value = distributions.to_distribution(value_distr)() * weights_mask
+    data_torch += value
+    result = tensor_ops.astype(data_torch, data)
     return result
 
 
@@ -43,20 +43,20 @@ def add_scalar_aug(
 @prob_aug
 def clamp_values_aug(
     data: TensorTypeVar,
-    low: Optional[Union[distributions.Distribution, Number]] = None,
-    high: Optional[Union[distributions.Distribution, Number]] = None,
+    low_distr: Optional[Union[distributions.Distribution, Number]] = None,
+    high_distr: Optional[Union[distributions.Distribution, Number]] = None,
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ):
-    data_ = tensor_ops.to_torch(data).float()
-    mask = _get_weights_mask(data_, mask_fn).bool()
+    data_torch = tensor_ops.to_torch(data).float()
+    mask = _get_weights_mask(data_torch, mask_fn).bool()
 
-    if high is not None:
-        high_v = distributions.to_distribution(high)()
-        data_[mask & (data_ > high_v)] = high_v
+    if high_distr is not None:
+        high = distributions.to_distribution(high_distr)()
+        data_torch[mask & (data_torch > high)] = high
 
-    if low is not None:
-        low_v = distributions.to_distribution(low)()
-        data_[mask & (data_ < low_v)] = low_v
+    if low_distr is not None:
+        low = distributions.to_distribution(low_distr)()
+        data_torch[mask & (data_torch < low)] = low
 
-    result = tensor_ops.astype(data_, data)
+    result = tensor_ops.astype(data_torch, data)
     return result

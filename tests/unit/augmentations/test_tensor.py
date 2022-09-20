@@ -10,7 +10,7 @@ from ..helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(
-    "data, value, mask_fn, expected",
+    "data, value_distr, mask_fn, expected",
     [
         [
             np.array([0, 1, 2]),
@@ -34,16 +34,18 @@ from ..helpers import assert_array_equal
 )
 def test_brightness(
     data: TensorTypeVar,
-    value: Union[distributions.Distribution, Number],
+    value_distr: Union[distributions.Distribution, Number],
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
-    result = augmentations.tensor.add_scalar_aug(data=data, value=value, mask_fn=mask_fn)
+    result = augmentations.tensor.add_scalar_aug(
+        data=data, value_distr=value_distr, mask_fn=mask_fn
+    )
     assert_array_equal(result, expected)
 
 
 @pytest.mark.parametrize(
-    "data, low, high, mask_fn, expected",
+    "data, low_distr, high_distr, mask_fn, expected",
     [
         [
             np.array([0, 1, 2]),
@@ -70,10 +72,12 @@ def test_brightness(
 )
 def test_clamp_values(
     data: TensorTypeVar,
-    low: Optional[Union[distributions.Distribution, Number]],
-    high: Optional[Union[distributions.Distribution, Number]],
+    low_distr: Optional[Union[distributions.Distribution, Number]],
+    high_distr: Optional[Union[distributions.Distribution, Number]],
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
-    result = augmentations.tensor.clamp_values_aug(data=data, low=low, high=high, mask_fn=mask_fn)
+    result = augmentations.tensor.clamp_values_aug(
+        data=data, low_distr=low_distr, high_distr=high_distr, mask_fn=mask_fn
+    )
     assert_array_equal(result, expected)

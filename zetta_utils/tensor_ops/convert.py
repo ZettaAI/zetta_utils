@@ -28,7 +28,7 @@ def to_np(data: Tensor) -> npt.NDArray:
 
 
 @typechecked
-def to_torch(data: Tensor, device: str = "cpu") -> torch.Tensor:
+def to_torch(data: Tensor, device: torch.types.Device = "cpu") -> torch.Tensor:
     """Convert the given tensor to :class:`torch.Tensor`.
 
     :param data: Input tensor_ops.

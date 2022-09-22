@@ -81,3 +81,164 @@ def test_clamp_values(
         data=data, low_distr=low_distr, high_distr=high_distr, mask_fn=mask_fn
     )
     assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize(
+    "data, tile_size, tile_stride, max_brightness_change, "
+    "rotation_degree, preserve_data_val, repeats, expected",
+    [
+        [
+            np.array(
+                [
+                    [
+                        [
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                        ]
+                    ]
+                ]
+            ),
+            1,
+            2,
+            1,
+            0,
+            None,
+            1,
+            np.array(
+                [
+                    [
+                        [
+                            [1, 0, 1, 0],
+                            [0, 0, 0, 0],
+                            [1, 0, 1, 0],
+                            [0, 0, 0, 0],
+                        ]
+                    ]
+                ]
+            ),
+        ],
+        [
+            np.array(
+                [
+                    [
+                        [
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                        ]
+                    ]
+                ]
+            ),
+            1,
+            1,
+            1,
+            0,
+            None,
+            1,
+            np.array(
+                [
+                    [
+                        [
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                        ]
+                    ]
+                ]
+            ),
+        ],
+        [
+            np.array(
+                [
+                    [
+                        [
+                            [-99, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                        ]
+                    ]
+                ]
+            ),
+            1,
+            1,
+            1,
+            0,
+            -99,
+            1,
+            np.array(
+                [
+                    [
+                        [
+                            [-99, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                            [1, 1, 1, 1],
+                        ]
+                    ]
+                ]
+            ),
+        ],
+        [
+            np.array(
+                [
+                    [
+                        [
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                        ]
+                    ]
+                ]
+            ),
+            1,
+            2,
+            1,
+            45,
+            None,
+            1,
+            np.array(
+                [
+                    [
+                        [
+                            [0, 0, 1, 0],
+                            [0, 0, 0, 1],
+                            [1, 0, 0, 1],
+                            [0, 1, 1, 0],
+                        ]
+                    ]
+                ]
+            ),
+        ],
+    ],
+)
+def test_square_tile_pattern_aug(
+    data: TensorTypeVar,
+    tile_size: Union[distributions.Distribution, Number],
+    tile_stride: Union[distributions.Distribution, Number],
+    max_brightness_change: Union[distributions.Distribution, Number],
+    rotation_degree: Union[distributions.Distribution, Number],
+    preserve_data_val: Optional[Number],
+    repeats: int,
+    expected: TensorTypeVar,
+    mocker,
+):
+    mocker.patch("random.choice", return_value=1.0)
+    mocker.patch("random.randint", return_value=0)
+    mocker.patch("zetta_utils.distributions.uniform_dist", return_value=lambda: 1.0)
+
+    result = augmentations.tensor.square_tile_pattern_aug(
+        data=data,
+        tile_size=tile_size,
+        tile_stride=tile_stride,
+        max_brightness_change=max_brightness_change,
+        rotation_degree=rotation_degree,
+        preserve_data_val=preserve_data_val,
+        repeats=repeats,
+    )
+    assert_array_equal(result, expected)

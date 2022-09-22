@@ -71,7 +71,7 @@ def _random_square_tile_pattern(
     tile_stride: Union[distributions.Distribution, Number],
     tile_size: Union[distributions.Distribution, Number],
     rotation_degree: Union[distributions.Distribution, Number],
-):
+) -> torch.Tensor:
     tile_stride = int(distributions.to_distribution(tile_stride)())
     tile_size = int(distributions.to_distribution(tile_size)())
     rotation_degree = distributions.to_distribution(rotation_degree)()
@@ -93,16 +93,18 @@ def _random_square_tile_pattern(
     )
 
     # Rotation
-    pattern = rotate(pattern, rotation_degree)[
-        ..., rotation_padding:-rotation_padding, rotation_padding:-rotation_padding
-    ]
+    pattern = rotate(pattern, rotation_degree)
+    if rotation_padding != 0:  # TODO: introduce a common `crop` funciton, as this is a common bug
+        pattern = pattern[
+            ..., rotation_padding:-rotation_padding, rotation_padding:-rotation_padding
+        ]
     return pattern
 
 
-@builder.register("square_tiles_brightness_aug")
+@builder.register("square_tile_pattern_aug")
 @typechecked
 @prob_aug
-def square_tiles_brightness_aug(
+def square_tile_pattern_aug(
     data: TensorTypeVar,
     tile_size: Union[distributions.Distribution, Number],
     tile_stride: Union[distributions.Distribution, Number],
@@ -147,6 +149,5 @@ def square_tiles_brightness_aug(
         combined_pattern[data_ == preserve_data_val] = 0.0
 
     data_ += combined_pattern
-
     result = tensor_ops.astype(data_, data)
     return result

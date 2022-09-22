@@ -72,7 +72,7 @@ trainer: {
 						x:       255.0
 					},
 					{
-						"@type": "square_tiles_brightness_aug"
+						"@type": "square_tiles_pattern_aug"
 						"@mode": "partial"
 						prob:    1.0
 						tile_size: {
@@ -96,8 +96,8 @@ trainer: {
 							high:    45
 						}
 						preserve_data_val: 0.0
-						repeats: 3,
-						device: "cpu"
+						repeats:           3
+						device:            "cpu"
 					},
 					{
 						"@type": "add"

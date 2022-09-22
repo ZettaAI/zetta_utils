@@ -204,6 +204,44 @@ def _validate_interpolation_setting(
                     )
 
 
+@builder.register("unsqueeze_to")
+@typechecked
+def unsqueeze_to(
+    data: TensorTypeVar,
+    ndim: Optional[int],
+):
+    if ndim is not None:
+        while data.ndim < ndim:
+            data = unsqueeze(data, 0)
+    return data
+
+
+@builder.register("squeeze_to")
+@typechecked
+def squeeze_to(
+    data: TensorTypeVar,
+    ndim: Optional[int],
+):
+
+    """
+    Squeeze the front jto the given ``size`` or by the given ``scale_factor``.
+
+    :param data: Input tensor with batch and channel dimensions.
+    :param ndim: Desired result shape.
+
+    """
+    if ndim is not None:
+        while data.ndim > ndim:
+            if data.shape[0] != 1:
+                raise RuntimeError(
+                    f"Not able to squeeze tensor with shape=={data.shape} to "
+                    f"ndim=={ndim}: shape[0] != 1"
+                )
+            data = squeeze(data, 0)
+
+    return data
+
+
 @builder.register("interpolate")
 @typechecked
 def interpolate(  # pylint: disable=too-many-locals
@@ -213,7 +251,7 @@ def interpolate(  # pylint: disable=too-many-locals
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     allow_shape_rounding: bool = False,
-    unsqueeze_to: Optional[int] = None,
+    unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
 
@@ -233,11 +271,8 @@ def interpolate(  # pylint: disable=too-many-locals
     :return: Interpolated tensor of the same type as the input tensor_ops.
 
     """
-    unsqueeze_count = 0
-    if unsqueeze_to is not None:
-        while data.ndim < unsqueeze_to:
-            data = unsqueeze(data, 0)
-            unsqueeze_count += 1
+    original_ndim = data.ndim
+    data = unsqueeze_to(data, unsqueeze_input_to)
 
     scale_factor_tuple = _standardize_scale_factor(
         data_ndim=data.ndim,
@@ -285,9 +320,7 @@ def interpolate(  # pylint: disable=too-many-locals
         result_raw = result_raw.int()
 
     result = tensor_ops.convert.astype(result_raw, data)
-
-    for _ in range(unsqueeze_count):
-        result = squeeze(result, 0)
+    result = squeeze_to(result, original_ndim)
 
     return result
 

@@ -93,7 +93,7 @@ def test_volumetric_indexer_exc(
                         mode="img",
                         scale_factor=(2.0, 2.0, 2.0),
                         allow_shape_rounding=False,
-                        unsqueeze_to=5,
+                        unsqueeze_input_to=5,
                     )
                 ],
             ),
@@ -112,7 +112,7 @@ def test_volumetric_indexer_exc(
                         mode="img",
                         scale_factor=(0.5, 0.5, 0.5),
                         allow_shape_rounding=False,
-                        unsqueeze_to=5,
+                        unsqueeze_input_to=5,
                     )
                 ],
             ),

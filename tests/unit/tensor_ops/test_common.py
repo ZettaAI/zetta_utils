@@ -322,7 +322,7 @@ def array_x1_avg_pool():
         [
             "array_2d_x0",
             "img",
-            {"scale_factor": [1.0, 0.5, 0.5], "unsqueeze_to": 5},
+            {"scale_factor": [1.0, 0.5, 0.5], "unsqueeze_input_to": 5},
             "array_2d_x0_avg_pool",
         ],
         ["array_2d_x0", "img", {"scale_factor": 0.5}, "array_2d_x0_avg_pool"],
@@ -472,3 +472,8 @@ def test_compare(data, mode, operand, kwargs, expected):
 def test_compare_exc(data, mode, operand, kwargs):
     with pytest.raises(ValueError):
         common.compare(data, mode, operand, **kwargs)
+
+
+def test_squeeze_to_exc():
+    with pytest.raises(RuntimeError):
+        common.squeeze_to(np.array([[1], [1]]), 1)

@@ -7,7 +7,7 @@ import numpy.typing as npt
 from typeguard import typechecked
 
 import zetta_utils as zu
-from zetta_utils.typing import TensorTypeVar, Tensor
+from zetta_utils.tensor_typing import TensorTypeVar, Tensor
 
 
 @typechecked

@@ -12,7 +12,8 @@ from typeguard import typechecked
 from zetta_utils import tensor_ops, builder
 from zetta_utils.io.backends.base import IOBackend
 from zetta_utils.io.indexes import VolumetricIndex
-from zetta_utils.typing import Vec3D, Tensor
+from zetta_utils.typing import Vec3D
+from zetta_utils.tensor_typing import Tensor
 
 
 cv_cache = cachetools.LRUCache(maxsize=500)

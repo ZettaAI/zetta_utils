@@ -35,12 +35,15 @@ dynamic = ["version"]
 cli = [
     "click >= 8.0.1"
 ]
-tensor-ops = [
+tensor-typing = [
     "torch >= 1.11.0",
     "numpy >= 1.23.1",
+]
+tensor-ops = [
     "connected-components-3d >= 3.10.0",
     "fastremap >= 1.12.2",
     "einops >= 0.4.1",
+    "zetta_utils[tensor_typing]"
 ]
 viz = [
     "zetta_utils[tensor_ops]",

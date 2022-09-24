@@ -8,7 +8,7 @@ import cc3d  # type: ignore
 import fastremap  # type: ignore
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.typing import TensorTypeVar
+from zetta_utils.tensor_typing import TensorTypeVar
 
 
 MaskFilteringModes = Literal["keep_large", "keep_small"]
@@ -26,13 +26,10 @@ def filter_cc(
 
     Clustering is performed based on non-zero values.
 
-    Args:
-        data (zu.typing.Tensor): Input tensor_ops.
-        mode (Literal["keep_large", "keep_small"]): Filtering mode.
-        thr (int): Pixel size threshold.
-
-    Returns:
-        zu.typing.Tensor: Tensor with the filtered clusters removed.
+    :param data: Input tensor.
+    :param mode: Filtering mode.
+    :param thr:  Pixel size threshold.
+    :return: Tensor with the filtered clusters removed.
     """
     data_np = tensor_ops.convert.to_np(data)
     cc_labels = cc3d.connected_components(data_np != 0)

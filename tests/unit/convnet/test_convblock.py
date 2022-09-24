@@ -1,4 +1,6 @@
 # pylint: disable=protected-access
+from __future__ import annotations
+
 import pytest
 import torch
 from zetta_utils import convnet

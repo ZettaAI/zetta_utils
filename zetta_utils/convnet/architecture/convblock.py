@@ -1,5 +1,6 @@
 # pylint: disable=protected-access
-from typing import Callable, Union, Literal, Optional
+from __future__ import annotations
+from typing import Callable, Union, Literal, Optional, List, Dict, Tuple
 from collections import defaultdict
 from typeguard import typechecked
 import torch
@@ -39,13 +40,13 @@ class ConvBlock(nn.Module):
 
     def __init__(
         self,
-        num_channels: list[int],
+        num_channels: List[int],
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
         padding_mode: Union[Literal["valid"], Literal["same"]] = "same",
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
-        kernel_sizes: Union[list[int], int, list[tuple[int, ...]], tuple[int, ...]] = 3,
-        skips: Optional[dict[Union[int, str], int]] = None,
+        kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
+        skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):
@@ -57,7 +58,7 @@ class ConvBlock(nn.Module):
         self.layers = torch.nn.ModuleList()
 
         if isinstance(kernel_sizes, list):
-            kernel_sizes_ = kernel_sizes  # type: Union[list[int], list[tuple[int, ...]]]
+            kernel_sizes_ = kernel_sizes  # type: Union[List[int], List[Tuple[int, ...]]]
         else:
             kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]  # type: ignore
 
@@ -77,7 +78,7 @@ class ConvBlock(nn.Module):
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         skip_data_for = defaultdict(
             lambda: torch.zeros_like(data, device=data.device)
-        )  # type: dict[int, torch.Tensor]
+        )  # type: Dict[int, torch.Tensor]
         conv_count = 0
 
         result = data

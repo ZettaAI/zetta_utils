@@ -6,7 +6,8 @@ import einops  # type: ignore
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.typing import Tensor, Number, TensorTypeVar
+from zetta_utils.typing import Number
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
 def _einops_check(*args, **kwargs):  # pragma: no cover

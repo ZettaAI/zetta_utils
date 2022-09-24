@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Union, Protocol, runtime_checkable, overload, Optional
 import numpy as np
 import numpy.typing as npt

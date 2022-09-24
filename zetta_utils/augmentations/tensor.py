@@ -6,7 +6,8 @@ from torchvision.transforms.functional import rotate  # type: ignore
 from typeguard import typechecked
 
 from zetta_utils import distributions, tensor_ops, builder
-from zetta_utils.typing import TensorTypeVar, Number, Tensor
+from zetta_utils.typing import Number
+from zetta_utils.tensor_typing import TensorTypeVar, Tensor
 
 from .common import prob_aug
 

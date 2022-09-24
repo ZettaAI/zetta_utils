@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt  # type: ignore
 import cv2  # type: ignore
 from typeguard import typechecked
 
-import zetta_utils as zu
+from zetta_utils import tensor_ops
+from zetta_utils.tensor_typing import Tensor
 
 DEFAULT_COMMON_KWARGS = {
     "dpi": 80,
@@ -50,7 +51,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.seg_kwargs = common_kwargs | seg_kwargs
 
     def __call__(self, x):  # pragma: no cover
-        x = zu.tensor_ops.convert.to_np(x).squeeze()
+        x = tensor_ops.convert.to_np(x).squeeze()
         if len(x.shape) == 3:
             return render_fld(x, **self.fld_kwargs)
         if x.dtype == np.bool:
@@ -94,7 +95,7 @@ def get_img_from_fig(
 
 @typechecked
 def render_img(
-    img: zu.typing.Tensor,
+    img: Tensor,
     figsize: tuple[int, int],
     dpi: int,
     cmap: str = "gray",
@@ -112,7 +113,7 @@ render_seg = render_img
 
 @typechecked
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
-    fld: zu.typing.Tensor,
+    fld: Tensor,
     figsize: tuple[int, int],
     dpi: int,
     grid_size: int = 50,
@@ -124,15 +125,11 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
 
     The field is assumed to be in a residual format and pixel units.
 
-    Args:
-        fld (zu.typing.Tensor): An array of shape [(1,) H, W, 2] representing
-            a 2D vector field.
-        grid_side (int): Number of arrows per side.
-
-    Returns:
-        npt.NDArray: RGB rendering of the vector field.
+    :param fld: An array of shape [(1,) H, W, 2] representing a 2D vector field.
+    :param grid_side: Number of arrows per side.
+    :return: RGB rendering of the vector field.
     """
-    fld = zu.tensor_ops.convert.to_np(fld).squeeze()
+    fld = tensor_ops.convert.to_np(fld).squeeze()
     if fld.shape[0] == 2:
         fld = np.transpose(fld, (1, 2, 0))
 

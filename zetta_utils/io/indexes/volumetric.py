@@ -25,19 +25,27 @@ RawVolumetricIndex = Union[
 
 @zu.builder.register("VolumetricIndex")
 @typechecked
-@attrs.frozen
+@attrs.mutable
 class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
     resolution: Vec3D
     slices: Slices3D
 
     @classmethod
-    def convert(
-        cls,
-        idx_raw: RawVolumetricIndex,
-        index_resolution: Optional[Vec3D] = None,
-        default_desired_resolution: Optional[Vec3D] = None,
-        allow_rounding: bool = False,
-    ):
+    def default_convert(cls, idx_raw: RawVolumetricIndex) -> VolumetricIndex:  # pragma: no cover
+        return VolumetricIndexConverter()(idx_raw)
+
+
+@zu.builder.register("VolumetricIndexConverter")
+@typechecked
+@attrs.mutable
+class VolumetricIndexConverter(
+    IndexConverter[RawVolumetricIndex, VolumetricIndex]
+):  # pylint: disable=too-few-public-methods
+    index_resolution: Optional[Vec3D] = None
+    default_desired_resolution: Optional[Vec3D] = None
+    allow_rounding: bool = False
+
+    def __call__(self, idx_raw: RawVolumetricIndex) -> VolumetricIndex:
         if len(idx_raw) == 3:  # Tuple[slice, slice, sclie], default index
             specified_resolution = None  # type: Optional[Vec3D]
             slices_raw = idx_raw  # type: Tuple[slice, slice, slice] # type: ignore
@@ -48,8 +56,8 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
 
         if specified_resolution is not None:
             desired_resolution = specified_resolution
-        elif default_desired_resolution is not None:
-            specified_resolution = default_desired_resolution
+        elif self.default_desired_resolution is not None:
+            specified_resolution = self.default_desired_resolution
             desired_resolution = specified_resolution
         else:
             raise ValueError(
@@ -58,39 +66,19 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
                 "and `default_desired_resolution` is None."
             )
 
-        if index_resolution is not None:
-            slice_resolution = index_resolution
+        if self.index_resolution is not None:
+            slice_resolution = self.index_resolution
         else:
             slice_resolution = specified_resolution
 
         bcube = zu.bbox.BoundingCube.from_slices(slices=slices_raw, resolution=slice_resolution)
-        slices_final = bcube.to_slices(desired_resolution, allow_rounding=allow_rounding)
+        slices_final = bcube.to_slices(desired_resolution, allow_rounding=self.allow_rounding)
 
         result = VolumetricIndex(
             resolution=desired_resolution,
             slices=slices_final,
         )
 
-        return result
-
-
-@zu.builder.register("VolumetricIndexConverter")
-@typechecked
-@attrs.mutable
-class VolumetricIndexConverter(
-    IndexConverter[VolumetricIndex]
-):  # pylint: disable=too-few-public-methods
-    index_resolution: Optional[Vec3D] = None
-    default_desired_resolution: Optional[Vec3D] = None
-    allow_rounding: bool = False
-
-    def __call__(self, idx_raw: RawVolumetricIndex) -> VolumetricIndex:
-        result = VolumetricIndex.convert(
-            idx_raw=idx_raw,
-            index_resolution=self.index_resolution,
-            default_desired_resolution=self.default_desired_resolution,
-            allow_rounding=self.allow_rounding,
-        )
         return result
 
 

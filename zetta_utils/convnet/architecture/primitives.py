@@ -1,5 +1,6 @@
 import torch
 from zetta_utils import builder
+from . import modules
 
 # Sequence
 builder.register("Sequential")(torch.nn.Sequential)
@@ -35,3 +36,13 @@ builder.register("ConvTranspose3d")(torch.nn.ConvTranspose3d)
 
 # Interpolation
 # Can be done via zu.tensor_ops.interpolate
+
+# Primitives from modules
+builder.register("SplitTuple")(modules.SplitTuple)
+builder.register("RescaleValues")(modules.RescaleValues)
+builder.register("View")(modules.View)
+builder.register("Flatten")(modules.Flatten)
+builder.register("Unflatten")(modules.Unflatten)
+builder.register("MaxPoolFlatten")(modules.MaxPoolFlatten)
+builder.register("AvgPoolFlatten")(modules.AvgPoolFlatten)
+builder.register("Clamp")(modules.Clamp)

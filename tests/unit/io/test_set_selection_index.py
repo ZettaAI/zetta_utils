@@ -26,5 +26,5 @@ from zetta_utils.io.indexes.set_selection import SetSelectionIndex, RawSetSelect
     ],
 )
 def test_set_selection_index(idx_raw: RawSetSelectionIndex, expected: SetSelectionIndex):
-    result = SetSelectionIndex.convert(idx_raw)
+    result = SetSelectionIndex.default_convert(idx_raw)
     assert result == expected

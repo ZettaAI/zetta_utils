@@ -23,10 +23,10 @@ class SetSelectionIndex(Index):  # pylint: disable=too-few-public-methods
     layer_idx: Any
 
     @classmethod
-    def convert(
+    def default_convert(
         cls,
         idx_raw: RawSetSelectionIndex,
-    ):
+    ) -> SetSelectionIndex:
         # Check if the first element is a suitable layer name spec
         # If so, assume that's what it's meant to be
         if isinstance(idx_raw[0], tuple) and all(isinstance(e, str) for e in idx_raw[0]):

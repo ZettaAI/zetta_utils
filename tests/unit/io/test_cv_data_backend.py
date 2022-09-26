@@ -6,11 +6,6 @@ from zetta_utils.io.backends import CVBackend
 from zetta_utils.io.indexes import VolumetricIndex
 
 
-def test_backend_get_index_type():
-    index_type = CVBackend.get_index_type()
-    assert index_type == VolumetricIndex
-
-
 def test_cv_backend_constructor():
     cvb = CVBackend(bounded=True)
     assert cvb.kwargs["bounded"]

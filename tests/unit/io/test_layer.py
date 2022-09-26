@@ -5,97 +5,85 @@ from zetta_utils.io.layer import Layer
 from zetta_utils.io.indexes import IndexAdjusterWithProcessors
 
 
-def test_convert_index(mocker):
+def test_read_no_conv(mocker):
+    idx_in_m = mocker.MagicMock()
+
+    data_read_raw_m = mocker.MagicMock()
     dummy_backend = mocker.MagicMock()
-    dummy_index_type = mocker.MagicMock()
-    dummy_index = mocker.MagicMock()
-    dummy_index_type.convert = mocker.MagicMock(return_value=dummy_index)
-    dummy_backend.get_index_type = mocker.MagicMock(return_value=dummy_index_type)
-    layer = Layer(dummy_backend)
-    idx_raw = mocker.MagicMock()
-    result = layer._convert_index(idx_raw)
-    assert result == dummy_index
-    dummy_index_type.convert.assert_called_with(idx_raw)
+    dummy_backend.read = mocker.MagicMock(return_value=data_read_raw_m)
+    index_type_m = mocker.MagicMock()
+    idx_conv_m = mocker.MagicMock()
+    index_type_m.default_convert = mocker.MagicMock(return_value=idx_conv_m)
+    dummy_backend.get_index_type = mocker.MagicMock(return_value=index_type_m)
 
-    dummy_indexer_index = mocker.MagicMock()
-    dummy_indexer = mocker.MagicMock(return_value=dummy_indexer_index)
-    layer.index_converter = dummy_indexer
+    layer = Layer(
+        dummy_backend,
+    )
 
-    result_indexer = layer._convert_index(idx_raw)
-    assert result_indexer == dummy_indexer_index
-    dummy_indexer.assert_called_with(idx_raw)
-
-
-def test_apply_index_adjs(mocker):
-    dummy_backend = mocker.MagicMock()
-    layer = Layer(dummy_backend)
-
-    idx0 = mocker.MagicMock()
-    idx1 = mocker.MagicMock()
-    idx2 = mocker.MagicMock()
-
-    processor = mocker.MagicMock()
-
-    idx_adj0 = mocker.MagicMock(return_value=idx1)
-    idx_adj1 = mocker.MagicMock(spec=IndexAdjusterWithProcessors, return_value=(idx2, [processor]))
-    layer.index_adjs = [idx_adj0, idx_adj1]
-
-    result1 = layer._apply_index_adjs(idx0, "read")
-    assert result1 == (idx2, [processor])
-    idx_adj0.assert_called_with(idx0)
-    idx_adj1.assert_called_with(idx1, mode="read")
+    result = layer.read(idx_in_m)
+    dummy_backend.read.assert_called_with(idx=idx_conv_m)
+    assert result == data_read_raw_m
 
 
 def test_read(mocker):
-    idx0 = mocker.MagicMock()
-    idx1 = mocker.MagicMock()
-    idx2 = mocker.MagicMock()
+    idx_in_m = mocker.MagicMock()
 
-    value0 = mocker.MagicMock()
-    value1 = mocker.MagicMock()
-    value2 = mocker.MagicMock()
+    idx_conved_m = mocker.MagicMock()
+    index_converter_m = mocker.MagicMock(return_value=idx_conved_m)
 
+    idx_adjed_m = mocker.MagicMock()
+    index_adj_m = mocker.MagicMock(return_value=idx_adjed_m)
+
+    data_read_raw_m = mocker.MagicMock()
     dummy_backend = mocker.MagicMock()
-    dummy_backend.read = mocker.MagicMock(return_value=value0)
+    dummy_backend.read = mocker.MagicMock(return_value=data_read_raw_m)
 
-    proc0 = mocker.MagicMock(return_value=value1)
-    proc1 = mocker.MagicMock(return_value=value2)
+    data_proced_m = mocker.MagicMock()
+    read_proc_m = mocker.MagicMock(return_value=data_proced_m)
 
-    layer = Layer(dummy_backend, read_postprocs=[proc1])
+    layer = Layer(
+        dummy_backend,
+        index_converter=index_converter_m,
+        read_postprocs=[read_proc_m],
+        index_adjs=[index_adj_m],
+    )
 
-    mocker.patch("zetta_utils.io.layer.Layer._convert_index", return_value=idx1)
-    mocker.patch("zetta_utils.io.layer.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
+    result = layer.read(idx_in_m)
+    index_converter_m.assert_called_with(idx_raw=idx_in_m)
+    index_adj_m.assert_called_with(idx=idx_conved_m)
+    dummy_backend.read.assert_called_with(idx=idx_adjed_m)
+    read_proc_m.assert_called_with(data=data_read_raw_m)
+    assert result == data_proced_m
 
-    result = layer.read(idx0)
-    assert result == value2
-    dummy_backend.read.assert_called_with(idx=idx2)
-    proc1.assert_called_with(data=value1)
 
+def test_read_adj_w_proc(mocker):
+    idx_in_m = mocker.MagicMock()
 
-def test_write(mocker):
-    idx0 = mocker.MagicMock()
-    idx1 = mocker.MagicMock()
-    idx2 = mocker.MagicMock()
+    idx_adjed_m = mocker.MagicMock()
+    data_idx_proced_m = mocker.MagicMock()
+    idx_data_proc_m = mocker.MagicMock(return_value=data_idx_proced_m)
+    index_adj_m = mocker.MagicMock(
+        return_value=(idx_adjed_m, [idx_data_proc_m]), spec=IndexAdjusterWithProcessors
+    )
 
-    value0 = mocker.MagicMock()
-    value1 = mocker.MagicMock()
-    value2 = mocker.MagicMock()
-
+    data_read_raw_m = mocker.MagicMock()
     dummy_backend = mocker.MagicMock()
-    dummy_backend.write = mocker.MagicMock()
+    dummy_backend.read = mocker.MagicMock(return_value=data_read_raw_m)
 
-    proc0 = mocker.MagicMock(return_value=value1)
-    proc1 = mocker.MagicMock(return_value=value2)
+    data_proced_m = mocker.MagicMock()
+    read_proc_m = mocker.MagicMock(return_value=data_proced_m)
 
-    layer = Layer(dummy_backend, write_preprocs=[proc1])
+    layer = Layer(
+        dummy_backend,
+        read_postprocs=[read_proc_m],
+        index_adjs=[index_adj_m],
+    )
 
-    mocker.patch("zetta_utils.io.layer.Layer._convert_index", return_value=idx1)
-    mocker.patch("zetta_utils.io.layer.Layer._apply_index_adjs", return_value=(idx2, [proc0]))
-
-    layer.write(idx0, value0)
-
-    dummy_backend.write.assert_called_with(idx=idx2, value=value2)
-    proc1.assert_called_with(data=value1)
+    result = layer.read(idx_in_m)
+    dummy_backend.read.assert_called_with(idx=idx_adjed_m)
+    idx_data_proc_m.assert_called_with(data=data_read_raw_m)
+    read_proc_m.assert_called_with(data=data_idx_proced_m)
+    assert result == data_proced_m
 
 
 def test_write_exc(mocker):
@@ -103,3 +91,33 @@ def test_write_exc(mocker):
     layer = Layer(dummy_backend, readonly=True)
     with pytest.raises(IOError):
         layer.write(None, None)
+
+
+def test_write_adj_w_proc(mocker):
+    idx_in_m = mocker.MagicMock()
+    data_in_m = mocker.MagicMock()
+
+    idx_adjed_m = mocker.MagicMock()
+    data_idx_proced_m = mocker.MagicMock()
+    idx_data_proc_m = mocker.MagicMock(return_value=data_idx_proced_m)
+    index_adj_m = mocker.MagicMock(
+        return_value=(idx_adjed_m, [idx_data_proc_m]), spec=IndexAdjusterWithProcessors
+    )
+
+    dummy_backend = mocker.MagicMock()
+    dummy_backend.write = mocker.MagicMock()
+
+    data_proced_m = mocker.MagicMock()
+    write_proc_m = mocker.MagicMock(return_value=data_proced_m)
+
+    layer = Layer(
+        dummy_backend,
+        write_preprocs=[write_proc_m],
+        index_adjs=[index_adj_m],
+    )
+
+    layer.write(idx_in_m, data_in_m)
+    idx_data_proc_m.assert_called_with(data=data_in_m)
+    write_proc_m.assert_called_with(data=data_idx_proced_m)
+
+    dummy_backend.write.assert_called_with(idx=idx_adjed_m, value=data_proced_m)

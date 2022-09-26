@@ -2,7 +2,18 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Sequence, Callable, Optional, Union, Literal, List, Tuple
+from typing import (
+    Sequence,
+    Callable,
+    Optional,
+    Union,
+    Literal,
+    List,
+    Tuple,
+    TypeVar,
+    Generic,
+    Any,
+)
 
 import attrs
 from typeguard import typechecked
@@ -10,49 +21,53 @@ from typeguard import typechecked
 import zetta_utils as zu
 from zetta_utils.io.indexes import (
     Index,
+    IndexConverter,
     IndexAdjusterWithProcessors,
 )
+
+IndexT = TypeVar("IndexT", bound=Index)
+IndexConverterT = TypeVar("IndexConverterT", bound=IndexConverter)
 
 
 @zu.builder.register("Layer")
 @typechecked
 @attrs.mutable
-class Layer:
-    io_backend: zu.io.backends.IOBackend
+class Layer(Generic[IndexT]):
+    io_backend: zu.io.backends.IOBackend[IndexT]
     readonly: bool = False
-    index_converter: Optional[Callable] = None
-    index_adjs: Sequence[Union[Callable, IndexAdjusterWithProcessors]] = attrs.Factory(list)
-    read_postprocs: Sequence[Callable] = attrs.Factory(list)
-    write_preprocs: Sequence[Callable] = attrs.Factory(list)
+    index_converter: Optional[IndexConverter[Any, IndexT]] = None
+    index_adjs: Sequence[Union[Callable, IndexAdjusterWithProcessors]] = attrs.field(factory=list)
+    read_postprocs: Sequence[Callable] = attrs.field(factory=list)
+    write_preprocs: Sequence[Callable] = attrs.field(factory=list)
 
     def _convert_index(self, idx_raw) -> Index:
         if self.index_converter is not None:
-            result = self.index_converter(idx_raw)  # pylint: disable=not-callable
+            # Open problem: pylint doesn't see that IndexConverter is callable
+            # because of @abstractmethod. Fixes welocme
+            result = self.index_converter(idx_raw=idx_raw)  # pylint: disable=not-callable
         else:
-            result = self.io_backend.get_index_type().convert(idx_raw)
+            result = self.io_backend.get_index_type().default_convert(idx_raw)
         return result
 
     def _apply_index_adjs(
         self, idx, mode: Literal["read", "write"]
     ) -> Tuple[Index, List[Callable]]:
         initial_procs = []  # type: list[Callable]
-        for adj in self.index_adjs:  # pylint: disable=not-an-iterable
+        for adj in self.index_adjs:
             if isinstance(adj, IndexAdjusterWithProcessors):
-                idx, procs = adj(idx, mode=mode)
+                idx, procs = adj(idx=idx, mode=mode)
                 initial_procs += procs
             else:
-                idx = adj(idx)
-
+                idx = adj(idx=idx)
         return idx, initial_procs
 
     def read(self, idx_raw):
         idx = self._convert_index(idx_raw)
-        idx_final, initial_procs = self._apply_index_adjs(idx, "read")
+        idx_final, initial_procs = self._apply_index_adjs(idx=idx, mode="read")
         result_raw = self.io_backend.read(idx=idx_final)
 
         result = result_raw
         for proc in list(initial_procs) + list(self.read_postprocs):
-            # import pdb; pdb.set_trace()
             result = proc(data=result)
 
         return result
@@ -62,7 +77,7 @@ class Layer:
             raise IOError(f"Attempting to write to a read only layer {self}")
 
         idx = self._convert_index(idx_raw)
-        idx_final, initial_procs = self._apply_index_adjs(idx, "write")
+        idx_final, initial_procs = self._apply_index_adjs(idx=idx, mode="write")
 
         value = value_raw
         for proc in list(initial_procs) + list(self.write_preprocs):

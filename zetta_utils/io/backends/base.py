@@ -19,6 +19,6 @@ class IOBackend(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
     # This ugliness could be avoided with proper templating
     # CC https://stackoverflow.com/questions/55345608/instantiate-a-type-that-is-a-typevar
     @classmethod
-    def get_index_type(cls):
+    def get_index_type(cls):  # pragma: no cover
         result = cls.__orig_bases__[0].__args__[0]  # pylint: disable=no-member
         return result

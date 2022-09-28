@@ -95,7 +95,12 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
                 fn_kwargs = _build(fn_kwargs)
 
             if mode == "regular":
-                result = registered_fn(**fn_kwargs)
+                try:
+                    result = registered_fn(**fn_kwargs)
+                except Exception as e:  # pragma: no cover
+                    raise RuntimeError(
+                        f'Exception while building "@type": {field[PARSE_KEY]}, "@mode": {mode}'
+                    ) from e
             elif mode == "partial":
                 result = ComparablePartial(registered_fn, **fn_kwargs)
             else:

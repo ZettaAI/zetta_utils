@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "tile_aug"
+#EXP_VERSION:   "tgt_z_aug"
 #TRAINING_ROOT: "gs://tmp_2w/nkem/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -58,6 +58,14 @@ trainer: {
 		layers: {
 			data_in: {
 				"@type": "CVLayer"
+				index_adjs: [
+					{
+						"@type":    "RandomTranslateVolumetricIndex"
+						"@mode":    "regular"
+						max_offset: [0, 0, 2]
+						resolution: [64, 64, 40]
+					}
+				]
 				path:    #IMG_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
@@ -93,7 +101,7 @@ trainer: {
 						rotation_degree: {
 							"@type": "uniform_dist"
 							low:     0
-							high:    45
+							high:    90
 						}
 						preserve_data_val: 0.0
 						repeats:           3
@@ -153,8 +161,8 @@ trainer: {
 	sample_indexer: {
 		bcube: {
 			"@type": "BoundingCube"
-			start_coord: [80000, 30000, 2000]
-			end_coord: [230000, 80000, 2099]
+			start_coord: [80000, 30000, 2002]
+			end_coord: [230000, 80000, 2097]
 			resolution: [4, 4, 40]
 		}
 	}
@@ -164,8 +172,8 @@ trainer: {
 	sample_indexer: {
 		bcube: {
 			"@type": "BoundingCube"
-			start_coord: [80000, 30000, 2099]
-			end_coord: [230000, 80000, 2100]
+			start_coord: [80000, 30000, 2097]
+			end_coord: [230000, 80000, 2098]
 			resolution: [4, 4, 40]
 		}
 	}

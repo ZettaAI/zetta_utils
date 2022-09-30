@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from typing import Tuple, Literal, Optional, Union, Iterable, Callable
+import random
 import attrs
 from typeguard import typechecked
 
 import zetta_utils as zu
-from zetta_utils.typing import Vec3D, Slices3D
+from zetta_utils.typing import Vec3D, Slices3D, Number
 from zetta_utils.partial import ComparablePartial
 from zetta_utils import tensor_ops
 
@@ -113,6 +114,37 @@ class TranslateVolumetricIndex(
         result = translate_volumetric_index(
             idx=idx,
             offset=self.offset,
+            resolution=self.resolution,
+            allow_rounding=self.allow_rounding,
+        )
+        return result
+
+
+@zu.builder.register("RandomTranslateVolumetricIndex")
+@typechecked
+@attrs.mutable
+class RandomTranslateVolumetricIndex(
+    IndexAdjuster[VolumetricIndex]
+):  # pylint: disable=too-few-public-methods
+    max_offset: Vec3D
+    resolution: Vec3D
+    allow_rounding: bool = False
+    min_offset: Optional[Vec3D] = None
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        if self.min_offset is None:
+            self.min_offset = [-x for x in self.max_offset]
+
+        offset: list[Number] = []
+        for lower, upper in zip(self.min_offset, self.max_offset):
+            if isinstance(lower, int) and isinstance(upper, int):
+                offset.append(random.randint(lower, upper))
+            else:
+                offset.append(random.uniform(lower, upper))
+
+        result = translate_volumetric_index(
+            idx=idx,
+            offset=offset,
             resolution=self.resolution,
             allow_rounding=self.allow_rounding,
         )

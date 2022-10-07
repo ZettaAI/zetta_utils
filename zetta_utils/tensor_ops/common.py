@@ -2,7 +2,7 @@
 from typing import Union, Literal, Optional, Sequence, SupportsIndex
 import numpy as np
 import torch
-import einops  # type: ignore
+import einops
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
@@ -10,31 +10,19 @@ from zetta_utils.typing import Number
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
-def _einops_check(*args, **kwargs):  # pragma: no cover
-    if len(args) > 0:
-        raise RuntimeError(
-            "Positional arguments not allowed for einops wrappers. "
-            "To use positional arguments, use einops library directly. "
-            f"Got: args {args}, kwargs {kwargs}"
-        )
-
-
 @builder.register("rearrange")
-def rearrange(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    _einops_check()
-    return einops.rearrange(tensor=data, *args, **kwargs)
+def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops
 
 
 @builder.register("reduce")
-def reduce(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    _einops_check()
-    return einops.reduce(tensor=data, *args, **kwargs)
+def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.reduce(tensor=data, **kwargs)
 
 
 @builder.register("repeat")
-def repeat(data: TensorTypeVar, *args, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    _einops_check()
-    return einops.repeat(tensor=data, *args, **kwargs)
+def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.repeat(tensor=data, **kwargs)
 
 
 @builder.register("multiply")

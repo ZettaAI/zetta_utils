@@ -43,6 +43,10 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param interpolation_mode: Specification of the interpolation mode to use when
         ``data_resolution`` differs from ``desired_resolution``.
     :param readonly: Whether layer is read only.
+    :param info_reference_path: Path to a reference CloudVolume for info.
+    :param info_field_overrides: Manual info field specifications.
+    :param on_info_exists: Behavior mode for when both new info specs aregiven
+        and layer info already exists.
     :param allow_shape_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
         ``allow_shape_rounding == True``, shapes will be rounded to nearest integer.

@@ -1,75 +1,125 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
+import os
+import pathlib
 import pytest
 import numpy as np
 
 from zetta_utils.io.backends import CVBackend
 from zetta_utils.io.indexes import VolumetricIndex
+from zetta_utils.io.backends import cv
+
+THIS_DIR = pathlib.Path(__file__).parent.resolve()
+INFOS_DIR = THIS_DIR / "../assets/infos/"
+LAYER_X0_PATH = os.path.join(INFOS_DIR, "layer_x0")
+LAYER_X1_PATH = os.path.join(INFOS_DIR, "layer_x1")
 
 
-def test_cv_backend_constructor():
-    cvb = CVBackend(bounded=True)
-    assert cvb.kwargs["bounded"]
-    assert not cvb.kwargs["autocrop"]
+@pytest.fixture
+def clear_caches():
+    cv._cv_cache.clear()
 
 
-def test_cv_backend_constructor_exc():
+def test_cv_backend_specific_mip_exc():
     with pytest.raises(ValueError):
-        CVBackend(mip=4)
+        CVBackend(path="", cv_kwargs={"mip": 4})
 
 
-def test_get_cv_at_res(mocker):
-    expected = mocker.Mock()
-    cv_fn = mocker.patch(
-        "zetta_utils.io.backends.cv.CachedCloudVolume",
-        return_value=expected,
+def test_cv_backend_bad_path_exc():
+    with pytest.raises(ValueError):
+        CVBackend(path="abc")
+
+
+def test_cv_backend_info_expect_same_exc(mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch(
+        "cloudvolume.CloudVolume.__new__",
+        return_value=cv_m,
     )
-    cvb = CVBackend()
-    result = cvb._get_cv_at_resolution((1, 1, 1))
-    assert result == expected
-    cv_fn.assert_called_with(mip=(1, 1, 1), **cvb.kwargs)
+    cv_m.commit_info = mocker.MagicMock()
+
+    info_spec = cv.PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
+    with pytest.raises(RuntimeError):
+        CVBackend(path=LAYER_X1_PATH, info_spec=info_spec, on_info_exists="expect_same")
+    cv_m.commit_info.assert_not_called()
 
 
-# Don't know how to make a better dummy
-class DummyCV:
-    def __init__(self, expected):
-        self.expected = expected
-        self.last_call_args = None
-        self.last_call_kwargs = None
+@pytest.mark.parametrize(
+    "path, reference, mode",
+    [
+        [LAYER_X0_PATH, LAYER_X0_PATH, "overwrite"],
+        [LAYER_X0_PATH, LAYER_X0_PATH, "expect_same"],
+        [LAYER_X0_PATH, None, "overwrite"],
+        [LAYER_X0_PATH, None, "expect_same"],
+    ],
+)
+def test_cv_backend_info_no_action(path, reference, mode, mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch(
+        "cloudvolume.CloudVolume.__new__",
+        return_value=cv_m,
+    )
+    cv_m.commit_info = mocker.MagicMock()
+    info_spec = cv.PrecomputedInfoSpec(
+        reference_path=reference,
+    )
+    CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 
-    def __getitem__(self, *args, **kwargs):
-        self.last_call_args = args
-        self.last_call_kwargs = kwargs
-        return self.expected
-
-    def __setitem__(self, *args, **kwargs):
-        self.last_call_args = args
-        self.last_call_kwargs = kwargs
-        return self.expected
+    cv_m.commit_info.assert_not_called()
 
 
-def test_cv_backend_read(mocker):
+@pytest.mark.parametrize(
+    "path, reference, mode",
+    [
+        [LAYER_X1_PATH, LAYER_X0_PATH, "overwrite"],
+        [".", LAYER_X0_PATH, "overwrite"],
+        [".", LAYER_X0_PATH, "expect_same"],
+    ],
+)
+def test_cv_backend_info_overwrite(path, reference, mode, mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch(
+        "cloudvolume.CloudVolume.__new__",
+        return_value=cv_m,
+    )
+    cv_m.commit_info = mocker.MagicMock()
+    info_spec = cv.PrecomputedInfoSpec(
+        reference_path=reference,
+    )
+    CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
+
+    cv_m.commit_info.assert_called_once()
+
+
+def test_cv_backend_read(clear_caches, mocker):
     data_read = np.ones([3, 4, 5, 2])
     expected = np.ones([2, 3, 4, 5])
-
-    dummy = DummyCV(data_read)
-    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
-    cvb = CVBackend()
+    cv_m = mocker.MagicMock()
+    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     result = cvb.read(index)
     np.testing.assert_array_equal(result, expected)
-    assert dummy.last_call_args == (index.slices,)
+    cv_m.__getitem__.assert_called_with(index.slices)
 
 
-def test_cv_backend_write(mocker):
-    dummy = DummyCV(None)
-    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
-    cvb = CVBackend()
+def test_cv_backend_write(clear_caches, mocker):
+    cv_m = mocker.MagicMock()
+    cv_m.__setitem__ = mocker.MagicMock()
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
     value = np.ones([2, 3, 4, 5])
-    expected_written = np.ones([3, 4, 5, 2])
+    expected_written = np.ones([3, 4, 5, 2])  # channel as ch 0
+
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     cvb.write(index, value)
-    assert dummy.last_call_args[0] == index.slices
-    np.testing.assert_array_equal(dummy.last_call_args[1], expected_written)
+    assert cv_m.__setitem__.call_args[0][0] == index.slices
+    np.testing.assert_array_equal(
+        cv_m.__setitem__.call_args[0][1],
+        expected_written,
+    )
 
 
 @pytest.mark.parametrize(
@@ -78,10 +128,11 @@ def test_cv_backend_write(mocker):
         [np.ones((1, 2, 3, 4, 5, 6)), ValueError],
     ],
 )
-def test_cv_backend_write_exc(data_in, expected_exc, mocker):
-    dummy = DummyCV(None)
-    mocker.patch("zetta_utils.io.backends.cv.CVBackend._get_cv_at_resolution", return_value=dummy)
-    cvb = CVBackend()
+def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
+    cv_m = mocker.MagicMock()
+    cv_m.__setitem__ = mocker.MagicMock()
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
     index = VolumetricIndex(slices=(slice(0, 1), slice(1, 2), slice(2, 3)), resolution=(5, 6, 7))
     with pytest.raises(expected_exc):
         cvb.write(index, data_in)

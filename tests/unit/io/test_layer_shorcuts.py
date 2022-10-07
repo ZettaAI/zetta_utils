@@ -1,7 +1,12 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
+import pathlib
+import os
 import pytest
-
 from zetta_utils.io.layer import build_cv_layer, build_layer_set
+
+THIS_DIR = pathlib.Path(__file__).parent.resolve()
+INFOS_DIR = THIS_DIR / "../assets/infos/"
+LAYER_X0_PATH = os.path.join(INFOS_DIR, "layer_x0")
 
 
 def test_cv_layer_exc(mocker):
@@ -13,8 +18,13 @@ def test_cv_layer_exc(mocker):
 
 
 def test_cv_layer(mocker):
+    expected = mocker.Mock()
+    mocker.patch(
+        "cloudvolume.CloudVolume.__new__",
+        return_value=expected,
+    )
     kwargs = {
-        "path": "path",
+        "path": LAYER_X0_PATH,
         "cv_kwargs": {"a": "b"},
         "default_desired_resolution": (1, 1, 1),
         "index_resolution": (2, 2, 2),
@@ -28,8 +38,8 @@ def test_cv_layer(mocker):
     }
 
     cvl_x0 = build_cv_layer(**kwargs)
-    assert cvl_x0.io_backend.kwargs["a"] == "b"
-    assert cvl_x0.io_backend.kwargs["cloudpath"] == kwargs["path"]
+    assert cvl_x0.io_backend.cv_kwargs["a"] == "b"
+    assert cvl_x0.io_backend.path == kwargs["path"]
     assert cvl_x0.readonly == kwargs["readonly"]
     assert cvl_x0.index_converter.index_resolution == kwargs["index_resolution"]
     assert cvl_x0.index_converter.allow_rounding == kwargs["allow_shape_rounding"]

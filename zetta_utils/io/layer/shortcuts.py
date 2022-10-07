@@ -17,12 +17,14 @@ from zetta_utils.tensor_ops import InterpolationMode
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
     cv_kwargs: Optional[Dict] = None,
-    device: str = "cpu",
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,
     interpolation_mode: Optional[InterpolationMode] = None,
     readonly: bool = False,
+    info_reference_path: Optional[str] = None,
+    info_field_overrides: Optional[Dict[str, Any]] = None,
+    on_info_exists: io.backends.cv.InfoExistsModes = "expect_same",
     allow_shape_rounding: bool = False,
     index_adjs: Sequence[Union[Callable[..., Index], IndexAdjusterWithProcessors]] = (),
     read_postprocs: Sequence[Callable[..., Any]] = (),
@@ -32,7 +34,6 @@ def build_cv_layer(  # pylint: disable=too-many-locals
 
     :param path: Path to the CloudVolume.
     :param cv_kwargs: Keyword arguments passed to the CloudVolume constructor.
-    :param device: Device name on which read tensors will reside.
     :param default_desired_resolution: Default resolution used when the desired resolution
         is not given as a part of an index.
     :param index_resolution: Resolution at which slices of the index will be given.
@@ -57,7 +58,15 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     if cv_kwargs is None:
         cv_kwargs = {}
 
-    backend = io.backends.CVBackend(cloudpath=path, device=device, **cv_kwargs)
+    backend = io.backends.CVBackend(
+        path=path,
+        cv_kwargs=cv_kwargs,
+        on_info_exists=on_info_exists,
+        info_spec=io.backends.cv.PrecomputedInfoSpec(
+            reference_path=info_reference_path,
+            field_overrides=info_field_overrides,
+        ),
+    )
     index_converter = VolumetricIndexConverter(
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,

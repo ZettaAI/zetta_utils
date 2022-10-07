@@ -85,10 +85,15 @@ class CVBackend(IOBackend[VolumetricIndex]):  # pylint: disable=too-few-public-m
     Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
     Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``BCXYZ``
     dimension order.
-    :
+    :param path: CloudVolume path.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
         ``mip`` keyword must not be present in ``cv_kwargs``, as the read resolution
         is passed in as a part of index to the backend.
+    :param info_spec: Specification for the info file for the layer. If None, the
+        info is assumed to exist.
+    :param on_info_exists: Behavior mode for when both `info_spec` is given and
+        the layer info already exists.
+
     """
 
     path: str

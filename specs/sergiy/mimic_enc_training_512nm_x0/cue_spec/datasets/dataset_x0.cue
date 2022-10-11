@@ -44,8 +44,8 @@ let ENC_CV = "https://storage.googleapis.com/fafb_v15_aligned/v0/emb_fp32/emb_m7
 		"@type": "VolumetricStepIndexer"
 		desired_resolution: [512, 512, 40]
 		index_resolution: [512, 512, 40]
-		sample_size_resolution: [512, 512, 40]
-		sample_size: [512, 512, 1]
+		patch_size_resolution: [512, 512, 40]
+		patch_size: [512, 512, 1]
 		step_size: [128, 128, 1]
 		step_size_resolution: [512, 512, 40]
 		bcube: {

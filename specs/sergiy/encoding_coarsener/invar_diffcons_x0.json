@@ -142,12 +142,12 @@
                     128,
                     40
                 ],
-                "sample_size_resolution": [
+                "patch_size_resolution": [
                     128,
                     128,
                     40
                 ],
-                "sample_size": [
+                "patch_size": [
                     1024,
                     1024,
                     1
@@ -217,12 +217,12 @@
                     128,
                     40
                 ],
-                "sample_size_resolution": [
+                "patch_size_resolution": [
                     128,
                     128,
                     40
                 ],
-                "sample_size": [
+                "patch_size": [
                     1024,
                     1024,
                     1

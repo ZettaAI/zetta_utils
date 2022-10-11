@@ -5,8 +5,9 @@ import torch
 import numpy as np
 from typeguard import typechecked
 
-from zetta_utils import io, tensor_ops, builder
-from zetta_utils.training.datasets.sample_indexers import SampleIndexer
+from zetta_utils import tensor_ops, builder
+from zetta_utils.layer import Layer
+from zetta_utils.piece_indexers import PieceIndexer
 
 
 def _convert_to_torch_nested(data):
@@ -24,7 +25,7 @@ def _convert_to_torch_nested(data):
 @typechecked
 @attrs.frozen
 class LayerDataset(torch.utils.data.Dataset):
-    """PyTorch dataset wrapper around ``zetta_utils.io.Layer`` component.
+    """PyTorch dataset wrapper around ``Layer`` component.
 
     :param layer: Layer which will be used as a source of data.
     :param sample_indexer: Indexer which will be used to translate integer sample
@@ -32,8 +33,8 @@ class LayerDataset(torch.utils.data.Dataset):
 
     """
 
-    layer: io.layer.Layer
-    sample_indexer: SampleIndexer
+    layer: Layer
+    sample_indexer: PieceIndexer
 
     def __attrs_pre_init__(self):
         super().__init__()

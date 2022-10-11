@@ -143,8 +143,8 @@ trainer: {
 		"@type": "VolumetricStepIndexer"
 		desired_resolution: [128, 128, 40]
 		index_resolution: [128, 128, 40]
-		sample_size_resolution: [128, 128, 40]
-		sample_size: [1024, 1024, 1]
+		patch_size_resolution: [128, 128, 40]
+		patch_size: [1024, 1024, 1]
 		step_size: [512, 512, 1]
 		step_size_resolution: [128, 128, 40]
 		bcube: {

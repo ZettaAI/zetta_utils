@@ -70,12 +70,12 @@
                             {
                                 "@type": "divide",
                                 "@mode": "partial",
-                                "x": 256.0
+                                "value": 256.0
                             },
                             {
                                 "@type": "add",
                                 "@mode": "partial",
-                                "x": -0.5
+                                "value": -0.5
                             }
                         ]
                     },
@@ -104,12 +104,12 @@
                     64,
                     40
                 ],
-                "sample_size_resolution": [
+                "patch_size_resolution": [
                     64,
                     64,
                     40
                 ],
-                "sample_size": [
+                "patch_size": [
                     1024,
                     1024,
                     1
@@ -201,12 +201,12 @@
                     64,
                     40
                 ],
-                "sample_size_resolution": [
+                "patch_size_resolution": [
                     64,
                     64,
                     40
                 ],
-                "sample_size": [
+                "patch_size": [
                     1024,
                     1024,
                     1

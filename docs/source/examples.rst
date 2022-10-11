@@ -89,13 +89,12 @@ Layers
 Layers for CloudVolume IO:
 
 .. doctest::
-   >>> import zetta_utils as zu
-   >>> from zetta_utils import io
+   >>> from zetta_utils.cloudvol import build_cv_layer
    >>> # Vanilla CloudVolume Analog
    >>> # Differences with Vanilla CV:
    >>> #   1. Read data type: ``torch.Tensor``.
    >>> #   2. Dimension order: CXYZ
-   >>> cvl = zu.io.build_cv_layer(
+   >>> cvl = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
    >>> data = cvl[(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
@@ -103,11 +102,10 @@ Layers for CloudVolume IO:
    torch.Size([1, 100, 100, 1])
 
 
-   >>> import zetta_utils as zu
-   >>> from zetta_utils import io
+   >>> from zetta_utils.cloudvol import build_cv_layer
    >>> # Advanced features:
    >>> # Custom index resolution, desired resolution, data resolution
-   >>> cvl = zu.io.build_cv_layer(
+   >>> cvl = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm",
    ...    default_desired_resolution=(64, 64, 40),
    ...    index_resolution=(4, 4, 40),
@@ -122,16 +120,16 @@ Layer sets for grouping layers together:
 
 .. doctest::
 
-   >>> import zetta_utils as zu
-   >>> from zetta_utils import io
-   >>> cvl_x0 = zu.io.build_cv_layer(
+   >>> from zetta_utils.cloudvol import build_cv_layer
+   >>> from zetta_utils.layer import build_layer_set
+   >>> cvl_x0 = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
    ... )
-   >>> cvl_x1 = zu.io.build_cv_layer(
+   >>> cvl_x1 = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
    >>> # Combine the two layers
-   >>> lset = zu.io.build_layer_set(
+   >>> lset = build_layer_set(
    ...    layers={"img": cvl_x0, "img_norm": cvl_x1}
    ... )
    >>> # Create an index variable to index both
@@ -155,37 +153,38 @@ Layer sets for grouping layers together:
 Datasets
 --------
 
-You can wrap any layer (include layer set, which is also a laywer) as a Pytorch dataset.
-In this example we will make a dataset out of a simple 2-layer layer set:
+You can wrap any layer (include layer set) as a Pytorch dataset.
+In this example we will make a dataset out of the followign layer set:
 
 .. doctest::
 
-   >>> import zetta_utils as zu
-   >>> from zetta_utils import io
-   >>> lset = zu.io.build_layer_set(layers={
-   ...    'img': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"),
-   ...    'img_norm': zu.io.build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"),
+   >>> from zetta_utils.cloudvol import build_cv_layer
+   >>> from zetta_utils.layer import build_layer_set
+   >>> lset = build_layer_set(layers={
+   ...    'img': build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"),
+   ...    'img_norm': build_cv_layer(path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"),
    ... })
 
-Now that we have the layer that will serve as the basis for our datast, we need to specify how each sample index number,
-which is an integer, will be mapped to an index type that our layer understands, which in this case is a volumetric
-index. As this behaviour can be parametrized in many ways, it is represented by a custom indexer object that performs the mapping.
+To form a layer dataset, we need to specify both the layer and a mapping from sample number to an index that the layer understands.
+Such mapping, referred to as sample indexer, will determine what bounding cube is used to fetch training sample #0, #1, etc, as
+well as specify how many training samples there will be in total.
 In this example, we will be using ``VolumetricStepIndexer``:
 
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> from zetta_utils import training
-   >>> indexer = zu.training.datasets.sample_indexers.VolumetricStepIndexer(
+   >>> from zetta_utils.cloudvol import build_cv_layer
+   >>> from zetta_utils.layer import build_layer_set
+   >>> indexer = zu.piece_indexers.VolumetricStepIndexer(
    ...    # Range over which to sample
    ...    bcube=zu.bbox.BoundingCube.from_coords(
    ...       start_coord=(1000, 1000, 2000),
    ...       end_coord=(2000, 2000, 2100),
    ...       resolution=(64, 64, 40)
    ...    ),
-   ...    # How big each sample will be
-   ...    sample_size=(128, 128, 1),
-   ...    sample_size_resolution=(64, 64, 40),
+   ...    # How big each patch will be
+   ...    patch_size=(128, 128, 1),
+   ...    patch_size_resolution=(64, 64, 40),
    ...    # How close together samples can be
    ...    step_size=(32, 32, 1),
    ...    step_size_resolution=(64, 64, 40),
@@ -202,9 +201,6 @@ In this example, we will be using ``VolumetricStepIndexer``:
    ((64, 64, 40), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(78399))
    ((64, 64, 40), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
-
-.. doctest::
-
    >>> dset = zu.training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,
@@ -277,8 +273,8 @@ such as the dataset from the earlier example:
    ...           "end_coord": (2000, 2000, 2100),
    ...           "resolution": (64, 64, 40),
    ...        },
-   ...        "sample_size": (128, 128, 1),
-   ...        "sample_size_resolution": (64, 64, 40),
+   ...        "patch_size": (128, 128, 1),
+   ...        "patch_size_resolution": (64, 64, 40),
    ...        "step_size": (32, 32, 1),
    ...        "step_size_resolution": (64, 64, 40),
    ...        "index_resolution": (64, 64, 40),

@@ -1,4 +1,4 @@
-``zetta_utils.tensor``
+``zetta_utils.tensor_ops``
 ======================
 
 Handling tensor operations. Each opperation must support both :class:`np.ndarray` and :class:`torch.Tensor` input types.

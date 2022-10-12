@@ -27,7 +27,7 @@ def register_dummy():
     ],
 )
 def test_zetta_run(spec, expected_output, register_dummy, mocker):
-    mocker.patch("zetta_utils.cue.load", return_value=spec)
+    mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
     runner = CliRunner()
     result = runner.invoke(zu.cli.run, ".")
     assert result.exit_code == 0

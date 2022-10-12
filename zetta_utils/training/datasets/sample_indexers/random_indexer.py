@@ -6,24 +6,24 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.training.datasets.sample_indexers import SampleIndexer
+from .base import SampleIndexer
 
 
 @builder.register("RandomIndexer")
 @typechecked
 @attrs.frozen
-class RandomIndexer(SampleIndexer):  # pragma: no cover
-    """Indexer which wraps a SampleIndexer to index at random.
+class RandomIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under 3 LoC
+    """Indexer which wraps a PieceIndexer to index at random.
     Does NOT guarantee any coverage.
 
-    :param indexer: SampleIndexer to be used.
+    :param indexer: PieceIndexer to be used.
 
     """
 
-    indexer: SampleIndexer
+    inner_indexer: SampleIndexer
 
     def __len__(self):
-        num_samples = len(self.indexer)
+        num_samples = len(self.inner_indexer)
         return num_samples
 
     def __call__(self, idx: int) -> Any:
@@ -31,8 +31,8 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover
 
         :param idx: Integer sample index, kept for compatibility even
         though it is unused.
-        :return: Index of the type used by the wrapped SampleIndexer.
+        :return: Index of the type used by the wrapped PieceIndexer.
 
         """
-        rand_idx = randint(0, len(self.indexer) - 1)
-        return self.indexer(rand_idx)
+        rand_idx = randint(0, len(self.inner_indexer) - 1)
+        return self.inner_indexer(rand_idx)

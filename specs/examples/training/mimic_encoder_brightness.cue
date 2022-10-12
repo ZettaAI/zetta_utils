@@ -69,7 +69,7 @@ trainer: {
 					{
 						"@type": "divide"
 						"@mode": "partial"
-						x:       255.0
+						value:   255.0
 					},
 					{
 						"@type": "square_tiles_pattern_aug"
@@ -102,7 +102,7 @@ trainer: {
 					{
 						"@type": "add"
 						"@mode": "partial"
-						x:       -0.5
+						value:   -0.5
 					},
 					{
 						"@type": "clamp_values_aug"
@@ -136,8 +136,8 @@ trainer: {
 		"@type": "VolumetricStepIndexer"
 		desired_resolution: [64, 64, 40]
 		index_resolution: [64, 64, 40]
-		sample_size_resolution: [64, 64, 40]
-		sample_size: [1024, 1024, 1]
+		patch_size_resolution: [64, 64, 40]
+		patch_size: [1024, 1024, 1]
 		step_size: [512, 512, 1]
 		step_size_resolution: [64, 64, 40]
 		bcube: {

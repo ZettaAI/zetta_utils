@@ -30,7 +30,7 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
    $ pip install -e .
 
 
-If you are planning to use `zetta_utils.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
+If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
 It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
 
 If you are planning to use `zetta_utils.viz` toolkit, you will need to install nodejs:
@@ -55,15 +55,13 @@ Day-to-Day Usage
 - `zetta_utils.tensor` is a unified set of operations that support *both* ``np.ndarray`` and ``torch.Tensor`` tensor types.
   Use ``zetta_utils.tensor_ops.unsqueeze(t)`` without worrying which type ``t`` is.
 
-- `zetta_utils.bbox` is generalizable implementation of N-dimensional bounding boxes that support custom resoluiton at each of the axis.
-
-- `zetta_utils.io` is flexible toolkit for data IO from diverse backends suitable for both training and inference.
+- `zetta_utils.layer` is flexible abstraction for data IO from diverse backends suitable for both training and inference.
 
 - `zetta_utils.training` includes tools such as CloudVolume based training datasets, Pytorch Lightning integration (WIP) and more.
 
 - `zetta_utils.log` provides a well formated disk backed logging system.
 
-- `zetta_utils.widgets` provides nifty visualization tools for `Jupyter <https://jupyter.org/>`_.
+- `zetta_utils.viz` provides nifty visualization tools for `Jupyter <https://jupyter.org/>`_.
 
 - `zetta_utils.builder` is utility for building python objects and workflows from nested dictionaries. It is an
   improved extension of `procspec <https://github.com/seunglab/procspec>`_ and

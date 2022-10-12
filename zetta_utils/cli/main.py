@@ -25,7 +25,7 @@ def cli():
 )
 def run(path, pdb):
     """Perform ``zu.builder.build`` action on file contents."""
-    spec = zu.cue.load(path)
+    spec = zu.parsing.cue.load(path)
     result = zu.builder.build(spec)
     pprint.pprint(result)
     if pdb:

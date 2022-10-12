@@ -1,12 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Generic, TypeVar
 
 
-class SampleIndexer(ABC):
+T = TypeVar("T")
+
+
+class SampleIndexer(ABC, Generic[T]):  # pragma: no cover # abstract
+    """
+    Mapping between integer index id and the corresponding index for querying data.
+    """
+
     @abstractmethod
     def __len__(self) -> int:
-        """Size of the dataset"""
+        ...
 
     @abstractmethod
-    def __call__(self, idx: int) -> Any:
-        """Returns full sample index at the given index ID."""
+    def __call__(self, idx: int) -> T:
+        """Returns patch index at the given index count."""

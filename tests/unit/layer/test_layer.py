@@ -2,8 +2,6 @@
 import pytest
 
 from zetta_utils.layer import Layer
-from zetta_utils.indexes import IndexAdjusterWithProcessors
-
 
 def test_read_no_conv(mocker):
     idx_in_m = mocker.MagicMock()

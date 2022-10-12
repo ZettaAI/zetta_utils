@@ -3,21 +3,20 @@ from typing import Dict, Union, Callable, Any, Sequence
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.indexes import IndexAdjusterWithProcessors, Index
 
-from .layer import Layer
-from .layer_set_io_backend import LayerSetBackend
+from .. import Layer, LayerIndex, IndexAdjusterWithProcessors
+from . import LayerSetBackend, SetSelectionIndex, RawSetSelectionIndex
 
 
 @typechecked
-@builder.register("LayerSet")
+@builder.register("build_layer_set")
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,
-    index_adjs: Sequence[Union[Callable[..., Index], IndexAdjusterWithProcessors]] = (),
+    index_adjs: Sequence[Union[Callable[..., LayerIndex], IndexAdjusterWithProcessors]] = (),
     read_postprocs: Sequence[Callable[..., Any]] = (),
     write_preprocs: Sequence[Callable[..., Any]] = (),
-) -> Layer:
+) -> Layer[RawSetSelectionIndex, SetSelectionIndex]:
     """Build a layer representing a set of layers given as input.
 
     :param layers: Mapping from layer names to layers.
@@ -33,7 +32,7 @@ def build_layer_set(
     """
     backend = LayerSetBackend(layers)
 
-    result = Layer(
+    result = Layer[RawSetSelectionIndex, SetSelectionIndex](
         io_backend=backend,
         readonly=readonly,
         index_adjs=index_adjs,

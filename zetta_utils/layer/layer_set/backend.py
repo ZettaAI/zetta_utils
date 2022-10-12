@@ -5,15 +5,13 @@ from typing import Dict, Any, Tuple
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.indexes import SetSelectionIndex
-from zetta_utils.io_backends import IOBackend
-
-from .layer import Layer
+from . import SetSelectionIndex
+from .. import LayerBackend, Layer
 
 
 @builder.register("LayerSetBackend")
 @attrs.mutable()
-class LayerSetBackend(IOBackend[SetSelectionIndex]):  # pylint: disable=too-few-public-methods
+class LayerSetBackend(LayerBackend[SetSelectionIndex]):  # pylint: disable=too-few-public-methods
     layer: Dict[str, Layer]
 
     def _get_layer_selection(self, idx: SetSelectionIndex) -> Tuple[str, ...]:

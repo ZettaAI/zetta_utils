@@ -72,7 +72,7 @@ BoundingCube
 .. doctest::
 
    >>> import zetta_utils as zu
-   >>> bcube = zu.bbox.BoundingCube.from_coords(
+   >>> bcube = zu.bcube.BoundingCube.from_coords(
    ...    start_coord=(100, 100, 10),
    ...    end_coord=(200, 200, 20),
    ...    resolution=(4, 4, 40)
@@ -175,19 +175,18 @@ In this example, we will be using ``VolumetricStepIndexer``:
    >>> import zetta_utils as zu
    >>> from zetta_utils.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
-   >>> indexer = zu.piece_indexers.VolumetricStepIndexer(
+   >>> indexer = zu.training.datasets.sample_indexers.VolumetricStepIndexer(
    ...    # Range over which to sample
-   ...    bcube=zu.bbox.BoundingCube.from_coords(
+   ...    bcube=zu.bcube.BoundingCube.from_coords(
    ...       start_coord=(1000, 1000, 2000),
    ...       end_coord=(2000, 2000, 2100),
    ...       resolution=(64, 64, 40)
    ...    ),
-   ...    # How big each patch will be
-   ...    patch_size=(128, 128, 1),
-   ...    patch_size_resolution=(64, 64, 40),
+   ...    # How big each chunk will be
+   ...    resolution=(64, 64, 40),
+   ...    chunk_size=(128, 128, 1),
    ...    # How close together samples can be
    ...    step_size=(32, 32, 1),
-   ...    step_size_resolution=(64, 64, 40),
    ...    # What resolution to get slices at
    ...    index_resolution=(64, 64, 40),
    ...    # What to set as `desired_resolution` in the index
@@ -273,10 +272,9 @@ such as the dataset from the earlier example:
    ...           "end_coord": (2000, 2000, 2100),
    ...           "resolution": (64, 64, 40),
    ...        },
-   ...        "patch_size": (128, 128, 1),
-   ...        "patch_size_resolution": (64, 64, 40),
+   ...        "resolution": (64, 64, 40),
+   ...        "chunk_size": (128, 128, 1),
    ...        "step_size": (32, 32, 1),
-   ...        "step_size_resolution": (64, 64, 40),
    ...        "index_resolution": (64, 64, 40),
    ...        "desired_resolution": (64, 64, 40),
    ...    }

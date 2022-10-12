@@ -1,6 +1,9 @@
-"""Dividing the index into numbered smaller pieces."""
+"""
+Mappings between integer index id and the corresponding index for querying data.
+"""
+
 from . import base
-from .base import PieceIndexer
+from .base import SampleIndexer
 
 from . import random_indexer
 from . import volumetric_step_indexer

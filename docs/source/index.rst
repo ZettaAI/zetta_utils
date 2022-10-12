@@ -55,8 +55,6 @@ Day-to-Day Usage
 - `zetta_utils.tensor` is a unified set of operations that support *both* ``np.ndarray`` and ``torch.Tensor`` tensor types.
   Use ``zetta_utils.tensor_ops.unsqueeze(t)`` without worrying which type ``t`` is.
 
-- `zetta_utils.bbox` is generalizable implementation of N-dimensional bounding boxes that support custom resoluiton at each of the axis.
-
 - `zetta_utils.layer` is flexible abstraction for data IO from diverse backends suitable for both training and inference.
 
 - `zetta_utils.training` includes tools such as CloudVolume based training datasets, Pytorch Lightning integration (WIP) and more.

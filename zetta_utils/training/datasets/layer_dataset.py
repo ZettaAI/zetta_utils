@@ -7,7 +7,7 @@ from typeguard import typechecked
 
 from zetta_utils import tensor_ops, builder
 from zetta_utils.layer import Layer
-from zetta_utils.piece_indexers import PieceIndexer
+from .sample_indexers import SampleIndexer
 
 
 def _convert_to_torch_nested(data):
@@ -34,7 +34,7 @@ class LayerDataset(torch.utils.data.Dataset):
     """
 
     layer: Layer
-    sample_indexer: PieceIndexer
+    sample_indexer: SampleIndexer
 
     def __attrs_pre_init__(self):
         super().__init__()

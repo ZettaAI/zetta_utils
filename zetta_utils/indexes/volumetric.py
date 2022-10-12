@@ -9,7 +9,7 @@ import zetta_utils as zu
 from zetta_utils.typing import Vec3D, Slices3D
 from zetta_utils.partial import ComparablePartial
 from zetta_utils import tensor_ops
-from zetta_utils.bbox import BoundingCube
+from zetta_utils.bcube import BoundingCube
 
 from zetta_utils.indexes.base import (
     Index,
@@ -17,11 +17,6 @@ from zetta_utils.indexes.base import (
     IndexAdjuster,
     IndexAdjusterWithProcessors,
 )
-
-RawVolumetricIndex = Union[
-    Slices3D,
-    Tuple[Optional[Vec3D], slice, slice, slice],
-]
 
 
 @zu.builder.register("VolumetricIndex")
@@ -36,6 +31,13 @@ class VolumetricIndex(Index):  # pylint: disable=too-few-public-methods
         return VolumetricIndexConverter()(idx_raw)
 
 
+RawVolumetricIndex = Union[
+    VolumetricIndex,
+    Slices3D,
+    Tuple[Optional[Vec3D], slice, slice, slice],
+]
+
+
 @zu.builder.register("VolumetricIndexConverter")
 @typechecked
 @attrs.mutable
@@ -47,38 +49,41 @@ class VolumetricIndexConverter(
     allow_rounding: bool = False
 
     def __call__(self, idx_raw: RawVolumetricIndex) -> VolumetricIndex:
-        if len(idx_raw) == 3:  # Tuple[slice, slice, sclie], default index
-            specified_resolution = None  # type: Optional[Vec3D]
-            slices_raw = idx_raw  # type: Tuple[slice, slice, slice] # type: ignore
+        if isinstance(idx_raw, VolumetricIndex):
+            result = idx_raw
         else:
-            assert len(idx_raw) == 4
-            specified_resolution = idx_raw[0]  # type: ignore
-            slices_raw = idx_raw[1:]  # type: ignore
+            if len(idx_raw) == 3:  # Tuple[slice, slice, sclie], default index
+                specified_resolution = None  # type: Optional[Vec3D]
+                slices_raw = idx_raw  # type: Tuple[slice, slice, slice] # type: ignore
+            else:
+                assert len(idx_raw) == 4
+                specified_resolution = idx_raw[0]  # type: ignore
+                slices_raw = idx_raw[1:]  # type: ignore
 
-        if specified_resolution is not None:
-            desired_resolution = specified_resolution
-        elif self.default_desired_resolution is not None:
-            specified_resolution = self.default_desired_resolution
-            desired_resolution = specified_resolution
-        else:
-            raise ValueError(
-                f"Unable to convert {idx_raw} to VolumetricResolution: cannot infer "
-                "desired resolutionresolution. Resolution not given as a part of index "
-                "and `default_desired_resolution` is None."
+            if specified_resolution is not None:
+                desired_resolution = specified_resolution
+            elif self.default_desired_resolution is not None:
+                specified_resolution = self.default_desired_resolution
+                desired_resolution = specified_resolution
+            else:
+                raise ValueError(
+                    f"Unable to convert {idx_raw} to VolumetricResolution: cannot infer "
+                    "desired resolutionresolution. Resolution not given as a part of index "
+                    "and `default_desired_resolution` is None."
+                )
+
+            if self.index_resolution is not None:
+                slice_resolution = self.index_resolution
+            else:
+                slice_resolution = specified_resolution
+
+            bcube = BoundingCube.from_slices(slices=slices_raw, resolution=slice_resolution)
+            slices_final = bcube.to_slices(desired_resolution, allow_rounding=self.allow_rounding)
+
+            result = VolumetricIndex(
+                resolution=desired_resolution,
+                slices=slices_final,
             )
-
-        if self.index_resolution is not None:
-            slice_resolution = self.index_resolution
-        else:
-            slice_resolution = specified_resolution
-
-        bcube = BoundingCube.from_slices(slices=slices_raw, resolution=slice_resolution)
-        slices_final = bcube.to_slices(desired_resolution, allow_rounding=self.allow_rounding)
-
-        result = VolumetricIndex(
-            resolution=desired_resolution,
-            slices=slices_final,
-        )
 
         return result
 

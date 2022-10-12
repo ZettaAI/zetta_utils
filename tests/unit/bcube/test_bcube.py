@@ -2,7 +2,7 @@
 import pytest
 
 from zetta_utils.typing import Vec3D, Slices3D
-from zetta_utils.bbox import BoundingCube
+from zetta_utils.bcube import BoundingCube
 
 
 @pytest.mark.parametrize(

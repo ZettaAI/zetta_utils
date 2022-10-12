@@ -6,12 +6,11 @@ from . import parsing
 from . import typing
 from . import partial
 from . import builder
-from . import bbox
+from . import bcube
 from . import distributions
 from . import indexes
 from . import io_backends
 from . import layer
-from . import piece_indexers
 
 
 def load_all_modules():

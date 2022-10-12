@@ -35,6 +35,13 @@ from zetta_utils import tensor_ops
             (None, slice(0, 1), slice(0, 2), slice(0, 3)),
             VolumetricIndex(slices=(slice(0, 1), slice(0, 2), slice(0, 3)), resolution=(1, 2, 3)),
         ],
+        [
+            VolumetricIndexConverter(
+                default_desired_resolution=(1, 2, 3),
+            ),
+            VolumetricIndex(slices=(slice(0, 1), slice(0, 2), slice(0, 3)), resolution=(1, 2, 3)),
+            VolumetricIndex(slices=(slice(0, 1), slice(0, 2), slice(0, 3)), resolution=(1, 2, 3)),
+        ],
     ],
 )
 def test_volumetric_indexer(

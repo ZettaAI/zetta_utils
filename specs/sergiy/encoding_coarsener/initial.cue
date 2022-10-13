@@ -67,10 +67,10 @@
 #dset_settings: {
 	"@type": "LayerDataset"
 	layer: {
-		"@type": "LayerSet"
+		"@type": "build_layer_set"
 		layers: {
 			data_in: {
-				"@type": "CVLayer"
+				"@type": "build_cv_layer"
 				path:    #ENC_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [

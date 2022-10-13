@@ -1,11 +1,12 @@
-from typing import Literal
+from typing import Literal, Iterable
 from typeguard import typechecked
 import attrs
 from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import Vec3D
 from zetta_utils.tensor_typing import TensorTypeVar
+from zetta_utils.bcube import BcubeStrider
 
-from .. import DataWithIndexProcessor
+from .. import DataWithIndexProcessor, IndexChunker
 from . import VolumetricIndex
 
 
@@ -79,4 +80,27 @@ class VolDataInterpolator(DataWithIndexProcessor):
             unsqueeze_input_to=5,  # b + c + xyz
         )
 
+        return result
+
+@builder.register("VolumetricIndexChunker")
+@typechecked
+@attrs.mutable
+class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
+    chunk_size: Vec3D
+    step_size: Vec3D
+
+    def __call__(self, idx: VolumetricIndex) -> Iterable[VolumetricIndex]:
+        bcube_strider = BcubeStrider(
+            bcube=idx.bcube,
+            resolution=idx.resolution,
+            chunk_size=self.chunk_size,
+            step_size=self.step_size,
+        )
+        bcube_chunks = bcube_strider.get_all_chunk_bcubes()
+        result = [
+            VolumetricIndex(
+                resolution=idx.resolution,
+                bcube=bcube_chunk,
+            ) for bcube_chunk in bcube_chunks
+        ]
         return result

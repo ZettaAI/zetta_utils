@@ -14,12 +14,12 @@ from zetta_utils.typing import Vec3D
 from .bcube import BoundingCube
 
 
-@builder.register("BcubeChunker")
+@builder.register("BcubeStrider")
 @typechecked
 @attrs.frozen
-class BcubeChunker:
-    """Breaks up the given bcube into chunks, and allows random indexing
-    of the chunks without keeping the full chunk set in memory.
+class BcubeStrider:
+    """Strides over the bounding cube to produce a list of bounding cubes.
+    Allows random indexing of the chunks without keeping the full chunk set in memory.
 
     :param bcube: Input bounding cube.
     :param resolution: Resoluiton at which ``chunk_size`` and ``step_size`` are given.

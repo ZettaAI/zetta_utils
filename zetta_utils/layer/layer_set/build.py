@@ -1,10 +1,10 @@
 # pylint: disable=missing-docstring
-from typing import Dict, Union, Callable, Any, Sequence
+from typing import Dict, Callable, Sequence
 from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .. import Layer, LayerIndex, IndexAdjusterWithProcessors
+from .. import Layer
 from . import LayerSetBackend, SetSelectionIndex, RawSetSelectionIndex
 
 
@@ -13,9 +13,9 @@ from . import LayerSetBackend, SetSelectionIndex, RawSetSelectionIndex
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,
-    index_adjs: Sequence[Union[Callable[..., LayerIndex], IndexAdjusterWithProcessors]] = (),
-    read_postprocs: Sequence[Callable[..., Any]] = (),
-    write_preprocs: Sequence[Callable[..., Any]] = (),
+    index_adjs: Sequence[Callable[..., SetSelectionIndex]] = (),
+    read_postprocs: Sequence[Callable] = (),
+    write_preprocs: Sequence[Callable] = (),
 ) -> Layer[RawSetSelectionIndex, SetSelectionIndex]:
     """Build a layer representing a set of layers given as input.
 
@@ -33,7 +33,7 @@ def build_layer_set(
     backend = LayerSetBackend(layers)
 
     result = Layer[RawSetSelectionIndex, SetSelectionIndex](
-        io_backend=backend,
+        backend=backend,
         readonly=readonly,
         index_adjs=index_adjs,
         read_postprocs=read_postprocs,

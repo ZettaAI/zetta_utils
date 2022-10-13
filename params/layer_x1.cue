@@ -1,4 +1,4 @@
-type: "CVLayer"
+type: "build_cv_layer"
 cv_params: {
 	path: "gs://fafb_v15_aligned/v0/img/img"
 	mip:  2

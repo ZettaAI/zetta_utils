@@ -26,10 +26,13 @@ class SetSelectionIndex(LayerIndex):  # pylint: disable=too-few-public-methods
         idx_raw: RawSetSelectionIndex,
     ) -> SetSelectionIndex:
         # Check if the first element is a suitable layer name spec
-        # If so, assume that's what it's meant to be
+        # If so, assume that's what it is a set selection.
         if isinstance(idx_raw[0], tuple) and all(isinstance(e, str) for e in idx_raw[0]):
             layer_selection = idx_raw[0]
-            layer_idx = idx_raw[1:]
+            if len(idx_raw) == 2:
+                layer_idx = idx_raw[1]
+            else:
+                layer_idx = idx_raw[1:]
         else:
             layer_selection = None
             layer_idx = idx_raw

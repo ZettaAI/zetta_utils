@@ -33,6 +33,7 @@ def _jsonize_key(*args, **kwargs):  # pragma: no cover
 _cv_cache = cachetools.LRUCache(maxsize=500)
 
 
+# To avoid reloading info file
 @cachetools.cached(_cv_cache, key=_jsonize_key)
 def get_cv_cached(*args, **kwargs):
     return CloudVolume(*args, **kwargs)
@@ -155,7 +156,7 @@ class CVBackend(LayerBackend[VolumetricIndex]):  # pylint: disable=too-few-publi
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: bcxyz
         cvol = self._get_cv_at_resolution(idx.resolution)
-        data_raw = cvol[idx.bcube.to_slices(idx.resolution)]
+        data_raw = cvol[idx.to_slices()]
 
         result_np = np.transpose(data_raw, (3, 0, 1, 2))
         result = tensor_ops.to_torch(result_np)
@@ -174,5 +175,5 @@ class CVBackend(LayerBackend[VolumetricIndex]):  # pylint: disable=too-few-publi
         value_final = np.transpose(value, (1, 2, 3, 0))
 
         cvol = self._get_cv_at_resolution(idx.resolution)
-        slices = idx.bcube.to_slices(idx.resolution)
+        slices = idx.to_slices()
         cvol[slices] = value_final

@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Iterable, Callable, Tuple, Literal, Generic, TypeVar
+from typing import Generic, TypeVar
 
 
-class LayerIndex(metaclass=ABCMeta):  # pylint: disable=too-few-public-methods
+class LayerIndex(metaclass=ABCMeta):
     @classmethod
     @abstractmethod
     def default_convert(cls, idx_raw) -> LayerIndex:
@@ -22,28 +22,9 @@ IndexT = TypeVar("IndexT", bound=LayerIndex)
 # and users won't have to create custom ones in everyday lives, so it was deemed worth it
 # for additional type checking.
 # Improvements wellcome. cc: https://github.com/python/mypy/issues/1484
-class IndexConverter(ABC, Generic[RawIndexT, IndexT]):  # pylint: disable=too-few-public-methods
+class IndexConverter(ABC, Generic[RawIndexT, IndexT]):
     @abstractmethod
     def __call__(self, idx_raw: RawIndexT) -> IndexT:
         """
         Returns an index in a canonical form expected by the backend.
-        """
-
-
-class IndexAdjuster(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
-    @abstractmethod
-    def __call__(self, idx: IndexT) -> IndexT:
-        """
-        Modifies incoming canonical index.
-        """
-
-
-class IndexAdjusterWithProcessors(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
-    @abstractmethod
-    def __call__(
-        self, idx: IndexT, mode: Literal["read", "write"]
-    ) -> Tuple[IndexT, Iterable[Callable]]:
-        """
-        Modifies incoming canonical index and returns it alongside with a list
-        of processors to be applied to data after reading/before writing.
         """

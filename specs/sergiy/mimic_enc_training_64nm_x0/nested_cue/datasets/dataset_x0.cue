@@ -6,10 +6,10 @@ let ENC_CV = "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb
 #dataset_settings: {
 	"@type": "LayerDataset"
 	layer: {
-		"@type": "LayerSet"
+		"@type": "build_layer_set"
 		layers: {
 			data_in: {
-				"@type": "CVLayer"
+				"@type": "build_cv_layer"
 				path:    IMG_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
@@ -28,7 +28,7 @@ let ENC_CV = "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb
 				]
 			}
 			target: {
-				"@type": "CVLayer"
+				"@type": "build_cv_layer"
 				path:    ENC_CV
 				//cv_kwargs: {cache: true}
 				read_postprocs: [

@@ -9,7 +9,7 @@ from . import SetSelectionIndex
 from .. import LayerBackend, Layer
 
 
-@builder.register("LayerSetBackend")
+@builder.register("build_layer_setBackend")
 @attrs.mutable()
 class LayerSetBackend(LayerBackend[SetSelectionIndex]):  # pylint: disable=too-few-public-methods
     layer: Dict[str, Layer]

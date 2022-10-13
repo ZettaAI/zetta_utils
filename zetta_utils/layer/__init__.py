@@ -1,4 +1,5 @@
-from .index_base import LayerIndex, IndexConverter, IndexAdjuster, IndexAdjusterWithProcessors
+from .index_base import LayerIndex, IndexConverter
+from .tools_base import IndexAdjuster, DataWithIndexProcessor
 from .backend_base import LayerBackend
 from .layer import Layer
 

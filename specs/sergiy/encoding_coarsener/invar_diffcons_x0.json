@@ -116,10 +116,10 @@
         "dataset": {
             "@type": "LayerDataset",
             "layer": {
-                "@type": "LayerSet",
+                "@type": "build_layer_set",
                 "layers": {
                     "data_in": {
-                        "@type": "CVLayer",
+                        "@type": "build_cv_layer",
                         "path": "gs://fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m5_x0",
                         "read_postprocs": [
                             {
@@ -191,10 +191,10 @@
         "dataset": {
             "@type": "LayerDataset",
             "layer": {
-                "@type": "LayerSet",
+                "@type": "build_layer_set",
                 "layers": {
                     "data_in": {
-                        "@type": "CVLayer",
+                        "@type": "build_cv_layer",
                         "path": "gs://fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m5_x0",
                         "read_postprocs": [
                             {

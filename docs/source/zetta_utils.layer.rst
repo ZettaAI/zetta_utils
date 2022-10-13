@@ -17,7 +17,7 @@ but also to achieve more interesting behaviours, such as grouping layers togethe
 mapping index ranges to different data sources, etc.
 
 Shortcuts for commonly used layer setups can be created
-For example, ``zetta_utils.cloudvol.build_cv_layer(...)`` will build a volumetric-indexed layer with a
+For example, ``zetta_utils.layer.volumetric.cloudvol.build_cv_layer(...)`` will build a volumetric-indexed layer with a
 CloudVolume backend that includes processors that allow the user to index the layer at arbitrary resolutions.
 
 Available Layer Setups
@@ -25,4 +25,4 @@ Available Layer Setups
 
 .. autofunction:: zetta_utils.layer.build_layer_set
 
-.. autofunction:: zetta_utils.cloudvol.build_cv_layer
+.. autofunction:: zetta_utils.layer.volumetric.cloudvol.build_cv_layer

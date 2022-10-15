@@ -82,6 +82,7 @@ class VolDataInterpolator(DataWithIndexProcessor):
 
         return result
 
+
 @builder.register("VolumetricIndexChunker")
 @typechecked
 @attrs.mutable
@@ -101,6 +102,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             VolumetricIndex(
                 resolution=idx.resolution,
                 bcube=bcube_chunk,
-            ) for bcube_chunk in bcube_chunks
+            )
+            for bcube_chunk in bcube_chunks
         ]
         return result

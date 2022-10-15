@@ -38,11 +38,11 @@ class VolumetricStepIndexer(SampleIndexer):
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     step_size_in_unit: Vec3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
-    bcube_strider: BcubeStrider= attrs.field(init=False)
+    bcube_strider: BcubeStrider = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         # Use `__setattr__` to keep the object frozen.
-        bcube_strider= BcubeStrider(
+        bcube_strider = BcubeStrider(
             bcube=self.bcube,
             resolution=self.resolution,
             chunk_size=self.chunk_size,

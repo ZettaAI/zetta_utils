@@ -17,6 +17,7 @@ def configure_logger(third_party_level="INFO"):
         "gcsfs",
         "fsspec",
         "asyncio",
+        "botocore",
     ):
         logging.getLogger(_).setLevel(third_party_level)
 

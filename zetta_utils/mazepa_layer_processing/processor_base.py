@@ -6,7 +6,7 @@ from zetta_utils.layer import LayerIndex, Layer
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 T = TypeVar("T")
 
-# Needed for potential future spec error checking
+
 class LayerProcessor(ABC, Generic[IndexT]):
     def __call__(self, layers: Dict[str, Layer[Any, IndexT]], idx: IndexT):
         ...

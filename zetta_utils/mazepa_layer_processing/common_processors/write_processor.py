@@ -4,7 +4,7 @@ import mazepa
 from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.layer import Layer, LayerIndex
-from . import LayerProcessor
+from .. import LayerProcessor
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 

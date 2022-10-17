@@ -104,7 +104,7 @@ def test_constructor(
 
 
 @pytest.mark.parametrize(
-    "bcube, resolution, allow_rounding, expected",
+    "bcube, resolution, allow_slice_rounding, expected",
     [
         [
             BoundingCube(bounds=((0, 1), (0, 2), (0, 3))),
@@ -133,14 +133,14 @@ def test_constructor(
     ],
 )
 def test_to_slices(
-    bcube: BoundingCube, resolution: Vec3D, allow_rounding: bool, expected: Slices3D
+    bcube: BoundingCube, resolution: Vec3D, allow_slice_rounding: bool, expected: Slices3D
 ):
-    result = bcube.to_slices(resolution=resolution, allow_rounding=allow_rounding)
+    result = bcube.to_slices(resolution=resolution, allow_slice_rounding=allow_slice_rounding)
     assert result == expected
 
 
 @pytest.mark.parametrize(
-    "bcube, dim, resolution, allow_rounding",
+    "bcube, dim, resolution, allow_slice_rounding",
     [
         [
             BoundingCube(bounds=((0, 1), (0, 2), (0, 3))),
@@ -160,10 +160,10 @@ def test_get_slice_exc(
     bcube: BoundingCube,
     dim: int,
     resolution: Vec3D,
-    allow_rounding: bool,
+    allow_slice_rounding: bool,
 ):
     with pytest.raises(ValueError):
-        bcube.get_slice(dim=dim, resolution=resolution, allow_rounding=allow_rounding)
+        bcube.get_slice(dim=dim, resolution=resolution, allow_slice_rounding=allow_slice_rounding)
 
 
 @pytest.mark.parametrize(

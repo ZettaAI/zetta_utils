@@ -27,7 +27,7 @@ def build_volumetric_layer(
     data_resolution: Optional[Vec3D] = None,
     interpolation_mode: Optional[InterpolationMode] = None,
     readonly: bool = False,
-    allow_shape_rounding: bool = False,
+    allow_slice_rounding: bool = False,
     index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
     read_postprocs: Iterable[Callable[..., Any]] = (),
     write_preprocs: Iterable[Callable[..., Any]] = (),
@@ -44,9 +44,9 @@ def build_volumetric_layer(
     :param interpolation_mode: Specification of the interpolation mode to use when
         ``data_resolution`` differs from ``desired_resolution``.
     :param readonly: Whether layer is read only.
-    :param allow_shape_rounding: Whether layer allows IO operations where the specified index
+    :param allow_slice_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
-        ``allow_shape_rounding == True``, shapes will be rounded to nearest integer.
+        ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
     :param index_adjs: List of adjustors that will be applied to the index given by the user
         prior to IO operations.
     :param read_postprocs: List of processors that will be applied to the read data before
@@ -59,6 +59,7 @@ def build_volumetric_layer(
     index_converter = VolumetricIndexConverter(
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,
+        allow_slice_rounding=allow_slice_rounding,
     )
 
     index_adjs_final = copy.copy(list(index_adjs))
@@ -78,7 +79,7 @@ def build_volumetric_layer(
             VolDataInterpolator(
                 interpolation_mode=interpolation_mode,
                 mode="read",
-                allow_shape_rounding=allow_shape_rounding,
+                allow_slice_rounding=allow_slice_rounding,
             ),
         )
         write_preprocs = list(write_preprocs)
@@ -87,7 +88,7 @@ def build_volumetric_layer(
             VolDataInterpolator(
                 interpolation_mode=interpolation_mode,
                 mode="write",
-                allow_shape_rounding=allow_shape_rounding,
+                allow_slice_rounding=allow_slice_rounding,
             ),
         )
 

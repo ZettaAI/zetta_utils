@@ -1,10 +1,9 @@
-from typing import TypeVar, Any, Dict
+from typing import TypeVar, Any, Generic
 import attrs
 import mazepa
 from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.layer import Layer, LayerIndex
-from .. import LayerProcessor
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 
@@ -13,6 +12,6 @@ IndexT = TypeVar("IndexT", bound=LayerIndex)
 @mazepa.task_maker_cls
 @typechecked
 @attrs.frozen()
-class WriteProcessor(LayerProcessor[IndexT]):
-    def __call__(self, layers: Dict[str, Layer[Any, IndexT]], idx: IndexT):
-        layers["dst"][idx] = layers["src"][idx]
+class WriteProcessor(Generic[IndexT]):
+    def __call__(self, src: Layer[Any, IndexT], dst: Layer[Any, IndexT], idx: IndexT):
+        dst[idx] = src[idx]

@@ -27,6 +27,7 @@ class LayerProcessorTaskMaker(Protocol[IndexT_contra, P, R_co]):
     ) -> mazepa.Task[P, R_co]:
         ...
 
+
 class LayerProcessorJob(Protocol[IndexT_contra, P]):
     def __init__(
         self,

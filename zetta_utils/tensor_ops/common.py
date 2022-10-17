@@ -153,7 +153,7 @@ def _validate_interpolation_setting(
     data: Tensor,
     size: Optional[Sequence[int]],
     scale_factor_tuple: Optional[Sequence[float]],
-    allow_shape_rounding: bool,
+    allow_slice_rounding: bool,
 ):
     # Torch checks for some of these, but we need to check preemptively
     # as some of our pre-processing code assumes a valid setting.
@@ -178,7 +178,7 @@ def _validate_interpolation_setting(
             )
 
     if scale_factor_tuple is not None:
-        if not allow_shape_rounding:
+        if not allow_slice_rounding:
             result_spatial_shape = [
                 data.shape[2 + i] * scale_factor_tuple[i] for i in range(spatial_ndim)
             ]
@@ -189,7 +189,7 @@ def _validate_interpolation_setting(
                         f"factor {scale_factor_tuple} would result in a non-integer shape "
                         f"along spatial dimention {i} "
                         f"({data.shape[2 + i]} -> {result_spatial_shape[i]}) while "
-                        "`allow_shape_rounding` == False ."
+                        "`allow_slice_rounding` == False ."
                     )
 
 
@@ -239,7 +239,7 @@ def interpolate(  # pylint: disable=too-many-locals
     scale_factor: Optional[Union[float, Sequence[float]]] = None,
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
-    allow_shape_rounding: bool = False,
+    allow_slice_rounding: bool = False,
     unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
@@ -251,7 +251,7 @@ def interpolate(  # pylint: disable=too-many-locals
     :param mode: Algorithm according to which the tensor should be interpolated.
     :param mask_value_thr: When ``mode == 'mask'``, threshold above which the interpolated
         value will be considered as ``True``.
-    :param allow_shape_rounding: Whether to allow interpolation with scale factors that
+    :param allow_slice_rounding: Whether to allow interpolation with scale factors that
         result in non-integer tensor shapes.
     :param unsqueeze_to: If provided, the tensor will be unsqueezed to the given number
         of dimensions before interpolating. New dimensions are alwyas added to the front
@@ -272,7 +272,7 @@ def interpolate(  # pylint: disable=too-many-locals
         data=data,
         size=size,
         scale_factor_tuple=scale_factor_tuple,
-        allow_shape_rounding=allow_shape_rounding,
+        allow_slice_rounding=allow_slice_rounding,
     )
 
     torch_interp_mode = _get_torch_interp_mode(

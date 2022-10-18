@@ -1,1 +1,1 @@
-from .compute_field_processor import ComputeFieldProcessor
+from .compute_field_task_factory import ComputeFieldTaskFactory

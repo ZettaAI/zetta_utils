@@ -1,12 +1,47 @@
-from typing import Any, Callable, Literal
-import os
+from typing import Any, Callable, Optional
+import copy
+import attrs
 import mazepa
-from typeguard import typechecked
 
-from zetta_utils.layer import Layer, IndexChunker
+from zetta_utils import builder
+from zetta_utils.typing import Vec3D
+from zetta_utils.layer import Layer
+
 from zetta_utils.layer.volumetric import VolumetricIndex
+
 from .. import ChunkedApply
 from . import ComputeFieldTaskFactory
+
+
+@builder.register("ComputeFieldTaskFactory")
+@attrs.mutable
+class _ComputeFieldTaskFactory:
+    compute_field_method: Callable # TODO: type me
+    tgt_offset: Vec3D
+
+    def __call__(
+        self,
+        idx: VolumetricIndex,
+        src: Layer[Any, VolumetricIndex],
+        dst: Layer[Any, VolumetricIndex],
+        tgt: Optional[Layer[Any, VolumetricIndex]] = None,
+    ):
+        src_data = src[idx]
+        tgt_idx = copy.deepcopy(idx)
+        tgt_idx.bcube.translate(
+            offset=self.tgt_offset,
+            resolution=tgt_idx.resolution,
+        )
+        if tgt is not None:
+            tgt_data = tgt[idx]
+        else:
+            tgt_data = src[idx]
+
+        result = self.compute_field_method(src_data, tgt_data)
+        dst[idx] = result
+
+# Using decorator breaks mypy
+ComputeFieldTaskFactory = mazepa.task_factory_cls(_ComputeFieldTaskFactory)
 
 
 @mazepa.flow_type

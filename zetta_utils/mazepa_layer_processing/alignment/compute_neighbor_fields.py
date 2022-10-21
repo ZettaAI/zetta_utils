@@ -1,45 +1,51 @@
 from typing import Any, Callable, Literal
 import os
-import mazepa
+import copy
 from typeguard import typechecked
 
+from zetta_utils import mazepa, builder
 from zetta_utils.layer import Layer, IndexChunker
+from zetta_utils.layer.volumetric import VolIdxTranslator
 from zetta_utils.layer.volumetric import VolumetricIndex
-from .. import ChunkedApply
-from . import ComputeFieldTaskFactory
+
+from .. import ChunkedApplyFlow
 
 
+@builder.register("compute_z_neighbor_fields")
 @mazepa.flow_type
 @typechecked
 def compute_z_neighbor_fields(
     src: Layer[Any, VolumetricIndex],
     dst_dir: str,
-    compute_field_method: Callable,
+    cf_task_factory: mazepa.TaskFactory,  # TODO: type me
     idx: VolumetricIndex,
     chunker: IndexChunker[VolumetricIndex],
     dst_layer_builder: Callable[..., Layer[Any, VolumetricIndex]],
     dst_layer_prefix: str = "neighbor_field_z",
-    farthest_neighbor: int = 3,
+    farthest_neighbor: int = 1,
     direction: Literal["backward", "forward"] = "backward",
 ):
+    """
+    :param cf_task_factory: Compute field task factory. Must take in the following
+        kwargs: {'idx': VolumetricIndex, 'src': Layer, 'tgt': Layer, 'dst': Layer}
+    """
     if direction == "backward":
         z_offsets = range(-1, -farthest_neighbor - 1, -1)
     else:
-        z_offsets = range(1, farthest_neighbor + 1)
+        z_offsets = range(3, farthest_neighbor + 2)
 
     for z_offset in z_offsets:
         dst_path = os.path.join(dst_dir, f"{dst_layer_prefix}_{z_offset}")
         dst = dst_layer_builder(path=dst_path)
 
-        comp_fact = ComputeFieldTaskFactory(
-            compute_field_method=compute_field_method,
-            tgt_offset=(0, 0, z_offset),
+        tgt = copy.deepcopy(src)
+        tgt.index_adjs.insert(
+            0, VolIdxTranslator(offset=(0, 0, z_offset), resolution=idx.resolution)
         )
 
-        # TODO: chunked apply is completely untyped here. How to type it to check runtime args?
-        comp_flow = ChunkedApply(
+        cf_flow = ChunkedApplyFlow(
+            task_factory=cf_task_factory,
             chunker=chunker,
-            task_factory=comp_fact,
-        )(idx=idx, src=src, dst=dst)
+        )(idx=idx, dst=dst, src=src, tgt=tgt)
 
-        yield comp_flow
+        yield cf_flow

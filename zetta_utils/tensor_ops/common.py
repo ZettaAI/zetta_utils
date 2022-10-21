@@ -368,3 +368,30 @@ def compare(
         result[mask] = fill
 
     return result
+
+
+@builder.register("crop")
+@typechecked
+def crop(
+    data: TensorTypeVar,
+    crop: Sequence[int],  # pylint: disable=redefined-outer-name
+    # mode: Literal["center"] = "center",
+) -> TensorTypeVar:
+    """
+    Crop a multidimensional tensor.
+
+    :param data: Input tensor.
+    :param crop: Number from pixels to crop from each side.
+        The last integer will correspond to the last dimension, and count
+        will go from there right to left.
+    """
+
+    slices = [slice(0, None) for _ in range(data.ndim - len(crop))]
+    for e in crop:
+        assert e >= 0
+        if e != 0:
+            slices.append(slice(e, -e))
+        else:
+            slices.append(slice(0, None))
+    result = data[tuple(slices)]
+    return result

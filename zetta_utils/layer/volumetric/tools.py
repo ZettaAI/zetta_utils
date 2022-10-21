@@ -90,7 +90,9 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: Vec3D
     step_size: Vec3D
 
-    def __call__(self, idx: VolumetricIndex) -> Iterable[VolumetricIndex]:
+    def __call__(
+        self, idx: VolumetricIndex
+    ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         bcube_strider = BcubeStrider(
             bcube=idx.bcube,
             resolution=idx.resolution,

@@ -477,3 +477,28 @@ def test_compare_exc(data, mode, operand, kwargs):
 def test_squeeze_to_exc():
     with pytest.raises(RuntimeError):
         common.squeeze_to(np.array([[1], [1]]), 1)
+
+
+@pytest.mark.parametrize(
+    "data, crop, expected",
+    [
+        [
+            np.ones((1, 3, 3)),
+            (1, 1),
+            np.ones((1, 1, 1)),
+        ],
+        [
+            np.ones((1, 3, 3)),
+            (1,),
+            np.ones((1, 3, 1)),
+        ],
+        [
+            np.ones((1, 3, 3)),
+            (1, 0),
+            np.ones((1, 1, 3)),
+        ],
+    ],
+)
+def test_crop(data, crop, expected):
+    result = common.crop(data, crop)
+    assert_array_equal(result, expected)

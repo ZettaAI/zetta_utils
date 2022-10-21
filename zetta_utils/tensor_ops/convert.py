@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 from typeguard import typechecked
 
-import zetta_utils as zu
+from zetta_utils import builder
 from zetta_utils.tensor_typing import TensorTypeVar, Tensor
 
 
@@ -56,7 +56,43 @@ def astype(data: Tensor, reference: TensorTypeVar) -> TensorTypeVar:
 
     """
     if isinstance(reference, torch.Tensor):
-        result = zu.tensor_ops.convert.to_torch(data)  # type: TensorTypeVar
+        result = to_torch(data)  # type: TensorTypeVar
     elif isinstance(reference, np.ndarray):
-        result = zu.tensor_ops.convert.to_np(data)
+        result = to_np(data)
+    return result
+
+
+@builder.register("to_float32")
+@typechecked
+def to_float32(data: TensorTypeVar) -> TensorTypeVar:
+    """Convert the given tensor data type to float32
+
+    :param data: Input tensor_ops.
+    :return: Input tensor in float32 data format.
+
+    """
+    if isinstance(data, torch.Tensor):
+        result = data.float()  # type: TensorTypeVar
+    else:
+        assert isinstance(data, np.ndarray)
+        result = data.astype(np.float32)
+
+    return result
+
+
+@builder.register("to_uint8")
+@typechecked
+def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
+    """Convert the given tensor data type to uint8
+
+    :param data: Input tensor_ops.
+    :return: Input tensor in uint8data format.
+
+    """
+    if isinstance(data, torch.Tensor):
+        result = data.byte()  # type: TensorTypeVar
+    else:
+        assert isinstance(data, np.ndarray)
+        result = data.astype(np.uint8)
+
     return result

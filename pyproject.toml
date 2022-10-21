@@ -28,6 +28,7 @@ dependencies = [
     "typeguard >= 2.13.3",
     "cachetools >= 5.2.0",
     "fsspec >= 2022.8.2",
+    "rich >= 12.6.0"
 ]
 dynamic = ["version"]
 
@@ -62,12 +63,20 @@ convnet = [
     "torch >= 1.11.0",
     "artificery >= 0.0.3.3"
 ]
+alignment = [
+    "metroem >= 0.1.4",
+    "torchfields >= 0.1.2",
+]
+mazepa = [
+    "coolname >= 1.1.0",
+    "task-queue >= 2.12.0",
+    "boto3 >= 1.24.68",
+]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet]",
     "torch >= 1.11.0",
     "pytorch-lightning >= 1.6.5",
     "wandb >= 0.13.1",
-    "rich >= 12.5.1",
     "gcsfs >= 2022.7.1"
 ]
 docs = [
@@ -89,11 +98,12 @@ test = [
     "pylint == 2.13.9",
     "isort == 5.10.1",
     "pre-commit == 2.19.0",
+    "moto == 4.0.7",
 ]
 modules = [ # put them in order of dependencies
     "zetta_utils[tensor_ops, viz, cli]",
     "zetta_utils[cloudvol]",
-    "zetta_utils[training]",
+    "zetta_utils[training,mazepa]",
 ]
 all = [
     "zetta_utils[modules,docs,test]",
@@ -113,10 +123,10 @@ target-version = ["py38","py39"]
 max-line-length = 99
 
 [tool.pylint.basic]
-good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu'''
+good-names = '''ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn'''
 
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,not-callable,no-member'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]
@@ -140,16 +150,17 @@ generated-members="torch.*"
 [tool.pytest.ini_options]
 addopts = "-ra --cov=zetta_utils --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short --junitxml=test-results.xml --cov-report=html --cov-report=xml"
 testpaths = ["tests"]
-norecursedirs = ".env .git .venv build dist"
+norecursedirs = ".env .git .venv build dist "
 python_files = "test.py tests.py test_*.py *_test.py"
 
 [tool.mypy]
-    warn_unreachable = true
-    warn_unused_ignores = true
-    warn_redundant_casts = true
-    warn_unused_configs = true
-    implicit_reexport = true
-    no_implicit_optional = true
+warn_unreachable = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+implicit_reexport = true
+no_implicit_optional = true
+plugins = "zetta_utils.mazepa.mypy_plugin"
 #incremental = false
 #disallow_untyped_defs = true
 #check_untyped_defs = true

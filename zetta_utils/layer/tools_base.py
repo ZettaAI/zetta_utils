@@ -41,5 +41,5 @@ class IndexChunker(ABC, Generic[IndexT]):
 
 @attrs.frozen
 class IdentityIndexChunker(IndexChunker[IndexT]):
-    def __call__(self, idx: IndexT) -> Iterable[IndexT]:
+    def __call__(self, idx: IndexT) -> Iterable[IndexT]:  # pragma: no cover # identity
         return [idx]

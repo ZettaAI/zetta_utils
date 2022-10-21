@@ -17,7 +17,7 @@ from .. import LayerIndex, IndexConverter
 @builder.register("VolumetricIndex")
 @typechecked
 @attrs.mutable
-class VolumetricIndex(LayerIndex):
+class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
     bcube: BoundingCube
 
@@ -27,6 +27,18 @@ class VolumetricIndex(LayerIndex):
 
     def to_slices(self):
         return self.bcube.to_slices(self.resolution)
+
+    def pad(self, pad: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.pad(pad=pad, resolution=self.resolution),
+            resolution=self.resolution,
+        )
+
+    def crop(self, crop: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.crop(crop=crop, resolution=self.resolution),
+            resolution=self.resolution,
+        )
 
 
 SliceRawVolumetricIndex = Union[

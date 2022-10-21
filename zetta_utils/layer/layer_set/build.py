@@ -35,8 +35,8 @@ def build_layer_set(
     result = Layer[RawSetSelectionIndex, SetSelectionIndex](
         backend=backend,
         readonly=readonly,
-        index_adjs=index_adjs,
-        read_postprocs=read_postprocs,
-        write_preprocs=write_preprocs,
+        index_adjs=list(index_adjs),
+        read_postprocs=list(read_postprocs),
+        write_preprocs=list(write_preprocs),
     )
     return result

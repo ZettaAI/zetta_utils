@@ -95,8 +95,8 @@ def build_volumetric_layer(
         backend=backend,
         readonly=readonly,
         index_converter=index_converter,
-        index_adjs=index_adjs_final,
-        read_postprocs=read_postprocs,
-        write_preprocs=write_preprocs,
+        index_adjs=list(index_adjs_final),
+        read_postprocs=list(read_postprocs),
+        write_preprocs=list(write_preprocs),
     )
     return result

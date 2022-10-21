@@ -1,9 +1,9 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-from zetta_utils.bcube import BoundingCube, BcubeChunker
+from zetta_utils.bcube import BoundingCube, BcubeStrider
 
 
 def test_bcube_rounding(mocker):
-    chunker = BcubeChunker(
+    chunker = BcubeStrider(
         bcube=BoundingCube.from_coords(
             start_coord=(0, 0, 0), end_coord=(1, 1, 4), resolution=(1, 1, 1)
         ),
@@ -16,7 +16,7 @@ def test_bcube_rounding(mocker):
 
 
 def test_bcube_chunker_len(mocker):
-    chunker = BcubeChunker(
+    chunker = BcubeStrider(
         bcube=BoundingCube.from_coords(
             start_coord=(0, 0, 0), end_coord=(1, 2, 3), resolution=(1, 1, 1)
         ),
@@ -28,7 +28,7 @@ def test_bcube_chunker_len(mocker):
 
 
 def test_bcube_chunker_get_nth(mocker):
-    chunker = BcubeChunker(
+    chunker = BcubeStrider(
         bcube=BoundingCube.from_coords(
             start_coord=(0, 0, 0), end_coord=(1, 2, 3), resolution=(1, 1, 1)
         ),
@@ -49,7 +49,7 @@ def test_bcube_chunker_get_nth(mocker):
 
 
 def test_bcube_chunker_get_nth_res(mocker):
-    chunker = BcubeChunker(
+    chunker = BcubeStrider(
         bcube=BoundingCube.from_coords(
             start_coord=(0, 0, 0), end_coord=(1, 2, 3), resolution=(1, 1, 1)
         ),
@@ -67,7 +67,7 @@ def test_bcube_chunker_get_nth_res(mocker):
 
 
 def test_bcube_chunker_get_all_chunks(mocker):
-    chunker = BcubeChunker(
+    chunker = BcubeStrider(
         bcube=BoundingCube.from_coords(
             start_coord=(0, 0, 0), end_coord=(1, 1, 2), resolution=(1, 1, 1)
         ),

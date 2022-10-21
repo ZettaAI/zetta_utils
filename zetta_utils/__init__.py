@@ -20,4 +20,6 @@ def load_all_modules():
     from . import viz
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+    from . import mazepa
     from . import mazepa_layer_processing
+    from . import alignment

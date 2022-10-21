@@ -171,6 +171,56 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
+    def crop(
+        self,
+        crop: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],
+        resolution: VecT,
+        # in_place: bool = False,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        """Create a cropped version of this bounding box.
+
+        :param crop: Specification of how much to crop along each dimension.
+        :param resolution: Resolution at which ``crop`` specification was given.
+        :return: Cropped bounding box.
+
+        """
+        if len(crop) != self.ndim:
+            raise ValueError(
+                f"Length of the cropping specification ({len(crop)}) != "
+                f"BoundingCube ndim ({self.ndim})."
+            )
+
+        _assert_equal_len(
+            crop=crop,
+            bounds=self.bounds,
+            resoluiton=resolution,
+        )
+
+        double_sided_crop = []
+        for e in crop:
+            if isinstance(e, (int, float)):
+                double_sided_crop += [(e, e)]
+            else:
+                double_sided_crop += [e]
+
+        slices = cast(
+            SlicesT,
+            tuple(
+                slice(
+                    self.bounds[i][0] + double_sided_crop[i][0] * resolution[i],
+                    self.bounds[i][1] - double_sided_crop[i][1] * resolution[i],
+                )
+                for i in range(self.ndim)
+            ),
+        )
+
+        result = BoundingBoxND[SlicesT, VecT].from_slices(
+            slices=slices,
+            unit=self.unit,
+        )
+
+        return result
+
     def pad(
         self,
         pad: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],

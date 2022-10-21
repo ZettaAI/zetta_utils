@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Generic, Callable, Optional, List, Tuple
+from typing import Any, Generic, Callable, Optional, List, Tuple, Union
 import copy
 from typing_extensions import ParamSpec
 import einops
@@ -18,10 +18,8 @@ from zetta_utils.typing import Vec3D
 @mazepa.task_factory_cls
 @attrs.frozen()
 class WarpTaskFactory:
-    """ """
-
-    dst_data_crop: tuple[int, ...] | list[int] = (0, 0, 0)
-    dst_idx_crop: Optional[tuple[int, ...] | list[int]] = None
+    dst_data_crop: Union[Tuple[int, int, int], List[int]] = (0, 0, 0)
+    dst_idx_crop: Optional[Union[Tuple[int, int, int], List[int]]] = None
 
     # preserve_black: bool = False
 

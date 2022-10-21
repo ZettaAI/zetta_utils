@@ -6,7 +6,6 @@ from torchvision.transforms.functional import rotate  # type: ignore
 from typeguard import typechecked
 
 from zetta_utils import distributions, tensor_ops, builder
-from zetta_utils.typing import Number
 from zetta_utils.tensor_typing import TensorTypeVar, Tensor
 
 from .common import prob_aug
@@ -31,7 +30,7 @@ def _get_weights_mask(
 @prob_aug
 def add_scalar_aug(
     data: TensorTypeVar,
-    value_distr: Union[distributions.Distribution, Number],
+    value_distr: Union[distributions.Distribution, float],
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ) -> TensorTypeVar:
     data_torch = tensor_ops.to_torch(data).float()
@@ -47,8 +46,8 @@ def add_scalar_aug(
 @prob_aug
 def clamp_values_aug(
     data: TensorTypeVar,
-    low_distr: Optional[Union[distributions.Distribution, Number]] = None,
-    high_distr: Optional[Union[distributions.Distribution, Number]] = None,
+    low_distr: Optional[Union[distributions.Distribution, float]] = None,
+    high_distr: Optional[Union[distributions.Distribution, float]] = None,
     mask_fn: Optional[Callable[..., Tensor]] = None,
 ):
     data_torch = tensor_ops.to_torch(data).float()
@@ -69,9 +68,9 @@ def clamp_values_aug(
 def _random_square_tile_pattern(
     data: torch.Tensor,
     *,
-    tile_stride: Union[distributions.Distribution, Number],
-    tile_size: Union[distributions.Distribution, Number],
-    rotation_degree: Union[distributions.Distribution, Number],
+    tile_stride: Union[distributions.Distribution, float],
+    tile_size: Union[distributions.Distribution, float],
+    rotation_degree: Union[distributions.Distribution, float],
 ) -> torch.Tensor:
     tile_stride = int(distributions.to_distribution(tile_stride)())
     tile_size = int(distributions.to_distribution(tile_size)())
@@ -107,11 +106,11 @@ def _random_square_tile_pattern(
 @prob_aug
 def square_tile_pattern_aug(
     data: TensorTypeVar,
-    tile_size: Union[distributions.Distribution, Number],
-    tile_stride: Union[distributions.Distribution, Number],
-    max_brightness_change: Union[distributions.Distribution, Number],
-    rotation_degree: Union[distributions.Distribution, Number] = 0.0,
-    preserve_data_val: Optional[Number] = 0,
+    tile_size: Union[distributions.Distribution, float],
+    tile_stride: Union[distributions.Distribution, float],
+    max_brightness_change: Union[distributions.Distribution, float],
+    rotation_degree: Union[distributions.Distribution, float] = 0.0,
+    preserve_data_val: Optional[float] = 0,
     repeats: int = 1,
     device: torch.types.Device = "cpu",
 ):

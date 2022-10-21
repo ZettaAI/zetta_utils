@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Generic, Callable, Optional
+from typing import Any, Generic, Callable, Optional, List, Tuple, Union
 import copy
 from typing_extensions import ParamSpec
 import torch
@@ -27,9 +27,9 @@ class SimpleVolumetricTaskFactory(Generic[P]):
 
     fn: Callable[P, torch.Tensor]
 
-    dst_data_crop: tuple[int, ...] | list[int] = (0, 0, 0)
+    dst_data_crop: Union[Tuple[int, int, int], List[int]] = (0, 0, 0)
     dst_idx_res: Optional[Vec3D] = None
-    dst_idx_crop: Optional[tuple[int, ...] | list[int]] = None
+    dst_idx_crop: Optional[Union[Tuple[int, int, int], List[int]]] = None
     # download_layers: bool = True # Could be made optoinal
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:

@@ -6,7 +6,6 @@ import einops
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.typing import Number
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
@@ -104,7 +103,7 @@ InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 def _standardize_scale_factor(
     data_ndim: int,
-    scale_factor: Optional[Union[Number, Sequence[Number]]] = None,
+    scale_factor: Optional[Union[float, Sequence[float]]] = None,
 ) -> Optional[Sequence[float]]:
     if scale_factor is None:
         result = None
@@ -159,7 +158,7 @@ def _validate_interpolation_setting(
     # as some of our pre-processing code assumes a valid setting.
 
     if data.ndim > 5:
-        raise ValueError(f"Number of dimensions must be <= 5. Got: {data.ndim}")
+        raise ValueError(f"float of dimensions must be <= 5. Got: {data.ndim}")
 
     if scale_factor_tuple is None and size is None:
         raise ValueError("Neither `size` nor `scale_factor` provided to `interpolate()`")
@@ -381,7 +380,7 @@ def crop(
     Crop a multidimensional tensor.
 
     :param data: Input tensor.
-    :param crop: Number from pixels to crop from each side.
+    :param crop: float from pixels to crop from each side.
         The last integer will correspond to the last dimension, and count
         will go from there right to left.
     """

@@ -7,7 +7,7 @@ from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Number, Vec3D, Slices3D
+from zetta_utils.typing import Vec3D, Slices3D
 
 
 def _assert_equal_len(**kwargs: Sequence):
@@ -26,7 +26,7 @@ DEFAULT_UNIT = "nm"
 # Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
-VecT = TypeVar("VecT", bound=Sequence[Number])
+VecT = TypeVar("VecT", bound=Sequence[float])
 # @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
 class BoundingBoxND(Generic[SlicesT, VecT]):
@@ -38,12 +38,12 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     """
 
-    bounds: Sequence[Tuple[Number, Number]]  # Bounding cube bounds, measured in Unit.
+    bounds: Sequence[Tuple[float, float]]  # Bounding cube bounds, measured in Unit.
     unit: str = DEFAULT_UNIT  # Unit name (for decorative purposes only).
 
     @property
     def ndim(self) -> int:
-        """Number of dimensions."""
+        """float of dimensions."""
         return len(self.bounds)
 
     @classmethod
@@ -173,7 +173,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def crop(
         self,
-        crop: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],
+        crop: Sequence[Union[int, float, tuple[float, float]]],
         resolution: VecT,
         # in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -223,7 +223,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def pad(
         self,
-        pad: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],
+        pad: Sequence[Union[float, tuple[float, float]]],
         resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -275,8 +275,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def translate(
         self,
-        offset: Sequence[Union[int, float]],
-        resolution: Sequence[Union[int, float]],
+        offset: Sequence[float],
+        resolution: Sequence[float],
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.

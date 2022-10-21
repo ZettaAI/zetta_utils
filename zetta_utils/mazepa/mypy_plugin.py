@@ -52,6 +52,7 @@ def task_maker_cls_callback(ctx):  # pragma: no cover # type: ignore
 
 
 def flow_type_cls_callback(ctx):  # pragma: no cover # type: ignore
+    # TODO: figure out how to type flows properly
     generate_method = ctx.cls.info.get_method("generate")
     if generate_method is not None:
         args = generate_method.arguments[1:]  # skip `self`

@@ -21,7 +21,7 @@ def build_chunked_apply_flow(
         chunker=chunker,
         task_factory=task_factory,
     )
-    flow = flow_type(*args, **kwargs)
+    flow = flow_type(*args, **kwargs)  # TODO: typing problems here.
     return flow
 
 

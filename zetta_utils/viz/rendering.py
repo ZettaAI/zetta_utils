@@ -126,7 +126,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     The field is assumed to be in a residual format and pixel units.
 
     :param fld: An array of shape [(1,) H, W, 2] representing a 2D vector field.
-    :param grid_side: Number of arrows per side.
+    :param grid_side: float of arrows per side.
     :return: RGB rendering of the vector field.
     """
     fld = tensor_ops.convert.to_np(fld).squeeze()

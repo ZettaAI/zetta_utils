@@ -17,3 +17,5 @@ def load_all_modules():
     from . import convnet
     from . import training
     from . import viz
+    from .layer import volumetric
+    from .layer.volumetric import cloudvol

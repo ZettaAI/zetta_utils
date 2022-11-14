@@ -2,17 +2,21 @@ import pprint
 
 import click
 
-import zetta_utils as zu
+import zetta_utils
+from zetta_utils import log
+
+logger = log.get_logger("zetta_utils")
 
 # For now, CLI requires all modules to be installed
 # If the need arises, the installed modules can be specified
 # through a config file.
-zu.load_all_modules()
+zetta_utils.load_all_modules()
 
 
 @click.group()
-def cli():
-    pass  # pragma: no cover
+@click.option("-v", "--verbose", count=True)
+def cli(verbose):
+    log.configure_logger("zetta_utils", level=verbose)  # pragma: no cover
 
 
 @click.command()
@@ -25,9 +29,9 @@ def cli():
     help="When set to `True`, will insert a breakpoint after building.",
 )
 def run(path, pdb):
-    """Perform ``zu.builder.build`` action on file contents."""
-    spec = zu.parsing.cue.load(path)
-    result = zu.builder.build(spec)
+    """Perform ``zetta_utils.builder.build`` action on file contents."""
+    spec = zetta_utils.parsing.cue.load(path)
+    result = zetta_utils.builder.build(spec)
     pprint.pprint(result)
     if pdb:
         breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
@@ -36,12 +40,8 @@ def run(path, pdb):
 @click.command()
 def show_registry():
     """Display builder registry."""
-    pprint.pprint(zu.builder.REGISTRY)
+    logger.critical(pprint.pformat(zetta_utils.builder.REGISTRY, indent=4))
 
 
 cli.add_command(run)
 cli.add_command(show_registry)
-
-
-if __name__ == "__main__":
-    cli()  # pragma: no cover

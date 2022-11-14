@@ -1,5 +1,5 @@
 ``zetta_utils.bcube``
-====================
+=====================
 
 .. autoclass:: zetta_utils.bcube.bcube.BoundingBoxND
 
@@ -22,8 +22,8 @@
 .. autofunction:: zetta_utils.bcube.bcube.BoundingBoxND.translate
 
 
-.. class:: zetta_utils.bcube.BcubeChunker
+.. class:: zetta_utils.bcube.BcubeStrider
 
-.. autofunction:: zetta_utils.bcube.BcubeChunker.get_all_chunk_bcubes
+.. autofunction:: zetta_utils.bcube.BcubeStrider.get_all_chunk_bcubes
 
-.. autofunction:: zetta_utils.bcube.BcubeChunker.get_nth_chunk_bcube
+.. autofunction:: zetta_utils.bcube.BcubeStrider.get_nth_chunk_bcube

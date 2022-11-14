@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring
-import pytest
 import numpy as np
+import pytest
 import torch
 
 from zetta_utils.tensor_ops import convert

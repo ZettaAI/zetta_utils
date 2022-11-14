@@ -1,8 +1,9 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-import pytest
 import numpy as np
+import pytest
+
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.layer.volumetric import build_volumetric_layer, VolumetricIndex
+from zetta_utils.layer.volumetric import VolumetricIndex, build_volumetric_layer
 
 
 def test_build_exc(mocker):

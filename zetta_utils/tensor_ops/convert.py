@@ -1,13 +1,13 @@
 """Type conversion functions."""
 from __future__ import annotations
 
-import torch
 import numpy as np
 import numpy.typing as npt
+import torch
 from typeguard import typechecked
 
 import zetta_utils as zu
-from zetta_utils.tensor_typing import TensorTypeVar, Tensor
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
 @typechecked

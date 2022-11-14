@@ -1,11 +1,10 @@
-from typing import Union, Optional, Callable
-import pytest
+from typing import Callable, Optional, Union
 
 import numpy as np
+import pytest
 
-from zetta_utils.typing import Number
-from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 from zetta_utils import augmentations, distributions
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from ..helpers import assert_array_equal
 
@@ -35,7 +34,7 @@ from ..helpers import assert_array_equal
 )
 def test_brightness(
     data: TensorTypeVar,
-    value_distr: Union[distributions.Distribution, Number],
+    value_distr: Union[distributions.Distribution, float],
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
@@ -73,8 +72,8 @@ def test_brightness(
 )
 def test_clamp_values(
     data: TensorTypeVar,
-    low_distr: Optional[Union[distributions.Distribution, Number]],
-    high_distr: Optional[Union[distributions.Distribution, Number]],
+    low_distr: Optional[Union[distributions.Distribution, float]],
+    high_distr: Optional[Union[distributions.Distribution, float]],
     mask_fn: Optional[Callable[..., Tensor]],
     expected: TensorTypeVar,
 ):
@@ -220,11 +219,11 @@ def test_clamp_values(
 )
 def test_square_tile_pattern_aug(
     data: TensorTypeVar,
-    tile_size: Union[distributions.Distribution, Number],
-    tile_stride: Union[distributions.Distribution, Number],
-    max_brightness_change: Union[distributions.Distribution, Number],
-    rotation_degree: Union[distributions.Distribution, Number],
-    preserve_data_val: Optional[Number],
+    tile_size: Union[distributions.Distribution, float],
+    tile_stride: Union[distributions.Distribution, float],
+    max_brightness_change: Union[distributions.Distribution, float],
+    rotation_degree: Union[distributions.Distribution, float],
+    preserve_data_val: Optional[float],
     repeats: int,
     expected: TensorTypeVar,
     mocker,

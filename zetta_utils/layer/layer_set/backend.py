@@ -1,12 +1,14 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, Tuple
+
 import attrs
 
 from zetta_utils import builder
+
+from .. import Layer, LayerBackend
 from . import SetSelectionIndex
-from .. import LayerBackend, Layer
 
 
 @builder.register("build_layer_setBackend")

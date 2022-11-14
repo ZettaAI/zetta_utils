@@ -1,20 +1,21 @@
 # pylint: disable=missing-docstring
-from typing import Callable, Optional, Any, Iterable
 import copy
+from typing import Any, Callable, Iterable, Optional
+
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.typing import Vec3D
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
+from zetta_utils.typing import Vec3D
 
 from .. import LayerBackend
 from . import (
     RawVolumetricIndex,
+    VolDataInterpolator,
+    VolIdxResolutionAdjuster,
     VolumetricIndex,
     VolumetricIndexConverter,
-    VolIdxResolutionAdjuster,
-    VolDataInterpolator,
 )
 
 
@@ -96,8 +97,8 @@ def build_volumetric_layer(
         backend=backend,
         readonly=readonly,
         index_converter=index_converter,
-        index_adjs=index_adjs_final,
-        read_postprocs=read_postprocs,
-        write_preprocs=write_preprocs,
+        index_adjs=list(index_adjs_final),
+        read_postprocs=list(read_postprocs),
+        write_preprocs=list(write_preprocs),
     )
     return result

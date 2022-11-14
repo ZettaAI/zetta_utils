@@ -1,11 +1,11 @@
 """cuelang parsing."""
-import tempfile
-import subprocess
 import json
-import pathlib
 import os
-import fsspec  # type: ignore
+import pathlib
+import subprocess
+import tempfile
 
+import fsspec
 
 cue_exe = os.environ.get("CUE_EXE", "cue")
 

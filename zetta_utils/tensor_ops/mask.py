@@ -1,15 +1,14 @@
-from typing import Literal
 import copy
-import torch
-import numpy as np
-from typeguard import typechecked
+from typing import Literal
 
-import cc3d  # type: ignore
-import fastremap  # type: ignore
+import cc3d
+import fastremap
+import numpy as np
+import torch
+from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import TensorTypeVar
-
 
 MaskFilteringModes = Literal["keep_large", "keep_small"]
 

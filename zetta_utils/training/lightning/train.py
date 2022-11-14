@@ -1,8 +1,9 @@
 # pylint: disable=all # type: ignore
 import os
 from typing import Optional
-import typeguard
+
 import pytorch_lightning as pl
+import typeguard
 
 from zetta_utils import builder
 

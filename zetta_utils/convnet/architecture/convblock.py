@@ -1,10 +1,12 @@
 # pylint: disable=protected-access
 from __future__ import annotations
-from typing import Callable, Union, Literal, Optional, List, Dict, Tuple
+
 from collections import defaultdict
-from typeguard import typechecked
+from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+
 import torch
 from torch import nn
+from typeguard import typechecked
 
 from zetta_utils import builder
 
@@ -82,7 +84,7 @@ class ConvBlock(nn.Module):
         conv_count = 0
 
         result = data
-        for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
+        for this_layer, next_layer in zip(self.layers, list(self.layers[1:]) + [None]):
             if isinstance(this_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in skip_data_for:
                     result += skip_data_for[conv_count]

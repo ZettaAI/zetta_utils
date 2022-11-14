@@ -1,4 +1,4 @@
-from typing import Any, Literal, Dict
+from typing import Any, Dict, Literal
 
 import attrs
 import torch
@@ -54,6 +54,8 @@ class JointDataset(torch.utils.data.Dataset):
 
         elif self.mode == "vertical":
             num_samples = sum([len(d) for d in self.datasets.values()])
+        else:
+            assert False, "Type checker error."  # pragma: no cover
 
         return num_samples
 
@@ -71,4 +73,5 @@ class JointDataset(torch.utils.data.Dataset):
                     sample = dset[idx - sum_num_samples]
                     break
                 sum_num_samples = sum_num_samples_new
+
         return sample

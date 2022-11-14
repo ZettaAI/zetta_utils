@@ -1,12 +1,13 @@
 from typing import Any
 
 import attrs
-import torch
 import numpy as np
+import torch
 from typeguard import typechecked
 
-from zetta_utils import tensor_ops, builder
+from zetta_utils import builder, tensor_ops
 from zetta_utils.layer import Layer
+
 from .sample_indexers import SampleIndexer
 
 

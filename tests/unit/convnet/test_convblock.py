@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import pytest
 import torch
+
 from zetta_utils import convnet
+
 from ..helpers import assert_array_equal
 
 

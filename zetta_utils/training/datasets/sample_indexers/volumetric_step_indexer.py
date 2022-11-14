@@ -1,11 +1,11 @@
 from typing import Optional, Tuple
-import attrs
 
+import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.bcube import BcubeStrider, BoundingCube
 from zetta_utils.typing import Vec3D
-from zetta_utils.bcube import BoundingCube, BcubeChunker
 
 from .base import SampleIndexer
 
@@ -38,20 +38,20 @@ class VolumetricStepIndexer(SampleIndexer):
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     step_size_in_unit: Vec3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
-    bcube_chunker: BcubeChunker = attrs.field(init=False)
+    bcube_strider: BcubeStrider = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         # Use `__setattr__` to keep the object frozen.
-        bcube_chunker = BcubeChunker(
+        bcube_strider = BcubeStrider(
             bcube=self.bcube,
             resolution=self.resolution,
             chunk_size=self.chunk_size,
             step_size=self.step_size,
         )
-        object.__setattr__(self, "bcube_chunker", bcube_chunker)
+        object.__setattr__(self, "bcube_strider", bcube_strider)
 
     def __len__(self):
-        return self.bcube_chunker.num_chunks
+        return self.bcube_strider.num_chunks
 
     def __call__(self, idx: int) -> Tuple[Optional[Vec3D], slice, slice, slice]:
         """Translate a chunk index to a volumetric region in space.
@@ -62,7 +62,7 @@ class VolumetricStepIndexer(SampleIndexer):
             at ``self.index_resolution``.
 
         """
-        sample_bcube = self.bcube_chunker.get_nth_chunk_bcube(idx)
+        sample_bcube = self.bcube_strider.get_nth_chunk_bcube(idx)
         if self.index_resolution is not None:
             slices = sample_bcube.to_slices(resolution=self.index_resolution)
         else:

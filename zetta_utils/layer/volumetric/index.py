@@ -1,23 +1,24 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Tuple, Optional, Union, get_origin
+from typing import Optional, Tuple, Union, get_origin
+
 import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.typing import Vec3D, Slices3D
 
 # from zetta_utils.partial import ComparablePartial
 from zetta_utils.bcube import BoundingCube
+from zetta_utils.typing import Slices3D, Vec3D
 
-from .. import LayerIndex, IndexConverter
+from .. import IndexConverter, LayerIndex
 
 
 @builder.register("VolumetricIndex")
 @typechecked
 @attrs.mutable
-class VolumetricIndex(LayerIndex):
+class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
     bcube: BoundingCube
     allow_slice_rounding: bool = False
@@ -28,6 +29,18 @@ class VolumetricIndex(LayerIndex):
 
     def to_slices(self):
         return self.bcube.to_slices(self.resolution, self.allow_slice_rounding)
+
+    def pad(self, pad: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.pad(pad=pad, resolution=self.resolution),
+            resolution=self.resolution,
+        )
+
+    def crop(self, crop: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.crop(crop=crop, resolution=self.resolution),
+            resolution=self.resolution,
+        )
 
 
 SliceRawVolumetricIndex = Union[
@@ -58,10 +71,12 @@ class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricInde
     allow_slice_rounding: bool = False
 
     def _get_bcube_from_raw_vol_idx(self, idx_raw: ConvertibleRawVolumetricIndex) -> BoundingCube:
-        # mypy generally confused here because of use of len() and  get_origin.
+        # static type system  generally confused here because of use of len() and get_origin.
         # it understands neither
+
+        result: BoundingCube
         if isinstance(idx_raw, get_origin(BoundingCube)):  # type: ignore
-            result = idx_raw  # type: BoundingCube # type: ignore
+            result = idx_raw  # type: ignore
         elif len(idx_raw) == 2 and isinstance(  # type: ignore
             idx_raw[1], get_origin(BoundingCube)  # type: ignore
         ):

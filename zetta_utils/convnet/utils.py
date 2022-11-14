@@ -1,6 +1,7 @@
-from typing import Optional, Sequence
 import io
-import fsspec  # type: ignore
+from typing import Optional, Sequence
+
+import fsspec
 import torch
 
 from zetta_utils import builder

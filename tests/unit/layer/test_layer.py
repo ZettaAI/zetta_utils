@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access
 import pytest
 
-from zetta_utils.layer import Layer, DataWithIndexProcessor
+from zetta_utils.layer import DataWithIndexProcessor, Layer
 
 
 def test_read_no_conv(mocker):
@@ -59,7 +59,7 @@ def test_write_exc(mocker):
     dummy_backend = mocker.Mock()
     layer = Layer(dummy_backend, readonly=True)
     with pytest.raises(IOError):
-        layer.write(None, None)
+        layer.write(mocker.Mock(), mocker.Mock())
 
 
 def test_write(mocker):

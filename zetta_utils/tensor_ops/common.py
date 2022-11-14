@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring
-from typing import Union, Literal, Optional, Sequence, SupportsIndex
+from typing import Literal, Optional, Sequence, SupportsIndex, Union
+
+import einops
 import numpy as np
 import torch
-import einops
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.typing import Number
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
@@ -104,7 +104,7 @@ InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 def _standardize_scale_factor(
     data_ndim: int,
-    scale_factor: Optional[Union[Number, Sequence[Number]]] = None,
+    scale_factor: Optional[Union[float, Sequence[float]]] = None,
 ) -> Optional[Sequence[float]]:
     if scale_factor is None:
         result = None
@@ -159,7 +159,7 @@ def _validate_interpolation_setting(
     # as some of our pre-processing code assumes a valid setting.
 
     if data.ndim > 5:
-        raise ValueError(f"Number of dimensions must be <= 5. Got: {data.ndim}")
+        raise ValueError(f"float of dimensions must be <= 5. Got: {data.ndim}")
 
     if scale_factor_tuple is None and size is None:
         raise ValueError("Neither `size` nor `scale_factor` provided to `interpolate()`")
@@ -214,10 +214,8 @@ def squeeze_to(
 
     """
     Squeeze the front jto the given ``size`` or by the given ``scale_factor``.
-
     :param data: Input tensor with batch and channel dimensions.
     :param ndim: Desired result shape.
-
     """
     if ndim is not None:
         while data.ndim > ndim:
@@ -243,7 +241,6 @@ def interpolate(  # pylint: disable=too-many-locals
     unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
-
     :param data: Input tensor with batch and channel dimensions.
     :param size: Desired result shape.
     :param scale_factor: Interpolation scale factor.
@@ -258,7 +255,6 @@ def interpolate(  # pylint: disable=too-many-locals
         (dim 0). Result is squeezed back to the original number of dimensions before
         returning.
     :return: Interpolated tensor of the same type as the input tensor_ops.
-
     """
     original_ndim = data.ndim
     data = unsqueeze_to(data, unsqueeze_input_to)
@@ -367,4 +363,30 @@ def compare(
         result = data
         result[mask] = fill
 
+    return result
+
+
+@builder.register("crop")
+@typechecked
+def crop(
+    data: TensorTypeVar,
+    crop: Sequence[int],  # pylint: disable=redefined-outer-name
+    # mode: Literal["center"] = "center",
+) -> TensorTypeVar:
+    """
+    Crop a multidimensional tensor.
+    :param data: Input tensor.
+    :param crop: float from pixels to crop from each side.
+        The last integer will correspond to the last dimension, and count
+        will go from there right to left.
+    """
+
+    slices = [slice(0, None) for _ in range(data.ndim - len(crop))]
+    for e in crop:
+        assert e >= 0
+        if e != 0:
+            slices.append(slice(e, -e))
+        else:
+            slices.append(slice(0, None))
+    result = data[tuple(slices)]
     return result

@@ -1,10 +1,11 @@
 # pylint: disable=missing-docstring
 """Jupyter widgets. Most widget code is excluded from automated testing."""
-import ipywidgets as widgets  # type: ignore
+import ipywidgets as widgets
+import matplotlib.pyplot as plt
 from ipywidgets import interact
-import matplotlib.pyplot as plt  # type: ignore
 
 import zetta_utils as zu
+
 from . import rendering
 
 

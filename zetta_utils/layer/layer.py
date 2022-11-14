@@ -2,19 +2,13 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import (
-    Iterable,
-    Callable,
-    Optional,
-    TypeVar,
-    Generic,
-    Any,
-)
+from typing import Any, Callable, Generic, Iterable, List, Optional, TypeVar
 
 import attrs
 
 from zetta_utils import builder
-from . import LayerBackend, LayerIndex, IndexConverter, DataWithIndexProcessor
+
+from . import DataWithIndexProcessor, IndexConverter, LayerBackend, LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 RawIndexT = TypeVar("RawIndexT")
@@ -44,9 +38,9 @@ class Layer(Generic[RawIndexT, IndexT]):
     backend: LayerBackend[IndexT]
     readonly: bool = False
     index_converter: Optional[IndexConverter[RawIndexT, IndexT]] = None
-    index_adjs: Iterable[Callable[[IndexT], IndexT]] = attrs.field(factory=list)
-    read_postprocs: Iterable[Callable] = attrs.field(factory=list)
-    write_preprocs: Iterable[Callable] = attrs.field(factory=list)
+    index_adjs: List[Callable[[IndexT], IndexT]] = attrs.field(factory=list)
+    read_postprocs: List[Callable] = attrs.field(factory=list)
+    write_preprocs: List[Callable] = attrs.field(factory=list)
 
     def _convert_index(self, idx_raw: RawIndexT) -> IndexT:
         if self.index_converter is not None:

@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
 import os
 import pathlib
-import pytest
+
 import numpy as np
+import pytest
 
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.layer.volumetric import cloudvol
-from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
 
 THIS_DIR = pathlib.Path(__file__).parent.resolve()

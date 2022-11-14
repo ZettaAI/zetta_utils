@@ -1,8 +1,9 @@
 # pylint: disable=consider-using-set-comprehension
 import uuid
+
+import boto3
 import pytest
-import boto3  # type: ignore
-from moto import mock_sqs  # type: ignore
+from moto import mock_sqs
 
 from zetta_utils import mazepa
 

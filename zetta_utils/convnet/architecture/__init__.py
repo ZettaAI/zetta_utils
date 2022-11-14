@@ -1,2 +1,2 @@
-from .convblock import ConvBlock
 from . import primitives
+from .convblock import ConvBlock

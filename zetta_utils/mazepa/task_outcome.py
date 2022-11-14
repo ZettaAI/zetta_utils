@@ -1,5 +1,6 @@
-from typing import Optional, TypeVar, Generic
-from enum import Enum, unique, auto
+from enum import Enum, auto, unique
+from typing import Generic, Optional, TypeVar
+
 import attrs
 
 

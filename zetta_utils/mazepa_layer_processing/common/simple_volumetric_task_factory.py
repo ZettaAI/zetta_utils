@@ -1,9 +1,12 @@
 from __future__ import annotations
-from typing import Any, Generic, Callable, Optional, List, Tuple, Union
+
 import copy
-from typing_extensions import ParamSpec
-import torch
+from typing import Any, Callable, Generic, List, Optional, Tuple, Union
+
 import attrs
+import torch
+from typing_extensions import ParamSpec
+
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.layer import Layer
 from zetta_utils.layer.volumetric import VolumetricIndex
@@ -14,15 +17,17 @@ P = ParamSpec("P")
 
 @builder.register("SimpleVolumetricTaskFactory")
 @mazepa.task_factory_cls
-@attrs.frozen()
+@attrs.frozen(init=False)
 class SimpleVolumetricTaskFactory(Generic[P]):
     """
-    Provides data cropping, index cropping and index resolution change
-    functionalities for volumetric data processing.
+    Wrapper that converts a volumetric processing callable to a task factory.
+    Adds support for data cropping, index cropping and index resolution change
+    functionalities.
+
     :param fn: Callable that will perform data processing
-    :param dst_data_crop: Crop along XYZ dimensions of the callable output.
-    :param dst_idx_res: What resolution to write at. If ``None``, will
-        default to ``dst_data_crop``.
+    :param dst_data_crop: Output crop along XYZ dimensions.
+    :param dst_idx_res: What resolution to write output at. If ``None``,
+        will write at the input resolution.
     """
 
     fn: Callable[P, torch.Tensor]

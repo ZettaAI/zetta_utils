@@ -1,32 +1,24 @@
 from __future__ import annotations
 
+import functools
 import time
 import uuid
-from typing import (
-    Callable,
-    TypeVar,
-    Generic,
-    Iterable,
-    Dict,
-    Protocol,
-    Type,
-    Any,
-    runtime_checkable,
-)
-import functools
-from typing_extensions import ParamSpec
+from typing import Callable, Dict, Generic, Iterable, Protocol, Type, TypeVar, runtime_checkable
+
 import attrs
+from typing_extensions import ParamSpec
+
 from . import id_generators
-from .task_outcome import TaskOutcome, TaskStatus
 from .task_execution_env import TaskExecutionEnv
+from .task_outcome import TaskOutcome, TaskStatus
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
-P1 = ParamSpec("P1")
+P_init = ParamSpec("P_init")
 
 
 @runtime_checkable
-class Task(Protocol[P, R_co]):  # pragma: no cover # protocol
+class Task(Protocol[R_co]):
     """
     An executable task.
     """
@@ -37,7 +29,7 @@ class Task(Protocol[P, R_co]):  # pragma: no cover # protocol
     _mazepa_callbacks: list[Callable]
     outcome: TaskOutcome
 
-    def set_up(self, *args: P.args, **kwargs: P.kwargs):
+    def _set_up(self, *args: Iterable, **kwargs: Dict):
         ...
 
     def __call__(self) -> TaskOutcome[R_co]:
@@ -45,12 +37,12 @@ class Task(Protocol[P, R_co]):  # pragma: no cover # protocol
 
 
 @attrs.mutable
-class _Task(Generic[P, R_co]):
+class _Task(Generic[R_co]):
     """
     An executable task.
     """
 
-    fn: Callable[P, R_co]
+    fn: Callable[..., R_co]
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
     args_are_set: bool = attrs.field(init=False, default=False)
@@ -67,10 +59,10 @@ class _Task(Generic[P, R_co]):
     # cache_expiration: datetime.timedelta = None
     # max_retry: # Can use SQS approximateReceiveCount to explicitly fail the task
 
-    # Split into __init__ and set_up because ParamSpec doesn't allow us
+    # Split into __init__ and _set_up because ParamSpec doesn't allow us
     # to play with kwargs.
     # cc: https://peps.python.org/pep-0612/#concatenating-keyword-parameters
-    def set_up(self, *args: P.args, **kwargs: P.kwargs):
+    def _set_up(self, *args: Iterable, **kwargs: Dict):
         assert not self.args_are_set
         self.args = args
         self.kwargs = kwargs
@@ -82,7 +74,7 @@ class _Task(Generic[P, R_co]):
         time_start = time.time()
         try:
             # TODO: parametrize by task execution environment
-            return_value = self.fn(**self.kwargs)
+            return_value = self.fn(*self.args, **self.kwargs)
             status = TaskStatus.SUCCEEDED
             exception = None
         # Todo: catch special exceptions
@@ -105,7 +97,7 @@ class _Task(Generic[P, R_co]):
 
 
 @runtime_checkable
-class TaskFactory(Protocol[P, R_co]):  # pragma: no cover # protocol
+class TaskFactory(Protocol[P, R_co]):
     """
     Wraps a callable to add a ``make_task`` method,
     ``make_task`` method creates a mazepa task corresponding to execution of
@@ -123,14 +115,66 @@ class TaskFactory(Protocol[P, R_co]):  # pragma: no cover # protocol
         self,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> Task[P, R_co]:
+    ) -> Task[R_co]:
+        ...
+
+
+@runtime_checkable
+class RawTaskFactoryCls(Protocol[P_init, P, R_co]):
+    """
+    Interface of a class that can be wrapped by `@task_factory_cls`.
+    """
+
+    def __init__(
+        self,
+        *args: P_init.args,
+        **kwargs: P_init.kwargs,
+    ):
+        ...
+
+    def __call__(
+        self,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> R_co:
+        ...
+
+
+@runtime_checkable
+class TaskFactoryCls(Protocol[P_init, P, R_co]):
+    """
+    Interface of a class that can be used as a task factory.
+    Wraps a callable to add a ``make_task`` method,
+    ``make_task`` method creates a mazepa task corresponding to execution of
+    the callable with the given parameters.
+    """
+
+    def __init__(
+        self,
+        *args: P_init.args,
+        **kwargs: P_init.kwargs,
+    ):
+        ...
+
+    def __call__(
+        self,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> R_co:
+        ...
+
+    def make_task(
+        self,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> Task[R_co]:
         ...
 
 
 @attrs.mutable
 class _TaskFactory(Generic[P, R_co]):
     """
-    Implementation of the task factory.
+    TaskFactory wrapper
     """
 
     fn: Callable[P, R_co]
@@ -142,17 +186,17 @@ class _TaskFactory(Generic[P, R_co]):
         self,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> R_co:  # pragma: no cover
+    ) -> R_co:  # pragma: no cover # no logic
         return self.fn(*args, **kwargs)
 
     def make_task(
         self,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> Task[P, R_co]:
+    ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, kwargs)
-        result = _Task[P, R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
-        result.set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
+        result = _Task[R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
+        result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
 
 
@@ -161,8 +205,8 @@ def task_factory(fn: Callable[P, R_co]) -> TaskFactory[P, R_co]:
 
 
 def task_factory_cls(
-    cls: Type[Callable[P, R_co]],
-) -> Type[Callable[P, R_co]]:
+    cls: Type[RawTaskFactoryCls[P_init, P, R_co]],
+) -> Type[TaskFactoryCls[P_init, P, R_co]]:
     def _make_task(self, *args, **kwargs):
         return _TaskFactory(  # pylint: disable=protected-access
             self,
@@ -173,63 +217,4 @@ def task_factory_cls(
 
     # can't override __new__ because it doesn't combine well with attrs/dataclass
     setattr(cls, "make_task", _make_task)
-    return cls
-
-
-"""
-T_contra = TypeVar('T_contra', contravariant=True)
-T1_contra = TypeVar('T1_contra', contravariant=True)
-
-from typing_extensions import Concatenate
-def task_factory_with_idx_cls(
-    cls: Type[Callable[Concatenate[T_contra, P], R_co]],
-) -> Type[Callable[Concatenate[T_contra, P], R_co]]:
-    def _make_task(self, *args, **kwargs):
-        return _TaskFactory(  # pylint: disable=protected-access
-            self,
-            # TODO: Other params passed to decorator
-        ).make_task(
-            *args, **kwargs
-        )  # pylint: disable=protected-access
-
-    # can't override __new__ because it doesn't combine well with attrs/dataclass
-    setattr(cls, "make_task", _make_task)
-    return cls
-
-def task_factory_with_idx_dst_cls(
-    cls: Type[Callable[Concatenate[T_contra, T1_contra, P], R_co]],
-) -> Type[Callable[Concatenate[T_contra, T1_contra, P], R_co]]:
-    def _make_task(self, *args, **kwargs):
-        return _TaskFactory(  # pylint: disable=protected-access
-            self,
-            # TODO: Other params passed to decorator
-        ).make_task(
-            *args, **kwargs
-        )  # pylint: disable=protected-access
-
-    # can't override __new__ because it doesn't combine well with attrs/dataclass
-    setattr(cls, "make_task", _make_task)
-    return cls
-
-@runtime_checkable
-class TaskFactoryWithIdx(Protocol[T_contra, P, R_co]):  # pragma: no cover # protocol
-
-    def __call__(
-        self,
-        idx: T_contra,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...
-
-    def make_task(
-        self,
-        idx: T_contra,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Task[P, R_co]:
-        ...
-
-
-
-    """
+    return cls  # type: ignore

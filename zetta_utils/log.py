@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+
 from rich.logging import RichHandler
 
 
@@ -9,7 +10,7 @@ def get_time_str(log_time):
     return log_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
-def configure_logger(third_party_level="INFO"):
+def configure_logger(third_party_level="CRITICAL"):
     for _ in (
         "python_jsonschema_objects",
         "urllib3",
@@ -18,9 +19,12 @@ def configure_logger(third_party_level="INFO"):
         "fsspec",
         "asyncio",
         "botocore",
+        "matplotlib",
+        "git",
+        "h5py",
+        "torch",
     ):
         logging.getLogger(_).setLevel(third_party_level)
-
     logging.basicConfig(
         level="NOTSET",
         format="'%(name)s' %(pathname)20s:%(lineno)4d \n%(message)s",
@@ -42,3 +46,6 @@ logger = logging.getLogger("zetta_utils")
 def get_logger(name):
     configure_logger()
     return logging.getLogger(name)
+
+
+configure_logger()

@@ -1,3 +1,1 @@
-from . import utils
-from . import architecture
-from . import artificery
+from . import architecture, artificery, utils

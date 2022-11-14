@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, Iterable, Union, Callable
 import time
+from typing import Callable, Iterable, Optional, Union
+
 import attrs
+
 from zetta_utils.log import get_logger
 
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
-from .flows import Flow
 from .execution_state import ExecutionState, InMemoryExecutionState
+from .flows import Flow
 
 logger = get_logger("mazepa")
 

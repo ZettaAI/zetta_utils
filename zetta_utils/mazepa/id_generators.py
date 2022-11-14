@@ -1,7 +1,7 @@
-from typing import Callable
 import uuid
+from typing import Callable
 
-from coolname import generate_slug  # type: ignore
+from coolname import generate_slug
 
 
 def get_unique_id(  # pylint: disable=unused-argument

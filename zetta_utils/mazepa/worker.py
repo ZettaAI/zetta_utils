@@ -1,5 +1,7 @@
 import time
+
 from zetta_utils.log import get_logger
+
 from . import ExecutionQueue
 
 logger = get_logger("mazepa")

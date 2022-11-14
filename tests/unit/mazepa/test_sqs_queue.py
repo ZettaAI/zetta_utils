@@ -1,10 +1,12 @@
 # pylint: disable=redefined-outer-name,exec-used
 import time
+
+import boto3
 import pytest
-import docker  # type: ignore
-import boto3  # type: ignore
+
+import docker
 from zetta_utils.mazepa import SQSExecutionQueue, TaskStatus
-from zetta_utils.mazepa.tasks import _TaskFactory, _Task
+from zetta_utils.mazepa.tasks import _Task, _TaskFactory
 
 
 def test_push_tasks_exc(mocker):

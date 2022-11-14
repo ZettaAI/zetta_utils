@@ -1,11 +1,14 @@
 from __future__ import annotations
-from typing import Iterable, Any, Optional, Dict
+
+from typing import Any, Dict, Iterable, Optional
+
 import attrs
+import taskqueue
 from typeguard import typechecked
-import taskqueue  # type: ignore
 
 # from zetta_utils.log import logger
 from zetta_utils.partial import ComparablePartial
+
 from .. import Task, TaskOutcome, serialization
 from . import sqs_utils
 

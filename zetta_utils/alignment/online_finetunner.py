@@ -1,9 +1,11 @@
-import torch
-import torchfields  # type: ignore
-
-import metroem  # type: ignore
 import einops
-from zetta_utils import builder
+import metroem
+import torch
+import torchfields
+
+from zetta_utils import builder, log
+
+logger = log.get_logger("zetta_utils")
 
 
 @builder.register("align_with_online_finetunner")
@@ -13,9 +15,6 @@ def align_with_online_finetuner(
     sm=100,
     num_iter=200,
     lr=3e-1,
-    defect_sm=0.0,
-    mse_keys_to_apply=None,
-    sm_keys_to_apply=None,
 ):
     assert src_data.shape == tgt_data.shape
     src_data = einops.rearrange(src_data, "C X Y 1 -> 1 C X Y")

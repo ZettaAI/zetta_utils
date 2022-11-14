@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-from zetta_utils.training.datasets.sample_indexers import VolumetricStepIndexer
 from zetta_utils.bcube import BoundingCube
+from zetta_utils.training.datasets.sample_indexers import VolumetricStepIndexer
 
 
 def test_len(mocker):

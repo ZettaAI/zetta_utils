@@ -1,15 +1,17 @@
 # pylint: disable=missing-docstring
+# type: ignore
 """ZettaAI Python plotting utilities. Most of the plotting functions are not included
 in automated testing, as they're not meand for production use."""
 from __future__ import annotations
 
-import io
 import copy
+import io
+
+import cv2
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import matplotlib  # type: ignore
-import matplotlib.pyplot as plt  # type: ignore
-import cv2  # type: ignore
 from typeguard import typechecked
 
 from zetta_utils import tensor_ops

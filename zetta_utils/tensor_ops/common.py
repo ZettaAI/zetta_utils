@@ -1,8 +1,9 @@
 # pylint: disable=missing-docstring
-from typing import Union, Literal, Optional, Sequence, SupportsIndex
+from typing import Literal, Optional, Sequence, SupportsIndex, Union
+
+import einops
 import numpy as np
 import torch
-import einops
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
@@ -213,10 +214,8 @@ def squeeze_to(
 
     """
     Squeeze the front jto the given ``size`` or by the given ``scale_factor``.
-
     :param data: Input tensor with batch and channel dimensions.
     :param ndim: Desired result shape.
-
     """
     if ndim is not None:
         while data.ndim > ndim:
@@ -242,7 +241,6 @@ def interpolate(  # pylint: disable=too-many-locals
     unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
     """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
-
     :param data: Input tensor with batch and channel dimensions.
     :param size: Desired result shape.
     :param scale_factor: Interpolation scale factor.
@@ -257,7 +255,6 @@ def interpolate(  # pylint: disable=too-many-locals
         (dim 0). Result is squeezed back to the original number of dimensions before
         returning.
     :return: Interpolated tensor of the same type as the input tensor_ops.
-
     """
     original_ndim = data.ndim
     data = unsqueeze_to(data, unsqueeze_input_to)
@@ -378,7 +375,6 @@ def crop(
 ) -> TensorTypeVar:
     """
     Crop a multidimensional tensor.
-
     :param data: Input tensor.
     :param crop: float from pixels to crop from each side.
         The last integer will correspond to the last dimension, and count

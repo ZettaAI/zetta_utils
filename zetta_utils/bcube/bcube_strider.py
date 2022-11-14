@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Tuple, List
+from typing import List, Tuple
 
 import attrs
 from typeguard import typechecked
 
-from zetta_utils.log import logger
 from zetta_utils import builder
+from zetta_utils.log import logger
 from zetta_utils.typing import Vec3D
 
 from .bcube import BoundingCube

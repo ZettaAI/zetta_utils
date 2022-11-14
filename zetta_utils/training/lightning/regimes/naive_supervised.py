@@ -2,10 +2,11 @@
 
 from typing import Optional
 import attrs
-import torch
-import pytorch_lightning as pl
-import wandb
 
+import pytorch_lightning as pl
+import torch
+
+import wandb
 from zetta_utils import builder
 
 
@@ -16,7 +17,7 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
     lr: float
     min_nonz_frac: float = 0.2
     worst_val_loss: float = attrs.field(init=False, default=0)
-    worst_val_sample: dict = attrs.field(init=False, default=attrs.Factory(dict))
+    worst_val_sample: dict = attrs.field(init=False, factory=dict)
     worst_val_sample_idx: Optional[int] = attrs.field(init=False, default=None)
 
     def __attrs_pre_init__(self):

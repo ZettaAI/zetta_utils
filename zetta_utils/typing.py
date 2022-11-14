@@ -1,7 +1,8 @@
 """Basic type definitions used for type annotations."""
 from __future__ import annotations
 
-from typing import Union, Any, Tuple, List
+from typing import Any, List, Tuple, Union
+
 import typeguard
 
 Slices3D = Tuple[slice, slice, slice]

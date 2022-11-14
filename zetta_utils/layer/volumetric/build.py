@@ -1,20 +1,21 @@
 # pylint: disable=missing-docstring
-from typing import Callable, Optional, Any, Iterable
 import copy
+from typing import Any, Callable, Iterable, Optional
+
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.typing import Vec3D
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
+from zetta_utils.typing import Vec3D
 
 from .. import LayerBackend
 from . import (
     RawVolumetricIndex,
+    VolDataInterpolator,
+    VolIdxResolutionAdjuster,
     VolumetricIndex,
     VolumetricIndexConverter,
-    VolIdxResolutionAdjuster,
-    VolDataInterpolator,
 )
 
 

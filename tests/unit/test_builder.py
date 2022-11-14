@@ -1,11 +1,11 @@
 # pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name,invalid-name
 from dataclasses import dataclass
 from typing import Any
+
 import pytest
 
-from zetta_utils.partial import ComparablePartial
 from zetta_utils import builder
-
+from zetta_utils.partial import ComparablePartial
 
 PARSE_KEY = "@type"
 RECURSIVE_KEY = "@recursive_parse"

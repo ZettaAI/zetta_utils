@@ -1,10 +1,12 @@
-from typing import Literal, Iterable
-from typeguard import typechecked
+from typing import Iterable, Literal
+
 import attrs
+from typeguard import typechecked
+
 from zetta_utils import builder, tensor_ops
-from zetta_utils.typing import Vec3D
-from zetta_utils.tensor_typing import TensorTypeVar
 from zetta_utils.bcube import BcubeStrider
+from zetta_utils.tensor_typing import TensorTypeVar
+from zetta_utils.typing import Vec3D
 
 from .. import DataWithIndexProcessor, IndexChunker
 from . import VolumetricIndex

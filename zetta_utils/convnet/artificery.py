@@ -1,4 +1,5 @@
-import artificery  # type: ignore
+import artificery
+
 from zetta_utils import builder
 
 art = artificery.Artificery()

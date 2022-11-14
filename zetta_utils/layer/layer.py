@@ -2,12 +2,13 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Iterable, Callable, Optional, TypeVar, Generic, Any, List
+from typing import Any, Callable, Generic, Iterable, List, Optional, TypeVar
 
 import attrs
 
 from zetta_utils import builder
-from . import LayerBackend, LayerIndex, IndexConverter, DataWithIndexProcessor
+
+from . import DataWithIndexProcessor, IndexConverter, LayerBackend, LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 RawIndexT = TypeVar("RawIndexT")

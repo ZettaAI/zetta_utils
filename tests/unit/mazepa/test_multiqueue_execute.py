@@ -1,8 +1,12 @@
 from __future__ import annotations
+
 import time
+
 import pytest
+
 from zetta_utils.mazepa import ExecutionMultiQueue, TaskExecutionEnv
 from zetta_utils.mazepa.tasks import _Task
+
 from .maker_utils import make_test_task
 
 

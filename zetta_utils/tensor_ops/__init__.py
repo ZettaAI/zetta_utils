@@ -1,6 +1,4 @@
-from . import convert
-from .convert import to_np, to_torch, astype
-from . import common
-from .common import interpolate, InterpolationMode, compare, squeeze, unsqueeze, crop
-from . import mask
+from . import common, convert, mask
+from .common import InterpolationMode, compare, crop, interpolate, squeeze, unsqueeze
+from .convert import astype, to_np, to_torch
 from .mask import filter_cc  # , coarsen

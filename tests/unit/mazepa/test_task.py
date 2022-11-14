@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import attrs
-from zetta_utils.mazepa import task_factory, Task, task_factory_cls, TaskFactory
+
+from zetta_utils.mazepa import Task, TaskFactory, task_factory, task_factory_cls
 
 
 def test_make_task_factory_cls() -> None:

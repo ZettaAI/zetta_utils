@@ -1,7 +1,8 @@
 # import pickle
 import codecs
 import zlib
-import dill  # type: ignore
+
+import dill
 
 
 def serialize(obj):  # pragma: no cover

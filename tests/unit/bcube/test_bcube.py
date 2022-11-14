@@ -1,8 +1,8 @@
 # pylint: disable=missing-docstring
 import pytest
 
-from zetta_utils.typing import Vec3D, Slices3D
 from zetta_utils.bcube import BoundingCube
+from zetta_utils.typing import Slices3D, Vec3D
 
 
 @pytest.mark.parametrize(

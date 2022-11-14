@@ -1,9 +1,10 @@
 # pylint: disable=missing-docstring,invalid-name
-import pytest
 import numpy as np
+import pytest
 import torch
 
 from zetta_utils.tensor_ops import common
+
 from ..helpers import assert_array_equal
 
 

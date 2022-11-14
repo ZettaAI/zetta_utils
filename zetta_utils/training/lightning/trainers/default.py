@@ -1,12 +1,14 @@
-from typing import Optional, List, Any
-import os
-import json
 import datetime
-import fsspec  # type: ignore
+import json
+import os
+from typing import Any, List, Optional
+
+import fsspec
 import pytorch_lightning as pl
 import typeguard
-import wandb
+from pytorch_lightning.loggers import WandbLogger
 
+import wandb
 from zetta_utils import builder
 
 
@@ -46,7 +48,7 @@ def build_default_trainer(
 ) -> pl.Trainer:
     if not os.environ.get("WANDB_MODE", None) == "offline":
         wandb.login()  # pragma: no cover
-    logger = pl.loggers.WandbLogger(
+    logger = WandbLogger(
         project=experiment_name,
         name=experiment_version,
         id=experiment_version,

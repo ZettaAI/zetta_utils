@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
+from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Vec3D, Slices3D
+from zetta_utils.typing import Slices3D, Vec3D
 
 
 def _assert_equal_len(**kwargs: Sequence):

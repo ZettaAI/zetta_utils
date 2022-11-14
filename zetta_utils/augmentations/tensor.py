@@ -1,12 +1,13 @@
-from typing import Union, Optional, Callable
 import math
 import random
+from typing import Callable, Optional, Union
+
 import torch
-from torchvision.transforms.functional import rotate  # type: ignore
+from torchvision.transforms.functional import rotate
 from typeguard import typechecked
 
-from zetta_utils import distributions, tensor_ops, builder
-from zetta_utils.tensor_typing import TensorTypeVar, Tensor
+from zetta_utils import builder, distributions, tensor_ops
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from .common import prob_aug
 
@@ -49,7 +50,7 @@ def clamp_values_aug(
     low_distr: Optional[Union[distributions.Distribution, float]] = None,
     high_distr: Optional[Union[distributions.Distribution, float]] = None,
     mask_fn: Optional[Callable[..., Tensor]] = None,
-):
+) -> TensorTypeVar:
     data_torch = tensor_ops.to_torch(data).float()
     mask = _get_weights_mask(data_torch, mask_fn).bool()
 
@@ -113,7 +114,7 @@ def square_tile_pattern_aug(
     preserve_data_val: Optional[float] = 0,
     repeats: int = 1,
     device: torch.types.Device = "cpu",
-):
+) -> TensorTypeVar:
     assert data.shape[-1] == data.shape[-2]
 
     data_ = tensor_ops.to_torch(data, device=device).float()

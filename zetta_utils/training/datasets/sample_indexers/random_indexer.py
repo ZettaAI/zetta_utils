@@ -1,11 +1,11 @@
-from typing import Any
 from random import randint
+from typing import Any
 
 import attrs
-
 from typeguard import typechecked
 
 from zetta_utils import builder
+
 from .base import SampleIndexer
 
 

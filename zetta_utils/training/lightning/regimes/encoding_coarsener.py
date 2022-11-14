@@ -1,16 +1,16 @@
 # pragma: no cover
 
-from typing import Optional, List, Union
 import random
-import attrs
-import PIL  # type: ignore
-import torch
-import pytorch_lightning as pl
-import torchvision  # type: ignore
-import wandb
+from typing import List, Optional, Union
 
-import zetta_utils as zu
-from zetta_utils import builder, convnet, tensor_ops  # pylint: disable=unused-import
+import attrs
+import pytorch_lightning as pl
+import torch
+import torchvision
+from PIL import Image
+
+import wandb
+from zetta_utils import builder, tensor_ops
 
 
 @builder.register("EncodingCoarsener")
@@ -26,7 +26,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
     diffkeep_weight: float = 0.0
     min_nonz_frac: float = 0.2
     worst_val_loss: float = attrs.field(init=False, default=0)
-    worst_val_sample: dict = attrs.field(init=False, default=attrs.Factory(dict))
+    worst_val_sample: dict = attrs.field(init=False, factory=dict)
     worst_val_sample_idx: Optional[int] = attrs.field(init=False, default=None)
 
     def __attrs_pre_init__(self):
@@ -98,7 +98,6 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         sample_name: str = "",
     ):
         setting_name = f"{mode}_apply{apply_count}"
-
         if (data_in != 0).sum() / data_in.numel() < self.min_nonz_frac:
             loss = None
         else:
@@ -118,7 +117,7 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
                     f"{setting_name}_recons",
                     sample_name,
                     data_in=data_in,
-                    naive=zu.tensor_ops.interpolate(
+                    naive=tensor_ops.interpolate(
                         data_in, size=(enc.shape[-2], enc.shape[-1]), mode="img"
                     ),
                     enc=enc,
@@ -177,12 +176,12 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         data_in_rot = torchvision.transforms.functional.rotate(
             img=data_in,
             angle=angle,
-            interpolation=PIL.Image.BILINEAR,
+            interpolation=Image.BILINEAR,
         )
         enc_rot = torchvision.transforms.functional.rotate(
             img=enc,
             angle=angle,
-            interpolation=PIL.Image.BILINEAR,
+            interpolation=Image.BILINEAR,
         )
         rot_input_enc = data_in_rot
         for _ in range(apply_count):
@@ -212,16 +211,16 @@ class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancesto
         data_in_rot = torchvision.transforms.functional.rotate(
             img=data_in,
             angle=angle,
-            interpolation=PIL.Image.BILINEAR,
+            interpolation=Image.BILINEAR,
         )
         enc_rot = torchvision.transforms.functional.rotate(
             img=enc,
             angle=angle,
-            interpolation=PIL.Image.BILINEAR,
+            interpolation=Image.BILINEAR,
         )
         data_in_diff = (data_in - data_in_rot) ** 2
         enc_diff = (enc - enc_rot) ** 2
-        data_in_diff_downs = zu.tensor_ops.interpolate(
+        data_in_diff_downs = tensor_ops.interpolate(
             data_in_diff, size=enc_diff.shape[-2:], mode="img"
         )
         loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs()

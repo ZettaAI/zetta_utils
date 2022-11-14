@@ -1,9 +1,10 @@
-from typing import TypeVar, Generic
-from typing_extensions import ParamSpec
+from typing import Generic, TypeVar
+
 import attrs
-from zetta_utils import mazepa
-from zetta_utils import builder
-from zetta_utils.layer import LayerIndex, IndexChunker
+from typing_extensions import ParamSpec
+
+from zetta_utils import builder, mazepa
+from zetta_utils.layer import IndexChunker, LayerIndex
 from zetta_utils.log import logger
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
@@ -13,13 +14,19 @@ R_co = TypeVar("R_co", covariant=True)
 
 @builder.register("ChunkedApplyFlow")
 @mazepa.flow_type_cls
-@attrs.mutable
+@attrs.mutable(init=False)
 class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
-    # Want to keep the same call signature as the task factory, so define it as class
-    task_factory: mazepa.TaskFactory[P, R_co]  # How to represent callable + idx first arg?
-    chunker: IndexChunker[IndexT]
+    # TODO: re-enable attrs init after pyright figures this out
+    # cc: https://github.com/microsoft/pyright/issues/4183
+    def __init__(
+        self,
+        task_factory: mazepa.TaskFactory[P, R_co],
+        chunker: IndexChunker[IndexT],
+    ):
+        self.task_factory = task_factory
+        self.chunker = chunker
 
-    def generate(
+    def flow(
         self,
         *args: P.args,
         **kwargs: P.kwargs,
@@ -44,3 +51,12 @@ class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
         ]
         logger.info(f"Submitting {len(tasks)} processing tasks from factory {self.task_factory}.")
         yield tasks
+
+
+# from zetta_utils.mazepa.flows import RawFlowType
+
+# def foo(x: RawFlowType):
+#    pass
+
+# foo = foo
+# foo(ChunkedApplyFlow)

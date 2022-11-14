@@ -1,12 +1,12 @@
-from typing import Any, Callable, Literal
-import os
 import copy
+import os
+from typing import Any, Callable, Literal
+
 from typeguard import typechecked
 
-from zetta_utils import mazepa, builder
-from zetta_utils.layer import Layer, IndexChunker
-from zetta_utils.layer.volumetric import VolIdxTranslator
-from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils import builder, mazepa
+from zetta_utils.layer import IndexChunker, Layer
+from zetta_utils.layer.volumetric import VolIdxTranslator, VolumetricIndex
 
 from .. import ChunkedApplyFlow
 

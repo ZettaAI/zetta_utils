@@ -1,11 +1,15 @@
 from __future__ import annotations
+
 import time
 from collections import defaultdict
 from typing import Any, Optional
-import cachetools  # type: ignore
+
 import attrs
-import tenacity
-import boto3  # type: ignore
+import boto3
+import cachetools
+from tenacity import retry
+from tenacity.stop import stop_after_attempt
+from tenacity.wait import wait_random
 
 from zetta_utils.log import get_logger
 
@@ -33,7 +37,7 @@ def get_queue_url(queue_name: str, region_name, endpoint_url: Optional[str] = No
     return result
 
 
-@tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_random(min=0.5, max=2))
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def receive_msgs(
     queue_name: str,
     region_name: str,
@@ -50,7 +54,7 @@ def receive_msgs(
         resp = sqs_client.receive_message(
             QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
             AttributeNames=["All"],
-            MaxfloatOfMessages=msg_batch_size,
+            MaxNumberOfMessages=msg_batch_size,
             VisibilityTimeout=visibility_timeout,
             WaitTimeSeconds=1,
         )
@@ -78,7 +82,7 @@ def receive_msgs(
     return result
 
 
-@tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_random(min=0.5, max=2))
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def send_msg(
     queue_name: str,
     region_name: str,
@@ -119,7 +123,7 @@ def delete_received_msgs(msgs: list[SQSReceivedMsg]) -> None:
             )
 
 
-@tenacity.retry(stop=tenacity.stop_after_attempt(5), wait=tenacity.wait_random(min=0.5, max=2))
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_by_receipt_handle(
     receipt_handle: str,
     queue_name: str,
@@ -143,9 +147,11 @@ def delete_msg_batch(
     endpoint_url: Optional[str] = None,
     try_count: int = 5,
 ) -> None:
+    assert try_count > 0
     assert len(receipt_handles) <= 10, "SQS only supports batch size <= 10"
     entries_left = {str(k): v for k, v in enumerate(receipt_handles)}
 
+    ack = None  # type: Any
     for _ in range(try_count):
         ack = get_sqs_client(region_name, endpoint_url=endpoint_url).delete_message_batch(
             QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),

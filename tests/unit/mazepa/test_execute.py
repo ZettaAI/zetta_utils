@@ -1,15 +1,18 @@
 # pylint: disable=global-statement,redefined-outer-name,unused-argument
 from __future__ import annotations
+
 from typing import Any
+
 import pytest
+
 from zetta_utils.mazepa import (
     Dependency,
-    flow_type,
-    TaskStatus,
-    task_factory,
-    execute,
     InMemoryExecutionState,
     LocalExecutionQueue,
+    TaskStatus,
+    execute,
+    flow_type,
+    task_factory,
 )
 from zetta_utils.mazepa.remote_execution_queues import SQSExecutionQueue
 

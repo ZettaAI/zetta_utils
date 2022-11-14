@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-import torch
 import numpy as np
+import torch
 
 from zetta_utils.training.datasets import LayerDataset
 

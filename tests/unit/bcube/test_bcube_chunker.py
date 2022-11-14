@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-from zetta_utils.bcube import BoundingCube, BcubeStrider
+from zetta_utils.bcube import BcubeStrider, BoundingCube
 
 
 def test_bcube_rounding(mocker):

@@ -1,11 +1,12 @@
 # pylint: disable=missing-docstring
-from typing import Dict, Callable, Sequence
+from typing import Callable, Dict, Sequence
+
 from typeguard import typechecked
 
 from zetta_utils import builder
 
 from .. import Layer
-from . import LayerSetBackend, SetSelectionIndex, RawSetSelectionIndex
+from . import LayerSetBackend, RawSetSelectionIndex, SetSelectionIndex
 
 
 @typechecked

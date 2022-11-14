@@ -1,25 +1,26 @@
 from __future__ import annotations
 
-from typing import Iterable, Protocol, runtime_checkable, Optional, List, Dict, Set
 from collections import defaultdict
+from typing import Dict, List, Optional, Protocol, Set, runtime_checkable
+
 import attrs
 from typeguard import typechecked
 
-from .flows import Flow
-from .tasks import Task
-from .task_outcome import TaskOutcome, TaskStatus
 from .dependency import Dependency
+from .flows import Flow
+from .task_outcome import TaskOutcome, TaskStatus
+from .tasks import Task
 
 
 @runtime_checkable
 class ExecutionState(Protocol):  # pragma: no cover
-    def __init__(self, ongoing_flows: dict[str, Flow], completed_ids: Iterable[str] = ...):
+    def __init__(self, ongoing_flows: List[Flow]):
         ...
 
-    def get_ongoing_flow_ids(self) -> list[str]:
+    def get_ongoing_flow_ids(self) -> List[str]:
         ...
 
-    def update_with_task_outcomes(self, task_outcomes: dict[str, TaskOutcome]):
+    def update_with_task_outcomes(self, task_outcomes: Dict[str, TaskOutcome]):
         ...
 
     def get_task_batch(self, max_batch_len: int = ...) -> list[Task]:
@@ -34,24 +35,31 @@ class InMemoryExecutionState:
     as in-memory data structures.
     """
 
-    ongoing_flows: Dict[str, Flow] = attrs.field(converter=lambda x: {e.id_: e for e in x})
-    ongoing_exhausted_flow_ids: Set[str] = attrs.field(factory=set)
+    ongoing_flows: List[Flow]
+    ongoing_flows_dict: Dict[str, Flow] = attrs.field(init=False)
+    ongoing_exhausted_flow_ids: Set[str] = attrs.field(init=False, factory=set)
     ongoing_parent_map: Dict[str, Optional[str]] = attrs.field(
         init=False, default=defaultdict(lambda: None)
     )
     ongoing_children_map: Dict[str, Set[str]] = attrs.field(
         init=False, factory=lambda: defaultdict(set)
     )
-    ongoing_tasks: Dict[str, Task] = attrs.field(factory=dict)
+    ongoing_tasks: Dict[str, Task] = attrs.field(init=False, factory=dict)
 
-    completed_ids: Set[str] = attrs.field(factory=set)
+    completed_ids: Set[str] = attrs.field(
+        init=False,
+        factory=set,
+    )
     dependency_map: Dict[str, Set[str]] = attrs.field(init=False, factory=lambda: defaultdict(set))
+
+    def __attrs_post_init__(self):
+        self.ongoing_flows_dict = {e.id_: e for e in self.ongoing_flows}
 
     def get_ongoing_flow_ids(self) -> List[str]:
         """
         Return ids of the flows that haven't been completed.
         """
-        return list(self.ongoing_flows.keys())
+        return list(self.ongoing_flows_dict.keys())
 
     def update_with_task_outcomes(self, task_outcomes: Dict[str, TaskOutcome]):
         """
@@ -86,9 +94,9 @@ class InMemoryExecutionState:
         """
 
         result = []  # type: List[Task]
-        for flow in list(self.ongoing_flows.values()):
+        for flow in list(self.ongoing_flows_dict.values()):
             while (
-                flow.id_ in self.ongoing_flows
+                flow.id_ in self.ongoing_flows_dict
                 and len(self.dependency_map[flow.id_]) == 0
                 and len(result) < max_batch_len
                 and flow.id_ not in self.ongoing_exhausted_flow_ids
@@ -119,7 +127,7 @@ class InMemoryExecutionState:
     def _update_completed_id(self, id_: str):
         self.completed_ids.add(id_)
         self.ongoing_exhausted_flow_ids.discard(id_)
-        self.ongoing_flows.pop(id_, None)
+        self.ongoing_flows_dict.pop(id_, None)
         self.ongoing_tasks.pop(id_, None)
 
         parent_id = self.ongoing_parent_map[id_]
@@ -148,7 +156,7 @@ class InMemoryExecutionState:
                     self.ongoing_children_map[flow.id_].add(e.id_)
                     self.ongoing_parent_map[e.id_] = flow.id_
                     if isinstance(e, Flow):
-                        self.ongoing_flows[e.id_] = e
+                        self.ongoing_flows_dict[e.id_] = e
                     else:
                         assert isinstance(e, Task), "Typechecking error."
                         result.append(e)

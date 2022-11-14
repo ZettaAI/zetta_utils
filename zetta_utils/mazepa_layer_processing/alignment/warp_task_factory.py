@@ -1,17 +1,15 @@
 from __future__ import annotations
-from typing import Any, Generic, Callable, Optional, List, Tuple, Union
-import copy
-from typing_extensions import ParamSpec
-import einops
 
-import torch
-import torchfields  # type: ignore
+import copy
+from typing import Any, List, Optional, Tuple, Union
 
 import attrs
+import einops
+import torchfields  # pylint: disable=unused-import # monkeypatch
+
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.layer import Layer
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.typing import Vec3D
 
 
 @builder.register("WarpTaskFactory")

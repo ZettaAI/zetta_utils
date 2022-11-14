@@ -1,10 +1,10 @@
-from typing import Union, Optional, Callable
-import pytest
+from typing import Callable, Optional, Union
 
 import numpy as np
+import pytest
 
-from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 from zetta_utils import augmentations, distributions
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from ..helpers import assert_array_equal
 

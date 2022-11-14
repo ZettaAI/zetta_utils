@@ -1,12 +1,16 @@
 from __future__ import annotations
+
 import time
 from collections import defaultdict
-from typing import Protocol, Iterable, runtime_checkable, Dict, List
-from typeguard import typechecked
+from typing import Dict, Iterable, List, Protocol, runtime_checkable
+
 import attrs
+from typeguard import typechecked
+
 from zetta_utils.log import get_logger
-from .tasks import Task
+
 from .task_outcome import TaskOutcome
+from .tasks import Task
 
 logger = get_logger("mazepa")
 

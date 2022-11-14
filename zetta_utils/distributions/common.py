@@ -1,9 +1,11 @@
 from __future__ import annotations
-from typing import Union, Protocol, runtime_checkable, overload, Optional
+
+from typing import Optional, Protocol, Union, overload, runtime_checkable
+
 import numpy as np
 import numpy.typing as npt
-
 from typeguard import typechecked
+
 from zetta_utils import builder
 from zetta_utils.partial import ComparablePartial
 

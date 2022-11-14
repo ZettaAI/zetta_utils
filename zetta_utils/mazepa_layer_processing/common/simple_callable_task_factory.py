@@ -1,8 +1,9 @@
-from typing import TypeVar, Any, Generic, Callable
-from typing_extensions import ParamSpec
+from typing import Any, Callable, Generic, TypeVar
+
 import attrs
-from zetta_utils import mazepa
-from zetta_utils import builder
+from typing_extensions import ParamSpec
+
+from zetta_utils import builder, mazepa
 from zetta_utils.layer import Layer, LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
@@ -11,14 +12,19 @@ P = ParamSpec("P")
 
 @builder.register("SimpleCallableTaskFactory")
 @mazepa.task_factory_cls
-@attrs.frozen()
+@attrs.frozen(init=False)
 class SimpleCallableTaskFactory(Generic[P]):
     """
     Naive Wrapper that converts a callalbe to a task.
     No type checking will be performed on the callable.
     """
 
-    fn: Callable[P, Any]
+    def __init__(
+        self,
+        fn: Callable[P, Any],
+    ):
+        self.fn = fn
+
     # download_layers: bool = True # Could be made optoinal
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
@@ -29,8 +35,6 @@ class SimpleCallableTaskFactory(Generic[P]):
         assert "dst" in kwargs
         idx: IndexT = kwargs["idx"]  # type: ignore
         dst: Layer[Any, IndexT] = kwargs["dst"]  # type: ignore
-
-        # TODO: assert that types check out
 
         fn_kwargs = {}
         for k, v in kwargs.items():

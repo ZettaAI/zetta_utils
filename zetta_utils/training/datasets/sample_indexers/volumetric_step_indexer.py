@@ -1,11 +1,11 @@
 from typing import Optional, Tuple
-import attrs
 
+import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.bcube import BcubeStrider, BoundingCube
 from zetta_utils.typing import Vec3D
-from zetta_utils.bcube import BoundingCube, BcubeStrider
 
 from .base import SampleIndexer
 

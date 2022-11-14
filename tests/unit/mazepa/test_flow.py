@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from zetta_utils.mazepa import (
+    Dependency,
     Flow,
-    TaskExecutionEnv,
+    FlowFnReturnType,
     FlowType,
+    TaskExecutionEnv,
     flow_type,
     flow_type_cls,
-    FlowFnReturnType,
-    Dependency,
 )
 from zetta_utils.mazepa.flows import _Flow, _FlowType
 
@@ -16,7 +17,7 @@ def test_make_flow_type_cls() -> None:
     class DummyFlowCls:
         x: str = "1"
 
-        def generate(self) -> FlowFnReturnType:
+        def flow(self) -> FlowFnReturnType:
             yield Dependency(self.x)
 
     obj = DummyFlowCls()
@@ -64,4 +65,6 @@ def test_get_batch_env(mocker):
     env = TaskExecutionEnv()
     with j.task_execution_env_ctx(env):
         result = j.get_next_batch()
+        assert isinstance(result, list)
+        assert isinstance(result[0], Flow)
         assert result[0].task_execution_env == env

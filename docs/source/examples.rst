@@ -7,7 +7,7 @@ Logging
 
 Import ``logger`` object from ``zetta_utils.log`` and use it instead of ``print`` and ``warnings.warn`` statements.
 
-.. doctest::
+.. code-block:: python
 
    >>> from zetta_utils.log import logger
    >>> logger.warn("This is a warning")

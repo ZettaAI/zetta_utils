@@ -38,4 +38,3 @@ def test_show_registry(register_dummy):
     runner = CliRunner()
     result = runner.invoke(cli.show_registry)
     assert result.exit_code == 0
-    assert "dummy" in result.output

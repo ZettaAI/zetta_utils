@@ -8,7 +8,6 @@ repos:
   - id: pretty-format-json
   - id: check-merge-conflict
   - id: check-toml
-  - id: detect-aws-credentials
   - id: detect-private-key
   - id: name-tests-test
   - id: check-yaml

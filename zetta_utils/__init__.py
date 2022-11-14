@@ -5,7 +5,6 @@ from . import bcube, builder, distributions, layer, log, parsing, partial, typin
 
 
 def load_all_modules():
-    log.get_logger("zetta_util").debug("Importing all modules.")
     from . import (
         alignment,
         augmentations,

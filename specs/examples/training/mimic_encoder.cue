@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "demo_x2"
+#EXP_VERSION:   "demo_x20"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -94,12 +94,10 @@ trainer: {
 	}
 	sample_indexer: {
 		"@type": "VolumetricStepIndexer"
+		resolution: [64, 64, 40]
 		desired_resolution: [64, 64, 40]
-		index_resolution: [64, 64, 40]
-		patch_size_resolution: [64, 64, 40]
-		patch_size: [1024, 1024, 1]
+		chunk_size: [1024, 1024, 1]
 		step_size: [512, 512, 1]
-		step_size_resolution: [64, 64, 40]
 		bcube: {
 			"@type":     "BoundingCube"
 			start_coord: _

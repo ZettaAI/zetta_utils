@@ -60,7 +60,7 @@ class VolIdxResolutionAdjuster:  # pragma: no cover # under 3 statements, no con
 class VolDataInterpolator(DataWithIndexProcessor):
     interpolation_mode: tensor_ops.InterpolationMode
     mode: Literal["read", "write"]
-    allow_shape_rounding: bool = False
+    allow_slice_rounding: bool = False
 
     def __call__(
         self,
@@ -78,7 +78,7 @@ class VolDataInterpolator(DataWithIndexProcessor):
             data=data,
             scale_factor=scale_factor,
             mode=self.interpolation_mode,
-            allow_shape_rounding=self.allow_shape_rounding,
+            allow_slice_rounding=self.allow_slice_rounding,
             unsqueeze_input_to=5,  # b + c + xyz
         )
 

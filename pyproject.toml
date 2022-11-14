@@ -37,7 +37,7 @@ cli = [
     "click >= 8.0.1"
 ]
 tensor-typing = [
-    "torch >= 1.12.1",
+    "torch == 1.12.1", # mypy error on newer
     "numpy >= 1.23.1",
 ]
 tensor-ops = [
@@ -75,7 +75,7 @@ mazepa = [
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet]",
     "torch >= 1.11.0",
-    "pytorch-lightning >= 1.7.7",
+    "pytorch-lightning == 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",
     "gcsfs >= 2022.7.1"
 ]

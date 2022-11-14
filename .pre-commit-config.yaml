@@ -5,6 +5,12 @@ repos:
   - id: trailing-whitespace
   - id: end-of-file-fixer
   - id: check-json
+  - id: pretty-format-json
+  - id: check-merge-conflict
+  - id: check-toml
+  - id: detect-aws-credentials
+  - id: detect-private-key
+  - id: name-tests-test
   - id: check-yaml
   - id: check-byte-order-marker
   - id: check-case-conflict

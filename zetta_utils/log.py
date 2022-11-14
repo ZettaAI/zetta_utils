@@ -10,7 +10,7 @@ def get_time_str(log_time):
     return log_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
 
-def configure_logger(third_party_level="CRITICAL"):
+def configure_logger(level="CRITICAL", third_party_level="CRITICAL"):
     for _ in (
         "python_jsonschema_objects",
         "urllib3",
@@ -25,8 +25,9 @@ def configure_logger(third_party_level="CRITICAL"):
         "torch",
     ):
         logging.getLogger(_).setLevel(third_party_level)
+
     logging.basicConfig(
-        level="NOTSET",
+        level=level,
         format="'%(name)s' %(pathname)20s:%(lineno)4d \n%(message)s",
         handlers=[
             RichHandler(

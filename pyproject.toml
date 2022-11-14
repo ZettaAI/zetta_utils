@@ -165,11 +165,7 @@ warn_redundant_casts = true
 warn_unused_configs = true
 implicit_reexport = true
 no_implicit_optional = true
-#plugins = "zetta_utils.mazepa.mypy_plugin"
+plugins = "zetta_utils.mazepa.mypy_plugin"
 
 [tool.isort]
 skip = ["__init__.py"]
-#incremental = false
-#disallow_untyped_defs = true
-#check_untyped_defs = true
-#strict_equality = true

@@ -25,7 +25,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_reference_path: Optional[str] = None,
     info_field_overrides: Optional[Dict[str, Any]] = None,
     on_info_exists: InfoExistsModes = "expect_same",
-    allow_shape_rounding: bool = False,
+    allow_slice_rounding: bool = False,
     index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
     read_postprocs: Iterable[Callable[..., Any]] = (),
     write_preprocs: Iterable[Callable[..., Any]] = (),
@@ -49,9 +49,9 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param info_field_overrides: Manual info field specifications.
     :param on_info_exists: Behavior mode for when both new info specs aregiven
         and layer info already exists.
-    :param allow_shape_rounding: Whether layer allows IO operations where the specified index
+    :param allow_slice_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
-        ``allow_shape_rounding == True``, shapes will be rounded to nearest integer.
+        ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
     :param index_adjs: List of adjustors that will be applied to the index given by the user
         prior to IO operations.
     :param read_postprocs: List of processors that will be applied to the read data before
@@ -81,7 +81,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         data_resolution=data_resolution,
         interpolation_mode=interpolation_mode,
         readonly=readonly,
-        allow_shape_rounding=allow_shape_rounding,
+        allow_slice_rounding=allow_slice_rounding,
         index_adjs=index_adjs,
         read_postprocs=read_postprocs,
         write_preprocs=write_preprocs,

@@ -21,13 +21,14 @@ from .. import IndexConverter, LayerIndex
 class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
     bcube: BoundingCube
+    allow_slice_rounding: bool = False
 
     @classmethod
     def default_convert(cls, idx_raw: RawVolumetricIndex) -> VolumetricIndex:  # pragma: no cover
         return VolumetricIndexConverter()(idx_raw)
 
     def to_slices(self):
-        return self.bcube.to_slices(self.resolution)
+        return self.bcube.to_slices(self.resolution, self.allow_slice_rounding)
 
     def pad(self, pad: Vec3D):
         return VolumetricIndex(
@@ -67,6 +68,7 @@ RawVolumetricIndex = Union[
 class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricIndex]):
     index_resolution: Optional[Vec3D] = None
     default_desired_resolution: Optional[Vec3D] = None
+    allow_slice_rounding: bool = False
 
     def _get_bcube_from_raw_vol_idx(self, idx_raw: ConvertibleRawVolumetricIndex) -> BoundingCube:
         # static type system  generally confused here because of use of len() and get_origin.
@@ -103,6 +105,7 @@ class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricInde
                 slice_resolution = specified_resolution
 
             result = BoundingCube.from_slices(slices=slices_raw, resolution=slice_resolution)
+
         return result
 
     def _get_desired_res_from_raw_vol_idx(self, idx_raw: ConvertibleRawVolumetricIndex) -> Vec3D:
@@ -134,4 +137,5 @@ class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricInde
                 bcube=bcube,
             )
 
+        result.allow_slice_rounding = self.allow_slice_rounding
         return result

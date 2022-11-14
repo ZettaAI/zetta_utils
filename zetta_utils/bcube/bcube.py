@@ -115,13 +115,13 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         self,
         dim: int,
         resolution: Union[int, float, VecT],
-        allow_rounding: bool = False,
+        allow_slice_rounding: bool = False,
     ) -> slice:
         """Represent the bounding box as a slice along the given dimension.
 
         :param dim: Dimension along which the slice will be taken.
         :param resolution: Resolution at which the slice will be taken.
-        :param allow_rounding: Whether to allow representing bounding box
+        :param allow_slice_rounding: Whether to allow representing bounding box
             with non-integer slice start/end at the given resolution.
         :return: Slice representing the bounding box.
 
@@ -135,20 +135,20 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         dim_range_start_raw = self.bounds[dim][0] / dim_res
         dim_range_end_raw = self.bounds[dim][1] / dim_res
 
-        if not allow_rounding:
+        if not allow_slice_rounding:
             if dim_range_start_raw != round(dim_range_start_raw):
                 raise ValueError(
                     f"{self} results in slice_start == "
                     f"{dim_range_start_raw} along dimension {dim} "
                     f"at resolution == {resolution} while "
-                    "`allow_rounding` == False."
+                    "`allow_slice_rounding` == False."
                 )
             if dim_range_end_raw != round(dim_range_end_raw):
                 raise ValueError(
                     f"{self} results in slice_end == "
                     f"{dim_range_end_raw} along dimension {dim} "
                     f"at resolution == {resolution} while "
-                    "`allow_rounding` == False."
+                    "`allow_slice_rounding` == False."
                 )
         slice_length = int(round(dim_range_end_raw - dim_range_start_raw))
         result = slice(
@@ -157,16 +157,18 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         )
         return result
 
-    def to_slices(self, resolution: VecT, allow_rounding: bool = False) -> SlicesT:
+    def to_slices(self, resolution: VecT, allow_slice_rounding: bool = False) -> SlicesT:
         """Represent the bounding box as a tuple of slices.
 
         :param resolution: Resolution at which the slices will be taken.
-        :param allow_rounding: Whether to allow representing bounding box
+        :param allow_slice_rounding: Whether to allow representing bounding box
             with non-integer slice start/end at the given resolution.
         :return: Slices representing the bounding box.
 
         """
-        result = tuple(self.get_slice(i, resolution[i], allow_rounding) for i in range(self.ndim))
+        result = tuple(
+            self.get_slice(i, resolution[i], allow_slice_rounding) for i in range(self.ndim)
+        )
         result = cast(SlicesT, result)
 
         return result

@@ -64,7 +64,7 @@ convnet = [
     "artificery >= 0.0.3.3"
 ]
 alignment = [
-    #"metroem >= 0.1.4",
+    "metroem >= 0.1.4",
     "torchfields >= 0.1.2",
 ]
 mazepa = [

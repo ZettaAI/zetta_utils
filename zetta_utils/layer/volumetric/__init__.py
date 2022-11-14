@@ -1,11 +1,3 @@
-from .index import (
-    VolumetricIndex,
-    VolumetricIndexConverter,
-    RawVolumetricIndex,
-)
-from .tools import (
-    VolDataInterpolator,
-    VolIdxTranslator,
-    VolIdxResolutionAdjuster,
-)
+from .index import RawVolumetricIndex, VolumetricIndex, VolumetricIndexConverter
+from .tools import VolDataInterpolator, VolIdxResolutionAdjuster, VolIdxTranslator
 from .build import build_volumetric_layer

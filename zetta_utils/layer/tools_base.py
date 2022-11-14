@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic, Iterable, TypeVar
+
+import attrs
+
 from . import LayerIndex
 
 RawIndexT = TypeVar("RawIndexT")
@@ -28,3 +31,17 @@ class DataWithIndexProcessor(ABC, Generic[DataT, IndexT]):
         """
         Modifies data given both original and adjusted indexes
         """
+
+
+class IndexChunker(ABC, Generic[IndexT]):
+    @abstractmethod
+    def __call__(self, idx: IndexT) -> Iterable[IndexT]:
+        """
+        Gets chunks from the given index.
+        """
+
+
+@attrs.frozen
+class IdentityIndexChunker(IndexChunker[IndexT]):
+    def __call__(self, idx: IndexT) -> Iterable[IndexT]:  # pragma: no cover # identity
+        return [idx]

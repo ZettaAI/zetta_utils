@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import copy
 from typing import Any, Callable, TypeVar
-from typing_extensions import ParamSpec
+
 from typeguard import typechecked
+
 from zetta_utils.partial import ComparablePartial
 
 REGISTRY: dict = {}
@@ -13,12 +14,11 @@ MODE_KEY = "@mode"
 RECURSE_KEY = "@recursive_parse"
 
 
-R = TypeVar("R")
-P = ParamSpec("P")
+T = TypeVar("T")
 
 
 @typechecked
-def register(name: str, versions=None) -> Callable[[Callable[P, R]], Callable[P, R]]:
+def register(name: str, versions=None) -> Callable[[T], T]:
     """Decorator for registering classes to be buildable.
 
     :param name: Name which will be used for to indicate an object of the
@@ -28,7 +28,7 @@ def register(name: str, versions=None) -> Callable[[Callable[P, R]], Callable[P,
     if versions is not None:
         raise NotImplementedError()  # pragma: no cover
 
-    def register_fn(cls: Callable[P, R]) -> Callable[P, R]:
+    def register_fn(cls: T) -> T:
         REGISTRY[name] = cls
         return cls
 

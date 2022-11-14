@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring # pragma: no cover
-from typing import Generic, TypeVar
 from abc import ABC, abstractmethod
+from typing import Generic, TypeVar
+
 from zetta_utils.layer import LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
@@ -20,5 +21,5 @@ class LayerBackend(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-meth
     # CC https://stackoverflow.com/questions/55345608/instantiate-a-type-that-is-a-typevar
     @classmethod
     def get_index_type(cls):  # pragma: no cover
-        result = cls.__orig_bases__[0].__args__[0]  # pylint: disable=no-member
+        result = cls.__orig_bases__[0].__args__[0]
         return result

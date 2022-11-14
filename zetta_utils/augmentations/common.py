@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 import random
 from typing import Callable, TypeVar
+
 from typeguard import typechecked
 
 R = TypeVar("R")

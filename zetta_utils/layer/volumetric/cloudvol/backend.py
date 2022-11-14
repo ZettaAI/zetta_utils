@@ -1,20 +1,20 @@
 # pylint: disable=missing-docstring
 import json
 import os
-from typing import Dict, Any, Optional, Literal, Iterable
+from typing import Any, Dict, Iterable, Literal, Optional
 
 import attrs
+import cachetools
+import cloudvolume as cv
+import fsspec
 import numpy as np
 import torch
-import fsspec  # type: ignore
-import cachetools  # type: ignore
-import cloudvolume as cv  # type: ignore
 from cloudvolume import CloudVolume
 from typeguard import typechecked
 
-from zetta_utils import tensor_ops, builder
-from zetta_utils.typing import Vec3D
+from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor
+from zetta_utils.typing import Vec3D
 
 from ... import LayerBackend
 from .. import VolumetricIndex
@@ -30,8 +30,7 @@ def _jsonize_key(*args, **kwargs):  # pragma: no cover
     return result
 
 
-_cv_cache = cachetools.LRUCache(maxsize=500)
-
+_cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 
 # To avoid reloading info file
 @cachetools.cached(_cv_cache, key=_jsonize_key)

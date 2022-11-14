@@ -1,2 +1,2 @@
 from .bcube import BoundingCube
-from .bcube_chunker import BcubeChunker
+from .bcube_strider import BcubeStrider

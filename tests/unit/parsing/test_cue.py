@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring,unspecified-encoding,invalid-name
 import pathlib
+
 import pytest
 
 from zetta_utils.parsing import cue

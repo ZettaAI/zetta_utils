@@ -1,13 +1,17 @@
 [run]
 omit =
   *_tmp.py
-  zetta_utils/widgest.py
-  zetta_utils/viz.py
+  zetta_utils/log.py
+  zetta_utils/mazepa_layer_processing/*.py
+  zetta_utils/viz/*.py
+  zetta_utils/alignment/*.py
   zetta_utils/training/lightning/regimes/*.py
   setup.py
 
 [report]
 exclude_lines =
+    \.\.\.
+
     # Skip any pass lines such as may be used for @abstractmethod
     pass
 

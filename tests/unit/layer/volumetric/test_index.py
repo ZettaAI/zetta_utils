@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
 import pytest
 
+from zetta_utils.bcube import BoundingCube
 from zetta_utils.layer.volumetric import (
-    VolumetricIndexConverter,
     RawVolumetricIndex,
     VolumetricIndex,
+    VolumetricIndexConverter,
 )
-from zetta_utils.bcube import BoundingCube
 
 
 @pytest.mark.parametrize(
@@ -65,7 +65,11 @@ from zetta_utils.bcube import BoundingCube
         ],
     ],
 )
-def test_volumetric_conver(kwargs: dict, idx: RawVolumetricIndex, expected: VolumetricIndex):
+def test_volumetric_conver(
+    kwargs: dict,
+    idx: RawVolumetricIndex,
+    expected: VolumetricIndex,
+):
     conver = VolumetricIndexConverter(**kwargs)
     result = conver(idx)
     assert result == expected

@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Union, Sequence, Tuple, Generic, TypeVar, Optional, cast
+from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Number, Vec3D, Slices3D
+from zetta_utils.typing import Slices3D, Vec3D
 
 
 def _assert_equal_len(**kwargs: Sequence):
@@ -26,7 +26,7 @@ DEFAULT_UNIT = "nm"
 # Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
-VecT = TypeVar("VecT", bound=Sequence[Number])
+VecT = TypeVar("VecT", bound=Sequence[float])
 # @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
 class BoundingBoxND(Generic[SlicesT, VecT]):
@@ -38,12 +38,12 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     """
 
-    bounds: Sequence[Tuple[Number, Number]]  # Bounding cube bounds, measured in Unit.
+    bounds: Sequence[Tuple[float, float]]  # Bounding cube bounds, measured in Unit.
     unit: str = DEFAULT_UNIT  # Unit name (for decorative purposes only).
 
     @property
     def ndim(self) -> int:
-        """Number of dimensions."""
+        """float of dimensions."""
         return len(self.bounds)
 
     @classmethod
@@ -173,9 +173,59 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
+    def crop(
+        self,
+        crop: Sequence[Union[int, float, tuple[float, float]]],
+        resolution: VecT,
+        # in_place: bool = False,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        """Create a cropped version of this bounding box.
+
+        :param crop: Specification of how much to crop along each dimension.
+        :param resolution: Resolution at which ``crop`` specification was given.
+        :return: Cropped bounding box.
+
+        """
+        if len(crop) != self.ndim:
+            raise ValueError(
+                f"Length of the cropping specification ({len(crop)}) != "
+                f"BoundingCube ndim ({self.ndim})."
+            )
+
+        _assert_equal_len(
+            crop=crop,
+            bounds=self.bounds,
+            resoluiton=resolution,
+        )
+
+        double_sided_crop = []
+        for e in crop:
+            if isinstance(e, (int, float)):
+                double_sided_crop += [(e, e)]
+            else:
+                double_sided_crop += [e]
+
+        slices = cast(
+            SlicesT,
+            tuple(
+                slice(
+                    self.bounds[i][0] + double_sided_crop[i][0] * resolution[i],
+                    self.bounds[i][1] - double_sided_crop[i][1] * resolution[i],
+                )
+                for i in range(self.ndim)
+            ),
+        )
+
+        result = BoundingBoxND[SlicesT, VecT].from_slices(
+            slices=slices,
+            unit=self.unit,
+        )
+
+        return result
+
     def pad(
         self,
-        pad: Sequence[Union[int, float, tuple[Union[int, float], Union[int, float]]]],
+        pad: Sequence[Union[float, tuple[float, float]]],
         resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -227,8 +277,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def translate(
         self,
-        offset: Sequence[Union[int, float]],
-        resolution: Sequence[Union[int, float]],
+        offset: Sequence[float],
+        resolution: Sequence[float],
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.

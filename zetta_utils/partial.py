@@ -1,6 +1,7 @@
-from typing import Callable, Any, Dict, Generic, TypeVar
-from typeguard import typechecked
+from typing import Any, Callable, Dict, Generic, TypeVar
+
 import attrs
+from typeguard import typechecked
 
 R = TypeVar("R")
 

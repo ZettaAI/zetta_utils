@@ -1,15 +1,17 @@
 # pylint: disable=missing-docstring
+# type: ignore
 """ZettaAI Python plotting utilities. Most of the plotting functions are not included
 in automated testing, as they're not meand for production use."""
 from __future__ import annotations
 
-import io
 import copy
+import io
+
+import cv2
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import matplotlib  # type: ignore
-import matplotlib.pyplot as plt  # type: ignore
-import cv2  # type: ignore
 from typeguard import typechecked
 
 from zetta_utils import tensor_ops
@@ -126,7 +128,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     The field is assumed to be in a residual format and pixel units.
 
     :param fld: An array of shape [(1,) H, W, 2] representing a 2D vector field.
-    :param grid_side: Number of arrows per side.
+    :param grid_side: float of arrows per side.
     :return: RGB rendering of the vector field.
     """
     fld = tensor_ops.convert.to_np(fld).squeeze()

@@ -1,2 +1,1 @@
-from . import rendering
-from . import widgets
+from . import rendering, widgets

@@ -1,8 +1,8 @@
 # pylint: disable=missing-docstring
 import pytest
 
-from zetta_utils.typing import Vec3D, Slices3D
 from zetta_utils.bcube import BoundingCube
+from zetta_utils.typing import Slices3D, Vec3D
 
 
 @pytest.mark.parametrize(
@@ -231,3 +231,47 @@ def test_translate(
 ):
     result = bcube.translate(offset, resolution, in_place)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bcube, crop, resolution, expected",
+    [
+        [
+            BoundingCube(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            (1, 3, 5),
+            (1, 1, 1),
+            BoundingCube(bounds=((0, 0), (0, 0), (0, 0))),
+        ],
+        [
+            BoundingCube(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            (1, 3, 5),
+            (1, 3, 5),
+            BoundingCube(bounds=((0, 0), (0, 0), (0, 0))),
+        ],
+        [
+            BoundingCube(bounds=((0, 1), (-3, 9), (-10, 25))),
+            ((0, 1), (1, 3), (2, 5)),
+            (1, 3, 5),
+            BoundingCube(bounds=((0, 0), (0, 0), (0, 0))),
+        ],
+    ],
+)
+def test_crop(bcube: BoundingCube, crop, resolution: Vec3D, expected: BoundingCube):
+    result = bcube.crop(crop=crop, resolution=resolution)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bcube, crop, resolution, expected_exc",
+    [
+        [
+            BoundingCube(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 3, 5, 3),
+            (1, 1, 1),
+            ValueError,
+        ],
+    ],
+)
+def test_crop_exc(bcube: BoundingCube, crop, resolution: Vec3D, expected_exc):
+    with pytest.raises(expected_exc):
+        bcube.crop(crop=crop, resolution=resolution)

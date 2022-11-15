@@ -15,7 +15,7 @@ zetta_utils.load_all_modules()
 
 @click.group()
 @click.option("-v", "--verbose", count=True)
-def cli(verbose):
+def cli(verbose):  # pragma: no cover # no logic, delegation
     verbosity_map = {
         0: "WARN",
         1: "INFO",
@@ -24,7 +24,7 @@ def cli(verbose):
     }
 
     log.set_verbosity(verbosity_map[verbose])
-    # log.configure_logger("zetta_utils", level=verbose)  # pragma: no cover
+    log.configure_logger()
 
 
 @click.command()

@@ -86,10 +86,10 @@ jobs:
         run: pip install -e '.[modules, test]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pylint  ${{ steps.filter.outputs.py_modified_files }}
+        run: pylint . 
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: isort ${{ steps.filter.outputs.py_modified_files }}
+        run: isort .
   mypy:
     runs-on: ubuntu-latest
     steps:

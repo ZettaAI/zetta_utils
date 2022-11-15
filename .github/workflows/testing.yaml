@@ -92,7 +92,7 @@ jobs:
         run: isort --version
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: isort --check-only ${{ steps.filter.outputs.py_modified_files }}
+        run: isort --check-only --verbose ${{ steps.filter.outputs.py_modified_files }}
   mypy:
     runs-on: ubuntu-latest
     steps:

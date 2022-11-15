@@ -33,7 +33,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Setup Go
@@ -78,7 +78,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -86,7 +86,10 @@ jobs:
         run: pip install -e '.[modules, test]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pylint ${{ steps.filter.outputs.py_modified_files }} 
+        run: pylint ${{ steps.filter.outputs.py_modified_files }}
+      - name: Run isort
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: isort --version
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --check-only ${{ steps.filter.outputs.py_modified_files }}
@@ -112,7 +115,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -146,7 +149,7 @@ jobs:
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies

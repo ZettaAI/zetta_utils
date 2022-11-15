@@ -1,5 +1,3 @@
-# pragma: no cover
-
 from typing import Optional
 
 import attrs

@@ -3,8 +3,8 @@ from typing import Optional
 import attrs
 import pytorch_lightning as pl
 import torch
-import wandb
 
+import wandb
 from zetta_utils import builder
 
 

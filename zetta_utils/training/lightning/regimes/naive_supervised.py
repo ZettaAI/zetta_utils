@@ -1,8 +1,8 @@
 # pragma: no cover
 
 from typing import Optional
-import attrs
 
+import attrs
 import pytorch_lightning as pl
 import torch
 

@@ -56,7 +56,7 @@ jobs:
         with:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
-  pylint:
+  pylint-isort:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -87,7 +87,8 @@ jobs:
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
-
+      - name: Run isort
+        uses: isort/isort-action@v1.0.0
   mypy:
     runs-on: ubuntu-latest
     steps:

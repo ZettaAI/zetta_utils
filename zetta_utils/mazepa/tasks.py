@@ -3,7 +3,16 @@ from __future__ import annotations
 import functools
 import time
 import uuid
-from typing import Callable, Dict, Generic, Iterable, Protocol, Type, TypeVar, runtime_checkable
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    Iterable,
+    Protocol,
+    Type,
+    TypeVar,
+    runtime_checkable,
+)
 
 import attrs
 from typing_extensions import ParamSpec

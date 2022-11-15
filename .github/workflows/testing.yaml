@@ -86,10 +86,12 @@ jobs:
         run: pip install -e '.[modules, test]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pylint ${{ steps.filter.outputs.py_modified_files }}
+        run: pylint ${{ steps.filter.outputs.py_modified_files }} 
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --version
+      - run: cat ./zetta_utils/training/lightning/regimes/naive_supervised.py 
+      - run: sha1sum ./zetta_utils/training/lightning/regimes/naive_supervised.py 
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --check-only --verbose ${{ steps.filter.outputs.py_modified_files }}

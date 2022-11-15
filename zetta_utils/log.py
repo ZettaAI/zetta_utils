@@ -1,12 +1,12 @@
 """Output logging."""
 # pylint: disable=global-statement
 
+from __future__ import annotations
+
 import logging
 
 from rich.logging import RichHandler
 
-
-from __future__ import annotations
 
 def get_time_str(log_time):
     return log_time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]

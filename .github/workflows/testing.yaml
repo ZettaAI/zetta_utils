@@ -86,7 +86,7 @@ jobs:
         run: pip install -e '.[modules, test]'
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pylint . 
+        run: pylint ${{ steps.filter.outputs.py_modified == 'true' }} 
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort .

@@ -4,8 +4,9 @@ import attrs
 import torch
 from typeguard import typechecked
 
-from zetta_utils import builder
-from zetta_utils.log import logger
+from zetta_utils import builder, log
+
+logger = log.get_logger("zetta_utils")
 
 
 @builder.register("JointDataset")

@@ -17,7 +17,7 @@ P = ParamSpec("P")
 
 @builder.register("SimpleVolumetricTaskFactory")
 @mazepa.task_factory_cls
-@attrs.frozen(init=False)
+@attrs.frozen
 class SimpleVolumetricTaskFactory(Generic[P]):
     """
     Wrapper that converts a volumetric processing callable to a task factory.

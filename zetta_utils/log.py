@@ -13,7 +13,6 @@ def get_time_str(log_time):
 
 SAVED_LEVEL = "ERROR"
 
-
 def configure_logger(level=None, third_party_level="WARN"):
     for _ in (
         "python_jsonschema_objects",
@@ -60,13 +59,11 @@ def get_logger(name):
     configure_logger()
     return logging.getLogger(name)
 
-
 def set_verbosity(verbosity_level):
     global SAVED_LEVEL
     SAVED_LEVEL = verbosity_level
     logging.getLogger("zetta_utils").setLevel(verbosity_level)
     logging.getLogger("mazepa").setLevel(verbosity_level)
 
-
 configure_logger()
-# logger = logging.getLogger("zetta_utils")
+#logger = logging.getLogger("zetta_utils")

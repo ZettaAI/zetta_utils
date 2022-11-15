@@ -16,11 +16,9 @@ def register_dummy():
 
 
 @pytest.mark.parametrize(
-    "spec, expected_output",
+    "spec",
     [
-        [
-            {"@type": "dummy", "i": {"a": "b"}},
-        ],
+        {"@type": "dummy", "i": {"a": "b"}},
     ],
 )
 def test_zetta_run(spec, register_dummy, mocker):

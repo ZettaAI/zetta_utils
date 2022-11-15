@@ -61,19 +61,3 @@ def chunked_write(
 ) -> mazepa.Flow:
     result = build_chunked_write_flow_type(chunker=chunker)(idx=idx, dst=dst, src=src)
     return result
-
-
-"""
-from zetta_utils.layer.volumetric import VolumetricIndex
-@builder.register("chunked_write")
-def warp(
-    chunker: IndexChunker[IndexT],
-    idx: VolumetricIndex,
-    dst: Layer[Any, VolumetricIndex],
-    src: Layer[Any, VolumetricIndex],
-    field: Layer[Any, VolumetricIndex],
-) -> mazepa.Flow:
-    factory
-    result = build_chunked_write_flow_type(chunker=chunker)(idx=idx, dst=dst, src=src)
-    return result
-"""

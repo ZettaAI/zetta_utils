@@ -138,7 +138,7 @@
                             {
                                 "@type": "rearrange",
                                 "@mode": "partial",
-                                "pattern": "c x y 1 -> c x y"
+                                "pattern": "c x y 1 -\u003e c x y"
                             }
                         ]
                     }
@@ -146,22 +146,7 @@
             },
             "sample_indexer": {
                 "@type": "VolumetricStepIndexer",
-                "desired_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "index_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "patch_size_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "patch_size": [
+                "chunk_size": [
                     1024,
                     1024,
                     1
@@ -171,7 +156,12 @@
                     512,
                     1
                 ],
-                "step_size_resolution": [
+                "resolution": [
+                    128,
+                    128,
+                    40
+                ],
+                "desired_resolution": [
                     128,
                     128,
                     40
@@ -179,8 +169,8 @@
                 "bcube": {
                     "@type": "BoundingCube",
                     "start_coord": [
-                        80000,
-                        30000,
+                        81920,
+                        30720,
                         2000
                     ],
                     "end_coord": [
@@ -214,7 +204,7 @@
                             {
                                 "@type": "rearrange",
                                 "@mode": "partial",
-                                "pattern": "c x y 1 -> c x y"
+                                "pattern": "c x y 1 -\u003e c x y"
                             }
                         ]
                     }
@@ -222,22 +212,7 @@
             },
             "sample_indexer": {
                 "@type": "VolumetricStepIndexer",
-                "desired_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "index_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "patch_size_resolution": [
-                    128,
-                    128,
-                    40
-                ],
-                "patch_size": [
+                "chunk_size": [
                     1024,
                     1024,
                     1
@@ -247,7 +222,12 @@
                     512,
                     1
                 ],
-                "step_size_resolution": [
+                "resolution": [
+                    128,
+                    128,
+                    40
+                ],
+                "desired_resolution": [
                     128,
                     128,
                     40
@@ -255,8 +235,8 @@
                 "bcube": {
                     "@type": "BoundingCube",
                     "start_coord": [
-                        80000,
-                        30000,
+                        81920,
+                        30720,
                         2099
                     ],
                     "end_coord": [

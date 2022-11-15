@@ -141,12 +141,10 @@ trainer: {
 	}
 	sample_indexer: {
 		"@type": "VolumetricStepIndexer"
-		desired_resolution: [128, 128, 40]
-		index_resolution: [128, 128, 40]
-		patch_size_resolution: [128, 128, 40]
-		patch_size: [1024, 1024, 1]
+		chunk_size: [1024, 1024, 1]
 		step_size: [512, 512, 1]
-		step_size_resolution: [128, 128, 40]
+		resolution: [128, 128, 40]
+		desired_resolution: [128, 128, 40]
 		bcube: {
 			"@type":     "BoundingCube"
 			start_coord: _
@@ -160,7 +158,7 @@ trainer: {
 	sample_indexer: {
 		bcube: {
 			"@type": "BoundingCube"
-			start_coord: [80000, 30000, 2000]
+			start_coord: [80 * 1024, 30 * 1024, 2000]
 			end_coord: [230000, 80000, 2099]
 			resolution: [4, 4, 40]
 		}
@@ -171,7 +169,7 @@ trainer: {
 	sample_indexer: {
 		bcube: {
 			"@type": "BoundingCube"
-			start_coord: [80000, 30000, 2099]
+			start_coord: [80 * 1024, 30 * 1024, 2099]
 			end_coord: [230000, 80000, 2100]
 			resolution: [4, 4, 40]
 		}

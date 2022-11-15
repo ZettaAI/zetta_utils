@@ -28,7 +28,7 @@
             },
             "ckpt_path": null,
             "component_names": [
-                "model"
+                "bW9kZWw="
             ]
         }
     },
@@ -39,7 +39,7 @@
         "max_epochs": 1,
         "default_root_dir": "gs://sergiy_exp/training_artifacts",
         "experiment_name": "mimic_encodings",
-        "experiment_version": "demo_x2",
+        "experiment_version": "demo_x20",
         "log_every_n_steps": 100,
         "val_check_interval": 100,
         "checkpointing_kwargs": {
@@ -65,7 +65,7 @@
                             {
                                 "@type": "rearrange",
                                 "@mode": "partial",
-                                "pattern": "c x y 1 -> c x y"
+                                "pattern": "c x y 1 -\u003e c x y"
                             },
                             {
                                 "@type": "divide",
@@ -86,7 +86,7 @@
                             {
                                 "@type": "rearrange",
                                 "@mode": "partial",
-                                "pattern": "c x y 1 -> c x y"
+                                "pattern": "c x y 1 -\u003e c x y"
                             }
                         ]
                     }
@@ -94,22 +94,17 @@
             },
             "sample_indexer": {
                 "@type": "VolumetricStepIndexer",
+                "resolution": [
+                    64,
+                    64,
+                    40
+                ],
                 "desired_resolution": [
                     64,
                     64,
                     40
                 ],
-                "index_resolution": [
-                    64,
-                    64,
-                    40
-                ],
-                "patch_size_resolution": [
-                    64,
-                    64,
-                    40
-                ],
-                "patch_size": [
+                "chunk_size": [
                     1024,
                     1024,
                     1
@@ -118,11 +113,6 @@
                     512,
                     512,
                     1
-                ],
-                "step_size_resolution": [
-                    64,
-                    64,
-                    40
                 ],
                 "bcube": {
                     "@type": "BoundingCube",
@@ -167,12 +157,12 @@
                             {
                                 "@type": "divide",
                                 "@mode": "partial",
-                                "x": 256.0
+                                "value": 256.0
                             },
                             {
                                 "@type": "add",
                                 "@mode": "partial",
-                                "x": -0.5
+                                "value": -0.5
                             }
                         ]
                     },
@@ -191,22 +181,17 @@
             },
             "sample_indexer": {
                 "@type": "VolumetricStepIndexer",
+                "resolution": [
+                    64,
+                    64,
+                    40
+                ],
                 "desired_resolution": [
                     64,
                     64,
                     40
                 ],
-                "index_resolution": [
-                    64,
-                    64,
-                    40
-                ],
-                "patch_size_resolution": [
-                    64,
-                    64,
-                    40
-                ],
-                "patch_size": [
+                "chunk_size": [
                     1024,
                     1024,
                     1
@@ -215,11 +200,6 @@
                     512,
                     512,
                     1
-                ],
-                "step_size_resolution": [
-                    64,
-                    64,
-                    40
                 ],
                 "bcube": {
                     "@type": "BoundingCube",

@@ -3,9 +3,10 @@ from typing import Generic, TypeVar
 import attrs
 from typing_extensions import ParamSpec
 
-from zetta_utils import builder, mazepa
+from zetta_utils import builder, log, mazepa
 from zetta_utils.layer import IndexChunker, LayerIndex
-from zetta_utils.log import logger
+
+logger = log.get_logger("zetta_utils")
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 P = ParamSpec("P")
@@ -14,17 +15,10 @@ R_co = TypeVar("R_co", covariant=True)
 
 @builder.register("ChunkedApplyFlow")
 @mazepa.flow_type_cls
-@attrs.mutable(init=False)
+@attrs.mutable
 class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
-    # TODO: re-enable attrs init after pyright figures this out
-    # cc: https://github.com/microsoft/pyright/issues/4183
-    def __init__(
-        self,
-        task_factory: mazepa.TaskFactory[P, R_co],
-        chunker: IndexChunker[IndexT],
-    ):
-        self.task_factory = task_factory
-        self.chunker = chunker
+    task_factory: mazepa.TaskFactory[P, R_co]
+    chunker: IndexChunker[IndexT]
 
     def flow(
         self,
@@ -38,7 +32,6 @@ class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
         idx = kwargs["idx"]  # type: ignore
         # task_args = args
         task_kwargs = {k: v for k, v in kwargs.items() if k not in ["idx"]}
-
         logger.info(f"Breaking {idx} into chunks with {self.chunker}.")
         idx_chunks = self.chunker(idx)
         tasks = [

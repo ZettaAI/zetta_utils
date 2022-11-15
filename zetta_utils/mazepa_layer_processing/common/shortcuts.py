@@ -11,7 +11,7 @@ IndexT = TypeVar("IndexT", bound=LayerIndex)
 P = ParamSpec("P")
 
 
-# @builder.register("build_chunked_apply_flow")
+@builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
     task_factory: mazepa.TaskFactory[P, Any],
     chunker: IndexChunker[IndexT],

@@ -89,7 +89,7 @@ jobs:
         run: pylint ${{ steps.filter.outputs.py_modified_files }} 
       - name: Run isort
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: isort ${{ steps.filter.outputs.py_modified_files }}
+        run: isort --check-only ${{ steps.filter.outputs.py_modified_files }}
   mypy:
     runs-on: ubuntu-latest
     steps:

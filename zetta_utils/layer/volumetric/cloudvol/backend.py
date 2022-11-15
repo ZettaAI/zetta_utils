@@ -16,8 +16,8 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor
 from zetta_utils.typing import Vec3D
 
-from .. import VolumetricIndex
 from ... import LayerBackend
+from .. import VolumetricIndex
 
 
 def _jsonize_key(*args, **kwargs):  # pragma: no cover

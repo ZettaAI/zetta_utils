@@ -7,11 +7,12 @@ from typing import List, Tuple
 import attrs
 from typeguard import typechecked
 
-from zetta_utils import builder
-from zetta_utils.log import logger
+from zetta_utils import builder, log
 from zetta_utils.typing import Vec3D
 
 from .bcube import BoundingCube
+
+logger = log.get_logger("zetta_utils")
 
 
 @builder.register("BcubeStrider")

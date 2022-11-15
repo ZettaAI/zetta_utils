@@ -16,7 +16,15 @@ zetta_utils.load_all_modules()
 @click.group()
 @click.option("-v", "--verbose", count=True)
 def cli(verbose):
-    log.configure_logger("zetta_utils", level=verbose)  # pragma: no cover
+    verbosity_map = {
+        0: "WARN",
+        1: "INFO",
+        2: "DEBUG",
+        3: "NOTSET",
+    }
+
+    log.set_verbosity(verbosity_map[verbose])
+    # log.configure_logger("zetta_utils", level=verbose)  # pragma: no cover
 
 
 @click.command()
@@ -32,7 +40,7 @@ def run(path, pdb):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     spec = zetta_utils.parsing.cue.load(path)
     result = zetta_utils.builder.build(spec)
-    pprint.pprint(result)
+    logger.info(f"Outcome: {pprint.pformat(result, indent=4)}")
     if pdb:
         breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
 

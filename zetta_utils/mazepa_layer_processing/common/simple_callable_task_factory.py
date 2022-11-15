@@ -12,19 +12,14 @@ P = ParamSpec("P")
 
 @builder.register("SimpleCallableTaskFactory")
 @mazepa.task_factory_cls
-@attrs.frozen(init=False)
+@attrs.frozen
 class SimpleCallableTaskFactory(Generic[P]):
     """
     Naive Wrapper that converts a callalbe to a task.
     No type checking will be performed on the callable.
     """
 
-    def __init__(
-        self,
-        fn: Callable[P, Any],
-    ):
-        self.fn = fn
-
+    fn: Callable[P, Any]
     # download_layers: bool = True # Could be made optoinal
 
     def __call__(self, *args: P.args, **kwargs: P.kwargs) -> None:
@@ -46,5 +41,4 @@ class SimpleCallableTaskFactory(Generic[P]):
                 fn_kwargs[k] = v
 
         result = self.fn(**fn_kwargs)
-        # breakpoint()
         dst[idx] = result

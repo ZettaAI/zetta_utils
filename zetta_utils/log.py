@@ -14,9 +14,10 @@ def get_time_str(log_time):
 SAVED_LEVEL = "ERROR"
 
 
-def configure_logger(name, level=None, third_party_level="CRITICAL"):
+def configure_logger(level=None, third_party_level="WARN"):
     for _ in (
         "python_jsonschema_objects",
+        "pytorch_lightning",
         "urllib3",
         "google",
         "gcsfs",
@@ -35,7 +36,7 @@ def configure_logger(name, level=None, third_party_level="CRITICAL"):
         level = SAVED_LEVEL
     else:
         if isinstance(level, int):
-            level = max(0, 30 - 10 * level)
+            level = max(0, 20 - 10 * level)
         SAVED_LEVEL = level
 
     logging.basicConfig(
@@ -51,13 +52,21 @@ def configure_logger(name, level=None, third_party_level="CRITICAL"):
             )
         ],
     )
-    logging.getLogger(name).setLevel(level)
+    logging.getLogger("mazepa").setLevel(level)
+    logging.getLogger("zetta_utils").setLevel(level)
 
 
 def get_logger(name):
-    configure_logger(name)
+    configure_logger()
     return logging.getLogger(name)
 
 
-logger = logging.getLogger("zetta_utils")
-configure_logger("zetta_utils")
+def set_verbosity(verbosity_level):
+    global SAVED_LEVEL
+    SAVED_LEVEL = verbosity_level
+    logging.getLogger("zetta_utils").setLevel(verbosity_level)
+    logging.getLogger("mazepa").setLevel(verbosity_level)
+
+
+configure_logger()
+# logger = logging.getLogger("zetta_utils")

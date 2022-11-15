@@ -72,7 +72,7 @@ trainer: {
 						value:   255.0
 					},
 					{
-						"@type": "square_tiles_pattern_aug"
+						"@type": "square_tile_pattern_aug"
 						"@mode": "partial"
 						prob:    1.0
 						tile_size: {
@@ -105,11 +105,11 @@ trainer: {
 						value:   -0.5
 					},
 					{
-						"@type": "clamp_values_aug"
-						"@mode": "partial"
-						prob:    1.0
-						low:     -0.5
-						high:    0.5
+						"@type":    "clamp_values_aug"
+						"@mode":    "partial"
+						prob:       1.0
+						low_distr:  -0.5
+						high_distr: 0.5
 					},
 					{
 						"@type": "rearrange"
@@ -134,12 +134,10 @@ trainer: {
 	}
 	sample_indexer: {
 		"@type": "VolumetricStepIndexer"
-		desired_resolution: [64, 64, 40]
-		index_resolution: [64, 64, 40]
-		patch_size_resolution: [64, 64, 40]
-		patch_size: [1024, 1024, 1]
+		chunk_size: [1024, 1024, 1]
 		step_size: [512, 512, 1]
-		step_size_resolution: [64, 64, 40]
+		resolution: [64, 64, 40]
+		desired_resolution: [64, 64, 40]
 		bcube: {
 			"@type":     "BoundingCube"
 			start_coord: _

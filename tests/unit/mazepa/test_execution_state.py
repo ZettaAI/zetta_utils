@@ -5,7 +5,13 @@ from typing import Any
 
 import pytest
 
-from zetta_utils.mazepa import Dependency, Flow, InMemoryExecutionState, TaskOutcome, TaskStatus
+from zetta_utils.mazepa import (
+    Dependency,
+    Flow,
+    InMemoryExecutionState,
+    TaskOutcome,
+    TaskStatus,
+)
 
 from .maker_utils import make_test_flow, make_test_task
 

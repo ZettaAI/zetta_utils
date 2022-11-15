@@ -33,7 +33,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Setup Go
@@ -56,7 +56,7 @@ jobs:
         with:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
-  pylint:
+  pylint-isort:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -78,7 +78,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -87,7 +87,9 @@ jobs:
       - name: Run pylint
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: pylint ${{ steps.filter.outputs.py_modified_files }}
-
+      - name: Run isort
+        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        run: isort --check-only --df --verbose --profile black ${{ steps.filter.outputs.py_modified_files }}
   mypy:
     runs-on: ubuntu-latest
     steps:
@@ -110,7 +112,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -144,7 +146,7 @@ jobs:
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9.0
+          python-version: 3.8.14
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies

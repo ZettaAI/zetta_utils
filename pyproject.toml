@@ -171,3 +171,4 @@ plugins = "zetta_utils.mazepa.mypy_plugin"
 
 [tool.isort]
 skip = ["__init__.py"]
+profile = "black"

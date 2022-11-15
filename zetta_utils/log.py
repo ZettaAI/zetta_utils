@@ -2,10 +2,9 @@
 # pylint: disable=global-statement
 from __future__ import annotations
 
-from rich.logging import RichHandler
 import logging
 
-
+from rich.logging import RichHandler
 
 
 def get_time_str(log_time):

@@ -7,9 +7,9 @@ import attrs
 import pytorch_lightning as pl
 import torch
 import torchvision
-import wandb
 from PIL import Image
 
+import wandb
 from zetta_utils import builder, tensor_ops
 
 

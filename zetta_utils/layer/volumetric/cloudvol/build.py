@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring
 from typing import Any, Callable, Dict, Iterable, Optional
+
 import torch
 from typeguard import typechecked
 

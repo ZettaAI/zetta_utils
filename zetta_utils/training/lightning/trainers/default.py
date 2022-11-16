@@ -6,9 +6,9 @@ from typing import Any, List, Optional
 import fsspec
 import pytorch_lightning as pl
 import typeguard
-import wandb
 from pytorch_lightning.loggers import WandbLogger
 
+import wandb
 from zetta_utils import builder
 
 

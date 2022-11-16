@@ -7,8 +7,8 @@ from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
-from zetta_utils.typing import Vec3D
 from zetta_utils.tensor_typing import TensorTypeVar
+from zetta_utils.typing import Vec3D
 
 from .. import LayerBackend
 from . import (

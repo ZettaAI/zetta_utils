@@ -32,9 +32,8 @@ class WarpTaskFactory:
 
         field_data_raw = field[idx]
         field_data = einops.rearrange(
-            field_data_raw,
-            "C X Y Z -> Z C X Y"
-        ).field() # type: ignore # no type for Torchfields yet
+            field_data_raw, "C X Y Z -> Z C X Y"
+        ).field()  # type: ignore # no type for Torchfields yet
 
         # TODO: (must) implement translation profiling
         # cc: https://github.com/seung-lab/corgie/blob/main/corgie/stack.py#L191

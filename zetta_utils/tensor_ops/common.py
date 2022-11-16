@@ -284,13 +284,24 @@ def interpolate(  # pylint: disable=too-many-locals
         scale_factor=scale_factor_tuple,
         mode=torch_interp_mode,
     )
-
     if mode == "field":
         if scale_factor_tuple is None:
             raise NotImplementedError(  # pragma: no cover
                 "`size`-based field interpolation is not currently supported."
             )
-        if all(e == scale_factor_tuple[0] for e in scale_factor_tuple):
+        field_dim = result_raw.shape[1]
+        if field_dim == 2:
+            if scale_factor_tuple[0] != scale_factor_tuple[1]:
+                raise NotImplementedError(  # pragma: no cover
+                    f"Non-isotropic 2D field interpolation is not supported. "
+                    f"X scale factor: {scale_factor_tuple[0]} "
+                    f"y scale factor: {scale_factor_tuple[1]} "
+                )
+            multiplier = scale_factor_tuple[0]
+        else:
+            raise NotImplementedError("Only 2D field interpolation is currently supported")
+        # All of the field dimensions
+        if all(e == scale_factor_tuple[0] for e in scale_factor_tuple[:field_dim]):
             multiplier = scale_factor_tuple[0]
         else:
             raise NotImplementedError(  # pragma: no cover

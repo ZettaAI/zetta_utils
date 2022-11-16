@@ -3,6 +3,8 @@
 
 from . import bcube, builder, distributions, layer, log, parsing, partial, typing
 
+log.add_supress_traceback_module(builder)
+
 
 def load_all_modules():
     from . import (

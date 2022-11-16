@@ -1,3 +1,5 @@
+from . import traceback_supress
+
 from . import common, convert, mask
 from .common import InterpolationMode, compare, crop, interpolate, squeeze, unsqueeze
 from .convert import astype, to_np, to_torch

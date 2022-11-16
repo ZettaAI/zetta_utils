@@ -4,24 +4,10 @@ from __future__ import annotations
 
 import logging
 
-import cachetools
-import typeguard
 from rich.logging import RichHandler
 from rich.traceback import install
 
-SUPRESS_TRACEBACK_MODULES = [cachetools, typeguard]
-
-
-def update_traceback():
-    install(show_locals=True, suppress=SUPRESS_TRACEBACK_MODULES)
-
-
-def add_supress_traceback_module(module):
-    SUPRESS_TRACEBACK_MODULES.append(module)
-    update_traceback()
-
-
-update_traceback()
+install(show_locals=False)
 
 
 def get_time_str(log_time):

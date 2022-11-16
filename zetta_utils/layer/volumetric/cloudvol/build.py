@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring
 from typing import Any, Callable, Dict, Iterable, Optional
-
+import torch
 from typeguard import typechecked
 
 from zetta_utils import builder
@@ -30,7 +30,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     read_postprocs: Iterable[Callable[..., Any]] = (),
     write_preprocs: Iterable[Callable[..., Any]] = (),
 ) -> Layer[
-    RawVolumetricIndex, VolumetricIndex
+    RawVolumetricIndex, VolumetricIndex, torch.Tensor
 ]:  # pragma: no cover # trivial conditional, delegation only
     """Build a CloudVolume layer.
 

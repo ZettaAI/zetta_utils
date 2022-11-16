@@ -10,10 +10,10 @@ from zetta_utils import builder
 from .. import Layer, LayerBackend
 from . import SetSelectionIndex
 
-
+# TODO: type LayerSet
 @builder.register("build_layer_setBackend")
 @attrs.mutable()
-class LayerSetBackend(LayerBackend[SetSelectionIndex]):  # pylint: disable=too-few-public-methods
+class LayerSetBackend(LayerBackend[SetSelectionIndex, Any]):  # pylint: disable=too-few-public-methods
     layer: Dict[str, Layer]
 
     def _get_layer_selection(self, idx: SetSelectionIndex) -> Tuple[str, ...]:

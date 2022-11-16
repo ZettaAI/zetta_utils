@@ -5,15 +5,16 @@ from typing import Generic, TypeVar
 from zetta_utils.layer import LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
+DataT = TypeVar("DataT")
 
 
-class LayerBackend(ABC, Generic[IndexT]):  # pylint: disable=too-few-public-methods
+class LayerBackend(Generic[IndexT, DataT], ABC):  # pylint: disable=too-few-public-methods
     @abstractmethod
-    def read(self, idx: IndexT):
+    def read(self, idx: IndexT) -> DataT:
         """Reads data from the given index"""
 
     @abstractmethod
-    def write(self, idx: IndexT, value):
+    def write(self, idx: IndexT, value: DataT):
         """Writes given value to the given index"""
 
     # Open problem:

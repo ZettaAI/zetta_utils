@@ -80,7 +80,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 @builder.register("CVBackend")
 @typechecked
 @attrs.mutable
-class CVBackend(LayerBackend[VolumetricIndex]):  # pylint: disable=too-few-public-methods
+class CVBackend(LayerBackend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
     Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.

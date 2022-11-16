@@ -56,8 +56,8 @@ def build_chunked_write_flow_type(
 def chunked_write(
     chunker: IndexChunker[IndexT],
     idx: IndexT,
-    dst: Layer[Any, IndexT],
-    src: Layer[Any, IndexT],
+    dst: Layer[Any, IndexT, Any],
+    src: Layer[Any, IndexT, Any],
 ) -> mazepa.Flow:
     result = build_chunked_write_flow_type(chunker=chunker)(idx=idx, dst=dst, src=src)
     return result

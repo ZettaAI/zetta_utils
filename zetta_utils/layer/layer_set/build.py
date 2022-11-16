@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring
-from typing import Callable, Dict, Sequence
+from typing import Any, Callable, Dict, Sequence
 
 from typeguard import typechecked
 
@@ -17,7 +17,7 @@ def build_layer_set(
     index_adjs: Sequence[Callable[..., SetSelectionIndex]] = (),
     read_postprocs: Sequence[Callable] = (),
     write_preprocs: Sequence[Callable] = (),
-) -> Layer[RawSetSelectionIndex, SetSelectionIndex]:
+) -> Layer[RawSetSelectionIndex, SetSelectionIndex, Any]:
     """Build a layer representing a set of layers given as input.
 
     :param layers: Mapping from layer names to layers.
@@ -33,7 +33,7 @@ def build_layer_set(
     """
     backend = LayerSetBackend(layers)
 
-    result = Layer[RawSetSelectionIndex, SetSelectionIndex](
+    result = Layer[RawSetSelectionIndex, SetSelectionIndex, Any](
         backend=backend,
         readonly=readonly,
         index_adjs=list(index_adjs),

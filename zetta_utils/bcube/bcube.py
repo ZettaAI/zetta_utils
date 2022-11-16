@@ -313,3 +313,13 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
 builder.register("BoundingCube")(BoundingCube.from_coords)
+
+
+@builder.register("pad_bcube")
+def pad_bcube(
+    bcube: BoundingCube,
+    pad: Sequence[Union[float, tuple[float, float]]],
+    pad_resolution: Vec3D,
+) -> BoundingCube:
+    result = bcube.pad(pad=pad, resolution=pad_resolution)
+    return result

@@ -175,4 +175,7 @@ class CVBackend(LayerBackend[VolumetricIndex]):  # pylint: disable=too-few-publi
 
         cvol = self._get_cv_at_resolution(idx.resolution)
         slices = idx.to_slices()
+        # Enable autocrop for writes only
+        cvol.autocrop = True
         cvol[slices] = value_final
+        cvol.autocrop = False

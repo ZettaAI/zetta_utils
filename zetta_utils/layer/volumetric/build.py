@@ -7,6 +7,7 @@ from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
+from zetta_utils.tensor_typing import TensorTypeVar
 from zetta_utils.typing import Vec3D
 
 from .. import LayerBackend
@@ -22,7 +23,7 @@ from . import (
 @typechecked
 @builder.register("build_cv_layer")
 def build_volumetric_layer(
-    backend: LayerBackend[VolumetricIndex],
+    backend: LayerBackend[VolumetricIndex, TensorTypeVar],
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,
@@ -32,7 +33,7 @@ def build_volumetric_layer(
     index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
     read_postprocs: Iterable[Callable[..., Any]] = (),
     write_preprocs: Iterable[Callable[..., Any]] = (),
-) -> Layer[RawVolumetricIndex, VolumetricIndex]:
+) -> Layer[RawVolumetricIndex, VolumetricIndex, TensorTypeVar]:
     """Build a Volumetric Layer.
 
     :param backend: Layer backend.
@@ -93,7 +94,7 @@ def build_volumetric_layer(
             ),
         )
 
-    result = Layer[RawVolumetricIndex, VolumetricIndex](
+    result = Layer[RawVolumetricIndex, VolumetricIndex, TensorTypeVar](
         backend=backend,
         readonly=readonly,
         index_converter=index_converter,

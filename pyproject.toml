@@ -132,7 +132,7 @@ max-line-length = 99
 good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn'''
 
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,not-callable,no-member,unsubscriptable-object,pointless-string-statement'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]
@@ -167,8 +167,9 @@ warn_redundant_casts = true
 warn_unused_configs = true
 implicit_reexport = true
 no_implicit_optional = true
-plugins = "zetta_utils.mazepa.mypy_plugin"
+plugins = "./mypy_plugin.py"
 
 [tool.isort]
 skip = ["__init__.py"]
 profile = "black"
+known_third_party = "wandb"

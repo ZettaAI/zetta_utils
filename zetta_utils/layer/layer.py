@@ -11,6 +11,7 @@ from zetta_utils import builder
 from . import DataWithIndexProcessor, IndexConverter, LayerBackend, LayerIndex
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
+DataT = TypeVar("DataT")
 RawIndexT = TypeVar("RawIndexT")
 IndexConverterT = TypeVar("IndexConverterT", bound=IndexConverter)
 T = TypeVar("T")
@@ -34,8 +35,8 @@ def _apply_procs(
 # TODO: Generic parametrization for Read/Write data type
 @builder.register("Layer")
 @attrs.mutable
-class Layer(Generic[RawIndexT, IndexT]):
-    backend: LayerBackend[IndexT]
+class Layer(Generic[RawIndexT, IndexT, DataT]):
+    backend: LayerBackend[IndexT, DataT]
     readonly: bool = False
     index_converter: Optional[IndexConverter[RawIndexT, IndexT]] = None
     index_adjs: List[Callable[[IndexT], IndexT]] = attrs.field(factory=list)
@@ -51,7 +52,7 @@ class Layer(Generic[RawIndexT, IndexT]):
             result = self.backend.get_index_type().default_convert(idx_raw)
         return result
 
-    def read(self, idx_raw: RawIndexT) -> Any:
+    def read(self, idx_raw: RawIndexT) -> DataT:
         idx = self._convert_index(idx_raw)
         idx_proced = idx
         for adj in self.index_adjs:
@@ -67,6 +68,7 @@ class Layer(Generic[RawIndexT, IndexT]):
 
         return result
 
+    # TODO: Parametrize by RawDataT type var
     def write(self, idx_raw: RawIndexT, value_raw: Any):
         if self.readonly:
             raise IOError(f"Attempting to write to a read only layer {self}")
@@ -85,7 +87,7 @@ class Layer(Generic[RawIndexT, IndexT]):
 
         self.backend.write(idx=idx_proced, value=value)
 
-    def __getitem__(self, idx_raw: RawIndexT) -> Any:  # pragma: no cover
+    def __getitem__(self, idx_raw: RawIndexT) -> DataT:  # pragma: no cover
         return self.read(idx_raw)
 
     def __setitem__(self, idx_raw: RawIndexT, value_raw: Any):  # pragma: no cover

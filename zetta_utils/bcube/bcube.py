@@ -320,6 +320,6 @@ def pad_bcube(
     bcube: BoundingCube,
     pad: Sequence[Union[float, tuple[float, float]]],
     pad_resolution: Vec3D,
-) -> BoundingCube:
+) -> BoundingCube:  # pragma: no cover # no logic
     result = bcube.pad(pad=pad, resolution=pad_resolution)
     return result

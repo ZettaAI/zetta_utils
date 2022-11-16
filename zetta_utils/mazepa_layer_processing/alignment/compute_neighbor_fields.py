@@ -2,6 +2,7 @@ import copy
 import os
 from typing import Any, Callable, Literal
 
+import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, mazepa
@@ -15,12 +16,12 @@ from .. import ChunkedApplyFlow
 @mazepa.flow_type
 @typechecked
 def compute_z_neighbor_fields(
-    src: Layer[Any, VolumetricIndex],
+    src: Layer[Any, VolumetricIndex, torch.Tensor],
     dst_dir: str,
     cf_task_factory: mazepa.TaskFactory,  # TODO: type me
     idx: VolumetricIndex,
     chunker: IndexChunker[VolumetricIndex],
-    dst_layer_builder: Callable[..., Layer[Any, VolumetricIndex]],
+    dst_layer_builder: Callable[..., Layer[Any, VolumetricIndex, torch.Tensor]],
     dst_layer_prefix: str = "neighbor_field_z",
     farthest_neighbor: int = 1,
     direction: Literal["backward", "forward"] = "backward",

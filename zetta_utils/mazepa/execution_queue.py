@@ -51,6 +51,10 @@ class LocalExecutionQueue:
             logger.debug(f"DONE: Execution of {e}.")
             self.task_outcomes[e.id_] = e.outcome
 
+            # raise immediatelly for local exec
+            if e.outcome.exception is not None:
+                raise e.outcome.exception  # pragma: no cover
+
     def pull_task_outcomes(
         self, max_num: int = 100000, max_time_sec: float = 2.5  # pylint: disable=unused-argument
     ) -> Dict[str, TaskOutcome]:

@@ -9,9 +9,9 @@ from zetta_utils import builder
 
 
 # Wrapper for building a Sequential
-@builder.register("Sequential")  # pragma: no cover
+@builder.register("Sequential")
 @typechecked
-def sequential_builder(modules: List[Any]) -> torch.nn.Sequential:
+def sequential_builder(modules: List[Any]) -> torch.nn.Sequential:  # pragma: no cover
     return torch.nn.Sequential(*modules)
 
 

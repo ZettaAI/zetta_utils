@@ -1,14 +1,11 @@
 import pprint
 
 import click
-import typeguard
-from rich.traceback import install
 
 import zetta_utils
 from zetta_utils import log
 
 logger = log.get_logger("zetta_utils")
-install(show_locals=True, suppress=[click, typeguard])
 
 # For now, CLI requires all modules to be installed
 # If the need arises, the installed modules can be specified

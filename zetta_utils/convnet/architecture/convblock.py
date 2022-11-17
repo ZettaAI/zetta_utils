@@ -25,7 +25,7 @@ class ConvBlock(nn.Module):
         the second one has 2 input channels and 3 output channels.
     :param conv: Constructor for convolution layers.
     :param activation: Constructor for activation layers.
-    :param normalization: Constructor for activation layers. Normalization will
+    :param normalization: Constructor for normalization layers. Normalization will
         be applied after convolution before activation.
     :param kernel_sizes: Convolution kernel sizes. When specified as a single integer or a
         tuple, it will be passed as ``k`` parameter to all convolution constructors.

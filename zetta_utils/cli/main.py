@@ -1,3 +1,5 @@
+import json
+import os
 import pprint
 
 import click
@@ -39,6 +41,7 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
 def run(path, pdb):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     spec = zetta_utils.parsing.cue.load(path)
+    os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
     result = zetta_utils.builder.build(spec)
     logger.info(f"Outcome: {pprint.pformat(result, indent=4)}")
     if pdb:

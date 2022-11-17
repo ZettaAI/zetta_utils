@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import attrs
 from typing_extensions import ParamSpec
@@ -16,7 +16,7 @@ R_co = TypeVar("R_co", covariant=True)
 @builder.register("ChunkedApplyFlow")
 @mazepa.flow_type_cls
 @attrs.mutable
-class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
+class ChunkedApplyFlowType(Generic[IndexT, P, R_co]):
     task_factory: mazepa.TaskFactory[P, R_co]
     chunker: IndexChunker[IndexT]
 
@@ -46,10 +46,17 @@ class ChunkedApplyFlow(Generic[IndexT, P, R_co]):
         yield tasks
 
 
-# from zetta_utils.mazepa.flows import RawFlowType
+@builder.register("build_chunked_apply_flow_type")
+def build_chunked_apply_flow(
+    task_factory: mazepa.TaskFactory[P, Any],
+    chunker: IndexChunker[IndexT],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> mazepa.Flow:
+    flow_type = ChunkedApplyFlowType[IndexT, P, None](
+        chunker=chunker,
+        task_factory=task_factory,
+    )
+    flow = flow_type(*args, **kwargs)
 
-# def foo(x: RawFlowType):
-#    pass
-
-# foo = foo
-# foo(ChunkedApplyFlow)
+    return flow

@@ -9,7 +9,7 @@ from zetta_utils import builder, mazepa
 from zetta_utils.layer import IndexChunker, Layer
 from zetta_utils.layer.volumetric import VolIdxTranslator, VolumetricIndex
 
-from .. import ChunkedApplyFlow
+from .. import ChunkedApplyFlowType
 
 
 @builder.register("compute_z_neighbor_fields")
@@ -44,7 +44,7 @@ def compute_z_neighbor_fields(
             0, VolIdxTranslator(offset=(0, 0, z_offset), resolution=idx.resolution)
         )
 
-        cf_flow = ChunkedApplyFlow(
+        cf_flow = ChunkedApplyFlowType(
             task_factory=cf_task_factory,
             chunker=chunker,
         )(idx=idx, dst=dst, src=src, tgt=tgt)

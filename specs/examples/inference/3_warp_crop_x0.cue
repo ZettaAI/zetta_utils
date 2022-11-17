@@ -31,12 +31,6 @@ target: {
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
-		read_postprocs: [
-			{
-				"@type": "to_float32"
-				"@mode": "partial"
-			},
-		]
 	}
 	field: {
 		"@type": "build_cv_layer"
@@ -47,12 +41,6 @@ target: {
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "expect_same"
-		write_preprocs: [
-			{
-				"@type": "to_uint8"
-				"@mode": "partial"
-			},
-		]
 	}
 	idx: #IDX
 }

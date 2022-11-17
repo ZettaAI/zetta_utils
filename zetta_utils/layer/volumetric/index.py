@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Optional, Tuple, Union, get_origin
 
 import attrs
-from typeguard import typechecked
 
 from zetta_utils import builder
 
@@ -16,7 +15,7 @@ from .. import IndexConverter, LayerIndex
 
 
 @builder.register("VolumetricIndex")
-@typechecked
+# @typechecked
 @attrs.mutable
 class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
@@ -42,6 +41,12 @@ class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no log
             resolution=self.resolution,
         )
 
+    def translate(self, offset: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.translate(offset=offset, resolution=self.resolution),
+            resolution=self.resolution,
+        )
+
 
 SliceRawVolumetricIndex = Union[
     Tuple[Optional[Vec3D], BoundingCube],
@@ -63,7 +68,6 @@ RawVolumetricIndex = Union[
 
 
 @builder.register("VolumetricIndexConverter")
-@typechecked
 @attrs.mutable
 class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricIndex]):
     index_resolution: Optional[Vec3D] = None

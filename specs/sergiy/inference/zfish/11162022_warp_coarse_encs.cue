@@ -16,7 +16,7 @@
 		bcube: {
 			"@type": "BoundingCube"
 			start_coord: [0, 0, 3000]
-			end_coord: [1024, 1024, 3020]
+			end_coord: [1024, 1024, 3100]
 			resolution: [512, 512, 30]
 		}
 	}

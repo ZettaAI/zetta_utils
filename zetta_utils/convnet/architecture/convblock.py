@@ -1,7 +1,6 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
@@ -51,7 +50,7 @@ class ConvBlock(nn.Module):
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
-    ):
+    ):  # pylint: disable=too-many-locals
         super().__init__()
         if skips is None:
             self.skips = {}
@@ -67,7 +66,11 @@ class ConvBlock(nn.Module):
         assert len(kernel_sizes_) == (len(num_channels) - 1)
 
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            self.layers.append(conv(ch_in, ch_out, kernel_sizes_[i], padding=padding_mode))
+            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], padding=padding_mode)
+            # TODO: make this step optional
+            if not new_conv.bias is None:
+                new_conv.bias.data[:] = 0
+            self.layers.append(new_conv)
 
             is_last_conv = i == len(num_channels) - 2
 
@@ -78,9 +81,7 @@ class ConvBlock(nn.Module):
                 self.layers.append(activation())
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        skip_data_for = defaultdict(
-            lambda: torch.zeros_like(data, device=data.device)
-        )  # type: Dict[int, torch.Tensor]
+        skip_data_for = {}  # type: Dict[int, torch.Tensor]
         conv_count = 0
 
         result = data
@@ -89,13 +90,15 @@ class ConvBlock(nn.Module):
                 if conv_count in skip_data_for:
                     result += skip_data_for[conv_count]
 
-            # breakpoint()
             result = this_layer(result)
 
             if isinstance(next_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in self.skips:
                     skip_dest = self.skips[conv_count]
-                    skip_data_for[skip_dest] += result
+                    if skip_dest in skip_data_for:
+                        skip_data_for[skip_dest] += result
+                    else:
+                        skip_data_for[skip_dest] = result
 
                 conv_count += 1
 

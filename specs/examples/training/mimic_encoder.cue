@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "demo_x20"
+#EXP_VERSION:   "new_demo_x22"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -18,15 +18,10 @@ regime: {
 	model: {
 		"@type": "load_weights_file"
 		model: {
-			"@type": "ArtificerySpec"
-			spec: {
-				"type": "convblock"
-				"arch_desc": {
-					"fms": [1, 32, 32, 32, 32, 1]
-					"skips": {"1": 4}
-					"k": 5
-				}
-			}
+			"@type": "ConvBlock"
+			num_channels: [1, 32, 32, 32, 32, 1]
+			kernel_sizes: 5
+			skips: {"0": 3}
 		}
 		ckpt_path: #MODEL_CKPT
 		component_names: [

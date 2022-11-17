@@ -26,7 +26,9 @@ def register(name: str, versions=None) -> Callable[[T], T]:
 
     """
     if versions is not None:
-        raise NotImplementedError()  # pragma: no cover
+        raise NotImplementedError(
+            f"Versioning is not implemented. Specified versions: {versions}"
+        )  # pragma: no cover
 
     def register_fn(cls: T) -> T:
         REGISTRY[name] = cls

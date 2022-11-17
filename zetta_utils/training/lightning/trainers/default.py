@@ -59,6 +59,7 @@ def build_default_trainer(
 
     if "ZETTA_RUN_SPEC" in os.environ:
         logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
+
     if wandb.run is not None:
         this_dir = os.path.dirname(os.path.abspath(__file__))
         zetta_root_path = f"{this_dir}/../../.."

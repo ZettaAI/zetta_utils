@@ -4,7 +4,9 @@ import attrs
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa
-from zetta_utils.layer import Layer, LayerIndex
+from zetta_utils.layer import IndexChunker, Layer, LayerIndex
+
+from .chunked_apply import ChunkedApplyFlowType
 
 IndexT = TypeVar("IndexT", bound=LayerIndex)
 P = ParamSpec("P")
@@ -42,3 +44,14 @@ class SimpleCallableTaskFactory(Generic[P]):
 
         result = self.fn(**fn_kwargs)
         dst[idx] = result
+
+
+@builder.register("build_chunked_apply_callable_flow_type")
+def build_chunked_apply_callable_flow_type(
+    fn: Callable[P, Any], chunker: IndexChunker[IndexT]
+) -> ChunkedApplyFlowType[IndexT, P, None]:
+    factory = SimpleCallableTaskFactory[P](fn=fn)
+    return ChunkedApplyFlowType[IndexT, P, None](
+        chunker=chunker,
+        task_factory=factory,
+    )

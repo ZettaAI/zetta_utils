@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "new_demo_x2"
+#EXP_VERSION: "new_demo_x4"
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 

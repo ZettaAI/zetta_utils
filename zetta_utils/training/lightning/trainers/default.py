@@ -19,7 +19,10 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
     ):
+        if filepath.startswith("./"):
+            filepath = f"{self.default_root_dir}/{filepath[2:]}"
         super().save_checkpoint(filepath, weights_only, storage_options)
+
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
             if hasattr(v, "__init_builder_spec"):
@@ -53,6 +56,10 @@ def build_default_trainer(
         name=experiment_version,
         id=experiment_version,
     )
+    if "ZETTA_RUN_SPEC" in os.environ:
+        logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
+
+    logger.experiment.log_code("../../..")
     # Progress bar needs to be appended first to avoid default TQDM
     # bar being appended
     if progress_bar_kwargs is None:
@@ -68,7 +75,11 @@ def build_default_trainer(
     if checkpointing_kwargs is None:
         checkpointing_kwargs = {}
     trainer.callbacks += get_checkpointing_callbacks(
-        log_dir=os.path.join(trainer.default_root_dir, experiment_name, experiment_version),
+        log_dir=os.path.join(
+            trainer.default_root_dir,
+            experiment_name,
+            experiment_version,
+        ),
         **checkpointing_kwargs,
     )
 

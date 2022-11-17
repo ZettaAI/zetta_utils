@@ -50,7 +50,7 @@ class ConvBlock(nn.Module):
     :param activate_last: Whether to apply activation after the last layer.
     """
 
-    def __init__(  # pylint: disable=too-many-locals
+    def __init__(
         self,
         num_channels: List[int],
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
@@ -62,7 +62,7 @@ class ConvBlock(nn.Module):
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
-    ):
+    ):  # pylint: disable=too-many-locals
         super().__init__()
         if skips is None:
             self.skips = {}

@@ -18,7 +18,7 @@
 
 "@type": "mazepa_execute"
 target: {
-	"@type": "build_chunked_apply_flow"
+	"@type": "build_chunked_apply_flow_type"
 	task_factory: {
 		"@type": "WarpTaskFactory"
 		dst_data_crop: [#XY_OVERLAP / 2, #XY_OVERLAP / 2, 0]

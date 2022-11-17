@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Generic, List, Optional, Tuple, Union
+from typing import Any, Callable, Generic, List, Optional, Tuple, TypeVar, Union
 
 import attrs
 import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.layer import Layer
+from zetta_utils.layer import IndexChunker, Layer
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.typing import Vec3D
 
+from . import ChunkedApplyFlowType
+
 P = ParamSpec("P")
+IndexT = TypeVar("IndexT", bound=VolumetricIndex)
 
 
 @builder.register("SimpleVolumetricTaskFactory")
@@ -70,3 +73,23 @@ class SimpleVolumetricTaskFactory(Generic[P]):
         else:
             dst_idx = dst_idx.crop(self.dst_data_crop)
         dst[dst_idx] = dst_data
+
+
+@builder.register("build_chunked_volumetric_flow_type")
+def build_chunked_volumetric_flow_type(
+    fn: Callable[P, Any],
+    chunker: IndexChunker[IndexT],
+    dst_data_crop: Union[Tuple[int, int, int], List[int]] = (0, 0, 0),
+    dst_idx_res: Optional[Vec3D] = None,
+    dst_idx_crop: Optional[Union[Tuple[int, int, int], List[int]]] = None,
+) -> ChunkedApplyFlowType[IndexT, P, None]:
+    factory = SimpleVolumetricTaskFactory[P](
+        fn=fn,
+        dst_data_crop=dst_data_crop,
+        dst_idx_res=dst_idx_res,
+        dst_idx_crop=dst_idx_crop,
+    )
+    return ChunkedApplyFlowType[IndexT, P, None](
+        chunker=chunker,
+        task_factory=factory,
+    )

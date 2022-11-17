@@ -8,7 +8,7 @@ import einops
 import torch
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
-from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils import alignment, builder, mazepa, tensor_ops
 from zetta_utils.layer import Layer
 from zetta_utils.layer.volumetric import VolumetricIndex
 
@@ -29,21 +29,24 @@ class WarpTaskFactory:
         src: Layer[Any, VolumetricIndex, torch.Tensor],
         field: Layer[Any, VolumetricIndex, torch.Tensor],
     ) -> None:
-
         field_data_raw = field[idx]
+        xy_translation = alignment.field_profilers.profile_field2d_percentile(field_data_raw)
+
+        field_data_raw[0] -= xy_translation[0]
+        field_data_raw[1] -= xy_translation[1]
+
+        # TODO: big quesiton mark. In zetta_utils everythign is XYZ, so I don't understand
+        # why the order is flipped here. It worked for a corgie field, so leaving it in.
+        # Pls help:
+        src_idx = idx.translate((xy_translation[1], xy_translation[0], 0))
+        src_data_raw = src[src_idx]
+
+        src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
         field_data = einops.rearrange(
             field_data_raw, "C X Y Z -> Z C X Y"
         ).field()  # type: ignore # no type for Torchfields yet
 
-        # TODO: (must) implement translation profiling
-        # cc: https://github.com/seung-lab/corgie/blob/main/corgie/stack.py#L191
-
-        src_idx = copy.deepcopy(idx)
-        src_data_raw = src[src_idx]
-        src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
-        # TODO: convert scr_data to float and note the original type
-        # convert the result to the original type
-        dst_data_raw = field_data.from_pixels()(src_data)
+        dst_data_raw = field_data.from_pixels()(src_data.float()).to(src_data.dtype)
         assert self.dst_data_crop[-1] == 0
         dst_data_cropped = tensor_ops.crop(dst_data_raw, self.dst_data_crop[:-1])  # Z is batch
         dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")

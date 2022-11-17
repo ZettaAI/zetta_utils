@@ -1,7 +1,6 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
@@ -37,7 +36,8 @@ class ConvBlock(nn.Module):
         When specified as a list, each item in the list will be passed as stride to the
         corresponding convolution in order. The list length must match the number of
         convolutions.
-    :param paddings: Convolution padding sizes. When specified as a single integer or a
+    :param paddings: Convolution padding sizes. Can accept "valid", "same", a single integer,
+        a tuple, or a list of any of these. When specified as a single string, integer, or a
         tuple, it will be passed as the padding parameter to all convolution constructors.
         When specified as a list, each item in the list will be passed as padding to the
         corresponding convolution in order. The list length must match the number of
@@ -58,7 +58,9 @@ class ConvBlock(nn.Module):
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
         kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
         strides: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
-        paddings: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
+        paddings: Union[
+            str, int, Tuple[int, ...], List[Union[str, int, Tuple[int, ...]]]
+        ] = "same",
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
@@ -85,14 +87,18 @@ class ConvBlock(nn.Module):
         assert len(strides_) == (len(num_channels) - 1)
 
         if isinstance(paddings, list):
-            paddings_ = paddings  # type: Union[List[int], List[Tuple[int, ...]]]
+            paddings_ = paddings  # type: List[Union[str, int, Tuple[int, ...]]]
         else:
             paddings_ = [paddings for _ in range(len(num_channels) - 1)]  # type: ignore
 
         assert len(paddings_) == (len(num_channels) - 1)
 
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            self.layers.append(conv(ch_in, ch_out, kernel_sizes_[i], strides_[i], paddings_[i]))
+            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], strides_[i], paddings_[i])
+            # TODO: make this step optional
+            if not new_conv.bias is None:
+                new_conv.bias.data[:] = 0
+            self.layers.append(new_conv)
 
             is_last_conv = i == len(num_channels) - 2
 
@@ -103,26 +109,26 @@ class ConvBlock(nn.Module):
                 self.layers.append(activation())
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        skip_data_for = defaultdict(
-            lambda: torch.zeros_like(data, device=data.device)
-        )  # type: Dict[int, torch.Tensor]
+        skip_data_for = {}  # type: Dict[int, torch.Tensor]
         conv_count = 1
         if 0 in self.skips:
             skip_dest = self.skips[0]
-            skip_data_for[skip_dest] += data
+            skip_data_for[skip_dest] = data
         result = data
         for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
             if isinstance(this_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in skip_data_for:
                     result += skip_data_for[conv_count]
 
-            # breakpoint()
             result = this_layer(result)
 
             if isinstance(next_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in self.skips:
                     skip_dest = self.skips[conv_count]
-                    skip_data_for[skip_dest] += result
+                    if skip_dest in skip_data_for:
+                        skip_data_for[skip_dest] += result
+                    else:
+                        skip_data_for[skip_dest] = result
 
                 conv_count += 1
 

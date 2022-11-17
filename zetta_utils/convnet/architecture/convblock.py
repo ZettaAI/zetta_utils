@@ -1,7 +1,8 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+from collections import defaultdict
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import nn
@@ -24,33 +25,44 @@ class ConvBlock(nn.Module):
         the second one has 2 input channels and 3 output channels.
     :param conv: Constructor for convolution layers.
     :param activation: Constructor for activation layers.
-    :param normalization: Constructor for normalization layers. Normalization will
+    :param normalization: Constructor for activation layers. Normalization will
         be applied after convolution before activation.
-    :param padding_mode: Convolution padding mode.
     :param kernel_sizes: Convolution kernel sizes. When specified as a single integer or a
-        tuple, it will be passes as ``k`` parameter to all convolution constructors.
+        tuple, it will be passed as ``k`` parameter to all convolution constructors.
         When specified as a list, each item in the list will be passed as ``k`` to the
         corresponding convolution in order. The list length must match the number of
         convolutions.
+    :param strides: Convolution strides. When specified as a single integer or a
+        tuple, it will be passed as the stride parameter to all convolution constructors.
+        When specified as a list, each item in the list will be passed as stride to the
+        corresponding convolution in order. The list length must match the number of
+        convolutions.
+    :param paddings: Convolution padding sizes. When specified as a single integer or a
+        tuple, it will be passed as the padding parameter to all convolution constructors.
+        When specified as a list, each item in the list will be passed as padding to the
+        corresponding convolution in order. The list length must match the number of
+        convolutions.
     :param skips: Specification for residual skip connection. For example,
-        ``skips={"0": 2}`` specifies a single residual skip connection from the output of the
-        first convolution (index 0) to the third covnolution (index 2).
+        ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
+        first convolution (index 1) to the third covnolution (index 3). 0 specifies the input
+        to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-locals
         self,
         num_channels: List[int],
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
-        padding_mode: Union[Literal["valid"], Literal["same"]] = "same",
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
         kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
+        strides: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
+        paddings: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
-    ):  # pylint: disable=too-many-locals
+    ):
         super().__init__()
         if skips is None:
             self.skips = {}
@@ -65,12 +77,22 @@ class ConvBlock(nn.Module):
 
         assert len(kernel_sizes_) == (len(num_channels) - 1)
 
+        if isinstance(strides, list):
+            strides_ = strides  # type: Union[List[int], List[Tuple[int, ...]]]
+        else:
+            strides_ = [strides for _ in range(len(num_channels) - 1)]  # type: ignore
+
+        assert len(strides_) == (len(num_channels) - 1)
+
+        if isinstance(paddings, list):
+            paddings_ = paddings  # type: Union[List[int], List[Tuple[int, ...]]]
+        else:
+            paddings_ = [paddings for _ in range(len(num_channels) - 1)]  # type: ignore
+
+        assert len(paddings_) == (len(num_channels) - 1)
+
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], padding=padding_mode)
-            # TODO: make this step optional
-            if not new_conv.bias is None:
-                new_conv.bias.data[:] = 0
-            self.layers.append(new_conv)
+            self.layers.append(conv(ch_in, ch_out, kernel_sizes_[i], strides_[i], paddings_[i]))
 
             is_last_conv = i == len(num_channels) - 2
 
@@ -81,24 +103,26 @@ class ConvBlock(nn.Module):
                 self.layers.append(activation())
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        skip_data_for = {}  # type: Dict[int, torch.Tensor]
-        conv_count = 0
-
+        skip_data_for = defaultdict(
+            lambda: torch.zeros_like(data, device=data.device)
+        )  # type: Dict[int, torch.Tensor]
+        conv_count = 1
+        if 0 in self.skips:
+            skip_dest = self.skips[0]
+            skip_data_for[skip_dest] += data
         result = data
-        for this_layer, next_layer in zip(self.layers, list(self.layers[1:]) + [None]):
+        for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
             if isinstance(this_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in skip_data_for:
                     result += skip_data_for[conv_count]
 
+            # breakpoint()
             result = this_layer(result)
 
             if isinstance(next_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in self.skips:
                     skip_dest = self.skips[conv_count]
-                    if skip_dest in skip_data_for:
-                        skip_data_for[skip_dest] += result
-                    else:
-                        skip_data_for[skip_dest] = result
+                    skip_data_for[skip_dest] += result
 
                 conv_count += 1
 

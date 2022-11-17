@@ -60,12 +60,12 @@ augmentations = [
     "zetta_utils[tensor_ops]"
 ]
 convnet = [
-    "torch >= 1.11.0",
+    "torch == 1.12.1", # mypy error on newer
     "artificery >= 0.0.3.3"
 ]
 alignment = [
     "metroem >= 0.1.2",
-    "torchfields >= 0.1.2",
+    "torch == 1.12.1", # mypy error on newer
 ]
 mazepa = [
     "coolname >= 1.1.0",
@@ -74,7 +74,7 @@ mazepa = [
 ]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet]",
-    "torch >= 1.11.0",
+    "torch == 1.12.1", # mypy error on newer
     "pytorch-lightning == 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",
     "gcsfs >= 2022.7.1"

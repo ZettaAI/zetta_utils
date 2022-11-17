@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "demo_x0"
+#EXP_VERSION: "new_demo_x2"
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
@@ -64,57 +64,44 @@ trainer: {
 ////////////////////// Architecture Spec //////////////////////////
 ///////////////////////////////////////////////////////////////////
 #ENCODER_MODEL: {
-	"@type": "ArtificerySpec"
-	spec: {
-		type: "TransparentSeq"
-		modules: [
-			{
-				type: "convblock"
-				arch_desc: {
-					fms: [1, 32, 32, 32]
-					k: 3
-				}
-			},
-			{
-				type: "custom_layer"
-				"import": ["torch"]
-				"code": "result = torch.nn.AvgPool2d(2, count_include_pad=False)"
-			},
-			{
-				type: "convblock"
-				arch_desc: {
-					fms: [32, 32, 32, 1]
-					k: 3
-				}
-			},
-		]
-	}
+	"@type": "torch.nn.Sequential"
+	modules: [
+		{
+			"@type": "ConvBlock"
+			num_channels: [1, 32, 32, 32]
+			kernel_sizes: 3
+		},
+		{
+			"@type":     "torch.nn.AvgPool2d"
+			kernel_size: 2
+		},
+		{
+			"@type": "ConvBlock"
+			num_channels: [32, 32, 32, 1]
+			kernel_sizes: 3
+		},
+	]
 }
 
 #DECODER_MODEL: {
-	"@type": "ArtificerySpec"
-	spec: {
-		type: "TransparentSeq"
-		modules: [
-			{
-				type: "convblock"
-				arch_desc: {
-					fms: [1, 32, 32, 32]
-					k: 3
-				}
-			},
-			{
-				type: "interpolate"
-			},
-			{
-				type: "convblock"
-				arch_desc: {
-					fms: [32, 32, 32, 1]
-					k: 3
-				}
-			},
-		]
-	}
+	"@type": "torch.nn.Sequential"
+	modules: [
+		{
+			"@type": "ConvBlock"
+			num_channels: [1, 32, 32, 32]
+			kernel_sizes: 3
+		},
+		{
+			"@type":      "torch.nn.Upsample"
+			scale_factor: 2
+			mode:         "bilinear"
+		},
+		{
+			"@type": "ConvBlock"
+			num_channels: [32, 32, 32, 1]
+			kernel_sizes: 3
+		},
+	]
 }
 
 ///////////////////////////////////////////////////////////////////

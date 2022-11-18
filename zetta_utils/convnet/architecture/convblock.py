@@ -56,8 +56,8 @@ class ConvBlock(nn.Module):
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
-        kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
-        strides: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
+        kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
+        strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
         paddings: Union[
             Literal["same", "valid"],
             int,
@@ -76,16 +76,16 @@ class ConvBlock(nn.Module):
         self.layers = torch.nn.ModuleList()
 
         if isinstance(kernel_sizes, list):
-            kernel_sizes_ = kernel_sizes  # type: Union[List[int], List[Tuple[int, ...]]]
+            kernel_sizes_ = kernel_sizes  # type: List[Union[int, Tuple[int, ...]]]
         else:
-            kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]  # type: ignore
+            kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]
 
         assert len(kernel_sizes_) == (len(num_channels) - 1)
 
         if isinstance(strides, list):
-            strides_ = strides  # type: Union[List[int], List[Tuple[int, ...]]]
+            strides_ = strides  # type: List[Union[int, Tuple[int, ...]]]
         else:
-            strides_ = [strides for _ in range(len(num_channels) - 1)]  # type: ignore
+            strides_ = [strides for _ in range(len(num_channels) - 1)]
 
         assert len(strides_) == (len(num_channels) - 1)
 
@@ -94,7 +94,7 @@ class ConvBlock(nn.Module):
                 paddings
             )  # type: List[Union[Literal["same", "valid"], int, Tuple[int, ...]]]
         else:
-            paddings_ = [paddings for _ in range(len(num_channels) - 1)]  # type: ignore
+            paddings_ = [paddings for _ in range(len(num_channels) - 1)]
 
         assert len(paddings_) == (len(num_channels) - 1)
 

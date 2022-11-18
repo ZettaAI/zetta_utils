@@ -276,8 +276,8 @@ def interpolate(  # pylint: disable=too-many-locals
         spatial_ndim=data.ndim - 2,
         mode=mode,
     )
-
-    data_in = tensor_ops.convert.to_torch(data).float()
+    data_torch = tensor_ops.convert.to_torch(data)
+    data_in = data_torch.float()
     result_raw = torch.nn.functional.interpolate(
         data_in,
         size=size,
@@ -315,7 +315,8 @@ def interpolate(  # pylint: disable=too-many-locals
     elif mode == "segmentation":
         result_raw = result_raw.int()
 
-    result = tensor_ops.convert.astype(result_raw, data)
+    result = result_raw.to(data_torch.dtype)
+    result = tensor_ops.convert.astype(result, data)
     result = squeeze_to(result, original_ndim)
 
     return result

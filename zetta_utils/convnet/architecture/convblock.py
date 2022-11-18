@@ -57,7 +57,7 @@ class ConvBlock(nn.Module):
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
         kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
-        strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
+        strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
         paddings: Union[
             Literal["same", "valid"],
             int,

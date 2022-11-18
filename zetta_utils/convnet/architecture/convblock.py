@@ -26,15 +26,26 @@ class ConvBlock(nn.Module):
     :param activation: Constructor for activation layers.
     :param normalization: Constructor for normalization layers. Normalization will
         be applied after convolution before activation.
-    :param padding_mode: Convolution padding mode.
     :param kernel_sizes: Convolution kernel sizes. When specified as a single integer or a
-        tuple, it will be passes as ``k`` parameter to all convolution constructors.
+        tuple, it will be passed as ``k`` parameter to all convolution constructors.
         When specified as a list, each item in the list will be passed as ``k`` to the
         corresponding convolution in order. The list length must match the number of
         convolutions.
+    :param strides: Convolution strides. When specified as a single integer or a
+        tuple, it will be passed as the stride parameter to all convolution constructors.
+        When specified as a list, each item in the list will be passed as stride to the
+        corresponding convolution in order. The list length must match the number of
+        convolutions.
+    :param paddings: Convolution padding sizes. Can accept "same", "valid", a single integer,
+        a tuple, or a list of any of these. When specified as a single string, integer, or a
+        tuple, it will be passed as the padding parameter to all convolution constructors.
+        When specified as a list, each item in the list will be passed as padding to the
+        corresponding convolution in order. The list length must match the number of
+        convolutions.
     :param skips: Specification for residual skip connection. For example,
-        ``skips={"0": 2}`` specifies a single residual skip connection from the output of the
-        first convolution (index 0) to the third covnolution (index 2).
+        ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
+        first convolution (index 1) to the third covnolution (index 3). 0 specifies the input
+        to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
     """
@@ -44,9 +55,15 @@ class ConvBlock(nn.Module):
         num_channels: List[int],
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
-        padding_mode: Union[Literal["valid"], Literal["same"]] = "same",
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
-        kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
+        kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
+        strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
+        paddings: Union[
+            Literal["same", "valid"],
+            int,
+            Tuple[int, ...],
+            List[Union[Literal["same", "valid"], int, Tuple[int, ...]]],
+        ] = "same",
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
@@ -59,14 +76,30 @@ class ConvBlock(nn.Module):
         self.layers = torch.nn.ModuleList()
 
         if isinstance(kernel_sizes, list):
-            kernel_sizes_ = kernel_sizes  # type: Union[List[int], List[Tuple[int, ...]]]
+            kernel_sizes_ = kernel_sizes  # type: List[Union[int, Tuple[int, ...]]]
         else:
-            kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]  # type: ignore
+            kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]
 
         assert len(kernel_sizes_) == (len(num_channels) - 1)
 
+        if isinstance(strides, list):
+            strides_ = strides  # type: List[Union[int, Tuple[int, ...]]]
+        else:
+            strides_ = [strides for _ in range(len(num_channels) - 1)]
+
+        assert len(strides_) == (len(num_channels) - 1)
+
+        if isinstance(paddings, list):
+            paddings_ = (
+                paddings
+            )  # type: List[Union[Literal["same", "valid"], int, Tuple[int, ...]]]
+        else:
+            paddings_ = [paddings for _ in range(len(num_channels) - 1)]
+
+        assert len(paddings_) == (len(num_channels) - 1)
+
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], padding=padding_mode)
+            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], strides_[i], paddings_[i])
             # TODO: make this step optional
             if not new_conv.bias is None:
                 new_conv.bias.data[:] = 0
@@ -82,10 +115,12 @@ class ConvBlock(nn.Module):
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         skip_data_for = {}  # type: Dict[int, torch.Tensor]
-        conv_count = 0
-
+        conv_count = 1
+        if 0 in self.skips:
+            skip_dest = self.skips[0]
+            skip_data_for[skip_dest] = data
         result = data
-        for this_layer, next_layer in zip(self.layers, list(self.layers[1:]) + [None]):
+        for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
             if isinstance(this_layer, torch.nn.modules.conv._ConvNd):
                 if conv_count in skip_data_for:
                     result += skip_data_for[conv_count]

@@ -1,7 +1,7 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
 from torch import nn
@@ -36,7 +36,7 @@ class ConvBlock(nn.Module):
         When specified as a list, each item in the list will be passed as stride to the
         corresponding convolution in order. The list length must match the number of
         convolutions.
-    :param paddings: Convolution padding sizes. Can accept "valid", "same", a single integer,
+    :param paddings: Convolution padding sizes. Can accept "same", "valid", a single integer,
         a tuple, or a list of any of these. When specified as a single string, integer, or a
         tuple, it will be passed as the padding parameter to all convolution constructors.
         When specified as a list, each item in the list will be passed as padding to the
@@ -59,7 +59,10 @@ class ConvBlock(nn.Module):
         kernel_sizes: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 3,
         strides: Union[List[int], int, List[Tuple[int, ...]], Tuple[int, ...]] = 1,
         paddings: Union[
-            str, int, Tuple[int, ...], List[Union[str, int, Tuple[int, ...]]]
+            Literal["same", "valid"],
+            int,
+            Tuple[int, ...],
+            List[Union[Literal["same", "valid"], int, Tuple[int, ...]]],
         ] = "same",
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
@@ -87,7 +90,9 @@ class ConvBlock(nn.Module):
         assert len(strides_) == (len(num_channels) - 1)
 
         if isinstance(paddings, list):
-            paddings_ = paddings  # type: List[Union[str, int, Tuple[int, ...]]]
+            paddings_ = (
+                paddings
+            )  # type: List[Union[Literal["same", "valid"], int, Tuple[int, ...]]]
         else:
             paddings_ = [paddings for _ in range(len(num_channels) - 1)]  # type: ignore
 

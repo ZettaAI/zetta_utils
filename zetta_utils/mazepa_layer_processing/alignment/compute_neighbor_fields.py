@@ -18,7 +18,7 @@ from .. import ChunkedApplyFlowType
 def compute_z_neighbor_fields(
     src: Layer[Any, VolumetricIndex, torch.Tensor],
     dst_dir: str,
-    cf_task_factory: mazepa.TaskFactory,  # TODO: type me
+    compute_field_method: mazepa.FlowType,  # TODO: type me
     idx: VolumetricIndex,
     chunker: IndexChunker[VolumetricIndex],
     dst_layer_builder: Callable[..., Layer[Any, VolumetricIndex, torch.Tensor]],
@@ -44,6 +44,9 @@ def compute_z_neighbor_fields(
             0, VolIdxTranslator(offset=(0, 0, z_offset), resolution=idx.resolution)
         )
 
+        cf_flow = compute_field_flow_type(
+            idx=
+        )
         cf_flow = ChunkedApplyFlowType(
             task_factory=cf_task_factory,
             chunker=chunker,

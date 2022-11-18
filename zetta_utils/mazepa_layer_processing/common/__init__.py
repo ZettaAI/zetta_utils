@@ -8,3 +8,4 @@ from .simple_volumetric_task_factory import (
     build_chunked_volumetric_flow_type,
 )
 from .chunked_write import chunked_write
+from .chunked_interpolate import chunked_interpolate_xy

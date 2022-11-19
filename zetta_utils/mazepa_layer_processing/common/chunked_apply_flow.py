@@ -1,10 +1,12 @@
-from typing import Any, Generic, TypeVar
+from typing import Generic, TypeVar
 
 import attrs
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.layer import IndexChunker, LayerIndex
+
+from .chunkable_protocols import ChunkableTaskFactory
 
 logger = log.get_logger("zetta_utils")
 
@@ -13,32 +15,27 @@ P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 
 
-@builder.register("ChunkedApplyFlow")
+@builder.register("ChunkedApplyFlowType")
 @mazepa.flow_type_cls
 @attrs.mutable
-class ChunkedApplyFlowType(Generic[IndexT, P, R_co]):
-    task_factory: mazepa.TaskFactory[P, R_co]
+class ChunkedApplyFlowType(Generic[P, IndexT, R_co]):
+    task_factory: ChunkableTaskFactory[P, IndexT, R_co]
     chunker: IndexChunker[IndexT]
 
     def flow(
         self,
+        idx: IndexT,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
         # can't figure out how to force mypy to check this
-        idx: IndexT
         assert len(args) == 0
-        assert "idx" in kwargs
-        idx = kwargs["idx"]  # type: ignore
-        # task_args = args
-        task_kwargs = {k: v for k, v in kwargs.items() if k not in ["idx"]}
         logger.info(f"Breaking {idx} into chunks with {self.chunker}.")
         idx_chunks = self.chunker(idx)
         tasks = [
             self.task_factory.make_task(
-                idx=idx_chunk,  # type: ignore
-                # *task_args,
-                **task_kwargs,  # type: ignore
+                idx=idx_chunk,
+                **kwargs,
             )
             for idx_chunk in idx_chunks
         ]
@@ -48,15 +45,16 @@ class ChunkedApplyFlowType(Generic[IndexT, P, R_co]):
 
 @builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
-    task_factory: mazepa.TaskFactory[P, Any],
+    task_factory: ChunkableTaskFactory[P, IndexT, R_co],
     chunker: IndexChunker[IndexT],
+    idx: IndexT,
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
-    flow_type = ChunkedApplyFlowType[IndexT, P, None](
+    flow_type = ChunkedApplyFlowType(
         chunker=chunker,
         task_factory=task_factory,
     )
-    flow = flow_type(*args, **kwargs)
+    flow = flow_type(idx, *args, **kwargs)
 
     return flow

@@ -1,11 +1,11 @@
 from typing import Iterable, Literal, Optional
 
 import attrs
+import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.bcube import BcubeStrider
-from zetta_utils.tensor_typing import TensorTypeVar
 from zetta_utils.typing import Vec3D
 
 from .. import DataWithIndexProcessor, IndexChunker
@@ -24,10 +24,10 @@ def translate_volumetric_index(
     return result
 
 
-@builder.register("VolIdxTranslator")
+@builder.register("VolumetricIndexTranslator")
 @typechecked
 @attrs.mutable
-class VolIdxTranslator:  # pragma: no cover # under 3 statements, no conditionals
+class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
     offset: Vec3D
     resolution: Vec3D
 
@@ -40,10 +40,10 @@ class VolIdxTranslator:  # pragma: no cover # under 3 statements, no conditional
         return result
 
 
-@builder.register("VolIdxResolutionAdjuster")
+@builder.register("VolumetricIndexResolutionAdjuster")
 @typechecked
 @attrs.mutable
-class VolIdxResolutionAdjuster:  # pragma: no cover # under 3 statements, no conditionals
+class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statements, no conditionals
     resolution: Vec3D
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
@@ -54,7 +54,7 @@ class VolIdxResolutionAdjuster:  # pragma: no cover # under 3 statements, no con
         return result
 
 
-@builder.register("VolIdxResolutionAdjuster")
+@builder.register("VolumetricIndexResolutionAdjuster")
 @typechecked
 @attrs.mutable
 class VolDataInterpolator(DataWithIndexProcessor):
@@ -64,10 +64,10 @@ class VolDataInterpolator(DataWithIndexProcessor):
 
     def __call__(
         self,
-        data: TensorTypeVar,
+        data: torch.Tensor,
         idx: VolumetricIndex,
         idx_proced: VolumetricIndex,
-    ) -> TensorTypeVar:
+    ) -> torch.Tensor:
         if self.mode == "read":
             scale_factor = tuple(idx_proced.resolution[i] / idx.resolution[i] for i in range(3))
         else:
@@ -90,7 +90,7 @@ class VolDataInterpolator(DataWithIndexProcessor):
 @attrs.mutable
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: Vec3D
-    step_size: Vec3D
+    step_size: Optional[Vec3D] = None
     resolution: Optional[Vec3D] = None
 
     def __call__(
@@ -101,11 +101,16 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         else:
             chunk_resolution = self.resolution
 
+        if self.step_size is None:
+            step_size = self.chunk_size
+        else:
+            step_size = self.step_size
+
         bcube_strider = BcubeStrider(
             bcube=idx.bcube,
             resolution=chunk_resolution,
             chunk_size=self.chunk_size,
-            step_size=self.step_size,
+            step_size=step_size,
         )
         bcube_chunks = bcube_strider.get_all_chunk_bcubes()
         result = [

@@ -1,13 +1,32 @@
 # pylint: disable=missing-docstring
-from typing import Literal, Optional, Sequence, SupportsIndex, Union
+from typing import Literal, Optional, Protocol, Sequence, SupportsIndex, Union
 
 import einops
 import numpy as np
 import torch
 from typeguard import typechecked
+from typing_extensions import ParamSpec
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
+
+P = ParamSpec("P")
+
+
+class TensorOp(Protocol[P]):
+    def __call__(self, data: TensorTypeVar, *args: P.args, **k: P.kwargs) -> TensorTypeVar:
+        ...
+
+
+def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
+    def wrapped(data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
+        if (data != 0).sum() == 0:
+            result = data
+        else:
+            result = fn(data, *args, **kwargs)
+        return result
+
+    return wrapped
 
 
 @builder.register("rearrange")

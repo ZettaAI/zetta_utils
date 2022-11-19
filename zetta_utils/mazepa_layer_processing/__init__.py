@@ -2,8 +2,9 @@ from zetta_utils import builder, mazepa
 
 from .common import (
     ChunkedApplyFlowType,
-    SimpleCallableTaskFactory,
-    build_chunked_apply_callable_flow_type,
+    CallableTaskFactory,
+    build_chunked_callable_flow_type,
+    build_chunked_apply_flow,
 )
 from . import alignment
 

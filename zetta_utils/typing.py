@@ -6,8 +6,8 @@ from typing import Any, List, Tuple, Union
 import typeguard
 
 Slices3D = Tuple[slice, slice, slice]
-# int acceptible cc: https://peps.python.org/pep-0484/#the-numeric-tower
 Vec3D = Union[Tuple[float, float, float], Tuple[int, int, int], List[float], List[int]]
+IntVec3D = Union[Tuple[int, int, int], List[int]]
 
 
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover

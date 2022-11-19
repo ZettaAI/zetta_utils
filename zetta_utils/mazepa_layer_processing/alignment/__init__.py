@@ -1,2 +1,5 @@
 from .compute_neighbor_fields import compute_z_neighbor_fields
+
+# from .compute_alignment_quality import compute_alignment_quality, compute_misalignment_stats
+from .compute_alignment_quality import compute_alignment_quality
 from .warp_task_factory import WarpTaskFactory

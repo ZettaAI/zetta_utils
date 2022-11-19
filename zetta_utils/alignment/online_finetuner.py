@@ -15,7 +15,7 @@ def align_with_online_finetuner(
     sm=100,
     num_iter=200,
     lr=3e-1,
-    res_start=None,  # (C, X, Y, Z)
+    src_field_data=None,  # (C, X, Y, Z)
 ):
     assert src_data.shape == tgt_data.shape
     # assert len(src_data.shape) == 4 # (1, C, X, Y,)
@@ -24,15 +24,15 @@ def align_with_online_finetuner(
     src_data = einops.rearrange(src_data, "C X Y 1 -> 1 C X Y")
     tgt_data = einops.rearrange(tgt_data, "C X Y 1 -> 1 C X Y")
 
-    if res_start is None:
-        res_start = torch.zeros(
+    if src_field is None:
+        src_field = torch.zeros(
             [1, 2, tgt_data.shape[2], tgt_data.shape[3]], device=tgt_data.device
         ).float()
     else:
-        res_start = einops.rearrange(res_start, "C X Y 1 -> 1 C X Y")
-        scales = [src_data.shape[i] / res_start.shape[i] for i in range(2, 4)]
+        src_field = einops.rearrange(src_field, "C X Y 1 -> 1 C X Y")
+        scales = [src_data.shape[i] / src_field.shape[i] for i in range(2, 4)]
         assert scales[0] == scales[1]
-        res_start = tensor_ops.interpolate(res_start, scale_factor=scales, mode="field")
+        src_field = tensor_ops.interpolate(src_field, scale_factor=scales, mode="field")
 
     orig_device = src_data.device
 
@@ -47,7 +47,7 @@ def align_with_online_finetuner(
         result = metroem.finetuner.optimize_pre_post_ups(
             src_data,
             tgt_data,
-            res_start,
+            src_field_data,
             src_zeros=(src_data == -0.5),
             tgt_zeros=(tgt_data == -0.5),
             src_defects=(src_data == -0.5),

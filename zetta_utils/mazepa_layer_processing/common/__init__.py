@@ -1,4 +1,4 @@
-from .chunked_apply import ChunkedApplyFlowType
+from .chunked_apply import ChunkedApplyFlowType, build_chunked_apply_flow
 from .simple_callable_task_factory import (
     SimpleCallableTaskFactory,
     build_chunked_apply_callable_flow_type,
@@ -8,4 +8,4 @@ from .simple_volumetric_task_factory import (
     build_chunked_volumetric_flow_type,
 )
 from .chunked_write import chunked_write
-from .chunked_interpolate import chunked_interpolate_xy
+from .chunked_interpolate import chunked_interpolate

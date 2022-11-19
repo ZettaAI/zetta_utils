@@ -46,7 +46,7 @@ class ChunkedApplyFlowType(Generic[IndexT, P, R_co]):
         yield tasks
 
 
-@builder.register("build_chunked_apply_flow_type")
+@builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
     task_factory: mazepa.TaskFactory[P, Any],
     chunker: IndexChunker[IndexT],

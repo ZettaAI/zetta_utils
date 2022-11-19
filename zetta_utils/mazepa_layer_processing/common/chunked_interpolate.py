@@ -7,7 +7,7 @@ import torch
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.layer import IndexChunker, Layer
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.tensor_typing import Tensor
+from zetta_utils.typing import Vec3D
 
 from . import build_chunked_volumetric_flow_type
 
@@ -29,34 +29,45 @@ def _interpolate(
     )
 
 
-@builder.register("chunked_interpolate_xy")
-def chunked_interpolate_xy(
+@builder.register("chunked_interpolate")
+def chunked_interpolate(
     chunker: IndexChunker[IndexT],
     idx: IndexT,
-    src: Layer[Any, IndexT, Tensor],
-    scale_factor: float,
+    src: Layer[Any, IndexT, torch.Tensor],
     mode: tensor_ops.InterpolationMode,
-    dst: Optional[Layer[Any, IndexT, Tensor]] = None,
+    scale_factor: Optional[Vec3D] = None,
+    dst_res: Optional[Vec3D] = None,
+    dst: Optional[Layer[Any, IndexT, torch.Tensor]] = None,
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
+
     if dst is None:
         dst = src
-    scale_factor_tuple = [scale_factor, scale_factor, 1]
-    dst_idx_res = [
-        idx.resolution[0] / scale_factor,
-        idx.resolution[1] / scale_factor,
-        idx.resolution[2],
-    ]
+
+    if scale_factor is not None:
+        dst_res = [
+            idx.resolution[0] / scale_factor[0],
+            idx.resolution[1] / scale_factor[1],
+            idx.resolution[2] / scale_factor[2],
+        ]
+    else:
+        assert dst_res is not None
+        scale_factor = [
+             idx.resolution[0] / dst_res[0],
+             idx.resolution[1] / dst_res[1],
+             idx.resolution[2] / dst_res[2],
+        ]
+
     flow_type = build_chunked_volumetric_flow_type(
         fn=_interpolate,
         chunker=chunker,
-        dst_idx_res=dst_idx_res,
+        dst_idx_res=dst_res,
     )
     result = flow_type(
         idx=idx,
         dst=dst,
         src=src,
-        scale_factor=scale_factor_tuple,
+        scale_factor=scale_factor,
         mode=mode,
         mask_value_thr=mask_value_thr,
     )

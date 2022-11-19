@@ -1,3 +1,5 @@
+import "path"
+
 #SRC_PATH: "gs://tmp_2w/inference_tests/raw_img_x0"
 #DST_PATH: "gs://tmp_2w/inference_tests/field_x0"
 
@@ -21,18 +23,27 @@ target: {
 	"@type":           "compute_z_neighbor_fields"
 	farthest_neighbor: 1
 	compute_field_method: {
-		"@type": "SimpleVolumetricTaskFactory"
-		fn: {
-			"@type": "align_with_online_finetunner"
-			"@mode": "partial"
-			sm:      #RIGIDITY
-		}
-		dst_data_crop: [#XY_OVERLAP / 2, #XY_OVERLAP / 2, 0]
-	}
-	chunker: {
-		"@type": "VolumetricIndexChunker"
-		"chunk_size": [#XY_OUT_CHUNK + #XY_OVERLAP, #XY_OUT_CHUNK + #XY_OVERLAP, 1]
-		"step_size": [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
+		"@type": "MultistageComputeFieldFlowType"
+		stages: [
+			{
+				"@type": "ComputeFieldStage"
+				resolution: [64, 64, 40]
+				task_factory: {
+					"@type": "SimpleVolumetricTaskFactory"
+					fn: {
+						"@type": "align_with_online_finetunner"
+						"@mode": "partial"
+						sm:      #RIGIDITY
+					}
+					dst_data_crop: [#XY_OVERLAP / 2, #XY_OVERLAP / 2, 0]
+				}
+				chunker: {
+					"@type": "VolumetricIndexChunker"
+					"chunk_size": [#XY_OUT_CHUNK + #XY_OVERLAP, #XY_OUT_CHUNK + #XY_OVERLAP, 1]
+					"step_size": [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
+				}
+			},
+		]
 	}
 	src: {
 		"@type": "build_cv_layer"
@@ -50,8 +61,18 @@ target: {
 			},
 		]
 	}
-	dst_dir: #DST_PATH
-	dst_layer_builder: {
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                #DST_PATH
+		info_reference_path: #SRC_PATH
+		info_field_overrides: {
+			"num_channels": 2
+			"data_type":    "float32"
+		}
+		on_info_exists: "expect_same"
+	}
+	tmp_layer_dir: path.Join([#DST_PATH, "tmp"])
+	tmp_layer_factory: {
 		"@type":             "build_cv_layer"
 		"@mode":             "partial"
 		info_reference_path: #SRC_PATH

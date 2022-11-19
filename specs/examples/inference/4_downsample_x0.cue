@@ -11,12 +11,13 @@
 }
 "@type": "mazepa_execute"
 target: {
-	"@type":      "chunked_interpolate_xy"
-	scale_factor: 0.5
+	"@type": "chunked_interpolate"
+	dst_res: [128, 128, 40]
 	chunker: {
 		"@type": "VolumetricIndexChunker"
-		"chunk_size": [4 * 1024, 4 * 1024, 1]
-		"step_size": [4 * 1024, 4 * 1024, 1]
+		chunk_size: [2 * 1024, 2 * 1024, 1]
+		step_size: [2 * 1024, 2 * 1024, 1]
+		resolution: [128, 128, 40]
 	}
 	src: {
 		"@type": "build_cv_layer"

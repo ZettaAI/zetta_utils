@@ -1,4 +1,4 @@
-from typing import Iterable, Literal
+from typing import Iterable, Literal, Optional
 
 import attrs
 from typeguard import typechecked
@@ -91,13 +91,19 @@ class VolDataInterpolator(DataWithIndexProcessor):
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: Vec3D
     step_size: Vec3D
+    resolution: Optional[Vec3D] = None
 
     def __call__(
         self, idx: VolumetricIndex
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
+        if self.resolution is None:
+            chunk_resolution = idx.resolution
+        else:
+            chunk_resolution = self.resolution
+
         bcube_strider = BcubeStrider(
             bcube=idx.bcube,
-            resolution=idx.resolution,
+            resolution=chunk_resolution,
             chunk_size=self.chunk_size,
             step_size=self.step_size,
         )

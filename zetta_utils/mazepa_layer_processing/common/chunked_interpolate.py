@@ -53,9 +53,9 @@ def chunked_interpolate(
     else:
         assert dst_res is not None
         scale_factor = [
-             idx.resolution[0] / dst_res[0],
-             idx.resolution[1] / dst_res[1],
-             idx.resolution[2] / dst_res[2],
+            idx.resolution[0] / dst_res[0],
+            idx.resolution[1] / dst_res[1],
+            idx.resolution[2] / dst_res[2],
         ]
 
     flow_type = build_chunked_volumetric_flow_type(

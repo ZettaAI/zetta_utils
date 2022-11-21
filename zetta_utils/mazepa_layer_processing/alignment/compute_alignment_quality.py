@@ -185,7 +185,7 @@ def compute_alignment_quality(
     z_end = slices[2].stop
     vol = (x_end - x_start) * (y_end - y_start) * (z_end - z_start)
 
-    if vol < 1e-18:
+    if vol < 1e18:
         print(lrpad(f"Volume of FOV: {vol*1e-9:10.3f} um^3", 1))
     else:
         print(lrpad(f"Volume of FOV: {vol*1e-18:10.3f} mm^3", 1))

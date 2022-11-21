@@ -1,4 +1,4 @@
-#SRC_PATH:   "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v3/misalignment/misalignment_cns_img_m5"
+#SRC_PATH:   "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/misalignment/misalignment_cns_img_m5"
 
 #XY_FOV: 512
 #Z_FOV: 5
@@ -10,8 +10,8 @@
 	"@type": "VolumetricIndex"
 	bcube: {
 		"@type": "BoundingCube"
-		start_coord: [1024 * 128, 1024 * 48, 2950]
-		end_coord: [1024 * 160, 1024 * 64, 3050]
+		start_coord: [1024 * 128, 1024 * 32, 2950]
+		end_coord: [1024 * 160, 1024 * 48, 3050]
 		resolution: #BCUBE_RESOLUTION
 	}
 	resolution: [128, 128, 45]

@@ -2,6 +2,7 @@ from typing import List
 
 from zetta_utils import builder, log
 from zetta_utils.bcube import BoundingCube
+from ..parsing.ngl_state import load as load_ngl_layer
 
 logger = log.get_logger("zetta_utils")
 
@@ -14,6 +15,9 @@ def get_z_blocks(
 ) -> List[BoundingCube]:
     logger.info(f"Breaking bcube {bcube} into Z blocks.")
     logger.info(f"Block size {block_size}, block size resolution {block_size_res}.")
+
+    layer = load_ngl_layer("remote/zfish_10132022_cutout_misalignments")
+    logger.info(f"Layer type: {layer.type}; Total: {len(layer.annotations)}.")
 
     z_start = bcube.bounds[-1][0]
     z_end = bcube.bounds[-1][1]

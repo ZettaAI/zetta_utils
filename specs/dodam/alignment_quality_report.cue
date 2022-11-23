@@ -1,8 +1,11 @@
-#SRC_PATH:   "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/misalignment/misalignment_cns_img_m5"
-
+#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/misalignment/misalignment_cns_img_m5"
+#DATA_RESOLUTION: [128, 128, 45]
 #XY_FOV: 512
 #Z_FOV: 5
+
 #BCUBE_RESOLUTION: [4, 4, 45]
+#BCUBE_START: [1024*128, 1024*32, 2500]
+#BCUBE_END: [1024*160, 1024*48, 3500]
 #MISALIGNMENT_THRESHOLDS: [0.5, 1.0, 1.5, 2.0, 2.5]
 #NUM_WORST_CHUNKS: 5
 
@@ -10,11 +13,11 @@
 	"@type": "VolumetricIndex"
 	bcube: {
 		"@type": "BoundingCube"
-		start_coord: [1024 * 128, 1024 * 32, 2950]
-		end_coord: [1024 * 160, 1024 * 48, 3050]
-		resolution: #BCUBE_RESOLUTION
+		start_coord: #BCUBE_START
+		end_coord:   #BCUBE_END
+		resolution:  #BCUBE_RESOLUTION
 	}
-	resolution: [128, 128, 45]
+	resolution: #DATA_RESOLUTION
 }
 
 "@type": "mazepa_execute"
@@ -23,7 +26,7 @@ target: {
 	chunker: {
 		"@type": "VolumetricIndexChunker"
 		"chunk_size": [#XY_FOV, #XY_FOV, #Z_FOV]
-		"step_size": [#XY_FOV, #XY_FOV, #Z_FOV]
+		"step_size":  [#XY_FOV, #XY_FOV, #Z_FOV]
 	}
 	src: {
 		"@type": "build_cv_layer"

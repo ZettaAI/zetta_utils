@@ -79,7 +79,10 @@ def pretty_print(idx, resolution):
     y_end = slices[1].stop
     z_start = slices[2].start
     z_end = slices[2].stop
-    return f"{x_start}-{x_end}, {y_start}-{y_end}, {z_start}-{z_end}"
+    return f"{x_start}, {y_start}, {z_start} - {x_end}, {y_end}, {z_end}"
+
+
+# return f"{x_start}-{x_end}, {y_start}-{y_end}, {z_start}-{z_end}"
 
 
 def lrpad(string="", level=1, length=80, char="|"):
@@ -109,6 +112,8 @@ def compute_alignment_quality(
     num_worst_chunks: int,
 ):
     #    task_kwargs = {k: v for k, v in kwargs.items() if k not in ["idx"]}
+
+    # TODO: Log / raise error if num_worst_chunks is larger than number of chunks
     logger.info(f"Breaking {idx} into chunks with {chunker}.")
     idx_chunks = chunker(idx)
     tasks = [
@@ -121,8 +126,7 @@ def compute_alignment_quality(
     ]
     logger.info(f"Submitting {len(tasks)} processing tasks from factory.")
 
-    for task in tasks:
-        yield task
+    yield tasks
     yield Dependency()
 
     sums = []
@@ -165,7 +169,7 @@ def compute_alignment_quality(
         ]
         misaligned[threshold]["worsts"] = sorted_inds[0:num_worst_chunks]
 
-    print(f"===   Alignment Quality Report   ===============================================")
+    print(f"+==   Alignment Quality Report   ==============================================+")
     print(lrpad())
     print(lrpad(f"Generated {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", 1))
     print(lrpad())
@@ -205,7 +209,7 @@ def compute_alignment_quality(
         print(
             lrpad(
                 f"{threshold:3.2f} px: {(misaligned[threshold]['probability'] * 1e6):10.3f} parts per million",
-                2
+                2,
             )
         )
     print(lrpad())
@@ -215,14 +219,14 @@ def compute_alignment_quality(
     print(lrpad(f"Worst chunk(s) overall (RMS):", 1))
     for i in range(num_worst_chunks):
         ind = worsts[i]
-        print(lrpad(f"{pretty_print(idx_chunks[ind], resolution)}, {rmses[ind]:7.4f} px", 2))
+        print(lrpad(f"{pretty_print(idx_chunks[ind], resolution)}   {rmses[ind]:7.4f} px", 2))
     for threshold in misalignment_thresholds:
         print(lrpad(f"Worst chunk(s) at {threshold:3.2f} pixels:", 1))
         for i in range(num_worst_chunks):
             ind = misaligned[threshold]["worsts"][i]
             prob = misaligned_pixelss[threshold][ind] / sizes[ind]
             print(
-                lrpad(f"{pretty_print(idx_chunks[ind], resolution)}, {(prob * 1e6):10.3f} ppm", 2)
+                lrpad(f"{pretty_print(idx_chunks[ind], resolution)}   {(prob * 1e6):10.3f} ppm", 2)
             )
     print(lrpad(""))
-    print(f"================================================================================")
+    print(f"+==============================================================================+")

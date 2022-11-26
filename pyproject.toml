@@ -28,7 +28,8 @@ dependencies = [
     "typeguard >= 2.13.3",
     "cachetools >= 5.2.0",
     "fsspec >= 2022.8.2",
-    "rich >= 12.6.0"
+    "rich >= 12.6.0",
+    "neuroglancer"
 ]
 dynamic = ["version"]
 

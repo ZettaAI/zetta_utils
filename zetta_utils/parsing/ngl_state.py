@@ -20,6 +20,12 @@ from zetta_utils.typing import Vec3D
 
 logger = get_logger("zetta_utils")
 remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
+RESOLUTION_KEY = "voxelSize"
+
+
+def load(layer_name: str) -> AnnotationLayer:
+    from cloudfiles import CloudFiles
+    from neuroglancer.viewer_state import make_layer
 
 
 class NGL_LAYER_KEYS(Enum):

@@ -3,10 +3,13 @@
 from os import environ
 from typing import List
 
+from cloudfiles import CloudFiles
 from neuroglancer.viewer_state import AnnotationLayer
+from neuroglancer.viewer_state import make_layer
 
-from ..bcube import BoundingCube
-from ..log import get_logger
+from zetta_utils.bcube import BoundingCube
+from zetta_utils.log import get_logger
+from zetta_utils.typing import Vec3D
 
 
 logger = get_logger("zetta_utils")
@@ -15,9 +18,6 @@ RESOLUTION_KEY = "voxelSize"
 
 
 def load(layer_name: str) -> AnnotationLayer:
-    from cloudfiles import CloudFiles
-    from neuroglancer.viewer_state import make_layer
-
     logger.info(f"Remote layer: {remote_path}/{layer_name}.")
 
     cf = CloudFiles(remote_path)
@@ -27,8 +27,6 @@ def load(layer_name: str) -> AnnotationLayer:
 
 
 def get_bcubes_from_annotations(layer: AnnotationLayer) -> List[BoundingCube]:
-    from ..typing import Vec3D
-
     bcubes = []
     resolution: Vec3D = layer.to_json()[RESOLUTION_KEY]
     for annotation in layer.annotations:

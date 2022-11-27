@@ -1,21 +1,17 @@
-from typing import List
+from typing import List, Union
 
 from zetta_utils import builder, log
 from zetta_utils.bcube import BoundingCube
-
-from ..parsing.ngl_state import get_bcubes_from_annotations
-from ..parsing.ngl_state import load as load_ngl_layer
+from zetta_utils.parsing import ngl_state
+from zetta_utils.typing import Vec3D
 
 logger = log.get_logger("zetta_utils")
 
 
 @builder.register("get_z_blocks")
 def get_z_blocks(
-    remote_layer: str,
-) -> List[BoundingCube]:
-    layer = load_ngl_layer(remote_layer)
-    logger.info(f"Layer type: {layer.type}; Total: {len(layer.annotations)}.")
-
-    result = get_bcubes_from_annotations(layer)
-    logger.info(f"Final number of blocks: {len(result)}")
+    remote_layer: str
+) -> List[Union[BoundingCube, Vec3D]]:
+    result = ngl_state.read_remote_annotations(remote_layer)
+    logger.info(f"Final number of blocks/points: {len(result)}")
     return result

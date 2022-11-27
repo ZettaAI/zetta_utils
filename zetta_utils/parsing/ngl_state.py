@@ -4,13 +4,11 @@ from os import environ
 from typing import List
 
 from cloudfiles import CloudFiles
-from neuroglancer.viewer_state import AnnotationLayer
-from neuroglancer.viewer_state import make_layer
+from neuroglancer.viewer_state import AnnotationLayer, make_layer
 
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.log import get_logger
 from zetta_utils.typing import Vec3D
-
 
 logger = get_logger("zetta_utils")
 remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")

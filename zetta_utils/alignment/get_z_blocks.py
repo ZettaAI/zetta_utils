@@ -2,9 +2,9 @@ from typing import List
 
 from zetta_utils import builder, log
 from zetta_utils.bcube import BoundingCube
+
 from ..parsing.ngl_state import get_bcubes_from_annotations
 from ..parsing.ngl_state import load as load_ngl_layer
-
 
 logger = log.get_logger("zetta_utils")
 

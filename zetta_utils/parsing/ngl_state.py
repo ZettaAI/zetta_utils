@@ -6,12 +6,16 @@ from typing import List, Union
 
 import numpy as np
 from cloudfiles import CloudFiles
+<<<<<<< HEAD
 from neuroglancer.viewer_state import (
     AnnotationLayer,
     AxisAlignedBoundingBoxAnnotation,
     PointAnnotation,
     make_layer,
 )
+=======
+from neuroglancer.viewer_state import AnnotationLayer, make_layer
+>>>>>>> b71736b (fix: isort)
 
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.bcube.bcube import BoundingBoxND

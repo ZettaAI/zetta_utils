@@ -33,7 +33,7 @@ def read_remote_annotations(layer_name: str) -> AnnotationLayer:
 
 
 def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D]]:
-    result = []
+    result: List[Union[BoundingCube, Vec3D]] = []
     resolution: Vec3D = layer.to_json()[RESOLUTION_KEY]
     for annotation in layer.annotations:
         assert isinstance(

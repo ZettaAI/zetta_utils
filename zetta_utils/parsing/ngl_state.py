@@ -1,21 +1,19 @@
 """neuroglancer state parsing."""
 
 from enum import Enum
+from enum import Enum
 from os import environ
 from typing import List, Union
 
 import numpy as np
+import numpy as np
 from cloudfiles import CloudFiles
-<<<<<<< HEAD
 from neuroglancer.viewer_state import (
     AnnotationLayer,
     AxisAlignedBoundingBoxAnnotation,
     PointAnnotation,
     make_layer,
 )
-=======
-from neuroglancer.viewer_state import AnnotationLayer, make_layer
->>>>>>> b71736b (fix: isort)
 
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.bcube.bcube import BoundingBoxND
@@ -24,7 +22,21 @@ from zetta_utils.typing import Vec3D
 
 logger = get_logger("zetta_utils")
 remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
-RESOLUTION_KEY = "voxelSize"
+
+
+class NGL_LAYER_KEYS(Enum):
+    ANNOTATION_COLOR = "annotationColor"
+    ANNOTATIONS = "annotations"
+    NAME = "name"
+    RESOLUTION = "voxelSize"
+    TOOL = "tool"
+    TYPE = "type"
+
+
+class DEFAULT_LAYER_VALUES(Enum):
+    COLOR = "#ff0000"
+    TYPE = "annotation"
+    TOOL = "annotateBoundingBox"
 
 
 def load(layer_name: str) -> AnnotationLayer:
@@ -101,6 +113,29 @@ def write_remote_annotations(
         NGL_LAYER_KEYS.ANNOTATION_COLOR.value: DEFAULT_LAYER_VALUES.COLOR.value,
         NGL_LAYER_KEYS.ANNOTATIONS.value: annotations
     }
+
+    for i, bcubes_or_point in enumerate(bcubes_or_points):
+        if isinstance(bcubes_or_point, BoundingBoxND):
+            x,y,z = bcubes_or_point.bounds
+            point_a = np.array([x[0], y[0], z[0]])
+            point_b = np.array([x[1], y[1], z[1]])
+            annotation = {
+                ANNOTATION_KEYS.ID.value: str(i),
+                ANNOTATION_KEYS.POINT_A.value: point_a / resolution,
+                ANNOTATION_KEYS.POINT_B.value: point_b / resolution,
+                ANNOTATION_KEYS.TYPE.value: AxisAlignedBoundingBoxAnnotation().type
+            }
+            annotations.append(annotation)
+        else:
+            annotation = {
+                ANNOTATION_KEYS.ID.value: str(i),
+                ANNOTATION_KEYS.POINT.value: bcubes_or_point / resolution,
+                ANNOTATION_KEYS.TYPE.value: PointAnnotation().type
+            }
+            annotations.append(annotation)
+    layer = make_layer(layer_d)
+    cf = CloudFiles(remote_path)
+    cf.put_json(layer_name, layer.to_json())
 
     for i, bcubes_or_point in enumerate(bcubes_or_points):
         if isinstance(bcubes_or_point, BoundingBoxND):

@@ -1,8 +1,10 @@
 """neuroglancer state parsing."""
 
+from enum import Enum
 from os import environ
 from typing import List, Union
 
+import numpy as np
 from cloudfiles import CloudFiles
 from neuroglancer.viewer_state import (
     AnnotationLayer,
@@ -17,7 +19,21 @@ from zetta_utils.typing import Vec3D
 
 logger = get_logger("zetta_utils")
 remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
-RESOLUTION_KEY = "voxelSize"
+
+
+class NGL_LAYER_KEYS(Enum):
+    ANNOTATION_COLOR = "annotationColor"
+    ANNOTATIONS = "annotations"
+    NAME = "name"
+    RESOLUTION = "voxelSize"
+    TOOL = "tool"
+    TYPE = "type"
+
+
+class DEFAULT_LAYER_VALUES(Enum):
+    COLOR = "#ff0000"
+    TYPE = "annotation"
+    TOOL = "annotateBoundingBox"
 
 
 def read_remote_annotations(layer_name: str) -> AnnotationLayer:
@@ -34,7 +50,7 @@ def read_remote_annotations(layer_name: str) -> AnnotationLayer:
 
 def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D]]:
     result: List[Union[BoundingCube, Vec3D]] = []
-    resolution: Vec3D = layer.to_json()[RESOLUTION_KEY]
+    resolution: Vec3D = layer.to_json()[NGL_LAYER_KEYS.RESOLUTION.value]
     for annotation in layer.annotations:
         assert isinstance(
             annotation, (AxisAlignedBoundingBoxAnnotation, PointAnnotation)
@@ -52,5 +68,27 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D
     return result
 
 
-def write_remote_annotations():
-    ...
+def write_remote_annotations(
+    layer_name: str,
+    resolution: Vec3D,
+    bcubes_or_points: List[Union[BoundingCube, Vec3D]],
+) -> None:
+    layer = {
+        NGL_LAYER_KEYS.NAME.value: layer_name,
+        NGL_LAYER_KEYS.RESOLUTION.value: resolution,
+        NGL_LAYER_KEYS.TOOL.value: DEFAULT_LAYER_VALUES.TOOL.value,
+        NGL_LAYER_KEYS.TYPE.value: DEFAULT_LAYER_VALUES.TYPE.value,
+        NGL_LAYER_KEYS.ANNOTATION_COLOR.value: DEFAULT_LAYER_VALUES.COLOR.value,
+    }
+    annotations: List[Union[AxisAlignedBoundingBoxAnnotation, PointAnnotation]] = []
+
+    res = np.array(resolution)
+
+    for bcubes_or_point in bcubes_or_points:
+        try:
+            bcube: BoundingCube = bcubes_or_point
+            x,y,z = bcube.bounds
+            point_a = np.array([x[0], y[0], z[0]])
+            point_b = np.array([x[1], y[1], z[1]])
+        except AttributeError:
+            ...

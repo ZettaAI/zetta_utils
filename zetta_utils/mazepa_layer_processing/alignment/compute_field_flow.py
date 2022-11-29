@@ -17,10 +17,10 @@ from zetta_utils.typing import IntVec3D, Vec3D
 from .compute_field_protocols import ComputeFieldOperation
 
 
-@builder.register("ComputeFieldFlowType")
-@mazepa.flow_type_cls
+@builder.register("ComputeFieldFlowSchema")
+@mazepa.flow_schema_cls
 @attrs.mutable
-class ComputeFieldFlowType:
+class ComputeFieldFlowSchema:
     chunk_size: IntVec3D
     operation: ComputeFieldOperation
     chunker: VolumetricIndexChunker = attrs.field(init=False)
@@ -71,8 +71,8 @@ def build_compute_field_flow(
     src_field: Optional[VolumetricLayer] = None,
     tgt_offset: Vec3D = (0, 0, 0),
 ) -> mazepa.Flow:
-    flow_type = ComputeFieldFlowType(chunk_size=chunk_size, operation=operation)
-    flow = flow_type(
+    flow_schema = ComputeFieldFlowSchema(chunk_size=chunk_size, operation=operation)
+    flow = flow_schema(
         bcube=bcube,
         dst_resolution=dst_resolution,
         dst=dst,

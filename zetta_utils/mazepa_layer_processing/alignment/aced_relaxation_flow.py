@@ -11,7 +11,7 @@ from zetta_utils.layer.volumetric import (
 )
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from ..common import build_chunked_volumetric_callable_flow_type
+from ..common import build_chunked_volumetric_callable_flow_schema
 
 
 @builder.register("build_aced_relaxation_flow")
@@ -27,12 +27,12 @@ def build_aced_relaxation_flow(
     rigidity_weight: float = 10.0,
     fix: Optional[Literal["first", "last", "both"]] = "first",
 ) -> mazepa.Flow:
-    flow_type = build_chunked_volumetric_callable_flow_type(
+    flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=alignment.aced_relaxation.perform_aced_relaxation,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
         crop=crop,
     )
-    flow = flow_type(
+    flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
         dst=dst,
         field=field,

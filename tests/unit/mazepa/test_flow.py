@@ -4,16 +4,16 @@ from zetta_utils.mazepa import (
     Dependency,
     Flow,
     FlowFnReturnType,
-    FlowType,
+    FlowSchema,
     TaskExecutionEnv,
-    flow_type,
-    flow_type_cls,
+    flow_schema,
+    flow_schema_cls,
 )
-from zetta_utils.mazepa.flows import _Flow, _FlowType
+from zetta_utils.mazepa.flows import _Flow, _FlowSchema
 
 
-def test_make_flow_type_cls() -> None:
-    @flow_type_cls
+def test_make_flow_schema_cls() -> None:
+    @flow_schema_cls
     class DummyFlowCls:
         x: str = "1"
 
@@ -22,18 +22,18 @@ def test_make_flow_type_cls() -> None:
 
     obj = DummyFlowCls()
     # reveal_type(obj)
-    assert isinstance(obj, FlowType)
+    assert isinstance(obj, FlowSchema)
     flow = obj()
     # reveal_type(flow)
     assert isinstance(flow, Flow)
 
 
-def test_make_flow_type():
-    @flow_type
+def test_make_flow_schema():
+    @flow_schema
     def dummy_flow_fn():
         yield []
 
-    assert isinstance(dummy_flow_fn, FlowType)
+    assert isinstance(dummy_flow_fn, FlowSchema)
     flow = dummy_flow_fn()
     assert isinstance(flow, Flow)
 
@@ -53,13 +53,13 @@ def test_get_batch_env(mocker):
     fn = mocker.MagicMock(
         return_value=iter(
             [
-                _FlowType(
+                _FlowSchema(
                     fn=lambda: None,
                 )()
             ]
         )
     )
-    j = _FlowType(
+    j = _FlowSchema(
         fn=fn,
     )()
     env = TaskExecutionEnv()

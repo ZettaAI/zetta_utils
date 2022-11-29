@@ -13,7 +13,7 @@ from zetta_utils.layer import IndexChunker, Layer
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from . import ChunkedApplyFlowType
+from . import ChunkedApplyFlowSchema
 
 P = ParamSpec("P")
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
@@ -72,19 +72,19 @@ class VolumetricCallableOperation(Generic[P]):
         dst[idx] = dst_data
 
 
-@builder.register("build_chunked_volumetric_callable_flow_type")
-def build_chunked_volumetric_callable_flow_type(
+@builder.register("build_chunked_volumetric_callable_flow_schema")
+def build_chunked_volumetric_callable_flow_schema(
     fn: Callable[P, torch.Tensor],
     chunker: IndexChunker[IndexT],
     crop: IntVec3D = (0, 0, 0),
     res_change_mult: Vec3D = (1, 1, 1),
-) -> ChunkedApplyFlowType[P, IndexT, None]:
+) -> ChunkedApplyFlowSchema[P, IndexT, None]:
     operation = VolumetricCallableOperation[P](
         fn=fn,
         crop=crop,
         res_change_mult=res_change_mult,
     )
-    return ChunkedApplyFlowType[P, IndexT, None](
+    return ChunkedApplyFlowSchema[P, IndexT, None](
         chunker=chunker,
         operation=operation,  # type: ignore
     )

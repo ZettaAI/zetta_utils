@@ -3,8 +3,8 @@
     "target": [
         {
             "@type": "build_chunked_apply_flow",
-            "task_factory": {
-                "@type": "WarpTaskFactory",
+            "operation": {
+                "@type": "WarpOperation",
                 "dst_data_crop": [
                     256,
                     256,
@@ -88,8 +88,8 @@
         },
         {
             "@type": "build_chunked_apply_flow",
-            "task_factory": {
-                "@type": "WarpTaskFactory",
+            "operation": {
+                "@type": "WarpOperation",
                 "dst_data_crop": [
                     256,
                     256,
@@ -173,8 +173,8 @@
         },
         {
             "@type": "build_chunked_apply_flow",
-            "task_factory": {
-                "@type": "WarpTaskFactory",
+            "operation": {
+                "@type": "WarpOperation",
                 "dst_data_crop": [
                     256,
                     256,
@@ -258,8 +258,8 @@
         },
         {
             "@type": "build_chunked_apply_flow",
-            "task_factory": {
-                "@type": "WarpTaskFactory",
+            "operation": {
+                "@type": "WarpOperation",
                 "dst_data_crop": [
                     256,
                     256,
@@ -343,8 +343,8 @@
         },
         {
             "@type": "build_chunked_apply_flow",
-            "task_factory": {
-                "@type": "WarpTaskFactory",
+            "operation": {
+                "@type": "WarpOperation",
                 "dst_data_crop": [
                     256,
                     256,

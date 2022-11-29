@@ -14,8 +14,8 @@ target: {
 	}
 	dst_resolution: [64, 64, 40]
 
-	task_factory: {
-		"@type": "VolumetricCallableTaskFactory"
+	operation: {
+		"@type": "VolumetricCallableOperation"
 		fn: {
 			"@type": "align_with_online_finetunner"
 			"@mode": "partial"

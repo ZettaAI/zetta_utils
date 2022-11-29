@@ -15,10 +15,10 @@ P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 
 
-@builder.register("ChunkedApplyFlowType")
-@mazepa.flow_type_cls
+@builder.register("ChunkedApplyFlowSchema")
+@mazepa.flow_schema_cls
 @attrs.mutable
-class ChunkedApplyFlowType(Generic[P, IndexT, R_co]):
+class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
     operation: ChunkableOperation[P, IndexT, R_co]
     chunker: IndexChunker[IndexT]
 
@@ -51,10 +51,10 @@ def build_chunked_apply_flow(
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
-    flow_type = ChunkedApplyFlowType(
+    flow_schema = ChunkedApplyFlowSchema(
         chunker=chunker,
         operation=operation,
     )
-    flow = flow_type(idx, *args, **kwargs)
+    flow = flow_schema(idx, *args, **kwargs)
 
     return flow

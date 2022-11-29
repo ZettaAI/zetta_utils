@@ -35,7 +35,7 @@ P = ParamSpec("P")
 @runtime_checkable
 class Flow(Protocol):
     """
-    Wraps a callable generator to convert it into a mazepa flow.
+    Interface for a mazepa Flow.
     """
 
     fn: Callable[..., FlowFnReturnType]
@@ -54,10 +54,9 @@ class Flow(Protocol):
 
 
 @runtime_checkable
-class FlowType(Protocol[P]):
+class FlowSchema(Protocol[P]):
     """
-    Interface of a flow type -- a callable that returns a mazepa Flow
-    passing all the arguments.
+    Interface of a flow Schema -- a callable that returns a mazepa Flow.
     """
 
     def __call__(
@@ -69,9 +68,9 @@ class FlowType(Protocol[P]):
 
 
 @runtime_checkable
-class RawFlowTypeCls(Protocol[P]):
+class RawFlowSchemaCls(Protocol[P]):
     """
-    Interface for a type that can be decorated with ``@flow_type_cls``.
+    Interface for a type that can be decorated with ``@flow_schema_cls``.
     """
 
     def flow(self, *args: P.args, **kwargs: P.kwargs) -> FlowFnReturnType:
@@ -130,9 +129,9 @@ class _Flow:
 
 
 @attrs.mutable
-class _FlowType(Generic[P]):
+class _FlowSchema(Generic[P]):
     """
-    Wrapper that makes a FlowType from a callable.
+    Wrapper that makes a FlowSchema from a callable.
     Users are expected to use ``@flow`` and ``@flow_cls`` decorators rather
     than using this class directly.
     """
@@ -156,16 +155,16 @@ class _FlowType(Generic[P]):
         return result
 
 
-def flow_type(fn: Callable[P, FlowFnReturnType]) -> FlowType[P]:
+def flow_schema(fn: Callable[P, FlowFnReturnType]) -> FlowSchema[P]:
     """Decorator for generator functions defining mazepa flows."""
-    return _FlowType[P](fn)
+    return _FlowSchema[P](fn)
 
 
-def flow_type_cls(cls: Type[RawFlowTypeCls]):
+def flow_schema_cls(cls: Type[RawFlowSchemaCls]):
     # original_call = cls.__call__
     # TODO: figure out how to handle this with changing TaskExecutionEnvs
     def _call_fn(self, *args, **kwargs):
-        return _FlowType(
+        return _FlowSchema(
             self.flow,
             # functools.partial(original_call, self),
             # TODO: Other params passed to decorator

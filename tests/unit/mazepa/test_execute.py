@@ -11,7 +11,7 @@ from zetta_utils.mazepa import (
     LocalExecutionQueue,
     TaskStatus,
     execute,
-    flow_type,
+    flow_schema,
     taskable_operation,
 )
 from zetta_utils.mazepa.remote_execution_queues import SQSExecutionQueue
@@ -32,7 +32,7 @@ def dummy_task(return_value: Any) -> Any:
     return return_value
 
 
-@flow_type
+@flow_schema
 def dummy_flow():
     task1 = dummy_task.make_task(return_value="output1")
     yield task1
@@ -43,7 +43,7 @@ def dummy_flow():
     yield task2
 
 
-@flow_type
+@flow_schema
 def empty_flow():
     yield []
 

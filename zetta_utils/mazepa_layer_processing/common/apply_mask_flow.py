@@ -11,7 +11,7 @@ from zetta_utils.layer.volumetric import (
 )
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from . import build_chunked_volumetric_callable_flow_type
+from . import build_chunked_volumetric_callable_flow_schema
 
 
 def _apply_mask(
@@ -35,11 +35,11 @@ def build_apply_mask_flow(
     mask: VolumetricLayer,
     fill_value: float = 0.0,
 ) -> mazepa.Flow:
-    flow_type = build_chunked_volumetric_callable_flow_type(
+    flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=_apply_mask,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
-    flow = flow_type(
+    flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
         dst=dst,
         src=src,

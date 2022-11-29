@@ -1,11 +1,11 @@
-from .chunked_apply_flow import ChunkedApplyFlowType, build_chunked_apply_flow
+from .chunked_apply_flow import ChunkedApplyFlowSchema, build_chunked_apply_flow
 from .callable_operation import (
     CallableOperation,
-    build_chunked_callable_flow_type,
+    build_chunked_callable_flow_schema,
 )
 from .volumetric_callable_operation import (
     VolumetricCallableOperation,
-    build_chunked_volumetric_callable_flow_type,
+    build_chunked_volumetric_callable_flow_schema,
 )
 
 from .write_flow import build_write_flow, generic_write_flow

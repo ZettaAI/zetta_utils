@@ -9,7 +9,7 @@ from zetta_utils.layer.volumetric import VolumetricLayer
 from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .compute_field_flow import ComputeFieldFlowType
+from .compute_field_flow import ComputeFieldFlowSchema
 from .compute_field_protocols import ComputeFieldOperation
 
 
@@ -30,10 +30,10 @@ class ComputeFieldStage:
         return self.operation.get_input_resolution(self.dst_resolution)
 
 
-@builder.register("ComputeFieldMultistageFlowType")
-@mazepa.flow_type_cls
+@builder.register("ComputeFieldMultistageFlowSchema")
+@mazepa.flow_schema_cls
 @attrs.mutable
-class ComputeFieldMultistageFlowType:
+class ComputeFieldMultistageFlowSchema:
     stages: List[ComputeFieldStage]
     tmp_layer_dir: str
     tmp_layer_factory: Callable[..., VolumetricLayer]
@@ -86,11 +86,11 @@ class ComputeFieldMultistageFlowType:
             else:
                 stage_src_field = prev_dst
 
-            stage_cf_flow_type = ComputeFieldFlowType(
+            stage_cf_flow_schema = ComputeFieldFlowSchema(
                 chunk_size=stage.chunk_size,
                 operation=stage.operation,
             )
-            yield stage_cf_flow_type(
+            yield stage_cf_flow_schema(
                 bcube=bcube,
                 dst_resolution=stage.dst_resolution,
                 dst=stage_dst,
@@ -116,12 +116,12 @@ def build_compute_field_multistage_flow(
     tgt: Optional[VolumetricLayer] = None,
     tgt_offset: Vec3D = (0, 0, 0),
 ) -> mazepa.Flow:
-    flow_type = ComputeFieldMultistageFlowType(
+    flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,
         tmp_layer_dir=tmp_layer_dir,
         tmp_layer_factory=tmp_layer_factory,
     )
-    flow = flow_type(
+    flow = flow_schema(
         bcube=bcube, dst=dst, src_field=src_field, src=src, tgt=tgt, tgt_offset=tgt_offset
     )
     return flow

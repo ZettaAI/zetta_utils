@@ -28,8 +28,8 @@ from .tasks import Task
 BatchType = Optional[Union[Dependency, List[Task], List["Flow"]]]
 FlowFnYieldType = Union[Dependency, "Task", List["Task"], "Flow", List["Flow"]]
 FlowFnReturnType = Generator[FlowFnYieldType, None, Any]
+
 P = ParamSpec("P")
-P_init = ParamSpec("P_init")
 
 
 @runtime_checkable
@@ -44,13 +44,6 @@ class Flow(Protocol):
     _iterator: FlowFnReturnType
     args: Iterable
     kwargs: Dict
-
-    def _set_up(
-        self,
-        *args: Iterable,
-        **kwargs: Dict,
-    ):
-        ...
 
     @contextmanager
     def task_execution_env_ctx(self, env: Optional[TaskExecutionEnv]) -> Iterator:
@@ -76,37 +69,10 @@ class FlowType(Protocol[P]):
 
 
 @runtime_checkable
-class FlowTypeCls(Protocol[P_init, P]):
-    """
-    Interface of a flow type class. `__init__` arguments are preserved.
-    """
-
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ) -> None:
-        ...
-
-    def __call__(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Flow:
-        ...
-
-
-class RawFlowTypeCls(Protocol[P_init, P]):
+class RawFlowTypeCls(Protocol[P]):
     """
     Interface for a type that can be decorated with ``@flow_type_cls``.
     """
-
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ) -> None:
-        ...
 
     def flow(self, *args: P.args, **kwargs: P.kwargs) -> FlowFnReturnType:
         ...
@@ -195,9 +161,8 @@ def flow_type(fn: Callable[P, FlowFnReturnType]) -> FlowType[P]:
     return _FlowType[P](fn)
 
 
-def flow_type_cls(cls: Type[RawFlowTypeCls[P_init, P]]) -> Type[FlowTypeCls[P_init, P]]:
+def flow_type_cls(cls: Type[RawFlowTypeCls]):
     # original_call = cls.__call__
-
     # TODO: figure out how to handle this with changing TaskExecutionEnvs
     def _call_fn(self, *args, **kwargs):
         return _FlowType(
@@ -210,4 +175,4 @@ def flow_type_cls(cls: Type[RawFlowTypeCls[P_init, P]]) -> Type[FlowTypeCls[P_in
 
     # can't override __new__ because of interaction with attrs/dataclass
     setattr(cls, "__call__", _call_fn)
-    return cls  # type: ignore # we added the call method
+    return cls

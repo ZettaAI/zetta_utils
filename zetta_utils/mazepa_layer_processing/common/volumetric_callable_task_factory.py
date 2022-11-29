@@ -1,0 +1,90 @@
+from __future__ import annotations
+
+import copy
+from typing import Callable, Generic, TypeVar
+
+import attrs
+import numpy as np
+import torch
+from typing_extensions import ParamSpec
+
+from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils.layer import IndexChunker, Layer
+from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.typing import IntVec3D, Vec3D
+
+from . import ChunkedApplyFlowType
+
+P = ParamSpec("P")
+IndexT = TypeVar("IndexT", bound=VolumetricIndex)
+
+
+@builder.register("VolumetricCallableTaskFactory")
+@mazepa.task_factory_cls
+@attrs.mutable
+class VolumetricCallableTaskFactory(Generic[P]):
+    """
+    Wrapper that converts a volumetric processing callable to a task factory.
+    Adds support for pad/crop and destination index resolution change.
+
+    :param fn: Callable that will perform data processing
+    """
+
+    fn: Callable[P, torch.Tensor]
+    crop: IntVec3D = (0, 0, 0)
+    res_change_mult: Vec3D = (1, 1, 1)
+    input_idx_pad: IntVec3D = attrs.field(init=False)
+
+    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
+        return list(np.array(dst_resolution) / np.array(self.res_change_mult))
+
+    def __attrs_post_init__(self):
+        input_idx_pad_raw = list(np.array(self.crop) * np.array(self.res_change_mult))
+        for e in input_idx_pad_raw:
+            if not e.is_integer():
+                raise ValueError(
+                    f"Destination layer crop of {self.crop} with resolution change "
+                    f"multiplier of {self.dst_res_change_mult} results in non-integer "
+                    f"input index crop of {input_idx_pad_raw}."
+                )
+        self.input_idx_pad = [int(e) for e in input_idx_pad_raw]
+
+    def __call__(
+        self, idx: VolumetricIndex, dst: VolumetricLayer, *args: P.args, **kwargs: P.kwargs
+    ) -> None:
+        assert len(args) == 0
+        idx_input = copy.deepcopy(idx)
+        idx_input.resolution = self.get_input_resolution(idx.resolution)
+        idx_input_padded = idx_input.pad(self.input_idx_pad)
+
+        task_kwargs = {}
+        for k, v in kwargs.items():
+            if isinstance(v, Layer):
+                task_kwargs[k] = v[idx_input_padded]
+            else:
+                task_kwargs[k] = v
+
+        result_raw = self.fn(**task_kwargs)
+
+        # Data crop ammount is determined by the index pad and the
+        # difference between the resolutions of idx and dst_idx
+        dst_data = tensor_ops.crop(result_raw, crop=self.crop)
+        dst[idx] = dst_data
+
+
+@builder.register("build_chunked_volumetric_callable_flow_type")
+def build_chunked_volumetric_callable_flow_type(
+    fn: Callable[P, torch.Tensor],
+    chunker: IndexChunker[IndexT],
+    crop: IntVec3D = (0, 0, 0),
+    res_change_mult: Vec3D = (1, 1, 1),
+) -> ChunkedApplyFlowType[P, IndexT, None]:
+    factory = VolumetricCallableTaskFactory[P](
+        fn=fn,
+        crop=crop,
+        res_change_mult=res_change_mult,
+    )
+    return ChunkedApplyFlowType[P, IndexT, None](
+        chunker=chunker,
+        task_factory=factory,  # type: ignore
+    )

@@ -23,7 +23,6 @@ from .task_outcome import TaskOutcome, TaskStatus
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
-P_init = ParamSpec("P_init")
 
 
 @runtime_checkable
@@ -129,54 +128,16 @@ class TaskFactory(Protocol[P, R_co]):
 
 
 @runtime_checkable
-class RawTaskFactoryCls(Protocol[P_init, P, R_co]):
+class RawTaskFactoryCls(Protocol[P, R_co]):
     """
     Interface of a class that can be wrapped by `@task_factory_cls`.
     """
 
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ):
-        ...
-
     def __call__(
         self,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> R_co:
-        ...
-
-
-@runtime_checkable
-class TaskFactoryCls(Protocol[P_init, P, R_co]):
-    """
-    Interface of a class that can be used as a task factory.
-    Wraps a callable to add a ``make_task`` method,
-    ``make_task`` method creates a mazepa task corresponding to execution of
-    the callable with the given parameters.
-    """
-
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ):
-        ...
-
-    def __call__(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...
-
-    def make_task(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Task[R_co]:
         ...
 
 
@@ -213,9 +174,7 @@ def task_factory(fn: Callable[P, R_co]) -> TaskFactory[P, R_co]:
     return _TaskFactory(fn=fn)
 
 
-def task_factory_cls(
-    cls: Type[RawTaskFactoryCls[P_init, P, R_co]],
-) -> Type[TaskFactoryCls[P_init, P, R_co]]:
+def task_factory_cls(cls: Type[RawTaskFactoryCls]):
     def _make_task(self, *args, **kwargs):
         return _TaskFactory(  # pylint: disable=protected-access
             self,
@@ -226,4 +185,4 @@ def task_factory_cls(
 
     # can't override __new__ because it doesn't combine well with attrs/dataclass
     setattr(cls, "make_task", _make_task)
-    return cls  # type: ignore
+    return cls

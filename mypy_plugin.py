@@ -44,7 +44,6 @@ def task_maker_cls_callback(ctx):  # pragma: no cover # type: ignore
 
 
 def flow_type_cls_callback(ctx):  # pragma: no cover # type: ignore
-    # TODO: figure out how to type flows properly
     reference_method = ctx.cls.info.get_method("flow")
     if reference_method is not None:
         args = reference_method.arguments

@@ -19,8 +19,8 @@ target: {
 		{
 			"@type": "ComputeFieldStage"
 			dst_resolution: [#STAGE0_XY_RESOLUTION, #STAGE0_XY_RESOLUTION, 30]
-			task_factory: {
-				"@type": "VolumetricCallableTaskFactory"
+			operation: {
+				"@type": "VolumetricCallableOperation"
 				fn: {
 					"@type":  "align_with_online_finetunner"
 					"@mode":  "partial"
@@ -34,8 +34,8 @@ target: {
 		{
 			"@type": "ComputeFieldStage"
 			dst_resolution: [#STAGE1_XY_RESOLUTION, #STAGE1_XY_RESOLUTION, 30]
-			task_factory: {
-				"@type": "VolumetricCallableTaskFactory"
+			operation: {
+				"@type": "VolumetricCallableOperation"
 				fn: {
 					"@type":  "align_with_online_finetunner"
 					"@mode":  "partial"

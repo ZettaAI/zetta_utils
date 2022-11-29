@@ -24,8 +24,8 @@
 
 #FLOW_TMPL: {
 	"@type": "build_chunked_apply_flow"
-	task_factory: {
-		"@type": "WarpTaskFactory"
+	operation: {
+		"@type": "WarpOperation"
 		dst_data_crop: [#XY_OVERLAP / 2, #XY_OVERLAP / 2, 0]
 	}
 	chunker: {

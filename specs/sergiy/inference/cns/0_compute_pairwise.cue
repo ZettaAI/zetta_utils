@@ -1,16 +1,18 @@
-#VERSION:      "x2_masked"
-#RIGIDITY:     50
-#NUM_ITER:     150
-#STAGE_PREFIX: "256_128_64_32nm"
-#SRC_PATH:     "gs://zfish_unaligned/coarse_x0/encodings_masked"
-#DST_PATH:     "gs://sergiy_exp/aced/zfish/alignment_\(#STAGE_PREFIX)/field_\(#VERSION)"
+#VERSION:  "v0"
+#RIGIDITY: 50
+#NUM_ITER: 150
+#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/rigid_v2"
+#DST_PATH: "gs://sergiy_exp/cns/alignment_tmp_\(#VERSION)/field"
+#BCUBE: {
+	"@type": "BoundingCube"
+	start_coord: [0, 0, 2508]
+	end_coord: [2048, 2048, 2509]
+	resolution: [512, 512, 45]
+}
 #RESOLUTIONS: [
-	[256, 256, 30],
-	[128, 128, 30],
-	[64, 64, 30],
-	[32, 32, 30],
+	[512, 512, 45],
+	[256, 256, 45],
 ]
-
 #STAGE_TMPL: {
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
@@ -26,16 +28,10 @@
 	}
 	chunk_size: [2048, 2048, 1]
 }
-
 "@type": "mazepa_execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
-	bcube: {
-		"@type": "BoundingCube"
-		start_coord: [0, 0, 3010]
-		end_coord: [2048, 2048, 3020]
-		resolution: [256, 256, 30]
-	}
+	bcube:   #BCUBE
 	stages: [
 		for res in #RESOLUTIONS {
 			#STAGE_TMPL & {'dst_resolution': res}

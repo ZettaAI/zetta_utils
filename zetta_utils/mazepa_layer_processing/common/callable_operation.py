@@ -13,12 +13,12 @@ R = TypeVar("R")
 P = ParamSpec("P")
 
 
-@builder.register("CallableTaskFactory")
-@mazepa.task_factory_cls
+@builder.register("CallableOperation")
+@mazepa.taskable_operation_cls
 @attrs.mutable
-class CallableTaskFactory(Generic[P, IndexT, R]):
+class CallableOperation(Generic[P, IndexT, R]):
     """
-    Simple Wrapper that converts a callalbe to a task factory by.
+    Simple Wrapper that converts a callalbe to a taskable operation.
     """
 
     fn: Callable[P, R]
@@ -42,9 +42,9 @@ class CallableTaskFactory(Generic[P, IndexT, R]):
 def build_chunked_callable_flow_type(
     fn: Callable[P, R], chunker: IndexChunker[IndexT]
 ) -> ChunkedApplyFlowType[Concatenate[Layer[Any, IndexT, R], P], IndexT, None,]:
-    factory = CallableTaskFactory[P, IndexT, R](fn=fn)
+    operation = CallableOperation[P, IndexT, R](fn=fn)
 
     return ChunkedApplyFlowType[Concatenate[Layer[Any, IndexT, R], P], IndexT, None](
         chunker=chunker,
-        task_factory=factory,  # type: ignore
+        operation=operation,  # type: ignore
     )

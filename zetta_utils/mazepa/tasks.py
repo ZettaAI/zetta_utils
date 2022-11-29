@@ -105,7 +105,7 @@ class _Task(Generic[R_co]):
 
 
 @runtime_checkable
-class TaskFactory(Protocol[P, R_co]):
+class TaskableOperation(Protocol[P, R_co]):
     """
     Wraps a callable to add a ``make_task`` method,
     ``make_task`` method creates a mazepa task corresponding to execution of
@@ -128,9 +128,9 @@ class TaskFactory(Protocol[P, R_co]):
 
 
 @runtime_checkable
-class RawTaskFactoryCls(Protocol[P, R_co]):
+class RawTaskableOperationCls(Protocol[P, R_co]):
     """
-    Interface of a class that can be wrapped by `@task_factory_cls`.
+    Interface of a class that can be wrapped by `@taskable_operation_cls`.
     """
 
     def __call__(
@@ -142,9 +142,9 @@ class RawTaskFactoryCls(Protocol[P, R_co]):
 
 
 @attrs.mutable
-class _TaskFactory(Generic[P, R_co]):
+class _TaskableOperation(Generic[P, R_co]):
     """
-    TaskFactory wrapper
+    TaskableOperation wrapper
     """
 
     fn: Callable[P, R_co]
@@ -170,13 +170,13 @@ class _TaskFactory(Generic[P, R_co]):
         return result
 
 
-def task_factory(fn: Callable[P, R_co]) -> TaskFactory[P, R_co]:
-    return _TaskFactory(fn=fn)
+def taskable_operation(fn: Callable[P, R_co]) -> TaskableOperation[P, R_co]:
+    return _TaskableOperation(fn=fn)
 
 
-def task_factory_cls(cls: Type[RawTaskFactoryCls]):
+def taskable_operation_cls(cls: Type[RawTaskableOperationCls]):
     def _make_task(self, *args, **kwargs):
-        return _TaskFactory(  # pylint: disable=protected-access
+        return _TaskableOperation(  # pylint: disable=protected-access
             self,
             # TODO: Other params passed to decorator
         ).make_task(

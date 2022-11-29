@@ -10,14 +10,14 @@ from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
 from zetta_utils.typing import IntVec3D, Vec3D
 
 from .compute_field_flow import ComputeFieldFlowType
-from .compute_field_protocols import ComputeFieldTaskFactory
+from .compute_field_protocols import ComputeFieldOperation
 
 
 @builder.register("ComputeFieldStage")
 @attrs.mutable
 class ComputeFieldStage:
     dst_resolution: Vec3D
-    task_factory: ComputeFieldTaskFactory
+    operation: ComputeFieldOperation
     chunk_size: IntVec3D
 
     crop: int = 0
@@ -27,7 +27,7 @@ class ComputeFieldStage:
 
     @property
     def input_resolution(self) -> Vec3D:
-        return self.task_factory.get_input_resolution(self.dst_resolution)
+        return self.operation.get_input_resolution(self.dst_resolution)
 
 
 @builder.register("ComputeFieldMultistageFlowType")
@@ -88,7 +88,7 @@ class ComputeFieldMultistageFlowType:
 
             stage_cf_flow_type = ComputeFieldFlowType(
                 chunk_size=stage.chunk_size,
-                task_factory=stage.task_factory,
+                operation=stage.operation,
             )
             yield stage_cf_flow_type(
                 bcube=bcube,

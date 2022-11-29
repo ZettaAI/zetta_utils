@@ -1,10 +1,10 @@
 from .chunked_apply_flow import ChunkedApplyFlowType, build_chunked_apply_flow
-from .callable_task_factory import (
-    CallableTaskFactory,
+from .callable_operation import (
+    CallableOperation,
     build_chunked_callable_flow_type,
 )
-from .volumetric_callable_task_factory import (
-    VolumetricCallableTaskFactory,
+from .volumetric_callable_operation import (
+    VolumetricCallableOperation,
     build_chunked_volumetric_callable_flow_type,
 )
 

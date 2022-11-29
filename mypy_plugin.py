@@ -76,8 +76,8 @@ def flow_type_cls_callback(ctx):  # pragma: no cover # type: ignore
 
 
 TASK_FACTORY_CLS_MAKERS: Final = {
-    "zetta_utils.mazepa.tasks.task_factory_cls",
-    # "zetta_utils.mazepa.tasks.task_factory_with_idx_cls"
+    "zetta_utils.mazepa.tasks.taskable_operation_cls",
+    # "zetta_utils.mazepa.tasks.taskable_operation_with_idx_cls"
 }
 FLOW_TYPE_CLS_MAKERS: Final = {"zetta_utils.mazepa.flows.flow_type_cls"}
 

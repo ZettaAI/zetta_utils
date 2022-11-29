@@ -13,7 +13,7 @@ from zetta_utils.layer.volumetric import (
 )
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from . import build_chunked_volumetric_callable_flow_type
+from . import build_chunked_volumetric_callable_flow_schema
 
 
 def _interpolate(
@@ -52,12 +52,12 @@ def build_interpolate_flow(
         src_resolution[2] / dst_resolution[2],
     ]
 
-    flow_type = build_chunked_volumetric_callable_flow_type(
+    flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=_interpolate,
         res_change_mult=[1 / e for e in scale_factor],
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
-    flow = flow_type(
+    flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
         dst=dst,
         src=src,

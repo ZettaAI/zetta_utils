@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import attrs
 
-from zetta_utils.mazepa import Task, TaskableOperation, taskable_operation, taskable_operation_cls
+from zetta_utils.mazepa import (
+    Task,
+    TaskableOperation,
+    taskable_operation,
+    taskable_operation_cls,
+)
 
 
 def test_make_taskable_operation_cls() -> None:

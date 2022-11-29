@@ -12,7 +12,7 @@ from zetta_utils.mazepa import (
     TaskStatus,
     execute,
     flow_type,
-    task_factory,
+    taskable_operation,
 )
 from zetta_utils.mazepa.remote_execution_queues import SQSExecutionQueue
 
@@ -25,7 +25,7 @@ def reset_task_count():
     TASK_COUNT = 0
 
 
-@task_factory
+@taskable_operation
 def dummy_task(return_value: Any) -> Any:
     global TASK_COUNT
     TASK_COUNT += 1

@@ -6,7 +6,7 @@ import pytest
 
 import docker
 from zetta_utils.mazepa import SQSExecutionQueue, TaskStatus
-from zetta_utils.mazepa.tasks import _Task, _TaskFactory
+from zetta_utils.mazepa.tasks import _Task, _TaskableOperation
 
 
 def test_push_tasks_exc(mocker):
@@ -79,9 +79,9 @@ def test_execution(work_queue, outcome_queue):
         outcome_queue_name=outcome_queue_name,
     )
     tasks = [
-        _TaskFactory(lambda: "Success").make_task(),
-        _TaskFactory(lambda: "Success").make_task(),
-        _TaskFactory(lambda: exec("raise(Exception())")).make_task(),
+        _TaskableOperation(lambda: "Success").make_task(),
+        _TaskableOperation(lambda: "Success").make_task(),
+        _TaskableOperation(lambda: exec("raise(Exception())")).make_task(),
     ]
     queue.push_tasks(tasks)
     tasks[0]()
@@ -103,7 +103,7 @@ def test_polling_not_done(work_queue, outcome_queue):
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=1,
     )
-    queue.push_tasks([_TaskFactory(lambda: "Success").make_task()])
+    queue.push_tasks([_TaskableOperation(lambda: "Success").make_task()])
     pulled_tasks = queue.pull_tasks()
     time.sleep(1.5)
     pulled_tasks = queue.pull_tasks()
@@ -120,7 +120,7 @@ def test_polling_done(work_queue, outcome_queue):
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=1,
     )
-    queue.push_tasks([_TaskFactory(lambda: "Success").make_task()])
+    queue.push_tasks([_TaskableOperation(lambda: "Success").make_task()])
     pulled_tasks = queue.pull_tasks()
     pulled_tasks[0]()
     pulled_tasks = queue.pull_tasks()

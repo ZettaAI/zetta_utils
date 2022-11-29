@@ -6,7 +6,7 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, log, mazepa
 from zetta_utils.layer import IndexChunker, LayerIndex
 
-from .chunkable_protocols import ChunkableTaskFactory
+from .chunkable_protocols import ChunkableOperation
 
 logger = log.get_logger("zetta_utils")
 
@@ -19,7 +19,7 @@ R_co = TypeVar("R_co", covariant=True)
 @mazepa.flow_type_cls
 @attrs.mutable
 class ChunkedApplyFlowType(Generic[P, IndexT, R_co]):
-    task_factory: ChunkableTaskFactory[P, IndexT, R_co]
+    operation: ChunkableOperation[P, IndexT, R_co]
     chunker: IndexChunker[IndexT]
 
     def flow(
@@ -33,19 +33,19 @@ class ChunkedApplyFlowType(Generic[P, IndexT, R_co]):
         logger.info(f"Breaking {idx} into chunks with {self.chunker}.")
         idx_chunks = self.chunker(idx)
         tasks = [
-            self.task_factory.make_task(
+            self.operation.make_task(
                 idx=idx_chunk,
                 **kwargs,
             )
             for idx_chunk in idx_chunks
         ]
-        logger.info(f"Submitting {len(tasks)} processing tasks from factory {self.task_factory}.")
+        logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.operation}.")
         yield tasks
 
 
 @builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
-    task_factory: ChunkableTaskFactory[P, IndexT, R_co],
+    operation: ChunkableOperation[P, IndexT, R_co],
     chunker: IndexChunker[IndexT],
     idx: IndexT,
     *args: P.args,
@@ -53,7 +53,7 @@ def build_chunked_apply_flow(
 ) -> mazepa.Flow:
     flow_type = ChunkedApplyFlowType(
         chunker=chunker,
-        task_factory=task_factory,
+        operation=operation,
     )
     flow = flow_type(idx, *args, **kwargs)
 

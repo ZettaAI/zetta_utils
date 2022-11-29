@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing_extensions import ParamSpec
 
-from .. import Executor, Flow, task_factory_cls
+from .. import Executor, Flow, taskable_operation
 
 P = ParamSpec("P")
 
 
-@task_factory_cls
+@taskable_operation
 class SubflowTask:
     subflow: Flow
     executor: Executor

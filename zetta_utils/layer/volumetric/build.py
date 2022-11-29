@@ -1,29 +1,34 @@
 # pylint: disable=missing-docstring
+from __future__ import annotations
+
 import copy
 from typing import Any, Callable, Iterable, Optional
 
+import torch
 from typeguard import typechecked
+from typing_extensions import TypeAlias
 
 from zetta_utils import builder
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
-from zetta_utils.tensor_typing import TensorTypeVar
 from zetta_utils.typing import Vec3D
 
 from .. import LayerBackend
 from . import (
     RawVolumetricIndex,
     VolDataInterpolator,
-    VolIdxResolutionAdjuster,
     VolumetricIndex,
     VolumetricIndexConverter,
+    VolumetricIndexResolutionAdjuster,
 )
+
+VolumetricLayer: TypeAlias = Layer[RawVolumetricIndex, VolumetricIndex, torch.Tensor]
 
 
 @typechecked
 @builder.register("build_cv_layer")
 def build_volumetric_layer(
-    backend: LayerBackend[VolumetricIndex, TensorTypeVar],
+    backend: LayerBackend[VolumetricIndex, torch.Tensor],
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,
@@ -33,7 +38,7 @@ def build_volumetric_layer(
     index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
     read_postprocs: Iterable[Callable[..., Any]] = (),
     write_preprocs: Iterable[Callable[..., Any]] = (),
-) -> Layer[RawVolumetricIndex, VolumetricIndex, TensorTypeVar]:
+) -> VolumetricLayer:
     """Build a Volumetric Layer.
 
     :param backend: Layer backend.
@@ -68,7 +73,7 @@ def build_volumetric_layer(
     if data_resolution is not None:
         if interpolation_mode is None:
             raise ValueError("`data_resolution` is set, but `interpolation_mode` is not provided.")
-        resolution_adj = VolIdxResolutionAdjuster(
+        resolution_adj = VolumetricIndexResolutionAdjuster(
             resolution=data_resolution,
         )
         index_adjs_final.insert(
@@ -94,7 +99,7 @@ def build_volumetric_layer(
             ),
         )
 
-    result = Layer[RawVolumetricIndex, VolumetricIndex, TensorTypeVar](
+    result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
         index_converter=index_converter,

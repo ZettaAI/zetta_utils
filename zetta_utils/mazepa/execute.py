@@ -68,6 +68,7 @@ def execute(
         queue.purge()
         logger.info(f"Purged queue {queue}.")
 
+    start_time = time.time()
     logger.debug(f"STARTING: mazepa execution of {target}.")
     while True:
         if len(state.get_ongoing_flow_ids()) == 0:
@@ -89,4 +90,6 @@ def execute(
         state.update_with_task_outcomes(task_outcomes)
         logger.debug("DONE: Updating with taks outcomes.")
 
+    end_time = time.time()
     logger.debug(f"DONE: mazepa execution of {target}.")
+    logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")

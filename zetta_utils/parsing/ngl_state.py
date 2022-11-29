@@ -36,7 +36,7 @@ class DEFAULT_LAYER_VALUES(Enum):
     TOOL = "annotateBoundingBox"
 
 
-def read_remote_annotations(layer_name: str) -> AnnotationLayer:
+def read_remote_annotations(layer_name: str) -> List[Union[BoundingCube, Vec3D]]:
     logger.info(f"Remote layer: {remote_path}/{layer_name}.")
 
     cf = CloudFiles(remote_path)

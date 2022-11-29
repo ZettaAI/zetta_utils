@@ -11,7 +11,7 @@ R_co = TypeVar("R_co", covariant=True)
 
 
 @runtime_checkable
-class ComputeFieldTaskFactory(Protocol[R_co]):
+class ComputeFieldOperation(Protocol[R_co]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         ...
 

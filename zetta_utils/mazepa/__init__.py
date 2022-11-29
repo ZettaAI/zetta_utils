@@ -4,7 +4,7 @@ from .dependency import Dependency
 from .task_execution_env import TaskExecutionEnv
 from .task_outcome import TaskOutcome, TaskStatus
 
-from .tasks import Task, TaskFactory, task_factory, task_factory_cls
+from .tasks import Task, TaskableOperation, taskable_operation, taskable_operation_cls
 from .flows import Flow, FlowFnReturnType, FlowType, flow_type, flow_type_cls
 
 from .execution_queue import ExecutionMultiQueue, ExecutionQueue, LocalExecutionQueue

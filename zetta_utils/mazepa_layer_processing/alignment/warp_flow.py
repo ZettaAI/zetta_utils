@@ -18,10 +18,10 @@ from zetta_utils.typing import IntVec3D, Vec3D
 from .. import build_chunked_apply_flow
 
 
-@builder.register("WarpTaskFactory")
-@mazepa.task_factory_cls
+@builder.register("WarpOperation")
+@mazepa.taskable_operation_cls
 @attrs.frozen()
-class WarpTaskFactory:
+class WarpOperation:
     mode: Literal["mask", "img", "field"]
     crop: IntVec3D = (0, 0, 0)
     mask_value_thr: float = 0
@@ -80,7 +80,7 @@ def build_warp_flow(
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
     result = build_chunked_apply_flow(
-        task_factory=WarpTaskFactory(
+        operation=WarpOperation(
             crop=crop, mode=mode, mask_value_thr=mask_value_thr
         ),  # type: ignore
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),

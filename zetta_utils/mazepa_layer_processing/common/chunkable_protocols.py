@@ -10,7 +10,7 @@ R_co = TypeVar("R_co", covariant=True)
 IndexT_contra = TypeVar("IndexT_contra", bound=LayerIndex, contravariant=True)
 
 
-class ChunkableTaskFactory(Protocol[P, IndexT_contra, R_co]):
+class ChunkableOperation(Protocol[P, IndexT_contra, R_co]):
     def make_task(
         self,
         idx: IndexT_contra,

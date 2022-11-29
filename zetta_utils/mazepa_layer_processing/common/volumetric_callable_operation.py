@@ -19,12 +19,12 @@ P = ParamSpec("P")
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
 
 
-@builder.register("VolumetricCallableTaskFactory")
-@mazepa.task_factory_cls
+@builder.register("VolumetricCallableOperation")
+@mazepa.taskable_operation_cls
 @attrs.mutable
-class VolumetricCallableTaskFactory(Generic[P]):
+class VolumetricCallableOperation(Generic[P]):
     """
-    Wrapper that converts a volumetric processing callable to a task factory.
+    Wrapper that converts a volumetric processing callable to a taskable operation .
     Adds support for pad/crop and destination index resolution change.
 
     :param fn: Callable that will perform data processing
@@ -79,12 +79,12 @@ def build_chunked_volumetric_callable_flow_type(
     crop: IntVec3D = (0, 0, 0),
     res_change_mult: Vec3D = (1, 1, 1),
 ) -> ChunkedApplyFlowType[P, IndexT, None]:
-    factory = VolumetricCallableTaskFactory[P](
+    operation = VolumetricCallableOperation[P](
         fn=fn,
         crop=crop,
         res_change_mult=res_change_mult,
     )
     return ChunkedApplyFlowType[P, IndexT, None](
         chunker=chunker,
-        task_factory=factory,  # type: ignore
+        operation=operation,  # type: ignore
     )

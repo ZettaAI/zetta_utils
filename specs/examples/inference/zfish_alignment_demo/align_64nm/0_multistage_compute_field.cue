@@ -19,8 +19,8 @@ target: {
 		{
 			"@type": "ComputeFieldStage"
 			dst_resolution: [#XY_RESOLUTION, #XY_RESOLUTION, 30]
-			task_factory: {
-				"@type": "VolumetricCallableTaskFactory"
+			operation: {
+				"@type": "VolumetricCallableOperation"
 				fn: {
 					"@type": "align_with_online_finetunner"
 					"@mode": "partial"

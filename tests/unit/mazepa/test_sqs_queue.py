@@ -6,13 +6,13 @@ import pytest
 
 import docker
 from zetta_utils.mazepa import SQSExecutionQueue, TaskStatus
-from zetta_utils.mazepa.tasks import _Task, _TaskableOperation
+from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
 
 def test_push_tasks_exc(mocker):
     mocker.patch("taskqueue.TaskQueue", lambda *args, **kwargs: mocker.MagicMock())
     sqseq = SQSExecutionQueue("q", outcome_queue_name=None)
-    task = _Task(lambda: "outcome")
+    task = Task(lambda: "outcome")
     with pytest.raises(RuntimeError):
         sqseq.push_tasks([task])
 

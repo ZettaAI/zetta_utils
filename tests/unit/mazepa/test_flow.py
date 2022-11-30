@@ -9,7 +9,7 @@ from zetta_utils.mazepa import (
     flow_schema,
     flow_schema_cls,
 )
-from zetta_utils.mazepa.flows import _Flow, _FlowSchema
+from zetta_utils.mazepa.flows import Flow, _FlowSchema
 
 
 def test_make_flow_schema_cls() -> None:
@@ -39,7 +39,7 @@ def test_make_flow_schema():
 
 
 def test_ctx():
-    j = _Flow(
+    j = Flow(
         fn=lambda: None,
         task_execution_env=None,
         id_="flow_0",

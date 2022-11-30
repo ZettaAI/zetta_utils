@@ -22,8 +22,12 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
         0: "WARN",
         1: "INFO",
         2: "DEBUG",
-        3: "NOTSET",
     }
+
+    verbose = min(verbose, 2)
+    for k in ["zetta_user", "zetta_project"]:
+        assert k.upper() in os.environ, f"Env variable '{k.upper()}' must be set to run zetta cli"
+        log.set_logging_label(k, os.environ[k.upper()])
 
     log.set_verbosity(verbosity_map[verbose])
     log.configure_logger()

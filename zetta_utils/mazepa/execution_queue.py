@@ -7,20 +7,13 @@ from typing import Dict, Iterable, List, Protocol, runtime_checkable
 import attrs
 from typeguard import typechecked
 
-from zetta_utils.log import get_logger
-
 from .task_outcome import TaskOutcome
 from .tasks import Task
-
-logger = get_logger("mazepa")
 
 
 @runtime_checkable
 class ExecutionQueue(Protocol):  # pragma: no cover
     name: str
-
-    def purge(self):
-        ...
 
     def push_tasks(self, tasks: Iterable[Task]):
         ...
@@ -41,14 +34,9 @@ class LocalExecutionQueue:
     name: str = "local_execution"
     task_outcomes: Dict[str, TaskOutcome] = attrs.field(init=False, factory=dict)
 
-    def purge(self):  # pragma: no cover
-        pass
-
     def push_tasks(self, tasks: Iterable[Task]):
         for e in tasks:
-            logger.debug(f"STARTING: Execution of {e}.")
             e()
-            logger.debug(f"DONE: Execution of {e}.")
             self.task_outcomes[e.id_] = e.outcome
 
             # raise immediatelly for local exec
@@ -79,11 +67,6 @@ class ExecutionMultiQueue:
     def __attrs_post_init__(self):
         name = "_".join(queue.name for queue in self.queues)
         object.__setattr__(self, "name", name)
-
-    def purge(self):
-        for e in self.queues:
-            e.purge()
-            logger.debug(f"Purged {e}.")
 
     def push_tasks(self, tasks: Iterable[Task]):
         tasks_for_queue = defaultdict(list)

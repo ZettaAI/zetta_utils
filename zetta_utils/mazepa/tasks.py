@@ -17,35 +17,20 @@ from typing import (
 import attrs
 from typing_extensions import ParamSpec
 
-from . import id_generation
+from zetta_utils import log
+
+from . import ctx_vars, id_generation
 from .task_execution_env import TaskExecutionEnv
 from .task_outcome import TaskOutcome, TaskStatus
+
+logger = log.get_logger("mazepa")
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
 
 
-@runtime_checkable
-class Task(Protocol[R_co]):
-    """
-    An executable task.
-    """
-
-    id_: str
-    task_execution_env: TaskExecutionEnv
-
-    _mazepa_callbacks: list[Callable]
-    outcome: TaskOutcome
-
-    def _set_up(self, *args: Iterable, **kwargs: Dict):
-        ...
-
-    def __call__(self) -> TaskOutcome[R_co]:
-        ...
-
-
 @attrs.mutable
-class _Task(Generic[R_co]):
+class Task(Generic[R_co]):
     """
     An executable task.
     """
@@ -78,7 +63,8 @@ class _Task(Generic[R_co]):
 
     def __call__(self) -> TaskOutcome[R_co]:
         assert self.args_are_set
-
+        ctx_vars.task_id.set(self.id_)
+        logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
         try:
             # TODO: parametrize by task execution environment
@@ -101,6 +87,10 @@ class _Task(Generic[R_co]):
         )
         for callback in self._mazepa_callbacks:
             callback(task=self)
+
+        logger.debug(f"DONE: Execution of {self}.")
+        ctx_vars.task_id.set(None)
+
         return self.outcome
 
 
@@ -167,7 +157,7 @@ class _TaskableOperation(Generic[P, R_co]):
         **kwargs: P.kwargs,
     ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, list(args), kwargs)
-        result = _Task[R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
+        result = Task[R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
 

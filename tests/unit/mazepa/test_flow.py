@@ -9,7 +9,7 @@ from zetta_utils.mazepa import (
     flow_schema,
     flow_schema_cls,
 )
-from zetta_utils.mazepa.flows import Flow, _FlowSchema
+from zetta_utils.mazepa.flows import _FlowSchema
 
 
 def test_make_flow_schema_cls() -> None:

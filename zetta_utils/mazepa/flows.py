@@ -9,7 +9,6 @@ from typing import (
     Generator,
     Generic,
     Iterable,
-    Iterator,
     List,
     Optional,
     Protocol,
@@ -31,27 +30,6 @@ FlowFnYieldType = Union[Dependency, "Task", List["Task"], "Flow", List["Flow"]]
 FlowFnReturnType = Generator[FlowFnYieldType, None, Any]
 
 P = ParamSpec("P")
-
-
-@runtime_checkable
-class Flow(Protocol):
-    """
-    Interface for a mazepa Flow.
-    """
-
-    fn: Callable[..., FlowFnReturnType]
-    id_: str
-    task_execution_env: Optional[TaskExecutionEnv]
-    _iterator: FlowFnReturnType
-    args: Iterable
-    kwargs: Dict
-
-    @contextmanager
-    def task_execution_env_ctx(self, env: Optional[TaskExecutionEnv]) -> Iterator:
-        ...
-
-    def get_next_batch(self) -> BatchType:
-        ...
 
 
 @runtime_checkable
@@ -79,7 +57,7 @@ class RawFlowSchemaCls(Protocol[P]):
 
 
 @attrs.mutable
-class _Flow:
+class Flow:
     """
     Implementation of mazepa flow.
     Users are expected to use ``flow`` and ``flow_cls`` decorators rather
@@ -149,7 +127,7 @@ class _FlowSchema(Generic[P]):
         **kwargs: P.kwargs,
     ) -> Flow:
         id_ = self.id_fn(self.fn, list(args), kwargs)
-        result = _Flow(
+        result = Flow(
             fn=self.fn,
             id_=id_,
             task_execution_env=self.task_execution_env,

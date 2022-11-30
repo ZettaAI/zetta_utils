@@ -1,5 +1,5 @@
 from zetta_utils.mazepa.flows import _FlowSchema
-from zetta_utils.mazepa.id_generators import get_literal_id_fn
+from zetta_utils.mazepa.id_generation import get_literal_id_fn
 from zetta_utils.mazepa.tasks import _TaskableOperation
 
 

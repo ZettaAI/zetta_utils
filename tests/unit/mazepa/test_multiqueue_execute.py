@@ -5,7 +5,7 @@ import time
 import pytest
 
 from zetta_utils.mazepa import ExecutionMultiQueue, TaskExecutionEnv
-from zetta_utils.mazepa.tasks import _Task
+from zetta_utils.mazepa.tasks import Task
 
 from .maker_utils import make_test_task
 
@@ -18,17 +18,6 @@ def test_constructor(mocker):
     meq = ExecutionMultiQueue([queue_a, queue_b])
     assert queue_a.name in meq.name
     assert queue_b.name in meq.name
-
-
-def test_purge(mocker):
-    queue_a = mocker.MagicMock()
-    queue_b = mocker.MagicMock()
-    queue_a.name = "a"
-    queue_b.name = "b"
-    meq = ExecutionMultiQueue([queue_a, queue_b])
-    meq.purge()
-    queue_a.purge.assert_called_once()
-    queue_b.purge.assert_called_once()
 
 
 def test_push_tasks(mocker):
@@ -55,7 +44,7 @@ def test_push_tasks_exc(mocker):
     queue_a.name = "a"
     queue_b.name = "b"
     meq = ExecutionMultiQueue([queue_a, queue_b])
-    task_c = _Task(lambda: None, "dummy", task_execution_env=TaskExecutionEnv(tags=["c"]))
+    task_c = Task(lambda: None, "dummy", task_execution_env=TaskExecutionEnv(tags=["c"]))
     with pytest.raises(RuntimeError):
         meq.push_tasks([task_c])
 

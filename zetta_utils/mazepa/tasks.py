@@ -17,7 +17,7 @@ from typing import (
 import attrs
 from typing_extensions import ParamSpec
 
-from . import id_generators
+from . import id_generation
 from .task_execution_env import TaskExecutionEnv
 from .task_outcome import TaskOutcome, TaskStatus
 
@@ -148,7 +148,9 @@ class _TaskableOperation(Generic[P, R_co]):
     """
 
     fn: Callable[P, R_co]
-    id_fn: Callable[[Callable, dict], str] = attrs.field(default=id_generators.get_unique_id)
+    id_fn: Callable[[Callable, list, dict], str] = attrs.field(
+        default=functools.partial(id_generation.generate_invocation_id, prefix="task")
+    )
     task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
     # max_retry: # Even for SQS, can use approximateReceiveCount to explicitly fail the task
 
@@ -164,7 +166,7 @@ class _TaskableOperation(Generic[P, R_co]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> Task[R_co]:
-        id_ = self.id_fn(self.fn, kwargs)
+        id_ = self.id_fn(self.fn, list(args), kwargs)
         result = _Task[R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result

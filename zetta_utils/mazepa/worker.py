@@ -1,10 +1,10 @@
 import time
 
-from zetta_utils.log import get_logger
+from zetta_utils import log
 
 from . import ExecutionQueue
 
-logger = get_logger("mazepa")
+logger = log.get_logger("mazepa")
 
 
 def run_worker(
@@ -20,5 +20,7 @@ def run_worker(
         else:
             logger.info("STARTING: taks batch execution.")
             for e in tasks:
+                log.set_logging_label("task_id", e.id_)
                 e()
+                log.set_logging_label("task_id", None)
             logger.info("DONE: taks batch execution.")

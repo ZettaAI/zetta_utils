@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Union
 
 from typeguard import typechecked
 
@@ -49,7 +49,7 @@ def get_callable_from_name(name: str) -> Any:
 
 
 @typechecked
-def build(spec: dict, must_build=True) -> Any:
+def build(spec: Union[dict, list], must_build: bool = False) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.

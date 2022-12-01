@@ -1,6 +1,7 @@
 import json
 import os
 import pprint
+from typing import Optional
 
 import click
 
@@ -34,7 +35,14 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
 
 
 @click.command()
-@click.argument("path", type=click.Path())
+@click.argument("path", type=click.Path(), required=False)
+@click.option(
+    "--str_spec",
+    "-s",
+    type=str,
+    help="Builder specification provided as a string. Must be provided iff "
+    "the `path` argument is not given.",
+)
 @click.option(
     "--pdb",
     "-d",
@@ -42,9 +50,15 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
     is_flag=True,
     help="When set to `True`, will insert a breakpoint after building.",
 )
-def run(path, pdb):
+def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
-    spec = zetta_utils.parsing.cue.load(path)
+    if path is not None:
+        assert str_spec is None, "Exectly one of `path` and `str_spec` must be provided."
+        spec = zetta_utils.parsing.cue.load(path)
+    else:
+        assert str_spec is not None, "Exectly one of `path` and `str_spec` must be provided."
+        spec = zetta_utils.parsing.cue.loads(str_spec)
+
     os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
     result = zetta_utils.builder.build(spec)
     logger.info(f"Outcome: {pprint.pformat(result, indent=4)}")

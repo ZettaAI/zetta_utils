@@ -1,4 +1,6 @@
 # pylint: disable=unused-argument,redefined-outer-name
+import json
+
 import pytest
 from click.testing import CliRunner
 
@@ -31,4 +33,16 @@ def test_zetta_run(spec, register_dummy, mocker):
 def test_show_registry(register_dummy):
     runner = CliRunner()
     result = runner.invoke(cli.show_registry)
+    assert result.exit_code == 0
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"@type": "dummy", "i": {"a": "b"}},
+    ],
+)
+def test_zetta_run_str(spec, register_dummy):
+    runner = CliRunner()
+    result = runner.invoke(cli.run, ["-s", json.dumps(spec)])
     assert result.exit_code == 0

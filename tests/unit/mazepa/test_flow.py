@@ -5,7 +5,6 @@ from zetta_utils.mazepa import (
     Flow,
     FlowFnReturnType,
     FlowSchema,
-    TaskExecutionEnv,
     flow_schema,
     flow_schema_cls,
 )
@@ -38,18 +37,7 @@ def test_make_flow_schema():
     assert isinstance(flow, Flow)
 
 
-def test_ctx():
-    j = Flow(
-        fn=lambda: None,
-        task_execution_env=None,
-        id_="flow_0",
-    )
-    env = TaskExecutionEnv()
-    with j.task_execution_env_ctx(env):
-        assert j.task_execution_env == env
-
-
-def test_get_batch_env(mocker):
+def test_get_batch_tags(mocker):
     fn = mocker.MagicMock(
         return_value=iter(
             [
@@ -59,12 +47,13 @@ def test_get_batch_env(mocker):
             ]
         )
     )
-    j = _FlowSchema(
+    tag_list = ["tag1", "tag2"]
+    flow = _FlowSchema(
         fn=fn,
+        tags=tag_list,
     )()
-    env = TaskExecutionEnv()
-    with j.task_execution_env_ctx(env):
-        result = j.get_next_batch()
-        assert isinstance(result, list)
-        assert isinstance(result[0], Flow)
-        assert result[0].task_execution_env == env
+
+    result = flow.get_next_batch()
+    assert isinstance(result, list)
+    assert isinstance(result[0], Flow)
+    assert result[0].tags == tag_list

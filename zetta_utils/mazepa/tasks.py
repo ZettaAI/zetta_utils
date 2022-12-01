@@ -51,7 +51,7 @@ class Task(Generic[R_co]):
     # cache_expiration: datetime.timedelta = None
     # max_retry: # Can use SQS approximateReceiveCount to explicitly fail the task
 
-    def add_tags(self, tags: list[str]) -> Task:
+    def add_tags(self, tags: list[str]) -> Task:  # pragma: no cover
         self.tags += tags
         return self
 

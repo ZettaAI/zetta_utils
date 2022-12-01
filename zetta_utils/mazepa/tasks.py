@@ -20,7 +20,6 @@ from typing_extensions import ParamSpec
 from zetta_utils import log
 
 from . import ctx_vars, id_generation
-from .task_execution_env import TaskExecutionEnv
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -37,7 +36,7 @@ class Task(Generic[R_co]):
 
     fn: Callable[..., R_co]
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
-    task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
+    tags: list[str] = attrs.field(factory=list)
     args_are_set: bool = attrs.field(init=False, default=False)
     args: Iterable = attrs.field(init=False, factory=list)
     kwargs: Dict = attrs.field(init=False, factory=dict)
@@ -51,6 +50,10 @@ class Task(Generic[R_co]):
     )
     # cache_expiration: datetime.timedelta = None
     # max_retry: # Can use SQS approximateReceiveCount to explicitly fail the task
+
+    def add_tags(self, tags: list[str]) -> Task:
+        self.tags += tags
+        return self
 
     # Split into __init__ and _set_up because ParamSpec doesn't allow us
     # to play with kwargs.
@@ -141,7 +144,7 @@ class _TaskableOperation(Generic[P, R_co]):
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
-    task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
+    tags: list[str] = attrs.field(factory=list)
     # max_retry: # Even for SQS, can use approximateReceiveCount to explicitly fail the task
 
     def __call__(
@@ -157,7 +160,7 @@ class _TaskableOperation(Generic[P, R_co]):
         **kwargs: P.kwargs,
     ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, list(args), kwargs)
-        result = Task[R_co](fn=self.fn, id_=id_, task_execution_env=self.task_execution_env)
+        result = Task[R_co](fn=self.fn, id_=id_, tags=self.tags)
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
 

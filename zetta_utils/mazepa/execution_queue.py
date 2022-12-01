@@ -73,14 +73,11 @@ class ExecutionMultiQueue:
 
         for task in tasks:
             matching_queue_names = [
-                queue.name
-                for queue in self.queues
-                if all(tag in queue.name for tag in task.task_execution_env.tags)
+                queue.name for queue in self.queues if all(tag in queue.name for tag in task.tags)
             ]
             if len(matching_queue_names) == 0:
                 raise RuntimeError(
-                    f"No queue from set {list(self.queues)} matches "
-                    f"all tags {task.task_execution_env.tags}."
+                    f"No queue from set {list(self.queues)} matches " f"all tags {task.tags}."
                 )
             tasks_for_queue[matching_queue_names[0]].append(task)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import functools
-from contextlib import contextmanager
 from typing import (
     Any,
     Callable,
@@ -22,7 +21,6 @@ from typing_extensions import ParamSpec
 
 from . import id_generation
 from .dependency import Dependency
-from .task_execution_env import TaskExecutionEnv
 from .tasks import Task
 
 BatchType = Optional[Union[Dependency, List[Task], List["Flow"]]]
@@ -66,12 +64,16 @@ class Flow:
 
     fn: Callable[..., FlowFnReturnType]
     id_: str
-    task_execution_env: Optional[TaskExecutionEnv]
     _iterator: FlowFnReturnType = attrs.field(init=False, default=None)
+    tags: list[str] = attrs.field(factory=list)
 
     # These are saved as attributes just for printability.
     args: Iterable = attrs.field(init=False, default=list)
     kwargs: Dict = attrs.field(init=False, factory=dict)
+
+    def add_tags(self, tags: list[str]) -> Flow:  # pragma: no cover
+        self.tags += tags
+        return self
 
     def _set_up(
         self,
@@ -81,13 +83,6 @@ class Flow:
         self.args = args
         self.kwargs = kwargs
         self._iterator = self.fn(*args, **kwargs)
-
-    @contextmanager
-    def task_execution_env_ctx(self, env: Optional[TaskExecutionEnv]):
-        old_env = self.task_execution_env
-        self.task_execution_env = env
-        yield
-        self.task_execution_env = old_env
 
     def get_next_batch(self) -> BatchType:
         yielded = next(self._iterator, None)
@@ -100,9 +95,9 @@ class Flow:
         else:
             result = yielded
 
-        if self.task_execution_env is not None and isinstance(result, list):
+        if self.tags is not None and isinstance(result, list):
             for e in result:
-                e.task_execution_env = self.task_execution_env
+                e.tags += self.tags
 
         return result
 
@@ -119,7 +114,7 @@ class _FlowSchema(Generic[P]):
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="flow")
     )
-    task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
+    tags: list[str] = attrs.field(factory=list)
 
     def __call__(
         self,
@@ -130,7 +125,7 @@ class _FlowSchema(Generic[P]):
         result = Flow(
             fn=self.fn,
             id_=id_,
-            task_execution_env=self.task_execution_env,
+            tags=self.tags,
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result

@@ -3,7 +3,6 @@ from . import ctx_vars
 
 from .dependency import Dependency
 
-from .task_execution_env import TaskExecutionEnv
 from .task_outcome import TaskOutcome, TaskStatus
 
 from .tasks import Task, TaskableOperation, taskable_operation, taskable_operation_cls

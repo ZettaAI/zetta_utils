@@ -1,0 +1,357 @@
+{
+    "@type": "lightning_train",
+    "ckpt_path": null,
+    "regime": {
+        "@type": "EncodingCoarsener",
+        "lr": 0.0004,
+        "encoder": {
+            "@type": "load_weights_file",
+            "model": {
+                "@type": "torch.nn.Sequential",
+                "modules": [
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            1,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.AvgPool2d",
+                        "kernel_size": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.AvgPool2d",
+                        "kernel_size": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.AvgPool2d",
+                        "kernel_size": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.AvgPool2d",
+                        "kernel_size": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.AvgPool2d",
+                        "kernel_size": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            3
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    }
+                ]
+            },
+            "ckpt_path": null,
+            "component_names": [
+                "encoder"
+            ]
+        },
+        "decoder": {
+            "@type": "load_weights_file",
+            "model": {
+                "@type": "torch.nn.Sequential",
+                "modules": [
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            3,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.Upsample",
+                        "mode": "bilinear",
+                        "scale_factor": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.Upsample",
+                        "mode": "bilinear",
+                        "scale_factor": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.Upsample",
+                        "mode": "bilinear",
+                        "scale_factor": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.Upsample",
+                        "mode": "bilinear",
+                        "scale_factor": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            32
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    },
+                    {
+                        "@type": "torch.nn.Upsample",
+                        "mode": "bilinear",
+                        "scale_factor": 2
+                    },
+                    {
+                        "@type": "ConvBlock",
+                        "num_channels": [
+                            32,
+                            3
+                        ],
+                        "kernel_sizes": 3,
+                        "activate_last": true
+                    }
+                ]
+            },
+            "ckpt_path": null,
+            "component_names": [
+                "decoder"
+            ]
+        },
+        "apply_counts": [
+            1
+        ],
+        "equivar_angle_range": [
+            1,
+            359
+        ],
+        "equivar_translate_range": [
+            -2,
+            2
+        ],
+        "equivar_scale_range": [
+            0.95,
+            1.05
+        ],
+        "equivar_shear_range": [
+            -5,
+            5
+        ],
+        "equivar_mse_weight": 0.0,
+        "invar_mse_weight": 0.0,
+        "diffkeep_angle_range": [
+            -5,
+            5
+        ],
+        "diffkeep_weight": 0.0,
+        "fft_weight": 0.0
+    },
+    "trainer": {
+        "@type": "ZettaDefaultTrainer",
+        "accelerator": "gpu",
+        "devices": 1,
+        "max_epochs": 100,
+        "default_root_dir": "gs://sergiy_exp/training_artifacts/cns_coarsener",
+        "experiment_name": "encoding_coarsener_multichannel",
+        "experiment_version": "simple_recons_m6_downs5_conv1_k3_c3_repro_x2",
+        "log_every_n_steps": 100,
+        "val_check_interval": 100,
+        "checkpointing_kwargs": {},
+        "profiler": "simple"
+    },
+    "train_dataloader": {
+        "@type": "TorchDataLoader",
+        "batch_size": 1,
+        "shuffle": true,
+        "num_workers": 8,
+        "dataset": {
+            "@type": "LayerDataset",
+            "layer": {
+                "@type": "build_layer_set",
+                "layers": {
+                    "data_in": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/rigid",
+                        "read_postprocs": [
+                            {
+                                "@type": "rearrange",
+                                "@mode": "partial",
+                                "pattern": "c x y 1 -\u003e c x y"
+                            }
+                        ]
+                    }
+                }
+            },
+            "sample_indexer": {
+                "@type": "VolumetricStepIndexer",
+                "chunk_size": [
+                    1024,
+                    1024,
+                    1
+                ],
+                "step_size": [
+                    512,
+                    512,
+                    1
+                ],
+                "resolution": [
+                    256,
+                    256,
+                    45
+                ],
+                "desired_resolution": [
+                    256,
+                    256,
+                    45
+                ],
+                "bcube": {
+                    "@type": "BoundingCube",
+                    "start_coord": [
+                        0,
+                        0,
+                        2900
+                    ],
+                    "end_coord": [
+                        196608,
+                        65536,
+                        3000
+                    ],
+                    "resolution": [
+                        4,
+                        4,
+                        45
+                    ]
+                }
+            }
+        }
+    },
+    "val_dataloader": {
+        "@type": "TorchDataLoader",
+        "batch_size": 1,
+        "shuffle": false,
+        "num_workers": 8,
+        "dataset": {
+            "@type": "LayerDataset",
+            "layer": {
+                "@type": "build_layer_set",
+                "layers": {
+                    "data_in": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/rigid",
+                        "read_postprocs": [
+                            {
+                                "@type": "rearrange",
+                                "@mode": "partial",
+                                "pattern": "c x y 1 -\u003e c x y"
+                            }
+                        ]
+                    }
+                }
+            },
+            "sample_indexer": {
+                "@type": "VolumetricStepIndexer",
+                "chunk_size": [
+                    1024,
+                    1024,
+                    1
+                ],
+                "step_size": [
+                    512,
+                    512,
+                    1
+                ],
+                "resolution": [
+                    256,
+                    256,
+                    45
+                ],
+                "desired_resolution": [
+                    256,
+                    256,
+                    45
+                ],
+                "bcube": {
+                    "@type": "BoundingCube",
+                    "start_coord": [
+                        0,
+                        0,
+                        3100
+                    ],
+                    "end_coord": [
+                        196608,
+                        65536,
+                        3110
+                    ],
+                    "resolution": [
+                        4,
+                        4,
+                        45
+                    ]
+                }
+            }
+        }
+    }
+}

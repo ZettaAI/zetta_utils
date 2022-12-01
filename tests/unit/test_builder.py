@@ -65,7 +65,7 @@ def test_identity_builds(value):
 )
 def test_parse_exc(value, expected_exc, register_dummy_a):
     with pytest.raises(expected_exc):
-        builder.build(value)
+        builder.build(value, must_build=True)
 
 
 def test_register(register_dummy_a):

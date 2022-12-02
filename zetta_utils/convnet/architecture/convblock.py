@@ -9,6 +9,8 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
+Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
+
 
 @builder.register("ConvBlock")
 @typechecked
@@ -20,7 +22,7 @@ class ConvBlock(nn.Module):
 
     :param num_channels: List of integers specifying the number of channels of each
         convolution. For example, specification [1, 2, 3] will correspond to a sequence of
-        2 convolutions, where the first one has 1 input channel and two output channels and
+        2 convolutions, where the first one has 1 input channel and 2 output channels and
         the second one has 2 input channels and 3 output channels.
     :param conv: Constructor for convolution layers.
     :param activation: Constructor for activation layers.
@@ -58,12 +60,7 @@ class ConvBlock(nn.Module):
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
         kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
         strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
-        paddings: Union[
-            Literal["same", "valid"],
-            int,
-            Tuple[int, ...],
-            List[Union[Literal["same", "valid"], int, Tuple[int, ...]]],
-        ] = "same",
+        paddings: Union[Padding, List[Padding]] = "same",
         skips: Optional[Dict[Union[int, str], int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
@@ -90,9 +87,7 @@ class ConvBlock(nn.Module):
         assert len(strides_) == (len(num_channels) - 1)
 
         if isinstance(paddings, list):
-            paddings_ = (
-                paddings
-            )  # type: List[Union[Literal["same", "valid"], int, Tuple[int, ...]]]
+            paddings_ = paddings  # type: List[Padding]
         else:
             paddings_ = [paddings for _ in range(len(num_channels) - 1)]
 

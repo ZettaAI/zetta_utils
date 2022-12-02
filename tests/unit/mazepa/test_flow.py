@@ -1,9 +1,9 @@
+# pylint: disable=no-self-use
 from __future__ import annotations
 
 from zetta_utils.mazepa import (
     Dependency,
     Flow,
-    FlowFnReturnType,
     FlowSchema,
     flow_schema,
     flow_schema_cls,
@@ -14,10 +14,8 @@ from zetta_utils.mazepa.flows import _FlowSchema
 def test_make_flow_schema_cls() -> None:
     @flow_schema_cls
     class DummyFlowCls:
-        x: str = "1"
-
-        def flow(self) -> FlowFnReturnType:
-            yield Dependency(self.x)
+        def flow(self):
+            yield Dependency()
 
     obj = DummyFlowCls()
     # reveal_type(obj)

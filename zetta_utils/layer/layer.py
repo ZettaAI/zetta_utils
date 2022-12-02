@@ -87,12 +87,8 @@ class Layer(Generic[RawIndexT, IndexT, DataT]):
 
         self.backend.write(idx=idx_proced, value=value)
 
-    def get_name(self, idx_raw: Optional[RawIndexT] = None) -> str:  # pragma: no cover
-        if idx_raw is not None:
-            idx = self._convert_index(idx_raw)
-        else:
-            idx = None
-        return self.backend.get_name(idx)
+    def get_name(self) -> str:  # pragma: no cover
+        return self.backend.get_name()
 
     def __getitem__(self, idx_raw: RawIndexT) -> DataT:  # pragma: no cover
         return self.read(idx_raw)

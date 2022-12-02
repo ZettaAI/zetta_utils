@@ -34,13 +34,15 @@ def test_channel_number(list_num_channels: list[list[int]]):
     in_num_channels = [c for block in list_num_channels for c in block[:-1]]
     out_num_channels = [c for block in list_num_channels for c in block[1:]]
     conv_count = 0
-    for e in unet.layers:
-        if isinstance(e, torch.nn.modules.conv._ConvNd):
-            assert e.in_channels == in_num_channels[conv_count]
-            assert e.out_channels == out_num_channels[conv_count + 1]
-            conv_count += 1
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            for e in f.layers:
+                if isinstance(e, torch.nn.modules.conv._ConvNd):
+                    assert e.in_channels == in_num_channels[conv_count]
+                    assert e.out_channels == out_num_channels[conv_count]
+                    conv_count += 1
 
-    assert conv_count == len(in_num_channels) - 1
+    assert conv_count == len(in_num_channels)
 
 
 @pytest.mark.parametrize(
@@ -115,7 +117,7 @@ def test_activate_last():
             for e in f.layers:
                 if isinstance(e, torch.nn.LeakyReLU):
                     act_count += 1
-    assert act_count == 6
+    assert act_count == 3
 
 
 def not_test_forward_naive(mocker):

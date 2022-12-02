@@ -29,7 +29,7 @@ def test_channel_number(list_num_channels: list[list[int]]):
     unet = convnet.architecture.UNet(
         list_num_channels=list_num_channels,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     in_num_channels = [c for block in list_num_channels for c in block[:-1]]
     out_num_channels = [c for block in list_num_channels for c in block[1:]]
@@ -57,7 +57,7 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         kernel_sizes=kernel_sizes,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     conv_count = 0
     for e in unet.layers:
@@ -71,7 +71,7 @@ def test_norm():
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     norm_count = 0
     for e in unet.layers:
@@ -85,7 +85,7 @@ def test_norm_last():
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
         normalize_last=True,
     )
     norm_count = 0
@@ -100,7 +100,7 @@ def test_activate_last():
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
         activate_last=True,
     )
     norm_count = 0
@@ -115,7 +115,7 @@ def not_test_forward_naive(mocker):
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 1], [1, 1], [1, 1]],
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     result = unet(torch.ones([1, 1, 4, 4]))
     assert_array_equal(

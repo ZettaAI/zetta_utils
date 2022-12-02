@@ -1,12 +1,13 @@
 import time
 
-from zetta_utils import log
+from zetta_utils import builder, log
 
 from . import ExecutionQueue
 
 logger = log.get_logger("mazepa")
 
 
+@builder.register("mazepa.run_worker")
 def run_worker(
     exec_queue: ExecutionQueue, sleep_sec: int = 4, max_pull_num: int = 1
 ):  # pragma: no cover # TODO

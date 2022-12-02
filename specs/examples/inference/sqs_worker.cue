@@ -1,6 +1,6 @@
-"@type": "run_mazepa_worker"
+"@type": "mazepa.run_worker"
 exec_queue: {
-	"@type":            "MazepaSQSExecutionQueue"
+	"@type":            "mazepa.SQSExecutionQueue"
 	name:               "sergiy-corgie-x0"
 	outcome_queue_name: "sergiy-corgie-completion-x0"
 	pull_lease_sec:     30

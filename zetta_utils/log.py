@@ -103,9 +103,7 @@ def configure_logger(level=None, third_party_level="WARN"):
     if LOKI_HANDLER is not None:
         handlers.append(LOKI_HANDLER)
     logging.basicConfig(
-        level=level,
-        format="%(name)s %(pathname)20s:%(lineno)4d \n%(message)s",
-        handlers=handlers
+        level=level, format="%(name)s %(pathname)20s:%(lineno)4d \n%(message)s", handlers=handlers
     )
     logging.getLogger("mazepa").setLevel(level)
     logging.getLogger("zetta_utils").setLevel(level)

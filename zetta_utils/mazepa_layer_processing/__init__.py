@@ -8,10 +8,10 @@ from .common import (
 )
 from . import alignment
 
-builder.register("MazepaExecutor")(mazepa.Executor)
-builder.register("mazepa_execute")(mazepa.execute)
-builder.register("MazepaLocalExecutionQueue")(mazepa.LocalExecutionQueue)
-builder.register("MazepaExecutionMultiQueue")(mazepa.ExecutionMultiQueue)
-builder.register("MazepaSQSExecutionQueue")(mazepa.remote_execution_queues.SQSExecutionQueue)
-builder.register("mazepa_run_worker")(mazepa.run_worker)
-builder.register("MazepaSubflowTask")(mazepa.SubflowTask)
+builder.register("mazepa.Executor")(mazepa.Executor)
+builder.register("mazepa.execute")(mazepa.execute)
+builder.register("mazepa.LocalExecutionQueue")(mazepa.LocalExecutionQueue)
+builder.register("mazepa.ExecutionMultiQueue")(mazepa.ExecutionMultiQueue)
+builder.register("mazepa.SQSExecutionQueue")(mazepa.remote_execution_queues.SQSExecutionQueue)
+builder.register("mazepa.run_worker")(mazepa.run_worker)
+builder.register("mazepa.SubflowTask")(mazepa.SubflowTask)

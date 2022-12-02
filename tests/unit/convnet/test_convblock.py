@@ -19,8 +19,6 @@ from ..helpers import assert_array_equal
 )
 def test_channel_number(num_channels: list[int]):
     block = convnet.architecture.ConvBlock(num_channels=num_channels)
-
-    block = convnet.architecture.ConvBlock(num_channels=num_channels)
     conv_count = 0
     for e in block.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):

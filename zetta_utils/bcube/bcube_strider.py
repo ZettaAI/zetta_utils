@@ -25,7 +25,7 @@ class BcubeStrider:
     :param bcube: Input bounding cube.
     :param resolution: Resoluiton at which ``chunk_size`` and ``step_size`` are given.
     :param chunk_size: Size of an individual chunk.
-    :param step_size: Distance between neighboring chunkes along each dimension.
+    :param step_size: Distance between neighboring chunks along each dimension.
     """
 
     bcube: BoundingCube

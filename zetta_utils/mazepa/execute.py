@@ -7,9 +7,11 @@ import attrs
 
 from zetta_utils.log import get_logger
 
+from . import ctx_vars
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .flows import Flow
+from .id_generation import get_unique_id
 
 logger = get_logger("mazepa")
 
@@ -18,7 +20,6 @@ logger = get_logger("mazepa")
 class Executor:  # pragma: no cover # single statement, pure delegation
     exec_queue: Optional[ExecutionQueue] = None
     batch_gap_sleep_sec: float = 4.0
-    purge_at_start: bool = False
     max_batch_len: int = 10000
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
 
@@ -27,7 +28,6 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             target=target,
             exec_queue=self.exec_queue,
             batch_gap_sleep_sec=self.batch_gap_sleep_sec,
-            purge_at_start=self.purge_at_start,
             max_batch_len=self.max_batch_len,
             state_constructor=self.state_constructor,
         )
@@ -37,7 +37,6 @@ def execute(
     target: Union[Flow, Iterable[Flow], ExecutionState],
     exec_queue: Optional[ExecutionQueue] = None,
     batch_gap_sleep_sec: float = 4.0,
-    purge_at_start: bool = False,
     max_batch_len: int = 10000,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
 ):
@@ -46,7 +45,9 @@ def execute(
     Execution is performed by making an execution state from the target and passing new task
     batches and completed task ids between the state and the execution queue.
     """
-    logger.debug("Mazepa execute invoked.")
+    execution_id = get_unique_id(prefix="execution")
+    ctx_vars.execution_id.set(execution_id)
+    logger.debug(f"Starting execution '{execution_id}'")
 
     if isinstance(target, ExecutionState):
         state = target
@@ -64,10 +65,7 @@ def execute(
     else:
         queue = exec_queue
 
-    if purge_at_start:
-        queue.purge()
-        logger.info(f"Purged queue {queue}.")
-
+    start_time = time.time()
     logger.debug(f"STARTING: mazepa execution of {target}.")
     while True:
         if len(state.get_ongoing_flow_ids()) == 0:
@@ -89,4 +87,6 @@ def execute(
         state.update_with_task_outcomes(task_outcomes)
         logger.debug("DONE: Updating with taks outcomes.")
 
+    end_time = time.time()
     logger.debug(f"DONE: mazepa execution of {target}.")
+    logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, TypeVar, Union
 
 from typeguard import typechecked
 
@@ -49,7 +49,7 @@ def get_callable_from_name(name: str) -> Any:
 
 
 @typechecked
-def build(spec: dict, must_build=True) -> Any:
+def build(spec: Union[dict, list], must_build: bool = False) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.
@@ -100,10 +100,14 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
                 try:
                     result = registered_fn(**fn_kwargs)
                 except Exception as e:  # pragma: no cover
+                    if hasattr(registered_fn, "__name__"):
+                        name = registered_fn.__name__
+                    else:
+                        name = str(registered_fn)
                     raise RuntimeError(
-                        f'Exception while building "@type": {field[PARSE_KEY]} '
-                        f"(mapped to {registered_fn.__module__}.{registered_fn.__name__}), "
-                        f'"@mode": {mode}'
+                        f'Exception while building "@type": "{field[PARSE_KEY]}" '
+                        f"(mapped to '{name}' from module '{registered_fn.__module__}'), "
+                        f'"@mode": "{mode}"'
                     ) from e
             elif mode == "partial":
                 result = ComparablePartial(registered_fn, **fn_kwargs)

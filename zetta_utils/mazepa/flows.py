@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
+import functools
 from typing import (
     Any,
     Callable,
@@ -8,7 +8,6 @@ from typing import (
     Generator,
     Generic,
     Iterable,
-    Iterator,
     List,
     Optional,
     Protocol,
@@ -20,51 +19,21 @@ from typing import (
 import attrs
 from typing_extensions import ParamSpec
 
-from . import id_generators
+from . import id_generation
 from .dependency import Dependency
-from .task_execution_env import TaskExecutionEnv
 from .tasks import Task
 
 BatchType = Optional[Union[Dependency, List[Task], List["Flow"]]]
 FlowFnYieldType = Union[Dependency, "Task", List["Task"], "Flow", List["Flow"]]
 FlowFnReturnType = Generator[FlowFnYieldType, None, Any]
+
 P = ParamSpec("P")
-P_init = ParamSpec("P_init")
 
 
 @runtime_checkable
-class Flow(Protocol):
+class FlowSchema(Protocol[P]):
     """
-    Wraps a callable generator to convert it into a mazepa flow.
-    """
-
-    fn: Callable[..., FlowFnReturnType]
-    id_: str
-    task_execution_env: Optional[TaskExecutionEnv]
-    _iterator: FlowFnReturnType
-    args: Iterable
-    kwargs: Dict
-
-    def _set_up(
-        self,
-        *args: Iterable,
-        **kwargs: Dict,
-    ):
-        ...
-
-    @contextmanager
-    def task_execution_env_ctx(self, env: Optional[TaskExecutionEnv]) -> Iterator:
-        ...
-
-    def get_next_batch(self) -> BatchType:
-        ...
-
-
-@runtime_checkable
-class FlowType(Protocol[P]):
-    """
-    Interface of a flow type -- a callable that returns a mazepa Flow
-    passing all the arguments.
+    Interface of a flow Schema -- a callable that returns a mazepa Flow.
     """
 
     def __call__(
@@ -76,44 +45,17 @@ class FlowType(Protocol[P]):
 
 
 @runtime_checkable
-class FlowTypeCls(Protocol[P_init, P]):
+class RawFlowSchemaCls(Protocol[P]):
     """
-    Interface of a flow type class. `__init__` arguments are preserved.
+    Interface for a type that can be decorated with ``@flow_schema_cls``.
     """
-
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ) -> None:
-        ...
-
-    def __call__(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Flow:
-        ...
-
-
-class RawFlowTypeCls(Protocol[P_init, P]):
-    """
-    Interface for a type that can be decorated with ``@flow_type_cls``.
-    """
-
-    def __init__(
-        self,
-        *args: P_init.args,
-        **kwargs: P_init.kwargs,
-    ) -> None:
-        ...
 
     def flow(self, *args: P.args, **kwargs: P.kwargs) -> FlowFnReturnType:
         ...
 
 
 @attrs.mutable
-class _Flow:
+class Flow:
     """
     Implementation of mazepa flow.
     Users are expected to use ``flow`` and ``flow_cls`` decorators rather
@@ -122,12 +64,16 @@ class _Flow:
 
     fn: Callable[..., FlowFnReturnType]
     id_: str
-    task_execution_env: Optional[TaskExecutionEnv]
     _iterator: FlowFnReturnType = attrs.field(init=False, default=None)
+    tags: list[str] = attrs.field(factory=list)
 
     # These are saved as attributes just for printability.
     args: Iterable = attrs.field(init=False, default=list)
     kwargs: Dict = attrs.field(init=False, factory=dict)
+
+    def add_tags(self, tags: list[str]) -> Flow:  # pragma: no cover
+        self.tags += tags
+        return self
 
     def _set_up(
         self,
@@ -137,13 +83,6 @@ class _Flow:
         self.args = args
         self.kwargs = kwargs
         self._iterator = self.fn(*args, **kwargs)
-
-    @contextmanager
-    def task_execution_env_ctx(self, env: Optional[TaskExecutionEnv]):
-        old_env = self.task_execution_env
-        self.task_execution_env = env
-        yield
-        self.task_execution_env = old_env
 
     def get_next_batch(self) -> BatchType:
         yielded = next(self._iterator, None)
@@ -156,51 +95,52 @@ class _Flow:
         else:
             result = yielded
 
-        if self.task_execution_env is not None and isinstance(result, list):
+        if self.tags is not None and isinstance(result, list):
             for e in result:
-                e.task_execution_env = self.task_execution_env
+                e.tags += self.tags
 
         return result
 
 
 @attrs.mutable
-class _FlowType(Generic[P]):
+class _FlowSchema(Generic[P]):
     """
-    Wrapper that makes a FlowType from a callable.
+    Wrapper that makes a FlowSchema from a callable.
     Users are expected to use ``@flow`` and ``@flow_cls`` decorators rather
     than using this class directly.
     """
 
     fn: Callable[P, FlowFnReturnType]
-    id_fn: Callable[[Callable, dict], str] = attrs.field(default=id_generators.get_unique_id)
-    task_execution_env: TaskExecutionEnv = attrs.field(factory=TaskExecutionEnv)
+    id_fn: Callable[[Callable, list, dict], str] = attrs.field(
+        default=functools.partial(id_generation.generate_invocation_id, prefix="flow")
+    )
+    tags: list[str] = attrs.field(factory=list)
 
     def __call__(
         self,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> Flow:
-        id_ = self.id_fn(self.fn, kwargs)
-        result = _Flow(
+        id_ = self.id_fn(self.fn, list(args), kwargs)
+        result = Flow(
             fn=self.fn,
             id_=id_,
-            task_execution_env=self.task_execution_env,
+            tags=self.tags,
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
 
 
-def flow_type(fn: Callable[P, FlowFnReturnType]) -> FlowType[P]:
+def flow_schema(fn: Callable[P, FlowFnReturnType]) -> FlowSchema[P]:
     """Decorator for generator functions defining mazepa flows."""
-    return _FlowType[P](fn)
+    return _FlowSchema[P](fn)
 
 
-def flow_type_cls(cls: Type[RawFlowTypeCls[P_init, P]]) -> Type[FlowTypeCls[P_init, P]]:
+def flow_schema_cls(cls: Type[RawFlowSchemaCls]):
     # original_call = cls.__call__
-
     # TODO: figure out how to handle this with changing TaskExecutionEnvs
     def _call_fn(self, *args, **kwargs):
-        return _FlowType(
+        return _FlowSchema(
             self.flow,
             # functools.partial(original_call, self),
             # TODO: Other params passed to decorator
@@ -210,4 +150,4 @@ def flow_type_cls(cls: Type[RawFlowTypeCls[P_init, P]]) -> Type[FlowTypeCls[P_in
 
     # can't override __new__ because of interaction with attrs/dataclass
     setattr(cls, "__call__", _call_fn)
-    return cls  # type: ignore # we added the call method
+    return cls

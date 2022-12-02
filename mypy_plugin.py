@@ -43,8 +43,7 @@ def task_maker_cls_callback(ctx):  # pragma: no cover # type: ignore
     return True
 
 
-def flow_type_cls_callback(ctx):  # pragma: no cover # type: ignore
-    # TODO: figure out how to type flows properly
+def flow_schema_cls_callback(ctx):  # pragma: no cover # type: ignore
     reference_method = ctx.cls.info.get_method("flow")
     if reference_method is not None:
         args = reference_method.arguments
@@ -77,10 +76,10 @@ def flow_type_cls_callback(ctx):  # pragma: no cover # type: ignore
 
 
 TASK_FACTORY_CLS_MAKERS: Final = {
-    "zetta_utils.mazepa.tasks.task_factory_cls",
-    # "zetta_utils.mazepa.tasks.task_factory_with_idx_cls"
+    "zetta_utils.mazepa.tasks.taskable_operation_cls",
+    # "zetta_utils.mazepa.tasks.taskable_operation_with_idx_cls"
 }
-FLOW_TYPE_CLS_MAKERS: Final = {"zetta_utils.mazepa.flows.flow_type_cls"}
+FLOW_TYPE_CLS_MAKERS: Final = {"zetta_utils.mazepa.flows.flow_schema_cls"}
 
 
 class MazepaPlugin(Plugin):
@@ -91,7 +90,7 @@ class MazepaPlugin(Plugin):
         if "task" in fullname:
             return task_maker_cls_callback
         if fullname in FLOW_TYPE_CLS_MAKERS:
-            return flow_type_cls_callback
+            return flow_schema_cls_callback
         return None
 
 

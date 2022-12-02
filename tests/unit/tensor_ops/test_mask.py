@@ -7,19 +7,27 @@ from zetta_utils.tensor_ops import mask
 def test_filter_cc_small():
     a = np.array(
         [
-            [1, 1, 0, 1],
-            [1, 1, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 1, 1],
+            [
+                [
+                    [1, 1, 0, 1],
+                    [1, 1, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 1, 1],
+                ]
+            ]
         ]
     )
 
     expected = np.array(
         [
-            [0, 0, 0, 1],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0],
-            [0, 0, 1, 1],
+            [
+                [
+                    [0, 0, 0, 1],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 1, 1],
+                ]
+            ]
         ]
     )
 
@@ -94,5 +102,38 @@ def test_coarsen_width1():
     result = mask.coarsen(
         a,
         width=1,
+    )
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_binary_closing():
+    a = np.array(
+        [
+            [
+                [
+                    [0, 0, 0, 0],
+                    [0, 1, 1, 1],
+                    [0, 1, 0, 1],
+                    [0, 1, 1, 1],
+                ]
+            ]
+        ]
+    )
+
+    expected = np.array(
+        [
+            [
+                [
+                    [0, 0, 0, 0],
+                    [0, 1, 1, 1],
+                    [0, 1, 1, 1],
+                    [0, 1, 1, 1],
+                ]
+            ]
+        ]
+    )
+
+    result = mask.binary_closing(
+        a,
     )
     np.testing.assert_array_equal(result, expected)

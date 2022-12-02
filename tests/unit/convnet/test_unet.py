@@ -31,15 +31,16 @@ def test_channel_number(list_num_channels: list[list[int]]):
         downsample=torch.nn.AvgPool2d,
         upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
     )
-    num_channels = [c for block in list_num_channels for c in block]
+    in_num_channels = [c for block in list_num_channels for c in block[:-1]]
+    out_num_channels = [c for block in list_num_channels for c in block[1:]]
     conv_count = 0
     for e in unet.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):
-            assert e.in_channels == num_channels[conv_count]
-            assert e.out_channels == num_channels[conv_count + 1]
+            assert e.in_channels == in_num_channels[conv_count]
+            assert e.out_channels == out_num_channels[conv_count + 1]
             conv_count += 1
 
-    assert conv_count == len(num_channels) - 1
+    assert conv_count == len(in_num_channels) - 1
 
 
 @pytest.mark.parametrize(
@@ -56,7 +57,7 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         kernel_sizes=kernel_sizes,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale=2),
     )
     conv_count = 0
     for e in unet.layers:
@@ -66,11 +67,11 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
 
 
 def test_norm():
-    unet = convnet.architecture.convblock.UNet(
+    unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale=2),
     )
     norm_count = 0
     for e in unet.layers:
@@ -80,11 +81,11 @@ def test_norm():
 
 
 def test_norm_last():
-    unet = convnet.architecture.convblock.UNet(
+    unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale=2),
         normalize_last=True,
     )
     norm_count = 0
@@ -95,11 +96,11 @@ def test_norm_last():
 
 
 def test_activate_last():
-    unet = convnet.architecture.convblock.UNet(
+    unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale=2),
         activate_last=True,
     )
     norm_count = 0
@@ -114,7 +115,7 @@ def not_test_forward_naive(mocker):
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 1], [1, 1], [1, 1]],
         downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2),
+        upsample=partial(torch.nn.Upsample, scale=2),
     )
     result = unet(torch.ones([1, 1, 4, 4]))
     assert_array_equal(

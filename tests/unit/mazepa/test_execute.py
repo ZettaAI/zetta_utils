@@ -36,7 +36,7 @@ def dummy_task(return_value: Any) -> Any:
 def dummy_flow():
     task1 = dummy_task.make_task(return_value="output1")
     yield task1
-    yield Dependency([task1.id_])
+    yield Dependency([task1])
     assert task1.outcome.status == TaskStatus.SUCCEEDED
     assert task1.outcome.return_value == "output1"
     task2 = dummy_task.make_task(return_value="output2")

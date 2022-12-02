@@ -1,12 +1,14 @@
 import datetime
 import json
 import os
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import fsspec
 import pytorch_lightning as pl
+import torch
 import typeguard
 import wandb
+from google.cloud import storage
 from pytorch_lightning.loggers import WandbLogger
 
 from zetta_utils import builder
@@ -15,10 +17,12 @@ from zetta_utils import builder
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.trace_configuration = None
 
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
-    ):
+    ):  # pylint: disable=too-many-locals
+
         if filepath.startswith("./"):
             filepath = f"{self.default_root_dir}/{filepath[2:]}"
         super().save_checkpoint(filepath, weights_only, storage_options)
@@ -38,6 +42,22 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 spec_path = f"{filepath}.{k}.spec.json"
                 with fsspec.open(spec_path, "w") as f:
                     json.dump(spec, f, indent=3)
+        if self.trace_configuration is not None:
+            for name in self.trace_configuration.keys():
+                model = self.trace_configuration[name]["model"]
+                trace_input = self.trace_configuration[name]["trace_input"]
+                trace = torch.jit.trace(model, trace_input)
+                filepath_jit = filepath + ".static-" + name + ".jit"
+                if filepath_jit.split("/")[0] == "gs:":
+                    bucket = filepath_jit.split("/")[2]
+                    object_name = "/".join(filepath_jit.split("/")[3:])
+                    storage_client = storage.Client(bucket)
+                    bucket = storage_client.bucket(bucket)
+                    blob = bucket.blob(object_name)
+                    with blob.open("wb", ignore_flush=True) as f:
+                        torch.jit.save(trace, f)
+                else:
+                    torch.jit.save(trace, filepath_jit)
 
 
 @builder.register("ZettaDefaultTrainer")
@@ -88,6 +108,8 @@ def build_default_trainer(
         **checkpointing_kwargs,
     )
 
+    trainer.callbacks.append(ConfigureTraceCallback(trainer))
+
     return trainer
 
 
@@ -122,3 +144,55 @@ def get_checkpointing_callbacks(
 def get_progress_bar_callbacks() -> List[pl.callbacks.Callback]:  # pragma: no cover
     result = [pl.callbacks.RichProgressBar()]  # type: List[pl.callbacks.Callback]
     return result
+
+
+@typeguard.typechecked
+class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
+    def __init__(self, trainer: pl.Trainer) -> None:
+        self.trainer = trainer
+        self.pl_module = trainer.lightning_module
+
+    @staticmethod
+    def wrap_forward(
+        pl_module: pl.LightningModule, name: str, trace_configuration: dict[str, dict[str, Any]]
+    ) -> None:
+        model = getattr(pl_module, name)
+        model.__forward__ = model.forward
+
+        def wrapped_forward(*args, **kwargs):
+            trace_configuration[name] = {"model": model, "trace_input": args}
+            return model.__forward__(*args, **kwargs)
+
+        setattr(model, "forward", wrapped_forward)
+
+    @staticmethod
+    def unwrap_forward(pl_module: pl.LightningModule, name: str) -> None:
+        model = getattr(pl_module, name)
+        model.forward = model.__forward__
+        delattr(model, "__forward__")
+
+    def on_validation_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        if (
+            hasattr(self.trainer, "trace_configuration")
+            and self.trainer.trace_configuration is None
+        ):
+            input_to_trace = batch
+            models_to_trace = [
+                attr
+                for attr in set(dir(pl_module))
+                if issubclass(type(getattr(pl_module, attr)), torch.nn.Module)
+            ]
+            trace_configuration = {}  # type: Dict[str, Dict[str, Any]]
+            for name in models_to_trace:
+                ConfigureTraceCallback.wrap_forward(pl_module, name, trace_configuration)
+            pl_module.validation_step(input_to_trace, 0)
+            for name in models_to_trace:
+                ConfigureTraceCallback.unwrap_forward(pl_module, name)
+            self.trainer.trace_configuration = trace_configuration

@@ -5,7 +5,7 @@ omit =
   zetta_utils/mazepa_layer_processing/*.py
   zetta_utils/viz/*.py
   zetta_utils/alignment/*.py
-  zetta_utils/training/lightning/regimes/*.py
+  zetta_utils/training/lightning/*.py
   setup.py
 
 [report]

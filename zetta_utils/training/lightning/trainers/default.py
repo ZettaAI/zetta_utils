@@ -8,7 +8,6 @@ import pytorch_lightning as pl
 import torch
 import typeguard
 import wandb
-from google.cloud import storage
 from pytorch_lightning.loggers import WandbLogger
 
 from zetta_utils import builder
@@ -48,16 +47,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 trace_input = self.trace_configuration[name]["trace_input"]
                 trace = torch.jit.trace(model, trace_input)
                 filepath_jit = filepath + ".static-" + name + ".jit"
-                if filepath_jit.split("/")[0] == "gs:":
-                    bucket = filepath_jit.split("/")[2]
-                    object_name = "/".join(filepath_jit.split("/")[3:])
-                    storage_client = storage.Client(bucket)
-                    bucket = storage_client.bucket(bucket)
-                    blob = bucket.blob(object_name)
-                    with blob.open("wb", ignore_flush=True) as f:
-                        torch.jit.save(trace, f)
-                else:
-                    torch.jit.save(trace, filepath_jit)
+                with fsspec.open(filepath_jit, "w") as f:
+                    torch.jit.save(trace, f)
 
 
 @builder.register("ZettaDefaultTrainer")

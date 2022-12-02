@@ -60,10 +60,12 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     conv_count = 0
-    for e in unet.layers:
-        if isinstance(e, torch.nn.modules.conv._ConvNd):
-            assert e.kernel_size == expected[conv_count]
-            conv_count += 1
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            e = f.layers
+            if isinstance(e, torch.nn.modules.conv._ConvNd):
+                assert e.kernel_size == expected[conv_count]
+                conv_count += 1
 
 
 def test_norm():
@@ -74,9 +76,11 @@ def test_norm():
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     norm_count = 0
-    for e in unet.layers:
-        if isinstance(e, torch.nn.BatchNorm2d):
-            norm_count += 1
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            e = f.layers
+            if isinstance(e, torch.nn.BatchNorm2d):
+                norm_count += 1
     assert norm_count == 2
 
 
@@ -89,9 +93,11 @@ def test_norm_last():
         normalize_last=True,
     )
     norm_count = 0
-    for e in unet.layers:
-        if isinstance(e, torch.nn.BatchNorm2d):
-            norm_count += 1
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            e = f.layers
+            if isinstance(e, torch.nn.BatchNorm2d):
+                norm_count += 1
     assert norm_count == 3
 
 
@@ -103,11 +109,13 @@ def test_activate_last():
         upsample=partial(torch.nn.Upsample, scale_factor=2),
         activate_last=True,
     )
-    norm_count = 0
-    for e in unet.layers:
-        if isinstance(e, torch.nn.LeakyReLU):
-            norm_count += 1
-    assert norm_count == 3
+    act_count = 0
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            e = f.layers
+            if isinstance(e, torch.nn.LeakyReLU):
+                act_count += 1
+    assert act_count == 6
 
 
 def not_test_forward_naive(mocker):

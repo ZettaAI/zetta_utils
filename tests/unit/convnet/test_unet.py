@@ -70,12 +70,63 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
                     conv_count += 1
 
 
+@pytest.mark.parametrize(
+    "strides, expected",
+    [
+        [3, [(3, 3), (3, 3), (3, 3)]],
+        [[3, 5, 7], [(3, 3), (5, 5), (7, 7)]],
+        [(3, 1), [(3, 1), (3, 1), (3, 1)]],
+        [[(3, 1), (3, 2), 5], [(3, 1), (3, 2), (5, 5)]],
+    ],
+)
+def test_stride(strides, expected: list[tuple[int]]):
+    unet = convnet.architecture.UNet(
+        list_num_channels=[[1, 3], [3, 3], [3, 1]],
+        strides=strides,
+        paddings=1,
+        downsample=partial(torch.nn.Conv2d, kernel_size=2, stride=2, padding=0),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
+    )
+    conv_count = 0
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            for e in f.layers:
+                if isinstance(e, torch.nn.modules.conv._ConvNd):
+                    assert e.stride == expected[conv_count]
+                    conv_count += 1
+
+
+@pytest.mark.parametrize(
+    "paddings, expected",
+    [
+        [3, [(3, 3), (3, 3), (3, 3)]],
+        [[3, 5, 7], [(3, 3), (5, 5), (7, 7)]],
+        [(3, 1), [(3, 1), (3, 1), (3, 1)]],
+        [[(3, 1), (3, 2), 5], [(3, 1), (3, 2), (5, 5)]],
+    ],
+)
+def test_padding(paddings, expected: list[tuple[int]]):
+    unet = convnet.architecture.UNet(
+        list_num_channels=[[1, 3], [3, 3], [3, 1]],
+        paddings=paddings,
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
+    )
+    conv_count = 0
+    for f in unet.layers:
+        if hasattr(f, "layers"):
+            for e in f.layers:
+                if isinstance(e, torch.nn.modules.conv._ConvNd):
+                    assert e.padding == expected[conv_count]
+                    conv_count += 1
+
+
 def test_norm():
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
-        downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale_factor=2),
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2, padding=0),
     )
     norm_count = 0
     for f in unet.layers:
@@ -90,8 +141,8 @@ def test_norm_last():
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
-        downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale_factor=2),
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2, padding=0),
         normalize_last=True,
     )
     norm_count = 0
@@ -107,8 +158,8 @@ def test_activate_last():
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
-        downsample=torch.nn.AvgPool2d,
-        upsample=partial(torch.nn.Upsample, scale_factor=2),
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.ConvTranspose2d, kernel_size=2, stride=2, padding=0),
         activate_last=True,
     )
     act_count = 0
@@ -124,10 +175,24 @@ def not_test_forward_naive(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 1], [1, 1], [1, 1]],
-        downsample=torch.nn.AvgPool2d,
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
-    result = unet(torch.ones([1, 1, 4, 4]))
+    result = unet.forward(torch.ones([1, 1, 4, 4]))
     assert_array_equal(
         result.cpu().detach().numpy(), 2 * torch.ones([1, 1, 4, 4]).cpu().detach().numpy()
+    )
+
+
+def test_forward_skips(mocker):
+    mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
+    unet = convnet.architecture.UNet(
+        list_num_channels=[[1, 1, 1], [1, 1, 1, 1], [1, 1, 1]],
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
+        skips=[{0: 2}, {0: 2, 1: 3}, {0: 2}],
+    )
+    result = unet.forward(torch.ones([1, 1, 2, 2]))
+    assert_array_equal(
+        result.cpu().detach().numpy(), 20 * torch.ones([1, 1, 2, 2]).cpu().detach().numpy()
     )

@@ -45,9 +45,9 @@ class ConvBlock(nn.Module):
         corresponding convolution in order. The list length must match the number of
         convolutions.
     :param skips: Specification for residual skip connection. For example,
-        ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
-        first convolution (index 1) to the third covnolution (index 3). 0 specifies the input
-        to the first layer.
+        ``skips={1: 3}`` specifies a single residual skip connection from the output of the
+        first convolution (index 1) to the input of third convolution (index 3).
+        0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
     """
@@ -61,7 +61,7 @@ class ConvBlock(nn.Module):
         kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
         strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
         paddings: Union[Padding, List[Padding]] = "same",
-        skips: Optional[Dict[Union[int, str], int]] = None,
+        skips: Optional[Dict[int, int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):  # pylint: disable=too-many-locals
@@ -69,7 +69,7 @@ class ConvBlock(nn.Module):
         if skips is None:
             self.skips = {}
         else:
-            self.skips = {int(k): v for k, v in skips.items()}
+            self.skips = skips
         self.layers = torch.nn.ModuleList()
 
         if isinstance(kernel_sizes, list):

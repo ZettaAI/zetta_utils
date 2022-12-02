@@ -181,3 +181,9 @@ class CVBackend(
         cvol.autocrop = True
         cvol[slices] = value_final
         cvol.autocrop = False
+
+    def get_name(self, idx: Optional[VolumetricIndex] = None) -> str:  # pragma: no cover
+        ret = self.path
+        if idx is not None:
+            ret += idx.pformat()
+        return ret

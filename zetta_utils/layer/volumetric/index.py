@@ -47,6 +47,12 @@ class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no log
             resolution=self.resolution,
         )
 
+    def pformat(self, resolution: Optional[Vec3D] = None):  # pragma: no cover
+        return self.bcube.pformat(resolution)
+
+    def get_size(self):  # pragma: no cover
+        return self.bcube.get_size()
+
 
 SliceRawVolumetricIndex = Union[
     Tuple[Optional[Vec3D], BoundingCube],

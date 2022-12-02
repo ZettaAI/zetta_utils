@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring # pragma: no cover
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 
 from zetta_utils.layer import LayerIndex
 
@@ -16,6 +16,10 @@ class LayerBackend(Generic[IndexT, DataT], ABC):  # pylint: disable=too-few-publ
     @abstractmethod
     def write(self, idx: IndexT, value: DataT):
         """Writes given value to the given index"""
+
+    @abstractmethod
+    def get_name(self, idx: Optional[IndexT] = None) -> str:
+        """Get name for the layer"""
 
     # Open problem:
     # This ugliness could be avoided with proper templating

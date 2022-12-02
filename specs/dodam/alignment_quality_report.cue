@@ -4,8 +4,8 @@
 #Z_FOV: 5
 
 #BCUBE_RESOLUTION: [4, 4, 45]
-#BCUBE_START: [1024*128, 1024*32, 2500]
-#BCUBE_END: [1024*160, 1024*48, 3500]
+#BCUBE_START: [1024*128, 1024*32, 2990]
+#BCUBE_END: [1024*160, 1024*48, 3010]
 #MISALIGNMENT_THRESHOLDS: [0.5, 1.0, 1.5, 2.0, 2.5]
 #NUM_WORST_CHUNKS: 5
 
@@ -23,11 +23,7 @@
 "@type": "mazepa_execute"
 target: {
 	"@type": "compute_alignment_quality"
-	chunker: {
-		"@type": "VolumetricIndexChunker"
-		"chunk_size": [#XY_FOV, #XY_FOV, #Z_FOV]
-		"step_size":  [#XY_FOV, #XY_FOV, #Z_FOV]
-	}
+	chunk_size: [#XY_FOV, #XY_FOV, #Z_FOV]
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH

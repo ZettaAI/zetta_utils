@@ -1,19 +1,15 @@
-import copy
 import datetime
-import os
-from typing import Any, Callable, Generic, List, Literal, TypeVar
+from typing import Any, Dict, List, TypeVar
 
-import attrs
 import torch
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.layer import IndexChunker, Layer, LayerIndex
-from zetta_utils.layer.volumetric import VolIdxTranslator, VolumetricIndex
-from zetta_utils.mazepa import Dependency, task_factory
-
-from .. import ChunkedApplyFlowType, SimpleCallableTaskFactory
+from zetta_utils.layer import Layer, LayerIndex
+from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricIndexChunker
+from zetta_utils.mazepa import Dependency
+from zetta_utils.typing import Vec3D
 
 logger = log.get_logger("zetta_utils")
 
@@ -22,44 +18,11 @@ P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 
 
-class TablePrinter(object):
-    "Print a list of dicts as a table"
-
-    def __init__(self, fmt, sep=" ", ul=None):
-        """
-        @param fmt: list of tuple(heading, key, width)
-                        heading: str, column label
-                        key: dictionary key to value to print
-                        width: int, column width in chars
-        @param sep: string, separation between columns
-        @param ul: string, character to underline column label, or None for no underlining
-        """
-        super(TablePrinter, self).__init__()
-        self.fmt = str(sep).join(
-            "{lb}{0}:{1}{rb}".format(key, width, lb="{", rb="}") for heading, key, width in fmt
-        )
-        self.head = {key: heading for heading, key, width in fmt}
-        self.ul = {key: str(ul) * width for heading, key, width in fmt} if ul else None
-        self.width = {key: width for heading, key, width in fmt}
-
-    def row(self, data):
-        return self.fmt.format(**{k: str(data.get(k, ""))[:w] for k, w in self.width.iteritems()})
-
-    def __call__(self, dataList):
-        _r = self.row
-        res = [_r(data) for data in dataList]
-        res.insert(0, _r(self.head))
-        if self.ul:
-            res.insert(1, _r(self.ul))
-        return "\n".join(res)
-
-
-@task_factory
+@mazepa.taskable_operation
 def compute_misalignment_stats(**kwargs):
     data = kwargs["data"][kwargs["idx"]]
     misalignment_thresholds = kwargs["misalignment_thresholds"]
-    #    print(f"The mean is {data.mean()}")
-    ret = {}
+    ret = {}  # type: Dict[str, Any]
     ret["sum"] = data.sum()
     ret["sqsum"] = (data ** 2).sum()
     ret["size"] = data.nelement()
@@ -68,62 +31,48 @@ def compute_misalignment_stats(**kwargs):
         ret["misaligned_pixels"][threshold] = (data > threshold).sum()
     return ret
 
-    # TODO: Separate
 
-
-def pretty_print(idx, resolution):
-    slices = idx.bcube.to_slices(resolution)
-    x_start = slices[0].start
-    x_end = slices[0].stop
-    y_start = slices[1].start
-    y_end = slices[1].stop
-    z_start = slices[2].start
-    z_end = slices[2].stop
-    return f"{x_start}, {y_start}, {z_start} - {x_end}, {y_end}, {z_end}"
-
-
-# return f"{x_start}-{x_end}, {y_start}-{y_end}, {z_start}-{z_end}"
-
-
-def lrpad(string="", level=1, length=80, char="|"):
+def lrpad(string="", level=1, length=80, bounds="|", filler=" "):
     newstr = ""
-    newstr += char
+    newstr += bounds
     while len(newstr) < level * 4:
-        newstr += " "
+        newstr += filler
     newstr += string
     if len(newstr) >= length:
         return newstr
-    else:
-        while len(newstr) < length - 1:
-            newstr += " "
-        return newstr + char
+    while len(newstr) < length - 1:
+        newstr += filler
+    return newstr + bounds
 
 
+# f-string-without-interpolation should not be necessary, but pylint seems to have a bug
 @builder.register("compute_alignment_quality")
-@mazepa.flow_type
+@mazepa.flow_schema
 @typechecked
 def compute_alignment_quality(
     src: Layer[Any, VolumetricIndex, torch.Tensor],
     idx: VolumetricIndex,
-    chunker: IndexChunker[VolumetricIndex],
-    # TODO: fix this typing
+    chunk_size: Vec3D,
     resolution: List[Any],
     misalignment_thresholds: List[Any],
     num_worst_chunks: int,
-):
-    #    task_kwargs = {k: v for k, v in kwargs.items() if k not in ["idx"]}
+):  # pylint: disable = too-many-locals, too-many-statements, f-string-without-interpolation
+    chunker = VolumetricIndexChunker(chunk_size)
 
-    # TODO: Log / raise error if num_worst_chunks is larger than number of chunks
     logger.info(f"Breaking {idx} into chunks with {chunker}.")
-    idx_chunks = chunker(idx)
+    idx_chunks = list(chunker(idx))
     tasks = [
         compute_misalignment_stats.make_task(
-            idx=idx_chunk,  # type: ignore
+            idx=idx_chunk,
             data=src,
             misalignment_thresholds=misalignment_thresholds,
         )
         for idx_chunk in idx_chunks
     ]
+    if num_worst_chunks > len(tasks):
+        logger.error(
+            f"{num_worst_chunks} worst chunks requested," + f"but only {len(tasks)} chunks exist."
+        )
     logger.info(f"Submitting {len(tasks)} processing tasks from factory.")
 
     yield tasks
@@ -134,8 +83,8 @@ def compute_alignment_quality(
     sizes = []
     rmses = []
     worsts = []
-    misaligned_pixelss = {}
-    misaligned = {}
+    misaligned_pixelss = {}  # type: Dict[str, Any]
+    misaligned = {}  # type: Dict[float, Any]
 
     for threshold in misalignment_thresholds:
         misaligned_pixelss[threshold] = []
@@ -143,12 +92,12 @@ def compute_alignment_quality(
     # parse outputs
     for task in tasks:
         ret = task.outcome.return_value
-        sums.append(ret["sum"])
-        sqsums.append(ret["sqsum"])
-        sizes.append(ret["size"])
-        rmses.append((ret["sqsum"] / ret["size"]) ** 0.5)
+        sums.append(ret["sum"])  # type: ignore
+        sqsums.append(ret["sqsum"])  # type: ignore
+        sizes.append(ret["size"])  # type: ignore
+        rmses.append((ret["sqsum"] / ret["size"]) ** 0.5)  # type: ignore
         for threshold in misalignment_thresholds:
-            misaligned_pixelss[threshold].append(ret["misaligned_pixels"][threshold])
+            misaligned_pixelss[threshold].append(ret["misaligned_pixels"][threshold])  # type: ignore # pylint: disable=line-too-long
 
     size_total = sum(sizes)
     mean = sum(sums) / size_total
@@ -169,25 +118,16 @@ def compute_alignment_quality(
         ]
         misaligned[threshold]["worsts"] = sorted_inds[0:num_worst_chunks]
 
-    print(f"+==   Alignment Quality Report   ==============================================+")
+    print(lrpad("  Alignment Quality Report  ", bounds="+", filler="="))
     print(lrpad())
     print(lrpad(f"Generated {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", 1))
     print(lrpad())
-    print(f"|==== Dataset Information / Settings ==========================================|")
+    print(lrpad(" Dataset Information / Settings ", bounds="|", filler="="))
     print(lrpad())
-    print(lrpad(f"Layer: {src.backend.path}", 1))
-    # TODO: Hardcoded name path
-    print(lrpad(f"Bounds given at {resolution} nm: {pretty_print(idx, resolution)}", 1))
+    print(lrpad(f"Layer: {src.get_name()}", 1))
+    print(lrpad(f"Bounds given at {resolution} nm: {idx.pformat(resolution)}", 1))
 
-    # TODO: Separate
-    slices = idx.bcube.to_slices([1, 1, 1])
-    x_start = slices[0].start
-    x_end = slices[0].stop
-    y_start = slices[1].start
-    y_end = slices[1].stop
-    z_start = slices[2].start
-    z_end = slices[2].stop
-    vol = (x_end - x_start) * (y_end - y_start) * (z_end - z_start)
+    vol = idx.get_size()
 
     if vol < 1e18:
         print(lrpad(f"Volume of FOV: {vol*1e-9:10.3f} um^3", 1))
@@ -200,7 +140,7 @@ def compute_alignment_quality(
     print(lrpad(f"Number of worst chunks to show: {num_worst_chunks}", 1))
     print(lrpad())
 
-    print(f"|=== Basic Misalignment Statistics ============================================|")
+    print(lrpad(" Basic Misalignment Statistics ", bounds="|", filler="="))
     print(lrpad())
     print(lrpad(f"RMS residuals:        {rms:7.4f} px ({rms * idx.resolution[0]:7.4f} nm)", 1))
     print(lrpad(f"Mean residuals:       {mean:7.4f} px ({mean * idx.resolution[0]:7.4f} nm)", 1))
@@ -208,25 +148,24 @@ def compute_alignment_quality(
     for threshold in misalignment_thresholds:
         print(
             lrpad(
-                f"{threshold:3.2f} px: {(misaligned[threshold]['probability'] * 1e6):10.3f} parts per million",
+                f"{threshold:3.2f} px: {(misaligned[threshold]['probability'] * 1e6):10.3f}"
+                + " parts per million",
                 2,
             )
         )
     print(lrpad())
 
-    print(f"|=== Proofreading Helper ======================================================|")
+    print(lrpad(" Proofreading Helper ", bounds="|", filler="="))
     print(lrpad())
     print(lrpad(f"Worst chunk(s) overall (RMS):", 1))
     for i in range(num_worst_chunks):
         ind = worsts[i]
-        print(lrpad(f"{pretty_print(idx_chunks[ind], resolution)}   {rmses[ind]:7.4f} px", 2))
+        print(lrpad(f"{idx_chunks[ind].pformat(resolution)}   {rmses[ind]:7.4f} px", 2))
     for threshold in misalignment_thresholds:
         print(lrpad(f"Worst chunk(s) at {threshold:3.2f} pixels:", 1))
         for i in range(num_worst_chunks):
             ind = misaligned[threshold]["worsts"][i]
             prob = misaligned_pixelss[threshold][ind] / sizes[ind]
-            print(
-                lrpad(f"{pretty_print(idx_chunks[ind], resolution)}   {(prob * 1e6):10.3f} ppm", 2)
-            )
+            print(lrpad(f"{idx_chunks[ind].pformat(resolution)}   {(prob * 1e6):10.3f} ppm", 2))
     print(lrpad(""))
-    print(f"+==============================================================================+")
+    print(lrpad("", bounds="+", filler="="))

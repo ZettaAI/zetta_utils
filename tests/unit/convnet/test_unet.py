@@ -62,10 +62,10 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
     conv_count = 0
     for f in unet.layers:
         if hasattr(f, "layers"):
-            e = f.layers
-            if isinstance(e, torch.nn.modules.conv._ConvNd):
-                assert e.kernel_size == expected[conv_count]
-                conv_count += 1
+            for e in f.layers:
+                if isinstance(e, torch.nn.modules.conv._ConvNd):
+                    assert e.kernel_size == expected[conv_count]
+                    conv_count += 1
 
 
 def test_norm():
@@ -78,9 +78,9 @@ def test_norm():
     norm_count = 0
     for f in unet.layers:
         if hasattr(f, "layers"):
-            e = f.layers
-            if isinstance(e, torch.nn.BatchNorm2d):
-                norm_count += 1
+            for e in f.layers:
+                if isinstance(e, torch.nn.BatchNorm2d):
+                    norm_count += 1
     assert norm_count == 2
 
 
@@ -95,9 +95,9 @@ def test_norm_last():
     norm_count = 0
     for f in unet.layers:
         if hasattr(f, "layers"):
-            e = f.layers
-            if isinstance(e, torch.nn.BatchNorm2d):
-                norm_count += 1
+            for e in f.layers:
+                if isinstance(e, torch.nn.BatchNorm2d):
+                    norm_count += 1
     assert norm_count == 3
 
 
@@ -112,9 +112,9 @@ def test_activate_last():
     act_count = 0
     for f in unet.layers:
         if hasattr(f, "layers"):
-            e = f.layers
-            if isinstance(e, torch.nn.LeakyReLU):
-                act_count += 1
+            for e in f.layers:
+                if isinstance(e, torch.nn.LeakyReLU):
+                    act_count += 1
     assert act_count == 6
 
 

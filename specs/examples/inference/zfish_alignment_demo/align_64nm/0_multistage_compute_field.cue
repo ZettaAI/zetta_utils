@@ -6,7 +6,7 @@ import "path"
 #SRC_PATH:      "gs://zfish_unaligned/coarse_x0/encodings"
 #DST_PATH:      "gs://sergiy_exp/aced/zfish/alignment_\(#XY_RESOLUTION)nm/field_\(#VERSION)"
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
 	bcube: {

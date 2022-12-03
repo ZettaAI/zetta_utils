@@ -11,7 +11,7 @@
 #XY_CROP:      512
 #XY_OUT_CHUNK: 2048
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type":        "build_warp_flow"
 	mode:           "img"

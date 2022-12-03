@@ -1,4 +1,5 @@
 import datetime
+from statistics import NormalDist
 from typing import Any, Dict, List, TypeVar
 
 import torch
@@ -19,9 +20,12 @@ R_co = TypeVar("R_co", covariant=True)
 
 
 @mazepa.taskable_operation
-def compute_misalignment_stats(**kwargs) -> Dict[str, Any]:
-    data = kwargs["data"][kwargs["idx"]]
-    misalignment_thresholds = kwargs["misalignment_thresholds"]
+def compute_misalignment_stats(
+    layer: Layer[Any, VolumetricIndex, torch.Tensor],
+    idx: VolumetricIndex,
+    misalignment_thresholds: List[float],
+) -> Dict[str, Any]:
+    data = layer[idx]
     ret = {}  # type: Dict[str, Any]
     ret["sum"] = data.sum()
     ret["sqsum"] = (data ** 2).sum()
@@ -56,9 +60,9 @@ def compute_alignment_quality(
     idx: VolumetricIndex,
     chunk_size: Vec3D,
     resolution: List[Any],
-    misalignment_thresholds: List[Any],
+    misalignment_thresholds: List[float],
     num_worst_chunks: int,
-):  # pylint: disable = too-many-locals, too-many-statements, f-string-without-interpolation
+):  # pylint: disable = too-many-locals, too-many-statements, too-many-branches, f-string-without-interpolation
     chunker = VolumetricIndexChunker(chunk_size)
 
     logger.info(f"Breaking {idx} into chunks with {chunker}.")
@@ -66,7 +70,7 @@ def compute_alignment_quality(
     tasks = [
         compute_misalignment_stats.make_task(
             idx=idx_chunk,
-            data=src,
+            layer=src,
             misalignment_thresholds=misalignment_thresholds,
         )
         for idx_chunk in idx_chunks
@@ -85,7 +89,7 @@ def compute_alignment_quality(
     sizes = []
     rmses = []
     worsts = []
-    misaligned_pixelss = {}  # type: Dict[str, Any]
+    misaligned_pixelss = {}  # type: Dict[float, Any]
     misaligned = {}  # type: Dict[float, Any]
 
     for threshold in misalignment_thresholds:
@@ -149,10 +153,16 @@ def compute_alignment_quality(
     print(lrpad(f"Mean residuals:       {mean:7.4f} px ({mean * idx.resolution[0]:7.4f} nm)", 1))
     print(lrpad(f"Probability of misaligned pixel at ", 1))
     for threshold in misalignment_thresholds:
+        misaligned_prob = misaligned[threshold]["probability"]
+        if misaligned_prob == 0.0:
+            misaligned_sigma_str = "infty"
+        else:
+            misaligned_sigma_str = f"{abs(NormalDist().inv_cdf(misaligned_prob)):2.3f}"
         print(
             lrpad(
-                f"{threshold:3.2f} px: {(misaligned[threshold]['probability'] * 1e6):10.3f}"
-                + " parts per million",
+                f"{threshold:3.2f} px: {(misaligned_prob * 1e6):10.3f}"
+                + " parts per million,      "
+                + f"{misaligned_sigma_str} sigmas",
                 2,
             )
         )
@@ -163,7 +173,7 @@ def compute_alignment_quality(
     print(lrpad(f"Worst chunk(s) overall (RMS):", 1))
     for i in range(num_worst_chunks):
         ind = worsts[i]
-        print(lrpad(f"{idx_chunks[ind].pformat(resolution)}   {rmses[ind]:7.4f} px", 2))
+        print(lrpad(f"{idx_chunks[ind].pformat(resolution)}       {rmses[ind]:7.4f} px", 2))
     for threshold in misalignment_thresholds:
         print(lrpad(f"Worst chunk(s) at {threshold:3.2f} pixels:", 1))
         for i in range(num_worst_chunks):

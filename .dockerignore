@@ -16,6 +16,8 @@ coverage.xml
 *.log
 .git
 .mypy_cache
+**/.mypy_cache
 .pytest_cache
 .hypothesis
 wandb
+**/wandb

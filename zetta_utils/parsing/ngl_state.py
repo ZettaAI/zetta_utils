@@ -14,6 +14,7 @@ from neuroglancer.viewer_state import (
 )
 
 from zetta_utils.bcube import BoundingCube
+from zetta_utils.bcube.bcube import BoundingBoxND
 from zetta_utils.log import get_logger
 from zetta_utils.typing import Vec3D
 
@@ -27,6 +28,14 @@ class NGL_LAYER_KEYS(Enum):
     NAME = "name"
     RESOLUTION = "voxelSize"
     TOOL = "tool"
+    TYPE = "type"
+
+
+class ANNOTATION_KEYS(Enum):
+    ID = "id"
+    POINT = "point"
+    POINT_A = "pointA"
+    POINT_B = "pointB"
     TYPE = "type"
 
 
@@ -63,7 +72,7 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D
             )
             result.append(bcube)
         except AttributeError:
-            point: Vec3D = annotation.point
+            point: Vec3D = annotation.point * resolution
             result.append(point)
     return result
 
@@ -73,22 +82,35 @@ def write_remote_annotations(
     resolution: Vec3D,
     bcubes_or_points: List[Union[BoundingCube, Vec3D]],
 ) -> None:
-    layer = {
+    annotations = []
+    layer_d = {
         NGL_LAYER_KEYS.NAME.value: layer_name,
         NGL_LAYER_KEYS.RESOLUTION.value: resolution,
         NGL_LAYER_KEYS.TOOL.value: DEFAULT_LAYER_VALUES.TOOL.value,
         NGL_LAYER_KEYS.TYPE.value: DEFAULT_LAYER_VALUES.TYPE.value,
         NGL_LAYER_KEYS.ANNOTATION_COLOR.value: DEFAULT_LAYER_VALUES.COLOR.value,
+        NGL_LAYER_KEYS.ANNOTATIONS.value: annotations
     }
-    annotations: List[Union[AxisAlignedBoundingBoxAnnotation, PointAnnotation]] = []
 
-    res = np.array(resolution)
-
-    for bcubes_or_point in bcubes_or_points:
-        try:
-            bcube: BoundingCube = bcubes_or_point
-            x,y,z = bcube.bounds
+    for i, bcubes_or_point in enumerate(bcubes_or_points):
+        if isinstance(bcubes_or_point, BoundingBoxND):
+            x,y,z = bcubes_or_point.bounds
             point_a = np.array([x[0], y[0], z[0]])
             point_b = np.array([x[1], y[1], z[1]])
-        except AttributeError:
-            ...
+            annotation = {
+                ANNOTATION_KEYS.ID.value: str(i),
+                ANNOTATION_KEYS.POINT_A.value: point_a / resolution,
+                ANNOTATION_KEYS.POINT_B.value: point_b / resolution,
+                ANNOTATION_KEYS.TYPE.value: AxisAlignedBoundingBoxAnnotation().type
+            }
+            annotations.append(annotation)
+        else:
+            annotation = {
+                ANNOTATION_KEYS.ID.value: str(i),
+                ANNOTATION_KEYS.POINT.value: bcubes_or_point / resolution,
+                ANNOTATION_KEYS.TYPE.value: PointAnnotation().type
+            }
+            annotations.append(annotation)
+    layer = make_layer(layer_d)
+    cf = CloudFiles(remote_path)
+    cf.put_json(layer_name, layer.to_json())

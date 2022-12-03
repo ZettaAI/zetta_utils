@@ -35,18 +35,17 @@ items:
         - args:
           - -c
           - |
-            echo "Yo"
-            #zetta -vv run -s '
-            #"@type": "run_mazepa_worker"
-            #exec_queue: {
-            #  "@type": "mazepa.SQSExecutionQueue"
-            #  name: "sergiy-corgie-x0"
-            #  outcome_queue_name: "sergiy-corgie-completion-x0"
-            #  pull_lease_sec: 30
-            #}
-            #max_pull_num: 1
-            #sleep_sec: 8
-            #'
+            zetta -vv run -s '
+            "@type": "run_mazepa_worker"
+            exec_queue: {
+              "@type": "mazepa.SQSExecutionQueue"
+              name: "sergiy-corgie-x0"
+              outcome_queue_name: "sergiy-corgie-completion-x0"
+              pull_lease_sec: 30
+            }
+            max_pull_num: 1
+            sleep_sec: 8
+            '
           command:
           - /bin/sh
           image: us.gcr.io/zetta-research/zetta_utils:sergiy_x1

@@ -8,8 +8,8 @@ items:
     creationTimestamp: "2022-06-03T00:51:15Z"
     generation: 43
     labels:
-      app: corgie-x0
-    name: corgie-x0
+      app: zetta-x0
+    name: zetta-x0
     namespace: default
     resourceVersion: "35435692"
     uid: 82ff7cfd-d04b-4c00-8791-8e3e96ec13bf
@@ -19,7 +19,7 @@ items:
     revisionHistoryLimit: 10
     selector:
       matchLabels:
-        app: corgie-x0
+        app: zetta-x0
     strategy:
       rollingUpdate:
         maxSurge: 25%
@@ -29,18 +29,61 @@ items:
       metadata:
         creationTimestamp: null
         labels:
-          app: corgie-x0
+          app: zetta-x0
       spec:
         containers:
-        - args:
+        - name: zutils-worker
+          env:
+          - name: GRAFANA_CLOUD_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: "grafana-cloud-api-sergiy"
+                key: key
+                optional: false
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: aws-key-sergiy
+                key: access_key_id
+                optional: false
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: aws-key-sergiy
+                key: secret_access_key
+                optional: false
+          - name: ZETTA_USER
+            value: zutils-worker
+          - name: ZETTA_PROJECT
+            value: research
+          - name: MY_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: MY_POD_SERVICE_ACCOUNT
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.serviceAccountName
+          args:
           - -c
           - |
-            zetta -vv run -s '
-            "@type": "run_mazepa_worker"
+            zetta -vv -l inference run -s '
+            "@type": "mazepa.run_worker"
             exec_queue: {
               "@type": "mazepa.SQSExecutionQueue"
-              name: "sergiy-corgie-x0"
-              outcome_queue_name: "sergiy-corgie-completion-x0"
+              name: "aaa-zutils-x0"
               pull_lease_sec: 30
             }
             max_pull_num: 1
@@ -48,10 +91,8 @@ items:
             '
           command:
           - /bin/sh
-          image: us.gcr.io/zetta-research/zetta_utils:sergiy_x1
-            #image: gcr.io/zetta-research/corgie:pfc-x0
+          image: us.gcr.io/zetta-research/zetta_utils:sergiy_x9
           imagePullPolicy: IfNotPresent
-          name: python
           resources:
             limits:
               memory:  18560Mi
@@ -89,7 +130,6 @@ items:
     conditions:
     - lastTransitionTime: "2022-06-03T00:51:15Z"
       lastUpdateTime: "2022-07-08T00:07:23Z"
-      message: ReplicaSet "corgie-6954988575" has successfully progressed.
       reason: NewReplicaSetAvailable
       status: "True"
       type: Progressing

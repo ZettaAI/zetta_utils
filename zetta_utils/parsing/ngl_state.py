@@ -2,7 +2,7 @@
 
 from enum import Enum
 from os import environ
-from typing import List, Dict, Union
+from typing import Dict, List, Union
 
 import numpy as np
 from cloudfiles import CloudFiles
@@ -22,7 +22,7 @@ logger = get_logger("zetta_utils")
 remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
 
 
-class NGL_LAYER_KEYS(Enum):
+class NglLayerKeys(Enum):
     ANNOTATION_COLOR = "annotationColor"
     ANNOTATIONS = "annotations"
     NAME = "name"
@@ -31,7 +31,7 @@ class NGL_LAYER_KEYS(Enum):
     TYPE = "type"
 
 
-class ANNOTATION_KEYS(Enum):
+class AnnotationKeys(Enum):
     ID = "id"
     POINT = "point"
     POINT_A = "pointA"
@@ -39,7 +39,7 @@ class ANNOTATION_KEYS(Enum):
     TYPE = "type"
 
 
-class DEFAULT_LAYER_VALUES(Enum):
+class DefaultLayerValues(Enum):
     COLOR = "#ff0000"
     TYPE = "annotation"
     TOOL = "annotateBoundingBox"
@@ -59,7 +59,7 @@ def read_remote_annotations(layer_name: str) -> List[Union[BoundingCube, Vec3D]]
 
 def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D]]:
     result: List[Union[BoundingCube, Vec3D]] = []
-    resolution: Vec3D = layer.to_json()[NGL_LAYER_KEYS.RESOLUTION.value]
+    resolution: Vec3D = layer.to_json()[NglLayerKeys.RESOLUTION.value]
     for annotation in layer.annotations:
         assert isinstance(
             annotation, (AxisAlignedBoundingBoxAnnotation, PointAnnotation)
@@ -84,31 +84,31 @@ def write_remote_annotations(
 ) -> None:
     annotations: List[Dict] = []
     layer_d = {
-        NGL_LAYER_KEYS.NAME.value: layer_name,
-        NGL_LAYER_KEYS.RESOLUTION.value: resolution,
-        NGL_LAYER_KEYS.TOOL.value: DEFAULT_LAYER_VALUES.TOOL.value,
-        NGL_LAYER_KEYS.TYPE.value: DEFAULT_LAYER_VALUES.TYPE.value,
-        NGL_LAYER_KEYS.ANNOTATION_COLOR.value: DEFAULT_LAYER_VALUES.COLOR.value,
-        NGL_LAYER_KEYS.ANNOTATIONS.value: annotations
+        NglLayerKeys.NAME.value: layer_name,
+        NglLayerKeys.RESOLUTION.value: resolution,
+        NglLayerKeys.TOOL.value: DefaultLayerValues.TOOL.value,
+        NglLayerKeys.TYPE.value: DefaultLayerValues.TYPE.value,
+        NglLayerKeys.ANNOTATION_COLOR.value: DefaultLayerValues.COLOR.value,
+        NglLayerKeys.ANNOTATIONS.value: annotations,
     }
 
     for i, bcubes_or_point in enumerate(bcubes_or_points):
         if isinstance(bcubes_or_point, BoundingBoxND):
-            x,y,z = bcubes_or_point.bounds
+            x, y, z = bcubes_or_point.bounds
             point_a = np.array([x[0], y[0], z[0]])
             point_b = np.array([x[1], y[1], z[1]])
             annotation = {
-                ANNOTATION_KEYS.ID.value: str(i),
-                ANNOTATION_KEYS.POINT_A.value: point_a / resolution,
-                ANNOTATION_KEYS.POINT_B.value: point_b / resolution,
-                ANNOTATION_KEYS.TYPE.value: AxisAlignedBoundingBoxAnnotation().type
+                AnnotationKeys.ID.value: str(i),
+                AnnotationKeys.POINT_A.value: point_a / resolution,
+                AnnotationKeys.POINT_B.value: point_b / resolution,
+                AnnotationKeys.TYPE.value: AxisAlignedBoundingBoxAnnotation().type,
             }
             annotations.append(annotation)
         else:
             annotation = {
-                ANNOTATION_KEYS.ID.value: str(i),
-                ANNOTATION_KEYS.POINT.value: np.array(bcubes_or_point) / resolution,
-                ANNOTATION_KEYS.TYPE.value: PointAnnotation().type
+                AnnotationKeys.ID.value: str(i),
+                AnnotationKeys.POINT.value: np.array(bcubes_or_point) / resolution,
+                AnnotationKeys.TYPE.value: PointAnnotation().type,
             }
             annotations.append(annotation)
     layer = make_layer(layer_d)

@@ -19,7 +19,7 @@ R_co = TypeVar("R_co", covariant=True)
 
 
 @mazepa.taskable_operation
-def compute_misalignment_stats(**kwargs):
+def compute_misalignment_stats(**kwargs) -> Dict[str, Any]:
     data = kwargs["data"][kwargs["idx"]]
     misalignment_thresholds = kwargs["misalignment_thresholds"]
     ret = {}  # type: Dict[str, Any]
@@ -32,7 +32,9 @@ def compute_misalignment_stats(**kwargs):
     return ret
 
 
-def lrpad(string="", level=1, length=80, bounds="|", filler=" "):
+def lrpad(
+    string: str = "", level: int = 1, length: int = 80, bounds: str = "|", filler: str = " "
+) -> str:
     newstr = ""
     newstr += bounds
     while len(newstr) < level * 4:
@@ -92,12 +94,13 @@ def compute_alignment_quality(
     # parse outputs
     for task in tasks:
         ret = task.outcome.return_value
-        sums.append(ret["sum"])  # type: ignore
-        sqsums.append(ret["sqsum"])  # type: ignore
-        sizes.append(ret["size"])  # type: ignore
-        rmses.append((ret["sqsum"] / ret["size"]) ** 0.5)  # type: ignore
+        assert ret is not None
+        sums.append(ret["sum"])
+        sqsums.append(ret["sqsum"])
+        sizes.append(ret["size"])
+        rmses.append((ret["sqsum"] / ret["size"]) ** 0.5)
         for threshold in misalignment_thresholds:
-            misaligned_pixelss[threshold].append(ret["misaligned_pixels"][threshold])  # type: ignore # pylint: disable=line-too-long
+            misaligned_pixelss[threshold].append(ret["misaligned_pixels"][threshold])
 
     size_total = sum(sizes)
     mean = sum(sums) / size_total

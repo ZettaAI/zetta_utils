@@ -42,7 +42,7 @@ class Task(Generic[R_co]):
     kwargs: Dict = attrs.field(init=False, factory=dict)
 
     _mazepa_callbacks: list[Callable] = attrs.field(factory=list)
-    outcome: TaskOutcome = attrs.field(
+    outcome: TaskOutcome[R_co] = attrs.field(
         factory=functools.partial(
             TaskOutcome,
             status=TaskStatus.NOT_SUBMITTED,

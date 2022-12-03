@@ -21,7 +21,6 @@ def run_worker(
         else:
             logger.info("STARTING: taks batch execution.")
             for e in tasks:
-                log.set_logging_label("task_id", e.id_)
-                e()
-                log.set_logging_label("task_id", None)
+                with log.label_ctx("task_id", e.id_):
+                    e()
             logger.info("DONE: taks batch execution.")

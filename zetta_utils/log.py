@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Optional
 
@@ -15,19 +16,7 @@ from rich.traceback import install
 
 SUPRESS_TRACEBACK_MODULES = [cachetools, typeguard]
 
-CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ["zetta_user", "zetta_project"]}
-
-GRAPHANA_KEY = os.environ.get("GRAPHANA_CLOUD_ACCESS_KEY", None)
-if GRAPHANA_KEY is not None:
-    LOKI_HANDLER = logging_loki.LokiHandler(
-        url=f"https://334581:{GRAPHANA_KEY}@logs-prod3.grafana.net/loki/api/v1/push", version="1"
-    )
-else:
-    LOKI_HANDLER = None
-
-
-def set_logging_label(name, value):
-    CTX_VARS[name].set(value)
+LOKI_HANDLER = None
 
 
 class InjectingFilter(logging.Filter):
@@ -121,5 +110,51 @@ def set_verbosity(verbosity_level):
     logging.getLogger("mazepa").setLevel(verbosity_level)
 
 
+ENV_LABELS = [
+    "zetta_user",
+    "zetta_project",
+    "my_node_name",
+    "my_pod_name",
+    "my_pod_ip",
+    "my_pod_service_account",
+]
+CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_LABELS}
+
+
+def set_logging_label(name, value):
+    print(f"Set up logging label '{name}' to {value}")
+    CTX_VARS[name].set(value)
+
+
+@contextmanager
+def label_ctx(key, value):
+    old_value = CTX_VARS[key].get()
+    set_logging_label(key, value)
+    yield
+    set_logging_label(key, old_value)
+
+
+def _init_ctx_vars():
+    for k in CTX_VARS:
+        k_env = k.upper()
+        if k_env in os.environ:
+            set_logging_label(k, os.environ[k_env])
+
+
+_init_ctx_vars()
+
+GRAFANA_KEY = os.environ.get("GRAFANA_CLOUD_ACCESS_KEY", None)
+if GRAFANA_KEY is not None:
+    LOKI_HANDLER = logging_loki.LokiHandler(
+        url=f"https://334581:{GRAFANA_KEY}@logs-prod3.grafana.net/loki/api/v1/push", version="1"
+    )
+    print(
+        "Configured Grafana Cloud Loki logging. "
+        "Access logs from this machine at https://sergiytest.grafana.net/explore"
+    )
+else:
+    print(
+        "Failed to find `GRAFANA_CLOUD_ACCESS_KEY` env variable -- Loki logs won't be accessible."
+    )
+
 configure_logger()
-# logger = logging.getLogger("zetta_utils")

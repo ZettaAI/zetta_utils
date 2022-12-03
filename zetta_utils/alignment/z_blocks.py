@@ -17,6 +17,8 @@ def get_z_blocks(remote_layer: str) -> List[Union[BoundingCube, Vec3D]]:
 
 @builder.register("put_z_blocks")
 def put_z_blocks(remote_layer: str) -> None:
-    resolution = [4,4,30]
-    bcubes_or_points = ngl_state.read_remote_annotations("remote/zfish_10132022_cutout_misalignments")
+    resolution = [4, 4, 30]
+    bcubes_or_points = ngl_state.read_remote_annotations(
+        "remote/zfish_10132022_cutout_misalignments"
+    )
     ngl_state.write_remote_annotations(remote_layer, resolution, bcubes_or_points)

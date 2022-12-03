@@ -6,7 +6,7 @@ Overview
 
 ``zu.builder`` provides machinery to represent layers, datasets, or any other registered components
 as dictionaries. This can be used to pass in flexible parameters to CLI tools and to allow flexible,
-readable specifications of training and inference workflow through ``json``/``yaml``/``cue`` fiels.
+readable specifications of training and inference workflow through ``json``/``yaml``/``cue`` fields.
 
 Use ``builder.register()`` to make a callable accessibule with ``zu.builder``:
 

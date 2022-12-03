@@ -3,7 +3,7 @@
 from enum import Enum
 from enum import Enum
 from os import environ
-from typing import List, Union
+from typing import List, Dict, Union
 
 import numpy as np
 import numpy as np
@@ -142,7 +142,7 @@ def write_remote_annotations(
     resolution: Vec3D,
     bcubes_or_points: List[Union[BoundingCube, Vec3D]],
 ) -> None:
-    annotations = []
+    annotations: List[Dict] = []
     layer_d = {
         NGL_LAYER_KEYS.NAME.value: layer_name,
         NGL_LAYER_KEYS.RESOLUTION.value: resolution,
@@ -167,7 +167,7 @@ def write_remote_annotations(
         else:
             annotation = {
                 ANNOTATION_KEYS.ID.value: str(i),
-                ANNOTATION_KEYS.POINT.value: bcubes_or_point / resolution,
+                ANNOTATION_KEYS.POINT.value: np.array(bcubes_or_point) / resolution,
                 ANNOTATION_KEYS.TYPE.value: PointAnnotation().type
             }
             annotations.append(annotation)

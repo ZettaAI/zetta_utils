@@ -181,3 +181,6 @@ class CVBackend(
         cvol.autocrop = True
         cvol[slices] = value_final
         cvol.autocrop = False
+
+    def get_name(self) -> str:  # pragma: no cover
+        return self.path

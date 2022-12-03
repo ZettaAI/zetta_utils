@@ -40,3 +40,6 @@ class LayerSetBackend(
         # TODO: can be parallelized
         for k in layer_selection:
             self.layer[k].write(idx.layer_idx, value[k])
+
+    def get_name(self) -> str:  # pragma: no cover
+        return ", ".join([l.get_name() for l in self.layer.values()])

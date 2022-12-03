@@ -310,6 +310,32 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
+    def pformat(self, resolution: Optional[VecT] = None) -> str:  # pragma: no cover
+        """Returns a pretty formatted string for this bounding box at the given
+        resolution that is suitable for copying into neuroglancer. For a 3D bcube, the
+        string is of the form ``(x_start, y_start, z_start) - (x_end, y_end, z_end)``."""
+        if resolution is None:
+            if hasattr(self, "resolution"):
+                resolution = self.resolution
+            else:
+                resolution = cast(VecT, tuple(1 for _ in range(self.ndim)))
+
+        slices = self.to_slices(resolution)
+        s = ", "
+        return (
+            f"({s.join([str(slice.start) for slice in slices])})" + " - "
+            f"({s.join([str(slice.stop) for slice in slices])})"
+        )
+
+    def get_size(self) -> Union[int, float]:  # pragma: no cover
+        """Returns the size of the volume in N-D space, in `self.unit^N`."""
+        resolution = cast(VecT, tuple(1 for _ in range(self.ndim)))
+        slices = self.to_slices(resolution)
+        size = 1
+        for _, slc in enumerate(slices):
+            size *= slc.stop - slc.start
+        return size
+
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
 builder.register("BoundingCube")(BoundingCube.from_coords)

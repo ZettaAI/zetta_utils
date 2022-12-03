@@ -19,7 +19,7 @@
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type":  "align_with_online_finetunner"
+			"@type":  "align_with_online_finetuner"
 			"@mode":  "partial"
 			sm:       #RIGIDITY
 			num_iter: #NUM_ITER

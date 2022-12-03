@@ -19,7 +19,7 @@ Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
 class UNet(nn.Module):
     """
     A basic UNet that uses ConvBlocks. Note that the downsamples are applied after the regular
-    convolutions, while the upsampleolutions are applied before the regular convolutions
+    convolutions, while the upsamples are applied before the regular convolutions.
 
     :param list_num_channels: List of lists of integers specifying the number of channels of
         each convolution. There must be an odd number of lists, for going up and going down,

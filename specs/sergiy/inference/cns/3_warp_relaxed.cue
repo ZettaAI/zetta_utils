@@ -12,7 +12,7 @@
 #XY_CROP:      64
 #XY_OUT_CHUNK: 2048
 #DST_RESOLUTION: [256, 256, 45]
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type":        "build_warp_flow"
 	mode:           "img"

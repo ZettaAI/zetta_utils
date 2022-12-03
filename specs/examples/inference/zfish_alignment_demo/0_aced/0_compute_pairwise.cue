@@ -27,7 +27,7 @@
 	chunk_size: [2048, 2048, 1]
 }
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
 	bcube: {

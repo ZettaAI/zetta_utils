@@ -2,7 +2,7 @@
 #DST_PATH: "gs://tmp_2w/inference_tests/field_x20"
 #RIGIDITY: 100
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_flow"
 	chunk_size: [1024, 1024, 1]

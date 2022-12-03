@@ -1,7 +1,7 @@
 #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
 #DST_PATH: "gs://tmp_2w/inference_tests/raw_img_x20"
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_write_flow"
 	chunk_size: [1024, 1024, 1]

@@ -44,7 +44,7 @@
 	[32, 32, 30],
 ]
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: [
 	for res in #RESOLUTIONS {
 		#FLOW_TMPL & {dst_resolution: res}

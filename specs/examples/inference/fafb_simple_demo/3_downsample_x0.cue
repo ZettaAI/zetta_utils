@@ -1,6 +1,6 @@
 #SRC_PATH: "gs://tmp_2w/inference_tests/raw_img_x20"
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_interpolate_flow"
 	bcube: {

@@ -1,5 +1,5 @@
 {
-    "@type": "mazepa_execute",
+    "@type": "mazepa.execute",
     "target": [
         {
             "@type": "build_chunked_apply_flow",

@@ -10,15 +10,21 @@ from zetta_utils import log
 
 logger = log.get_logger("zetta_utils")
 
-# For now, CLI requires all modules to be installed
-# If the need arises, the installed modules can be specified
-# through a config file.
-zetta_utils.load_all_modules()
-
 
 @click.group()
 @click.option("-v", "--verbose", count=True)
-def cli(verbose):  # pragma: no cover # no logic, delegation
+@click.option(
+    "--load_mode", "-l", type=click.Choice(["all", "inference", "training"]), default="all"
+)
+def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
+    if load_mode == "all":
+        zetta_utils.load_all_modules()
+    elif load_mode == "inference":
+        zetta_utils.load_inference_modules()
+    else:
+        assert load_mode == "training"
+        zetta_utils.load_training_modules()
+
     verbosity_map = {
         0: "WARN",
         1: "INFO",
@@ -26,10 +32,6 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
     }
 
     verbose = min(verbose, 2)
-    for k in ["zetta_user", "zetta_project"]:
-        assert k.upper() in os.environ, f"Env variable '{k.upper()}' must be set to run zetta cli"
-        log.set_logging_label(k, os.environ[k.upper()])
-
     log.set_verbosity(verbosity_map[verbose])
     log.configure_logger()
 

@@ -1,0 +1,536 @@
+{
+    "annotationColor": "#ff0000",
+    "annotationSelectionShowsSegmentation": false,
+    "annotationTags": [],
+    "annotations": [
+        {
+            "description": "Step misalignment after a missing section\n",
+            "id": "7b5e78810064fd53448f62ca229d1b60e7e35bdf",
+            "pointA": [
+                52632.3828125,
+                73167.4140625,
+                1040
+            ],
+            "pointB": [
+                54340.7421875,
+                74262.7265625,
+                1041
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Wiggle near a cell body\n",
+            "id": "a7e912021578a7530d0a6ae2f0041a12bfd44db8",
+            "pointA": [
+                37145.19921875,
+                73478.1796875,
+                1051
+            ],
+            "pointB": [
+                38265.80078125,
+                74810.6875,
+                1052
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Large step\n",
+            "id": "32d960326ee8f3046c68e219478791e3ea7b4c6c",
+            "pointA": [
+                39413.703125,
+                74081.015625,
+                1054
+            ],
+            "pointB": [
+                45252.4609375,
+                78545.375,
+                1055
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Step at a pale section\n",
+            "id": "c7433836d1848ab6d4d5a47d17f673c4125b78e6",
+            "pointA": [
+                41532.640625,
+                70158.6171875,
+                1048
+            ],
+            "pointB": [
+                43470.9296875,
+                72419.28125,
+                1049
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Step *after* a fold. Caused by directional bias\n",
+            "id": "70c8e47b98eb700747ea6847dc321611995d91a9",
+            "pointA": [
+                41013.55859375,
+                77279.578125,
+                1023.0000610351562
+            ],
+            "pointB": [
+                43045.859375,
+                79449.65625,
+                1024
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Problems at fold intersection\n",
+            "id": "2928a3749f507d170e49512aa137f39ee0da5dc3",
+            "pointA": [
+                38397.50390625,
+                77508.8046875,
+                1023.0000610351562
+            ],
+            "pointB": [
+                40682.40625,
+                80838.5625,
+                1024
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Step\n",
+            "id": "fc2f8c7bfe2ddf721902c6c2ae70846deeb9f096",
+            "pointA": [
+                39640.6640625,
+                73276.1484375,
+                1058
+            ],
+            "pointB": [
+                42513.76171875,
+                75848.453125,
+                1059
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Large Step\n",
+            "id": "b2399e2c378a762b3b8e9513548add27374fc38e",
+            "pointA": [
+                48485.84765625,
+                83959.28125,
+                1027
+            ],
+            "pointB": [
+                50856.35546875,
+                89867.59375,
+                1028
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "184dacca6854d4de61ca866ca8559a498fd5cf67",
+            "pointA": [
+                41761.19921875,
+                78042.4140625,
+                1040.5
+            ],
+            "pointB": [
+                43721.26953125,
+                80511.7421875,
+                1041.5
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "c5b6d3052e175ffb9c0a004813f1f6b2185d9f83",
+            "pointA": [
+                38079.69921875,
+                75047.7421875,
+                1046
+            ],
+            "pointB": [
+                38787.2578125,
+                76039.0390625,
+                1047
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "0165ab2cdb1db721d1c9b73d962ed1a95391f3e0",
+            "pointA": [
+                36948.34765625,
+                74307.8359375,
+                1048
+            ],
+            "pointB": [
+                39573.859375,
+                76980.0390625,
+                1049
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "ec6cbdf8dc696d5f75d3148274891fac6f92b36b",
+            "pointA": [
+                43982.3671875,
+                74342.59375,
+                1050
+            ],
+            "pointB": [
+                46719.21875,
+                76738.234375,
+                1051
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "80b6ff176754c59e987b546d9661fb3e030830dc",
+            "pointA": [
+                39336.97265625,
+                66569.3828125,
+                1053
+            ],
+            "pointB": [
+                40119.95703125,
+                69543.28125,
+                1054
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "5444da95332bb020d07636cc97b7a9a228879714",
+            "pointA": [
+                44392.9453125,
+                73387.7734375,
+                946.0000610351562
+            ],
+            "pointB": [
+                45642.4140625,
+                76194.640625,
+                947.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "fe413335d355ef90cfef5bad6e54cda183282612",
+            "pointA": [
+                40547.07421875,
+                76106.828125,
+                940.0000610351562
+            ],
+            "pointB": [
+                41840.078125,
+                77284.890625,
+                941.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "4d13b1fd230a5d315a4d58a1be633a98fe285f48",
+            "pointA": [
+                37986.2265625,
+                76914.921875,
+                940.0000610351562
+            ],
+            "pointB": [
+                38884.140625,
+                77547.0546875,
+                941.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "65e1e55ac64d23fef421f9e4526297054982d9ca",
+            "pointA": [
+                37752.390625,
+                79522.3828125,
+                940.0000610351562
+            ],
+            "pointB": [
+                38836.0546875,
+                84366.296875,
+                941.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "7e6f51972230bde25c2a1ce61b33c4f75c1ae696",
+            "pointA": [
+                41602.30078125,
+                74031.0546875,
+                940.0000610351562
+            ],
+            "pointB": [
+                43107.2109375,
+                75212.7109375,
+                941.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "091265881b6c906a7eb0eff46b36ddfcd02c8820",
+            "pointA": [
+                41034.8046875,
+                66269.0703125,
+                940.0000610351562
+            ],
+            "pointB": [
+                43261.63671875,
+                67418.3984375,
+                941.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "469915a8f9228695b1ad2152f7ec94e9e87d2c10",
+            "pointA": [
+                42424.66796875,
+                70420.96875,
+                962.0000610351562
+            ],
+            "pointB": [
+                45427.30078125,
+                72202.4375,
+                963.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "d73b0d1435e0c43be1619af0bee92e57530db8a4",
+            "pointA": [
+                39741.68359375,
+                70579,
+                962.0000610351562
+            ],
+            "pointB": [
+                41318.4296875,
+                71918.6953125,
+                963.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Fold shadow!",
+            "id": "b02d3ef6513406828f5b03723480b59ee62e1f42",
+            "point": [
+                45259.6328125,
+                70903.453125,
+                962.0000610351562
+            ],
+            "type": "point"
+        },
+        {
+            "id": "ed54d55bd2edf02e129fe58f9625c3d8b682bea7",
+            "pointA": [
+                36772.83203125,
+                79465.5625,
+                949.0000610351562
+            ],
+            "pointB": [
+                37868.36328125,
+                89585.8203125,
+                950.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "7bbadbbbd04717120fff63efdb7310411f0031fe",
+            "pointA": [
+                38396.8671875,
+                69559.203125,
+                927.0000610351562
+            ],
+            "pointB": [
+                43021.68359375,
+                71116.6015625,
+                928.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "d2180673e7d18fa7d0a6b8d7d086a8201b6c1758",
+            "pointA": [
+                40156.28515625,
+                76446.5234375,
+                925.0000610351562
+            ],
+            "pointB": [
+                41796.5859375,
+                78300.0078125,
+                926.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "343d206aae1274adb80aaa23fc13238d5105f718",
+            "pointA": [
+                42028.984375,
+                69088.515625,
+                966.0000610351562
+            ],
+            "pointB": [
+                43321.98828125,
+                71204.0078125,
+                967.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "8832f355f2ee4ec5f54469977d812fb304ca7e42",
+            "pointA": [
+                42955.60546875,
+                68891.0078125,
+                969.0000610351562
+            ],
+            "pointB": [
+                46655.02734375,
+                71304.609375,
+                970.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "e6580e0bac41248f65bd354fc83ff4502341290b",
+            "pointA": [
+                38403.21875,
+                80892.84375,
+                984.0000610351562
+            ],
+            "pointB": [
+                40132.35546875,
+                88052.1484375,
+                985.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "a069157bf6703173c68a91717af8ec616ed04264",
+            "pointA": [
+                40158.32421875,
+                75358.9609375,
+                1000.0000610351562
+            ],
+            "pointB": [
+                42921.30078125,
+                85502.8984375,
+                1001.0000610351562
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "6c2f328c4bfc3de04f8076fe3246bb6d237dd999",
+            "pointA": [
+                43398.21875,
+                76106.796875,
+                1036
+            ],
+            "pointB": [
+                45275.3828125,
+                79920.34375,
+                1037
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "7181f220eadcab7f8f6756f1c9d6f18d4745f198",
+            "pointA": [
+                41098.1328125,
+                70027.8984375,
+                1081
+            ],
+            "pointB": [
+                43795.4765625,
+                72574.390625,
+                1082
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "a9a28132b1f7e42ce38e96cfdb3277d93b4fe92a",
+            "pointA": [
+                43949.90625,
+                72804.234375,
+                1081
+            ],
+            "pointB": [
+                44793.94921875,
+                73544.125,
+                1082
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "2f558222c37efbf3ed4c5f4e1311fdb0373c811b",
+            "pointA": [
+                38551.640625,
+                71866.8359375,
+                1081
+            ],
+            "pointB": [
+                40606.07421875,
+                73784.7890625,
+                1082
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "2217d874812fff20a4599a4ad497401ba6058e61",
+            "pointA": [
+                39432.8046875,
+                73412.59375,
+                1084
+            ],
+            "pointB": [
+                40741.5,
+                79363.859375,
+                1085
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "449d6098729924a468e2f1b03531707176509248",
+            "pointA": [
+                35435.5078125,
+                81964.1796875,
+                1081
+            ],
+            "pointB": [
+                37224.15625,
+                84546.5859375,
+                1082
+            ],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "id": "a66b459b8fcc9c92fd319e235414c6e485f7aa5f",
+            "pointA": [
+                42193.80078125,
+                76154.46875,
+                1088
+            ],
+            "pointB": [
+                43697.90234375,
+                79808.140625,
+                1089
+            ],
+            "type": "axis_aligned_bounding_box"
+        }
+    ],
+    "bracketShortcutsShowSegmentation": false,
+    "name": "remote/zfish_10132022_cutout_misalignments",
+    "selectedAnnotation": {
+        "id": "a66b459b8fcc9c92fd319e235414c6e485f7aa5f",
+        "ungroupable": true
+    },
+    "tool": "annotateBoundingBox",
+    "type": "annotation",
+    "voxelSize": [
+        4,
+        4,
+        30
+    ]
+}

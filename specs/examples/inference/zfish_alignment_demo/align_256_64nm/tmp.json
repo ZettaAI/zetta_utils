@@ -31,7 +31,7 @@
                 "operation": {
                     "@type": "VolumetricCallableOperation",
                     "fn": {
-                        "@type": "align_with_online_finetunner",
+                        "@type": "align_with_online_finetuner",
                         "@mode": "partial",
                         "sm": 50
                     },
@@ -57,7 +57,7 @@
                 "operation": {
                     "@type": "VolumetricCallableOperation",
                     "fn": {
-                        "@type": "align_with_online_finetunner",
+                        "@type": "align_with_online_finetuner",
                         "@mode": "partial",
                         "sm": 50
                     },

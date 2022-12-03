@@ -22,7 +22,7 @@ target: {
 			operation: {
 				"@type": "VolumetricCallableOperation"
 				fn: {
-					"@type": "align_with_online_finetunner"
+					"@type": "align_with_online_finetuner"
 					"@mode": "partial"
 					sm:      #RIGIDITY
 				}

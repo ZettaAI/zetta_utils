@@ -4,7 +4,7 @@
 Description
 -----------
 
-``zetta_utils.layer`` is an abstraction that allows reading forom and writing to external data sources.
+``zetta_utils.layer`` is an abstraction that allows reading from and writing to external data sources.
 Users interact with external data sources by creating data layers (``zetta_utils.layer.Layer``).
 A layer represents an indexable set of data, and is defined by an indexing scheme, IO backend,
 and a set of processors applied to the data/indexes during IO operations.

@@ -11,6 +11,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Set,
     Type,
     Union,
     runtime_checkable,
@@ -20,14 +21,27 @@ import attrs
 from typing_extensions import ParamSpec
 
 from . import id_generation
-from .dependency import Dependency
 from .tasks import Task
 
-BatchType = Optional[Union[Dependency, List[Task], List["Flow"]]]
-FlowFnYieldType = Union[Dependency, "Task", List["Task"], "Flow", List["Flow"]]
+BatchType = Optional[Union["Dependency", List[Task], List["Flow"]]]
+FlowFnYieldType = Union["Dependency", "Task", List["Task"], "Flow", List["Flow"]]
 FlowFnReturnType = Generator[FlowFnYieldType, None, Any]
 
 P = ParamSpec("P")
+
+
+@attrs.mutable
+class Dependency:
+    wait_for: Optional[Union[Union["Flow", "Task"], List[Union["Flow", "Task"]]]] = None
+    ids: Optional[Set[str]] = attrs.field(init=False)
+
+    def __attrs_post_init__(self) -> None:
+        if self.wait_for is None:
+            self.ids = None
+        elif isinstance(self.wait_for, list):
+            self.ids = set(e.id_ for e in self.wait_for)
+        else:
+            self.ids = set([self.wait_for.id_])
 
 
 @runtime_checkable

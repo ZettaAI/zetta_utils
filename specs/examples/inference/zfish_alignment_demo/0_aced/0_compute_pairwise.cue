@@ -17,7 +17,7 @@
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type":  "align_with_online_finetunner"
+			"@type":  "align_with_online_finetuner"
 			"@mode":  "partial"
 			sm:       #RIGIDITY
 			num_iter: #NUM_ITER
@@ -27,7 +27,7 @@
 	chunk_size: [2048, 2048, 1]
 }
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
 	bcube: {

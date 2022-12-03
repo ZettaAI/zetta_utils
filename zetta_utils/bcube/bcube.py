@@ -55,7 +55,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a :class:`BoundingBoxND` from slices at the given resolution.
 
-        :param slices: Tuple of slices represeinting a bounding box.
+        :param slices: Tuple of slices representing a bounding box.
         :param resolution: Resolution at which the slices are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).
@@ -91,8 +91,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a :class:`BoundingBoxND` from start and end coordinates at the given resolution.
 
-        :param start_coord: Tuple represeting the start coordinate.
-        :param end_coord: Tuple represeting the end coordinate.
+        :param start_coord: Tuple representing the start coordinate.
+        :param end_coord: Tuple representing the end coordinate.
         :param resolution: Resolution at which the coordinates are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).

@@ -7,6 +7,11 @@ log.add_supress_traceback_module(builder)
 
 
 def load_all_modules():
+    load_inference_modules()
+    load_training_modules()
+
+
+def load_inference_modules():
     from . import (
         alignment,
         augmentations,
@@ -15,8 +20,20 @@ def load_all_modules():
         mazepa_layer_processing,
         tensor_ops,
         tensor_typing,
+    )
+    from .layer import volumetric
+    from .layer.volumetric import cloudvol
+
+
+def load_training_modules():
+    from . import (
+        alignment,
+        augmentations,
+        convnet,
+        mazepa,
+        tensor_ops,
+        tensor_typing,
         training,
-        viz,
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol

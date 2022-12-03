@@ -125,7 +125,7 @@ def dummy_iter(iterable):
                             make_test_task(fn=lambda: None, id_="b"),
                             make_test_task(fn=lambda: None, id_="c"),
                         ],
-                        Dependency(["a"]),
+                        Dependency([make_test_task(fn=lambda: None, id_="a")]),
                         [
                             make_test_task(fn=lambda: None, id_="d"),
                         ],
@@ -148,7 +148,7 @@ def dummy_iter(iterable):
                             make_test_task(fn=lambda: None, id_="b"),
                             make_test_task(fn=lambda: None, id_="c"),
                         ],
-                        Dependency(["a"]),
+                        Dependency([make_test_task(fn=lambda: None, id_="a")]),
                         [
                             make_test_task(fn=lambda: None, id_="d"),
                         ],
@@ -188,13 +188,13 @@ def dummy_iter(iterable):
                             iterable=[
                                 make_test_task(fn=lambda: None, id_="x"),
                                 make_test_task(fn=lambda: None, id_="y"),
-                                Dependency(["x"]),
+                                Dependency([make_test_task(fn=lambda: None, id_="x")]),
                                 make_test_task(fn=lambda: None, id_="z"),
                             ],
                             id_="flow_1",
                         ),
                         make_test_task(fn=lambda: None, id_="a"),
-                        Dependency("a"),
+                        Dependency([make_test_task(fn=lambda: None, id_="a")]),
                         make_test_task(fn=lambda: None, id_="b"),
                     ],
                     id_="flow_0",

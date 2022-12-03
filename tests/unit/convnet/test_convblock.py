@@ -19,8 +19,6 @@ from ..helpers import assert_array_equal
 )
 def test_channel_number(num_channels: list[int]):
     block = convnet.architecture.ConvBlock(num_channels=num_channels)
-
-    block = convnet.architecture.ConvBlock(num_channels=num_channels)
     conv_count = 0
     for e in block.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):
@@ -47,6 +45,25 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
     for e in block.layers:
         if isinstance(e, torch.nn.modules.conv._ConvNd):
             assert e.kernel_size == expected[conv_count]
+            conv_count += 1
+
+
+@pytest.mark.parametrize(
+    "paddings, expected",
+    [
+        [3, [(3, 3), (3, 3)]],
+        [[3, 5], [(3, 3), (5, 5)]],
+        [(3, 1), [(3, 1), (3, 1)]],
+        [[(3, 1), (3, 2)], [(3, 1), (3, 2)]],
+    ],
+)
+def test_padding(paddings, expected: list[tuple[int]]):
+    block = convnet.architecture.ConvBlock(num_channels=[1, 2, 3], paddings=paddings)
+
+    conv_count = 0
+    for e in block.layers:
+        if isinstance(e, torch.nn.modules.conv._ConvNd):
+            assert e.padding == expected[conv_count]
             conv_count += 1
 
 
@@ -83,9 +100,7 @@ def not_test_forward_naive(mocker):
 
 def test_forward_skips(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
-    block = convnet.architecture.ConvBlock(
-        num_channels=[1, 2, 3, 4, 5], skips={"0": 2, "1": 2, "2": 3}
-    )
+    block = convnet.architecture.ConvBlock(num_channels=[1, 2, 3, 4, 5], skips={0: 2, 1: 2, 2: 3})
     result = block(torch.ones([1, 1, 1, 1]))
     assert_array_equal(
         result.cpu().detach().numpy(), 6 * torch.ones([1, 1, 1, 1]).cpu().detach().numpy()

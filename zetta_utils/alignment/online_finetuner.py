@@ -8,7 +8,7 @@ from zetta_utils import builder, log, tensor_ops
 logger = log.get_logger("zetta_utils")
 
 
-@builder.register("align_with_online_finetunner")
+@builder.register("align_with_online_finetuner")
 def align_with_online_finetuner(
     src,  # (C, X, Y, Z)
     tgt,  # (C, X, Y, Z)

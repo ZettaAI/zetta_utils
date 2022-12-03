@@ -9,6 +9,8 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
+Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
+
 
 @builder.register("ConvBlock")
 @typechecked
@@ -20,7 +22,7 @@ class ConvBlock(nn.Module):
 
     :param num_channels: List of integers specifying the number of channels of each
         convolution. For example, specification [1, 2, 3] will correspond to a sequence of
-        2 convolutions, where the first one has 1 input channel and two output channels and
+        2 convolutions, where the first one has 1 input channel and 2 output channels and
         the second one has 2 input channels and 3 output channels.
     :param conv: Constructor for convolution layers.
     :param activation: Constructor for activation layers.
@@ -43,9 +45,9 @@ class ConvBlock(nn.Module):
         corresponding convolution in order. The list length must match the number of
         convolutions.
     :param skips: Specification for residual skip connection. For example,
-        ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
-        first convolution (index 1) to the third covnolution (index 3). 0 specifies the input
-        to the first layer.
+        ``skips={1: 3}`` specifies a single residual skip connection from the output of the
+        first convolution (index 1) to the input of third convolution (index 3).
+        0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
     """
@@ -58,13 +60,8 @@ class ConvBlock(nn.Module):
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
         kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
         strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
-        paddings: Union[
-            Literal["same", "valid"],
-            int,
-            Tuple[int, ...],
-            List[Union[Literal["same", "valid"], int, Tuple[int, ...]]],
-        ] = "same",
-        skips: Optional[Dict[Union[int, str], int]] = None,
+        paddings: Union[Padding, List[Padding]] = "same",
+        skips: Optional[Dict[int, int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):  # pylint: disable=too-many-locals
@@ -72,7 +69,7 @@ class ConvBlock(nn.Module):
         if skips is None:
             self.skips = {}
         else:
-            self.skips = {int(k): v for k, v in skips.items()}
+            self.skips = skips
         self.layers = torch.nn.ModuleList()
 
         if isinstance(kernel_sizes, list):
@@ -90,9 +87,7 @@ class ConvBlock(nn.Module):
         assert len(strides_) == (len(num_channels) - 1)
 
         if isinstance(paddings, list):
-            paddings_ = (
-                paddings
-            )  # type: List[Union[Literal["same", "valid"], int, Tuple[int, ...]]]
+            paddings_ = paddings  # type: List[Padding]
         else:
             paddings_ = [paddings for _ in range(len(num_channels) - 1)]
 

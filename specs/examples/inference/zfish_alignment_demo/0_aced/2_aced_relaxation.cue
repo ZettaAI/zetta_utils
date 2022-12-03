@@ -11,7 +11,7 @@
 #XY_CROP:      128
 #XY_OUT_CHUNK: 2048
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type":         "build_aced_relaxation_flow"
 	dst_resolution:  #DST_RESOLUTION

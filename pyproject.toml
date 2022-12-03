@@ -35,7 +35,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 cli = [
-    "click >= 8.0.1"
+    "click == 8.0.1"
 ]
 tensor-typing = [
     "torch == 1.12.1", # mypy error on newer
@@ -54,7 +54,8 @@ viz = [
     "opencv-python >= 4.5.5"
 ]
 cloudvol = [
-    "cloud-volume >= 8.7.0",
+    "cloud-files== 4.11.0",
+    "cloud-volume == 8.16.0",
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [
@@ -71,7 +72,7 @@ alignment = [
 mazepa = [
     "coolname >= 1.1.0",
     "task-queue >= 2.12.0",
-    "boto3 >= 1.24.68",
+    "boto3 == 1.26.10",
 ]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet]",
@@ -133,7 +134,7 @@ max-line-length = 99
 good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn,q'''
 additional-builtins = '''reveal_type'''
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]

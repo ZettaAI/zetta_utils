@@ -6,7 +6,7 @@
 #SRC_PATH:             "gs://zfish_unaligned/coarse_x0/encodings"
 #DST_PATH:             "gs://sergiy_exp/aced/zfish/alignment_\(#STAGE0_XY_RESOLUTION)_\(#STAGE1_XY_RESOLUTION)nm/field_\(#VERSION)"
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
 	bcube: {
@@ -22,7 +22,7 @@ target: {
 			operation: {
 				"@type": "VolumetricCallableOperation"
 				fn: {
-					"@type":  "align_with_online_finetunner"
+					"@type":  "align_with_online_finetuner"
 					"@mode":  "partial"
 					sm:       #RIGIDITY
 					num_iter: #NUM_ITER
@@ -37,7 +37,7 @@ target: {
 			operation: {
 				"@type": "VolumetricCallableOperation"
 				fn: {
-					"@type":  "align_with_online_finetunner"
+					"@type":  "align_with_online_finetuner"
 					"@mode":  "partial"
 					sm:       #RIGIDITY
 					num_iter: #NUM_ITER

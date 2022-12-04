@@ -7,15 +7,15 @@ from cloudfiles import CloudFiles
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.parsing import ngl_state
 
-THIS_DIR = pathlib.Path(__file__).parent.resolve()
-TEST_DATA_DIR = THIS_DIR / "../assets/remote_layers/"
+PARENT_DIR = pathlib.Path(__file__).parents[1]
+TEST_DATA_DIR = "assets/remote_layers/"
 TEST_READ_FILE = "ngl_layer.json"
 TEST_WRITE_FILE = "ngl_layer_write.json"
-REMOTE_LAYERS_PATH = f"file://{TEST_DATA_DIR}"
+REMOTE_LAYERS_PATH = f"file://{PARENT_DIR}/{TEST_DATA_DIR}"
+os.environ["REMOTE_LAYERS_PATH"] = REMOTE_LAYERS_PATH
 
 
 def test_read_remote_annotations():
-    os.environ["REMOTE_LAYERS_PATH"] = REMOTE_LAYERS_PATH
     result = ngl_state.read_remote_annotations(TEST_READ_FILE)
     assert len(result) == 2
 

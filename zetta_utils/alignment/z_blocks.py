@@ -11,14 +11,14 @@ logger = log.get_logger("zetta_utils")
 @builder.register("get_z_blocks")
 def get_z_blocks(remote_layer: str) -> List[Union[BoundingCube, Vec3D]]:
     result = ngl_state.read_remote_annotations(remote_layer)
-    logger.info(f"Final number of blocks/points: {len(result)}")
+    logger.info(f"Number of bcubes/points: {len(result)}")
     return result
 
 
 @builder.register("put_z_blocks")
-def put_z_blocks(remote_layer: str) -> None:
-    resolution = [4, 4, 30]
-    bcubes_or_points = ngl_state.read_remote_annotations(
-        "remote/zfish_10132022_cutout_misalignments"
-    )
+def put_z_blocks(
+    remote_layer: str,
+    resolution: Vec3D,
+    bcubes_or_points: List[Union[BoundingCube, Vec3D]],
+) -> None:
     ngl_state.write_remote_annotations(remote_layer, resolution, bcubes_or_points)

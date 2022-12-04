@@ -1,11 +1,9 @@
 """neuroglancer state parsing."""
 
 from enum import Enum
-from enum import Enum
 from os import environ
 from typing import Dict, List, Union
 
-import numpy as np
 import numpy as np
 from cloudfiles import CloudFiles
 from neuroglancer.viewer_state import (
@@ -16,7 +14,6 @@ from neuroglancer.viewer_state import (
 )
 
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.bcube.bcube import BoundingBoxND
 from zetta_utils.bcube.bcube import BoundingBoxND
 from zetta_utils.log import get_logger
 from zetta_utils.typing import Vec3D
@@ -42,62 +39,6 @@ class AnnotationKeys(Enum):
 
 
 class DefaultLayerValues(Enum):
-    COLOR = "#ff0000"
-    TYPE = "annotation"
-    TOOL = "annotateBoundingBox"
-
-
-def load(layer_name: str) -> AnnotationLayer:
-    from cloudfiles import CloudFiles
-    from neuroglancer.viewer_state import make_layer
-
-
-class NGL_LAYER_KEYS(Enum):
-    ANNOTATION_COLOR = "annotationColor"
-    ANNOTATIONS = "annotations"
-    NAME = "name"
-    RESOLUTION = "voxelSize"
-    TOOL = "tool"
-    TYPE = "type"
-
-
-class ANNOTATION_KEYS(Enum):
-    ID = "id"
-    POINT = "point"
-    POINT_A = "pointA"
-    POINT_B = "pointB"
-    TYPE = "type"
-
-
-class DEFAULT_LAYER_VALUES(Enum):
-    COLOR = "#ff0000"
-    TYPE = "annotation"
-    TOOL = "annotateBoundingBox"
-
-
-def load(layer_name: str) -> AnnotationLayer:
-    from cloudfiles import CloudFiles
-    from neuroglancer.viewer_state import make_layer
-
-
-class NGL_LAYER_KEYS(Enum):
-    ANNOTATION_COLOR = "annotationColor"
-    ANNOTATIONS = "annotations"
-    NAME = "name"
-    RESOLUTION = "voxelSize"
-    TOOL = "tool"
-    TYPE = "type"
-
-
-class ANNOTATION_KEYS(Enum):
-    ID = "id"
-    POINT = "point"
-    POINT_A = "pointA"
-    POINT_B = "pointB"
-    TYPE = "type"
-
-
-class DEFAULT_LAYER_VALUES(Enum):
     COLOR = "#ff0000"
     TYPE = "annotation"
     TOOL = "annotateBoundingBox"
@@ -131,7 +72,6 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D
             )
             result.append(bcube)
         except AttributeError:
-            point: Vec3D = annotation.point * resolution
             point: Vec3D = annotation.point * resolution
             result.append(point)
     return result

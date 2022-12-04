@@ -19,7 +19,6 @@ from zetta_utils.log import get_logger
 from zetta_utils.typing import Vec3D
 
 logger = get_logger("zetta_utils")
-remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
 
 
 class NglLayerKeys(Enum):
@@ -46,6 +45,7 @@ class DefaultLayerValues(Enum):
 
 
 def read_remote_annotations(layer_name: str) -> List[Union[BoundingCube, Vec3D]]:
+    remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
     logger.info(f"Remote layer: {remote_path}/{layer_name}.")
 
     cf = CloudFiles(remote_path)
@@ -82,6 +82,7 @@ def write_remote_annotations(
     resolution: Vec3D,
     bcubes_or_points: List[Union[BoundingCube, Vec3D]],
 ) -> None:
+    remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
     annotations: List[Dict] = []
     layer_d = {
         NglLayerKeys.NAME.value: layer_name,

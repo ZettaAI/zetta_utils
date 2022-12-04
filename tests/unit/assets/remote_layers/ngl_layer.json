@@ -1,0 +1,46 @@
+{
+    "annotationColor": "#ff0000",
+    "annotationSelectionShowsSegmentation": false,
+    "annotationTags": [],
+    "annotations": [
+        {
+            "description": "Step misalignment after a missing section\n",
+            "id": "7b5e78810064fd53448f62ca229d1b60e7e35bdf",
+            "pointA": [
+                52632.3828125,
+                73167.4140625,
+                1040
+            ],
+            "pointB": [
+                54340.7421875,
+                74262.7265625,
+                1041
+            ],
+            "tagIds": [],
+            "type": "axis_aligned_bounding_box"
+        },
+        {
+            "description": "Fold shadow!",
+            "id": "b02d3ef6513406828f5b03723480b59ee62e1f42",
+            "point": [
+                45259.6328125,
+                70903.453125,
+                962.0000610351562
+            ],
+            "type": "point"
+        }
+    ],
+    "bracketShortcutsShowSegmentation": false,
+    "name": "remote/zfish_10132022_cutout_misalignments",
+    "selectedAnnotation": {
+        "id": "a66b459b8fcc9c92fd319e235414c6e485f7aa5f",
+        "ungroupable": true
+    },
+    "tool": "annotateBoundingBox",
+    "type": "annotation",
+    "voxelSize": [
+        4,
+        4,
+        30
+    ]
+}

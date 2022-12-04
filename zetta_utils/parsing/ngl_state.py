@@ -113,8 +113,6 @@ def write_remote_annotations(
             }
             annotations.append(annotation)
 
-    layer = make_layer(layer_d)
     cf = CloudFiles(remote_path)
-
     logger.info(f"Writing {len(bcubes_or_points)} bcubes/points to {remote_path}/{layer_name}.")
-    cf.put_json(layer_name, layer.to_json())
+    cf.put_json(layer_name, make_layer(layer_d).to_json())

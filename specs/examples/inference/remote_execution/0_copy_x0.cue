@@ -2,10 +2,27 @@
 #DST_PATH: "gs://tmp_2w/inference_tests/remote/raw_img_x0"
 
 "@type": "mazepa.execute"
+exec_context: [
+	{
+		"@type": "zutils-worker-deployment"
+		cluster: "zutils-cpu-x0"
+		resources: {
+			nvidiagpu: 1
+			memory:    "700G"
+		}
+		"work_queue":    "aaa-zutils-x0"
+		autoscale_queue: "aaa-zutils-x0"
+		image:           "us.gcr.io/zutils-x0:latest"
+	},
+	{
+		"@type": "sqs_queue_ctx"
+		name:    "aaa-zutils-outcome-x0"
+	},
+]
 exec_queue: {
 	"@type":            "mazepa.SQSExecutionQueue"
-	name:               "sergiy-corgie-x0"
-	outcome_queue_name: "sergiy-crogie-completion-x0"
+	name:               "aaa-zutils-x0"
+	outcome_queue_name: "aaa-zutils-outcome-x0"
 	pull_lease_sec:     30
 }
 target: {

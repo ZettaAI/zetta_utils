@@ -7,7 +7,7 @@ from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from .. import RawVolumetricIndex, VolumetricIndex, build_volumetric_layer
 from . import CVBackend, InfoExistsModes, PrecomputedInfoSpec
@@ -25,6 +25,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     readonly: bool = False,
     info_reference_path: Optional[str] = None,
     info_field_overrides: Optional[Dict[str, Any]] = None,
+    info_chunk_size: Optional[IntVec3D] = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
     index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
@@ -48,6 +49,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param readonly: Whether layer is read only.
     :param info_reference_path: Path to a reference CloudVolume for info.
     :param info_field_overrides: Manual info field specifications.
+    :param info_chunk_size: Precomputed chunk size for all scales.
     :param on_info_exists: Behavior mode for when both new info specs aregiven
         and layer info already exists.
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
@@ -72,6 +74,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         info_spec=PrecomputedInfoSpec(
             reference_path=info_reference_path,
             field_overrides=info_field_overrides,
+            chunk_size=info_chunk_size,
         ),
     )
 

@@ -15,7 +15,7 @@ items:
     uid: 82ff7cfd-d04b-4c00-8791-8e3e96ec13bf
   spec:
     progressDeadlineSeconds: 600
-    replicas: 2
+    replicas: 60
     revisionHistoryLimit: 10
     selector:
       matchLabels:
@@ -91,7 +91,7 @@ items:
             '
           command:
           - /bin/sh
-          image: us.gcr.io/zetta-research/zetta_utils:sergiy_x9
+          image: us.gcr.io/zetta-research/zetta_utils:sergiy_x10
           imagePullPolicy: IfNotPresent
           resources:
             limits:

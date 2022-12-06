@@ -1,0 +1,1 @@
+{"name":"ngl_layer_write.json","voxelSize":[4,4,30],"tool":"annotateBoundingBox","type":"annotation","annotationColor":"#ff0000","annotations":[{"id":"0","pointA":[52632.3828125,73167.4140625,1040.0],"pointB":[54340.7421875,74262.7265625,1041.0],"type":"axis_aligned_bounding_box"},{"id":"1","point":[45259.6328125,70903.453125,962.000061035],"type":"point"}]}

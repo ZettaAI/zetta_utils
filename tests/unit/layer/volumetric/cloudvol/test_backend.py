@@ -87,6 +87,7 @@ def test_cv_backend_info_overwrite(path, reference, mode, mocker):
     cv_m.commit_info = mocker.MagicMock()
     info_spec = cloudvol.backend.PrecomputedInfoSpec(
         reference_path=reference,
+        chunk_size=[1024, 1024, 1],
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 

@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 import json
 import os
-from typing import Any, Dict, Iterable, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 import attrs
 import cachetools
@@ -14,7 +14,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from ... import LayerBackend
 from .. import VolumetricIndex
@@ -44,7 +44,8 @@ def get_cv_cached(*args, **kwargs):
 class PrecomputedInfoSpec:
     reference_path: Optional[str] = None
     field_overrides: Optional[Dict[str, Any]] = None
-    ensure_scales: Optional[Iterable[int]] = None
+    chunk_size: Optional[IntVec3D] = None
+    # ensure_scales: Optional[Iterable[int]] = None
 
     def make_info(self) -> Optional[Dict[str, Any]]:
         if self.reference_path is None and self.field_overrides is None:
@@ -57,9 +58,12 @@ class PrecomputedInfoSpec:
             if self.reference_path is not None:
                 reference_info = _get_info(self.reference_path)
             result = {**reference_info, **field_overrides}
+            if self.chunk_size is not None:
+                for e in result["scales"]:
+                    e["chunk_sizes"] = [self.chunk_size]
 
-            if self.ensure_scales is not None:  # pragma: no cover
-                raise NotImplementedError()
+            # if self.ensure_scales is not None:  # pragma: no cover
+            #    raise NotImplementedError()
 
         return result
 

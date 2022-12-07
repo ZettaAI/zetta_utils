@@ -17,9 +17,9 @@ class Vec3D(np.ndarray):  # pragma: no cover
 
     # avoid returning Vec3D whenever sliced, defaulting to float or tuple
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self.view(np.ndarray).__getitem__(key)
-        return tuple(self.view(np.ndarray).__getitem__(key))
+        if isinstance(key, slice):
+            return tuple(self.view(np.ndarray).__getitem__(key))
+        return self.view(np.ndarray).__getitem__(key)
 
     def __eq__(self, other):
         return np.array_equal(self, other)
@@ -33,9 +33,9 @@ class IntVec3D(np.ndarray):  # pragma: no cover
 
     # avoid returning IntVec3D whenever sliced, defaulting to int or tuple
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self.view(np.ndarray).__getitem__(key)
-        return tuple(self.view(np.ndarray).__getitem__(key))
+        if isinstance(key, slice):
+            return tuple(self.view(np.ndarray).__getitem__(key))
+        return self.view(np.ndarray).__getitem__(key)
 
     def __eq__(self, other):
         return np.array_equal(self, other)

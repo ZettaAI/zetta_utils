@@ -23,17 +23,17 @@ class BcubeStrider:
     Allows random indexing of the chunks without keeping the full chunk set in memory.
 
     :param bcube: Input bounding cube.
-    :param resolution: Resoluiton at which ``chunk_size`` and ``step_size`` are given.
+    :param resolution: Resoluiton at which ``chunk_size`` and ``stride`` are given.
     :param chunk_size: Size of an individual chunk.
-    :param step_size: Distance between neighboring chunks along each dimension.
+    :param stride: Distance between neighboring chunks along each dimension.
     """
 
     bcube: BoundingCube
     resolution: Vec3D
     chunk_size: Vec3D
-    step_size: Vec3D
+    stride: Vec3D
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
-    step_size_in_unit: Vec3D = attrs.field(init=False)
+    stride_in_unit: Vec3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
@@ -41,13 +41,13 @@ class BcubeStrider:
             self.bcube.bounds[i][1] - self.bcube.bounds[i][0] for i in range(3)
         )
         chunk_size_in_unit = tuple(s * r for s, r in zip(self.chunk_size, self.resolution))
-        step_size_in_unit = tuple(s * r for s, r in zip(self.step_size, self.resolution))
+        stride_in_unit = tuple(s * r for s, r in zip(self.stride, self.resolution))
         step_limits_raw = tuple(
             (b - s) / st + 1
             for b, s, st in zip(
                 bcube_size_in_unit,
                 chunk_size_in_unit,
-                step_size_in_unit,
+                stride_in_unit,
             )
         )
         step_limits = tuple(floor(e) for e in step_limits_raw)
@@ -59,21 +59,21 @@ class BcubeStrider:
                     (
                         self.bcube.bounds[i][0]
                         + chunk_size_in_unit[i]
-                        + (step_limits[i] - 1) * step_size_in_unit[i]
+                        + (step_limits[i] - 1) * stride_in_unit[i]
                     ),
                 )
                 for i in range(3)
             )
             logger.warning(
                 f"Rounding down bcube bounds from {self.bcube.bounds} to {rounded_bcube_bounds} "
-                f"to divide evenly by step size {step_size_in_unit}{self.bcube.unit} "
+                f"to divide evenly by stride {stride_in_unit}{self.bcube.unit} "
                 f"with chunk size {chunk_size_in_unit}{self.bcube.unit}."
             )
 
         # Use `__setattr__` to keep the object frozen.
         object.__setattr__(self, "step_limits", step_limits)
         object.__setattr__(self, "chunk_size_in_unit", chunk_size_in_unit)
-        object.__setattr__(self, "step_size_in_unit", step_size_in_unit)
+        object.__setattr__(self, "stride_in_unit", stride_in_unit)
 
     @property
     def num_chunks(self) -> int:
@@ -90,7 +90,7 @@ class BcubeStrider:
         """Get nth chunk bcube, in order.
 
         :param n: Integer chunk index.
-        :return: Volumetric index for the training chunk chunk, including
+        :return: Volumetric index for the chunk, including
             ``self.desired_resolution`` and the slice representation of the region
             at ``self.index_resolution``.
 
@@ -101,8 +101,7 @@ class BcubeStrider:
             (n // (self.step_limits[0] * self.step_limits[1])) % self.step_limits[2],
         ]
         chunk_origin_in_unit = [
-            self.bcube.bounds[i][0] + self.step_size_in_unit[i] * steps_along_dim[i]
-            for i in range(3)
+            self.bcube.bounds[i][0] + self.stride_in_unit[i] * steps_along_dim[i] for i in range(3)
         ]
         chunk_end_in_unit = [
             origin + size for origin, size in zip(chunk_origin_in_unit, self.chunk_size_in_unit)

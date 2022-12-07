@@ -129,7 +129,7 @@ trainer: {
 	sample_indexer: {
 		"@type": "VolumetricStepIndexer"
 		chunk_size: [1024, 1024, 1]
-		step_size: [512, 512, 1]
+		stride: [512, 512, 1]
 		resolution: [128, 128, 40]
 		desired_resolution: [128, 128, 40]
 		bcube: {

@@ -10,7 +10,7 @@ from zetta_utils import builder, log, mazepa
 from zetta_utils.layer import Layer, LayerIndex
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricIndexChunker
 from zetta_utils.mazepa import Dependency
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 logger = log.get_logger("zetta_utils")
 
@@ -52,14 +52,16 @@ def lrpad(
 
 
 # f-string-without-interpolation should not be necessary, but pylint seems to have a bug
-@builder.register("compute_alignment_quality")
+@builder.register(
+    "compute_alignment_quality", cast_to_vec3d=["resolution"], cast_to_intvec3d=["chunk_size"]
+)
 @mazepa.flow_schema
 @typechecked
 def compute_alignment_quality(
     src: Layer[Any, VolumetricIndex, torch.Tensor],
     idx: VolumetricIndex,
-    chunk_size: Vec3D,
-    resolution: List[Any],
+    chunk_size: IntVec3D,
+    resolution: Vec3D,
     misalignment_thresholds: List[float],
     num_worst_chunks: int,
 ):  # pylint: disable = too-many-locals, too-many-statements, too-many-branches, f-string-without-interpolation

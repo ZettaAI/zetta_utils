@@ -141,7 +141,7 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
 
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D((1, 1, 1)),
     )
     cvb.write(index, value)
     assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)

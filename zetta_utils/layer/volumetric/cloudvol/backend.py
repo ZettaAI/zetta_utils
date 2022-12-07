@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 import json
 import os
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 
 import attrs
 import cachetools
@@ -10,6 +10,7 @@ import fsspec
 import numpy as np
 import torch
 from cloudvolume import CloudVolume
+from numpy import typing as npt
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
@@ -167,22 +168,25 @@ class CVBackend(
         result = tensor_ops.to_torch(result_np)
         return result
 
-    def write(self, idx: VolumetricIndex, value: Tensor):
+    def write(self, idx: VolumetricIndex, value: Union[Tensor, float, int]):
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
-        value = tensor_ops.convert.to_np(value)
-        if len(value.shape) != 4:
-            raise ValueError(
-                "Data written to CloudVolume backend must be in `cxyz` dimension format, "
-                f"but, got a tensor of with ndim == {value.ndim}"
-            )
-
-        value_final = np.transpose(value, (1, 2, 3, 0))
+        if isinstance(value, (float, int)):
+            value_final = value  # type: Union[float, npt.NDArray]
+        else:
+            value = tensor_ops.convert.to_np(value)
+            if len(value.shape) != 4:
+                raise ValueError(
+                    "Data written to CloudVolume backend must be in `cxyz` dimension format, "
+                    f"but, got a tensor of with ndim == {value.ndim}"
+                )
+            value_final = np.transpose(value, (1, 2, 3, 0))
 
         cvol = self._get_cv_at_resolution(idx.resolution)
         slices = idx.to_slices()
         # Enable autocrop for writes only
         cvol.autocrop = True
+
         cvol[slices] = value_final
         cvol.autocrop = False
 

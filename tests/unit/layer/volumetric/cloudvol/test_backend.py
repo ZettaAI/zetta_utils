@@ -130,6 +130,26 @@ def test_cv_backend_write(clear_caches, mocker):
     )
 
 
+def test_cv_backend_write_scalar(clear_caches, mocker):
+    cv_m = mocker.MagicMock()
+    cv_m.__setitem__ = mocker.MagicMock()
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
+    value = 1
+    expected_written = 1
+
+    index = VolumetricIndex(
+        bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
+        resolution=(1, 1, 1),
+    )
+    cvb.write(index, value)
+    assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
+    np.testing.assert_array_equal(
+        cv_m.__setitem__.call_args[0][1],
+        expected_written,
+    )
+
+
 @pytest.mark.parametrize(
     "data_in,expected_exc",
     [

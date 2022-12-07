@@ -28,8 +28,8 @@ class InjectingFilter(logging.Filter):
         super().__init__()
 
     def filter(self, record):
-        for k, v in CTX_VARS.items():
-            value = v.get()
+        for k in ["zetta_user", "zetta_project"]:
+            value = CTX_VARS[k].get()
             if LOKI_HANDLER is not None:
                 LOKI_HANDLER.emitter.tags[k] = value
             setattr(record, k, value)
@@ -110,7 +110,7 @@ def set_verbosity(verbosity_level):
     logging.getLogger("mazepa").setLevel(verbosity_level)
 
 
-ENV_LABELS = [
+ENV_CTX_VARS = [
     "zetta_user",
     "zetta_project",
     "my_node_name",
@@ -118,35 +118,37 @@ ENV_LABELS = [
     "my_pod_ip",
     "my_pod_service_account",
 ]
-CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_LABELS}
+CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_CTX_VARS}
 
 
-def set_logging_label(name, value):
-    print(f"Set up logging label '{name}' to {value}")
+def set_logging_tag(name, value):
+    print(f"Set up logging tag '{name}' to {value}")
     CTX_VARS[name].set(value)
 
 
 @contextmanager
-def label_ctx(key, value):
+def logging_tag_ctx(key, value):
     old_value = CTX_VARS[key].get()
-    set_logging_label(key, value)
+    set_logging_tag(key, value)
     yield
-    set_logging_label(key, old_value)
+    set_logging_tag(key, old_value)
 
 
 def _init_ctx_vars():
     for k in CTX_VARS:
         k_env = k.upper()
         if k_env in os.environ:
-            set_logging_label(k, os.environ[k_env])
+            set_logging_tag(k, os.environ[k_env])
 
 
 _init_ctx_vars()
 
+GRAFANA_USER_ID = "340203"
 GRAFANA_KEY = os.environ.get("GRAFANA_CLOUD_ACCESS_KEY", None)
 if GRAFANA_KEY is not None:
     LOKI_HANDLER = logging_loki.LokiHandler(
-        url=f"https://334581:{GRAFANA_KEY}@logs-prod3.grafana.net/loki/api/v1/push", version="1"
+        url=f"https://{GRAFANA_USER_ID}:{GRAFANA_KEY}@logs-prod3.grafana.net/loki/api/v1/push",
+        version="1",
     )
     print(
         "Configured Grafana Cloud Loki logging. "

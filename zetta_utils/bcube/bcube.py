@@ -5,6 +5,7 @@ from math import floor
 from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
+import numpy as np
 
 from zetta_utils import builder
 from zetta_utils.typing import IntVec3D, Slices3D, Vec3D
@@ -200,7 +201,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         double_sided_crop = []
         for e in crop:
-            if isinstance(e, (int, float)):
+            if isinstance(e, (int, float, np.integer, np.floating)):
                 double_sided_crop += [(e, e)]
             else:
                 double_sided_crop += [e]
@@ -252,11 +253,11 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             raise NotImplementedError  # pragma: no cover
         else:
             double_sided_pad = []
-            for i in pad:
-                if isinstance(i, (int, float)):
-                    double_sided_pad += [(i, i)]
+            for e in pad:
+                if isinstance(e, (int, float, np.integer, np.floating)):
+                    double_sided_pad += [(e, e)]
                 else:
-                    double_sided_pad += [i]
+                    double_sided_pad += [e]
             slices = cast(
                 SlicesT,
                 tuple(

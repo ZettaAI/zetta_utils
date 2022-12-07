@@ -31,7 +31,7 @@ class WarpOperation:
         if self.crop[-1] != 0:
             raise ValueError(f"Z crop must be equal to 0. Received: {self.crop}")
 
-    def __call__(
+    def __call__(  # pylint: disable=too-many-locals
         self,
         idx: VolumetricIndex,
         dst: VolumetricLayer,
@@ -62,7 +62,10 @@ class WarpOperation:
         dst_data_raw = dst_data_raw.to(src_data.dtype)
 
         # Cropping along 2 spatial dimentions, Z is batch
-        dst_data_cropped = tensor_ops.crop(dst_data_raw, self.crop[:-1])
+        # the typed generation is necessary because mypy cannot tell that when you slice an
+        # IntVec3D, the outputs contain ints (might be due to the fact that np.int64s are not ints
+        crop_2d = tuple(int(e) for e in self.crop[:-1])
+        dst_data_cropped = tensor_ops.crop(dst_data_raw, crop_2d)
         dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
         dst[idx] = dst_data
 

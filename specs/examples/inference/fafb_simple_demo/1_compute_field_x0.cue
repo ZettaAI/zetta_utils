@@ -2,7 +2,7 @@
 #DST_PATH: "gs://tmp_2w/inference_tests/field_x20"
 #RIGIDITY: 100
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_flow"
 	chunk_size: [1024, 1024, 1]
@@ -17,7 +17,7 @@ target: {
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type": "align_with_online_finetunner"
+			"@type": "align_with_online_finetuner"
 			"@mode": "partial"
 			sm:      #RIGIDITY
 		}

@@ -46,7 +46,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 model = self.trace_configuration[name]["model"]
                 trace_input = self.trace_configuration[name]["trace_input"]
                 trace = torch.jit.trace(model, trace_input)
-                filepath_jit = filepath + ".static-" + name + ".jit"
+                filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
                 with fsspec.open(filepath_jit, "wb") as f:
                     torch.jit.save(trace, f)
 

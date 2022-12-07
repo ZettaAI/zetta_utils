@@ -1,5 +1,5 @@
 {
-    "@type": "mazepa_execute",
+    "@type": "mazepa.execute",
     "target": {
         "@type": "chunked_write",
         "chunker": {

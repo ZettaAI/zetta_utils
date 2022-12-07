@@ -17,6 +17,10 @@ class LayerBackend(Generic[IndexT, DataT], ABC):  # pylint: disable=too-few-publ
     def write(self, idx: IndexT, value: DataT):
         """Writes given value to the given index"""
 
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get name for the layer"""
+
     # Open problem:
     # This ugliness could be avoided with proper templating
     # CC https://stackoverflow.com/questions/55345608/instantiate-a-type-that-is-a-typevar

@@ -31,7 +31,7 @@ def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
 
 @builder.register("rearrange")
 def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+    return einops.rearrange(tensor=data, **kwargs) # type: ignore # bad typing by einops
 
 
 @builder.register("reduce")
@@ -259,7 +259,9 @@ def interpolate(  # pylint: disable=too-many-locals
     allow_slice_rounding: bool = False,
     unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
-    """Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
+    """
+    Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
+
     :param data: Input tensor with batch and channel dimensions.
     :param size: Desired result shape.
     :param scale_factor: Interpolation scale factor.

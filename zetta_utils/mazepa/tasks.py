@@ -19,7 +19,7 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import log
 
-from . import ctx_vars, id_generation
+from . import id_generation
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -42,7 +42,7 @@ class Task(Generic[R_co]):
     kwargs: Dict = attrs.field(init=False, factory=dict)
 
     _mazepa_callbacks: list[Callable] = attrs.field(factory=list)
-    outcome: TaskOutcome = attrs.field(
+    outcome: TaskOutcome[R_co] = attrs.field(
         factory=functools.partial(
             TaskOutcome,
             status=TaskStatus.NOT_SUBMITTED,
@@ -66,7 +66,6 @@ class Task(Generic[R_co]):
 
     def __call__(self) -> TaskOutcome[R_co]:
         assert self.args_are_set
-        ctx_vars.task_id.set(self.id_)
         logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
         try:
@@ -92,7 +91,6 @@ class Task(Generic[R_co]):
             callback(task=self)
 
         logger.debug(f"DONE: Execution of {self}.")
-        ctx_vars.task_id.set(None)
 
         return self.outcome
 

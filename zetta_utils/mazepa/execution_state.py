@@ -6,8 +6,7 @@ from typing import Dict, List, Optional, Protocol, Set, runtime_checkable
 import attrs
 from typeguard import typechecked
 
-from .dependency import Dependency
-from .flows import Flow
+from .flows import Dependency, Flow
 from .task_outcome import TaskOutcome, TaskStatus
 from .tasks import Task
 
@@ -113,7 +112,7 @@ class InMemoryExecutionState:
         return result
 
     def _add_dependency(self, flow_id: str, dep: Dependency):
-        if dep.is_barrier():  # depend on all ongoing children
+        if dep.ids is None:  # depend on all ongoing children
             self.dependency_map[flow_id].update(self.ongoing_children_map[flow_id])
         else:
             for id_ in dep.ids:

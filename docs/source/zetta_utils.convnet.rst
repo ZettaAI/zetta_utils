@@ -6,3 +6,4 @@
 ------------------------------------
 
 .. autoclass:: zetta_utils.convnet.architecture.ConvBlock
+.. autoclass:: zetta_utils.convnet.architecture.UNet

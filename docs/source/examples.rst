@@ -213,7 +213,7 @@ Builder
 
 ``builder`` provides machinery to represent layers, datasets, or any other registered components
 as dictionaries. This can be used to pass in flexible parameters to CLI tools and to allow flexible,
-readable specifications of training and inference workflow through ``json``/``yaml``/``cue`` fiels.
+readable specifications of training and inference workflow through ``json``/``yaml``/``cue`` fields.
 
 To make objects of a class buildable with ``builder``:
 

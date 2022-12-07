@@ -13,7 +13,9 @@ from .compute_field_flow import ComputeFieldFlowSchema
 from .compute_field_protocols import ComputeFieldOperation
 
 
-@builder.register("ComputeFieldStage")
+@builder.register(
+    "ComputeFieldStage", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size"]
+)
 @attrs.mutable
 class ComputeFieldStage:
     dst_resolution: Vec3D
@@ -30,7 +32,7 @@ class ComputeFieldStage:
         return self.operation.get_input_resolution(self.dst_resolution)
 
 
-@builder.register("ComputeFieldMultistageFlowSchema")
+@builder.register("ComputeFieldMultistageFlowSchema", cast_to_vec3d=["tgt_offset"])
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldMultistageFlowSchema:
@@ -45,7 +47,7 @@ class ComputeFieldMultistageFlowSchema:
         src_field: Optional[VolumetricLayer] = None,
         src: Optional[VolumetricLayer] = None,
         tgt: Optional[VolumetricLayer] = None,
-        tgt_offset: Vec3D = (0, 0, 0),
+        tgt_offset: Vec3D = Vec3D((0, 0, 0)),
     ):
         prev_dst: Optional[VolumetricLayer] = None
 
@@ -104,7 +106,7 @@ class ComputeFieldMultistageFlowSchema:
             prev_dst = stage_dst
 
 
-@builder.register("build_compute_field_multistage_flow")
+@builder.register("build_compute_field_multistage_flow", cast_to_vec3d=["tgt_offset"])
 def build_compute_field_multistage_flow(
     stages: List[ComputeFieldStage],
     tmp_layer_dir: str,
@@ -114,7 +116,7 @@ def build_compute_field_multistage_flow(
     src_field: Optional[VolumetricLayer] = None,
     src: Optional[VolumetricLayer] = None,
     tgt: Optional[VolumetricLayer] = None,
-    tgt_offset: Vec3D = (0, 0, 0),
+    tgt_offset: Vec3D = Vec3D((0, 0, 0)),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,

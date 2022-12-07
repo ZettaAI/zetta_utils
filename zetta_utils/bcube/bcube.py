@@ -7,10 +7,10 @@ from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Slices3D, Vec3D
+from zetta_utils.typing import IntVec3D, Slices3D, Vec3D
 
 
-def _assert_equal_len(**kwargs: Union[Sequence, Vec3D]):
+def _assert_equal_len(**kwargs: Union[Sequence, Vec3D, IntVec3D]):
     len_map = {k: len(v) for k, v in kwargs.items()}
     if len(set(len_map.values())) != 1:  # means there are unequal lengths
         raise ValueError(
@@ -175,7 +175,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def crop(
         self,
-        crop: Sequence[Union[int, float, tuple[float, float]]],
+        crop: Union[Sequence[Union[int, float, tuple[float, float]]], Vec3D, IntVec3D],
         resolution: VecT,
         # in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -225,7 +225,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def pad(
         self,
-        pad: Sequence[Union[float, tuple[float, float]]],
+        pad: Union[Sequence[Union[float, tuple[float, float]]], Vec3D, IntVec3D],
         resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -277,8 +277,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def translate(
         self,
-        offset: Sequence[float],
-        resolution: Sequence[float],
+        offset: Union[Sequence[float], Vec3D, IntVec3D],
+        resolution: Union[Sequence[float], Vec3D, IntVec3D],
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.
@@ -338,10 +338,12 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
-builder.register("BoundingCube")(BoundingCube.from_coords)
+builder.register("BoundingCube", cast_to_vec3d=["start_coord", "end_coord", "resolution"])(
+    BoundingCube.from_coords
+)
 
 
-@builder.register("pad_bcube")
+@builder.register("pad_bcube", cast_to_vec3d=["pad_resolution"])
 def pad_bcube(
     bcube: BoundingCube,
     pad: Sequence[Union[float, tuple[float, float]]],

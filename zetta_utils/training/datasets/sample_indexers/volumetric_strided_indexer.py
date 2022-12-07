@@ -5,12 +5,16 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.bcube import BcubeStrider, BoundingCube
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from .base import SampleIndexer
 
 
-@builder.register("VolumetricStridedIndexer")
+@builder.register(
+    "VolumetricStridedIndexer",
+    cast_to_vec3d=["resolution", "index_resolution", "desired_resolution"],
+    cast_to_intvec3d=["chunk_size", "stride"],
+)
 @typechecked
 @attrs.frozen
 class VolumetricStridedIndexer(SampleIndexer):
@@ -21,17 +25,17 @@ class VolumetricStridedIndexer(SampleIndexer):
     :param chunk_size: Size of a training chunk.
     :param stride: Distance between neighboring chunks along each dimension.
 
-    :param index_resolution: Resoluiton at at which to form an index for each chunk.
+    :param index_resolution: Resolution at at which to form an index for each chunk.
         When ``index_resolution is None``, the `resolution` value will be used.
-    :param desired_resolution: Desired resoluiton which will be indicated as a part
+    :param desired_resolution: Desired resolution which will be indicated as a part
         of index for each chunk. When ``desired_resolution is None``, no desired
         resolution will be specified in the index.
 
     """
 
     bcube: BoundingCube
-    chunk_size: Vec3D
-    stride: Vec3D
+    chunk_size: IntVec3D
+    stride: IntVec3D
     resolution: Vec3D
     index_resolution: Optional[Vec3D] = None
     desired_resolution: Optional[Vec3D] = None

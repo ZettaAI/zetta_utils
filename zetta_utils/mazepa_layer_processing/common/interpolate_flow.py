@@ -31,7 +31,11 @@ def _interpolate(
     )
 
 
-@builder.register("build_interpolate_flow")
+@builder.register(
+    "build_interpolate_flow",
+    cast_to_vec3d=["src_resolution", "dst_resolution"],
+    cast_to_intvec3d=["chunk_size"],
+)
 def build_interpolate_flow(
     chunk_size: IntVec3D,
     bcube: BoundingCube,
@@ -46,15 +50,13 @@ def build_interpolate_flow(
     if dst is None:
         dst = src
 
-    scale_factor = [
-        src_resolution[0] / dst_resolution[0],
-        src_resolution[1] / dst_resolution[1],
-        src_resolution[2] / dst_resolution[2],
-    ]
+    scale_factor = src_resolution / dst_resolution
+    res_change_mult = dst_resolution / src_resolution  
+    # no way for mypy to know the length of the division output
 
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=_interpolate,
-        res_change_mult=[1 / e for e in scale_factor],
+        res_change_mult=res_change_mult, # type: ignore
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
     flow = flow_schema(

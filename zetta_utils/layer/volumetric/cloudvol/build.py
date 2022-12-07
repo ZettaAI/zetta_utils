@@ -14,7 +14,10 @@ from . import CVBackend, InfoExistsModes, PrecomputedInfoSpec
 
 
 @typechecked
-@builder.register("build_cv_layer")
+@builder.register(
+    "build_cv_layer",
+    cast_to_vec3d=["default_desired_resolution, index_resolution, data_resolution"],
+)
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
     cv_kwargs: Optional[Dict] = None,

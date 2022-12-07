@@ -8,14 +8,16 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder, log
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from .bcube import BoundingCube
 
 logger = log.get_logger("zetta_utils")
 
 
-@builder.register("BcubeStrider")
+@builder.register(
+    "BcubeStrider", cast_to_vec3d=["resolution"], cast_to_intvec3d=["chunk_size", "stride"]
+)
 @typechecked
 @attrs.frozen
 class BcubeStrider:
@@ -30,8 +32,8 @@ class BcubeStrider:
 
     bcube: BoundingCube
     resolution: Vec3D
-    chunk_size: Vec3D
-    stride: Vec3D
+    chunk_size: IntVec3D
+    stride: IntVec3D
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     stride_in_unit: Vec3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)

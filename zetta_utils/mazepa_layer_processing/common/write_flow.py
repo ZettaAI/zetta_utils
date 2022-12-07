@@ -30,7 +30,9 @@ def generic_write_flow(
     return result
 
 
-@builder.register("build_write_flow")
+@builder.register(
+    "build_write_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size"]
+)
 def build_write_flow(
     chunk_size: IntVec3D,
     bcube: BoundingCube,

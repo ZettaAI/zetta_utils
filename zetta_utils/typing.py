@@ -21,7 +21,7 @@ class Vec3D(np.ndarray):  # pragma: no cover
             return tuple(self.view(np.ndarray).__getitem__(key))
         return self.view(np.ndarray).__getitem__(key)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return np.array_equal(self, other)
 
 
@@ -37,7 +37,7 @@ class IntVec3D(np.ndarray):  # pragma: no cover
             return tuple(self.view(np.ndarray).__getitem__(key))
         return self.view(np.ndarray).__getitem__(key)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return np.array_equal(self, other)
 
 

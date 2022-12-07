@@ -15,7 +15,8 @@ def get_z_blocks(remote_layer: str) -> List[Union[BoundingCube, Vec3D]]:
     return result
 
 
-@builder.register("put_z_blocks")
+# TODO: Handle case where bcubes_or_points takes in a BoundingCube
+@builder.register("put_z_blocks", cast_to_vec3d=["bcubes_or_points"])
 def put_z_blocks(
     remote_layer: str,
     resolution: Vec3D,

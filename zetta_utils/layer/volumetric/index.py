@@ -9,12 +9,12 @@ from zetta_utils import builder
 
 # from zetta_utils.partial import ComparablePartial
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.typing import Slices3D, Vec3D
+from zetta_utils.typing import IntVec3D, Slices3D, Vec3D
 
 from .. import IndexConverter, LayerIndex
 
 
-@builder.register("VolumetricIndex")
+@builder.register("VolumetricIndex", cast_to_vec3d=["resolution"])
 # @typechecked
 @attrs.mutable
 class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no logic
@@ -29,13 +29,13 @@ class VolumetricIndex(LayerIndex):  # pragma: no cover # pure delegation, no log
     def to_slices(self):
         return self.bcube.to_slices(self.resolution, self.allow_slice_rounding)
 
-    def pad(self, pad: Vec3D):
+    def pad(self, pad: Union[Vec3D, IntVec3D]):
         return VolumetricIndex(
             bcube=self.bcube.pad(pad=pad, resolution=self.resolution),
             resolution=self.resolution,
         )
 
-    def crop(self, crop: Vec3D):
+    def crop(self, crop: Union[Vec3D, IntVec3D]):
         return VolumetricIndex(
             bcube=self.bcube.crop(crop=crop, resolution=self.resolution),
             resolution=self.resolution,
@@ -73,7 +73,9 @@ RawVolumetricIndex = Union[
 ]
 
 
-@builder.register("VolumetricIndexConverter")
+@builder.register(
+    "VolumetricIndexConverter", cast_to_vec3d=["index_resolution", "default_desired_resolution"]
+)
 @attrs.mutable
 class VolumetricIndexConverter(IndexConverter[RawVolumetricIndex, VolumetricIndex]):
     index_resolution: Optional[Vec3D] = None

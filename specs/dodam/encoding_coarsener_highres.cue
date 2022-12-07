@@ -130,11 +130,11 @@ trainer: {
 				}
 			}
 			sample_indexer: {
-				"@type": "VolumetricStepIndexer"
+				"@type": "VolumetricStridedIndexer"
 				desired_resolution: [32, 32, 45]
 				resolution: [32, 32, 45]
 				chunk_size: [768, 768, 1]
-				step_size: [384, 384, 1]
+				stride: [384, 384, 1]
 				bcube: {
 					"@type":     "BoundingCube"
 					start_coord: _
@@ -165,11 +165,11 @@ trainer: {
 			sample_indexer: {
 				"@type": "RandomIndexer"
 				inner_indexer: {
-					"@type": "VolumetricStepIndexer"
+					"@type": "VolumetricStridedIndexer"
 					desired_resolution: [128, 128, 40]
 					resolution: [128, 128, 40]
 					chunk_size: [768, 768, 1]
-					step_size: [64, 64, 1]
+					stride: [64, 64, 1]
 					bcube: {
 						"@type":     "BoundingCube"
 						start_coord: _

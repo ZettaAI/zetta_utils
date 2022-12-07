@@ -88,7 +88,7 @@
                 }
             },
             "sample_indexer": {
-                "@type": "VolumetricStepIndexer",
+                "@type": "VolumetricStridedIndexer",
                 "resolution": [
                     64,
                     64,
@@ -104,7 +104,7 @@
                     1024,
                     1
                 ],
-                "step_size": [
+                "stride": [
                     512,
                     512,
                     1
@@ -175,7 +175,7 @@
                 }
             },
             "sample_indexer": {
-                "@type": "VolumetricStepIndexer",
+                "@type": "VolumetricStridedIndexer",
                 "resolution": [
                     64,
                     64,
@@ -191,7 +191,7 @@
                     1024,
                     1
                 ],
-                "step_size": [
+                "stride": [
                     512,
                     512,
                     1

@@ -8,7 +8,7 @@ def test_bcube_rounding(mocker):
             start_coord=(0, 0, 0), end_coord=(1, 1, 4), resolution=(1, 1, 1)
         ),
         chunk_size=(1, 1, 3),
-        step_size=(1, 1, 3),
+        stride=(1, 1, 3),
         resolution=(1, 1, 1),
     )
     assert chunker.num_chunks == 1
@@ -22,7 +22,7 @@ def test_bcube_chunker_len(mocker):
         ),
         chunk_size=(1, 1, 1),
         resolution=(1, 1, 1),
-        step_size=(1, 1, 1),
+        stride=(1, 1, 1),
     )
     assert chunker.num_chunks == 6
 
@@ -34,7 +34,7 @@ def test_bcube_chunker_get_nth(mocker):
         ),
         chunk_size=(1, 1, 1),
         resolution=(1, 1, 1),
-        step_size=(1, 1, 1),
+        stride=(1, 1, 1),
     )
     assert chunker.get_nth_chunk_bcube(0) == BoundingCube.from_slices(
         (slice(0, 1), slice(0, 1), slice(0, 1))
@@ -54,7 +54,7 @@ def test_bcube_chunker_get_nth_res(mocker):
             start_coord=(0, 0, 0), end_coord=(1, 2, 3), resolution=(1, 1, 1)
         ),
         chunk_size=(1, 1, 1),
-        step_size=(1, 1, 1),
+        stride=(1, 1, 1),
         resolution=(1, 2, 1),
     )
     assert chunker.num_chunks == 3
@@ -72,7 +72,7 @@ def test_bcube_chunker_get_all_chunks(mocker):
             start_coord=(0, 0, 0), end_coord=(1, 1, 2), resolution=(1, 1, 1)
         ),
         chunk_size=(1, 1, 1),
-        step_size=(1, 1, 1),
+        stride=(1, 1, 1),
         resolution=(1, 1, 1),
     )
     assert chunker.get_all_chunk_bcubes() == [

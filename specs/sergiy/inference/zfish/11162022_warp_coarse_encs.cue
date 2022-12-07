@@ -31,7 +31,7 @@
 	chunker: {
 		"@type": "VolumetricIndexChunker"
 		"chunk_size": [#XY_OUT_CHUNK + #XY_OVERLAP, #XY_OUT_CHUNK + #XY_OVERLAP, 1]
-		"step_size": [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
+		"stride": [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
 	}
 	src: {
 		"@type": "build_cv_layer"

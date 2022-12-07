@@ -7,6 +7,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexConverter,
 )
+from zetta_utils.typing import Vec3D
 
 
 @pytest.mark.parametrize(
@@ -16,11 +17,11 @@ from zetta_utils.layer.volumetric import (
             {},
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
         ],
         [
@@ -28,7 +29,7 @@ from zetta_utils.layer.volumetric import (
             ((1, 2, 3), BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9)))),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
         ],
         [
@@ -36,7 +37,7 @@ from zetta_utils.layer.volumetric import (
             BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
         ],
         [
@@ -44,7 +45,7 @@ from zetta_utils.layer.volumetric import (
             ((1, 2, 3), slice(0, 1), slice(0, 2), slice(0, 3)),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
         ],
         [
@@ -52,7 +53,7 @@ from zetta_utils.layer.volumetric import (
             ((1, 2, 3), (slice(0, 1), slice(0, 2), slice(0, 3))),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(1, 2, 3),
+                resolution=Vec3D((1, 2, 3)),
             ),
         ],
         [
@@ -60,7 +61,7 @@ from zetta_utils.layer.volumetric import (
             (slice(0, 1), slice(0, 2), slice(0, 3)),
             VolumetricIndex(
                 bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
-                resolution=(8, 8, 8),
+                resolution=Vec3D((8, 8, 8)),
             ),
         ],
     ],

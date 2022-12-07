@@ -74,7 +74,7 @@ BoundingCube
    ...    resolution=Vec3D((4, 4, 40))
    ... )
    >>> print(bcube)
-   BoundingBoxND(bounds=((400, 800), (400, 800), (400, 800)), unit='nm')
+   BoundingBoxND(bounds=((400.0, 800.0), (400.0, 800.0), (400.0, 800.0)), unit='nm')
    >>> slices = bcube.to_slices(resolution=(16, 16, 100))
    >>> print(slices)
    (slice(25, 50, None), slice(25, 50, None), slice(4, 8, None))
@@ -137,7 +137,7 @@ Layer sets for grouping layers together:
    ...    slice(1000, 1100),
    ...    slice(2000, 2001),
    ... )
-   >>> data_x0 = lset[(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
+   >>> data_x0 = lset[Vec3D((64, 64, 40)), 1000:1100, 1000:1100, 2000:2001]
    >>> print(list(data_x0.keys()))
    ['img', 'img_norm']
    >>> print(data_x0['img'].shape)

@@ -10,7 +10,7 @@ from zetta_utils import builder
 from zetta_utils.typing import Slices3D, Vec3D
 
 
-def _assert_equal_len(**kwargs: Sequence):
+def _assert_equal_len(**kwargs: Union[Sequence, Vec3D]):
     len_map = {k: len(v) for k, v in kwargs.items()}
     if len(set(len_map.values())) != 1:  # means there are unequal lengths
         raise ValueError(
@@ -26,7 +26,7 @@ DEFAULT_UNIT = "nm"
 # Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
-VecT = TypeVar("VecT", bound=Sequence[float])
+VecT = TypeVar("VecT", bound=Union[Sequence[float], Vec3D])
 # @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
 class BoundingBoxND(Generic[SlicesT, VecT]):
@@ -67,7 +67,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         _assert_equal_len(
             slices=slices,
-            resoluiton=resolution,
+            resolution=resolution,
         )
 
         for s in slices:
@@ -102,7 +102,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         _assert_equal_len(
             start_coord=start_coord,
             end_coord=end_coord,
-            resoluiton=resolution,
+            resolution=resolution,
         )
         bounds = tuple(
             (start_coord[i] * resolution[i], end_coord[i] * resolution[i])
@@ -195,7 +195,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         _assert_equal_len(
             crop=crop,
             bounds=self.bounds,
-            resoluiton=resolution,
+            resolution=resolution,
         )
 
         double_sided_crop = []
@@ -246,7 +246,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         _assert_equal_len(
             pad=pad,
             bounds=self.bounds,
-            resoluiton=resolution,
+            resolution=resolution,
         )
         if in_place:
             raise NotImplementedError  # pragma: no cover

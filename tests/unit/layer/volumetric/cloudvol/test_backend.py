@@ -8,6 +8,7 @@ import pytest
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
+from zetta_utils.typing import Vec3D
 
 THIS_DIR = pathlib.Path(__file__).parent.resolve()
 INFOS_DIR = THIS_DIR / "../../../assets/infos/"
@@ -103,7 +104,7 @@ def test_cv_backend_read(clear_caches, mocker):
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D((1, 1, 1)),
     )
     result = cvb.read(index)
     np.testing.assert_array_equal(result, expected)
@@ -120,7 +121,7 @@ def test_cv_backend_write(clear_caches, mocker):
 
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D((1, 1, 1)),
     )
     cvb.write(index, value)
     assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
@@ -164,7 +165,7 @@ def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D((1, 1, 1)),
     )
     with pytest.raises(expected_exc):
         cvb.write(index, data_in)

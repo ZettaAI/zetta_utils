@@ -45,7 +45,7 @@ class ConvBlock(nn.Module):
         corresponding convolution in order. The list length must match the number of
         convolutions.
     :param skips: Specification for residual skip connection. For example,
-        ``skips={1: 3}`` specifies a single residual skip connection from the output of the
+        ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
         first convolution (index 1) to the input of third convolution (index 3).
         0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
@@ -61,7 +61,7 @@ class ConvBlock(nn.Module):
         kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
         strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
         paddings: Union[Padding, List[Padding]] = "same",
-        skips: Optional[Dict[int, int]] = None,
+        skips: Optional[Dict[str, int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):  # pylint: disable=too-many-locals
@@ -111,8 +111,8 @@ class ConvBlock(nn.Module):
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         skip_data_for = {}  # type: Dict[int, torch.Tensor]
         conv_count = 1
-        if 0 in self.skips:
-            skip_dest = self.skips[0]
+        if "0" in self.skips:
+            skip_dest = self.skips["0"]
             skip_data_for[skip_dest] = data
         result = data
         for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
@@ -123,8 +123,8 @@ class ConvBlock(nn.Module):
             result = this_layer(result)
 
             if isinstance(next_layer, torch.nn.modules.conv._ConvNd):
-                if conv_count in self.skips:
-                    skip_dest = self.skips[conv_count]
+                if str(conv_count) in self.skips:
+                    skip_dest = self.skips[str(conv_count)]
                     if skip_dest in skip_data_for:
                         skip_data_for[skip_dest] += result
                     else:

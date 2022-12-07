@@ -80,7 +80,7 @@ class UNet(nn.Module):
             List[Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]]],
         ] = 1,
         paddings: Union[Padding, List[Union[Padding, List[Padding]]]] = "same",
-        skips: Optional[List[Dict[int, int]]] = None,
+        skips: Optional[List[Dict[str, int]]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
@@ -114,7 +114,7 @@ class UNet(nn.Module):
             paddings_ = [paddings for _ in range(len(list_num_channels))]
 
         if isinstance(skips, list):
-            skips_ = skips  # type: List[Dict[int, int]]
+            skips_ = skips  # type: List[Dict[str, int]]
             assert len(skips_) == len(list_num_channels)
         else:
             skips_ = [{} for _ in range(len(list_num_channels))]

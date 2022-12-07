@@ -100,7 +100,9 @@ def not_test_forward_naive(mocker):
 
 def test_forward_skips(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
-    block = convnet.architecture.ConvBlock(num_channels=[1, 2, 3, 4, 5], skips={0: 2, 1: 2, 2: 3})
+    block = convnet.architecture.ConvBlock(
+        num_channels=[1, 2, 3, 4, 5], skips={"0": 2, "1": 2, "2": 3}
+    )
     result = block(torch.ones([1, 1, 1, 1]))
     assert_array_equal(
         result.cpu().detach().numpy(), 6 * torch.ones([1, 1, 1, 1]).cpu().detach().numpy()

@@ -190,7 +190,7 @@ def test_forward_skips(mocker):
         list_num_channels=[[1, 1, 1], [1, 1, 1, 1], [1, 1, 1]],
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
-        skips=[{0: 2}, {0: 2, 1: 3}, {0: 2}],
+        skips=[{"0": 2}, {"0": 2, "1": 3}, {"0": 2}],
     )
     result = unet.forward(torch.ones([1, 1, 2, 2]))
     assert_array_equal(

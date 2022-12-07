@@ -30,6 +30,9 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         for k, v in regime._modules.items():  # pylint: disable=protected-access
             if hasattr(v, "__init_builder_spec"):
                 model_spec = getattr(v, "__init_builder_spec")  # pylint: disable=protected-access
+                while "@type" in model_spec and model_spec["@type"] == "load_weights_file":
+                    model_spec = model_spec["model"]
+
                 spec = {
                     "@type": "load_weights_file",
                     "model": model_spec,

@@ -21,6 +21,9 @@ class Vec3D(np.ndarray):  # pragma: no cover
             return self.view(np.ndarray).__getitem__(key)
         return tuple(self.view(np.ndarray).__getitem__(key))
 
+    def __eq__(self, other):
+        return np.array_equal(self, other)
+
 
 class IntVec3D(np.ndarray):  # pragma: no cover
     def __new__(cls, vec: Tuple[int, int, int]):
@@ -33,6 +36,9 @@ class IntVec3D(np.ndarray):  # pragma: no cover
         if isinstance(key, int):
             return self.view(np.ndarray).__getitem__(key)
         return tuple(self.view(np.ndarray).__getitem__(key))
+
+    def __eq__(self, other):
+        return np.array_equal(self, other)
 
 
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover

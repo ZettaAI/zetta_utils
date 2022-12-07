@@ -8,7 +8,7 @@ import pytest
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 THIS_DIR = pathlib.Path(__file__).parent.resolve()
 INFOS_DIR = THIS_DIR / "../../../assets/infos/"
@@ -88,7 +88,7 @@ def test_cv_backend_info_overwrite(path, reference, mode, mocker):
     cv_m.commit_info = mocker.MagicMock()
     info_spec = cloudvol.backend.PrecomputedInfoSpec(
         reference_path=reference,
-        chunk_size=[1024, 1024, 1],
+        chunk_size=IntVec3D((1024, 1024, 1)),
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 

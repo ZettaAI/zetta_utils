@@ -163,7 +163,7 @@ In this example we will make a dataset out of the followign layer set:
 To form a layer dataset, we need to specify both the layer and a mapping from sample number to an index that the layer understands.
 Such mapping, referred to as sample indexer, will determine what bounding cube is used to fetch training sample #0, #1, etc, as
 well as specify how many training samples there will be in total.
-In this example, we will be using ``VolumetricstridedIndexer``:
+In this example, we will be using ``VolumetricStridedIndexer``:
 
 .. doctest::
 
@@ -171,7 +171,7 @@ In this example, we will be using ``VolumetricstridedIndexer``:
    >>> from zetta_utils.bcube import BoundingCube
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
-   >>> indexer = training.datasets.sample_indexers.VolumetricstridedIndexer(
+   >>> indexer = training.datasets.sample_indexers.VolumetricStridedIndexer(
    ...    # Range over which to sample
    ...    bcube=BoundingCube.from_coords(
    ...       start_coord=(1000, 1000, 2000),

@@ -163,7 +163,7 @@ In this example we will make a dataset out of the followign layer set:
 To form a layer dataset, we need to specify both the layer and a mapping from sample number to an index that the layer understands.
 Such mapping, referred to as sample indexer, will determine what bounding cube is used to fetch training sample #0, #1, etc, as
 well as specify how many training samples there will be in total.
-In this example, we will be using ``VolumetricStepIndexer``:
+In this example, we will be using ``VolumetricstridedIndexer``:
 
 .. doctest::
 
@@ -171,7 +171,7 @@ In this example, we will be using ``VolumetricStepIndexer``:
    >>> from zetta_utils.bcube import BoundingCube
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
-   >>> indexer = training.datasets.sample_indexers.VolumetricStepIndexer(
+   >>> indexer = training.datasets.sample_indexers.VolumetricstridedIndexer(
    ...    # Range over which to sample
    ...    bcube=BoundingCube.from_coords(
    ...       start_coord=(1000, 1000, 2000),
@@ -182,7 +182,7 @@ In this example, we will be using ``VolumetricStepIndexer``:
    ...    resolution=(64, 64, 40),
    ...    chunk_size=(128, 128, 1),
    ...    # How close together samples can be
-   ...    step_size=(32, 32, 1),
+   ...    stride=(32, 32, 1),
    ...    # What resolution to get slices at
    ...    index_resolution=(64, 64, 40),
    ...    # What to set as `desired_resolution` in the index
@@ -261,7 +261,7 @@ such as the dataset from the earlier example:
    ...       }
    ...    },
    ...    "sample_indexer": {
-   ...        "@type": "VolumetricStepIndexer",
+   ...        "@type": "VolumetricstridedIndexer",
    ...        "bcube": {
    ...           "@type": "BoundingCube",
    ...           "start_coord": (1000, 1000, 2000),
@@ -270,7 +270,7 @@ such as the dataset from the earlier example:
    ...        },
    ...        "resolution": (64, 64, 40),
    ...        "chunk_size": (128, 128, 1),
-   ...        "step_size": (32, 32, 1),
+   ...        "strided_size": (32, 32, 1),
    ...        "index_resolution": (64, 64, 40),
    ...        "desired_resolution": (64, 64, 40),
    ...    }

@@ -88,7 +88,7 @@ trainer: {
 		}
 	}
 	sample_indexer: {
-		"@type": "VolumetricStepIndexer"
+		"@type": "VolumetricStridedIndexer"
 		resolution: [64, 64, 40]
 		desired_resolution: [64, 64, 40]
 		chunk_size: [1024, 1024, 1]

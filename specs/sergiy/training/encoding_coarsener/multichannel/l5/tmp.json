@@ -246,13 +246,13 @@
                 }
             },
             "sample_indexer": {
-                "@type": "VolumetricStepIndexer",
+                "@type": "VolumetricStridedIndexer",
                 "chunk_size": [
                     1024,
                     1024,
                     1
                 ],
-                "step_size": [
+                "stride": [
                     512,
                     512,
                     1
@@ -312,13 +312,13 @@
                 }
             },
             "sample_indexer": {
-                "@type": "VolumetricStepIndexer",
+                "@type": "VolumetricStridedIndexer",
                 "chunk_size": [
                     1024,
                     1024,
                     1
                 ],
-                "step_size": [
+                "stride": [
                     512,
                     512,
                     1

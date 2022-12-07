@@ -10,16 +10,16 @@ from zetta_utils.typing import Vec3D
 from .base import SampleIndexer
 
 
-@builder.register("VolumetricStepIndexer")
+@builder.register("VolumetricStridedIndexer")
 @typechecked
 @attrs.frozen
-class VolumetricStepIndexer(SampleIndexer):
+class VolumetricStridedIndexer(SampleIndexer):
     """SampleIndexer which takes chunkes from a volumetric region at uniform intervals.
 
     :param bcube: Bounding cube representing the whole volume to be indexed.
     :param resolution: Resoluiton at which ``chunk_size`` is given.
     :param chunk_size: Size of a training chunk.
-    :param step_size: Distance between neighboring chunkes along each dimension.
+    :param stride: Distance between neighboring chunks along each dimension.
 
     :param index_resolution: Resoluiton at at which to form an index for each chunk.
         When ``index_resolution is None``, the `resolution` value will be used.
@@ -31,12 +31,12 @@ class VolumetricStepIndexer(SampleIndexer):
 
     bcube: BoundingCube
     chunk_size: Vec3D
-    step_size: Vec3D
+    stride: Vec3D
     resolution: Vec3D
     index_resolution: Optional[Vec3D] = None
     desired_resolution: Optional[Vec3D] = None
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
-    step_size_in_unit: Vec3D = attrs.field(init=False)
+    stride_in_unit: Vec3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
     bcube_strider: BcubeStrider = attrs.field(init=False)
 
@@ -46,7 +46,7 @@ class VolumetricStepIndexer(SampleIndexer):
             bcube=self.bcube,
             resolution=self.resolution,
             chunk_size=self.chunk_size,
-            step_size=self.step_size,
+            stride=self.stride,
         )
         object.__setattr__(self, "bcube_strider", bcube_strider)
 

@@ -90,7 +90,7 @@ class VolDataInterpolator(DataWithIndexProcessor):
 @attrs.mutable
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: Vec3D
-    step_size: Optional[Vec3D] = None
+    stride: Optional[Vec3D] = None
     resolution: Optional[Vec3D] = None
 
     def __call__(
@@ -101,16 +101,16 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         else:
             chunk_resolution = self.resolution
 
-        if self.step_size is None:
-            step_size = self.chunk_size
+        if self.stride is None:
+            stride = self.chunk_size
         else:
-            step_size = self.step_size
+            stride = self.stride
 
         bcube_strider = BcubeStrider(
             bcube=idx.bcube,
             resolution=chunk_resolution,
             chunk_size=self.chunk_size,
-            step_size=step_size,
+            stride=stride,
         )
         bcube_chunks = bcube_strider.get_all_chunk_bcubes()
         result = [

@@ -10,6 +10,6 @@
 
 .. autoclass:: zetta_utils.training.datasets.sample_indexers.RandomIndexer
 
-.. autoclass:: zetta_utils.training.datasets.sample_indexers.VolumetricStepIndexer
+.. autoclass:: zetta_utils.training.datasets.sample_indexers.VolumetricStrideIndexer
 
-.. autofunction:: zetta_utils.training.datasets.sample_indexers.VolumetricStepIndexer.__call__
+.. autofunction:: zetta_utils.training.datasets.sample_indexers.VolumetricStrideIndexer.__call__

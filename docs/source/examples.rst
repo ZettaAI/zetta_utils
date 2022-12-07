@@ -261,7 +261,7 @@ such as the dataset from the earlier example:
    ...       }
    ...    },
    ...    "sample_indexer": {
-   ...        "@type": "VolumetricstridedIndexer",
+   ...        "@type": "VolumetricStridedIndexer",
    ...        "bcube": {
    ...           "@type": "BoundingCube",
    ...           "start_coord": (1000, 1000, 2000),
@@ -270,7 +270,7 @@ such as the dataset from the earlier example:
    ...        },
    ...        "resolution": (64, 64, 40),
    ...        "chunk_size": (128, 128, 1),
-   ...        "strided_size": (32, 32, 1),
+   ...        "stride": (32, 32, 1),
    ...        "index_resolution": (64, 64, 40),
    ...        "desired_resolution": (64, 64, 40),
    ...    }

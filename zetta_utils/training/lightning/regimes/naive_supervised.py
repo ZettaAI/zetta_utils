@@ -49,14 +49,15 @@ class NaiveSupervised(pl.LightningModule):  # pylint: disable=too-many-ancestors
         # wandb.log({f"results/{mode}_row": [wandb.Image(images, caption)]})
 
     def validation_epoch_end(self, _):
-        self.log_results(
-            "val_worst",
-            title_suffix=f" (idx={self.worst_val_sample_idx})",
-            **self.worst_val_sample,
-        )
-        self.worst_val_loss = 0
-        self.worst_val_sample = {}
-        self.worst_val_sample_idx = None
+        if len(self.worst_val_sample) > 0:
+            self.log_results(
+                "val_worst",
+                title_suffix=f" (idx={self.worst_val_sample_idx})",
+                **self.worst_val_sample,
+            )
+            self.worst_val_loss = 0
+            self.worst_val_sample = {}
+            self.worst_val_sample_idx = None
 
     def validation_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
         data_in = batch["data_in"]

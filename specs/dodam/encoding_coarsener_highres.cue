@@ -3,12 +3,9 @@
 
 #TRAINING_ROOT: "gs://dodam_exp/coarsener"
 
-// #FULL_STATE_CKPT wile load the WHOLE TRAINING STATE.
 // This will resume training from the checkpoint AND DISREGARD OTHER
 // PARAMETERS IN THIS FILE, such as new learning rates etc.
-//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 
-#FULL_STATE_CKPT: null
 
 //#ENCODER_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 //#DECODER_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -24,7 +21,6 @@
 ///////////////////////////////////////////////////////////////////
 
 "@type":   "lightning_train"
-ckpt_path: #FULL_STATE_CKPT
 regime: {
 	"@type": "EncodingCoarsenerHighRes"
 	lr:      4e-4

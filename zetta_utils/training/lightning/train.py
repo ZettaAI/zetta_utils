@@ -1,9 +1,6 @@
-# pylint: disable=all # type: ignore
-import os
-from typing import Optional
-
 import pytorch_lightning as pl
 import typeguard
+from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from zetta_utils import builder
 
@@ -18,8 +15,13 @@ def lighning_train(
     regime: pl.LightningModule,
     train_dataloader,
     val_dataloader=None,
-    ckpt_path=None,
-):  # pragma: no cover
+    full_state_ckpt_path="last",
+):
+    if full_state_ckpt_path == "last":
+        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):
+            ckpt_path = trainer.ckpt_path
+        else:
+            ckpt_path = None
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,

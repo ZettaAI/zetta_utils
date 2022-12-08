@@ -93,16 +93,23 @@ def build_default_trainer(
     # after
     if checkpointing_kwargs is None:
         checkpointing_kwargs = {}
+    log_dir = os.path.join(
+        trainer.default_root_dir,
+        experiment_name,
+        experiment_version,
+    )
+
     trainer.callbacks += get_checkpointing_callbacks(
-        log_dir=os.path.join(
-            trainer.default_root_dir,
-            experiment_name,
-            experiment_version,
-        ),
+        log_dir=log_dir,
         **checkpointing_kwargs,
     )
 
     trainer.callbacks.append(ConfigureTraceCallback(trainer))
+
+    # Due to a bug in PL we're unable to use normal methods
+    # to resume training with ckpt_path='last' when storing
+    # checkpoints on GCP.
+    trainer._ckpt_path = os.path.join(log_dir, "last.ckpt")  # pylint: disable=protected-access
 
     return trainer
 

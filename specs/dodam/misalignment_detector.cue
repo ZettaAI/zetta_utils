@@ -3,13 +3,9 @@
 
 #TRAINING_ROOT: "gs://dodam_exp/training_artifacts"
 
-// #FULL_STATE_CKPT wile load the WHOLE TRAINING STATE.
 // This will resume training from the checkpoint AND DISREGARD OTHER
 // PARAMETERS IN THIS FILE, such as new learning rates etc.
-//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 
-//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/residual_apply123/last.ckpt"
-#FULL_STATE_CKPT: null
 
 //#ENC_CV: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/coarse/v2_restitch/encodings_decay150_tile_aug"
 #ENC_CV:   "gs://fafb_v15_aligned/v0/img/img_norm"
@@ -22,7 +18,6 @@
 ///////////////////////////////////////////////////////////////////
 
 "@type":   "lightning_train"
-ckpt_path: #FULL_STATE_CKPT
 regime: {
 	"@type":          "MisalignmentDetector"
 	detector:         #DETECTOR_ARCH

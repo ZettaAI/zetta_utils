@@ -5,13 +5,11 @@
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 #MODEL_CKPT: null // Set to a path to only load the net weights
 
-#FULL_STATE_CKPT: null // Set to a path to resume from the WHOLE STATE (weights+hparams+optimizer)
 
 #IMG_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
 #ENC_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
 "@type":   "lightning_train"
-ckpt_path: #FULL_STATE_CKPT
 regime: {
 	"@type": "NaiveSupervised"
 	lr:      4e-4

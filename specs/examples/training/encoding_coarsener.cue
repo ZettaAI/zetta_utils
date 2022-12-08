@@ -3,11 +3,7 @@
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
-// #FULL_STATE_CKPT will load the WHOLE TRAINING STATE.
-//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 
-//#FULL_STATE_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x1/last.ckpt"
-#FULL_STATE_CKPT: null
 
 //#ENCODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
 //#DECODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
@@ -21,7 +17,6 @@
 ///////////////////////////////////////////////////////////////////
 
 "@type":   "lightning_train"
-ckpt_path: #FULL_STATE_CKPT
 regime: {
 	"@type": "EncodingCoarsener"
 	lr:      4e-4

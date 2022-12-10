@@ -17,4 +17,4 @@ class ComparablePartial(Generic[R]):
         return self.func(*args, **self.kwargs, **kwargs)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"ComparablePartial(func={self.func.__module__}.{self.func.__qualname__})"  # pragma: no cover # pylint: disable=line-too-long
+        return f"ComparablePartial(func={self.func.__module__}.{self.func.__qualname__}, kwargs={self.kwargs})"  # pragma: no cover # pylint: disable=line-too-long

@@ -3,7 +3,7 @@
 from typing import List, Mapping, TypeVar, Union
 
 import attrs
-from google.cloud.datastore import Client, Entity
+from google.cloud.datastore import Client, Entity, Key
 from typeguard import typechecked
 
 from zetta_utils import builder
@@ -27,14 +27,25 @@ class DatastoreBackend(LayerBackend[DataStoreIndex, Union[ValueT, MultiValueT]])
         ...
 
     def write(self, idx: DataStoreIndex, value: Union[ValueT, MultiValueT]):
-        # scalar key value
-        if not isinstance(value, list):
+        if isinstance(value, list):
+            values = []
+            for v in value:
+                assert isinstance(v, (str, Mapping))
+                values.append(v if isinstance(v, Mapping) else {"value": v})
+            self._write_entities(idx.keys, values)
+        else:
             assert len(idx.keys) == 1, f"Number of keys {len(idx.keys)} but value is single."
-            key = idx.keys[0]
-            entity = Entity(key)
+            assert isinstance(v, (str, Mapping))
             value = value if isinstance(value, Mapping) else {"value": value}
-            entity.update(value)
-            self.client.put(entity)
+            self._write_entities(idx.keys, [value])
 
     def get_name(self) -> str:  # pragma: no cover
         return self.client.base_url
+
+    def _write_entities(self, keys: List[Key], values: List[Mapping[str, str]]):
+        entities: List[Entity] = []
+        for k, v in zip(keys, values):
+            entity = Entity(k)
+            entity.update(v)
+            entities.append(entity)
+        self.client.put_multi(entities)

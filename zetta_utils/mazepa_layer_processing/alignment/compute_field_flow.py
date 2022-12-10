@@ -38,7 +38,7 @@ class ComputeFieldFlowSchema:
         src: VolumetricLayer,
         tgt: Optional[VolumetricLayer] = None,
         src_field: Optional[VolumetricLayer] = None,
-        tgt_offset: Vec3D = Vec3D((0, 0, 0)),
+        tgt_offset: Vec3D = Vec3D(0, 0, 0),
     ):
         if tgt is None:
             tgt = src
@@ -75,7 +75,7 @@ def build_compute_field_flow(
     src: VolumetricLayer,
     tgt: Optional[VolumetricLayer] = None,
     src_field: Optional[VolumetricLayer] = None,
-    tgt_offset: Vec3D = Vec3D((0, 0, 0)),
+    tgt_offset: Vec3D = Vec3D(0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldFlowSchema(chunk_size=chunk_size, operation=operation)
     flow = flow_schema(

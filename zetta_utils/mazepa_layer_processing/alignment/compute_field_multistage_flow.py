@@ -47,7 +47,7 @@ class ComputeFieldMultistageFlowSchema:
         src_field: Optional[VolumetricLayer] = None,
         src: Optional[VolumetricLayer] = None,
         tgt: Optional[VolumetricLayer] = None,
-        tgt_offset: Vec3D = Vec3D((0, 0, 0)),
+        tgt_offset: Vec3D = Vec3D(0, 0, 0),
     ):
         prev_dst: Optional[VolumetricLayer] = None
 
@@ -116,7 +116,7 @@ def build_compute_field_multistage_flow(
     src_field: Optional[VolumetricLayer] = None,
     src: Optional[VolumetricLayer] = None,
     tgt: Optional[VolumetricLayer] = None,
-    tgt_offset: Vec3D = Vec3D((0, 0, 0)),
+    tgt_offset: Vec3D = Vec3D(0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,

@@ -18,10 +18,10 @@ from .base import SampleIndexer
 @typechecked
 @attrs.frozen
 class VolumetricStridedIndexer(SampleIndexer):
-    """SampleIndexer which takes chunkes from a volumetric region at uniform intervals.
+    """SampleIndexer which takes chunks from a volumetric region at uniform intervals.
 
     :param bcube: Bounding cube representing the whole volume to be indexed.
-    :param resolution: Resoluiton at which ``chunk_size`` is given.
+    :param resolution: Resolution at which ``chunk_size`` is given.
     :param chunk_size: Size of a training chunk.
     :param stride: Distance between neighboring chunks along each dimension.
 

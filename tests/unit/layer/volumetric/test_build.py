@@ -9,7 +9,7 @@ from zetta_utils.typing import Vec3D
 
 def test_build_exc(mocker):
     with pytest.raises(ValueError):
-        build_volumetric_layer(backend=mocker.MagicMock(), data_resolution=Vec3D((2, 1, 1)))
+        build_volumetric_layer(backend=mocker.MagicMock(), data_resolution=Vec3D(2, 1, 1))
 
 
 def test_data_resolution_read_interp(mocker):
@@ -18,17 +18,17 @@ def test_data_resolution_read_interp(mocker):
 
     layer = build_volumetric_layer(
         backend,
-        data_resolution=Vec3D((2, 2, 2)),
-        default_desired_resolution=Vec3D((4, 4, 4)),
+        data_resolution=Vec3D(2, 2, 2),
+        default_desired_resolution=Vec3D(4, 4, 4),
         interpolation_mode="field",
-        index_resolution=Vec3D((3, 3, 3)),
+        index_resolution=Vec3D(3, 3, 3),
     )
 
     read_data = layer[0:1, 0:1, 0:1]
 
     backend.read.assert_called_with(
         idx=VolumetricIndex(
-            resolution=Vec3D((2, 2, 2)),
+            resolution=Vec3D(2, 2, 2),
             bcube=BoundingCube.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
         )
     )
@@ -44,10 +44,10 @@ def test_data_resolution_write_interp(mocker):
 
     layer = build_volumetric_layer(
         backend,
-        data_resolution=Vec3D((2, 2, 2)),
-        default_desired_resolution=Vec3D((4, 4, 4)),
+        data_resolution=Vec3D(2, 2, 2),
+        default_desired_resolution=Vec3D(4, 4, 4),
         interpolation_mode="field",
-        index_resolution=Vec3D((3, 3, 3)),
+        index_resolution=Vec3D(3, 3, 3),
     )
 
     idx = VolumetricIndex(

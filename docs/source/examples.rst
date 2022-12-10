@@ -69,9 +69,9 @@ BoundingCube
    >>> from zetta_utils.typing import Vec3D
    >>> from zetta_utils.bcube import BoundingCube
    >>> bcube = BoundingCube.from_coords(
-   ...    start_coord=Vec3D((100, 100, 10)),
-   ...    end_coord=Vec3D((200, 200, 20)),
-   ...    resolution=Vec3D((4, 4, 40))
+   ...    start_coord=Vec3D(100, 100, 10),
+   ...    end_coord=Vec3D(200, 200, 20),
+   ...    resolution=Vec3D(4, 4, 40)
    ... )
    >>> print(bcube)
    BoundingBoxND(bounds=((400.0, 800.0), (400.0, 800.0), (400.0, 800.0)), unit='nm')
@@ -104,9 +104,9 @@ Layers for CloudVolume IO:
    >>> # Custom index resolution, desired resolution, data resolution
    >>> cvl = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm",
-   ...    default_desired_resolution=Vec3D((64, 64, 40)),
-   ...    index_resolution=Vec3D((4, 4, 40)),
-   ...    data_resolution=Vec3D((128, 128, 40)),
+   ...    default_desired_resolution=Vec3D(64, 64, 40),
+   ...    index_resolution=Vec3D(4, 4, 40),
+   ...    data_resolution=Vec3D(128, 128, 40),
    ...    interpolation_mode="img",
    ... )
    >>> data = cvl[16000:17600, 16000:17600, 2000:2001] # (4, 4, 40) indexing
@@ -132,18 +132,18 @@ Layer sets for grouping layers together:
    ... )
    >>> # Create an index variable to index both
    >>> idx = (
-   ...    Vec3D((64, 64, 40)),
+   ...    Vec3D(64, 64, 40),
    ...    slice(1000, 1100),
    ...    slice(1000, 1100),
    ...    slice(2000, 2001),
    ... )
-   >>> data_x0 = lset[Vec3D((64, 64, 40)), 1000:1100, 1000:1100, 2000:2001]
+   >>> data_x0 = lset[Vec3D(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
    >>> print(list(data_x0.keys()))
    ['img', 'img_norm']
    >>> print(data_x0['img'].shape)
    torch.Size([1, 100, 100, 1])
    >>> # Select read layers as a part of the index
-   >>> data_x1 = lset[('img', ), Vec3D((64, 64, 40)), 1000:1100, 1000:1100, 2000:2001]
+   >>> data_x1 = lset[('img', ), Vec3D(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
    >>> print(list(data_x1.keys()))
    ['img']
 
@@ -177,28 +177,28 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    >>> indexer = training.datasets.sample_indexers.VolumetricStridedIndexer(
    ...    # Range over which to sample
    ...    bcube=BoundingCube.from_coords(
-   ...       start_coord=Vec3D((1000, 1000, 2000)),
-   ...       end_coord=Vec3D((2000, 2000, 2100)),
-   ...       resolution=Vec3D((64, 64, 40))
+   ...       start_coord=Vec3D(1000, 1000, 2000),
+   ...       end_coord=Vec3D(2000, 2000, 2100),
+   ...       resolution=Vec3D(64, 64, 40)
    ...    ),
    ...    # How big each chunk will be
-   ...    resolution=Vec3D((64, 64, 40)),
-   ...    chunk_size=Vec3D((128, 128, 1)),
+   ...    resolution=Vec3D(64, 64, 40),
+   ...    chunk_size=Vec3D(128, 128, 1),
    ...    # How close together samples can be
-   ...    stride=Vec3D((32, 32, 1)),
+   ...    stride=Vec3D(32, 32, 1),
    ...    # What resolution to get slices at
-   ...    index_resolution=Vec3D((64, 64, 40)),
+   ...    index_resolution=Vec3D(64, 64, 40),
    ...    # What to set as `desired_resolution` in the index
-   ...    desired_resolution=Vec3D((64, 64, 40)),
+   ...    desired_resolution=Vec3D(64, 64, 40),
    ... )
    >>> print(len(indexer)) # total number of samples
    78400
    >>> print(indexer(0))
-   (Vec3D([64., 64., 40.]), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64., 64., 40.), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(1))
-   (Vec3D([64., 64., 40.]), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64., 64., 40.), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(78399))
-   (Vec3D([64., 64., 40.]), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
+   (Vec3D(64., 64., 40.), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
    >>> dset = training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,

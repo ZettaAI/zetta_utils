@@ -51,12 +51,14 @@ def build_interpolate_flow(
         dst = src
 
     # must use generator since np.float64 is not a float
-    scale_factor = tuple(float(e) for e in src_resolution / dst_resolution)
-    res_change_mult = tuple(float(e) for e in dst_resolution / src_resolution)
+    scale_factor = src_resolution / dst_resolution
+    reveal_type(scale_factor)
+    #    res_change_mult = tuple(float(e) for e in dst_resolution / src_resolution)
+    res_change_mult = dst_resolution / src_resolution
 
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=_interpolate,
-        res_change_mult=Vec3D(res_change_mult),  # type: ignore #mypy doesn't know the length
+        res_change_mult=res_change_mult,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
     flow = flow_schema(

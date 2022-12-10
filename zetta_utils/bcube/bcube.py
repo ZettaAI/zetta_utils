@@ -5,7 +5,6 @@ from math import floor
 from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
-import numpy as np
 
 from zetta_utils import builder
 from zetta_utils.typing import IntVec3D, Slices3D, Vec3D
@@ -54,13 +53,13 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         resolution: Optional[VecT] = None,
         unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
-        """Create a :class:`BoundingBoxND` from slices at the given resolution.
+        """Create a `BoundingBoxND` from slices at the given resolution.
 
         :param slices: Tuple of slices representing a bounding box.
         :param resolution: Resolution at which the slices are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).
-        :return: :class:`BoundingBoxND` built according to the specification.
+        :return: `BoundingBoxND` built according to the specification.
 
         """
         if resolution is None:
@@ -90,14 +89,14 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         resolution: VecT,
         unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
-        """Create a :class:`BoundingBoxND` from start and end coordinates at the given resolution.
+        """Create a `BoundingBoxND` from start and end coordinates at the given resolution.
 
         :param start_coord: Tuple representing the start coordinate.
         :param end_coord: Tuple representing the end coordinate.
         :param resolution: Resolution at which the coordinates are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).
-        :return: :class:`BoundingBoxND` built according to the specification.
+        :return: `BoundingBoxND` built according to the specification.
 
         """
         _assert_equal_len(
@@ -201,7 +200,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         double_sided_crop = []
         for e in crop:
-            if isinstance(e, (int, float, np.integer, np.floating)):
+            if isinstance(e, (int, float)):
                 double_sided_crop += [(e, e)]
             else:
                 double_sided_crop += [e]
@@ -254,7 +253,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         else:
             double_sided_pad = []
             for e in pad:
-                if isinstance(e, (int, float, np.integer, np.floating)):
+                if isinstance(e, (int, float)):
                     double_sided_pad += [(e, e)]
                 else:
                     double_sided_pad += [e]

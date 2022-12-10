@@ -23,7 +23,7 @@ from .. import build_chunked_apply_flow
 @attrs.frozen()
 class WarpOperation:
     mode: Literal["mask", "img", "field"]
-    crop: IntVec3D = IntVec3D((0, 0, 0))
+    crop: IntVec3D = IntVec3D(0, 0, 0)
     mask_value_thr: float = 0
     # preserve_black: bool = False
 
@@ -81,7 +81,7 @@ def build_warp_flow(
     src: VolumetricLayer,
     field: VolumetricLayer,
     mode: Literal["mask", "img", "field"],
-    crop: IntVec3D = IntVec3D((0, 0, 0)),
+    crop: IntVec3D = IntVec3D(0, 0, 0),
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
     result = build_chunked_apply_flow(

@@ -5,6 +5,7 @@ from math import floor
 from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
+import numpy as np
 
 from zetta_utils import builder
 from zetta_utils.typing import IntVec3D, Slices3D, Vec3D

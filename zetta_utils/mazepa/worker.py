@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 
 from zetta_utils import builder, log
 
@@ -9,12 +10,15 @@ logger = log.get_logger("mazepa")
 
 @builder.register("mazepa.run_worker")
 def run_worker(
-    exec_queue: ExecutionQueue, sleep_sec: int = 4, max_pull_num: int = 1
+    exec_queue: ExecutionQueue,
+    sleep_sec: int = 4,
+    max_pull_num: int = 1,
+    max_runtime: Optional[float] = None,
 ):  # pragma: no cover # TODO
+    start_time = time.time()
     while True:
         tasks = exec_queue.pull_tasks(max_num=max_pull_num)
         logger.info(f"Got {len(tasks)} tasks.")
-
         if len(tasks) == 0:
             logger.info(f"Sleeping for {sleep_sec} secs.")
             time.sleep(sleep_sec)
@@ -24,3 +28,5 @@ def run_worker(
                 with log.logging_tag_ctx("task_id", e.id_):
                     e()
             logger.info("DONE: taks batch execution.")
+        if max_runtime is not None and time.time() - start_time > max_runtime:
+            break

@@ -1,7 +1,6 @@
 from . import serialization
 from . import ctx_vars
-
-# from .dependency import Dependency
+from .exceptions import StopWorkerException
 
 from .task_outcome import TaskOutcome, TaskStatus
 

@@ -29,6 +29,7 @@ class DataStoreIndex(KVIndex):
     def _make_key(self, raw_key: str) -> Key:
         return Key(self.kind, raw_key, project=self.project, namespace=self.namespace)
 
+    @property
     def keys(self) -> List[Key]:
 
         if self._keys is not None:
@@ -47,4 +48,4 @@ class DataStoreIndex(KVIndex):
         # index, with attributes
         if isinstance(self.idx_raw, tuple):
             self.idx_raw, self.attributes = self.idx_raw
-        return self.keys()
+        return self.keys

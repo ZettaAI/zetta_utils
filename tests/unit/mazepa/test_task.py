@@ -35,3 +35,14 @@ def test_make_taskable_operation() -> None:
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
+
+
+def test_make_unbound_taskable_operation() -> None:
+    @taskable_operation(time_bound=False)
+    def dummy_task_fn():
+        pass
+
+    assert isinstance(dummy_task_fn, TaskableOperation)
+    task = dummy_task_fn.make_task()
+    assert isinstance(task, Task)
+    assert task.upkeep_settings.perform_upkeep

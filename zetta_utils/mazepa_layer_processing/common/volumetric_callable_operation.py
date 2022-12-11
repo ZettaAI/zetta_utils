@@ -38,13 +38,13 @@ class VolumetricCallableOperation(Generic[P]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         return list(np.array(dst_resolution) / np.array(self.res_change_mult))
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         input_idx_pad_raw = list(np.array(self.crop) * np.array(self.res_change_mult))
         for e in input_idx_pad_raw:
             if not e.is_integer():
                 raise ValueError(
                     f"Destination layer crop of {self.crop} with resolution change "
-                    f"multiplier of {self.dst_res_change_mult} results in non-integer "
+                    f"multiplier of {self.res_change_mult} results in non-integer "
                     f"input index crop of {input_idx_pad_raw}."
                 )
         self.input_idx_pad = [int(e) for e in input_idx_pad_raw]

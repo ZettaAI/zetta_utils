@@ -43,6 +43,7 @@ class DatastoreBackend(LayerBackend[DataStoreIndex, Union[ValueT, MultiValueT]])
             return [e.get("value") for e in ents]
 
         _attrs = set(idx.attributes)
+        _attrs.add("value")
         return [{k: v for k, v in e.items() if k in _attrs} for e in ents]
 
     def write(self, idx: DataStoreIndex, value: Union[ValueT, MultiValueT]):

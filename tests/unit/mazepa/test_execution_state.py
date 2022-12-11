@@ -220,9 +220,7 @@ def test_flow_execution_flow(
         batch = state.get_task_batch(max_batch_len=max_batch_len)
         assert [e.id_ for e in batch] == exp_id
 
-        task_outcomes = {
-            id_: TaskOutcome[Any](status=TaskStatus.SUCCEEDED) for id_ in completed_task_ids[i]
-        }
+        task_outcomes = {id_: TaskOutcome[Any]() for id_ in completed_task_ids[i]}
         state.update_with_task_outcomes(task_outcomes)
         assert state.get_ongoing_flow_ids() == expected_ongoing_flow_ids[i]
 
@@ -233,17 +231,17 @@ def test_task_outcome_setting():
     flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
     state = InMemoryExecutionState(ongoing_flows=flows)
     state.get_task_batch()
-    outcomes = {"a": TaskOutcome(status=TaskStatus.SUCCEEDED, return_value=5566)}
+    outcomes = {"a": TaskOutcome(return_value=5566)}
     state.update_with_task_outcomes(outcomes)
     assert task.outcome == outcomes["a"]
 
 
-def test_task_outcome_exc():
+def test_task_outcome_fail():
     # type: () -> None
     task = make_test_task(fn=lambda: None, id_="a")
     flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
     state = InMemoryExecutionState(ongoing_flows=flows)
     state.get_task_batch()
-    outcomes = {"a": TaskOutcome[Any](status=TaskStatus.FAILED)}
-    with pytest.raises(Exception):
-        state.update_with_task_outcomes(outcomes)
+    outcomes = {"a": TaskOutcome[Any](exception=Exception())}
+    state.update_with_task_outcomes(outcomes)
+    assert task.status == TaskStatus.FAILED

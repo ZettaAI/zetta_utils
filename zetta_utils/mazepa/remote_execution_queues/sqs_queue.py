@@ -38,6 +38,7 @@ class OutcomeReport:
 def _send_outcome_report(
     task: Task, queue_name: str, region_name: str, endpoint_url: Optional[str] = None
 ):
+    assert task.outcome is not None
     sqs_utils.send_msg(
         queue_name=queue_name,
         region_name=region_name,

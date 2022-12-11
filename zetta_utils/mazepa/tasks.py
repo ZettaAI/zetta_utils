@@ -24,7 +24,7 @@ from typing_extensions import ParamSpec
 from zetta_utils import log
 
 from . import id_generation
-from .exceptions import StopWorkerException
+from .exceptions import MazepaStopException
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -58,12 +58,9 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     upkeep_settings: TaskUpkeepSettings = attrs.field(factory=TaskUpkeepSettings)
     execution_id: Optional[str] = attrs.field(init=False, default=None)
 
-    outcome: TaskOutcome[R_co] = attrs.field(
-        factory=functools.partial(
-            TaskOutcome,
-            status=TaskStatus.NOT_SUBMITTED,
-        )
-    )
+    status: TaskStatus = TaskStatus.NOT_SUBMITTED
+    outcome: Optional[TaskOutcome[R_co]] = None
+
     curr_retry: Optional[int] = None
     max_retry: int = 3
     # cache_expiration: datetime.timedelta = None
@@ -82,14 +79,19 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         self.args_are_set = True
 
     def __call__(self) -> TaskOutcome[R_co]:
+        self.status = TaskStatus.RUNNING
         if self.upkeep_settings.perform_upkeep:
             outcome = self._call_with_upkeep()
         else:
             outcome = self._call_without_upkeep()
 
         self.outcome = outcome
+        if self.outcome.exception is None:
+            self.status = TaskStatus.SUCCEEDED
+        else:
+            self.status = TaskStatus.FAILED
 
-        if self.outcome.status == TaskStatus.SUCCEEDED or (
+        if self.status == TaskStatus.SUCCEEDED or (
             self.curr_retry is not None and self.curr_retry >= self.max_retry
         ):
             logger.debug("Running completion callbacks...")
@@ -127,23 +129,20 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         try:
             # TODO: parametrize by task execution environment
             return_value = self.fn(*self.args, **self.kwargs)
-            status = TaskStatus.SUCCEEDED
             exception = None
             logger.debug("Successful task execution.")
-        except (StopWorkerException, SystemExit, KeyboardInterrupt) as exc:
+        except (MazepaStopException, SystemExit, KeyboardInterrupt) as exc:
             raise exc  # pragma: no cover
         except Exception as exc:  # pylint: disable=broad-except
             logger.error(f"Failed task execution of {self}.")
             logger.exception(exc)
             exception = exc
             return_value = None
-            status = TaskStatus.FAILED
 
         time_end = time.time()
         logger.debug(f"DONE: Execution of {self}.")
 
         outcome = TaskOutcome(
-            status=status,
             exception=exception,
             execution_secs=time_end - time_start,
             return_value=return_value,

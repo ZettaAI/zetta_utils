@@ -14,10 +14,16 @@ from ..index import ConvertibleKVIndex, KVIndex, RawKVIndex
 @builder.register("DataStoreIndex")
 @attrs.mutable
 class DataStoreIndex(KVIndex):
-    project: str
-    namespace: str
-    kind: str
+    """
+    Index into `DatastoreBackend`.
+    `namespace` defaults to `default` if not specified.
+    `namespace` is akin to a traditional database.
+    `kind` is akin to a traditinal table.
+    """
+
     idx_raw: ConvertibleKVIndex
+    kind: str
+    namespace: Optional[str] = None
     attributes: Optional[Tuple[str]] = None
 
     _keys: Optional[List[Key]] = None
@@ -27,7 +33,7 @@ class DataStoreIndex(KVIndex):
         raise NotImplementedError()
 
     def _make_key(self, raw_key: str) -> Key:
-        return Key(self.kind, raw_key, project=self.project, namespace=self.namespace)
+        return Key(self.kind, raw_key, namespace=self.namespace)
 
     @property
     def keys(self) -> List[Key]:

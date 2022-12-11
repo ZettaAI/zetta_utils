@@ -21,6 +21,11 @@ MultiValueT = Union[List[DataT], List[DataAndAttributesT]]
 @typechecked
 @attrs.mutable
 class DatastoreBackend(LayerBackend[DataStoreIndex, Union[ValueT, MultiValueT]]):
+    """
+    Backend to perform IO on google datastore.
+    `project` defaults to `gcloud config get-value project` if not specified.
+    """
+
     project: Optional[str] = None
     _client: Optional[Client] = None
 
@@ -31,32 +36,29 @@ class DatastoreBackend(LayerBackend[DataStoreIndex, Union[ValueT, MultiValueT]])
         return self._client
 
     def read(self, idx: DataStoreIndex) -> Union[ValueT, MultiValueT]:
-        assert (
-            self.project == idx.project
-        ), f"Client project {self.project} and data project {idx.project} do not match."
         ents = self.client.get_multi(idx.keys)
 
+        # scalar
         if len(idx.keys) == 1:
             return dict(ents[0].items()) if idx.attributes is None else ents[0].get("value")
 
+        # no attributes, list of values
         if idx.attributes is None:
             return [e.get("value") for e in ents]
 
+        # list of dictionaries, including value
         _attrs = set(idx.attributes)
         _attrs.add("value")
         return [{k: v for k, v in e.items() if k in _attrs} for e in ents]
 
     def write(self, idx: DataStoreIndex, value: Union[ValueT, MultiValueT]):
-        assert (
-            self.project == idx.project
-        ), f"Client project {self.project} and data project {idx.project} do not match."
-
         if isinstance(value, list):
             values = []
             for v in value:
                 assert isinstance(v, (str, Mapping))
                 values.append(v if isinstance(v, Mapping) else {"value": v})
         else:
+            # scalar
             assert len(idx.keys) == 1, f"Found {len(idx.keys)} keys but only one value."
             assert isinstance(v, (str, Mapping))
             values = [value if isinstance(value, Mapping) else {"value": value}]

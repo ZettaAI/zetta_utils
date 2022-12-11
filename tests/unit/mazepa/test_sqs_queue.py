@@ -8,7 +8,7 @@ import pytest
 
 import docker
 from zetta_utils import mazepa
-from zetta_utils.mazepa import SQSExecutionQueue, TaskStatus
+from zetta_utils.mazepa import SQSExecutionQueue
 from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
 
@@ -141,9 +141,9 @@ def test_execution(work_queue, outcome_queue):
     tasks[0]()
     tasks[2]()
     outcomes = queue.pull_task_outcomes()
-    assert outcomes[tasks[0].id_].status == TaskStatus.SUCCEEDED
+    assert outcomes[tasks[0].id_].exception is None
     assert outcomes[tasks[0].id_].return_value == "Success"
-    assert outcomes[tasks[2].id_].status == TaskStatus.FAILED
+    assert outcomes[tasks[2].id_].exception is not None
     assert outcomes[tasks[2].id_].return_value is None
 
 
@@ -171,7 +171,7 @@ def test_reaching_max_retry(work_queue, outcome_queue):
     time.sleep(0.3)
     outcomes = queue.pull_task_outcomes()
     assert len(outcomes) == 1
-    assert outcomes[failing_task.id_].status == TaskStatus.FAILED
+    assert outcomes[failing_task.id_].exception is not None
 
 
 def test_unbound_task_upkeep(queue_with_worker):

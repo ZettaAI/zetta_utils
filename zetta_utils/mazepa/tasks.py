@@ -23,8 +23,7 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import log
 
-from . import id_generation
-from .exceptions import MazepaStopException
+from . import exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -104,6 +103,13 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
 
         return outcome
 
+    def cancel_without_starting(self):
+        logger.debug(f"Cancelling task {self} without starting")
+        self.status = TaskStatus.FAILED
+        self.outcome = TaskOutcome(exception=exceptions.MazepaCancel())
+        for callback in self.completion_callbacks:
+            callback(task=self)
+
     def _call_with_upkeep(self) -> TaskOutcome[R_co]:
         assert self.upkeep_settings.interval_secs is not None
 
@@ -131,7 +137,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             return_value = self.fn(*self.args, **self.kwargs)
             exception = None
             logger.debug("Successful task execution.")
-        except (MazepaStopException, SystemExit, KeyboardInterrupt) as exc:
+        except (exceptions.MazepaException, SystemExit, KeyboardInterrupt) as exc:
             raise exc  # pragma: no cover
         except Exception as exc:  # pylint: disable=broad-except
             logger.error(f"Failed task execution of {self}.")

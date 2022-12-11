@@ -7,7 +7,8 @@ import coolname
 import pytest
 
 import docker
-from zetta_utils import mazepa
+from zetta_utils import mazepa_layer_processing  # pylint: disable=all
+from zetta_utils import builder, mazepa
 from zetta_utils.mazepa import SQSExecutionQueue
 from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
@@ -97,7 +98,7 @@ def queue_with_worker(work_queue, outcome_queue):
     #    target=mazepa.run_worker,
     #    kwargs={"exec_queue": queue, "sleep_sec": 0.05, "max_runtime": 5.0},
     # )
-    from zetta_utils import builder, mazepa_layer_processing  # pylint: disable=all
+    from zetta_utils import mazepa_layer_processing  # pylint: disable=all
 
     worker_p = Process(
         target=builder.build,
@@ -112,6 +113,39 @@ def queue_with_worker(work_queue, outcome_queue):
                 },
                 "sleep_sec": 0.2,
                 "max_runtime": 5.0,
+            },
+        ),
+    )
+    worker_p.start()
+    yield work_queue_name, outcome_queue_name, region_name, endpoint_url
+    worker_p.join()
+    time.sleep(0.2)
+
+
+@builder.register("return_false_fn")
+def return_false_fn(*args, **kwargs):
+    return False
+
+
+@pytest.fixture
+def queue_with_cancelling_worker(work_queue, outcome_queue):
+    work_queue_name, _, _ = work_queue
+    outcome_queue_name, region_name, endpoint_url = outcome_queue
+
+    worker_p = Process(
+        target=builder.build,
+        args=(
+            {
+                "@type": "mazepa.run_worker",
+                "exec_queue": {
+                    "@type": "mazepa.SQSExecutionQueue",
+                    "name": work_queue_name,
+                    "outcome_queue_name": outcome_queue_name,
+                    "endpoint_url": endpoint_url,
+                },
+                "sleep_sec": 0.2,
+                "max_runtime": 5.0,
+                "task_filter_fn": {"@type": "return_false_fn", "@mode": "partial"},
             },
         ),
     )
@@ -147,7 +181,7 @@ def test_execution(work_queue, outcome_queue):
     assert outcomes[tasks[2].id_].return_value is None
 
 
-def test_reaching_max_retry(work_queue, outcome_queue):
+def test_reaching_max_retry(work_queue, outcome_queue) -> None:
     work_queue_name, _, _ = work_queue
     outcome_queue_name, region_name, endpoint_url = outcome_queue
     queue = SQSExecutionQueue(
@@ -174,7 +208,7 @@ def test_reaching_max_retry(work_queue, outcome_queue):
     assert outcomes[failing_task.id_].exception is not None
 
 
-def test_unbound_task_upkeep(queue_with_worker):
+def test_unbound_task_upkeep(queue_with_worker) -> None:
     work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
     queue = SQSExecutionQueue(
         name=work_queue_name,
@@ -197,7 +231,7 @@ def test_unbound_task_upkeep(queue_with_worker):
     assert len(rdy_tasks) == 0
 
 
-def test_unbound_task_upkeep_finish(queue_with_worker):
+def test_unbound_task_upkeep_finish(queue_with_worker) -> None:
     work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
     queue = SQSExecutionQueue(
         name=work_queue_name,
@@ -218,6 +252,29 @@ def test_unbound_task_upkeep_finish(queue_with_worker):
     assert len(rdy_tasks) == 0
     outcomes = queue.pull_task_outcomes()
     assert len(outcomes) == 1
+
+
+def test_cancelling_worker(queue_with_cancelling_worker) -> None:
+    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_cancelling_worker
+    queue = SQSExecutionQueue(
+        name=work_queue_name,
+        region_name=region_name,
+        endpoint_url=endpoint_url,
+        outcome_queue_name=outcome_queue_name,
+        pull_lease_sec=2,
+    )
+    task: mazepa.Task = _TaskableOperation(
+        lambda: exec("import time; time.sleep(5);"),
+        time_bound=False,
+        max_retry=0,
+    ).make_task()
+    queue.push_tasks([task])
+    time.sleep(1.0)
+    rdy_tasks = queue.pull_tasks()
+    assert len(rdy_tasks) == 0
+    outcomes = queue.pull_task_outcomes()
+    assert len(outcomes) == 1
+    assert isinstance(outcomes[task.id_].exception, mazepa.exceptions.MazepaCancel)
 
 
 def test_polling_not_done(work_queue, outcome_queue):

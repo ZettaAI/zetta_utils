@@ -2,5 +2,9 @@ class MazepaException(Exception):
     ...
 
 
-class MazepaStopException(MazepaException):
+class MazepaStop(MazepaException):
+    ...
+
+
+class MazepaCancel(MazepaException):
     ...

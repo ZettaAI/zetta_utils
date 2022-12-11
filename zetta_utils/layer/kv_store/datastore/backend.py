@@ -1,6 +1,6 @@
 """gcloud datastore backend"""
 
-from typing import List, Mapping, TypeVar, Union
+from typing import List, Mapping, Optional, TypeVar, Union
 
 import attrs
 from google.cloud.datastore import Client, Entity, Key
@@ -21,23 +21,46 @@ MultiValueT = Union[List[DataT], List[DataAndAttributesT]]
 @typechecked
 @attrs.mutable
 class DatastoreBackend(LayerBackend[DataStoreIndex, Union[ValueT, MultiValueT]]):
-    client: Client = Client()
+    project: Optional[str] = None
+    _client: Optional[Client] = None
+
+    @property
+    def client(self) -> Client:
+        if self._client is None:
+            self._client = Client(project=self.project)
+        return self._client
 
     def read(self, idx: DataStoreIndex) -> Union[ValueT, MultiValueT]:
-        ...
+        assert (
+            self.project == idx.project
+        ), f"Client project {self.project} and data project {idx.project} do not match."
+        ents = self.client.get_multi(idx.keys)
+
+        if len(idx.keys) == 1:
+            return dict(ents[0].items()) if idx.attributes is None else ents[0].get("value")
+
+        if idx.attributes is None:
+            return [e.get("value") for e in ents]
+
+        _attrs = set(idx.attributes)
+        return [{k: v for k, v in e.items() if k in _attrs} for e in ents]
 
     def write(self, idx: DataStoreIndex, value: Union[ValueT, MultiValueT]):
+        assert (
+            self.project == idx.project
+        ), f"Client project {self.project} and data project {idx.project} do not match."
+
         if isinstance(value, list):
             values = []
             for v in value:
                 assert isinstance(v, (str, Mapping))
                 values.append(v if isinstance(v, Mapping) else {"value": v})
-            self._write_entities(idx.keys, values)
         else:
-            assert len(idx.keys) == 1, f"Number of keys {len(idx.keys)} but value is single."
+            assert len(idx.keys) == 1, f"Found {len(idx.keys)} keys but only one value."
             assert isinstance(v, (str, Mapping))
-            value = value if isinstance(value, Mapping) else {"value": value}
-            self._write_entities(idx.keys, [value])
+            values = [value if isinstance(value, Mapping) else {"value": value}]
+
+        self._write_entities(idx.keys, values)
 
     def get_name(self) -> str:  # pragma: no cover
         return self.client.base_url

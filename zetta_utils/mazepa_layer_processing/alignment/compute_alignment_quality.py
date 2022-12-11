@@ -97,6 +97,7 @@ def compute_alignment_quality(
 
     # parse outputs
     for task in tasks:
+        assert task.outcome is not None
         ret = task.outcome.return_value
         assert ret is not None
         sums.append(ret["sum"])

@@ -1,6 +1,6 @@
 from . import serialization
 from . import ctx_vars
-from .exceptions import StopWorkerException
+from .exceptions import MazepaStopException
 
 from .task_outcome import TaskOutcome, TaskStatus
 

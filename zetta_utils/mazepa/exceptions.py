@@ -1,2 +1,6 @@
-class StopWorkerException(Exception):
+class MazepaException(Exception):
+    ...
+
+
+class MazepaStopException(MazepaException):
     ...

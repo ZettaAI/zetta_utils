@@ -1,15 +1,15 @@
 # pylint: disable=missing-docstring
-from typing import Any, Callable, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Union
 
 import torch
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .. import RawVolumetricIndex, VolumetricIndex, build_volumetric_layer
+from ... import DataProcessor, DataWithIndexProcessor, IndexAdjuster
+from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
 from . import CVBackend, InfoExistsModes, PrecomputedInfoSpec
 
 
@@ -28,12 +28,20 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_chunk_size: Optional[IntVec3D] = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
-    index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
-    read_postprocs: Iterable[Callable[..., Any]] = (),
-    write_preprocs: Iterable[Callable[..., Any]] = (),
-) -> Layer[
-    RawVolumetricIndex, VolumetricIndex, torch.Tensor
-]:  # pragma: no cover # trivial conditional, delegation only
+    index_adjs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
+    read_postprocs: Iterable[
+        Union[
+            DataProcessor[torch.Tensor],
+            DataWithIndexProcessor[torch.Tensor, VolumetricIndex],
+        ]
+    ] = (),
+    write_preprocs: Iterable[
+        Union[
+            DataProcessor[torch.Tensor],
+            DataWithIndexProcessor[torch.Tensor, VolumetricIndex],
+        ]
+    ] = (),
+) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only
     """Build a CloudVolume layer.
 
     :param path: Path to the CloudVolume.

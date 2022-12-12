@@ -3,11 +3,10 @@ from typing import Protocol, TypeVar
 from typing_extensions import ParamSpec
 
 from zetta_utils import mazepa
-from zetta_utils.layer import LayerIndex
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
-IndexT_contra = TypeVar("IndexT_contra", bound=LayerIndex, contravariant=True)
+IndexT_contra = TypeVar("IndexT_contra", contravariant=True)
 
 
 class ChunkableOperation(Protocol[P, IndexT_contra, R_co]):

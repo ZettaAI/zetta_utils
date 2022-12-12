@@ -2,26 +2,28 @@ import datetime
 from statistics import NormalDist
 from typing import Any, Dict, List, TypeVar
 
-import torch
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.layer import Layer, LayerIndex
-from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricIndexChunker
+from zetta_utils.layer.volumetric import (
+    VolumetricIndex,
+    VolumetricIndexChunker,
+    VolumetricLayer,
+)
 from zetta_utils.mazepa import Dependency
 from zetta_utils.typing import Vec3D
 
 logger = log.get_logger("zetta_utils")
 
-IndexT = TypeVar("IndexT", bound=LayerIndex)
+IndexT = TypeVar("IndexT")
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 
 
 @mazepa.taskable_operation
 def compute_misalignment_stats(
-    layer: Layer[Any, VolumetricIndex, torch.Tensor],
+    layer: VolumetricLayer,
     idx: VolumetricIndex,
     misalignment_thresholds: List[float],
 ) -> Dict[str, Any]:
@@ -56,7 +58,7 @@ def lrpad(
 @mazepa.flow_schema
 @typechecked
 def compute_alignment_quality(
-    src: Layer[Any, VolumetricIndex, torch.Tensor],
+    src: VolumetricLayer,
     idx: VolumetricIndex,
     chunk_size: Vec3D,
     resolution: List[Any],

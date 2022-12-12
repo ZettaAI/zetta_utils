@@ -1,12 +1,37 @@
 # pylint: disable=missing-docstring
-from typing import Any, Callable, Dict, Sequence
+from typing import Any, Dict, Iterable, Union
 
 from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .. import Layer
-from . import LayerSetBackend, RawSetSelectionIndex, SetSelectionIndex
+from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster, Layer
+from . import LayerSetBackend, LayerSetFormatConverter, LayerSetIndex, UserLayerSetIndex
+
+LayerSet = Layer[
+    LayerSetIndex,  # Backend Index
+    Dict[str, Any],  # Backend Data -> TODO
+    UserLayerSetIndex,  # UserReadIndexT0
+    Dict[str, Any],  # UserReadDataT0
+    UserLayerSetIndex,  # UserWriteIndexT0
+    Dict[str, Any],  # UserWriteDataT0
+    ### REPEATING DEFAULTS TO FILL UP ALL TYPE VARS:
+    UserLayerSetIndex,
+    Dict[str, Any],
+    UserLayerSetIndex,
+    Dict[str, Any],
+    UserLayerSetIndex,
+    Dict[str, Any],
+    UserLayerSetIndex,
+    Dict[str, Any],
+    UserLayerSetIndex,
+    Dict[str, Any],
+    UserLayerSetIndex,
+    Dict[str, Any],
+]
+
+
+# from ..protocols import LayerWithIndexT, LayerWithIndexDataT
 
 
 @typechecked
@@ -14,10 +39,14 @@ from . import LayerSetBackend, RawSetSelectionIndex, SetSelectionIndex
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,
-    index_adjs: Sequence[Callable[..., SetSelectionIndex]] = (),
-    read_postprocs: Sequence[Callable] = (),
-    write_preprocs: Sequence[Callable] = (),
-) -> Layer[RawSetSelectionIndex, SetSelectionIndex, Any]:
+    index_adjs: Iterable[IndexAdjuster[LayerSetIndex]] = (),
+    read_postprocs: Iterable[
+        Union[DataProcessor[Dict[str, Any]], DataWithIndexProcessor[Dict[str, Any], LayerSetIndex]]
+    ] = (),
+    write_preprocs: Iterable[
+        Union[DataProcessor[Dict[str, Any]], DataWithIndexProcessor[Dict[str, Any], LayerSetIndex]]
+    ] = (),
+) -> LayerSet:
     """Build a layer representing a set of layers given as input.
 
     :param layers: Mapping from layer names to layers.
@@ -32,10 +61,10 @@ def build_layer_set(
 
     """
     backend = LayerSetBackend(layers)
-
-    result = Layer[RawSetSelectionIndex, SetSelectionIndex, Any](
+    result = LayerSet(
         backend=backend,
         readonly=readonly,
+        format_converter=LayerSetFormatConverter(),
         index_adjs=list(index_adjs),
         read_postprocs=list(read_postprocs),
         write_preprocs=list(write_preprocs),

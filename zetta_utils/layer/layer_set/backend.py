@@ -8,18 +8,18 @@ import attrs
 from zetta_utils import builder
 
 from .. import Layer, LayerBackend
-from . import SetSelectionIndex
+from . import LayerSetIndex
 
 
 # TODO: type LayerSet
 @builder.register("build_layer_setBackend")
 @attrs.mutable()
 class LayerSetBackend(
-    LayerBackend[SetSelectionIndex, Any]
+    LayerBackend[LayerSetIndex, Dict[str, Any]]
 ):  # pylint: disable=too-few-public-methods
     layer: Dict[str, Layer]
 
-    def _get_layer_selection(self, idx: SetSelectionIndex) -> Tuple[str, ...]:
+    def _get_layer_selection(self, idx: LayerSetIndex) -> Tuple[str, ...]:
         if idx.layer_selection is None:
             result = tuple(self.layer.keys())
         else:
@@ -27,19 +27,19 @@ class LayerSetBackend(
 
         return result
 
-    def read(self, idx: SetSelectionIndex) -> Dict[str, Any]:
+    def read(self, idx: LayerSetIndex) -> Dict[str, Any]:
         layer_selection = self._get_layer_selection(idx)
 
         # TODO: can be parallelized
         result = {k: self.layer[k].read(idx.layer_idx) for k in layer_selection}
         return result
 
-    def write(self, idx: SetSelectionIndex, value: Dict[str, Any]):
+    def write(self, idx: LayerSetIndex, data: Dict[str, Any]):
         layer_selection = self._get_layer_selection(idx)
 
         # TODO: can be parallelized
         for k in layer_selection:
-            self.layer[k].write(idx.layer_idx, value[k])
+            self.layer[k].write(idx.layer_idx, data[k])
 
     def get_name(self) -> str:  # pragma: no cover
         return ", ".join([l.get_name() for l in self.layer.values()])

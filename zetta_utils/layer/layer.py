@@ -2,27 +2,50 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Any, Callable, Generic, Iterable, List, Optional, TypeVar
+from typing import Callable, Generic, Iterable, List, TypeVar, Union, overload
 
 import attrs
 
 from zetta_utils import builder
 
-from . import DataWithIndexProcessor, IndexConverter, LayerBackend, LayerIndex
+from . import (
+    DataProcessor,
+    DataWithIndexProcessor,
+    FormatConverter,
+    IndexAdjuster,
+    LayerBackend,
+)
 
-IndexT = TypeVar("IndexT", bound=LayerIndex)
-DataT = TypeVar("DataT")
-RawIndexT = TypeVar("RawIndexT")
-IndexConverterT = TypeVar("IndexConverterT", bound=IndexConverter)
-T = TypeVar("T")
+BackendIndexT = TypeVar("BackendIndexT")
+BackendDataT = TypeVar("BackendDataT")
+
+UserReadDataT0_co = TypeVar("UserReadDataT0_co", covariant=True)
+UserReadDataT1_co = TypeVar("UserReadDataT1_co", covariant=True)
+UserReadDataT2_co = TypeVar("UserReadDataT2_co", covariant=True)
+UserReadDataT3_co = TypeVar("UserReadDataT3_co", covariant=True)
+
+UserWriteDataT0_contra = TypeVar("UserWriteDataT0_contra", contravariant=True)
+UserWriteDataT1_contra = TypeVar("UserWriteDataT1_contra", contravariant=True)
+UserWriteDataT2_contra = TypeVar("UserWriteDataT2_contra", contravariant=True)
+UserWriteDataT3_contra = TypeVar("UserWriteDataT3_contra", contravariant=True)
+
+UserReadIndexT0_contra = TypeVar("UserReadIndexT0_contra", contravariant=True)
+UserReadIndexT1_contra = TypeVar("UserReadIndexT1_contra", contravariant=True)
+UserReadIndexT2_contra = TypeVar("UserReadIndexT2_contra", contravariant=True)
+UserReadIndexT3_contra = TypeVar("UserReadIndexT3_contra", contravariant=True)
+
+UserWriteIndexT0_contra = TypeVar("UserWriteIndexT0_contra", contravariant=True)
+UserWriteIndexT1_contra = TypeVar("UserWriteIndexT1_contra", contravariant=True)
+UserWriteIndexT2_contra = TypeVar("UserWriteIndexT2_contra", contravariant=True)
+UserWriteIndexT3_contra = TypeVar("UserWriteIndexT3_contra", contravariant=True)
 
 
 def _apply_procs(
-    data: T,
-    idx: IndexT,
-    idx_proced: IndexT,
+    data: BackendDataT,
+    idx: BackendIndexT,
+    idx_proced: BackendIndexT,
     procs: Iterable[Callable],
-) -> T:
+) -> BackendDataT:
     result = data
     for proc in procs:
         if isinstance(proc, DataWithIndexProcessor):
@@ -35,63 +58,212 @@ def _apply_procs(
 # TODO: Generic parametrization for Read/Write data type
 @builder.register("Layer")
 @attrs.mutable
-class Layer(Generic[RawIndexT, IndexT, DataT]):
-    backend: LayerBackend[IndexT, DataT]
+class Layer(
+    Generic[
+        BackendIndexT,
+        BackendDataT,
+        UserReadIndexT0_contra,
+        UserReadDataT0_co,
+        UserWriteIndexT0_contra,
+        UserWriteDataT0_contra,
+        UserReadIndexT1_contra,
+        UserReadDataT1_co,
+        UserWriteIndexT1_contra,
+        UserWriteDataT1_contra,
+        UserReadIndexT2_contra,
+        UserReadDataT2_co,
+        UserWriteIndexT2_contra,
+        UserWriteDataT2_contra,
+        UserReadIndexT3_contra,
+        UserReadDataT3_co,
+        UserWriteIndexT3_contra,
+        UserWriteDataT3_contra,
+    ]
+):
+
+    backend: LayerBackend[BackendIndexT, BackendDataT]
+    format_converter: FormatConverter[
+        BackendIndexT,
+        BackendDataT,
+        UserReadIndexT0_contra,
+        UserReadDataT0_co,
+        UserWriteIndexT0_contra,
+        UserWriteDataT0_contra,
+        UserReadIndexT1_contra,
+        UserReadDataT1_co,
+        UserWriteIndexT1_contra,
+        UserWriteDataT1_contra,
+        UserReadIndexT2_contra,
+        UserReadDataT2_co,
+        UserWriteIndexT2_contra,
+        UserWriteDataT2_contra,
+        UserReadIndexT3_contra,
+        UserReadDataT3_co,
+        UserWriteIndexT3_contra,
+        UserWriteDataT3_contra,
+    ]
     readonly: bool = False
-    index_converter: Optional[IndexConverter[RawIndexT, IndexT]] = None
-    index_adjs: List[Callable[[IndexT], IndexT]] = attrs.field(factory=list)
-    read_postprocs: List[Callable] = attrs.field(factory=list)
-    write_preprocs: List[Callable] = attrs.field(factory=list)
 
-    def _convert_index(self, idx_raw: RawIndexT) -> IndexT:
-        if self.index_converter is not None:
-            # Open problem: pylint doesn't see that IndexConverter is callable
-            # Fixes welocme
-            result = self.index_converter(idx_raw=idx_raw)  # pylint: disable=not-callable
-        else:
-            result = self.backend.get_index_type().default_convert(idx_raw)
-        return result
+    index_adjs: List[IndexAdjuster[BackendIndexT]] = attrs.field(factory=list)
+    read_postprocs: List[
+        Union[
+            DataProcessor[BackendDataT],
+            DataWithIndexProcessor[BackendDataT, BackendIndexT],
+        ]
+    ] = attrs.field(factory=list)
+    write_preprocs: List[
+        Union[
+            DataProcessor[BackendDataT],
+            DataWithIndexProcessor[BackendDataT, BackendIndexT],
+        ]
+    ] = attrs.field(factory=list)
 
-    def read(self, idx_raw: RawIndexT) -> DataT:
-        idx = self._convert_index(idx_raw)
+    @overload
+    def read(self, idx_user: BackendIndexT) -> BackendDataT:
+        ...
+
+    @overload
+    def read(self, idx_user: UserReadIndexT0_contra) -> UserReadDataT0_co:
+        ...
+
+    @overload
+    def read(self, idx_user: UserReadIndexT1_contra) -> UserReadDataT1_co:
+        ...
+
+    @overload
+    def read(self, idx_user: UserReadIndexT2_contra) -> UserReadDataT2_co:
+        ...
+
+    @overload
+    def read(self, idx_user: UserReadIndexT3_contra) -> UserReadDataT3_co:
+        ...
+
+    def read(
+        self,
+        idx_user,
+    ) -> Union[
+        BackendDataT,
+        UserReadDataT0_co,
+        UserReadDataT1_co,
+        UserReadDataT2_co,
+        UserReadDataT3_co,
+    ]:
+        idx = self.format_converter.convert_read_idx(idx_user)
         idx_proced = idx
         for adj in self.index_adjs:
             idx_proced = adj(idx_proced)
 
-        result_raw = self.backend.read(idx=idx_proced)
-        result = _apply_procs(
-            data=result_raw,
+        data_backend = self.backend.read(idx=idx_proced)
+
+        data_backend = _apply_procs(
+            data=data_backend,
             idx=idx,
             idx_proced=idx_proced,
             procs=self.read_postprocs,
         )
+        data_user = self.format_converter.convert_read_data(idx_user, data_backend)
+        return data_user
 
-        return result
+    @overload
+    def write(self, idx_user: BackendIndexT, data_user: BackendDataT):
+        ...
 
-    # TODO: Parametrize by RawDataT type var
-    def write(self, idx_raw: RawIndexT, value_raw: Any):
-        if self.readonly:
+    @overload
+    @overload
+    def write(self, idx_user: UserWriteIndexT0_contra, data_user: UserWriteDataT0_contra):
+        ...
+
+    @overload
+    def write(self, idx_user: UserWriteIndexT1_contra, data_user: UserWriteDataT1_contra):
+        ...
+
+    @overload
+    def write(self, idx_user: UserWriteIndexT2_contra, data_user: UserWriteDataT2_contra):
+        ...
+
+    @overload
+    def write(self, idx_user: UserWriteIndexT3_contra, data_user: UserWriteDataT3_contra):
+        ...
+
+    def write(
+        self,
+        idx_user,
+        data_user,
+    ):
+        if self.readonly:  # pragma: no cover
             raise IOError(f"Attempting to write to a read only layer {self}")
 
-        idx = self._convert_index(idx_raw)
+        idx, data = self.format_converter.convert_write(idx_user=idx_user, data_user=data_user)
         idx_proced = idx
         for adj in self.index_adjs:
             idx_proced = adj(idx_proced)
 
-        value = _apply_procs(
-            data=value_raw,
+        data = _apply_procs(
+            data=data,
             idx=idx,
             idx_proced=idx_proced,
             procs=self.write_preprocs,
         )
-
-        self.backend.write(idx=idx_proced, value=value)
+        self.backend.write(idx=idx_proced, data=data)
 
     def get_name(self) -> str:  # pragma: no cover
         return self.backend.get_name()
 
-    def __getitem__(self, idx_raw: RawIndexT) -> DataT:  # pragma: no cover
-        return self.read(idx_raw)
+    @overload
+    def __getitem__(self, idx_user: BackendIndexT) -> BackendDataT:
+        ...
 
-    def __setitem__(self, idx_raw: RawIndexT, value_raw: Any):  # pragma: no cover
-        return self.write(idx_raw, value_raw)
+    @overload
+    def __getitem__(self, idx_user: UserReadIndexT0_contra) -> UserReadDataT0_co:
+        ...
+
+    @overload
+    def __getitem__(self, idx_user: UserReadIndexT1_contra) -> UserReadDataT1_co:
+        ...
+
+    @overload
+    def __getitem__(self, idx_user: UserReadIndexT2_contra) -> UserReadDataT2_co:
+        ...
+
+    @overload
+    def __getitem__(self, idx_user: UserReadIndexT3_contra) -> UserReadDataT3_co:
+        ...
+
+    def __getitem__(
+        self, idx_user
+    ) -> Union[
+        BackendDataT,
+        UserReadDataT0_co,
+        UserReadDataT1_co,
+        UserReadDataT2_co,
+        UserReadDataT3_co,
+    ]:  # pragma: no cover
+        return self.read(idx_user)
+
+    @overload
+    def __setitem__(self, idx_user: BackendIndexT, data_user: BackendDataT):
+        ...
+
+    @overload
+    @overload
+    def __setitem__(self, idx_user: UserWriteIndexT0_contra, data_user: UserWriteDataT0_contra):
+        ...
+
+    @overload
+    def __setitem__(self, idx_user: UserWriteIndexT1_contra, data_user: UserWriteDataT1_contra):
+        ...
+
+    @overload
+    def __setitem__(self, idx_user: UserWriteIndexT2_contra, data_user: UserWriteDataT2_contra):
+        ...
+
+    @overload
+    def __setitem__(self, idx_user: UserWriteIndexT3_contra, data_user: UserWriteDataT3_contra):
+        ...
+
+    def __setitem__(
+        self,
+        idx_user,
+        data_user,
+    ):  # pragma: no cover
+        return self.write(idx_user, data_user)

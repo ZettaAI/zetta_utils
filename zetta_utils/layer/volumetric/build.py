@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Iterable, Optional
+from typing import Iterable, Optional, Union
 
 import torch
 from typeguard import typechecked
@@ -13,16 +13,36 @@ from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 from zetta_utils.typing import Vec3D
 
-from .. import LayerBackend
+from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster, LayerBackend
 from . import (
-    RawVolumetricIndex,
-    VolDataInterpolator,
+    UserVolumetricIndex,
+    VolumetricDataInterpolator,
+    VolumetricFormatConverter,
     VolumetricIndex,
-    VolumetricIndexConverter,
     VolumetricIndexResolutionAdjuster,
 )
 
-VolumetricLayer: TypeAlias = Layer[RawVolumetricIndex, VolumetricIndex, torch.Tensor]
+VolumetricLayer: TypeAlias = Layer[
+    VolumetricIndex,  # Backend Index
+    torch.Tensor,  # BackendData
+    UserVolumetricIndex,  # UserReadIndexT0
+    torch.Tensor,  # UserReadDataT0
+    UserVolumetricIndex,  # UserWriteIndexT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
+    ### DUMMIES TO FILL IN
+    UserVolumetricIndex,  # UserReadIndexT0
+    torch.Tensor,  # UserReadDataT0
+    UserVolumetricIndex,  # UserWriteIndexT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
+    UserVolumetricIndex,  # UserReadIndexT0
+    torch.Tensor,  # UserReadDataT0
+    UserVolumetricIndex,  # UserWriteIndexT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
+    UserVolumetricIndex,  # UserReadIndexT0
+    torch.Tensor,  # UserReadDataT0
+    UserVolumetricIndex,  # UserWriteIndexT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
+]
 
 
 @typechecked
@@ -35,9 +55,13 @@ def build_volumetric_layer(
     interpolation_mode: Optional[InterpolationMode] = None,
     readonly: bool = False,
     allow_slice_rounding: bool = False,
-    index_adjs: Iterable[Callable[[VolumetricIndex], VolumetricIndex]] = (),
-    read_postprocs: Iterable[Callable[..., Any]] = (),
-    write_preprocs: Iterable[Callable[..., Any]] = (),
+    index_adjs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
+    read_postprocs: Iterable[
+        Union[DataProcessor[torch.Tensor], DataWithIndexProcessor[torch.Tensor, VolumetricIndex]]
+    ] = (),
+    write_preprocs: Iterable[
+        Union[DataProcessor[torch.Tensor], DataWithIndexProcessor[torch.Tensor, VolumetricIndex]]
+    ] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.
 
@@ -63,7 +87,7 @@ def build_volumetric_layer(
     :return: Layer built according to the spec.
 
     """
-    index_converter = VolumetricIndexConverter(
+    format_converter = VolumetricFormatConverter(
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,
         allow_slice_rounding=allow_slice_rounding,
@@ -83,7 +107,7 @@ def build_volumetric_layer(
         read_postprocs = list(read_postprocs)
         read_postprocs.insert(
             0,
-            VolDataInterpolator(
+            VolumetricDataInterpolator(
                 interpolation_mode=interpolation_mode,
                 mode="read",
                 allow_slice_rounding=allow_slice_rounding,
@@ -92,7 +116,7 @@ def build_volumetric_layer(
         write_preprocs = list(write_preprocs)
         write_preprocs.insert(
             -1,
-            VolDataInterpolator(
+            VolumetricDataInterpolator(
                 interpolation_mode=interpolation_mode,
                 mode="write",
                 allow_slice_rounding=allow_slice_rounding,
@@ -102,7 +126,7 @@ def build_volumetric_layer(
     result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
-        index_converter=index_converter,
+        format_converter=format_converter,
         index_adjs=list(index_adjs_final),
         read_postprocs=list(read_postprocs),
         write_preprocs=list(write_preprocs),

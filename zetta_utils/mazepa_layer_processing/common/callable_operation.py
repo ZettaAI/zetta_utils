@@ -1,14 +1,15 @@
-from typing import Any, Callable, Generic, TypeVar
+from typing import Callable, Generic, TypeVar
 
 import attrs
 from typing_extensions import Concatenate, ParamSpec
 
 from zetta_utils import builder, mazepa
-from zetta_utils.layer import IndexChunker, Layer, LayerIndex
+from zetta_utils.layer import IndexChunker, Layer
+from zetta_utils.layer.protocols import LayerWithIndexT
 
 from . import ChunkedApplyFlowSchema
 
-IndexT = TypeVar("IndexT", bound=LayerIndex)
+IndexT = TypeVar("IndexT")
 R = TypeVar("R")
 P = ParamSpec("P")
 
@@ -24,7 +25,7 @@ class CallableOperation(Generic[P, IndexT, R]):
     fn: Callable[P, R]
 
     def __call__(
-        self, idx: IndexT, dst: Layer[Any, IndexT, R], *args: P.args, **kwargs: P.kwargs
+        self, idx: IndexT, dst: LayerWithIndexT[IndexT], *args: P.args, **kwargs: P.kwargs
     ) -> None:
         assert len(args) == 0
         fn_kwargs = {}
@@ -41,10 +42,10 @@ class CallableOperation(Generic[P, IndexT, R]):
 @builder.register("build_chunked_callable_flow_schema")
 def build_chunked_callable_flow_schema(
     fn: Callable[P, R], chunker: IndexChunker[IndexT]
-) -> ChunkedApplyFlowSchema[Concatenate[Layer[Any, IndexT, R], P], IndexT, None,]:
+) -> ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None,]:
     operation = CallableOperation[P, IndexT, R](fn=fn)
 
-    return ChunkedApplyFlowSchema[Concatenate[Layer[Any, IndexT, R], P], IndexT, None](
+    return ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None](
         chunker=chunker,
         operation=operation,  # type: ignore
     )

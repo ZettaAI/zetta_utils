@@ -48,6 +48,8 @@ def execute(
     Executes a target until completion using the given execution queue.
     Execution is performed by making an execution state from the target and passing new task
     batches and completed task ids between the state and the execution queue.
+
+    Implementation: this function performs misc setup and delegates to _execute_from_state.
     """
     execution_id = get_unique_id(prefix="execution")
     ctx_vars.execution_id.set(execution_id)
@@ -64,36 +66,53 @@ def execute(
         state = state_constructor(ongoing_flows=flows)
         logger.debug(f"Constructed execution state {state}.")
 
-    if exec_queue is None:
-        queue = LocalExecutionQueue()  # type: ExecutionQueue
-    else:
+    if exec_queue is not None:
         queue = exec_queue
+    else:
+        queue = LocalExecutionQueue()
 
+    logger.debug(f"STARTING: execution of {target}.")
     start_time = time.time()
-    logger.debug(f"STARTING: mazepa execution of {target}.")
+    _execute_from_state(
+        execution_id=execution_id,
+        state=state,
+        exec_queue=queue,
+        max_batch_len=max_batch_len,
+        batch_gap_sleep_sec=batch_gap_sleep_sec,
+        execution_upkeep_fn=execution_upkeep_fn,
+    )
+    end_time = time.time()
+    logger.debug(f"DONE: mazepa execution of {target}.")
+    logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")
+
+
+def _execute_from_state(
+    execution_id: str,
+    state: ExecutionState,
+    exec_queue: ExecutionQueue,
+    max_batch_len: int,
+    batch_gap_sleep_sec: float,
+    execution_upkeep_fn: Optional[Callable[[str], bool]],
+):
     while True:
         if len(state.get_ongoing_flow_ids()) == 0:
             logger.debug("No ongoing flows left.")
             break
 
-        all_good = True
+        execution_should_continue = True
         if execution_upkeep_fn is not None:
-            all_good = execution_upkeep_fn(execution_id)
+            execution_should_continue = execution_upkeep_fn(execution_id)
 
-        if not all_good:
+        if not execution_should_continue:
             logger.debug(f"Stopping execution by decision of {execution_upkeep_fn}")
             break
 
-        process_ready_tasks(queue, state, execution_id, max_batch_len)
+        process_ready_tasks(exec_queue, state, execution_id, max_batch_len)
 
-        if not isinstance(queue, LocalExecutionQueue):
+        if not isinstance(exec_queue, LocalExecutionQueue):
             logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
             time.sleep(batch_gap_sleep_sec)
             logger.debug("Awake.")
-
-    end_time = time.time()
-    logger.debug(f"DONE: mazepa execution of {target}.")
-    logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")
 
 
 def process_ready_tasks(

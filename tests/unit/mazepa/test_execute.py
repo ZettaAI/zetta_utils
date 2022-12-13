@@ -10,6 +10,7 @@ from zetta_utils.mazepa import (
     InMemoryExecutionState,
     LocalExecutionQueue,
     TaskStatus,
+    concurrent_flow,
     execute,
     flow_schema,
     taskable_operation,
@@ -50,11 +51,13 @@ def empty_flow():
 
 def test_local_execution_defaults(reset_task_count):
     execute(
-        [
-            dummy_flow(),
-            dummy_flow(),
-            dummy_flow(),
-        ],
+        concurrent_flow(
+            [
+                dummy_flow(),
+                dummy_flow(),
+                dummy_flow(),
+            ]
+        ),
         batch_gap_sleep_sec=0,
         max_batch_len=2,
     )

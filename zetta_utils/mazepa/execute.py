@@ -59,11 +59,7 @@ def execute(
         state = target
         logger.debug(f"Given execution state {state}.")
     else:
-        if not isinstance(target, Flow):
-            flows = target
-        else:
-            flows = [target]
-        state = state_constructor(ongoing_flows=flows)
+        state = state_constructor(ongoing_flows=[target])
         logger.debug(f"Constructed execution state {state}.")
 
     if exec_queue is not None:

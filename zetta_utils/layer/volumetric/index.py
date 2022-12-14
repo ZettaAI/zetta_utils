@@ -7,7 +7,7 @@ import attrs
 
 from zetta_utils import builder
 
-# from zetta_utils.partial import ComparablePartial
+# from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.typing import Vec3D
 

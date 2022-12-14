@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import time
+from contextlib import AbstractContextManager, ExitStack
 from typing import Callable, Iterable, Optional, Union
 
 import attrs
 
 from zetta_utils.log import get_logger
 
-from . import ctx_vars
+from . import ExecutionCtxManager, ctx_vars
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .flows import Flow
@@ -23,7 +24,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     batch_gap_sleep_sec: float = 4.0
     max_batch_len: int = 10000
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
-    execution_upkeep_fn: Optional[Callable[[str], bool]] = None
+    upkeep_fn: Optional[Callable[[str], bool]] = None
 
     def __call__(self, target: Union[Flow, Iterable[Flow], ExecutionState]):
         return execute(
@@ -32,7 +33,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             batch_gap_sleep_sec=self.batch_gap_sleep_sec,
             max_batch_len=self.max_batch_len,
             state_constructor=self.state_constructor,
-            execution_upkeep_fn=self.execution_upkeep_fn,
+            upkeep_fn=self.upkeep_fn,
         )
 
 
@@ -42,7 +43,8 @@ def execute(
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
-    execution_upkeep_fn: Optional[Callable[[str], bool]] = None,
+    upkeep_fn: Optional[Callable[[str], bool]] = None,
+    ctx_managers: Iterable[Union[AbstractContextManager, ExecutionCtxManager]] = (),
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -63,20 +65,29 @@ def execute(
         logger.debug(f"Constructed execution state {state}.")
 
     if exec_queue is not None:
-        queue = exec_queue
+        exec_queue_built = exec_queue
     else:
-        queue = LocalExecutionQueue()
+        exec_queue_built = LocalExecutionQueue()
 
     logger.debug(f"STARTING: execution of {target}.")
     start_time = time.time()
-    _execute_from_state(
-        execution_id=execution_id,
-        state=state,
-        exec_queue=queue,
-        max_batch_len=max_batch_len,
-        batch_gap_sleep_sec=batch_gap_sleep_sec,
-        execution_upkeep_fn=execution_upkeep_fn,
-    )
+
+    with ExitStack() as stack:
+        for mgr in ctx_managers:
+            if isinstance(mgr, ExecutionCtxManager):
+                stack.enter_context(mgr(execution_id=execution_id))
+            else:
+                stack.enter_context(mgr)
+
+        _execute_from_state(
+            execution_id=execution_id,
+            state=state,
+            exec_queue=exec_queue_built,
+            max_batch_len=max_batch_len,
+            batch_gap_sleep_sec=batch_gap_sleep_sec,
+            upkeep_fn=upkeep_fn,
+        )
+
     end_time = time.time()
     logger.debug(f"DONE: mazepa execution of {target}.")
     logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")
@@ -88,7 +99,7 @@ def _execute_from_state(
     exec_queue: ExecutionQueue,
     max_batch_len: int,
     batch_gap_sleep_sec: float,
-    execution_upkeep_fn: Optional[Callable[[str], bool]],
+    upkeep_fn: Optional[Callable[[str], bool]],
 ):
     while True:
         if len(state.get_ongoing_flow_ids()) == 0:
@@ -96,11 +107,11 @@ def _execute_from_state(
             break
 
         execution_should_continue = True
-        if execution_upkeep_fn is not None:
-            execution_should_continue = execution_upkeep_fn(execution_id)
+        if upkeep_fn is not None:
+            execution_should_continue = upkeep_fn(execution_id)
 
         if not execution_should_continue:
-            logger.debug(f"Stopping execution by decision of {execution_upkeep_fn}")
+            logger.debug(f"Stopping execution by decision of {upkeep_fn}")
             break
 
         process_ready_tasks(exec_queue, state, execution_id, max_batch_len)

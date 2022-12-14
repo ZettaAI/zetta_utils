@@ -1,6 +1,7 @@
 # pylint: disable=global-statement,redefined-outer-name,unused-argument
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Any
 
 import pytest
@@ -74,10 +75,39 @@ def test_local_execution_one_flow(reset_task_count):
 
 
 def test_local_execution_killed_by_upkeep(reset_task_count):
-    execute(
-        dummy_flow(), batch_gap_sleep_sec=0, max_batch_len=1, execution_upkeep_fn=lambda _: False
-    )
+    execute(dummy_flow(), batch_gap_sleep_sec=0, max_batch_len=1, upkeep_fn=lambda _: False)
     assert TASK_COUNT == 0
+
+
+def make_mock_ctx_mngr(mocker) -> AbstractContextManager[Any]:
+    mngr_m = mocker.NonCallableMock(spec=AbstractContextManager)
+    mngr_m.__enter__ = mocker.MagicMock()
+    mngr_m.__exit__ = mocker.MagicMock()
+    return mngr_m
+
+
+def test_local_execution_ctx_mngrs(reset_task_count, mocker):
+    mngr_m = make_mock_ctx_mngr(mocker)
+    exec_mngr_m = make_mock_ctx_mngr(mocker)
+
+    def exec_ctx_manager(execution_id: str) -> AbstractContextManager[Any]:
+        return exec_mngr_m
+
+    execute(
+        dummy_flow(),
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+        upkeep_fn=lambda _: True,
+        ctx_managers=[
+            mngr_m,
+            exec_ctx_manager,
+        ],
+    )
+    assert TASK_COUNT == 2
+    mngr_m.__enter__.assert_called_once()
+    mngr_m.__exit__.assert_called_once()
+    exec_mngr_m.__enter__.assert_called_once()
+    exec_mngr_m.__exit__.assert_called_once()
 
 
 def test_local_execution_state(reset_task_count):

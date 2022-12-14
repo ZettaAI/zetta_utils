@@ -6,7 +6,7 @@ from typing import Any, Callable, TypeVar, Union
 
 from typeguard import typechecked
 
-from zetta_utils.partial import ComparablePartial
+from zetta_utils.common.partial import ComparablePartial
 
 REGISTRY: dict = {}
 PARSE_KEY = "@type"

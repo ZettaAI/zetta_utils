@@ -31,7 +31,7 @@ def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
 
 @builder.register("rearrange")
 def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.rearrange(tensor=data, **kwargs) # type: ignore # bad typing by einops
+    return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops
 
 
 @builder.register("reduce")

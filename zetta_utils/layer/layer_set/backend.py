@@ -7,7 +7,7 @@ import attrs
 
 from zetta_utils import builder
 
-from .. import Layer, LayerBackend
+from .. import Backend, Layer
 from . import LayerSetIndex
 
 
@@ -15,7 +15,7 @@ from . import LayerSetIndex
 @builder.register("build_layer_setBackend")
 @attrs.mutable()
 class LayerSetBackend(
-    LayerBackend[LayerSetIndex, Dict[str, Any]]
+    Backend[LayerSetIndex, Dict[str, Any]]
 ):  # pylint: disable=too-few-public-methods
     layer: Dict[str, Layer]
 

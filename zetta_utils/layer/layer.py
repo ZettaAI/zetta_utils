@@ -8,13 +8,7 @@ import attrs
 
 from zetta_utils import builder
 
-from . import (
-    DataProcessor,
-    DataWithIndexProcessor,
-    FormatConverter,
-    IndexAdjuster,
-    LayerBackend,
-)
+from . import Backend, DataProcessor, DataWithIndexProcessor, Frontend, IndexAdjuster
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
@@ -81,8 +75,8 @@ class Layer(
     ]
 ):
 
-    backend: LayerBackend[BackendIndexT, BackendDataT]
-    format_converter: FormatConverter[
+    backend: Backend[BackendIndexT, BackendDataT]
+    frontend: Frontend[
         BackendIndexT,
         BackendDataT,
         UserReadIndexT0_contra,
@@ -148,7 +142,7 @@ class Layer(
         UserReadDataT2_co,
         UserReadDataT3_co,
     ]:
-        idx = self.format_converter.convert_read_idx(idx_user)
+        idx = self.frontend.convert_read_idx(idx_user)
         idx_proced = idx
         for adj in self.index_adjs:
             idx_proced = adj(idx_proced)
@@ -161,7 +155,7 @@ class Layer(
             idx_proced=idx_proced,
             procs=self.read_postprocs,
         )
-        data_user = self.format_converter.convert_read_data(idx_user, data_backend)
+        data_user = self.frontend.convert_read_data(idx_user, data_backend)
         return data_user
 
     @overload
@@ -193,7 +187,7 @@ class Layer(
         if self.readonly:  # pragma: no cover
             raise IOError(f"Attempting to write to a read only layer {self}")
 
-        idx, data = self.format_converter.convert_write(idx_user=idx_user, data_user=data_user)
+        idx, data = self.frontend.convert_write(idx_user=idx_user, data_user=data_user)
         idx_proced = idx
         for adj in self.index_adjs:
             idx_proced = adj(idx_proced)

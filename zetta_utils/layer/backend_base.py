@@ -6,7 +6,7 @@ IndexT = TypeVar("IndexT")
 DataT = TypeVar("DataT")
 
 
-class LayerBackend(ABC, Generic[IndexT, DataT]):  # pylint: disable=too-few-public-methods
+class Backend(ABC, Generic[IndexT, DataT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
     def read(self, idx: IndexT) -> DataT:
         """Reads data from the given index"""

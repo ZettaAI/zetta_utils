@@ -66,13 +66,13 @@ from zetta_utils.typing import Vec3D
         ],
     ],
 )
-def test_volumetric_conver(
+def test_volumetric_convert(
     kwargs: dict,
     idx: RawVolumetricIndex,
     expected: VolumetricIndex,
 ):
-    conver = VolumetricIndexConverter(**kwargs)
-    result = conver(idx)
+    convert = VolumetricIndexConverter(**kwargs)
+    result = convert(idx)
     assert result == expected
 
 
@@ -106,6 +106,6 @@ def test_volumetric_indexer_exc(
     idx: RawVolumetricIndex,
     expected_exc,
 ):
-    conver = VolumetricIndexConverter(**kwargs)
+    convert = VolumetricIndexConverter(**kwargs)
     with pytest.raises(expected_exc):
-        conver(idx)
+        convert(idx)

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from inspect import currentframe
-from types import FrameType, NoneType
+from types import FrameType
 from typing import Any, Generic, Literal, Tuple, Type, TypeVar, Union, overload
 
 import typeguard
@@ -42,7 +42,7 @@ def get_orig_class(obj: Any) -> Type:
                     frame = frame.f_back
         finally:
             del frame
-        return NoneType
+        return type(None)
 
 
 # dunder methods must be overloaded and explicitly written for type annotation reasons

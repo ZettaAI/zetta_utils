@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import math
 from typing import Any, Dict, Iterable, Optional
 
 import attrs
@@ -7,7 +9,7 @@ import taskqueue
 from typeguard import typechecked
 
 # from zetta_utils.log import logger
-from zetta_utils.partial import ComparablePartial
+from zetta_utils.common.partial import ComparablePartial
 
 from .. import Task, TaskOutcome, serialization
 from . import sqs_utils
@@ -36,6 +38,7 @@ class OutcomeReport:
 def _send_outcome_report(
     task: Task, queue_name: str, region_name: str, endpoint_url: Optional[str] = None
 ):
+    assert task.outcome is not None
     sqs_utils.send_msg(
         queue_name=queue_name,
         region_name=region_name,
@@ -77,15 +80,12 @@ class SQSExecutionQueue:
             self.name, region_name=self.region_name, endpoint_url=self.endpoint_url, green=False
         )
 
-    def purge(self):  # pragma: no cover
-        raise NotImplementedError()
-
     def push_tasks(self, tasks: Iterable[Task]):
         if self.outcome_queue_name is None:
             raise RuntimeError("Outcome queue name not specified.")
 
         for task in tasks:
-            task._mazepa_callbacks.append(  # pylint: disable=protected-access
+            task.completion_callbacks.append(  # pylint: disable=protected-access
                 ComparablePartial(
                     _send_outcome_report,
                     queue_name=self.outcome_queue_name,
@@ -93,7 +93,10 @@ class SQSExecutionQueue:
                     endpoint_url=self.endpoint_url,
                 )
             )
-        tq_tasks = [TQTask(serialization.serialize(e)) for e in tasks]
+        tq_tasks = []
+        for task in tasks:
+            tq_task = TQTask(serialization.serialize(task))
+            tq_tasks.append(tq_task)
         self._queue.insert(tq_tasks, parallel=self.insertion_threads)
 
     def pull_task_outcomes(
@@ -118,27 +121,44 @@ class SQSExecutionQueue:
         return result
 
     def pull_tasks(self, max_num: int = 1):
-        try:
-            tq_tasks = self._queue.lease(
-                seconds=self.pull_lease_sec, num_tasks=max_num, wait_sec=self.pull_wait_sec
-            )
-        except taskqueue.taskqueue.QueueEmptyError:
-            tq_tasks = []
-
-        if not isinstance(tq_tasks, list):
-            tq_tasks = [tq_tasks]
-
         tasks = []
-        for tq_task in tq_tasks:
+        msgs = sqs_utils.receive_msgs(
+            queue_name=self.name,
+            region_name=self.region_name,
+            endpoint_url=self.endpoint_url,
+            max_msg_num=max_num,
+            max_time_sec=self.pull_wait_sec,
+            visibility_timeout=self.pull_lease_sec,
+        )
+        for msg in msgs:
+            # Deserialize task object
+            tq_task = taskqueue.totask(json.loads(msg.body))
             task = serialization.deserialize(tq_task.task_ser)
-            task._mazepa_callbacks.append(  # pylint: disable=protected-access
+            task.curr_retry = msg.approx_receive_count - 1
+
+            # Specify completion behavior through callbacks
+            task.completion_callbacks.append(
                 ComparablePartial(
                     _delete_task_message,
-                    receipt_handle=tq_task.id,
+                    receipt_handle=msg.receipt_handle,
                     queue_name=self.name,
                     region_name=self.region_name,
                     endpoint_url=self.endpoint_url,
                 )
             )
+
+            # Specify upkeep behavior through callbacks
+            if task.upkeep_settings.perform_upkeep:
+                task.upkeep_settings.callbacks.append(
+                    ComparablePartial(
+                        sqs_utils.change_message_visibility,
+                        receipt_handle=msg.receipt_handle,
+                        queue_name=self.name,
+                        region_name=self.region_name,
+                        endpoint_url=self.endpoint_url,
+                        visibility_timeout=math.ceil(task.upkeep_settings.interval_secs * 5),
+                    )
+                )
+
             tasks.append(task)
         return tasks

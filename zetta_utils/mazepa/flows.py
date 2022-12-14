@@ -165,3 +165,16 @@ def flow_schema_cls(cls: Type[RawFlowSchemaCls]):
     # can't override __new__ because of interaction with attrs/dataclass
     setattr(cls, "__call__", _call_fn)
     return cls
+
+
+@flow_schema
+def concurrent_flow(stages: list[Union[Flow, Task]]):
+    for e in stages:
+        yield e
+
+
+@flow_schema
+def seq_flow(stages: list[Union[Flow, Task]]):  # pragma: no cover
+    for e in stages:
+        yield e
+        yield Dependency()

@@ -4,13 +4,13 @@ import attrs
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.layer import IndexChunker, LayerIndex
+from zetta_utils.layer import IndexChunker
 
 from .chunkable_protocols import ChunkableOperation
 
 logger = log.get_logger("zetta_utils")
 
-IndexT = TypeVar("IndexT", bound=LayerIndex)
+IndexT = TypeVar("IndexT")
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 

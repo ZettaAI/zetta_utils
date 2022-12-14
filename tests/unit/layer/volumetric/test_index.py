@@ -2,11 +2,7 @@
 import pytest
 
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.layer.volumetric import (
-    RawVolumetricIndex,
-    VolumetricIndex,
-    VolumetricIndexConverter,
-)
+from zetta_utils.layer.volumetric import VolumetricFrontend, VolumetricIndex
 from zetta_utils.typing import Vec3D
 
 
@@ -68,11 +64,11 @@ from zetta_utils.typing import Vec3D
 )
 def test_volumetric_convert(
     kwargs: dict,
-    idx: RawVolumetricIndex,
+    idx,
     expected: VolumetricIndex,
 ):
-    convert = VolumetricIndexConverter(**kwargs)
-    result = convert(idx)
+    convert = VolumetricFrontend(**kwargs)
+    result = convert._convert_idx(idx)
     assert result == expected
 
 
@@ -103,9 +99,9 @@ def test_volumetric_convert(
 )
 def test_volumetric_indexer_exc(
     kwargs: dict,
-    idx: RawVolumetricIndex,
+    idx,
     expected_exc,
 ):
-    convert = VolumetricIndexConverter(**kwargs)
+    convert = VolumetricFrontend(**kwargs)
     with pytest.raises(expected_exc):
-        convert(idx)
+        conver._convert_idx(idx)

@@ -1,14 +1,15 @@
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from zetta_utils import builder, mazepa
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.layer import IndexChunker, Layer, LayerIndex
+from zetta_utils.layer import IndexChunker
+from zetta_utils.layer.protocols import LayerWithIndexT
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricIndexChunker
 from zetta_utils.typing import IntVec3D, Vec3D
 
 from . import build_chunked_callable_flow_schema
 
-IndexT = TypeVar("IndexT", bound=LayerIndex)
+IndexT = TypeVar("IndexT")
 
 
 def _write_callable(src):
@@ -19,8 +20,8 @@ def _write_callable(src):
 def generic_write_flow(
     chunker: IndexChunker[IndexT],
     idx: IndexT,
-    dst: Layer[Any, IndexT, Any],
-    src: Layer[Any, IndexT, Any],
+    dst: LayerWithIndexT[IndexT],
+    src: LayerWithIndexT[IndexT],
 ) -> mazepa.Flow:
     flow_schema = build_chunked_callable_flow_schema(
         fn=_write_callable,
@@ -37,8 +38,8 @@ def build_write_flow(
     chunk_size: IntVec3D,
     bcube: BoundingCube,
     dst_resolution: Vec3D,
-    dst: Layer[Any, VolumetricIndex, Any],
-    src: Layer[Any, VolumetricIndex, Any],
+    dst: LayerWithIndexT[VolumetricIndex],
+    src: LayerWithIndexT[VolumetricIndex],
 ) -> mazepa.Flow:
     result = generic_write_flow(
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),

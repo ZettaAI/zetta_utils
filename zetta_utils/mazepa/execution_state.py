@@ -70,18 +70,14 @@ class InMemoryExecutionState:
         """
 
         for task_id, outcome in task_outcomes.items():
-            if outcome.status == TaskStatus.FAILED:
-                if outcome.exception is None:
-                    outcome.exception = Exception(
-                        "Task outcome of '{task_id}' indicated failure "
-                        "without an exception specified."
-                    )
-                raise outcome.exception
-            assert outcome.status == TaskStatus.SUCCEEDED
-
             if task_id in self.ongoing_tasks:
                 self.ongoing_tasks[task_id].outcome = outcome
-                self._update_completed_id(task_id)
+
+                if outcome.exception is None:
+                    self.ongoing_tasks[task_id].status = TaskStatus.SUCCEEDED
+                    self._update_completed_id(task_id)
+                else:
+                    self.ongoing_tasks[task_id].status = TaskStatus.FAILED
 
     def get_task_batch(self, max_batch_len: int = 10000) -> List[Task]:
         """

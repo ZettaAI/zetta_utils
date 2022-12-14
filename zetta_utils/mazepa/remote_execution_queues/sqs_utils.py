@@ -21,13 +21,15 @@ class SQSReceivedMsg:
     body: Any
     queue_name: str
     region_name: str
-    receipt_handle: dict
+    receipt_handle: str
+    approx_receive_count: int
     endpoint_url: Optional[str] = None
 
 
 @cachetools.cached(cache={})
 def get_sqs_client(region_name: str, endpoint_url: Optional[str] = None):
-    return boto3.client("sqs", region_name=region_name, endpoint_url=endpoint_url)
+    sess = boto3.session.Session()
+    return sess.client("sqs", region_name=region_name, endpoint_url=endpoint_url)
 
 
 @cachetools.cached(cache={})
@@ -67,6 +69,7 @@ def receive_msgs(
                 receipt_handle=message["ReceiptHandle"],
                 queue_name=queue_name,
                 region_name=region_name,
+                approx_receive_count=int(message["Attributes"]["ApproximateReceiveCount"]),
                 endpoint_url=endpoint_url,
             )
             for message in resp["Messages"]
@@ -103,7 +106,7 @@ def send_msg(
 
 
 def delete_received_msgs(msgs: list[SQSReceivedMsg]) -> None:
-    receipts_by_queue = defaultdict(list)  # type: dict[tuple[str, str, Optional[str]], list[dict]]
+    receipts_by_queue = defaultdict(list)  # type: dict[tuple[str, str, Optional[str]], list[str]]
     for msg in msgs:
         receipts_by_queue[(msg.queue_name, msg.region_name, msg.endpoint_url)].append(
             msg.receipt_handle
@@ -140,8 +143,28 @@ def delete_msg_by_receipt_handle(
     )
 
 
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+def change_message_visibility(
+    receipt_handle: str,
+    visibility_timeout: int,
+    queue_name: str,
+    region_name: str,
+    endpoint_url: Optional[str] = None,
+):
+    logger.debug(
+        f"Changing visibility of the message with handle '{receipt_handle}' "
+        f"from queue '{queue_name}' in region '{region_name}' to {visibility_timeout}."
+    )
+    get_sqs_client(region_name, endpoint_url=endpoint_url).change_message_visibility(
+        QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
+        ReceiptHandle=receipt_handle,
+        VisibilityTimeout=visibility_timeout,
+    )
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_batch(
-    receipt_handles: list[dict],
+    receipt_handles: list[str],
     queue_name: str,
     region_name: str,
     endpoint_url: Optional[str] = None,

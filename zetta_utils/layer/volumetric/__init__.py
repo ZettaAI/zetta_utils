@@ -1,6 +1,14 @@
-from .index import RawVolumetricIndex, VolumetricIndex, VolumetricIndexConverter
+from .index import (
+    VolumetricIndex,
+)
+from .frontend import (
+    UserVolumetricIndex,
+    UnconvertedUserVolumetricIndex,
+    SliceUserVolumetricIndex,
+    VolumetricFrontend,
+)
 from .tools import (
-    VolDataInterpolator,
+    VolumetricDataInterpolator,
     VolumetricIndexResolutionAdjuster,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,

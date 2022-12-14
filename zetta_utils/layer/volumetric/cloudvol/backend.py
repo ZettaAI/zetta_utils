@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 import json
 import os
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional
 
 import attrs
 import cachetools
@@ -10,14 +10,12 @@ import fsspec
 import numpy as np
 import torch
 from cloudvolume import CloudVolume
-from numpy import typing as npt
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.tensor_typing import Tensor
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from ... import LayerBackend
+from ... import Backend
 from .. import VolumetricIndex
 
 
@@ -85,9 +83,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 @builder.register("CVBackend")
 @typechecked
 @attrs.mutable
-class CVBackend(
-    LayerBackend[VolumetricIndex, torch.Tensor]
-):  # pylint: disable=too-few-public-methods
+class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
     Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
@@ -168,26 +164,27 @@ class CVBackend(
         result = tensor_ops.to_torch(result_np)
         return result
 
-    def write(self, idx: VolumetricIndex, value: Union[Tensor, float, int]):
+    def write(self, idx: VolumetricIndex, data: torch.Tensor):
         # Data in: bcxyz
         # Write format: xyzc (b == 1)
-        if isinstance(value, (float, int)):
-            value_final = value  # type: Union[float, npt.NDArray]
+
+        data_np = tensor_ops.convert.to_np(data)
+        if data_np.size == 1 and len(data_np.shape) == 1:
+            data_final = data_np[0]
+        elif len(data_np.shape) == 4:
+            data_final = np.transpose(data_np, (1, 2, 3, 0))
         else:
-            value = tensor_ops.convert.to_np(value)
-            if len(value.shape) != 4:
-                raise ValueError(
-                    "Data written to CloudVolume backend must be in `cxyz` dimension format, "
-                    f"but, got a tensor of with ndim == {value.ndim}"
-                )
-            value_final = np.transpose(value, (1, 2, 3, 0))
+            raise ValueError(
+                "Data written to CloudVolume backend must be in `cxyz` dimension format, "
+                f"but, got a tensor of with ndim == {data_np.ndim}"
+            )
 
         cvol = self._get_cv_at_resolution(idx.resolution)
         slices = idx.to_slices()
         # Enable autocrop for writes only
         cvol.autocrop = True
 
-        cvol[slices] = value_final
+        cvol[slices] = data_final
         cvol.autocrop = False
 
     def get_name(self) -> str:  # pragma: no cover

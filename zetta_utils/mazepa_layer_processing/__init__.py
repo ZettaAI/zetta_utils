@@ -16,3 +16,4 @@ builder.register("mazepa.SQSExecutionQueue")(mazepa.remote_execution_queues.SQSE
 builder.register("mazepa.run_worker")(mazepa.run_worker)
 builder.register("mazepa.SubflowTask")(mazepa.SubflowTask)
 builder.register("mazepa.seq_flow")(mazepa.seq_flow)
+builder.register("mazepa.concurrent_flow")(mazepa.concurrent_flow)

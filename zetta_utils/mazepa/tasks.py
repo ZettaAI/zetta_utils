@@ -8,18 +8,22 @@ from typing import (
     Dict,
     Generic,
     Iterable,
+    Optional,
     Protocol,
     Type,
     TypeVar,
+    cast,
+    overload,
     runtime_checkable,
 )
 
 import attrs
+from pathos.multiprocessing import ProcessingPool
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
 
-from . import id_generation
+from . import exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -29,7 +33,14 @@ P = ParamSpec("P")
 
 
 @attrs.mutable
-class Task(Generic[R_co]):
+class TaskUpkeepSettings:
+    perform_upkeep: bool = False
+    interval_secs: Optional[float] = None
+    callbacks: list[Callable] = attrs.field(factory=list)
+
+
+@attrs.mutable
+class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     """
     An executable task.
     """
@@ -37,19 +48,21 @@ class Task(Generic[R_co]):
     fn: Callable[..., R_co]
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     tags: list[str] = attrs.field(factory=list)
+
     args_are_set: bool = attrs.field(init=False, default=False)
     args: Iterable = attrs.field(init=False, factory=list)
     kwargs: Dict = attrs.field(init=False, factory=dict)
 
-    _mazepa_callbacks: list[Callable] = attrs.field(factory=list)
-    outcome: TaskOutcome[R_co] = attrs.field(
-        factory=functools.partial(
-            TaskOutcome,
-            status=TaskStatus.NOT_SUBMITTED,
-        )
-    )
+    completion_callbacks: list[Callable] = attrs.field(factory=list)
+    upkeep_settings: TaskUpkeepSettings = attrs.field(factory=TaskUpkeepSettings)
+    execution_id: Optional[str] = attrs.field(init=False, default=None)
+
+    status: TaskStatus = TaskStatus.NOT_SUBMITTED
+    outcome: Optional[TaskOutcome[R_co]] = None
+
+    curr_retry: Optional[int] = None
+    max_retry: int = 3
     # cache_expiration: datetime.timedelta = None
-    # max_retry: # Can use SQS approximateReceiveCount to explicitly fail the task
 
     def add_tags(self, tags: list[str]) -> Task:  # pragma: no cover
         self.tags += tags
@@ -65,34 +78,83 @@ class Task(Generic[R_co]):
         self.args_are_set = True
 
     def __call__(self) -> TaskOutcome[R_co]:
+        self.status = TaskStatus.RUNNING
+        if self.upkeep_settings.perform_upkeep:
+            outcome = self._call_with_upkeep()
+        else:
+            outcome = self._call_without_upkeep()
+
+        self.outcome = outcome
+        if self.outcome.exception is None:
+            self.status = TaskStatus.SUCCEEDED
+        else:
+            self.status = TaskStatus.FAILED
+
+        if self.status == TaskStatus.SUCCEEDED or (
+            self.curr_retry is not None and self.curr_retry >= self.max_retry
+        ):
+            logger.debug("Running completion callbacks...")
+            for callback in self.completion_callbacks:
+                callback(task=self)
+        else:
+            logger.debug(
+                f"Not running completion callbacks: retry {self.curr_retry}/{self.max_retry}."
+            )
+
+        return outcome
+
+    def cancel_without_starting(self):
+        logger.debug(f"Cancelling task {self} without starting")
+        self.status = TaskStatus.FAILED
+        self.outcome = TaskOutcome(exception=exceptions.MazepaCancel())
+        for callback in self.completion_callbacks:
+            callback(task=self)
+
+    def _call_with_upkeep(self) -> TaskOutcome[R_co]:
+        assert self.upkeep_settings.interval_secs is not None
+
+        pool = ProcessingPool(processes=1)
+        async_result = pool.apipe(self._call_without_upkeep)
+
+        while True:
+            if async_result.ready():
+                break
+
+            for callback in self.upkeep_settings.callbacks:
+                callback()
+
+            time.sleep(self.upkeep_settings.interval_secs)
+
+        return_val = async_result.get()
+        return return_val
+
+    def _call_without_upkeep(self) -> TaskOutcome[R_co]:
         assert self.args_are_set
         logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
         try:
             # TODO: parametrize by task execution environment
             return_value = self.fn(*self.args, **self.kwargs)
-            status = TaskStatus.SUCCEEDED
             exception = None
-        # Todo: catch special exceptions
+            logger.debug("Successful task execution.")
+        except (exceptions.MazepaException, SystemExit, KeyboardInterrupt) as exc:
+            raise exc  # pragma: no cover
         except Exception as exc:  # pylint: disable=broad-except
+            logger.error(f"Failed task execution of {self}.")
+            logger.exception(exc)
             exception = exc
             return_value = None
-            status = TaskStatus.FAILED
 
         time_end = time.time()
+        logger.debug(f"DONE: Execution of {self}.")
 
-        self.outcome = TaskOutcome(
-            status=status,
+        outcome = TaskOutcome(
             exception=exception,
             execution_secs=time_end - time_start,
             return_value=return_value,
         )
-        for callback in self._mazepa_callbacks:
-            callback(task=self)
 
-        logger.debug(f"DONE: Execution of {self}.")
-
-        return self.outcome
+        return outcome
 
 
 @runtime_checkable
@@ -143,7 +205,8 @@ class _TaskableOperation(Generic[P, R_co]):
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
     tags: list[str] = attrs.field(factory=list)
-    # max_retry: # Even for SQS, can use approximateReceiveCount to explicitly fail the task
+    time_bound: bool = True
+    max_retry: int = 3
 
     def __call__(
         self,
@@ -158,13 +221,43 @@ class _TaskableOperation(Generic[P, R_co]):
         **kwargs: P.kwargs,
     ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, list(args), kwargs)
-        result = Task[R_co](fn=self.fn, id_=id_, tags=self.tags)
+        upkeep_settings = TaskUpkeepSettings(
+            perform_upkeep=(not self.time_bound),
+            interval_secs=10,
+        )
+        result = Task[R_co](
+            fn=self.fn,
+            id_=id_,
+            tags=self.tags,
+            upkeep_settings=upkeep_settings,
+            max_retry=self.max_retry,
+        )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
 
 
-def taskable_operation(fn: Callable[P, R_co]) -> TaskableOperation[P, R_co]:
-    return _TaskableOperation(fn=fn)
+@overload
+def taskable_operation(
+    fn: Callable[P, R_co], *, time_bound: bool = ...
+) -> TaskableOperation[P, R_co]:
+    ...
+
+
+@overload
+def taskable_operation(
+    *, time_bound: bool = ...
+) -> Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]]:
+    ...
+
+
+def taskable_operation(fn=None, *, time_bound: bool = True):
+    if fn is not None:
+        return _TaskableOperation(fn=fn)
+    else:
+        return cast(
+            Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]],
+            functools.partial(_TaskableOperation, time_bound=time_bound),
+        )
 
 
 def taskable_operation_cls(cls: Type[RawTaskableOperationCls]):

@@ -6,7 +6,7 @@ from typing import Any, Callable, List, Optional, TypeVar, Union
 
 from typeguard import typechecked
 
-from zetta_utils.partial import ComparablePartial
+from zetta_utils.common.partial import ComparablePartial
 
 from ..typing import IntVec3D, Vec3D
 

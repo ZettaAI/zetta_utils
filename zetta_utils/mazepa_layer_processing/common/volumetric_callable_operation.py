@@ -45,7 +45,7 @@ class VolumetricCallableOperation(Generic[P]):
             if not e.is_integer():
                 raise ValueError(
                     f"Destination layer crop of {self.crop} with resolution change "
-                    f"multiplier of {self.dst_res_change_mult} results in non-integer "
+                    f"multiplier of {self.res_change_mult} results in non-integer "
                     f"input index crop of {input_idx_pad_raw}."
                 )
         self.input_idx_pad = IntVec3D(*(int(e) for e in input_idx_pad_raw))

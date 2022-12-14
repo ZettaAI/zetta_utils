@@ -54,10 +54,10 @@ class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statement
         return result
 
 
-@builder.register("VolumetricIndexResolutionAdjuster")
+@builder.register("VolumetricDataInterpolator")
 @typechecked
 @attrs.mutable
-class VolDataInterpolator(DataWithIndexProcessor):
+class VolumetricDataInterpolator(DataWithIndexProcessor):
     interpolation_mode: tensor_ops.InterpolationMode
     mode: Literal["read", "write"]
     allow_slice_rounding: bool = False

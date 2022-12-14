@@ -1,11 +1,11 @@
 from .index import (
     VolumetricIndex,
 )
-from .format_converter import (
+from .frontend import (
     UserVolumetricIndex,
     UnconvertedUserVolumetricIndex,
     SliceUserVolumetricIndex,
-    VolumetricFormatConverter,
+    VolumetricFrontend,
 )
 from .tools import (
     VolumetricDataInterpolator,

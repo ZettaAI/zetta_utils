@@ -2,7 +2,8 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from typing import Protocol, Tuple, TypeVar, Union, overload
+from abc import ABC, abstractmethod
+from typing import Generic, Tuple, TypeVar, Union, overload
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
@@ -28,8 +29,9 @@ UserWriteIndexT2_contra = TypeVar("UserWriteIndexT2_contra", contravariant=True)
 UserWriteIndexT3_contra = TypeVar("UserWriteIndexT3_contra", contravariant=True)
 
 
-class FormatConverter(
-    Protocol[
+class Frontend(
+    ABC,
+    Generic[
         BackendIndexT,
         BackendDataT,
         UserReadIndexT0_contra,
@@ -48,28 +50,34 @@ class FormatConverter(
         UserReadDataT3_co,
         UserWriteIndexT3_contra,
         UserWriteDataT3_contra,
-    ]
+    ],
 ):
     @overload
+    @abstractmethod
     def convert_read_idx(self, idx_user: BackendIndexT) -> BackendIndexT:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_idx(self, idx_user: UserReadIndexT0_contra) -> BackendIndexT:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_idx(self, idx_user: UserReadIndexT1_contra) -> BackendIndexT:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_idx(self, idx_user: UserReadIndexT2_contra) -> BackendIndexT:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_idx(self, idx_user: UserReadIndexT3_contra) -> BackendIndexT:
         ...
 
+    @abstractmethod
     def convert_read_idx(
         self,
         idx_user,
@@ -77,33 +85,39 @@ class FormatConverter(
         ...
 
     @overload
+    @abstractmethod
     def convert_read_data(self, idx_user: BackendIndexT, data: BackendDataT) -> BackendDataT:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_data(
         self, idx_user: UserReadIndexT0_contra, data: BackendDataT
     ) -> UserReadDataT0_co:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_data(
         self, idx_user: UserReadIndexT1_contra, data: BackendDataT
     ) -> UserReadDataT1_co:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_data(
         self, idx_user: UserReadIndexT2_contra, data: BackendDataT
     ) -> UserReadDataT2_co:
         ...
 
     @overload
+    @abstractmethod
     def convert_read_data(
         self, idx_user: UserReadIndexT3_contra, data: BackendDataT
     ) -> UserReadDataT3_co:
         ...
 
+    @abstractmethod
     def convert_read_data(
         self, idx_user, data
     ) -> Union[
@@ -116,35 +130,41 @@ class FormatConverter(
         ...
 
     @overload
+    @abstractmethod
     def convert_write(
         self, idx_user: BackendIndexT, data_user: BackendDataT
     ) -> Tuple[BackendIndexT, BackendDataT]:
         ...
 
     @overload
+    @abstractmethod
     def convert_write(
         self, idx_user: UserWriteIndexT0_contra, data_user: UserWriteDataT0_contra
     ) -> Tuple[BackendIndexT, BackendDataT]:
         ...
 
     @overload
+    @abstractmethod
     def convert_write(
         self, idx_user: UserWriteIndexT1_contra, data_user: UserWriteDataT1_contra
     ) -> Tuple[BackendIndexT, BackendDataT]:
         ...
 
     @overload
+    @abstractmethod
     def convert_write(
         self, idx_user: UserWriteIndexT2_contra, data_user: UserWriteDataT2_contra
     ) -> Tuple[BackendIndexT, BackendDataT]:
         ...
 
     @overload
+    @abstractmethod
     def convert_write(
         self, idx_user: UserWriteIndexT3_contra, data_user: UserWriteDataT3_contra
     ) -> Tuple[BackendIndexT, BackendDataT]:
         ...
 
+    @abstractmethod
     def convert_write(
         self,
         idx_user,

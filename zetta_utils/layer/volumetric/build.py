@@ -13,11 +13,11 @@ from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 from zetta_utils.typing import Vec3D
 
-from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster, LayerBackend
+from .. import Backend, DataProcessor, DataWithIndexProcessor, IndexAdjuster
 from . import (
     UserVolumetricIndex,
     VolumetricDataInterpolator,
-    VolumetricFormatConverter,
+    VolumetricFrontend,
     VolumetricIndex,
     VolumetricIndexResolutionAdjuster,
 )
@@ -48,7 +48,7 @@ VolumetricLayer: TypeAlias = Layer[
 @typechecked
 @builder.register("build_cv_layer")
 def build_volumetric_layer(
-    backend: LayerBackend[VolumetricIndex, torch.Tensor],
+    backend: Backend[VolumetricIndex, torch.Tensor],
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,
@@ -87,7 +87,7 @@ def build_volumetric_layer(
     :return: Layer built according to the spec.
 
     """
-    format_converter = VolumetricFormatConverter(
+    frontend = VolumetricFrontend(
         index_resolution=index_resolution,
         default_desired_resolution=default_desired_resolution,
         allow_slice_rounding=allow_slice_rounding,
@@ -126,7 +126,7 @@ def build_volumetric_layer(
     result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
-        format_converter=format_converter,
+        frontend=frontend,
         index_adjs=list(index_adjs_final),
         read_postprocs=list(read_postprocs),
         write_preprocs=list(write_preprocs),

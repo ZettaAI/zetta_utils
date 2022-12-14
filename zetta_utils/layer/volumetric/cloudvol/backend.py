@@ -15,7 +15,7 @@ from typeguard import typechecked
 from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from ... import LayerBackend
+from ... import Backend
 from .. import VolumetricIndex
 
 
@@ -83,9 +83,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 @builder.register("CVBackend")
 @typechecked
 @attrs.mutable
-class CVBackend(
-    LayerBackend[VolumetricIndex, torch.Tensor]
-):  # pylint: disable=too-few-public-methods
+class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
     Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.

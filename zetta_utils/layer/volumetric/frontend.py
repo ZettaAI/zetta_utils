@@ -10,6 +10,7 @@ from zetta_utils import builder
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.typing import Slices3D, Vec3D
 
+from ..frontend_base import Frontend
 from . import VolumetricIndex
 
 SliceUserVolumetricIndex = Union[
@@ -33,7 +34,7 @@ UserVolumetricIndex = Union[
 
 @builder.register("VolumetricIndexConverter")
 @attrs.mutable
-class VolumetricFormatConverter:
+class VolumetricFrontend(Frontend):
     index_resolution: Optional[Vec3D] = None
     default_desired_resolution: Optional[Vec3D] = None
     allow_slice_rounding: bool = False

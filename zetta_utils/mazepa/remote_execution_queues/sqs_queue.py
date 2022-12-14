@@ -9,7 +9,7 @@ import taskqueue
 from typeguard import typechecked
 
 # from zetta_utils.log import logger
-from zetta_utils.partial import ComparablePartial
+from zetta_utils.common.partial import ComparablePartial
 
 from .. import Task, TaskOutcome, serialization
 from . import sqs_utils

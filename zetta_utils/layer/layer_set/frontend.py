@@ -5,6 +5,7 @@ from typing import Any, Dict, Tuple, Union
 
 import attrs
 
+from ..frontend_base import Frontend
 from . import LayerSetIndex
 
 AllLayerSetIndex = Tuple[Any, ...]
@@ -17,7 +18,7 @@ UserLayerSetIndex = Union[UnconvertedLayerSetIndex, LayerSetIndex]
 
 
 @attrs.frozen
-class LayerSetFormatConverter:
+class LayerSetFrontend(Frontend):
     def convert_read_idx(
         self, idx_user: UserLayerSetIndex  # pylint: disable=unused-argument
     ) -> LayerSetIndex:

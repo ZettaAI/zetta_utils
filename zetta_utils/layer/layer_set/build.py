@@ -6,7 +6,7 @@ from typeguard import typechecked
 from zetta_utils import builder
 
 from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster, Layer
-from . import LayerSetBackend, LayerSetFormatConverter, LayerSetIndex, UserLayerSetIndex
+from . import LayerSetBackend, LayerSetFrontend, LayerSetIndex, UserLayerSetIndex
 
 LayerSet = Layer[
     LayerSetIndex,  # Backend Index
@@ -64,7 +64,7 @@ def build_layer_set(
     result = LayerSet(
         backend=backend,
         readonly=readonly,
-        format_converter=LayerSetFormatConverter(),
+        frontend=LayerSetFrontend(),
         index_adjs=list(index_adjs),
         read_postprocs=list(read_postprocs),
         write_preprocs=list(write_preprocs),

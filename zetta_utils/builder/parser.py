@@ -129,10 +129,11 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
             registered_fn = get_callable_from_name(field[PARSE_KEY])
             registered_cast_to_vec3d = get_cast_to_vec3d_from_name(field[PARSE_KEY])
             registered_cast_to_intvec3d = get_cast_to_intvec3d_from_name(field[PARSE_KEY])
+
             mode = field.get(MODE_KEY, "regular")
 
             recurse = False
-            if RECURSE_KEY not in field or field[RECURSE_KEY]:
+            if (RECURSE_KEY not in field or field[RECURSE_KEY]) and mode != "lazy":
                 recurse = True
 
             fn_kwargs = copy.copy(field)
@@ -159,13 +160,17 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
                         name = registered_fn.__name__
                     else:
                         name = str(registered_fn)
-                    raise RuntimeError(
+                    e.args = (
                         f'Exception while building "@type": "{field[PARSE_KEY]}" '
                         f"(mapped to '{name}' from module '{registered_fn.__module__}'), "
-                        f'"@mode": "{mode}"'
-                    ) from e
+                        f'"@mode": "{mode}": \n{e}',
+                    )
+                    raise e from None
             elif mode == "partial":
                 result = ComparablePartial(registered_fn, **fn_kwargs)
+            elif mode == "lazy":
+                fn_kwargs[PARSE_KEY] = field[PARSE_KEY]
+                result = ComparablePartial(build, field=fn_kwargs)
             else:
                 raise ValueError(f"Unsupported mode: {mode}")
 

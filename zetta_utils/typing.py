@@ -106,7 +106,7 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
             self.vec = tuple(self.dtype(arg) for arg in args)
         except Exception as e:
             raise TypeError(
-                f"{type(arg)} argument {arg}" + f" cannot be interpreted as an {self.dtype} object"
+                f"{type(arg)} argument {arg} cannot be interpreted as an {self.dtype} object"
             ) from e
 
     # avoid returning Vec3D whenever sliced, defaulting to float or tuple

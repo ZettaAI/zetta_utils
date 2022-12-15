@@ -51,4 +51,4 @@ def test_call_desired_res(mocker):
         stride=IntVec3D(1, 1, 1),
         desired_resolution=Vec3D(0.5, 0.5, 0.5),
     )
-    assert vsi(0) == ((0.5, 0.5, 0.5), slice(0, 1), slice(0, 1), slice(0, 1))
+    assert vsi(0) == (Vec3D(0.5, 0.5, 0.5), slice(0, 1), slice(0, 1), slice(0, 1))

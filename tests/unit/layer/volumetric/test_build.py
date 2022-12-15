@@ -51,7 +51,7 @@ def test_data_resolution_write_interp(mocker):
     )
 
     idx = VolumetricIndex(
-        resolution=(2, 2, 2),
+        resolution=Vec3D(2, 2, 2),
         bcube=BoundingCube.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
     )
 
@@ -69,8 +69,8 @@ def test_write_scalar(mocker):
 
     layer = build_volumetric_layer(
         backend,
-        default_desired_resolution=(1, 1, 1),
-        index_resolution=(1, 1, 1),
+        default_desired_resolution=Vec3D(1, 1, 1),
+        index_resolution=Vec3D(1, 1, 1),
     )
 
     layer[0:1, 0:1, 0:1] = 1.0
@@ -86,8 +86,8 @@ def test_write_scalar_with_processor(mocker):
 
     layer = build_volumetric_layer(
         backend,
-        default_desired_resolution=(1, 1, 1),
-        index_resolution=(1, 1, 1),
+        default_desired_resolution=Vec3D(1, 1, 1),
+        index_resolution=Vec3D(1, 1, 1),
         write_preprocs=[lambda data: data + 1],
     )
 

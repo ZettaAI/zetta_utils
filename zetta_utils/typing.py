@@ -68,7 +68,7 @@ class _VecND(Generic[N, T_co]):
             ret = orig_class.__args__[1]
             assert ret is int or ret is float
             return ret
-        except Exception as e:
+        except Exception as e:  # pragma: no-cover
             raise TypeError(
                 "_VecND must be instantiated with ndim (Literal[int]) and dtype (int or float)"
             ) from e

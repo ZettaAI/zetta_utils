@@ -122,6 +122,12 @@ def test_register_casting(register_dummy_c):
             {PARSE_KEY: "dummy_a", MODE_KEY: "partial", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
             ComparablePartial(DummyA, a=[DummyB(b=3)]),
         ],
+        [
+            {PARSE_KEY: "dummy_a", MODE_KEY: "lazy", "a": [{PARSE_KEY: "dummy_b", "b": 3}]},
+            ComparablePartial(
+                builder.build, field={PARSE_KEY: "dummy_a", "a": [{PARSE_KEY: "dummy_b", "b": 3}]}
+            ),
+        ],
     ],
 )
 def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):

@@ -1,6 +1,7 @@
 # pylint: disable=global-statement,redefined-outer-name,unused-argument
 from __future__ import annotations
 
+import functools
 from contextlib import AbstractContextManager
 from typing import Any
 
@@ -72,6 +73,15 @@ def test_local_execution_one_flow(reset_task_count):
         max_batch_len=1,
     )
     assert TASK_COUNT == 2
+
+
+def test_local_execution_one_callable(reset_task_count) -> None:
+    execute(
+        functools.partial(dummy_task, argument="x0"),
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+    )
+    assert TASK_COUNT == 1
 
 
 def test_local_execution_one_task(reset_task_count) -> None:

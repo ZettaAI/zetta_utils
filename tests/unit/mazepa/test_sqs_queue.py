@@ -216,18 +216,19 @@ def test_unbound_task_upkeep(queue_with_worker) -> None:
         region_name=region_name,
         endpoint_url=endpoint_url,
         outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=2,
+        pull_lease_sec=4,
     )
     task = _TaskableOperation(
-        lambda: exec("import time; time.sleep(5);"),
+        lambda: exec("import time; time.sleep(1);"),
         time_bound=False,
         max_retry=0,
     ).make_task()
+    task.upkeep_settings.interval_secs = 0.5
     queue.push_tasks([task])
     time.sleep(1.0)
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
-    time.sleep(3.0)
+    time.sleep(2.0)
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
 

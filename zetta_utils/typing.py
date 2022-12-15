@@ -70,13 +70,13 @@ class _VecND(Generic[N, T_co]):
             return ret
         except Exception as e:  # pragma: no cover
             raise TypeError(
-                "_VecND must be instantiated with ndim (Literal[int]) and dtype (int or float)"
+                "_VecND must be instantiated with dtype (int or float) as the second type variable"
             ) from e
 
     def _get_ndim(self) -> int:
         return self.ndim_t.__args__[0]  # type: ignore
 
-    def _get_ndim_type_and_set_ndim(self) -> Type:
+    def _get_ndim_type(self) -> Type:
         try:
             orig_class = get_orig_class(self)
             ret = orig_class.__args__[0]
@@ -87,12 +87,12 @@ class _VecND(Generic[N, T_co]):
             return ret
         except Exception as e:
             raise TypeError(
-                "_VecND must be instantiated with ndim (Literal[int]) and dtype (int or float)"
+                "_VecND must be instantiated with ndim (Literal[int]) as the first type variable"
             ) from e
 
     def __init__(self, *args: T_co):
         self.dtype: Type[DType] = self._get_dtype()
-        self.ndim_t: Type[NDType] = self._get_ndim_type_and_set_ndim()
+        self.ndim_t: Type[NDType] = self._get_ndim_type()
         self.ndim: int = self._get_ndim()
         try:
             assert len(args) == self.ndim

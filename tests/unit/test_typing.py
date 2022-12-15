@@ -231,7 +231,7 @@ Only the 1d case is tested since the parametrisations follow the same pattern.
 """
 
 
-def test_subtyping():
+def test_subtyping() -> None:
     def test_subtyping_int1d_is_vec1d(x: zt.Vec1D):
         pass
 
@@ -255,11 +255,78 @@ def test_subtyping():
     def test_subtyping_cast_to_int(x: zt.IntVec1D):
         pass
 
-    test_subtyping_cast_to_int(vec1d.float())
+    test_subtyping_cast_to_int(vec1d.int())
+
+    def test_subtyping_cast_to_float(x: zt.Vec1D):
+        pass
+
+    test_subtyping_cast_to_float(intvec1d.float())
 
     def test_inference_return_int1d(x: zt.IntVec1D):
         pass
 
     # using a list for brevity - if one of them fails the entire line will fail
-    for x in [intvec1d + intvec1d, intvec1d - intvec1d, intvec1d * intvec1d, intvec1d // intvec1d]:
+    for x in [
+        intvec1d + intvec1d,
+        intvec1d - intvec1d,
+        intvec1d * intvec1d,
+        intvec1d // intvec1d,
+        intvec1d + some_int,
+        intvec1d - some_int,
+        intvec1d * some_int,
+        intvec1d // some_int,
+        some_int + intvec1d,
+        some_int - intvec1d,
+        some_int * intvec1d,
+        some_int // intvec1d,
+    ]:
+
         test_inference_return_int1d(x)
+
+    def test_inference_return_vec1d(x: zt.Vec1D):
+        pass
+
+    for y in [
+        vec1d + intvec1d,
+        vec1d - intvec1d,
+        vec1d * intvec1d,
+        vec1d // intvec1d,
+        vec1d / intvec1d,
+        intvec1d + vec1d,
+        intvec1d - vec1d,
+        intvec1d * vec1d,
+        intvec1d // vec1d,
+        intvec1d / vec1d,
+        vec1d + some_int,
+        vec1d - some_int,
+        vec1d * some_int,
+        vec1d // some_int,
+        vec1d / some_int,
+        some_int + vec1d,
+        some_int - vec1d,
+        some_int * vec1d,
+        some_int // vec1d,
+        some_int / vec1d,
+        vec1d + some_float,
+        vec1d - some_float,
+        vec1d * some_float,
+        vec1d // some_float,
+        vec1d / some_float,
+        some_float + vec1d,
+        some_float - vec1d,
+        some_float * vec1d,
+        some_float // vec1d,
+        some_float / vec1d,
+        intvec1d + some_float,
+        intvec1d - some_float,
+        intvec1d * some_float,
+        intvec1d // some_float,
+        intvec1d / some_float,
+        intvec1d / some_int,
+        some_float + intvec1d,
+        some_float - intvec1d,
+        some_float * intvec1d,
+        some_float // intvec1d,
+        some_float / intvec1d,
+    ]:
+        test_inference_return_vec1d(y)

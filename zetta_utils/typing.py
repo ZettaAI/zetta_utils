@@ -44,7 +44,7 @@ def get_orig_class(obj: Any) -> Type:  # pragma: no cover
         return type(None)
 
 
-class _VecND(Generic[N, T_co]):  # pragma: no cover
+class _VecND(Generic[N, T_co]):
     """
     The backend primitive for an N-dimensional vector. This class should not be used or
     its constructor called directly. Use `VecND`, `IntVecND` to type annotate arbitrarily
@@ -137,23 +137,11 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
             return f"Vec{self.ndim}D({', '.join(str(e) for e in self)})"
         return f"_VecND({', '.join(str(e) for e in self)})"
 
-    def get_return_dtype(self, fname, other: Union[_VecND, float, int]) -> Type:
-        self_arg = self.vec[0]
-        if isinstance(other, (float, int)):
-            other_arg = other
-        else:
-            try:
-                assert len(self) == len(other)
-                other_arg = other.vec[0]
-            except Exception as e:
-                raise TypeError(
-                    "operation only supported between two vectors"
-                    + " of the same length or between a vector and a float / int"
-                ) from e
-        return type(getattr(self_arg, fname)(other_arg))
-
     """
     dunder methods must be overloaded and explicitly written for type annotation reasons.
+    `_get_args` is used to mirror the builtin behaviour for the arguments given for good
+    practice, even though the static types have to be hardcoded.
+
     For typing purposes, int is a float subclass (even though `issubclass(int, float)` is False)
     which means that `foo(IntVecND, int)` matches `def foo(_VecND[N, float], float)`.
     The typing system matches from the top down, so the order of the overloads matter.
@@ -162,22 +150,41 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
     and not all the arguments.
 
     The `# type: ignore`s also should be necessary inside the overloaded function implementations,
-    but mypy does not catch this requirement (pyright does).
-    """
+    but mypy does not catch this requirement (pyright does).     """
+
+    def _get_args(
+        self, other: Union[_VecND, float, int]
+    ) -> Tuple[Union[float, int], Union[float, int]]:
+        self_arg = self.vec[0]
+        if isinstance(other, (float, int)):
+            other_arg = other
+        else:
+            try:
+                assert len(self) == len(other)
+                other_arg = other.vec[0]
+            except Exception as e:
+                raise NotImplementedError(
+                    "operations are only supported between two vectors"
+                    + " of the same length or between a vector and a float / int"
+                ) from e
+        return self_arg, other_arg
 
     def __truediv__(
         self: _VecND[N, float], other: Union[_VecND[N, float], float]
     ) -> _VecND[N, float]:
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg / other_arg)
         if isinstance(other, (float, int)):
-            return _VecND[self.ndim_t, float](*(e / other for e in self))  # type: ignore
-        return _VecND[self.ndim_t, float](*(e / f for (e, f) in zip(self, other)))  # type: ignore
+            return _VecND[self.ndim_t, dtype](*(e / other for e in self))  # type: ignore
+        return _VecND[self.ndim_t, dtype](*(e / f for (e, f) in zip(self, other)))  # type: ignore
+
+    def __rtruediv__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg / self_arg)
+        return _VecND[self.ndim_t, dtype](*(other / e for e in self))  # type: ignore
 
     @overload
     def __add__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
-        ...
-
-    @overload
-    def __add__(self: _VecND[N, int], other: Union[_VecND[N, float], float]) -> _VecND[N, float]:
         ...
 
     @overload
@@ -185,17 +192,27 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
         ...
 
     def __add__(self, other):
-        dtype = self.get_return_dtype("__add__", other)
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg + other_arg)
         if isinstance(other, (float, int)):
             return _VecND[self.ndim_t, dtype](*(e + other for e in self))
         return _VecND[self.ndim_t, dtype](*(e + f for (e, f) in zip(self, other)))
 
     @overload
-    def __sub__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
+    def __radd__(self: _VecND[N, int], other: int) -> _VecND[N, int]:
         ...
 
     @overload
-    def __sub__(self: _VecND[N, int], other: Union[_VecND[N, float], float]) -> _VecND[N, float]:
+    def __radd__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        ...
+
+    def __radd__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg + self_arg)
+        return _VecND[self.ndim_t, dtype](*(other + e for e in self))
+
+    @overload
+    def __sub__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
         ...
 
     @overload
@@ -203,17 +220,27 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
         ...
 
     def __sub__(self, other):
-        dtype = self.get_return_dtype("__sub__", other)
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg - other_arg)
         if isinstance(other, (float, int)):
             return _VecND[self.ndim_t, dtype](*(e - other for e in self))
         return _VecND[self.ndim_t, dtype](*(e - f for (e, f) in zip(self, other)))
 
     @overload
-    def __mul__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
+    def __rsub__(self: _VecND[N, int], other: int) -> _VecND[N, int]:
         ...
 
     @overload
-    def __mul__(self: _VecND[N, int], other: Union[_VecND[N, float], float]) -> _VecND[N, float]:
+    def __rsub__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        ...
+
+    def __rsub__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg - self_arg)
+        return _VecND[self.ndim_t, dtype](*(other - e for e in self))
+
+    @overload
+    def __mul__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
         ...
 
     @overload
@@ -221,19 +248,27 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
         ...
 
     def __mul__(self, other):
-        dtype = self.get_return_dtype("__mul__", other)
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg * other_arg)
         if isinstance(other, (float, int)):
             return _VecND[self.ndim_t, dtype](*(e * other for e in self))
         return _VecND[self.ndim_t, dtype](*(e * f for (e, f) in zip(self, other)))
 
     @overload
-    def __floordiv__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
+    def __rmul__(self: _VecND[N, int], other: int) -> _VecND[N, int]:
         ...
 
     @overload
-    def __floordiv__(
-        self: _VecND[N, int], other: Union[_VecND[N, float], float]
-    ) -> _VecND[N, float]:
+    def __rmul__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        ...
+
+    def __rmul__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg * self_arg)
+        return _VecND[self.ndim_t, dtype](*(other * e for e in self))
+
+    @overload
+    def __floordiv__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
         ...
 
     @overload
@@ -243,18 +278,32 @@ class _VecND(Generic[N, T_co]):  # pragma: no cover
         ...
 
     def __floordiv__(self, other):
-        dtype = self.get_return_dtype("__floordiv__", other)
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg // other_arg)
         if isinstance(other, (float, int)):
             return _VecND[self.ndim_t, dtype](*(e // other for e in self))
         return _VecND[self.ndim_t, dtype](*(e // f for (e, f) in zip(self, other)))
 
-    def to(self, dtype):  # pylint: disable=invalid-name
+    @overload
+    def __rfloordiv__(self: _VecND[N, int], other: int) -> _VecND[N, int]:
+        ...
+
+    @overload
+    def __rfloordiv__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        ...
+
+    def __rfloordiv__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg // self_arg)
+        return _VecND[self.ndim_t, dtype](*(other // e for e in self))
+
+    def to(self, dtype):  # pylint: disable=invalid-name #pragma: no-cover
         raise NotImplementedError(".to(dtype) is not implemented; use .int() or .float() instead")
 
-    def int(self: _VecND[N, float]) -> _VecND[N, int]:
+    def int(self: _VecND[N, float]) -> _VecND[N, int]:  # pragma: no-cover
         return _VecND[self.ndim_t, int](*(int(arg) for arg in self.vec))  # type: ignore
 
-    def float(self: _VecND[N, float]) -> _VecND[N, float]:
+    def float(self: _VecND[N, float]) -> _VecND[N, float]:  # pragma: no-cover
         return _VecND[self.ndim_t, float](*(float(arg) for arg in self.vec))  # type: ignore
 
 

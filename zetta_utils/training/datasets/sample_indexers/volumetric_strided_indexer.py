@@ -39,9 +39,6 @@ class VolumetricStridedIndexer(SampleIndexer):
     resolution: Vec3D
     index_resolution: Optional[Vec3D] = None
     desired_resolution: Optional[Vec3D] = None
-    chunk_size_in_unit: Vec3D = attrs.field(init=False)
-    stride_in_unit: Vec3D = attrs.field(init=False)
-    step_limits: Tuple[int, int, int] = attrs.field(init=False)
     bcube_strider: BcubeStrider = attrs.field(init=False)
 
     def __attrs_post_init__(self):

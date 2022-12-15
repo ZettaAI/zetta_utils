@@ -12,7 +12,9 @@ import typeguard
 import wandb
 from pytorch_lightning.loggers import WandbLogger
 
-from zetta_utils import builder
+from zetta_utils import builder, log
+
+logger = log.get_logger("zetta_utils")
 
 
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
@@ -65,16 +67,20 @@ def build_default_trainer(
     progress_bar_kwargs: Optional[dict] = None,
     **kwargs,
 ) -> pl.Trainer:
-    if not os.environ.get("WANDB_MODE", None) == "offline":
-        wandb.login()  # pragma: no cover
-    logger = WandbLogger(
+    if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+        # import time
+        # time.sleep(3600)
+        api_key = os.environ.get("WANDB_API_KEY", None)
+        wandb.login(key=api_key)
+
+    wandb_logger = WandbLogger(
         project=experiment_name,
         name=experiment_version,
         id=experiment_version,
     )
 
     if "ZETTA_RUN_SPEC" in os.environ:
-        logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
+        wandb_logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
 
     if wandb.run is not None:
         this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -89,7 +95,7 @@ def build_default_trainer(
         **progress_bar_kwargs,
     )
     assert "callbacks" not in kwargs
-    trainer = ZettaDefaultTrainer(callbacks=prog_bar_callbacks, logger=logger, **kwargs)
+    trainer = ZettaDefaultTrainer(callbacks=prog_bar_callbacks, logger=wandb_logger, **kwargs)
 
     # Checkpoint callbacks need `default_root_dir`, so they're created
     # after

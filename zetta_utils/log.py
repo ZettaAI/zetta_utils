@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import logging
 import os
+import pickle
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Optional
 
+import attr
+import attrs
 import cachetools
+import dill
 import logging_loki
 import typeguard
 from rich.logging import RichHandler
 from rich.traceback import install
 
-SUPRESS_TRACEBACK_MODULES = [cachetools, typeguard]
+SUPRESS_TRACEBACK_MODULES = [cachetools, typeguard, attr, attrs, pickle, dill]
 
 LOKI_HANDLER = None
 
@@ -37,7 +41,7 @@ class InjectingFilter(logging.Filter):
 
 
 def update_traceback():
-    install(show_locals=True, suppress=SUPRESS_TRACEBACK_MODULES)
+    install(show_locals=False, suppress=SUPRESS_TRACEBACK_MODULES)
 
 
 def add_supress_traceback_module(module):

@@ -22,6 +22,11 @@ class DummyB:
     b: Any
 
 
+@dataclass
+class DummyC:
+    c: Any
+
+
 @pytest.fixture
 def register_dummy_a():
     builder.parser.register("dummy_a")(DummyA)
@@ -34,6 +39,13 @@ def register_dummy_b():
     builder.parser.register("dummy_b")(DummyB)
     yield
     del builder.parser.REGISTRY["dummy_b"]
+
+
+@pytest.fixture
+def register_dummy_c():
+    builder.parser.register("dummy_c", cast_to_vec3d=["abc"], cast_to_intvec3d=["def"])(DummyC)
+    yield
+    del builder.parser.REGISTRY["dummy_c"]
 
 
 @pytest.mark.parametrize(
@@ -69,7 +81,14 @@ def test_parse_exc(value, expected_exc, register_dummy_a):
 
 
 def test_register(register_dummy_a):
-    assert builder.parser.REGISTRY["dummy_a"] == DummyA
+    assert builder.parser.REGISTRY["dummy_a"]["class"] == DummyA
+
+
+# TODO: actually test that the casting process works
+def test_register_casting(register_dummy_c):
+    assert builder.parser.REGISTRY["dummy_c"]["class"] == DummyC
+    assert builder.parser.REGISTRY["dummy_c"]["cast_to_vec3d"] == ["abc"]
+    assert builder.parser.REGISTRY["dummy_c"]["cast_to_intvec3d"] == ["def"]
 
 
 @pytest.mark.parametrize(

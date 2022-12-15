@@ -10,9 +10,7 @@ from zetta_utils.common.partial import ComparablePartial
 
 from ..typing import IntVec3D, Vec3D
 
-REGISTRY: dict = {}
-REGISTRY_CAST_VEC3D: dict = {}
-REGISTRY_CAST_INTVEC3D: dict = {}
+REGISTRY: dict[str, dict[str, Any]] = {}
 PARSE_KEY = "@type"
 MODE_KEY = "@mode"
 RECURSE_KEY = "@recursive_parse"
@@ -45,9 +43,13 @@ def register(
         cast_to_intvec3d = []
 
     def register_fn(cls: T) -> T:
-        REGISTRY[name] = cls
-        REGISTRY_CAST_VEC3D[name] = cast_to_vec3d
-        REGISTRY_CAST_INTVEC3D[name] = cast_to_intvec3d
+
+        REGISTRY[name] = {
+            "class": cls,
+            "cast_to_vec3d": cast_to_vec3d,
+            "cast_to_intvec3d": cast_to_intvec3d,
+        }
+
         return cls
 
     return register_fn
@@ -61,9 +63,12 @@ def get_callable_from_name(name: str) -> Any:
     :return: Corresponding class.
 
     """
-    return REGISTRY[name]
+    return REGISTRY[name]["class"]
 
 
+# TODO: Potentially make this process automatic. The issue is that the constructor
+# for Vec3D (which requires *args rather than a tuple) needs to know what to do,
+# and making typing depend on builder is a cyclic import.
 @typechecked
 def get_cast_to_vec3d_from_name(name: str) -> Any:
     """Translate a string to the name of arguments that are to be cast to Vec3D
@@ -73,7 +78,7 @@ def get_cast_to_vec3d_from_name(name: str) -> Any:
     :return: Corresponding names to be cast to Vec3D.
 
     """
-    return REGISTRY_CAST_VEC3D[name]
+    return REGISTRY[name]["cast_to_vec3d"]
 
 
 @typechecked
@@ -85,7 +90,7 @@ def get_cast_to_intvec3d_from_name(name: str) -> Any:
     :return: Corresponding names to be cast to IntVec3D.
 
     """
-    return REGISTRY_CAST_INTVEC3D[name]
+    return REGISTRY[name]["cast_to_intvec3d"]
 
 
 @typechecked
@@ -140,11 +145,11 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
 
             for kwarg_name in registered_cast_to_vec3d:
                 if kwarg_name in fn_kwargs:
-                    fn_kwargs[kwarg_name] = Vec3D(fn_kwargs[kwarg_name])
+                    fn_kwargs[kwarg_name] = Vec3D(*fn_kwargs[kwarg_name])
 
             for kwarg_name in registered_cast_to_intvec3d:
                 if kwarg_name in fn_kwargs:
-                    fn_kwargs[kwarg_name] = IntVec3D(fn_kwargs[kwarg_name])
+                    fn_kwargs[kwarg_name] = IntVec3D(*fn_kwargs[kwarg_name])
 
             if mode == "regular":
                 try:

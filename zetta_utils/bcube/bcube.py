@@ -5,13 +5,12 @@ from math import floor
 from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
-import numpy as np
 
 from zetta_utils import builder
-from zetta_utils.typing import IntVec3D, Slices3D, Vec3D
+from zetta_utils.typing import Slices3D, Vec3D
 
 
-def _assert_equal_len(**kwargs: Union[Sequence, Vec3D, IntVec3D]):
+def _assert_equal_len(**kwargs: Union[Sequence, Vec3D]):
     len_map = {k: len(v) for k, v in kwargs.items()}
     if len(set(len_map.values())) != 1:  # means there are unequal lengths
         raise ValueError(
@@ -75,10 +74,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             if s.step is not None:
                 raise ValueError(f"Cannot construct a boundingbox from strided slice: '{s}'.")
 
-        bounds = tuple(
-            (slices[i].start * resolution[i], slices[i].stop * resolution[i])
-            for i in range(len(resolution))
-        )
+        bounds = tuple((s.start * r, s.stop * r) for s, r in zip(slices, resolution))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -105,10 +101,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             end_coord=end_coord,
             resolution=resolution,
         )
-        bounds = tuple(
-            (start_coord[i] * resolution[i], end_coord[i] * resolution[i])
-            for i in range(len(resolution))
-        )
+        bounds = tuple((s * r, e * r) for s, e, r in zip(start_coord, end_coord, resolution))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -176,7 +169,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def crop(
         self,
-        crop: Union[Sequence[Union[int, float, tuple[float, float]]], Vec3D, IntVec3D],
+        crop: Union[Sequence[Union[int, float, tuple[float, float]]], Vec3D],
         resolution: VecT,
         # in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -226,7 +219,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def pad(
         self,
-        pad: Union[Sequence[Union[float, tuple[float, float]]], Vec3D, IntVec3D],
+        pad: Union[Sequence[Union[float, tuple[float, float]]], Vec3D],
         resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -278,8 +271,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def translate(
         self,
-        offset: Union[Sequence[float], Vec3D, IntVec3D],
-        resolution: Union[Sequence[float], Vec3D, IntVec3D],
+        offset: Union[Sequence[float], Vec3D],
+        resolution: Union[Sequence[float], Vec3D],
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.

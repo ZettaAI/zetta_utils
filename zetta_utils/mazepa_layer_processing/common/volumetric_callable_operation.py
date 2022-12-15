@@ -37,7 +37,7 @@ class VolumetricCallableOperation(Generic[P]):
     input_idx_pad: IntVec3D = attrs.field(init=False)
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
-        return dst_resolution / self.res_change_mult  # type: ignore
+        return dst_resolution / self.res_change_mult
 
     def __attrs_post_init__(self):
         input_idx_pad_raw = self.crop * self.res_change_mult

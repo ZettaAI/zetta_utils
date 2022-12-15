@@ -134,7 +134,7 @@ class DBFrontend(Frontend):
         if is_scalar_list(data_user):
             return idx, [{"value": d} for d in data_user]
 
-        if is_scalar_list(data_user):
+        if is_rowdata_list(data_user):
             return idx, data_user
 
         raise ValueError("Unsupported data type.")

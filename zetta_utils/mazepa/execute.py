@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import time
-from contextlib import AbstractContextManager, ExitStack
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, Optional, Union
 
 import attrs
 
 from zetta_utils.log import get_logger
 
-from . import ExecutionCtxManager, ctx_vars
+from . import ctx_vars
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .flows import Flow
@@ -26,7 +25,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
     upkeep_fn: Optional[Callable[[str], bool]] = None
 
-    def __call__(self, target: Union[Flow, Iterable[Flow], ExecutionState]):
+    def __call__(self, target: Union[Flow, ExecutionState]):
         return execute(
             target=target,
             exec_queue=self.exec_queue,
@@ -38,13 +37,13 @@ class Executor:  # pragma: no cover # single statement, pure delegation
 
 
 def execute(
-    target: Union[Flow, Iterable[Flow], ExecutionState],
+    target: Union[Flow, ExecutionState],
     exec_queue: Optional[ExecutionQueue] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
     upkeep_fn: Optional[Callable[[str], bool]] = None,
-    ctx_managers: Iterable[Union[AbstractContextManager, ExecutionCtxManager]] = (),
+    execution_id: Optional[str] = None,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -53,9 +52,13 @@ def execute(
 
     Implementation: this function performs misc setup and delegates to _execute_from_state.
     """
-    execution_id = get_unique_id(prefix="execution")
-    ctx_vars.execution_id.set(execution_id)
-    logger.debug(f"Starting execution '{execution_id}'")
+    if execution_id is None:
+        execution_id_final = get_unique_id(prefix="execution")
+    else:
+        execution_id_final = execution_id
+
+    ctx_vars.execution_id.set(execution_id_final)
+    logger.debug(f"Starting execution '{execution_id_final}'")
 
     if isinstance(target, ExecutionState):
         state = target
@@ -72,25 +75,18 @@ def execute(
     logger.debug(f"STARTING: execution of {target}.")
     start_time = time.time()
 
-    with ExitStack() as stack:
-        for mgr in ctx_managers:
-            if isinstance(mgr, ExecutionCtxManager):
-                stack.enter_context(mgr(execution_id=execution_id))
-            else:
-                stack.enter_context(mgr)
-
-        _execute_from_state(
-            execution_id=execution_id,
-            state=state,
-            exec_queue=exec_queue_built,
-            max_batch_len=max_batch_len,
-            batch_gap_sleep_sec=batch_gap_sleep_sec,
-            upkeep_fn=upkeep_fn,
-        )
+    _execute_from_state(
+        execution_id=execution_id_final,
+        state=state,
+        exec_queue=exec_queue_built,
+        max_batch_len=max_batch_len,
+        batch_gap_sleep_sec=batch_gap_sleep_sec,
+        upkeep_fn=upkeep_fn,
+    )
 
     end_time = time.time()
     logger.debug(f"DONE: mazepa execution of {target}.")
-    logger.debug(f"Total execution time: {end_time - start_time:.1f}secs")
+    logger.info(f"Total execution time: {end_time - start_time:.1f}secs")
 
 
 def _execute_from_state(
@@ -127,9 +123,10 @@ def process_ready_tasks(
 ):
     logger.debug("Pulling task outcomes...")
     task_outcomes = queue.pull_task_outcomes()
-    logger.debug(f"Received {len(task_outcomes)} taks outcomes.")
-    logger.debug("Updating execution state with taks outcomes.")
-    state.update_with_task_outcomes(task_outcomes)
+    if len(task_outcomes) > 0:
+        logger.info(f"Received {len(task_outcomes)} completed task outcomes.")
+        logger.debug("Updating execution state with taks outcomes.")
+        state.update_with_task_outcomes(task_outcomes)
 
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)

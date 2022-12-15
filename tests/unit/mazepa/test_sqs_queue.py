@@ -43,7 +43,7 @@ def sqs_endpoint():
     container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
 
     timeout = 120
-    stop_time = 3
+    stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:
         time.sleep(stop_time)
@@ -163,6 +163,7 @@ def test_execution(work_queue, outcome_queue):
         region_name=region_name,
         endpoint_url=endpoint_url,
         outcome_queue_name=outcome_queue_name,
+        insertion_threads=0,
     )
     tasks = [
         _TaskableOperation(lambda: "Success").make_task(),

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, List, Optional
 
 import attrs
 import taskqueue
@@ -68,19 +68,27 @@ class SQSExecutionQueue:
     name: str
     region_name: str = attrs.field(default=taskqueue.secrets.AWS_DEFAULT_REGION)
     endpoint_url: Optional[str] = None
-    insertion_threads: int = 0
+    insertion_threads: int = 5
     outcome_queue_name: Optional[str] = None
-    _queue: Any = attrs.field(init=False)
+    _queue: Any = attrs.field(init=False, default=None)
     pull_wait_sec: int = 0
     pull_lease_sec: int = 30
 
-    def __attrs_post_init__(self):
-        # Use TaskQueue for fast insertion
-        self._queue = taskqueue.TaskQueue(
-            self.name, region_name=self.region_name, endpoint_url=self.endpoint_url, green=False
-        )
+    def _get_tq_queue(self) -> Any:
+        if self._queue is None:
+            # Use TaskQueue for fast insertion
+            self._queue = taskqueue.TaskQueue(
+                self.name,
+                region_name=self.region_name,
+                endpoint_url=self.endpoint_url,
+                green=False,
+                n_threads=self.insertion_threads,
+            )
+        return self._queue
 
-    def push_tasks(self, tasks: Iterable[Task]):
+    def push_tasks(self, tasks: List[Task]):
+        if len(tasks) == 0:
+            return  # pragma: no cover
         if self.outcome_queue_name is None:
             raise RuntimeError("Outcome queue name not specified.")
 
@@ -97,7 +105,7 @@ class SQSExecutionQueue:
         for task in tasks:
             tq_task = TQTask(serialization.serialize(task))
             tq_tasks.append(tq_task)
-        self._queue.insert(tq_tasks, parallel=self.insertion_threads)
+        self._get_tq_queue().insert(tq_tasks, parallel=self.insertion_threads)
 
     def pull_task_outcomes(
         self, max_num: int = 100, max_time_sec: float = 2.5

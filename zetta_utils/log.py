@@ -55,7 +55,7 @@ def get_time_str(log_time):
 SAVED_LEVEL = "ERROR"
 
 
-def configure_logger(level=None, third_party_level="WARN"):
+def configure_logger(level=None, third_party_level="ERROR"):
     for _ in (
         "python_jsonschema_objects",
         "pytorch_lightning",
@@ -152,7 +152,7 @@ if GRAFANA_KEY is not None:
     )
     print(
         "Configured Grafana Cloud Loki logging. "
-        "Access logs from this machine at https://sergiytest.grafana.net/explore"
+        "Access logs from this machine at https://zutils.grafana.net/explore"
     )
 else:
     print(

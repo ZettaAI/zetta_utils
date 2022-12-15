@@ -9,6 +9,7 @@ log.add_supress_traceback_module(builder)
 def load_all_modules():
     load_inference_modules()
     load_training_modules()
+    from . import mazepa_addons
 
 
 def load_inference_modules():

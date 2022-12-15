@@ -10,7 +10,7 @@ builder.register("pl.callbacks.ModelCheckpoint")(pl.callbacks.ModelCheckpoint)
 
 @builder.register("lightning_train")
 @typeguard.typechecked
-def lighning_train(
+def lightning_train(
     trainer,
     regime: pl.LightningModule,
     train_dataloader,

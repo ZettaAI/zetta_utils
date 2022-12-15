@@ -31,6 +31,7 @@ items:
         labels:
           app: zetta-x0
       spec:
+        serviceAccountName: zutils-worker-x0
         containers:
         - name: zutils-worker
           env:

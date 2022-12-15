@@ -236,11 +236,22 @@ def test_task_outcome_setting():
     assert task.outcome == outcomes["a"]
 
 
-def test_task_outcome_fail():
+def test_task_outcome_fail_raise():
     # type: () -> None
     task = make_test_task(fn=lambda: None, id_="a")
     flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
-    state = InMemoryExecutionState(ongoing_flows=flows)
+    state = InMemoryExecutionState(ongoing_flows=flows, raise_on_failed_task=True)
+    state.get_task_batch()
+    outcomes = {"a": TaskOutcome[Any](exception=Exception())}
+    with pytest.raises(Exception):
+        state.update_with_task_outcomes(outcomes)
+
+
+def test_task_outcome_fail_noraise():
+    # type: () -> None
+    task = make_test_task(fn=lambda: None, id_="a")
+    flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
+    state = InMemoryExecutionState(ongoing_flows=flows, raise_on_failed_task=False)
     state.get_task_batch()
     outcomes = {"a": TaskOutcome[Any](exception=Exception())}
     state.update_with_task_outcomes(outcomes)

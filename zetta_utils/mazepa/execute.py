@@ -5,6 +5,7 @@ from typing import Callable, Optional, Union
 
 import attrs
 
+from zetta_utils.common import ComparablePartial
 from zetta_utils.log import get_logger
 
 from . import Flow, Task, ctx_vars, seq_flow
@@ -12,6 +13,7 @@ from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
 from .task_outcome import TaskStatus
+from .tasks import _TaskableOperation
 
 logger = get_logger("mazepa")
 
@@ -23,8 +25,9 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     max_batch_len: int = 10000
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
     upkeep_fn: Optional[Callable[[str], bool]] = None
+    raise_on_failed_task: bool = True
 
-    def __call__(self, target: Union[Task, Flow, ExecutionState]):
+    def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         return execute(
             target=target,
             exec_queue=self.exec_queue,
@@ -32,17 +35,19 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             max_batch_len=self.max_batch_len,
             state_constructor=self.state_constructor,
             upkeep_fn=self.upkeep_fn,
+            raise_on_failed_task=self.raise_on_failed_task,
         )
 
 
 def execute(
-    target: Union[Task, Flow, ExecutionState],
+    target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
     exec_queue: Optional[ExecutionQueue] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
     upkeep_fn: Optional[Callable[[str], bool]] = None,
     execution_id: Optional[str] = None,
+    raise_on_failed_task: bool = True,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -61,13 +66,22 @@ def execute(
 
     if isinstance(target, ExecutionState):
         state = target
-        logger.debug(f"Given execution state {state}.")
-    elif isinstance(target, Task):
-        state = state_constructor(ongoing_flows=[seq_flow([target])])
-        logger.debug(f"Constructed execution state {state}.")
+        logger.debug(f"Loaded execution state {state}.")
     else:
-        state = state_constructor(ongoing_flows=[target])
-        logger.debug(f"Constructed execution state {state}.")
+        if isinstance(target, Task):
+            flows = [seq_flow([target])]
+        elif isinstance(target, Flow):
+            flows = [target]
+        else:  # isinstance(target, (ComparablePartial, Callable)):
+            task = _TaskableOperation(
+                fn=target,
+                time_bound=False,
+                max_retry=1,
+            ).make_task()
+            flows = [seq_flow([task])]
+
+        state = state_constructor(ongoing_flows=flows, raise_on_failed_task=raise_on_failed_task)
+        logger.debug(f"Built initial execution state {state}.")
 
     if exec_queue is not None:
         exec_queue_built = exec_queue
@@ -132,7 +146,7 @@ def process_ready_tasks(
 
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)
-    logger.debug(f"Got a batch of {len(task_batch)} tasks.")
+    logger.debug(f"A batch of {len(task_batch)} tasks ready for execution.")
 
     for task in task_batch:
         task.execution_id = execution_id

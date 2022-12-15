@@ -40,7 +40,6 @@ class LocalExecutionQueue:
     task_outcomes: Dict[str, TaskOutcome] = attrs.field(init=False, factory=dict)
 
     def push_tasks(self, tasks: Iterable[Task]):
-
         for task in track(tasks, description="Local task execution..."):
             task()
             assert task.outcome is not None
@@ -48,7 +47,8 @@ class LocalExecutionQueue:
 
             # raise immediatelly for local exec
             if task.outcome.exception is not None:
-                raise task.outcome.exception  # pragma: no cover
+                # raise task.outcome.exception  # pragma: no cover
+                pass
 
     def pull_task_outcomes(
         self, max_num: int = 100000, max_time_sec: float = 2.5  # pylint: disable=unused-argument

@@ -164,7 +164,7 @@ class SQSExecutionQueue:
                         queue_name=self.name,
                         region_name=self.region_name,
                         endpoint_url=self.endpoint_url,
-                        visibility_timeout=math.ceil(task.upkeep_settings.interval_secs * 5),
+                        visibility_timeout=math.ceil(task.upkeep_settings.interval_secs * 3),
                     )
                 )
 

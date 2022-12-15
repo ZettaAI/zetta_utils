@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import functools
+import sys
+import threading
 import time
+import traceback
 import uuid
 from typing import (
     Callable,
@@ -18,7 +21,6 @@ from typing import (
 )
 
 import attrs
-from pathos.multiprocessing import ProcessingPool
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
@@ -30,6 +32,12 @@ logger = log.get_logger("mazepa")
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
+
+
+class RepeatTimer(threading.Timer):
+    def run(self):
+        while not self.finished.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
 
 
 @attrs.mutable
@@ -113,20 +121,15 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     def _call_with_upkeep(self) -> TaskOutcome[R_co]:
         assert self.upkeep_settings.interval_secs is not None
 
-        pool = ProcessingPool(processes=1)
-        async_result = pool.apipe(self._call_without_upkeep)
+        def _perform_upkeep_callbacks():
+            for fn in self.upkeep_settings.callbacks:
+                fn()
 
-        while True:
-            if async_result.ready():
-                break
-
-            for callback in self.upkeep_settings.callbacks:
-                callback()
-
-            time.sleep(self.upkeep_settings.interval_secs)
-
-        return_val = async_result.get()
-        return return_val
+        upkeep = RepeatTimer(self.upkeep_settings.interval_secs, _perform_upkeep_callbacks)
+        upkeep.start()
+        result = self._call_without_upkeep()
+        upkeep.cancel()
+        return result
 
     def _call_without_upkeep(self) -> TaskOutcome[R_co]:
         assert self.args_are_set
@@ -136,13 +139,15 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             # TODO: parametrize by task execution environment
             return_value = self.fn(*self.args, **self.kwargs)
             exception = None
+            traceback_text = None
             logger.debug("Successful task execution.")
         except (exceptions.MazepaException, SystemExit, KeyboardInterrupt) as exc:
             raise exc  # pragma: no cover
         except Exception as exc:  # pylint: disable=broad-except
             logger.error(f"Failed task execution of {self}.")
             logger.exception(exc)
-            exception = exc
+            exc_type, exception, tb = sys.exc_info()
+            traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
             return_value = None
 
         time_end = time.time()
@@ -150,6 +155,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
 
         outcome = TaskOutcome(
             exception=exception,
+            traceback_text=traceback_text,
             execution_secs=time_end - time_start,
             return_value=return_value,
         )
@@ -223,7 +229,7 @@ class _TaskableOperation(Generic[P, R_co]):
         id_ = self.id_fn(self.fn, list(args), kwargs)
         upkeep_settings = TaskUpkeepSettings(
             perform_upkeep=(not self.time_bound),
-            interval_secs=10,
+            interval_secs=5,
         )
         result = Task[R_co](
             fn=self.fn,

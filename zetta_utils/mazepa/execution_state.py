@@ -6,13 +6,20 @@ from typing import Dict, List, Optional, Protocol, Set, runtime_checkable
 import attrs
 from typeguard import typechecked
 
+from zetta_utils import log
+
+from .exceptions import MazepaExecutionFailure
 from .flows import Dependency, Flow
 from .task_outcome import TaskOutcome, TaskStatus
 from .tasks import Task
 
+logger = log.get_logger("mazepa")
+
 
 @runtime_checkable
 class ExecutionState(Protocol):  # pragma: no cover
+    raise_on_failed_task: bool = True
+
     def __init__(self, ongoing_flows: List[Flow]):
         ...
 
@@ -44,7 +51,7 @@ class InMemoryExecutionState:
         init=False, factory=lambda: defaultdict(set)
     )
     ongoing_tasks: Dict[str, Task] = attrs.field(init=False, factory=dict)
-
+    raise_on_failed_task: bool = True
     completed_ids: Set[str] = attrs.field(
         init=False,
         factory=set,
@@ -75,9 +82,12 @@ class InMemoryExecutionState:
 
                 if outcome.exception is None:
                     self.ongoing_tasks[task_id].status = TaskStatus.SUCCEEDED
-                    self._update_completed_id(task_id)
                 else:
                     self.ongoing_tasks[task_id].status = TaskStatus.FAILED
+                    if self.raise_on_failed_task:
+                        logger.error(f"Task traceback: {outcome.traceback_text}")
+                        raise MazepaExecutionFailure("Task failure.")
+                self._update_completed_id(task_id)
 
     def get_task_batch(self, max_batch_len: int = 10000) -> List[Task]:
         """

@@ -72,6 +72,23 @@ def test_index_type(arg, single, slc, dtype):
 
 
 @pytest.mark.parametrize(
+    "arg, val",
+    [
+        [vec3d, (1.0, 2.0, 3.0)],
+        [intvec3d, (1, 2, 3)],
+        [vec3d_from_int, (1.0, 2.0, 3.0)],
+        [vec3d_init_int, (1.0, 2.0, 3.0)],
+        [vec3d_diff, (4.0, 5.0, 6.0)],
+        [intvec3d_from_float, (1, 2, 3)],
+    ],
+)
+def test_iter(arg, val):
+    for e, v in zip(arg, val):
+        assert type(e) == type(v)
+        assert e == v
+
+
+@pytest.mark.parametrize(
     "arg1, arg2, is_equal",
     [
         [vec2d, vec2d, True],

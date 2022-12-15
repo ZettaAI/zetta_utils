@@ -14,7 +14,11 @@ from zetta_utils.typing import IntVec3D, Vec3D
 from ..common import build_chunked_volumetric_callable_flow_schema
 
 
-@builder.register("build_aced_relaxation_flow")
+@builder.register(
+    "build_aced_relaxation_flow",
+    cast_to_vec3d=["dst_resolution"],
+    cast_to_intvec3d=["chunk_size", "crop"],
+)
 def build_aced_relaxation_flow(
     chunk_size: IntVec3D,
     bcube: BoundingCube,

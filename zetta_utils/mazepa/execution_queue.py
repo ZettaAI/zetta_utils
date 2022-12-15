@@ -5,10 +5,15 @@ from collections import defaultdict
 from typing import Dict, Iterable, List, Protocol, runtime_checkable
 
 import attrs
+from rich.progress import track
 from typeguard import typechecked
+
+from zetta_utils import log
 
 from .task_outcome import TaskOutcome
 from .tasks import Task
+
+logger = log.get_logger("mazepa")
 
 
 @runtime_checkable
@@ -35,7 +40,8 @@ class LocalExecutionQueue:
     task_outcomes: Dict[str, TaskOutcome] = attrs.field(init=False, factory=dict)
 
     def push_tasks(self, tasks: Iterable[Task]):
-        for task in tasks:
+
+        for task in track(tasks, description="Local task execution..."):
             task()
             assert task.outcome is not None
             self.task_outcomes[task.id_] = task.outcome

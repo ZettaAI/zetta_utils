@@ -10,7 +10,7 @@ from zetta_utils import builder
 from zetta_utils.typing import Slices3D, Vec3D
 
 
-def _assert_equal_len(**kwargs: Sequence):
+def _assert_equal_len(**kwargs: Union[Sequence, Vec3D]):
     len_map = {k: len(v) for k, v in kwargs.items()}
     if len(set(len_map.values())) != 1:  # means there are unequal lengths
         raise ValueError(
@@ -26,7 +26,7 @@ DEFAULT_UNIT = "nm"
 # Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
-VecT = TypeVar("VecT", bound=Sequence[float])
+VecT = TypeVar("VecT", bound=Union[Sequence[float], Vec3D])
 # @typechecked # https://github.com/agronholm/typeguard/issues/139
 @attrs.frozen()
 class BoundingBoxND(Generic[SlicesT, VecT]):
@@ -53,13 +53,13 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         resolution: Optional[VecT] = None,
         unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
-        """Create a :class:`BoundingBoxND` from slices at the given resolution.
+        """Create a `BoundingBoxND` from slices at the given resolution.
 
         :param slices: Tuple of slices representing a bounding box.
         :param resolution: Resolution at which the slices are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).
-        :return: :class:`BoundingBoxND` built according to the specification.
+        :return: `BoundingBoxND` built according to the specification.
 
         """
         if resolution is None:
@@ -67,17 +67,14 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         _assert_equal_len(
             slices=slices,
-            resoluiton=resolution,
+            resolution=resolution,
         )
 
         for s in slices:
             if s.step is not None:
                 raise ValueError(f"Cannot construct a boundingbox from strided slice: '{s}'.")
 
-        bounds = tuple(
-            (slices[i].start * resolution[i], slices[i].stop * resolution[i])
-            for i in range(len(resolution))
-        )
+        bounds = tuple((s.start * r, s.stop * r) for s, r in zip(slices, resolution))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -89,25 +86,22 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         resolution: VecT,
         unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
-        """Create a :class:`BoundingBoxND` from start and end coordinates at the given resolution.
+        """Create a `BoundingBoxND` from start and end coordinates at the given resolution.
 
         :param start_coord: Tuple representing the start coordinate.
         :param end_coord: Tuple representing the end coordinate.
         :param resolution: Resolution at which the coordinates are given.
             If not given, assumed to be unit resolution.
         :param unit: Unit name (decorative purposes only).
-        :return: :class:`BoundingBoxND` built according to the specification.
+        :return: `BoundingBoxND` built according to the specification.
 
         """
         _assert_equal_len(
             start_coord=start_coord,
             end_coord=end_coord,
-            resoluiton=resolution,
+            resolution=resolution,
         )
-        bounds = tuple(
-            (start_coord[i] * resolution[i], end_coord[i] * resolution[i])
-            for i in range(len(resolution))
-        )
+        bounds = tuple((s * r, e * r) for s, e, r in zip(start_coord, end_coord, resolution))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -175,7 +169,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def crop(
         self,
-        crop: Sequence[Union[int, float, tuple[float, float]]],
+        crop: Union[Sequence[Union[int, float, tuple[float, float]]], Vec3D],
         resolution: VecT,
         # in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -195,7 +189,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         _assert_equal_len(
             crop=crop,
             bounds=self.bounds,
-            resoluiton=resolution,
+            resolution=resolution,
         )
 
         double_sided_crop = []
@@ -225,7 +219,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def pad(
         self,
-        pad: Sequence[Union[float, tuple[float, float]]],
+        pad: Union[Sequence[Union[float, tuple[float, float]]], Vec3D],
         resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
@@ -246,17 +240,17 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         _assert_equal_len(
             pad=pad,
             bounds=self.bounds,
-            resoluiton=resolution,
+            resolution=resolution,
         )
         if in_place:
             raise NotImplementedError  # pragma: no cover
         else:
             double_sided_pad = []
-            for i in pad:
-                if isinstance(i, (int, float)):
-                    double_sided_pad += [(i, i)]
+            for e in pad:
+                if isinstance(e, (int, float)):
+                    double_sided_pad += [(e, e)]
                 else:
-                    double_sided_pad += [i]
+                    double_sided_pad += [e]
             slices = cast(
                 SlicesT,
                 tuple(
@@ -277,8 +271,8 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
     def translate(
         self,
-        offset: Sequence[float],
-        resolution: Sequence[float],
+        offset: Union[Sequence[float], Vec3D],
+        resolution: Union[Sequence[float], Vec3D],
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.
@@ -338,10 +332,12 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
-builder.register("BoundingCube")(BoundingCube.from_coords)
+builder.register("BoundingCube", cast_to_vec3d=["start_coord", "end_coord", "resolution"])(
+    BoundingCube.from_coords
+)
 
 
-@builder.register("pad_bcube")
+@builder.register("pad_bcube", cast_to_vec3d=["pad_resolution"])
 def pad_bcube(
     bcube: BoundingCube,
     pad: Sequence[Union[float, tuple[float, float]]],

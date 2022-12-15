@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import json
 import os
@@ -155,7 +157,7 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
 
     @staticmethod
     def wrap_forward(
-        pl_module: pl.LightningModule, name: str, trace_configuration: dict[str, dict[str, Any]]
+        pl_module: pl.LightningModule, name: str, trace_configuration: Dict[str, Dict[str, Any]]
     ) -> None:
         model = getattr(pl_module, name)
         model.__forward__ = model.forward

@@ -9,10 +9,10 @@ from zetta_utils import builder
 
 # from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 
-@builder.register("VolumetricIndex")
+@builder.register("VolumetricIndex", cast_to_vec3d=["resolution"])
 @attrs.mutable
 class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
@@ -22,13 +22,13 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     def to_slices(self):
         return self.bcube.to_slices(self.resolution, self.allow_slice_rounding)
 
-    def pad(self, pad: Vec3D):
+    def pad(self, pad: IntVec3D):
         return VolumetricIndex(
             bcube=self.bcube.pad(pad=pad, resolution=self.resolution),
             resolution=self.resolution,
         )
 
-    def crop(self, crop: Vec3D):
+    def crop(self, crop: IntVec3D):
         return VolumetricIndex(
             bcube=self.bcube.crop(crop=crop, resolution=self.resolution),
             resolution=self.resolution,

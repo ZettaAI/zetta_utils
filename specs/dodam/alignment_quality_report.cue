@@ -20,7 +20,7 @@
 	resolution: #DATA_RESOLUTION
 }
 
-"@type": "mazepa_execute"
+"@type": "mazepa.execute"
 target: {
 	"@type": "compute_alignment_quality"
 	chunk_size: [#XY_FOV, #XY_FOV, #Z_FOV]

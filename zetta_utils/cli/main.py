@@ -63,7 +63,7 @@ def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
 
     os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
     result = zetta_utils.builder.build(spec)
-    logger.info(f"Outcome: {pprint.pformat(result, indent=4)}")
+    logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
     if pdb:
         breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
 

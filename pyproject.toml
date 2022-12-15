@@ -75,6 +75,10 @@ mazepa = [
     "task-queue >= 2.12.0",
     "boto3 == 1.26.10",
 ]
+mazepa-addons = [
+    "zetta_utils[mazepa]",
+    "kubernetes >= 25.3.0",
+]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet]",
     "torch == 1.12.1", # mypy error on newer
@@ -113,6 +117,7 @@ modules = [ # put them in order of dependencies
     "zetta_utils[tensor_ops, viz, cli]",
     "zetta_utils[cloudvol,alignment]",
     "zetta_utils[training,mazepa]",
+    "zetta_utils[mazepa_addons]",
 ]
 all = [
     "zetta_utils[modules,docs,test]",

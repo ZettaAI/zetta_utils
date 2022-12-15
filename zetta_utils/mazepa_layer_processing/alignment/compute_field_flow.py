@@ -17,7 +17,9 @@ from zetta_utils.typing import IntVec3D, Vec3D
 from .compute_field_protocols import ComputeFieldOperation
 
 
-@builder.register("ComputeFieldFlowSchema")
+@builder.register(
+    "ComputeFieldFlowSchema", cast_to_vec3d=["tgt_offset"], cast_to_intvec3d=["chunk_size"]
+)
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldFlowSchema:
@@ -36,7 +38,7 @@ class ComputeFieldFlowSchema:
         src: VolumetricLayer,
         tgt: Optional[VolumetricLayer] = None,
         src_field: Optional[VolumetricLayer] = None,
-        tgt_offset: Vec3D = (0, 0, 0),
+        tgt_offset: Vec3D = Vec3D(0, 0, 0),
     ):
         if tgt is None:
             tgt = src
@@ -59,7 +61,11 @@ class ComputeFieldFlowSchema:
         yield cf_flow
 
 
-@builder.register("build_compute_field_flow")
+@builder.register(
+    "build_compute_field_flow",
+    cast_to_vec3d=["dst_resolution", "tgt_offset"],
+    cast_to_intvec3d=["chunk_size"],
+)
 def build_compute_field_flow(
     chunk_size: IntVec3D,
     operation: ComputeFieldOperation,
@@ -69,7 +75,7 @@ def build_compute_field_flow(
     src: VolumetricLayer,
     tgt: Optional[VolumetricLayer] = None,
     src_field: Optional[VolumetricLayer] = None,
-    tgt_offset: Vec3D = (0, 0, 0),
+    tgt_offset: Vec3D = Vec3D(0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldFlowSchema(chunk_size=chunk_size, operation=operation)
     flow = flow_schema(

@@ -4,7 +4,6 @@ import copy
 from typing import Callable, Generic, TypeVar
 
 import attrs
-import numpy as np
 import torch
 from typing_extensions import ParamSpec
 
@@ -19,7 +18,9 @@ P = ParamSpec("P")
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
 
 
-@builder.register("VolumetricCallableOperation")
+@builder.register(
+    "VolumetricCallableOperation", cast_to_vec3d=["res_change_mult"], cast_to_intvec3d=["crop"]
+)
 @mazepa.taskable_operation_cls
 @attrs.mutable
 class VolumetricCallableOperation(Generic[P]):
@@ -31,15 +32,15 @@ class VolumetricCallableOperation(Generic[P]):
     """
 
     fn: Callable[P, torch.Tensor]
-    crop: IntVec3D = (0, 0, 0)
-    res_change_mult: Vec3D = (1, 1, 1)
+    crop: IntVec3D = IntVec3D(0, 0, 0)
+    res_change_mult: Vec3D = Vec3D(1, 1, 1)
     input_idx_pad: IntVec3D = attrs.field(init=False)
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
-        return list(np.array(dst_resolution) / np.array(self.res_change_mult))
+        return dst_resolution / self.res_change_mult
 
-    def __attrs_post_init__(self) -> None:
-        input_idx_pad_raw = list(np.array(self.crop) * np.array(self.res_change_mult))
+    def __attrs_post_init__(self):
+        input_idx_pad_raw = self.crop * self.res_change_mult
         for e in input_idx_pad_raw:
             if not e.is_integer():
                 raise ValueError(
@@ -47,7 +48,7 @@ class VolumetricCallableOperation(Generic[P]):
                     f"multiplier of {self.res_change_mult} results in non-integer "
                     f"input index crop of {input_idx_pad_raw}."
                 )
-        self.input_idx_pad = [int(e) for e in input_idx_pad_raw]
+        self.input_idx_pad = IntVec3D(*(int(e) for e in input_idx_pad_raw))
 
     def __call__(
         self, idx: VolumetricIndex, dst: VolumetricLayer, *args: P.args, **kwargs: P.kwargs
@@ -72,12 +73,16 @@ class VolumetricCallableOperation(Generic[P]):
         dst[idx] = dst_data
 
 
-@builder.register("build_chunked_volumetric_callable_flow_schema")
+@builder.register(
+    "build_chunked_volumetric_callable_flow_schema",
+    cast_to_vec3d=["res_change_mult"],
+    cast_to_intvec3d=["crop"],
+)
 def build_chunked_volumetric_callable_flow_schema(
     fn: Callable[P, torch.Tensor],
     chunker: IndexChunker[IndexT],
-    crop: IntVec3D = (0, 0, 0),
-    res_change_mult: Vec3D = (1, 1, 1),
+    crop: IntVec3D = IntVec3D(0, 0, 0),
+    res_change_mult: Vec3D = Vec3D(1, 1, 1),
 ) -> ChunkedApplyFlowSchema[P, IndexT, None]:
     operation = VolumetricCallableOperation[P](
         fn=fn,

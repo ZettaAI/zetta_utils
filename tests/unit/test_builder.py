@@ -6,6 +6,7 @@ import pytest
 
 from zetta_utils import builder
 from zetta_utils.common.partial import ComparablePartial
+from zetta_utils.typing import IntVec3D, Vec3D
 
 PARSE_KEY = "@type"
 RECURSIVE_KEY = "@recursive_parse"
@@ -22,6 +23,12 @@ class DummyB:
     b: Any
 
 
+@dataclass
+class DummyC:
+    vec: Any
+    intvec: Any
+
+
 @pytest.fixture
 def register_dummy_a():
     builder.parser.register("dummy_a")(DummyA)
@@ -34,6 +41,13 @@ def register_dummy_b():
     builder.parser.register("dummy_b")(DummyB)
     yield
     del builder.parser.REGISTRY["dummy_b"]
+
+
+@pytest.fixture
+def register_dummy_c():
+    builder.parser.register("dummy_c", cast_to_vec3d=["vec"], cast_to_intvec3d=["intvec"])(DummyC)
+    yield
+    del builder.parser.REGISTRY["dummy_c"]
 
 
 @pytest.mark.parametrize(
@@ -69,7 +83,13 @@ def test_parse_exc(value, expected_exc, register_dummy_a):
 
 
 def test_register(register_dummy_a):
-    assert builder.parser.REGISTRY["dummy_a"] == DummyA
+    assert builder.parser.REGISTRY["dummy_a"]["class"] == DummyA
+
+
+def test_register_casting(register_dummy_c):
+    assert builder.parser.REGISTRY["dummy_c"]["class"] == DummyC
+    assert builder.parser.REGISTRY["dummy_c"]["cast_to_vec3d"] == ["vec"]
+    assert builder.parser.REGISTRY["dummy_c"]["cast_to_intvec3d"] == ["intvec"]
 
 
 @pytest.mark.parametrize(
@@ -109,3 +129,17 @@ def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
     assert result == expected
     if hasattr(result, "__dict__"):
         assert result.__init_builder_spec == spec
+
+
+@pytest.mark.parametrize(
+    "spec, expected",
+    [
+        [
+            {"@type": "dummy_c", "vec": (1.5, 2.5, 3.5), "intvec": (1, 2, 3)},
+            DummyC(vec=Vec3D(1.5, 2.5, 3.5), intvec=IntVec3D(1, 2, 3)),
+        ],
+    ],
+)
+def test_cast(spec: dict, expected: Any, register_dummy_c):
+    result = builder.build(spec, must_build=False)
+    assert result == expected

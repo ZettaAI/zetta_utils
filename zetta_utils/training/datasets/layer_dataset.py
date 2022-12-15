@@ -26,7 +26,7 @@ def _convert_to_torch_nested(data):
 @typechecked
 @attrs.frozen
 class LayerDataset(torch.utils.data.Dataset):
-    """PyTorch dataset wrapper around ``Layer`` component.
+    """PyTorch dataset wrapper around `zetta_utils.layer.Layer` component.
 
     :param layer: Layer which will be used as a source of data.
     :param sample_indexer: Indexer which will be used to translate integer sample

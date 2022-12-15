@@ -14,13 +14,15 @@ logger = log.get_logger("zetta_utils")
 @click.group()
 @click.option("-v", "--verbose", count=True)
 @click.option(
-    "--load_mode", "-l", type=click.Choice(["all", "inference", "training"]), default="all"
+    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
 )
 def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
     if load_mode == "all":
         zetta_utils.load_all_modules()
     elif load_mode == "inference":
         zetta_utils.load_inference_modules()
+    elif load_mode == "try":
+        zetta_utils.try_load_train_inference()
     else:
         assert load_mode == "training"
         zetta_utils.load_training_modules()

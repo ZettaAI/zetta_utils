@@ -12,6 +12,18 @@ def load_all_modules():
     from . import mazepa_addons
 
 
+def try_load_train_inference():  # pragma: no cover
+    try:
+        load_inference_modules()
+    except ImportError:
+        ...
+
+    try:
+        load_training_modules()
+    except ImportError:
+        ...
+
+
 def load_inference_modules():
     from . import (
         alignment,

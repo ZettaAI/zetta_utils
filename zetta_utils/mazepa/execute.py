@@ -7,10 +7,9 @@ import attrs
 
 from zetta_utils.log import get_logger
 
-from . import ctx_vars
+from . import Flow, Task, ctx_vars, seq_flow
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
-from .flows import Flow
 from .id_generation import get_unique_id
 from .task_outcome import TaskStatus
 
@@ -25,7 +24,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
     upkeep_fn: Optional[Callable[[str], bool]] = None
 
-    def __call__(self, target: Union[Flow, ExecutionState]):
+    def __call__(self, target: Union[Task, Flow, ExecutionState]):
         return execute(
             target=target,
             exec_queue=self.exec_queue,
@@ -37,7 +36,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
 
 
 def execute(
-    target: Union[Flow, ExecutionState],
+    target: Union[Task, Flow, ExecutionState],
     exec_queue: Optional[ExecutionQueue] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
@@ -63,6 +62,9 @@ def execute(
     if isinstance(target, ExecutionState):
         state = target
         logger.debug(f"Given execution state {state}.")
+    elif isinstance(target, Task):
+        state = state_constructor(ongoing_flows=[seq_flow([target])])
+        logger.debug(f"Constructed execution state {state}.")
     else:
         state = state_constructor(ongoing_flows=[target])
         logger.debug(f"Constructed execution state {state}.")

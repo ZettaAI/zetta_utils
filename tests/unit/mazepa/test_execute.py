@@ -28,20 +28,20 @@ def reset_task_count():
 
 
 @taskable_operation
-def dummy_task(return_value: Any) -> Any:
+def dummy_task(argument: str) -> Any:
     global TASK_COUNT
     TASK_COUNT += 1
-    return return_value
+    return f"return-for-{argument}"
 
 
 @flow_schema
 def dummy_flow():
-    task1 = dummy_task.make_task(return_value="output1")
+    task1 = dummy_task.make_task(argument="x1")
     yield task1
     yield Dependency(task1)
     assert task1.status == TaskStatus.SUCCEEDED
-    assert task1.outcome.return_value == "output1"
-    task2 = dummy_task.make_task(return_value="output2")
+    assert task1.outcome.return_value == "return-for-x1"
+    task2 = dummy_task.make_task(argument="x2")
     yield task2
 
 
@@ -72,6 +72,15 @@ def test_local_execution_one_flow(reset_task_count):
         max_batch_len=1,
     )
     assert TASK_COUNT == 2
+
+
+def test_local_execution_one_task(reset_task_count) -> None:
+    execute(
+        dummy_task.make_task(argument="x0"),
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+    )
+    assert TASK_COUNT == 1
 
 
 def test_local_execution_killed_by_upkeep(reset_task_count):

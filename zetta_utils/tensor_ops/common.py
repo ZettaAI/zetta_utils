@@ -10,6 +10,8 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
+from ..typing import IntVec3D
+
 P = ParamSpec("P")
 
 
@@ -403,7 +405,7 @@ def compare(
 @typechecked
 def crop(
     data: TensorTypeVar,
-    crop: Sequence[int],  # pylint: disable=redefined-outer-name
+    crop: Union[Sequence[int], IntVec3D],  # pylint: disable=redefined-outer-name
     # mode: Literal["center"] = "center",
 ) -> TensorTypeVar:
     """

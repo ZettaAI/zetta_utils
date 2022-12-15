@@ -8,6 +8,7 @@ import torch
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from ....helpers import assert_array_equal
 
@@ -89,7 +90,7 @@ def test_cv_backend_info_overwrite(path, reference, mode, mocker):
     cv_m.commit_info = mocker.MagicMock()
     info_spec = cloudvol.backend.PrecomputedInfoSpec(
         reference_path=reference,
-        chunk_size=[1024, 1024, 1],
+        chunk_size=IntVec3D(1024, 1024, 1),
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 
@@ -105,7 +106,7 @@ def test_cv_backend_read(clear_caches, mocker):
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D(1, 1, 1),
     )
     result = cvb.read(index)
     assert_array_equal(result, expected)
@@ -122,7 +123,7 @@ def test_cv_backend_write(clear_caches, mocker):
 
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D(1, 1, 1),
     )
     cvb.write(index, value)
     assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
@@ -142,7 +143,7 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
 
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D(1, 1, 1),
     )
     cvb.write(index, value)
     assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
@@ -163,7 +164,7 @@ def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
         bcube=BoundingCube.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
-        resolution=(1, 1, 1),
+        resolution=Vec3D(1, 1, 1),
     )
     with pytest.raises(expected_exc):
         cvb.write(index, data_in)

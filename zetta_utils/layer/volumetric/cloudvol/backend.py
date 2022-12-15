@@ -59,7 +59,7 @@ class PrecomputedInfoSpec:
             result = {**reference_info, **field_overrides}
             if self.chunk_size is not None:
                 for e in result["scales"]:
-                    e["chunk_sizes"] = [self.chunk_size]
+                    e["chunk_sizes"] = [tuple(self.chunk_size)]
 
             # if self.ensure_scales is not None:  # pragma: no cover
             #    raise NotImplementedError()
@@ -152,7 +152,7 @@ class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-
     def _get_cv_at_resolution(
         self, resolution: Vec3D
     ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
-        result = get_cv_cached(cloudpath=self.path, mip=resolution, **self.cv_kwargs)
+        result = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
         return result
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:

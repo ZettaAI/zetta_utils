@@ -6,7 +6,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.bcube import BcubeStrider
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 from .. import DataWithIndexProcessor, IndexChunker
 from . import VolumetricIndex
@@ -24,7 +24,7 @@ def translate_volumetric_index(
     return result
 
 
-@builder.register("VolumetricIndexTranslator")
+@builder.register("VolumetricIndexTranslator", cast_to_vec3d=["offset", "resolution"])
 @typechecked
 @attrs.mutable
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
@@ -40,7 +40,7 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
-@builder.register("VolumetricIndexResolutionAdjuster")
+@builder.register("VolumetricIndexResolutionAdjuster", cast_to_vec3d=["resolution"])
 @typechecked
 @attrs.mutable
 class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statements, no conditionals
@@ -85,12 +85,16 @@ class VolumetricDataInterpolator(DataWithIndexProcessor):
         return result
 
 
-@builder.register("VolumetricIndexChunker")
+@builder.register(
+    "VolumetricIndexChunker",
+    cast_to_vec3d=["resolution"],
+    cast_to_intvec3d=["chunk_size", "stride"],
+)
 @typechecked
 @attrs.mutable
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
-    chunk_size: Vec3D
-    stride: Optional[Vec3D] = None
+    chunk_size: IntVec3D
+    stride: Optional[IntVec3D] = None
     resolution: Optional[Vec3D] = None
 
     def __call__(

@@ -18,12 +18,12 @@ from zetta_utils.typing import IntVec3D, Vec3D
 from .. import build_chunked_apply_flow
 
 
-@builder.register("WarpOperation")
+@builder.register("WarpOperation", cast_to_intvec3d=["crop"])
 @mazepa.taskable_operation_cls
 @attrs.frozen()
 class WarpOperation:
     mode: Literal["mask", "img", "field"]
-    crop: IntVec3D = (0, 0, 0)
+    crop: IntVec3D = IntVec3D(0, 0, 0)
     mask_value_thr: float = 0
     # preserve_black: bool = False
 
@@ -31,7 +31,7 @@ class WarpOperation:
         if self.crop[-1] != 0:
             raise ValueError(f"Z crop must be equal to 0. Received: {self.crop}")
 
-    def __call__(
+    def __call__(  # pylint: disable=too-many-locals
         self,
         idx: VolumetricIndex,
         dst: VolumetricLayer,
@@ -45,7 +45,7 @@ class WarpOperation:
         field_data_raw[0] -= xy_translation[0]
         field_data_raw[1] -= xy_translation[1]
 
-        # TODO: big quesiton mark. In zetta_utils everythign is XYZ, so I don't understand
+        # TODO: big question mark. In zetta_utils everythign is XYZ, so I don't understand
         # why the order is flipped here. It worked for a corgie field, so leaving it in.
         # Pls help:
         src_idx_padded = idx_padded.translate((xy_translation[1], xy_translation[0], 0))
@@ -62,12 +62,17 @@ class WarpOperation:
         dst_data_raw = dst_data_raw.to(src_data.dtype)
 
         # Cropping along 2 spatial dimentions, Z is batch
-        dst_data_cropped = tensor_ops.crop(dst_data_raw, self.crop[:-1])
+        # the typed generation is necessary because mypy cannot tell that when you slice an
+        # IntVec3D, the outputs contain ints (might be due to the fact that np.int64s are not ints
+        crop_2d = tuple(int(e) for e in self.crop[:-1])
+        dst_data_cropped = tensor_ops.crop(dst_data_raw, crop_2d)
         dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
         dst[idx] = dst_data
 
 
-@builder.register("build_warp_flow")
+@builder.register(
+    "build_warp_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size", "crop"]
+)
 def build_warp_flow(
     bcube: BoundingCube,
     dst_resolution: Vec3D,
@@ -76,7 +81,7 @@ def build_warp_flow(
     src: VolumetricLayer,
     field: VolumetricLayer,
     mode: Literal["mask", "img", "field"],
-    crop: IntVec3D = (0, 0, 0),
+    crop: IntVec3D = IntVec3D(0, 0, 0),
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
     result = build_chunked_apply_flow(

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from contextlib import contextmanager
-from typing import Any, Dict, Optional, Union
+from contextlib import ExitStack, contextmanager
+from typing import Any, Dict, Iterable, Optional, Union
 
 import kubernetes as k8s
 from zetta_utils import builder, log, mazepa
@@ -14,7 +14,7 @@ logger = log.get_logger("zetta_utils")
 def get_worker_command(queue_spec: Dict[str, Any]):
     result = (
         """
-    zetta -vv -l inference run -s '{
+    zetta -vv -l try run -s '{
         "@type": "mazepa.run_worker"
         exec_queue:
     """
@@ -35,10 +35,9 @@ def get_worker_deployment_spec(
     replicas: int,
     resources: Dict[str, int | float | str],
     labels: Dict[str, str],
-    zetta_user: str,
-    zetta_project: str,
+    env_secret_mapping: Dict[str, str],
 ) -> Dict[str, Any]:
-    result = {
+    result: Dict[str, Any] = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
         "metadata": {
@@ -67,44 +66,6 @@ def get_worker_deployment_spec(
                         {
                             "name": "zutils-worker",
                             "env": [
-                                {
-                                    "name": "GRAFANA_CLOUD_ACCESS_KEY",
-                                    "valueFrom": {
-                                        "secretKeyRef": {
-                                            "name": "grafana-cloud-api-sergiy",
-                                            "key": "key",
-                                            "optional": False,
-                                        }
-                                    },
-                                },
-                                {
-                                    "name": "AWS_ACCESS_KEY_ID",
-                                    "valueFrom": {
-                                        "secretKeyRef": {
-                                            "name": "aws-key-sergiy",
-                                            "key": "access_key_id",
-                                            "optional": False,
-                                        }
-                                    },
-                                },
-                                {
-                                    "name": "AWS_SECRET_ACCESS_KEY",
-                                    "valueFrom": {
-                                        "secretKeyRef": {
-                                            "name": "aws-key-sergiy",
-                                            "key": "secret_access_key",
-                                            "optional": False,
-                                        }
-                                    },
-                                },
-                                {
-                                    "name": "ZETTA_USER",
-                                    "value": zetta_user,
-                                },
-                                {
-                                    "name": "ZETTA_PROJECT",
-                                    "value": zetta_project,
-                                },
                                 {
                                     "name": "MY_NODE_NAME",
                                     "valueFrom": {"fieldRef": {"fieldPath": "spec.nodeName"}},
@@ -166,26 +127,57 @@ def get_worker_deployment_spec(
             },
         },
     }
+    for k, v in env_secret_mapping.items():
+        result["spec"]["template"]["spec"]["containers"][0]["env"].append(
+            {
+                "name": k,
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": v,
+                        "key": "value",
+                        "optional": False,
+                    }
+                },
+            }
+        )
     return result
 
 
 @builder.register("worker_k8s_deployment_ctx_mngr")
 @contextmanager
-def worker_k8s_deployment_ctx_mngr(
+def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     execution_id: str,
     image: str,
     queue: Union[mazepa.ExecutionQueue, Dict[str, Any]],
     replicas: int,
     resources: Dict[str, int | float | str],
     labels: Optional[Dict[str, str]] = None,
-    zetta_user: str = os.environ.get("ZETTA_USER", "UNDEFINED"),
-    zetta_project: str = os.environ.get("ZETTA_USER", "UNDEFINED"),
+    share_envs: Iterable[str] = (),
 ):
+    env_secret_mapping: Dict[str, str] = {}
+    secrets_kv: Dict[str, str] = {}
+
+    for env_k in share_envs:
+        if not env_k.isupper() or not env_k.replace("_", "").isalpha():
+            raise ValueError(
+                "Only able to share environment variables with "
+                f"only upper letters and underscores. Got: `{env_k}`"
+            )
+        env_v = os.environ.get(env_k, None)
+        if env_v is None:
+            raise ValueError(
+                f"Please set `{env_k}` environment variable " "in order to create a deployment."
+            )
+        secret_name = f"{execution_id}-{env_k}".lower().replace("_", "-")
+        env_secret_mapping[env_k] = secret_name
+        secrets_kv[secret_name] = env_v
+
     k8s.config.load_kube_config()  # type: ignore
-    labels_final = {"zetta_user": zetta_user}
-    if labels is not None:
-        labels_final = {**labels_final, **labels}
-    # TODO: raise error on UNDEFINES
+
+    if labels is None:
+        labels_final = {"execution_id": execution_id}
+    else:
+        labels_final = labels
 
     if isinstance(queue, dict):
         queue_spec = queue
@@ -196,6 +188,7 @@ def worker_k8s_deployment_ctx_mngr(
             raise ValueError("Only queue's built by `zetta_utils.builder` are allowed.")
     worker_command = get_worker_command(queue_spec)
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
+
     deployment_spec = get_worker_deployment_spec(
         name=execution_id,
         image=image,
@@ -203,18 +196,51 @@ def worker_k8s_deployment_ctx_mngr(
         worker_command=worker_command,
         resources=resources,
         labels=labels_final,
-        zetta_user=zetta_user,
-        zetta_project=zetta_project,
+        env_secret_mapping=env_secret_mapping,
     )
     k8s_apps_v1_api = k8s.client.AppsV1Api()  # type: ignore
 
     logger.info(f"Creating deployment `{deployment_spec['metadata']['name']}`")
     k8s_apps_v1_api.create_namespaced_deployment(body=deployment_spec, namespace="default")
+
+    secret_ctx_mngrs = [k8s_secret_ctx_mngr(k, {"value": v}) for k, v in secrets_kv.items()]
+    with ExitStack() as stack:
+        for mngr in secret_ctx_mngrs:
+            stack.enter_context(mngr)
+
+        try:
+            yield
+        finally:
+            logger.info(f"Deleting deployment `{deployment_spec['metadata']['name']}`")
+            k8s_apps_v1_api.delete_namespaced_deployment(
+                name=deployment_spec["metadata"]["name"],
+                namespace="default",
+            )
+
+
+@builder.register("k8s_secret_ctx_mngr")
+@contextmanager
+def k8s_secret_ctx_mngr(
+    name: str,
+    string_data: Dict[str, str],
+):
+    k8s.config.load_kube_config()  # type: ignore
+    secret = k8s.client.V1Secret(  # type: ignore
+        api_version="v1",
+        kind="Secret",
+        metadata=k8s.client.V1ObjectMeta(name=name),  # type: ignore
+        string_data=string_data,
+    )
+
+    k8s_core_v1_api = k8s.client.CoreV1Api()  # type: ignore
+    logger.info(f"Creating secret `{name}`")
+    k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
+
     try:
         yield
     finally:
-        logger.info(f"Deleting deployment `{deployment_spec['metadata']['name']}`")
-        k8s_apps_v1_api.delete_namespaced_deployment(
-            name=deployment_spec["metadata"]["name"],
+        logger.info(f"Deleting secret `{name}`")
+        k8s_core_v1_api.delete_namespaced_secret(
+            name=name,
             namespace="default",
         )

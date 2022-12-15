@@ -11,7 +11,7 @@ logger = log.get_logger("zetta_utils")
 @contextmanager
 def sqs_queue_ctx_mngr(name: str):
     sqs = boto3.resource("sqs")
-    queue = sqs.create_queue(QueueName=name)
+    queue = sqs.create_queue(QueueName=name, Attributes={"SqsManagedSseEnabled": "false"})
     logger.info(f"Created SQS queue with URL={queue.url}")
     try:
         yield

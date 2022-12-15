@@ -10,6 +10,50 @@ from zetta_utils.mazepa_addons import resource_allocation
 logger = log.get_logger("zetta_utils")
 
 
+def get_gcp_with_sqs_config(
+    execution_id: str,
+    worker_lease_sec: int,
+    worker_image: str,
+    worker_replicas: int,
+    worker_resources: Dict[str, int | float | str],
+    worker_labels: Optional[Dict[str, str]],
+    ctx_managers: list[AbstractContextManager],
+) -> tuple[mazepa.ExecutionQueue, list[AbstractContextManager]]:
+
+    ctx_managers.append(common.signal_handlers.confirm_sigint_ctx())
+    work_queue_name = f"zzz-{execution_id}-work"
+    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(work_queue_name))
+    outcome_queue_name = f"zzz-{execution_id}-outcome"
+    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(outcome_queue_name))
+    exec_queue_spec = {
+        "@type": "mazepa.SQSExecutionQueue",
+        "name": work_queue_name,
+        "outcome_queue_name": outcome_queue_name,
+        "pull_lease_sec": worker_lease_sec,
+    }
+    exec_queue = builder.build(exec_queue_spec)
+
+    ctx_managers.append(
+        resource_allocation.gcp_k8s.worker_k8s_deployment_ctx_mngr(
+            execution_id=execution_id,
+            image=worker_image,
+            queue=exec_queue_spec,
+            replicas=worker_replicas,
+            labels=worker_labels,
+            resources=worker_resources,
+            share_envs=[
+                "GRAFANA_CLOUD_ACCESS_KEY",
+                "ZETTA_USER",
+                "ZETTA_PROJECT",
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+                "WANDB_API_KEY",
+            ],
+        )
+    )
+    return exec_queue, ctx_managers
+
+
 @builder.register("mazepa.execute_on_gcp_with_sqs")
 def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],
@@ -24,35 +68,21 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     local_test: bool = False,
 ):
     execution_id = mazepa.id_generation.get_unique_id(
-        prefix="execution", slug_len=4, add_uuid=False, max_len=60
+        prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:
-        exec_queue = mazepa.LocalExecutionQueue()
+        exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
-        ctx_managers.append(common.signal_handlers.confirm_sigint_ctx())
-        work_queue_name = f"zzz-{execution_id}-work"
-        ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(work_queue_name))
-        outcome_queue_name = f"zzz-{execution_id}-outcome"
-        ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(outcome_queue_name))
-        exec_queue_spec = {
-            "@type": "mazepa.SQSExecutionQueue",
-            "name": work_queue_name,
-            "outcome_queue_name": outcome_queue_name,
-            "pull_lease_sec": worker_lease_sec,
-        }
-        exec_queue = builder.build(exec_queue_spec)
-
-        ctx_managers.append(
-            resource_allocation.gcp_k8s.worker_k8s_deployment_ctx_mngr(
-                execution_id=execution_id,
-                image=worker_image,
-                queue=exec_queue_spec,
-                replicas=worker_replicas,
-                labels=worker_labels,
-                resources=worker_resources,
-            )
+        exec_queue, ctx_managers = get_gcp_with_sqs_config(
+            execution_id=execution_id,
+            worker_image=worker_image,
+            worker_labels=worker_labels,
+            worker_replicas=worker_replicas,
+            worker_resources=worker_resources,
+            worker_lease_sec=worker_lease_sec,
+            ctx_managers=ctx_managers,
         )
 
     with ExitStack() as stack:

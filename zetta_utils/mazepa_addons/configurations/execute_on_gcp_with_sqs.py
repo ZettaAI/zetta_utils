@@ -62,6 +62,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]] = None,
+    max_task_retry: int = 1,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
@@ -94,4 +95,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             exec_queue=exec_queue,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
+            max_task_retry=max_task_retry,
         )

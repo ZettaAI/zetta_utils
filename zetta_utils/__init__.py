@@ -1,7 +1,7 @@
 # pylint: disable=unused-import, import-outside-toplevel
 """Zetta AI Computational Connectomics Toolkit."""
 
-from . import bcube, builder, distributions, layer, log, parsing, common, typing
+from . import bcube, common, builder, distributions, layer, log, parsing, typing
 
 log.add_supress_traceback_module(builder)
 

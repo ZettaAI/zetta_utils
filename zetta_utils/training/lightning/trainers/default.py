@@ -32,8 +32,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
-            if hasattr(v, "__init_builder_spec"):
-                model_spec = getattr(v, "__init_builder_spec")  # pylint: disable=protected-access
+            if hasattr(v, "__built_with_spec"):
+                model_spec = getattr(v, "__built_with_spec")  # pylint: disable=protected-access
                 while "@type" in model_spec and model_spec["@type"] == "load_weights_file":
                     model_spec = model_spec["model"]
 
@@ -48,6 +48,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 spec_path = f"{filepath}.{k}.spec.json"
                 with fsspec.open(spec_path, "w") as f:
                     json.dump(spec, f, indent=3)
+
         if self.trace_configuration is not None:
             for name in self.trace_configuration.keys():
                 model = self.trace_configuration[name]["model"]
@@ -68,8 +69,6 @@ def build_default_trainer(
     **kwargs,
 ) -> pl.Trainer:
     if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
-        # import time
-        # time.sleep(3600)
         api_key = os.environ.get("WANDB_API_KEY", None)
         wandb.login(key=api_key)
 
@@ -78,9 +77,6 @@ def build_default_trainer(
         name=experiment_version,
         id=experiment_version,
     )
-
-    if "ZETTA_RUN_SPEC" in os.environ:
-        wandb_logger.experiment.config["zetta_run_spec"] = json.loads(os.environ["ZETTA_RUN_SPEC"])
 
     if wandb.run is not None:
         this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -118,6 +114,11 @@ def build_default_trainer(
     # to resume training with ckpt_path='last' when storing
     # checkpoints on GCP.
     trainer._ckpt_path = os.path.join(log_dir, "last.ckpt")  # pylint: disable=protected-access
+
+    def log_config(config):
+        wandb_logger.experiment.config["training_configuration"] = config
+
+    trainer.log_config = log_config  # type: ignore # pylint: disable=attribute-defined-outside-init
 
     return trainer
 

@@ -170,7 +170,7 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
                 result = ComparablePartial(registered_fn, **fn_kwargs)
             elif mode == "lazy":
                 fn_kwargs[PARSE_KEY] = field[PARSE_KEY]
-                result = ComparablePartial(build, field=fn_kwargs)
+                result = ComparablePartial(build, spec=fn_kwargs)
             else:
                 raise ValueError(f"Unsupported mode: {mode}")
 

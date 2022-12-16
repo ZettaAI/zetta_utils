@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import copy
+import json
 from typing import Any, Callable, List, Optional, TypeVar, Union
 
 from typeguard import typechecked
 
+from zetta_utils.common import ctx_managers
 from zetta_utils.common.partial import ComparablePartial
 
 from ..typing import IntVec3D, Vec3D
@@ -117,7 +119,7 @@ def build(spec: Union[dict, list], must_build: bool = False) -> Any:
 
 
 @typechecked
-def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
+def _build(field: Any) -> Any:  # pylint: disable=too-many-branches,too-many-statements
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any
     elif isinstance(field, list):
@@ -125,62 +127,69 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches
     elif isinstance(field, tuple):
         result = tuple(_build(i) for i in field)
     elif isinstance(field, dict):
-        if PARSE_KEY in field:
-            registered_fn = get_callable_from_name(field[PARSE_KEY])
-            registered_cast_to_vec3d = get_cast_to_vec3d_from_name(field[PARSE_KEY])
-            registered_cast_to_intvec3d = get_cast_to_intvec3d_from_name(field[PARSE_KEY])
+        spec_as_str = '{"error": "UNKONWN"}'
+        try:
+            spec_as_str = json.dumps(field)
+        except TypeError:
+            ...
 
-            mode = field.get(MODE_KEY, "regular")
+        with ctx_managers.set_env(CURRENT_BUILD_SPEC=spec_as_str):
+            if PARSE_KEY in field:
+                registered_fn = get_callable_from_name(field[PARSE_KEY])
+                registered_cast_to_vec3d = get_cast_to_vec3d_from_name(field[PARSE_KEY])
+                registered_cast_to_intvec3d = get_cast_to_intvec3d_from_name(field[PARSE_KEY])
 
-            recurse = False
-            if (RECURSE_KEY not in field or field[RECURSE_KEY]) and mode != "lazy":
-                recurse = True
+                mode = field.get(MODE_KEY, "regular")
 
-            fn_kwargs = copy.copy(field)
-            del fn_kwargs[PARSE_KEY]
-            fn_kwargs.pop(MODE_KEY, None)  # deletes if exits
-            fn_kwargs.pop(RECURSE_KEY, None)  # deletes if exits
+                recurse = False
+                if (RECURSE_KEY not in field or field[RECURSE_KEY]) and mode != "lazy":
+                    recurse = True
 
-            if recurse:
-                fn_kwargs = _build(fn_kwargs)
+                fn_kwargs = copy.copy(field)
+                del fn_kwargs[PARSE_KEY]
+                fn_kwargs.pop(MODE_KEY, None)  # deletes if exits
+                fn_kwargs.pop(RECURSE_KEY, None)  # deletes if exits
 
-            for kwarg_name in registered_cast_to_vec3d:
-                if kwarg_name in fn_kwargs:
-                    fn_kwargs[kwarg_name] = Vec3D(*fn_kwargs[kwarg_name])
+                if recurse:
+                    fn_kwargs = _build(fn_kwargs)
 
-            for kwarg_name in registered_cast_to_intvec3d:
-                if kwarg_name in fn_kwargs:
-                    fn_kwargs[kwarg_name] = IntVec3D(*fn_kwargs[kwarg_name])
+                for kwarg_name in registered_cast_to_vec3d:
+                    if kwarg_name in fn_kwargs:
+                        fn_kwargs[kwarg_name] = Vec3D(*fn_kwargs[kwarg_name])
 
-            if mode == "regular":
-                try:
-                    result = registered_fn(**fn_kwargs)
-                except Exception as e:  # pragma: no cover
-                    if hasattr(registered_fn, "__name__"):
-                        name = registered_fn.__name__
-                    else:
-                        name = str(registered_fn)
-                    e.args = (
-                        f'Exception while building "@type": "{field[PARSE_KEY]}" '
-                        f"(mapped to '{name}' from module '{registered_fn.__module__}'), "
-                        f'"@mode": "{mode}": \n{e}',
-                    )
-                    raise e from None
-            elif mode == "partial":
-                result = ComparablePartial(registered_fn, **fn_kwargs)
-            elif mode == "lazy":
-                fn_kwargs[PARSE_KEY] = field[PARSE_KEY]
-                result = ComparablePartial(build, spec=fn_kwargs)
+                for kwarg_name in registered_cast_to_intvec3d:
+                    if kwarg_name in fn_kwargs:
+                        fn_kwargs[kwarg_name] = IntVec3D(*fn_kwargs[kwarg_name])
+
+                if mode == "regular":
+                    try:
+                        result = registered_fn(**fn_kwargs)
+                    except Exception as e:  # pragma: no cover
+                        if hasattr(registered_fn, "__name__"):
+                            name = registered_fn.__name__
+                        else:
+                            name = str(registered_fn)
+                        e.args = (
+                            f'Exception while building "@type": "{field[PARSE_KEY]}" '
+                            f"(mapped to '{name}' from module '{registered_fn.__module__}'), "
+                            f'"@mode": "{mode}": \n{e}',
+                        )
+                        raise e from None
+                elif mode == "partial":
+                    result = ComparablePartial(registered_fn, **fn_kwargs)
+                elif mode == "lazy":
+                    fn_kwargs[PARSE_KEY] = field[PARSE_KEY]
+                    result = ComparablePartial(build, spec=fn_kwargs)
+                else:
+                    raise ValueError(f"Unsupported mode: {mode}")
+
+                # save the spec that was used to create the object if possible
+                # slotted classes won't allow adding new attributes
+                if hasattr(result, "__dict__"):
+                    object.__setattr__(result, "__built_with_spec", field)
+
             else:
-                raise ValueError(f"Unsupported mode: {mode}")
-
-            # save the spec that was used to create the object if possible
-            # slotted classes won't allow adding new attributes
-            if hasattr(result, "__dict__"):
-                object.__setattr__(result, "__init_builder_spec", field)
-
-        else:
-            result = {k: _build(v) for k, v in field.items()}
+                result = {k: _build(v) for k, v in field.items()}
     else:
         raise ValueError(f"Unsupported type: {type(field)}")
 

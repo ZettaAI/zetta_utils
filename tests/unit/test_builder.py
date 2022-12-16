@@ -134,7 +134,7 @@ def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
     result = builder.build(spec, must_build=False)
     assert result == expected
     if hasattr(result, "__dict__"):
-        assert result.__init_builder_spec == spec
+        assert result.__built_with_spec == spec
 
 
 @pytest.mark.parametrize(

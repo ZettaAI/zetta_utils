@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "new_demo_x51"
+#EXP_VERSION:   "new_demo_x52"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -9,12 +9,12 @@
 #ENC_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:training_x17"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:training_x18"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     2
+worker_replicas:     1
 worker_lease_sec:    5
 batch_gap_sleep_sec: 5
 
@@ -37,7 +37,7 @@ target: {
 			}
 			ckpt_path: #MODEL_CKPT
 			component_names: [
-				'model',
+				"model",
 			]
 		}
 	}

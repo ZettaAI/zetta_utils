@@ -182,8 +182,8 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     if isinstance(queue, dict):
         queue_spec = queue
     else:
-        if hasattr(queue, "__init_builder_spec"):
-            queue_spec = queue.__init_builder_spec  # pylint: disable=protected-access
+        if hasattr(queue, "__built_with_spec"):
+            queue_spec = queue.__built_with_spec  # pylint: disable=protected-access
         else:
             raise ValueError("Only queue's built by `zetta_utils.builder` are allowed.")
     worker_command = get_worker_command(queue_spec)

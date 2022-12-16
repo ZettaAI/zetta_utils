@@ -1,3 +1,4 @@
+# pylint: disable=too-many-locals
 from __future__ import annotations
 
 import time
@@ -48,6 +49,7 @@ def execute(
     upkeep_fn: Optional[Callable[[str], bool]] = None,
     execution_id: Optional[str] = None,
     raise_on_failed_task: bool = True,
+    max_task_retry: int = 1,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -76,7 +78,7 @@ def execute(
             task = _TaskableOperation(
                 fn=target,
                 time_bound=False,
-                max_retry=1,
+                max_retry=max_task_retry,
             ).make_task()
             flows = [seq_flow([task])]
 

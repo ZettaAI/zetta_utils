@@ -33,8 +33,8 @@ def _get_keys_or_entities(
                 if data is None:
                     keys.append(child_key)
                 else:
-                    entity = Entity(key=child_key)
-                    entity[col_key] = data[i * len(col_keys) + j][col_key]
+                    entity = Entity(key=child_key, exclude_from_indexes=("value",))
+                    entity["value"] = data[i * len(col_keys) + j][col_key]
                     entities.append(entity)
     return keys if data is None else entities
 

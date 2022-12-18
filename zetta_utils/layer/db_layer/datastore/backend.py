@@ -20,22 +20,14 @@ def _get_keys_or_entities(
     col_keys = next(idx.col_keys)
     for i, row_key in enumerate(idx.row_keys):
         parent_key = Key("Row", row_key)
-        if len(col_keys) == 1 and col_keys[0] == "value":
+        for col_key in col_keys:
+            child_key = Key("Column", col_key, parent=parent_key)
             if data is None:
-                keys.append(parent_key)
+                keys.append(child_key)
             else:
-                entity = Entity(key=parent_key, exclude_from_indexes=("value",))
-                entity["value"] = data[i]["value"]
+                entity = Entity(key=child_key, exclude_from_indexes=(col_key,))
+                entity[col_key] = data[i][col_key]
                 entities.append(entity)
-        else:
-            for j, col_key in enumerate(col_keys):
-                child_key = Key("Column", col_key, parent=parent_key)
-                if data is None:
-                    keys.append(child_key)
-                else:
-                    entity = Entity(key=child_key, exclude_from_indexes=("value",))
-                    entity["value"] = data[i * len(col_keys) + j][col_key]
-                    entities.append(entity)
     return keys if data is None else entities
 
 

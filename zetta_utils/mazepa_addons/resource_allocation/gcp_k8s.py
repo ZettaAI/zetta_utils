@@ -110,6 +110,14 @@ def get_worker_deployment_spec(
                             ],
                         }
                     ],
+                    "tolerations": [
+                        {
+                            "key": "worker-pool",
+                            "operator": "Equal",
+                            "value": "true",
+                            "effect": "NoSchedule"
+                        }
+                    ],
                     "dnsPolicy": "Default",
                     "restartPolicy": "Always",
                     "schedulerName": "default-scheduler",

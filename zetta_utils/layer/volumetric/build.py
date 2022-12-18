@@ -46,7 +46,7 @@ VolumetricLayer: TypeAlias = Layer[
 
 
 @typechecked
-@builder.register("build_cv_layer")
+@builder.register("build_volumetric_layer")
 def build_volumetric_layer(
     backend: Backend[VolumetricIndex, torch.Tensor],
     default_desired_resolution: Optional[Vec3D] = None,

@@ -12,16 +12,21 @@ from . import LayerSetIndex
 
 
 # TODO: type LayerSet
-@builder.register("build_layer_setBackend")
+@builder.register("build_layer_set_backend")
 @attrs.mutable()
 class LayerSetBackend(
     Backend[LayerSetIndex, Dict[str, Any]]
 ):  # pylint: disable=too-few-public-methods
-    layer: Dict[str, Layer]
+    layers: Dict[str, Layer]
+    name: str = attrs.field(init=False)
+
+    def __attrs_post_init__(self):
+        names = ", ".join([l.name for l in self.layers.values()])
+        self.name = f"Set({names})"
 
     def _get_layer_selection(self, idx: LayerSetIndex) -> Tuple[str, ...]:
         if idx.layer_selection is None:
-            result = tuple(self.layer.keys())
+            result = tuple(self.layers.keys())
         else:
             result = idx.layer_selection
 
@@ -31,7 +36,7 @@ class LayerSetBackend(
         layer_selection = self._get_layer_selection(idx)
 
         # TODO: can be parallelized
-        result = {k: self.layer[k].read(idx.layer_idx) for k in layer_selection}
+        result = {k: self.layers[k].read(idx.layer_idx) for k in layer_selection}
         return result
 
     def write(self, idx: LayerSetIndex, data: Dict[str, Any]):
@@ -39,7 +44,19 @@ class LayerSetBackend(
 
         # TODO: can be parallelized
         for k in layer_selection:
-            self.layer[k].write(idx.layer_idx, data[k])
+            self.layers[k].write(idx.layer_idx, data[k])
 
-    def get_name(self) -> str:  # pragma: no cover
-        return ", ".join([l.get_name() for l in self.layer.values()])
+    def clone(self, **kwargs) -> LayerSetBackend:  # pragma: no cover
+        """Clones all layers with the parameters in a dictionary of dictionaries"""
+        for k in kwargs:
+            if k not in self.layers:
+                raise KeyError(f"key {k} not found in the LayerSet")
+        new_layers: Dict[str, Layer] = {}
+        for k in self.layers:
+            if k in kwargs:
+                new_layers[k] = self.layers[k].clone(**(kwargs[k]))
+            else:
+                new_layers[k] = self.layers[k].clone()
+        res = attrs.evolve(self, layer=new_layers)
+
+        return res

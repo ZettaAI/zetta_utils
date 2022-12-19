@@ -14,7 +14,7 @@ from zetta_utils.layer.volumetric import (
 from zetta_utils.mazepa_layer_processing.common import build_chunked_apply_flow
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .compute_field_protocols import ComputeFieldOperation
+from ..operation_protocols import ComputeFieldOpProtocol
 
 
 @builder.register(
@@ -24,7 +24,7 @@ from .compute_field_protocols import ComputeFieldOperation
 @attrs.mutable
 class ComputeFieldFlowSchema:
     chunk_size: IntVec3D
-    operation: ComputeFieldOperation
+    operation: ComputeFieldOpProtocol
     chunker: VolumetricIndexChunker = attrs.field(init=False)
 
     def __attrs_post_init__(self):
@@ -68,7 +68,7 @@ class ComputeFieldFlowSchema:
 )
 def build_compute_field_flow(
     chunk_size: IntVec3D,
-    operation: ComputeFieldOperation,
+    operation: ComputeFieldOpProtocol,
     bcube: BoundingCube,
     dst_resolution: Vec3D,
     dst: VolumetricLayer,

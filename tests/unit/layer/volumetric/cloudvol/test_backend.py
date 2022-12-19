@@ -168,3 +168,19 @@ def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
     )
     with pytest.raises(expected_exc):
         cvb.write(index, data_in)
+
+
+def test_cv_clone(clear_caches, mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
+    cvb_new = cvb.clone(name="path_new")
+    assert cvb_new.name == "path_new"
+
+
+def test_cv_clone_exc(clear_caches, mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path="path")
+    with pytest.raises(KeyError):
+        cvb.clone(nonsensename="nonsensevalue")

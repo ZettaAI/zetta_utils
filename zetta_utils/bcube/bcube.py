@@ -203,10 +203,10 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             SlicesT,
             tuple(
                 slice(
-                    self.bounds[i][0] + double_sided_crop[i][0] * resolution[i],
-                    self.bounds[i][1] - double_sided_crop[i][1] * resolution[i],
+                    s[0] + c[0] * r,
+                    s[1] - c[1] * r,
                 )
-                for i in range(self.ndim)
+                for s, c, r in zip(self.bounds, double_sided_crop, resolution)
             ),
         )
 
@@ -255,10 +255,10 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
                 SlicesT,
                 tuple(
                     slice(
-                        self.bounds[i][0] - double_sided_pad[i][0] * resolution[i],
-                        self.bounds[i][1] + double_sided_pad[i][1] * resolution[i],
+                        s[0] - p[0] * r,
+                        s[1] + p[1] * r,
                     )
-                    for i in range(self.ndim)
+                    for s, p, r in zip(self.bounds, double_sided_pad, resolution)
                 ),
             )
 
@@ -290,10 +290,78 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
                 SlicesT,
                 tuple(
                     slice(
-                        self.bounds[i][0] + offset[i] * resolution[i],
-                        self.bounds[i][1] + offset[i] * resolution[i],
+                        s[0] + o * r,
+                        s[1] + o * r,
                     )
-                    for i in range(self.ndim)
+                    for s, o, r in zip(self.bounds, offset, resolution)
+                ),
+            )
+
+            result = BoundingBoxND[SlicesT, VecT].from_slices(
+                slices=slices,
+                unit=self.unit,
+            )
+
+        return result
+
+    def translate_start(
+        self,
+        offset: Union[Sequence[float], Vec3D],
+        resolution: Union[Sequence[float], Vec3D],
+        in_place: bool = False,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        """Create a version of the bounding box where the start (and not the stop)
+        has been moved by the given offset.
+
+        :param offset: Specification of how much to translate along each dimension.
+        :param resolution: Resolution at which ``offset`` specification was given.
+        :param in_place: (WIP) Must be ``False``
+        :return: Translated bounding box.
+
+        """
+        if in_place:
+            raise NotImplementedError  # pragma: no cover
+        else:
+            slices = cast(
+                SlicesT,
+                tuple(
+                    slice(s[0] + o * r, s[1]) for s, o, r in zip(self.bounds, offset, resolution)
+                ),
+            )
+
+            result = BoundingBoxND[SlicesT, VecT].from_slices(
+                slices=slices,
+                unit=self.unit,
+            )
+
+        return result
+
+    def translate_stop(
+        self,
+        offset: Union[Sequence[float], Vec3D],
+        resolution: Union[Sequence[float], Vec3D],
+        in_place: bool = False,
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        """Create a version of the bounding box where the stop (and not the start)
+        has been moved by the given offset.
+
+        :param offset: Specification of how much to translate along each dimension.
+        :param resolution: Resolution at which ``offset`` specification was given.
+        :param in_place: (WIP) Must be ``False``
+        :return: Translated bounding box.
+
+        """
+        if in_place:
+            raise NotImplementedError  # pragma: no cover
+        else:
+            slices = cast(
+                SlicesT,
+                tuple(
+                    slice(
+                        s[0],
+                        s[1] + o * r,
+                    )
+                    for s, o, r in zip(self.bounds, offset, resolution)
                 ),
             )
 
@@ -329,6 +397,15 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         for _, slc in enumerate(slices):
             size *= slc.stop - slc.start
         return size
+
+    def intersects(
+        self: BoundingBoxND[SlicesT, VecT], other: BoundingBoxND[SlicesT, VecT]
+    ) -> bool:  # pragma: no cover
+        """Returns whether two BoundingBoxNDs intersect."""
+        return all(
+            (self_b[1] > other_b[0] and other_b[1] > self_b[0])
+            for self_b, other_b in zip(self.bounds, other.bounds)
+        )
 
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND

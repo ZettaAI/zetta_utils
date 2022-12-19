@@ -136,7 +136,7 @@ def compute_alignment_quality(
     print(lrpad())
     print(lrpad(" Dataset Information / Settings ", bounds="|", filler="="))
     print(lrpad())
-    print(lrpad(f"Layer: {src.get_name()}", 1))
+    print(lrpad(f"Layer: {src.name}", 1))
     print(lrpad(f"Bounds given at {resolution} nm: {idx.pformat(resolution)}", 1))
 
     vol = idx.get_size()

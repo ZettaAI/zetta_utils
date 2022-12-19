@@ -1,6 +1,8 @@
 # pylint: disable=missing-docstring # pragma: no cover
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import Any, Dict, Generic, TypeVar
 
 IndexT = TypeVar("IndexT")
 DataT = TypeVar("DataT")
@@ -16,5 +18,7 @@ class Backend(ABC, Generic[IndexT, DataT]):  # pylint: disable=too-few-public-me
         """Writes given data to the given index"""
 
     @abstractmethod
-    def get_name(self) -> str:
-        """Get name for the layer"""
+    def clone(self, **kwargs: Dict[str, Any]) -> Backend[IndexT, DataT]:
+        """Clones the Backend with the kwargs being passed to the backend."""
+
+    name: str

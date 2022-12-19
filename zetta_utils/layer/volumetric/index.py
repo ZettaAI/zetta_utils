@@ -40,8 +40,23 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             resolution=self.resolution,
         )
 
-    def pformat(self, resolution: Optional[Vec3D] = None):  # pragma: no cover
+    def translate_start(self, offset: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.translate_start(offset=offset, resolution=self.resolution),
+            resolution=self.resolution,
+        )
+
+    def translate_stop(self, offset: Vec3D):
+        return VolumetricIndex(
+            bcube=self.bcube.translate_stop(offset=offset, resolution=self.resolution),
+            resolution=self.resolution,
+        )
+
+    def pformat(self, resolution: Optional[Vec3D] = None):
         return self.bcube.pformat(resolution)
 
-    def get_size(self):  # pragma: no cover
+    def get_size(self):
         return self.bcube.get_size()
+
+    def intersects(self: VolumetricIndex, other: VolumetricIndex) -> bool:
+        return self.bcube.intersects(other.bcube)

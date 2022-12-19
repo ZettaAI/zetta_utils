@@ -19,7 +19,7 @@ P = ParamSpec("P")
 @attrs.mutable
 class CallableOperation(Generic[P, IndexT, R]):
     """
-    Simple Wrapper that converts a callalbe to a taskable operation.
+    Simple Wrapper that converts a callable to a taskable operation.
     """
 
     fn: Callable[P, R]

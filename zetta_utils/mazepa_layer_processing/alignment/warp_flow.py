@@ -15,7 +15,7 @@ from zetta_utils.layer.volumetric import (
 )
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .. import build_chunked_apply_flow
+from ..common import build_chunked_apply_flow
 
 
 @builder.register("WarpOperation", cast_to_intvec3d=["crop"])
@@ -45,7 +45,7 @@ class WarpOperation:
         field_data_raw[0] -= xy_translation[0]
         field_data_raw[1] -= xy_translation[1]
 
-        # TODO: big question mark. In zetta_utils everythign is XYZ, so I don't understand
+        # TODO: big question mark. In zetta_utils everything is XYZ, so I don't understand
         # why the order is flipped here. It worked for a corgie field, so leaving it in.
         # Pls help:
         src_idx_padded = idx_padded.translate((xy_translation[1], xy_translation[0], 0))

@@ -1,12 +1,21 @@
 from zetta_utils import builder, mazepa
 
+from .operation_protocols import (
+    MultiresOpProtocol,
+    ComputeFieldOpProtocol,
+    ChunkableOpProtocol,
+    BlendableOpProtocol,
+)
+from . import alignment
 from .common import (
     ChunkedApplyFlowSchema,
     CallableOperation,
+    BlendableApplyFlowSchema,
     build_chunked_callable_flow_schema,
     build_chunked_apply_flow,
+    build_blendable_apply_flow,
 )
-from . import alignment
+
 
 builder.register("mazepa.Executor")(mazepa.Executor)
 builder.register("mazepa.execute")(mazepa.execute)

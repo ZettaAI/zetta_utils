@@ -1,6 +1,9 @@
 # pylint: disable=missing-docstring
+from __future__ import annotations
+
 import json
 import os
+from copy import deepcopy
 from typing import Any, Dict, Literal, Optional
 
 import attrs
@@ -15,8 +18,7 @@ from typeguard import typechecked
 from zetta_utils import builder, tensor_ops
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from ... import Backend
-from .. import VolumetricIndex
+from .. import VolumetricBackend, VolumetricIndex
 
 
 def _jsonize_key(*args, **kwargs):  # pragma: no cover
@@ -83,7 +85,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 @builder.register("CVBackend")
 @typechecked
 @attrs.mutable
-class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-few-public-methods
+class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
     Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
@@ -155,6 +157,24 @@ class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-
         result = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
         return result
 
+    @property
+    def name(self) -> str:  # pragma: no cover
+        return self.path
+
+    @name.setter
+    def name(self, name: str) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set name for CVBackend directly;" + " use `backend.clone()` instead"
+        )
+
+    @property
+    def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover
+        return not self.cv_kwargs["non_aligned_writes"]
+
+    @enforce_chunk_aligned_writes.setter
+    def enforce_chunk_aligned_writes(self, value: bool) -> None:  # pragma: no cover
+        self.cv_kwargs["non_aligned_writes"] = not value
+
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: bcxyz
         cvol = self._get_cv_at_resolution(idx.resolution)
@@ -176,7 +196,7 @@ class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-
         else:
             raise ValueError(
                 "Data written to CloudVolume backend must be in `cxyz` dimension format, "
-                f"but, got a tensor of with ndim == {data_np.ndim}"
+                f"but got a tensor of with ndim == {data_np.ndim}"
             )
 
         cvol = self._get_cv_at_resolution(idx.resolution)
@@ -187,5 +207,9 @@ class CVBackend(Backend[VolumetricIndex, torch.Tensor]):  # pylint: disable=too-
         cvol[slices] = data_final
         cvol.autocrop = False
 
-    def get_name(self) -> str:  # pragma: no cover
-        return self.path
+    def clone(self, **kwargs) -> CVBackend:
+        implemented_keys = ["name"]
+        for k in kwargs:
+            if k not in implemented_keys:
+                raise KeyError(f"key {k} received, expected one of {implemented_keys}")
+        return attrs.evolve(deepcopy(self), path=kwargs["name"])

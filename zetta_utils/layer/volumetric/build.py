@@ -13,9 +13,10 @@ from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 from zetta_utils.typing import Vec3D
 
-from .. import Backend, DataProcessor, DataWithIndexProcessor, IndexAdjuster
+from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster
 from . import (
     UserVolumetricIndex,
+    VolumetricBackend,
     VolumetricDataInterpolator,
     VolumetricFrontend,
     VolumetricIndex,
@@ -23,6 +24,7 @@ from . import (
 )
 
 VolumetricLayer: TypeAlias = Layer[
+    VolumetricBackend,
     VolumetricIndex,  # Backend Index
     torch.Tensor,  # BackendData
     UserVolumetricIndex,  # UserReadIndexT0
@@ -48,7 +50,7 @@ VolumetricLayer: TypeAlias = Layer[
 @typechecked
 @builder.register("build_volumetric_layer")
 def build_volumetric_layer(
-    backend: Backend[VolumetricIndex, torch.Tensor],
+    backend: VolumetricBackend,
     default_desired_resolution: Optional[Vec3D] = None,
     index_resolution: Optional[Vec3D] = None,
     data_resolution: Optional[Vec3D] = None,

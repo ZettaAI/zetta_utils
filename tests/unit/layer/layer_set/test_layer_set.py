@@ -7,7 +7,9 @@ from zetta_utils.layer.layer_set import LayerSetIndex
 
 def test_constructor(mocker):
     layer1_m = mocker.MagicMock()
+    layer1_m.name = "layer1_m"
     layer2_m = mocker.MagicMock()
+    layer2_m.name = "layer2_m"
     build_layer_set(
         layers={
             "1": layer1_m,
@@ -20,6 +22,7 @@ def test_read_all(mocker):
     layers = {}
     for key in ["1", "2"]:
         layer_m = mocker.MagicMock()
+        layer_m.name = "layer_m"
         data_m = mocker.MagicMock()
         layer_m.read = mocker.MagicMock(return_value=data_m)
         layers[key] = layer_m
@@ -37,6 +40,7 @@ def test_read_select_naive(mocker):
     layers = {}
     for key in ["1", "2"]:
         layer_m = mocker.MagicMock()
+        layer_m.name = "layer_m"
         data_m = mocker.MagicMock()
         layer_m.read = mocker.MagicMock(return_value=data_m)
         layers[key] = layer_m
@@ -55,6 +59,7 @@ def test_read_select_complex(mocker) -> None:
     layers = {}
     for key in ["1", "2"]:
         layer_m = mocker.MagicMock()
+        layer_m.name = "layer_m"
         data_m = mocker.MagicMock()
         layer_m.read = mocker.MagicMock(return_value=data_m)
         layers[key] = layer_m
@@ -73,6 +78,7 @@ def test_read_select_complex_backend_index(mocker) -> None:
     layers = {}
     for key in ["1", "2"]:
         layer_m = mocker.MagicMock()
+        layer_m.name = "layer_m"
         data_m = mocker.MagicMock()
         layer_m.read = mocker.MagicMock(return_value=data_m)
         layers[key] = layer_m
@@ -92,6 +98,7 @@ def test_write_all(mocker):
     datas = {}
     for key in ["1", "2"]:
         layer_m = mocker.MagicMock()
+        layer_m.name = "layer_m"
         data_m = mocker.MagicMock()
         layer_m.write = mocker.MagicMock()
         datas[key] = data_m

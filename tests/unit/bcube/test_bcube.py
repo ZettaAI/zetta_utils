@@ -234,6 +234,52 @@ def test_translate(
 
 
 @pytest.mark.parametrize(
+    "bcube, offset, resolution, in_place, expected",
+    [
+        [
+            BoundingCube(bounds=((0, 10), (0, 10), (0, 10))),
+            (2, 2, 2),
+            (1, 1, 1),
+            False,
+            BoundingCube(bounds=((2, 10), (2, 10), (2, 10))),
+        ],
+    ],
+)
+def test_translate_start(
+    bcube: BoundingCube,
+    offset: Vec3D,
+    resolution: Vec3D,
+    in_place: bool,
+    expected: BoundingCube,
+):
+    result = bcube.translate_start(offset, resolution, in_place)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bcube, offset, resolution, in_place, expected",
+    [
+        [
+            BoundingCube(bounds=((0, 10), (0, 10), (0, 10))),
+            (2, 2, 2),
+            (1, 1, 1),
+            False,
+            BoundingCube(bounds=((0, 12), (0, 12), (0, 12))),
+        ],
+    ],
+)
+def test_translate_stop(
+    bcube: BoundingCube,
+    offset: Vec3D,
+    resolution: Vec3D,
+    in_place: bool,
+    expected: BoundingCube,
+):
+    result = bcube.translate_stop(offset, resolution, in_place)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
     "bcube, crop, resolution, expected",
     [
         [

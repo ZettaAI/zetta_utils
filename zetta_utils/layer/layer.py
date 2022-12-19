@@ -2,6 +2,7 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
+from copy import copy
 from typing import Callable, Generic, Iterable, List, TypeVar, Union, overload
 
 import attrs
@@ -12,6 +13,7 @@ from . import Backend, DataProcessor, DataWithIndexProcessor, Frontend, IndexAdj
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
+BackendT = TypeVar("BackendT", bound=Backend)
 
 UserReadDataT0_co = TypeVar("UserReadDataT0_co", covariant=True)
 UserReadDataT1_co = TypeVar("UserReadDataT1_co", covariant=True)
@@ -54,6 +56,7 @@ def _apply_procs(
 @attrs.mutable
 class Layer(
     Generic[
+        BackendT,
         BackendIndexT,
         BackendDataT,
         UserReadIndexT0_contra,
@@ -75,7 +78,7 @@ class Layer(
     ]
 ):
 
-    backend: Backend[BackendIndexT, BackendDataT]
+    backend: BackendT
     frontend: Frontend[
         BackendIndexT,
         BackendDataT,
@@ -163,7 +166,6 @@ class Layer(
         ...
 
     @overload
-    @overload
     def write(self, idx_user: UserWriteIndexT0_contra, data_user: UserWriteDataT0_contra):
         ...
 
@@ -200,8 +202,9 @@ class Layer(
         )
         self.backend.write(idx=idx_proced, data=data)
 
-    def get_name(self) -> str:  # pragma: no cover
-        return self.backend.get_name()
+    @property
+    def name(self) -> str:  # pragma: no cover
+        return self.backend.name
 
     @overload
     def __getitem__(self, idx_user: BackendIndexT) -> BackendDataT:
@@ -239,7 +242,6 @@ class Layer(
         ...
 
     @overload
-    @overload
     def __setitem__(self, idx_user: UserWriteIndexT0_contra, data_user: UserWriteDataT0_contra):
         ...
 
@@ -261,3 +263,37 @@ class Layer(
         data_user,
     ):  # pragma: no cover
         return self.write(idx_user, data_user)
+
+    def clone(
+        self, **kwargs
+    ) -> Layer[
+        BackendT,
+        BackendIndexT,
+        BackendDataT,
+        UserReadIndexT0_contra,
+        UserReadDataT0_co,
+        UserWriteIndexT0_contra,
+        UserWriteDataT0_contra,
+        UserReadIndexT1_contra,
+        UserReadDataT1_co,
+        UserWriteIndexT1_contra,
+        UserWriteDataT1_contra,
+        UserReadIndexT2_contra,
+        UserReadDataT2_co,
+        UserWriteIndexT2_contra,
+        UserWriteDataT2_contra,
+        UserReadIndexT3_contra,
+        UserReadDataT3_co,
+        UserWriteIndexT3_contra,
+        UserWriteDataT3_contra,
+    ]:  # pragma: no cover # pure delegation
+        """Clones the Layer with the kwargs being passed to the backend.
+        Note that `attrs.evolve` will keep the same reference to the attrs that are not
+        updated, meaning that things that might be mutated must be copied and passed to it"""
+        return attrs.evolve(
+            self,
+            backend=self.backend.clone(**kwargs),
+            index_adjs=copy(self.index_adjs),
+            read_postprocs=copy(self.read_postprocs),
+            write_preprocs=copy(self.write_preprocs),
+        )

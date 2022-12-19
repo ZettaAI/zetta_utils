@@ -7,8 +7,12 @@ from .frontend import (
     SliceUserVolumetricIndex,
     VolumetricFrontend,
 )
+from .backend import (
+    VolumetricBackend,
+)
 from .tools import (
     VolumetricDataInterpolator,
+    VolumetricDataBlendingWeighter,
     VolumetricIndexResolutionAdjuster,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,

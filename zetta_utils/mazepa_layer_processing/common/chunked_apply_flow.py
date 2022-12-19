@@ -6,7 +6,7 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, log, mazepa
 from zetta_utils.layer import IndexChunker
 
-from .chunkable_protocols import ChunkableOperation
+from .. import ChunkableOpProtocol
 
 logger = log.get_logger("zetta_utils")
 
@@ -19,7 +19,7 @@ R_co = TypeVar("R_co", covariant=True)
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
-    operation: ChunkableOperation[P, IndexT, R_co]
+    operation: ChunkableOpProtocol[P, IndexT, R_co]
     chunker: IndexChunker[IndexT]
 
     def flow(
@@ -45,7 +45,7 @@ class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
 
 @builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
-    operation: ChunkableOperation[P, IndexT, R_co],
+    operation: ChunkableOpProtocol[P, IndexT, R_co],
     chunker: IndexChunker[IndexT],
     idx: IndexT,
     *args: P.args,

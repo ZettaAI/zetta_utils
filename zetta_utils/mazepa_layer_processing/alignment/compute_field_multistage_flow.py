@@ -9,8 +9,8 @@ from zetta_utils.layer.volumetric import VolumetricLayer
 from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
 from zetta_utils.typing import IntVec3D, Vec3D
 
+from ..operation_protocols import ComputeFieldOpProtocol
 from .compute_field_flow import ComputeFieldFlowSchema
-from .compute_field_protocols import ComputeFieldOperation
 
 
 @builder.register(
@@ -19,7 +19,7 @@ from .compute_field_protocols import ComputeFieldOperation
 @attrs.mutable
 class ComputeFieldStage:
     dst_resolution: Vec3D
-    operation: ComputeFieldOperation
+    operation: ComputeFieldOpProtocol
     chunk_size: IntVec3D
 
     crop: int = 0

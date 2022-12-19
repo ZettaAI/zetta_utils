@@ -48,7 +48,7 @@ class _VecND(Generic[N, T_co]):
     """
     The backend primitive for an N-dimensional vector. This class should not be used or
     its constructor called directly. Use `VecND`, `IntVecND` to type annotate arbitrarily
-    long N-dimensional float and int vectors respectively, and `Vec1D`, IntVec1D`, 'Vec2D`, ...
+    long N-dimensional float and int vectors respectively, and `Vec1D`, `IntVec1D`, `Vec2D`, ...
     to type annotate and instantiate an N dimensional vector of floats and ints respectively.
 
     `IntVecND` is a subclass of `VecND`, `IntVec1D`, `IntVec2D`, ... are subclasses of `IntVecND`

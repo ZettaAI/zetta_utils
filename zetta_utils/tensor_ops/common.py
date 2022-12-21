@@ -16,11 +16,21 @@ P = ParamSpec("P")
 
 
 class TensorOp(Protocol[P]):
+    """
+    Protocol which defines what it means for a funciton to be a tensor_op:
+    it must take a `data` argument of TensorTypeVar type, and return a
+    tensor of the same type.
+    """
+
     def __call__(self, data: TensorTypeVar, *args: P.args, **k: P.kwargs) -> TensorTypeVar:
         ...
 
 
 def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
+    """
+    Decorator that ensures early exit for a tensor op when `data` is 0.
+    """
+
     def wrapped(data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
         if (data != 0).sum() == 0:
             result = data
@@ -76,6 +86,13 @@ def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
 def unsqueeze(
     data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
 ) -> TensorTypeVar:
+    """
+    Returns a new tensor with new dimensions of size one inserted at the specified positions.
+
+    :param data: the input tensor.
+    :param dim: indexes at which to insert new dimensions.
+    :return: tensor with added dimensions.
+    """
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int):
             result = data.unsqueeze(dim)  # type: TensorTypeVar
@@ -93,6 +110,15 @@ def unsqueeze(
 def squeeze(
     data: TensorTypeVar, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None
 ) -> TensorTypeVar:
+    """
+    Returns a tensor with all the dimensions of input of size 1 removed.
+    When dim is given, a squeeze operation is done only for the given dimensions.
+
+    :param data: the input tensor.
+    :param dim:  if given, the input will be squeezed only in these dimensions.
+    :return: tensor with squeezed dimensions.
+    """
+
     if isinstance(data, torch.Tensor):
         if isinstance(dim, int) or dim is None:
             result = data.squeeze(dim)
@@ -220,6 +246,15 @@ def unsqueeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
 ):
+    """
+    Returns a new tensor with new dimensions of size one inserted at poisition 0 until
+    the tensor reaches the given number of dimensions.
+
+    :param data: the input tensor.
+    :param ndim: target number of dimensions.
+    :return: tensor with added dimensions.
+    """
+
     if ndim is not None:
         while data.ndim < ndim:
             data = unsqueeze(data, 0)
@@ -232,11 +267,13 @@ def squeeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
 ):
-
     """
-    Squeeze the front jto the given ``size`` or by the given ``scale_factor``.
-    :param data: Input tensor with batch and channel dimensions.
-    :param ndim: Desired result shape.
+    Returns a new tensor with the dimension at position 0 squeezed until
+    the tensor reaches the given number of dimensions.
+
+    :param data: the input tensor.
+    :param ndim: target number of dimensions.
+    :return: tensor with squeezed dimensions.
     """
     if ndim is not None:
         while data.ndim > ndim:
@@ -370,6 +407,21 @@ def compare(
     binarize: bool = True,
     fill: Optional[float] = None,
 ) -> TensorTypeVar:
+    """
+    Compare the given the given tensor to the given value.
+    If `binarize` is set to `True`, return the binary outcome of the comparison.
+    If `fill` is set, return a new tensor in which the values that pass the comparison
+    are replaced by `fill`. Only one of `binarize=True` or `fill` can be set.
+
+    :param data: the input tensor.
+    :param mode: the mode of comparison.
+    :param value: comparison operand.
+    :param binarize: when set to `True`, will return a binary result of comparison, and `fill` must
+    be `None`.
+    :param fill: when set, will return a new tensor with values that pass the comparison
+    replaced by `fill`, and `binarize` must be `False`.
+    """
+
     if mode in ["eq", "=="]:
         mask = data == value
     elif mode in ["neq", "!="]:
@@ -410,6 +462,7 @@ def crop(
 ) -> TensorTypeVar:
     """
     Crop a multidimensional tensor.
+
     :param data: Input tensor.
     :param crop: float from pixels to crop from each side.
         The last integer will correspond to the last dimension, and count

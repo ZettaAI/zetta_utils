@@ -29,7 +29,7 @@ def filter_cc(
 
     Clustering is performed based on non-zero values.
 
-    :param data: Input tensor.
+    :param data: Input tensor (CXYZ).
     :param mode: Filtering mode.
     :param thr:  Pixel size threshold.
     :return: Tensor with the filtered clusters removed.
@@ -65,6 +65,14 @@ def filter_cc(
 @skip_on_empty_data
 @typechecked
 def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
+    """
+    Coarsen the given mask.
+
+    :param data: Input mask tensor (CXYZ).
+    :param width: Amount of pixels by which to coarsen.
+    :return: Coarsened mask tensor.
+    """
+
     data_torch = tensor_ops.convert.to_torch(data)
     kernel = torch.ones(
         [1, 1]
@@ -88,6 +96,13 @@ def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
 @skip_on_empty_data
 @typechecked
 def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
+    """
+    Run binary closing on the mask.
+
+    :param data: Input mask tensor (CXYZ).
+    :param iterations: Number of closing iterations.
+    :return: Closed mask tensor.
+    """
     data_np = tensor_ops.convert.to_np(data)
 
     if len(data.shape) == 4:

@@ -1,5 +1,5 @@
 #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
-#DST_PATH: "gs://tmp_2w/inference_tests/remote/raw_img_x0"
+#DST_PATH: "gs://tmp_2w/inference_tests/remote/raw_img_x0_tommy"
 
 #FLOW_SPEC: {
 	"@type": "build_write_flow"

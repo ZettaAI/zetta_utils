@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "new_demo_x25"
+#EXP_VERSION:   "tmp_x340342342103123"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
@@ -10,21 +10,7 @@
 
 "@type": "lightning_train"
 regime: {
-	"@type": "NaiveSupervised"
-	lr:      4e-4
-	model: {
-		"@type": "load_weights_file"
-		model: {
-			"@type": "ConvBlock"
-			num_channels: [1, 32, 32, 32, 32, 1]
-			kernel_sizes: 5
-			skips: {"0": 3}
-		}
-		ckpt_path: #MODEL_CKPT
-		component_names: [
-			'model',
-		]
-	}
+	"@type": "NoOpRegime"
 }
 trainer: {
 	"@type":            "ZettaDefaultTrainer"
@@ -54,19 +40,9 @@ trainer: {
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
 					{
-						"@type": "rearrange"
-						"@mode": "partial"
-						pattern: "c x y 1 -> c x y"
-					},
-					{
 						"@type": "divide"
 						"@mode": "partial"
-						value:   256.0
-					},
-					{
-						"@type": "add"
-						"@mode": "partial"
-						value:   -0.5
+						value:   1.0
 					},
 				]
 			}
@@ -76,10 +52,11 @@ trainer: {
 				//cv_kwargs: {cache: true}
 				read_postprocs: [
 					{
-						"@type": "rearrange"
+						"@type": "divide"
 						"@mode": "partial"
-						pattern: "c x y 1 -> c x y"
+						value:   1.0
 					},
+
 				]
 			}
 		}
@@ -88,8 +65,8 @@ trainer: {
 		"@type": "VolumetricStridedIndexer"
 		resolution: [64, 64, 40]
 		desired_resolution: [64, 64, 40]
-		chunk_size: [1024, 1024, 1]
-		stride: [512, 512, 1]
+		chunk_size: [256, 256, 20]
+		stride: [256, 256, 1]
 		bcube: {
 			"@type":     "BoundingCube"
 			start_coord: _
@@ -104,7 +81,7 @@ trainer: {
 		bcube: {
 			"@type": "BoundingCube"
 			start_coord: [80000, 30000, 2000]
-			end_coord: [230000, 80000, 2099]
+			end_coord: [230000, 80000, 2080]
 			resolution: [4, 4, 40]
 		}
 	}
@@ -114,7 +91,7 @@ trainer: {
 	sample_indexer: {
 		bcube: {
 			"@type": "BoundingCube"
-			start_coord: [80000, 30000, 2099]
+			start_coord: [80000, 30000, 2080]
 			end_coord: [230000, 80000, 2100]
 			resolution: [4, 4, 40]
 		}
@@ -122,14 +99,14 @@ trainer: {
 }
 train_dataloader: {
 	"@type":     "TorchDataLoader"
-	batch_size:  1
+	batch_size:  4
 	shuffle:     true
 	num_workers: 4
 	dataset:     #train_dset
 }
 val_dataloader: {
 	"@type":     "TorchDataLoader"
-	batch_size:  1
+	batch_size:  4
 	shuffle:     false
 	num_workers: 4
 	dataset:     #val_dset

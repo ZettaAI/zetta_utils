@@ -26,7 +26,7 @@
 "@type": "mazepa.execute_on_gcp_with_sqs"
 target:  #FLOW_SPEC
 
-worker_image: "us.gcr.io/zetta-research/zetta_utils:inference_x0"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:inference_x11"
 worker_resources: {
 	memory: "18560Mi"
 }

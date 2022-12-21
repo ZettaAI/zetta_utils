@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.11.0-cuda11.3-cudnn8-runtime
+FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
 
 RUN apt-get update \
   && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6
@@ -13,7 +13,7 @@ RUN mkdir /opt/cue && \
     wget https://github.com/cue-lang/cue/releases/download/v0.4.3/cue_v0.4.3_linux_amd64.tar.gz && \
     tar -xzvf cue_v0.4.3_linux_amd64.tar.gz  && \
     cp cue /bin/
-RUN pip install -e '.[mazepa,tensor-ops,cli,alignment,cloudvol,training]'
+RUN pip install -e '.[mazepa,tensor-ops,cli,alignment,cloudvol]'
 RUN \
   conda clean -afy \
   && apt-get --purge autoremove -y build-essential \

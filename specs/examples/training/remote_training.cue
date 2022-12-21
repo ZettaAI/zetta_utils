@@ -1,5 +1,5 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "new_demo_x52"
+#EXP_VERSION:   "new_demo_x53"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"

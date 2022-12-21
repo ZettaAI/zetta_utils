@@ -1,5 +1,5 @@
 #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img"
-#DST_PATH: "gs://tmp_2w/inference_tests/raw_img_x20"
+#DST_PATH: "gs://tmp_2w/inference_tests/raw_img_x20_tommy"
 
 "@type": "mazepa.execute"
 target: {

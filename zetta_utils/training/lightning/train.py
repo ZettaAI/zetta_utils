@@ -26,7 +26,6 @@ def lightning_train(
     if "CURRENT_BUILD_SPEC" in os.environ:
         if hasattr(trainer, "log_config"):
             trainer.log_config(json.loads(os.environ["CURRENT_BUILD_SPEC"]))
-            logger.info("Saved training configuration.")
         else:
             logger.warning("Incompatible custom trainer used: Unable to save configuration.")
     else:

@@ -116,7 +116,13 @@ def build_default_trainer(
     trainer._ckpt_path = os.path.join(log_dir, "last.ckpt")  # pylint: disable=protected-access
 
     def log_config(config):
-        wandb_logger.experiment.config["training_configuration"] = config
+        if experiment_version.startswith("tmp"):
+            logger.info(
+                "Not saving configuration for a temproary experiment {experiment_version}."
+            )
+        else:
+            wandb_logger.experiment.config["training_configuration"] = config
+            logger.info("Saved training configuration.")
 
     trainer.log_config = log_config  # type: ignore # pylint: disable=attribute-defined-outside-init
 

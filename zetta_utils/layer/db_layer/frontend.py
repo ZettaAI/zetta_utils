@@ -1,9 +1,10 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, TypeGuard, Union, overload
+from typing import Any, Dict, List, Tuple, Union, overload
 
 import attrs
+from typing_extensions import TypeGuard
 
 from zetta_utils import builder
 

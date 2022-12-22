@@ -1,4 +1,6 @@
 # pylint: disable=unused-argument
+import time
+
 import attrs
 import pytorch_lightning as pl
 import torch
@@ -16,7 +18,7 @@ class NoOpRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
         return None
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
-        return None
+        time.sleep(0.2)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam([torch.nn.Parameter()], lr=0)

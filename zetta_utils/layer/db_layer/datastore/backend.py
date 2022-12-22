@@ -17,10 +17,9 @@ def _get_keys_or_entities(
 ) -> Union[List[Key], List[Entity]]:
     keys = []
     entities = []
-    col_keys = next(idx.col_keys)
     for i, row_key in enumerate(idx.row_keys):
         parent_key = Key("Row", row_key)
-        for col_key in col_keys:
+        for col_key in idx.col_keys[i]:
             child_key = Key("Column", col_key, parent=parent_key)
             if data is None:
                 keys.append(child_key)
@@ -33,22 +32,17 @@ def _get_keys_or_entities(
 
 def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
     data = []
-    col_keys = next(idx.col_keys)
     for i in range(idx.row_keys_count):
-        if len(col_keys) == 1 and col_keys[0] == "value":
+        col_keys = idx.col_keys[i]
+        start = i * len(col_keys)
+        end = start + len(col_keys)
+        row_data = {}
+        for j, ent in enumerate(entities[start:end]):
             try:
-                data.append({"value": entities[i]["value"]})
+                row_data[col_keys[j]] = ent["value"]
             except KeyError:
                 ...
-        else:
-            start = i * len(col_keys)
-            end = start + len(col_keys)
-            row_data = {}
-            for j, ent in enumerate(entities[start:end]):
-                try:
-                    row_data[col_keys[j]] = ent["value"]
-                except KeyError:
-                    ...
+        data.append(row_data)
     return data
 
 

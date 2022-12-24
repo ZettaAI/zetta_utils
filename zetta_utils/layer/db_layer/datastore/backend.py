@@ -52,7 +52,9 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
 class DatastoreBackend(Backend[DBIndex, DataT]):
     """
     Backend for IO on a given google datastore `namespace`.
+
     `namespace` is similar to a database.
+
     `project` defaults to `gcloud config get-value project` if not specified.
     """
 

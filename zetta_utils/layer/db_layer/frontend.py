@@ -12,7 +12,7 @@ from ..frontend_base import Frontend
 from . import DBIndex
 
 RowIndex = Union[str, List[str]]
-ColIndex = Tuple[str]
+ColIndex = Tuple[str, ...]
 RowColIndex = Tuple[RowIndex, ColIndex]
 
 RawDBIndex = Union[RowIndex, RowColIndex]
@@ -51,7 +51,7 @@ class DBFrontend(Frontend):
         row_keys, col_keys = idx_user
         if isinstance(row_keys, str):
             row_keys = [row_keys]
-        row_col_keys = {row_key: col_keys for row_key in row_keys}
+        row_col_keys = {row_key: col_keys for row_key in row_keys}  # type: ignore
         return DBIndex(row_col_keys)
 
     def convert_read_idx(self, idx_user: UserDBIndex) -> DBIndex:

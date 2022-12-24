@@ -32,7 +32,7 @@ def _get_keys_or_entities(
 
 def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
     data = []
-    for i in range(idx.row_keys_count):
+    for i in range(idx.get_size()):
         col_keys = idx.col_keys[i]
         start = i * len(col_keys)
         end = start + len(col_keys)

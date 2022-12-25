@@ -13,6 +13,7 @@ from .. import Backend, DataProcessor, DataWithIndexProcessor, IndexAdjuster
 from . import ColIndex, DataT, DBFrontend, DBIndex, RowDataT, ValueT
 
 DBLayer: TypeAlias = Layer[
+    Backend,
     DBIndex,  # Backend Index
     DataT,  # BackendData
     str,  # UserReadIndexT0

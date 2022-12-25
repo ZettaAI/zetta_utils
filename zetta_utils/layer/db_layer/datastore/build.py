@@ -28,6 +28,6 @@ def build_datastore_layer(
 
     """
 
-    backend: DatastoreBackend = DatastoreBackend(namespace, project=project)
+    backend = DatastoreBackend(namespace, project=project)
     result = build_db_layer(backend=backend, readonly=readonly)
     return result

@@ -1,5 +1,7 @@
 """gcloud datastore backend"""
+from __future__ import annotations
 
+from copy import deepcopy
 from typing import List, Optional, Union
 
 import attrs
@@ -76,6 +78,15 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
     def write(self, idx: DBIndex, data: DataT):
         entities = _get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
+
+    def clone(self, **kwargs) -> DatastoreBackend:
+        implemented_keys = ["namespace", "project"]
+        for k in kwargs:
+            if k not in implemented_keys:
+                raise KeyError(f"key {k} received, expected one of {implemented_keys}")
+        return attrs.evolve(
+            deepcopy(self), namespace=kwargs["namespace"], project=kwargs.get("project")
+        )
 
     def get_name(self) -> str:  # pragma: no cover
         return self.client.base_url

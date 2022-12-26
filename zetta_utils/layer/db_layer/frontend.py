@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, TypeVar, Union, overload
+from typing import Any, Dict, List, Sequence, Tuple, Union, overload
 
 import attrs
 from typing_extensions import TypeGuard
@@ -19,17 +19,17 @@ RawDBIndex = Union[RowIndex, RowColIndex]
 UserDBIndex = Union[RawDBIndex, DBIndex]
 
 
-ValueT = TypeVar("ValueT", bool, int, float, str)
-MultiValueT = List[ValueT]
+ValueT = Union[bool, int, float, str]
+MultiValueT = Sequence[ValueT]
 RowDataT = Dict[str, ValueT]
-DataT = List[RowDataT]
+DataT = Sequence[RowDataT]
 
 
-def is_scalar_list(values: List[Any]) -> TypeGuard[List[ValueT]]:
+def is_scalar_list(values: Sequence[Any]) -> TypeGuard[Sequence[ValueT]]:
     return all(isinstance(v, (bool, int, float, str)) for v in values)
 
 
-def is_rowdata_list(values: List[Any]) -> TypeGuard[List[RowDataT]]:
+def is_rowdata_list(values: Sequence[Any]) -> TypeGuard[Sequence[RowDataT]]:
     return all(isinstance(v, dict) for v in values)
 
 
@@ -62,7 +62,7 @@ class DBFrontend(Frontend):
         ...
 
     @overload
-    def convert_read_data(self, idx_user: List[str], data: DataT) -> List[ValueT]:
+    def convert_read_data(self, idx_user: List[str], data: DataT) -> Sequence[ValueT]:
         ...
 
     @overload
@@ -99,8 +99,8 @@ class DBFrontend(Frontend):
     @overload
     def convert_write(
         self,
-        idx_user: List[str],
-        data_user: List[ValueT],
+        idx_user: Sequence[str],
+        data_user: Sequence[ValueT],
     ) -> Tuple[DBIndex, DataT]:
         ...
 
@@ -115,16 +115,12 @@ class DBFrontend(Frontend):
     @overload
     def convert_write(
         self,
-        idx_user: Tuple[List[str], ColIndex],
+        idx_user: Tuple[Sequence[str], ColIndex],
         data_user: DataT,
     ) -> Tuple[DBIndex, DataT]:
         ...
 
-    def convert_write(
-        self,
-        idx_user: UserDBIndex,
-        data_user: Union[ValueT, MultiValueT, RowDataT, DataT],
-    ):
+    def convert_write(self, idx_user, data_user):
         idx = self._convert_idx(idx_user)
         if isinstance(data_user, (bool, int, float, str)):
             return idx, [{"value": data_user}]

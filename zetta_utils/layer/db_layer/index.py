@@ -10,7 +10,7 @@ from zetta_utils import builder
 
 @builder.register("DBIndex")
 @attrs.frozen
-class DBIndex:  # pragma: no cover
+class DBIndex:
     row_col_keys: Mapping[str, Tuple[str, ...]]
 
     @property

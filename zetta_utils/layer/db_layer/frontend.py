@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Union, overload
+from typing import Any, Dict, List, Tuple, TypeVar, Union, overload
 
 import attrs
 from typing_extensions import TypeGuard
@@ -19,7 +19,7 @@ RawDBIndex = Union[RowIndex, RowColIndex]
 UserDBIndex = Union[RawDBIndex, DBIndex]
 
 
-ValueT = Union[bool, int, float, str]
+ValueT = TypeVar("ValueT", bool, int, float, str)
 MultiValueT = List[ValueT]
 RowDataT = Dict[str, ValueT]
 DataT = List[RowDataT]

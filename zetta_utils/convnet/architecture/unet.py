@@ -65,7 +65,7 @@ class UNet(nn.Module):
         self,
         list_num_channels: List[List[int]],
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
-        downsample: Callable[..., torch.nn.Module] = torch.nn.AvgPool2d,
+        downsample: Callable[..., torch.nn.Module] = partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample: Callable[..., torch.nn.Module] = partial(torch.nn.Upsample, scale_factor=2),
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
         normalization: Optional[Callable[[int], torch.nn.Module]] = None,
@@ -157,11 +157,11 @@ class UNet(nn.Module):
 
             if i < len(list_num_channels) // 2:
                 try:
+                    self.layers.append(downsample())
+                except:  # pylint: disable=bare-except
                     self.layers.append(
                         downsample(list_num_channels[i][-1], list_num_channels[i + 1][0])
                     )
-                except:  # pylint: disable=bare-except
-                    self.layers.append(downsample())
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i + 1][0]))
                 self.layers.append(activation())
@@ -178,7 +178,6 @@ class UNet(nn.Module):
         for i, layer in enumerate(self.layers):
             if i in skip_data_for:
                 result += skip_data_for[i]
-
             result = layer(result)
 
             if i in self.skips:

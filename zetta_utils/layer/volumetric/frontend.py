@@ -120,11 +120,17 @@ class VolumetricFrontend(Frontend):
         return data
 
     def convert_write(
-        self, idx_user: UserVolumetricIndex, data_user: Union[torch.Tensor, float, int]
+        self, idx_user: UserVolumetricIndex, data_user: Union[torch.Tensor, float, int, bool]
     ) -> Tuple[VolumetricIndex, torch.Tensor]:
         idx = self._convert_idx(idx_user)
         if isinstance(data_user, (float, int)):
-            data = torch.Tensor([data_user])
+            dtype_mapping = {
+                float: torch.float32,
+                int: torch.int32,
+                bool: torch.int32,
+            }
+            dtype = dtype_mapping[type(data_user)]
+            data = torch.Tensor([data_user]).to(dtype)
         else:
             data = data_user
 

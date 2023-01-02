@@ -27,16 +27,16 @@ class Distribution(Protocol):  # pragma: no cover
         ...
 
 
-@builder.register("uniform_dist")
+@builder.register("uniform_distr")
 @typechecked
-def uniform_dist(low: float = 0.0, high: float = 1.0) -> Distribution:  # pragma: no cover
+def uniform_distr(low: float = 0.0, high: float = 1.0) -> Distribution:  # pragma: no cover
     # We know that this comparable becomes a distribution, so can ignore types here
     return ComparablePartial(np.random.uniform, low=low, high=high)  # type: ignore
 
 
-@builder.register("normal_dist")
+@builder.register("normal_distr")
 @typechecked
-def normal_dist_dist(loc: float = 0.0, scale: float = 1.0) -> Distribution:  # pragma: no cover
+def normal_distr(loc: float = 0.0, scale: float = 1.0) -> Distribution:  # pragma: no cover
     # We know that this comparable becomes a distribution, so can ignore types here
     return ComparablePartial(np.random.normal, loc=loc, scale=scale)  # type: ignore
 
@@ -45,7 +45,7 @@ def normal_dist_dist(loc: float = 0.0, scale: float = 1.0) -> Distribution:  # p
 def to_distribution(x: Union[Distribution, float]) -> Distribution:
     result: Distribution
     if isinstance(x, (int, float)):
-        result = uniform_dist(x, x)
+        result = uniform_distr(x, x)
     else:
         result = x
     return result

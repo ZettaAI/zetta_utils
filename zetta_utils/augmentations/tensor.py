@@ -99,13 +99,13 @@ def _random_square_tile_pattern(
         pattern = pattern[
             ..., rotation_padding:-rotation_padding, rotation_padding:-rotation_padding
         ]
-    return pattern
+    return pattern.squeeze(0)
 
 
 @builder.register("square_tile_pattern_aug")
 @typechecked
 @prob_aug
-def square_tile_pattern_aug(
+def square_tile_pattern_aug(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
     tile_size: Union[distributions.Distribution, float],
     tile_stride: Union[distributions.Distribution, float],
@@ -115,40 +115,52 @@ def square_tile_pattern_aug(
     repeats: int = 1,
     device: torch.types.Device = "cpu",
 ) -> TensorTypeVar:
-    assert data.shape[-1] == data.shape[-2]
+    # C X Y (Z)
+    assert data.shape[1] == data.shape[2]
+    data_torch = tensor_ops.to_torch(data, device=device).float()
+    if len(data.shape) == 3:
+        data_torch_3d = data_torch.unsqueeze(-1)
+    else:
+        data_torch_3d = data_torch
 
-    data_ = tensor_ops.to_torch(data, device=device).float()
-    combined_pattern = torch.zeros_like(data_)
-    max_brightness_change = (
-        random.choice((-1, 1)) * distributions.to_distribution(max_brightness_change)()
-    )
-
-    for _ in range(repeats):
-        # Square pattern + Rotation
-        pattern = _random_square_tile_pattern(
-            data_,
-            tile_size=tile_size,
-            tile_stride=tile_stride,
-            rotation_degree=rotation_degree,
+    for z in range(data_torch_3d.shape[-1]):
+        section_torch = data_torch_3d[..., z]
+        combined_pattern = torch.zeros_like(section_torch)
+        max_brightness_change = (
+            random.choice((-1, 1)) * distributions.to_distribution(max_brightness_change)()
         )
 
-        # Relative pattern brightness
-        pattern *= distributions.uniform_dist(-1.0, 1.0)()
+        for _ in range(repeats):
+            # Square pattern + Rotation
+            pattern = _random_square_tile_pattern(
+                section_torch,
+                tile_size=tile_size,
+                tile_stride=tile_stride,
+                rotation_degree=rotation_degree,
+            )
 
-        # Translation
-        w_offset = random.randint(0, pattern.shape[-1] - data_.shape[-1])
-        h_offset = random.randint(0, pattern.shape[-2] - data_.shape[-2])
-        combined_pattern += pattern[
-            ..., h_offset : h_offset + data_.shape[-2], w_offset : w_offset + data_.shape[-1]
-        ]
+            # Relative pattern brightness
+            pattern *= distributions.uniform_distr(-1.0, 1.0)()
 
-    # Limit accumulated brightness change
-    combined_pattern = combined_pattern / combined_pattern.abs().max() * max_brightness_change
+            # Translation
+            w_offset = random.randint(0, pattern.shape[-1] - section_torch.shape[-1])
+            h_offset = random.randint(0, pattern.shape[-2] - section_torch.shape[-2])
+            combined_pattern += pattern[
+                ...,
+                h_offset : h_offset + section_torch.shape[-2],
+                w_offset : w_offset + section_torch.shape[-1],
+            ]
 
-    # No tiling pattern in empty region
-    if preserve_data_val is not None:
-        combined_pattern[data_ == preserve_data_val] = 0.0
+        # Limit accumulated brightness change
+        combined_pattern = combined_pattern / combined_pattern.abs().max() * max_brightness_change
 
-    data_ += combined_pattern
-    result = tensor_ops.astype(data_, data)
+        # No tiling pattern in empty region
+        if preserve_data_val is not None:
+            combined_pattern[section_torch == preserve_data_val] = 0.0
+
+        section_torch += combined_pattern
+
+    result = tensor_ops.astype(data_torch_3d, data)
+    if len(data.shape) == 3:
+        result = result.squeeze(-1)
     return result

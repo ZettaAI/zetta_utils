@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring
-from typing import Literal, Optional, Protocol, Sequence, SupportsIndex, Union
+from typing import Literal, Optional, Protocol, Sequence, SupportsIndex, TypeVar, Union
 
 import einops
 import numpy as np
@@ -26,7 +26,10 @@ class TensorOp(Protocol[P]):
         ...
 
 
-def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
+OpT = TypeVar("OpT", bound=TensorOp)
+
+
+def skip_on_empty_data(fn: OpT) -> OpT:
     """
     Decorator that ensures early exit for a tensor op when `data` is 0.
     """
@@ -38,7 +41,7 @@ def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
             result = fn(data, *args, **kwargs)
         return result
 
-    return wrapped
+    return wrapped  # type: ignore
 
 
 @builder.register("rearrange")

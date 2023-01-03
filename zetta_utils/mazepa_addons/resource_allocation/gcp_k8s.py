@@ -115,7 +115,7 @@ def get_worker_deployment_spec(
                             "key": "worker-pool",
                             "operator": "Equal",
                             "value": "true",
-                            "effect": "NoSchedule"
+                            "effect": "NoSchedule",
                         }
                     ],
                     "dnsPolicy": "Default",

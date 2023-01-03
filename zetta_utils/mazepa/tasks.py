@@ -93,6 +93,8 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             outcome = self._call_without_upkeep()
 
         self.outcome = outcome
+        logger.debug(f"DONE: Execution of {self}.")
+
         if self.outcome.exception is None:
             self.status = TaskStatus.SUCCEEDED
         else:
@@ -151,7 +153,6 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             return_value = None
 
         time_end = time.time()
-        logger.debug(f"DONE: Execution of {self}.")
 
         outcome = TaskOutcome(
             exception=exception,

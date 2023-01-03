@@ -50,6 +50,13 @@ def register_dummy_c():
     del builder.parser.REGISTRY["dummy_c"]
 
 
+def test_build_from_path(mocker):
+    spec = {"k": "v"}
+    mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
+    result = builder.parser.build(path="dummy_path", must_build=False)
+    assert result == spec
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -61,13 +68,15 @@ def register_dummy_c():
     ],
 )
 def test_identity_builds(value):
-    result = builder.parser._build(value)
-    assert result == value
+    spec = {"k": value}
+    result = builder.parser.build(spec, must_build=False)
+    assert result == spec
 
 
 @pytest.mark.parametrize(
     "value, expected_exc",
     [
+        [None, ValueError],
         [1, TypeError],
         ["yo", TypeError],
         [{}, ValueError],

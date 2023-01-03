@@ -10,6 +10,7 @@ from typeguard import typechecked
 from zetta_utils import builder
 
 Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
+PaddingMode = Literal["zeros", "reflect", "replicate", "circular"]
 
 
 @builder.register("ConvBlock")
@@ -50,6 +51,12 @@ class ConvBlock(nn.Module):
         0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
+    :param padding_modes: Convolution padding modes. Accepts "zeros" (default), "reflect",
+        "replicate" and "circular". When specified as a single string, it will be passed as
+        the padding mode parameter to all convolution constructors.
+        When specified as a list, each item in the list will be passed as padding mode to
+        the corresponding convolution in order. The list length must match the number of
+        convolutions.
     """
 
     def __init__(
@@ -64,6 +71,7 @@ class ConvBlock(nn.Module):
         skips: Optional[Dict[str, int]] = None,
         normalize_last: bool = False,
         activate_last: bool = False,
+        padding_modes: Union[PaddingMode, List[PaddingMode]] = "zeros",
     ):  # pylint: disable=too-many-locals
         super().__init__()
         if skips is None:
@@ -93,8 +101,22 @@ class ConvBlock(nn.Module):
 
         assert len(paddings_) == (len(num_channels) - 1)
 
+        if isinstance(padding_modes, list):
+            padding_modes_ = padding_modes  # type: List[PaddingMode]
+        else:
+            padding_modes_ = [padding_modes] * (len(num_channels) - 1)
+
+        assert len(padding_modes_) == (len(num_channels) - 1)
+
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            new_conv = conv(ch_in, ch_out, kernel_sizes_[i], strides_[i], paddings_[i])
+            new_conv = conv(
+                ch_in,
+                ch_out,
+                kernel_sizes_[i],
+                strides_[i],
+                paddings_[i],
+                padding_mode=padding_modes_[i],
+            )
             # TODO: make this step optional
             if not new_conv.bias is None:
                 new_conv.bias.data[:] = 0

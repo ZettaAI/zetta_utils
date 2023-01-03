@@ -47,8 +47,7 @@ class LocalExecutionQueue:
 
             # raise immediatelly for local exec
             if task.outcome.exception is not None:
-                # raise task.outcome.exception  # pragma: no cover
-                pass
+                raise task.outcome.exception  # pragma: no cover
 
     def pull_task_outcomes(
         self, max_num: int = 100000, max_time_sec: float = 2.5  # pylint: disable=unused-argument

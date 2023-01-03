@@ -6,10 +6,10 @@
 #CLIP:          0e-5
 #K:             3
 #EQUI_WEIGHT:   0.5
-#EXP_VERSION:   "ft_patch\(#CHUNK_XY)_post\(#POST_WEIGHT)_lr\(#LR)_deep_k\(#K)_clip\(#CLIP)_equi\(#EQUI_WEIGHT)_f1f2_tileaug_x16"
+#EXP_VERSION:   "ft_patch\(#CHUNK_XY)_post\(#POST_WEIGHT)_lr\(#LR)_deep_k\(#K)_clip\(#CLIP)_equi\(#EQUI_WEIGHT)_f1f2_tileaug_x17"
 #CHUNK_XY:      1024
 
-#START_EXP_VERSION: "ft_patch1024_post1.60_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x16"
+#START_EXP_VERSION: "ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x16"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
 
 #SRC_CV: "gs://sergiy_exp/pairs_dsets/zfish_x0/src"
@@ -35,7 +35,7 @@ target: {
 	//"@mode": "lazy"
 
 	regime: {
-		"@type":                "BaseEncoder"
+		"@type":                "BaseEncoderRegime"
 		field_magn_thr:         0.8
 		val_log_row_interval:   1
 		train_log_row_interval: 50

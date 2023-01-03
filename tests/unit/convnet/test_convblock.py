@@ -67,6 +67,11 @@ def test_padding(paddings, expected: list[tuple[int]]):
             conv_count += 1
 
 
+def test_length_mismatch():
+    with pytest.raises(ValueError):
+        convnet.architecture.ConvBlock(num_channels=[1, 2, 3], paddings=[2, 2, 2])
+
+
 def test_norm():
     block = convnet.architecture.convblock.ConvBlock(
         num_channels=[1, 2, 3], normalization=torch.nn.BatchNorm2d

@@ -1,16 +1,59 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import (
+    Callable,
+    Dict,
+    Hashable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import torch
 from torch import nn
 from typeguard import typechecked
+from typing_extensions import TypeGuard
 
 from zetta_utils import builder
 
 Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
 PaddingMode = Literal["zeros", "reflect", "replicate", "circular"]
+
+_T = TypeVar("_T", bound=Hashable)  # in lieu of ``Immutable`` type
+
+
+def _is_list(x: _T | List[_T]) -> TypeGuard[List[_T]]:
+    return isinstance(x, List)
+
+
+def _is_not_list(x: _T | List[_T]) -> TypeGuard[_T]:
+    # TypeGuard only ensures type for positive outcome
+    return not isinstance(x, List)
+
+
+@overload
+def _ensure_list(x: _T, length: int) -> List[_T]:
+    ...
+
+
+@overload
+def _ensure_list(x: List[_T], length: int) -> List[_T]:
+    ...
+
+
+def _ensure_list(x, length):
+    if _is_list(x):
+        if len(x) != length:
+            raise ValueError(f"Expected list of {length} entries, but got {len(x)}: {x}")
+        x_list = x
+    elif _is_not_list(x):
+        x_list = [x] * length
+    return x_list
 
 
 @builder.register("ConvBlock")
@@ -80,33 +123,11 @@ class ConvBlock(nn.Module):
             self.skips = skips
         self.layers = torch.nn.ModuleList()
 
-        if isinstance(kernel_sizes, list):
-            kernel_sizes_ = kernel_sizes  # type: List[Union[int, Tuple[int, ...]]]
-        else:
-            kernel_sizes_ = [kernel_sizes for _ in range(len(num_channels) - 1)]
-
-        assert len(kernel_sizes_) == (len(num_channels) - 1)
-
-        if isinstance(strides, list):
-            strides_ = strides  # type: List[Union[int, Tuple[int, ...]]]
-        else:
-            strides_ = [strides for _ in range(len(num_channels) - 1)]
-
-        assert len(strides_) == (len(num_channels) - 1)
-
-        if isinstance(paddings, list):
-            paddings_ = paddings  # type: List[Padding]
-        else:
-            paddings_ = [paddings for _ in range(len(num_channels) - 1)]
-
-        assert len(paddings_) == (len(num_channels) - 1)
-
-        if isinstance(padding_modes, list):
-            padding_modes_ = padding_modes  # type: List[PaddingMode]
-        else:
-            padding_modes_ = [padding_modes] * (len(num_channels) - 1)
-
-        assert len(padding_modes_) == (len(num_channels) - 1)
+        num_conv = len(num_channels) - 1
+        kernel_sizes_ = _ensure_list(kernel_sizes, num_conv)
+        strides_ = _ensure_list(strides, num_conv)
+        paddings_ = _ensure_list(paddings, num_conv)
+        padding_modes_ = _ensure_list(padding_modes, num_conv)
 
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
             new_conv = conv(

@@ -1,7 +1,7 @@
 #SRC_PATH: "gs://zfish_unaligned/coarse_x0/raw_img"
 #DST_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x0"
 
-#MODEL_SPEC_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x16/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
 
 #CHUNK_SIZE: [2048, 2048, 1]
 #DST_INFO_CHUNK_SIZE: [1024, 1024, 1]
@@ -15,7 +15,7 @@
 }
 
 "@type":          "mazepa.execute_on_gcp_with_sqs"
-worker_image:     "us.gcr.io/zetta-research/zetta_utils:inference_x16"
+worker_image:     "us.gcr.io/zetta-research/zetta_utils:inference_x17"
 worker_replicas:  5
 worker_lease_sec: 30
 worker_resources: {
@@ -29,8 +29,8 @@ target: {
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type": "apply_base_encoder"
-			"@mode": "partial"
+			"@type":    "BaseEncoder"
+			model_path: #MODEL_PATH
 		}
 		crop: #CROP
 	}
@@ -39,7 +39,6 @@ target: {
 		"chunk_size": #CHUNK_SIZE
 		resolution:   #RESOLUTION
 	}
-	model_spec_path: #MODEL_SPEC_PATH
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH

@@ -11,9 +11,9 @@ import wandb
 from zetta_utils import builder, distributions, tensor_ops, viz
 
 
-@builder.register("BaseEncoder")
+@builder.register("BaseEncoderRegime")
 @attrs.mutable(eq=False)
-class BaseEncoder(pl.LightningModule):  # pylint: disable=too-many-ancestors
+class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module
     lr: float
     train_log_row_interval: int = 200

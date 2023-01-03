@@ -1,12 +1,41 @@
 import io
-from typing import Optional, Sequence
+from typing import Optional, Sequence, Union
 
+import cachetools
 import fsspec
 import torch
+from typeguard import typechecked
 
 from zetta_utils import builder
 
 
+@typechecked
+def load_model(
+    path: str, device: Union[str, torch.device] = "cpu", use_cache: bool = False
+) -> torch.nn.Module:  # pragma: no cover
+    if use_cache:
+        result = _load_model_cached(path, device)
+    else:
+        result = _load_model(path, device)
+    return result
+
+
+def _load_model(
+    path: str, device: Union[str, torch.device] = "cpu"
+) -> torch.nn.Module:  # pragma: no cover
+    if path.endswith(".json"):
+        result = builder.build(path=path).to(device)
+    elif path.endswith(".jit"):
+        with fsspec.open(path, "rb") as f:
+            result = torch.jit.load(f, map_location=device)
+
+    return result
+
+
+_load_model_cached = cachetools.cached(cachetools.LRUCache(maxsize=8))(_load_model)
+
+
+@typechecked
 def save_model(model: torch.nn.Module, path: str):  # pragma: no cover
     bytesbuffer = io.BytesIO()
     torch.save(model.state_dict(), bytesbuffer)
@@ -15,6 +44,7 @@ def save_model(model: torch.nn.Module, path: str):  # pragma: no cover
 
 
 @builder.register("load_weights_file")
+@typechecked
 def load_weights_file(
     model: torch.nn.Module,
     ckpt_path: Optional[str] = None,

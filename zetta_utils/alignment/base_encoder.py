@@ -1,31 +1,46 @@
+import attrs
 import einops
 import torch
+from typeguard import typechecked
 
-from zetta_utils import builder
+from zetta_utils import builder, convnet
 
 
-@builder.register("apply_base_encoder")
-def apply_base_encoder(
-    src: torch.Tensor,
-    model_spec_path: str,
-):
-    data_proc = einops.rearrange(src.clone(), "C X Y Z -> Z C X Y").float()
+@builder.register("BaseEncoder")
+@typechecked
+@attrs.mutable
+class BaseEncoder:
+    # Don't create the model during initialization for efficient serialization
+    model_path: str
+    abs_val_thr: float = 0.005
 
-    if (src != 0).sum() > 0:
-        model = builder.build(path=model_spec_path, use_cache=True)
-        if data_proc.min() >= 0 and data_proc.max() > 1:
-            # assuming uint8 0-255 range
-            data_proc /= 255
+    def __call__(self, src: torch.Tensor) -> torch.Tensor:
+        if (src != 0).sum() == 0:
+            result = src
+        else:
+            if torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
 
-        result = model(data_proc)
-    else:
-        result = data_proc
+            # load model during the call _with caching_
+            model = convnet.utils.load_model(self.model_path, device=device, use_cache=True)
 
-    assert result.abs().max() <= 1
+            if src.dtype == torch.uint8:
+                data_in = src.float() / 255.0
+            elif src.dtype == torch.float32:
+                data_in = src
+            else:
+                raise ValueError(f"Unsupported src dtype: {src.dtype}")
 
-    result[result.abs() < 0.005] = 0
-    result += 1.0
-    result /= 2
-    result *= 255.0
-    result = einops.rearrange(result, "Z C X Y -> C X Y Z").byte()
-    return result
+            data_in = einops.rearrange(data_in, "C X Y Z -> Z C X Y")
+            result = model(data_in.to(device))
+            result = einops.rearrange(result, "Z C X Y -> C X Y Z")
+
+            # Final layer assumed to be tanh
+            assert result.abs().max() <= 1
+            result[result.abs() < self.abs_val_thr] = 0
+            result = 255.0 * (result + 1.0) / 2
+            result = result.byte()
+
+        return result

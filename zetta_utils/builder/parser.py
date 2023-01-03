@@ -5,7 +5,6 @@ import copy
 import json
 from typing import Any, Callable, List, Optional, TypeVar, Union
 
-import cachetools
 from typeguard import typechecked
 
 from zetta_utils import parsing
@@ -102,7 +101,6 @@ def build(
     spec: Optional[Union[dict, list]] = None,
     path: Optional[str] = None,
     must_build: bool = False,
-    use_cache: bool = False,
 ) -> Any:
     """Build an object from the given spec.
 
@@ -112,16 +110,6 @@ def build(
     :return: Object build according to the specification.
 
     """
-    if use_cache:
-        result = _build_cached(spec=spec, path=path, must_build=must_build)  # pragma: no cover
-    else:
-        result = _build(spec=spec, path=path, must_build=must_build)
-    return result
-
-
-def _build(
-    spec: Optional[Union[dict, list]] = None, path: Optional[str] = None, must_build: bool = False
-):
     if spec is None and path is None or spec is not None and path is not None:
         raise ValueError("Exactly one of `spec`/`path` must be provided.")
 
@@ -141,9 +129,6 @@ def _build(
         result = final_spec
 
     return result
-
-
-_build_cached = cachetools.cached(cachetools.LRUCache(maxsize=32))(_build)
 
 
 @typechecked

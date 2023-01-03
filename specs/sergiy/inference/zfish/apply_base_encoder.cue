@@ -1,7 +1,7 @@
-#SRC_PATH: "gs://sergiy_exp/pairs_dsets/zfish_x0/src"
-#DST_PATH: "gs://sergiy_exp/pairs_dsets/zfish_x0/src_base_enc_x0"
+#SRC_PATH: "gs://sergiy_exp/pairs_dsets/zfish_x0/dst"
+#DST_PATH: "gs://sergiy_exp/pairs_dsets/zfish_x0/dst_base_enc_x0"
 
-#MODEL_SPEC_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x16/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
 
 #CHUNK_SIZE: [2048, 2048, 1]
 #DST_INFO_CHUNK_SIZE: [1024, 1024, 1]
@@ -22,15 +22,15 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
+local_test: true
 
 target: {
 	"@type": "build_chunked_apply_flow"
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type": "apply_base_encoder"
-			"@mode": "partial"
+			"@type":    "BaseEncoder"
+			model_path: #MODEL_PATH
 		}
 		crop: #CROP
 	}
@@ -39,7 +39,6 @@ target: {
 		"chunk_size": #CHUNK_SIZE
 		resolution:   #RESOLUTION
 	}
-	model_spec_path: #MODEL_SPEC_PATH
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH

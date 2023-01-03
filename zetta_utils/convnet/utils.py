@@ -28,6 +28,8 @@ def _load_model(
     elif path.endswith(".jit"):
         with fsspec.open(path, "rb") as f:
             result = torch.jit.load(f, map_location=device)
+    else:
+        raise ValueError(f"Unsupported file format: {path}")
 
     return result
 

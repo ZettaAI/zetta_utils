@@ -20,7 +20,7 @@ Project Information
 - **License**: `MIT <https://choosealicense.com/licenses/mit/>`_
 - **Source Code**: https://github.com/ZettaAI/zetta_utils
 - **Documentation**:  http://zetta.ai/zetta_utils/index.html
-- **Supported Python Versions**: 3.8 and later
+- **Supported Python Versions**: 3.9 and later
 
 .. project-info-end
 
@@ -36,4 +36,4 @@ Project Information
 
 .. |Docs Badge| image:: https://github.com/ZettaAI/zetta_utils/actions/workflows/docs_deployment.yaml/badge.svg?branch=main
   :target: https://github.com/ZettaAI/zetta_utils/actions/workflows/docs_deployment.yaml
-.. |Python Badge| image:: https://img.shields.io/badge/python-3.8+-blue.svg
+.. |Python Badge| image:: https://img.shields.io/badge/python-3.9+-blue.svg

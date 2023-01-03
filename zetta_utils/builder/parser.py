@@ -5,8 +5,10 @@ import copy
 import json
 from typing import Any, Callable, List, Optional, TypeVar, Union
 
+import cachetools
 from typeguard import typechecked
 
+from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 from zetta_utils.common.partial import ComparablePartial
 
@@ -96,7 +98,12 @@ def get_cast_to_intvec3d_from_name(name: str) -> Any:
 
 
 @typechecked
-def build(spec: Union[dict, list], must_build: bool = False) -> Any:
+def build(
+    spec: Optional[Union[dict, list]] = None,
+    path: Optional[str] = None,
+    must_build: bool = False,
+    use_cache: bool = False,
+) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.
@@ -105,27 +112,48 @@ def build(spec: Union[dict, list], must_build: bool = False) -> Any:
     :return: Object build according to the specification.
 
     """
-    if PARSE_KEY in spec:
-        result = _build(spec)
+    if use_cache:
+        result = _build_cached(spec=spec, path=path, must_build=must_build)  # pragma: no cover
+    else:
+        result = _build(spec=spec, path=path, must_build=must_build)
+    return result
+
+
+def _build(
+    spec: Optional[Union[dict, list]] = None, path: Optional[str] = None, must_build: bool = False
+):
+    if spec is None and path is None or spec is not None and path is not None:
+        raise ValueError("Exactly one of `spec`/`path` must be provided.")
+
+    if spec is not None:
+        final_spec = spec
+    else:
+        final_spec = parsing.cue.load(path)
+
+    if PARSE_KEY in final_spec:
+        result = _build_spec(final_spec)
     else:
         if must_build:
             raise ValueError(
                 f"The spec to be parsed doesn't contain '{PARSE_KEY}' "
                 "whille `must_build == True`."
             )
-        result = spec
+        result = final_spec
 
     return result
 
 
+_build_cached = cachetools.cached(cachetools.LRUCache(maxsize=32))(_build)
+
+
 @typechecked
-def _build(field: Any) -> Any:  # pylint: disable=too-many-branches,too-many-statements
+def _build_spec(field: Any) -> Any:  # pylint: disable=too-many-branches,too-many-statements
     if isinstance(field, (bool, int, float, str)) or field is None:
         result = field  # type: Any
     elif isinstance(field, list):
-        result = [_build(i) for i in field]
+        result = [_build_spec(i) for i in field]
     elif isinstance(field, tuple):
-        result = tuple(_build(i) for i in field)
+        result = tuple(_build_spec(i) for i in field)
     elif isinstance(field, dict):
         spec_as_str = '{"error": "UNKONWN"}'
         try:
@@ -151,7 +179,7 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches,too-many-sta
                 fn_kwargs.pop(RECURSE_KEY, None)  # deletes if exits
 
                 if recurse:
-                    fn_kwargs = _build(fn_kwargs)
+                    fn_kwargs = _build_spec(fn_kwargs)
 
                 for kwarg_name in registered_cast_to_vec3d:
                     if kwarg_name in fn_kwargs:
@@ -189,7 +217,7 @@ def _build(field: Any) -> Any:  # pylint: disable=too-many-branches,too-many-sta
                     object.__setattr__(result, "__built_with_spec", field)
 
             else:
-                result = {k: _build(v) for k, v in field.items()}
+                result = {k: _build_spec(v) for k, v in field.items()}
     else:
         raise ValueError(f"Unsupported type: {type(field)}")
 

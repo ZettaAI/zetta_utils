@@ -14,6 +14,14 @@ repos:
   - id: check-added-large-files
   - id: mixed-line-ending
 
+- repo: local
+  hooks:
+  - id: reveal_type
+    name: revel_type check
+    entry: reveal_type
+    language: pygrep
+    types: [python]
+
 - repo: https://github.com/pycqa/isort
   rev: 5.10.1
   hooks:

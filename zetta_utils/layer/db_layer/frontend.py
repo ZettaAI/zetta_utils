@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence, Tuple, Union, overload
+from typing import Any, List, Mapping, Sequence, Tuple, Union, overload
 
 import attrs
 from typing_extensions import TypeGuard
@@ -21,16 +21,16 @@ UserDBIndex = Union[RawDBIndex, DBIndex]
 
 ValueT = Union[bool, int, float, str]
 MultiValueT = Sequence[ValueT]
-RowDataT = Dict[str, ValueT]
+RowDataT = Mapping[str, ValueT]
 DataT = Sequence[RowDataT]
 
 
-def is_scalar_list(values: Sequence[Any]) -> TypeGuard[Sequence[ValueT]]:
-    return all(isinstance(v, (bool, int, float, str)) for v in values)
+def is_scalar_seq(values: Sequence[Any]) -> TypeGuard[Sequence[ValueT]]:
+    return all(isinstance(v, (bool, int, float, str)) for v in values) and len(values) > 0
 
 
-def is_rowdata_list(values: Sequence[Any]) -> TypeGuard[Sequence[RowDataT]]:
-    return all(isinstance(v, dict) for v in values)
+def is_rowdata_seq(values: Sequence[Any]) -> TypeGuard[Sequence[RowDataT]]:
+    return all(isinstance(v, dict) for v in values) and len(values) > 0
 
 
 @builder.register("DBFrontend")
@@ -128,10 +128,10 @@ class DBFrontend(Frontend):
         if isinstance(data_user, dict):
             return idx, [data_user]
 
-        if is_scalar_list(data_user):
+        if is_scalar_seq(data_user):
             return idx, [{"value": d} for d in data_user]
 
-        if is_rowdata_list(data_user):
+        if is_rowdata_seq(data_user):
             return idx, data_user
 
-        raise ValueError("Unsupported data type.")
+        raise ValueError(f"Unsupported data type: {type(data_user)}")

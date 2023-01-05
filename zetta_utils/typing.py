@@ -1,6 +1,7 @@
 """Basic type definitions used for type annotations."""
 from __future__ import annotations
 
+from collections import abc
 from inspect import currentframe
 from types import FrameType
 from typing import Any, Generic, Literal, Tuple, Type, TypeVar, Union, overload
@@ -44,7 +45,7 @@ def get_orig_class(obj: Any) -> Type:  # pragma: no cover
         return type(None)
 
 
-class _VecND(Generic[N, T_co]):
+class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
     """
     The backend primitive for an N-dimensional vector. This class should not be used or
     its constructor called directly. Use `VecND`, `IntVecND` to type annotate arbitrarily

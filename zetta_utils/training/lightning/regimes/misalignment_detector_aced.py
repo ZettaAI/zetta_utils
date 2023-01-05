@@ -72,39 +72,33 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
             return None
 
         src_field = (
-            batch["field"] * self.field_magn_thr / torch.quantile(
-                batch["field"].abs().max(1)[0],
-                0.5
-            )
+            batch["field"]
+            * self.field_magn_thr
+            / torch.quantile(batch["field"].abs().max(1)[0], 0.5)
         )
         tgt_field = torch.zeros_like(src_field)
-        '''torch.tensor(
+        """torch.tensor(
             src_field.field()
             .from_pixels()(src_field.field().from_pixels())
             .pixels()
         )
-        '''
+        """
         gt_labels = src_field.abs().max(1)[0] > self.field_magn_thr
 
         src_warped = src_field.field().from_pixels()(src)
         src_warped_tissue = src_field.field().from_pixels()((src != 0).float()) > 0.0
-        tgt_warped = tgt_field.field().from_pixels()(tgt) # type: ignore
-        tgt_warped_tissue = tgt_field.field().from_pixels()((tgt != 0).float()) > 0.0 # type: ignore
+        tgt_warped = tgt_field.field().from_pixels()(tgt)  # type: ignore
+        tgt_warped_tissue = tgt_field.field().from_pixels()((tgt != 0).float()) > 0.0  # type: ignore
         joint_tissue = tgt_warped_tissue + src_warped_tissue
-        #breakpoint()
-        prediction = self.model(
-            torch.cat(
-                (src_warped, tgt_warped),
-                1
-            )
-        )
-        #loss_map = torch.nn.functional.binary_cross_entropy(
-        #loss_map = torch.nn.functional.binary_cross_entropy_with_logits(
+        # breakpoint()
+        prediction = self.model(torch.cat((src_warped, tgt_warped), 1))
+        # loss_map = torch.nn.functional.binary_cross_entropy(
+        # loss_map = torch.nn.functional.binary_cross_entropy_with_logits(
         #    prediction,
         #    gt_labels.unsqueeze(1).float(),
         #    reduction='none'
-        #)
-        loss_map =  (prediction - gt_labels.unsqueeze(1).float()).abs()
+        # )
+        loss_map = (prediction - gt_labels.unsqueeze(1).float()).abs()
         loss = loss_map[joint_tissue].sum()
         loss_map_masked = loss_map.clone()
         loss_map_masked[joint_tissue == 0] = 0
@@ -128,6 +122,3 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                 loss_map_masked=loss_map_masked,
             )
         return loss
-
-
-

@@ -10,7 +10,7 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
-from ..typing import IntVec3D
+from ..typing import IntVecND, VecND
 
 P = ParamSpec("P")
 
@@ -154,7 +154,7 @@ InterpolationMode = Union[TorchInterpolationMode, CustomInterpolationMode]
 
 def _standardize_scale_factor(
     data_ndim: int,
-    scale_factor: Optional[Union[float, Sequence[float]]] = None,
+    scale_factor: Optional[Union[float, Sequence[float], VecND]] = None,
 ) -> Optional[Sequence[float]]:
     if scale_factor is None:
         result = None
@@ -171,7 +171,7 @@ def _standardize_scale_factor(
 
 
 def _get_torch_interp_mode(
-    scale_factor_tuple: Optional[Sequence[float]],
+    scale_factor_tuple: Optional[Union[Sequence[float], VecND]],
     spatial_ndim: int,
     mode: InterpolationMode,
 ) -> TorchInterpolationMode:
@@ -201,8 +201,8 @@ def _get_torch_interp_mode(
 
 def _validate_interpolation_setting(
     data: Tensor,
-    size: Optional[Sequence[int]],
-    scale_factor_tuple: Optional[Sequence[float]],
+    size: Optional[Union[Sequence[int], IntVecND]],
+    scale_factor_tuple: Optional[Union[Sequence[float], VecND]],
     allow_slice_rounding: bool,
 ):
     # Torch checks for some of these, but we need to check preemptively
@@ -294,8 +294,8 @@ def squeeze_to(
 @typechecked
 def interpolate(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
-    size: Optional[Sequence[int]] = None,
-    scale_factor: Optional[Union[float, Sequence[float]]] = None,
+    size: Optional[Union[Sequence[int], IntVecND]] = None,
+    scale_factor: Optional[Union[float, Sequence[float], VecND]] = None,
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     allow_slice_rounding: bool = False,
@@ -460,7 +460,7 @@ def compare(
 @typechecked
 def crop(
     data: TensorTypeVar,
-    crop: Union[Sequence[int], IntVec3D],  # pylint: disable=redefined-outer-name
+    crop: Union[Sequence[int], IntVecND],  # pylint: disable=redefined-outer-name
     # mode: Literal["center"] = "center",
 ) -> TensorTypeVar:
     """

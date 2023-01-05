@@ -50,10 +50,7 @@ def build_interpolate_flow(
     if dst is None:
         dst = src
 
-    # must use generator since np.float64 is not a float
     scale_factor = src_resolution / dst_resolution
-    reveal_type(scale_factor)
-    #    res_change_mult = tuple(float(e) for e in dst_resolution / src_resolution)
     res_change_mult = dst_resolution / src_resolution
 
     flow_schema = build_chunked_volumetric_callable_flow_schema(
@@ -61,6 +58,7 @@ def build_interpolate_flow(
         res_change_mult=res_change_mult,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
+
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
         dst=dst,

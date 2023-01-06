@@ -21,8 +21,8 @@ def align_with_online_finetuner(
     # assert len(src.shape) == 4 # (1, C, X, Y,)
     # assert src.shape[0] == 1
 
-    src = einops.rearrange(src, "C X Y 1 -> 1 C X Y")
-    tgt = einops.rearrange(tgt, "C X Y 1 -> 1 C X Y")
+    src = einops.rearrange(src, "C X Y 1 -> 1 C X Y").float()
+    tgt = einops.rearrange(tgt, "C X Y 1 -> 1 C X Y").float()
 
     if src_field is None:
         src_field = torch.zeros([1, 2, tgt.shape[2], tgt.shape[3]], device=tgt.device).float()

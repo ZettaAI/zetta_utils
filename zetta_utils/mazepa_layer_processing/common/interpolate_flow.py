@@ -83,5 +83,6 @@ def build_interpolate_flow(
         scale_factor=scale_factor,
         mode=mode,
         mask_value_thr=mask_value_thr,
+        trash="scary",
     )
     return flow

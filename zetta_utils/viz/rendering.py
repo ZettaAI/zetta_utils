@@ -56,7 +56,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         x = tensor_ops.convert.to_np(x).squeeze()
         if len(x.shape) == 3:
             return render_fld(x, **self.fld_kwargs)
-        if x.dtype == np.bool:
+        if x.dtype == bool:
             return render_msk(x, **self.msk_kwargs)
         if np.issubdtype(x.dtype, np.integer):
             return render_seg(x, **self.seg_kwargs)

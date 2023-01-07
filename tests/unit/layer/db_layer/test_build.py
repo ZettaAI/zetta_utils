@@ -2,7 +2,7 @@
 
 import pytest
 
-from zetta_utils.layer.db_layer import build_db_layer
+from zetta_utils.layer.db_layer import DBFrontend, build_db_layer
 
 
 def test_write_scalar(mocker) -> None:
@@ -52,11 +52,10 @@ def test_write_single_row(mocker) -> None:
 def test_write_rows(mocker) -> None:
     backend = mocker.MagicMock()
     backend.write = mocker.MagicMock()
-
     layer = build_db_layer(backend)
 
-    col_keys = ("col0", "col1")
-    idx_user = (["key0", "key1"], col_keys)
+    row_keys = ["key0", "key1"]
+    idx_user = (row_keys, ("col0", "col1"))
 
     data_user = [
         {"col0": "val0", "col1": "val1"},
@@ -77,3 +76,43 @@ def test_write_exc(mocker):
 
     with pytest.raises(ValueError):
         layer["key"] = mocker.MagicMock()
+
+
+@pytest.mark.parametrize(
+    "idx_user, data, expected",
+    [
+        [
+            "key0",
+            [{"value": "val0"}],
+            "val0",
+        ],
+        [
+            "key42",
+            [{"value": 42}],
+            42,
+        ],
+        [
+            ["key0", "key42"],
+            [{"value": "val0"}, {"value": 42}],
+            ["val0", 42],
+        ],
+        [
+            ("key1", ("col0", "col1")),
+            [{"col0": "val0", "col1": "val1"}],
+            {"col0": "val0", "col1": "val1"},
+        ],
+        [
+            (["key1", "key2"], ("col0", "col1")),
+            [{"col0": "val0", "col1": "val1"}, {"col0": None, "col1": "val2"}],
+            [{"col0": "val0", "col1": "val1"}, {"col0": None, "col1": "val2"}],
+        ],
+    ],
+)
+def test_db_read_convert(
+    idx_user,
+    data,
+    expected,
+):
+    frontend = DBFrontend()
+    result = frontend.convert_read_data(idx_user, data)
+    assert result == expected

@@ -55,7 +55,7 @@ class DBFrontend(Frontend):
         return DBIndex(row_col_keys)
 
     def convert_read_idx(self, idx_user: UserDBIndex) -> DBIndex:
-        return self._convert_idx(idx_user)
+        return self._convert_idx(idx_user)  # pragma: no cover
 
     @overload
     def convert_read_data(self, idx_user: str, data: DataT) -> ValueT:
@@ -84,8 +84,6 @@ class DBFrontend(Frontend):
             row_keys, col_keys = idx_user
             if isinstance(row_keys, str):
                 return {col_key: data[0][col_key] for col_key in col_keys}
-            return data
-
         return data
 
     @overload

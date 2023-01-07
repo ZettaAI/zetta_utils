@@ -29,13 +29,13 @@ from zetta_utils.layer.db_layer import DBFrontend, DBIndex
         ],
     ],
 )
-def test_volumetric_convert(
+def test_db_convert(
     kwargs: dict,
     idx,
     expected: DBIndex,
 ):
-    convert = DBFrontend(**kwargs)
-    result = convert._convert_idx(idx)
+    frontend = DBFrontend(**kwargs)
+    result = frontend._convert_idx(idx)
     assert result.get_size() == expected.get_size()
     assert result.row_keys == expected.row_keys
     assert result.col_keys == expected.col_keys

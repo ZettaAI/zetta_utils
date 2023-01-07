@@ -42,8 +42,8 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
         for j, ent in enumerate(entities[start:end]):
             try:
                 row_data[col_keys[j]] = ent["value"]
-            except KeyError:
-                ...
+            except TypeError:
+                row_data[col_keys[j]] = None
         data.append(row_data)
     return data
 

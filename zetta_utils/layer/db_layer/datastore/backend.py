@@ -14,24 +14,6 @@ from zetta_utils.layer import Backend
 from .. import DataT, DBIndex
 
 
-def _get_keys_or_entities(
-    idx: DBIndex, data: Optional[DataT] = None
-) -> Union[List[Key], List[Entity]]:
-    keys = []
-    entities = []
-    for i, row_key in enumerate(idx.row_keys):
-        parent_key = Key("Row", row_key)
-        for col_key in idx.col_keys[i]:
-            child_key = Key("Column", col_key, parent=parent_key)
-            if data is None:
-                keys.append(child_key)
-            else:
-                entity = Entity(key=child_key, exclude_from_indexes=(col_key,))
-                entity[col_key] = data[i][col_key]
-                entities.append(entity)
-    return keys if data is None else entities
-
-
 def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
     data = []
     for i in range(idx.get_size()):
@@ -64,6 +46,23 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
     project: Optional[str] = None
     _client: Optional[Client] = None
 
+    def _get_keys_or_entities(
+        self, idx: DBIndex, data: Optional[DataT] = None
+    ) -> Union[List[Key], List[Entity]]:
+        keys = []
+        entities = []
+        for i, row_key in enumerate(idx.row_keys):
+            parent_key = self.client.key("Row", row_key)
+            for col_key in idx.col_keys[i]:
+                child_key = self.client.key("Column", col_key, parent=parent_key)
+                if data is None:
+                    keys.append(child_key)
+                else:
+                    entity = Entity(key=child_key, exclude_from_indexes=(col_key,))
+                    entity[col_key] = data[i][col_key]
+                    entities.append(entity)
+        return keys if data is None else entities
+
     @property
     def client(self) -> Client:
         if self._client is None:
@@ -71,12 +70,13 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
         return self._client
 
     def read(self, idx: DBIndex) -> DataT:
-        keys = _get_keys_or_entities(idx)
+        keys = self._get_keys_or_entities(idx)
         entities = self.client.get_multi(keys)
         return _get_data_from_entities(idx, entities)
 
     def write(self, idx: DBIndex, data: DataT):
-        entities = _get_keys_or_entities(idx, data=data)
+        print(self.client.project)
+        entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
 
     def clone(self, **kwargs) -> DatastoreBackend:

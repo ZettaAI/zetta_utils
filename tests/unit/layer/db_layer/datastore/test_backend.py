@@ -23,7 +23,6 @@ def datastore_emulator():
         "motemen/datastore-emulator",
         command=command,
         detach=True,
-        remove=True,
         # ports={"8081": "8081"},
         network_mode="host",
     )

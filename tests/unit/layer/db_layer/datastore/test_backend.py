@@ -24,6 +24,7 @@ def datastore_emulator():
         command=command,
         detach=True,
         remove=True,
+        # ports={"8081": "8081"},
         network_mode="host",
     )
 
@@ -35,7 +36,9 @@ def datastore_emulator():
         elapsed_time += stop_time
         container.reload()
 
-    endpoint = "127.0.0.1:8081"
+    time.sleep(1)
+
+    endpoint = "localhost:8081"
 
     environment = {}
     environment["DATASTORE_EMULATOR_HOST"] = endpoint
@@ -57,6 +60,10 @@ def test_build_layer(datastore_emulator):
 
 
 def test_write_scalar(datastore_emulator) -> None:
+    # datastore_emulator = "test-project"
+    # endpoint = "127.0.0.1:8081"
+    # os.environ["DATASTORE_EMULATOR_HOST"] = endpoint
+
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
     layer["key"] = "val"
     assert layer["key"] == "val"

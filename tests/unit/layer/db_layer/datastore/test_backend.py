@@ -20,14 +20,15 @@ def datastore_emulator():
     command = f"gcloud beta emulators datastore start {options}"
 
     container = client.containers.run(
-        "motemen/datastore-emulator",
+        "motemen/datastore-emulator:alpine",
         command=command,
         detach=True,
+        remove=True,
         # ports={"8081": "8081"},
         network_mode="host",
     )
 
-    timeout = 120
+    timeout = 300
     stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:

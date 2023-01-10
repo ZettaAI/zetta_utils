@@ -13,7 +13,7 @@ from .base import SampleIndexer
 @attrs.frozen
 class LoopIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under 3 LoC
     """
-    Loops over a inner indexer to match the desired number of samples.
+    Loops over the inner indexer to match the desired number of samples.
 
     :param inner_indexer: Inner Indexer.
     :param desired_num_samples: Number of samples.

@@ -17,6 +17,7 @@ from typeguard import typechecked
 from zetta_utils import tensor_ops
 from zetta_utils.tensor_typing import Tensor
 
+matplotlib.use("Agg")
 DEFAULT_COMMON_KWARGS = {
     "dpi": 80,
     "figsize": (8, 8),
@@ -82,6 +83,7 @@ def get_img_from_fig(
     plt.axis("off")
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=dpi)
+    # plt.pause(.1) #TODO: investigate the effects
     buf.seek(0)
     img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
     buf.close()
@@ -102,11 +104,16 @@ def render_img(
     dpi: int,
     cmap: str = "gray",
 ) -> npt.NDArray:  # pragma: no cover
-    fig = plt.figure(figsize=figsize)
+    fig = matplotlib.figure.Figure(figsize=figsize)
     plt.tight_layout()
     plt.axis("off")
     plt.imshow(img, cmap=cmap)
-    return get_img_from_fig(fig, dpi=dpi)
+    result = get_img_from_fig(fig, dpi=dpi)
+    plt.figure().clear()
+    plt.close()
+    plt.cla()
+    plt.clf()
+    return result
 
 
 render_msk = render_img
@@ -149,7 +156,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
 
     interval = (x_coords[1] - x_coords[0]) // grid_size
 
-    fig = plt.figure(figsize=figsize)
+    fig = matplotlib.figure.Figure(figsize=figsize)
     plt.quiver(
         x[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
         y[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
@@ -169,4 +176,9 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     )
     plt.gca().invert_yaxis()
 
-    return get_img_from_fig(fig, dpi=dpi)
+    result = get_img_from_fig(fig, dpi=dpi)
+    plt.figure().clear()
+    plt.close()
+    plt.cla()
+    plt.clf()
+    return result

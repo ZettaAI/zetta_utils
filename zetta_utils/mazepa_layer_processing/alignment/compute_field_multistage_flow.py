@@ -32,7 +32,7 @@ class ComputeFieldStage:
         return self.operation.get_input_resolution(self.dst_resolution)
 
 
-@builder.register("ComputeFieldMultistageFlowSchema", cast_to_vec3d=["tgt_offset"])
+@builder.register("ComputeFieldMultistageFlowSchema", cast_to_vec3d=["tgt_offset", "src_offset"])
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldMultistageFlowSchema:
@@ -48,6 +48,7 @@ class ComputeFieldMultistageFlowSchema:
         src: Optional[VolumetricLayer] = None,
         tgt: Optional[VolumetricLayer] = None,
         tgt_offset: Vec3D = Vec3D(0, 0, 0),
+        src_offset: Vec3D = Vec3D(0, 0, 0),
     ):
         prev_dst: Optional[VolumetricLayer] = None
 
@@ -100,13 +101,16 @@ class ComputeFieldMultistageFlowSchema:
                 tgt=stage_tgt,
                 src_field=stage_src_field,
                 tgt_offset=tgt_offset,
+                src_offset=src_offset,
             )
             yield mazepa.Dependency()
 
             prev_dst = stage_dst
 
 
-@builder.register("build_compute_field_multistage_flow", cast_to_vec3d=["tgt_offset"])
+@builder.register(
+    "build_compute_field_multistage_flow", cast_to_vec3d=["tgt_offset", "src_offset"]
+)
 def build_compute_field_multistage_flow(
     stages: List[ComputeFieldStage],
     tmp_layer_dir: str,
@@ -117,6 +121,7 @@ def build_compute_field_multistage_flow(
     src: Optional[VolumetricLayer] = None,
     tgt: Optional[VolumetricLayer] = None,
     tgt_offset: Vec3D = Vec3D(0, 0, 0),
+    src_offset: Vec3D = Vec3D(0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,
@@ -124,6 +129,12 @@ def build_compute_field_multistage_flow(
         tmp_layer_factory=tmp_layer_factory,
     )
     flow = flow_schema(
-        bcube=bcube, dst=dst, src_field=src_field, src=src, tgt=tgt, tgt_offset=tgt_offset
+        bcube=bcube,
+        dst=dst,
+        src_field=src_field,
+        src=src,
+        tgt=tgt,
+        tgt_offset=tgt_offset,
+        src_offset=src_offset,
     )
     return flow

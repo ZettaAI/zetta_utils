@@ -1,0 +1,150 @@
+{
+    "@type": "mazepa.execute_on_gcp_with_sqs",
+    "max_task_retry": 5,
+    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x3",
+    "worker_resources": {
+        "memory": "18560Mi",
+        "nvidia.com/gpu": "1"
+    },
+    "worker_replicas": 10,
+    "worker_lease_sec": 40,
+    "batch_gap_sleep_sec": 3,
+    "local_test": false,
+    "target": {
+        "@type": "mazepa.seq_flow",
+        "stages": [
+            {
+                "@type": "build_chunked_apply_flow",
+                "operation": {
+                    "@type": "VolumetricCallableOperation",
+                    "fn": {
+                        "@type": "BaseEncoder",
+                        "model_path": "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
+                    },
+                    "crop": [
+                        32,
+                        32,
+                        0
+                    ]
+                },
+                "chunker": {
+                    "@type": "VolumetricIndexChunker",
+                    "chunk_size": [
+                        2048,
+                        2048,
+                        1
+                    ]
+                },
+                "idx": {
+                    "@type": "VolumetricIndex",
+                    "bcube": {
+                        "@type": "BoundingCube",
+                        "start_coord": [
+                            0,
+                            0,
+                            3003
+                        ],
+                        "end_coord": [
+                            1024,
+                            1024,
+                            3004
+                        ],
+                        "resolution": [
+                            512,
+                            512,
+                            30
+                        ]
+                    },
+                    "resolution": [
+                        32,
+                        32,
+                        30
+                    ]
+                },
+                "src": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zfish_unaligned/coarse_x0/raw_masked"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/large_test_x0/base_enc_warped_-2",
+                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
+                    "info_chunk_size": [
+                        1024,
+                        1024,
+                        1
+                    ],
+                    "on_info_exists": "overwrite"
+                }
+            },
+            {
+                "@type": "build_chunked_apply_flow",
+                "operation": {
+                    "@type": "VolumetricCallableOperation",
+                    "fn": {
+                        "@type": "MisalignmentDetector",
+                        "model_path": "gs://sergiy_exp/training_artifacts/aced_misd/thr1.0_x0/last.ckpt.static-1.12.1+cu102-model.jit"
+                    },
+                    "crop": [
+                        32,
+                        32,
+                        0
+                    ]
+                },
+                "chunker": {
+                    "@type": "VolumetricIndexChunker",
+                    "chunk_size": [
+                        2048,
+                        2048,
+                        1
+                    ]
+                },
+                "idx": {
+                    "@type": "VolumetricIndex",
+                    "bcube": {
+                        "@type": "BoundingCube",
+                        "start_coord": [
+                            0,
+                            0,
+                            3003
+                        ],
+                        "end_coord": [
+                            1024,
+                            1024,
+                            3004
+                        ],
+                        "resolution": [
+                            512,
+                            512,
+                            30
+                        ]
+                    },
+                    "resolution": [
+                        32,
+                        32,
+                        30
+                    ]
+                },
+                "src": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zfish_unaligned/coarse_x0/base_enc_x0"
+                },
+                "tgt": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/large_test_x0/base_enc_warped_-2"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/large_test_x0/misd_-2",
+                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
+                    "info_chunk_size": [
+                        1024,
+                        1024,
+                        1
+                    ],
+                    "on_info_exists": "overwrite"
+                }
+            }
+        ]
+    }
+}

@@ -42,6 +42,23 @@ def align_with_online_finetuner(
     if src.abs().sum() == 0 or tgt.abs().sum() == 0:
         result = src_field
     else:
+        sm_keys = {
+            "src": [
+                {
+                    "name": "src",
+                    "fm": 0,
+                    "mask_value": 1e-5,
+                    "binarization": {"strat": "neq", "value": 0},
+                }
+            ],
+            "tgt": [
+                {
+                    "name": "tgt",
+                    "fm": 0,
+                    "binarization": {"strat": "neq", "value": 0},
+                }
+            ],
+        }
         with torchfields.set_identity_mapping_cache(True, clear_cache=True):
             result = metroem.finetuner.optimize_pre_post_ups(
                 src,
@@ -58,6 +75,7 @@ def align_with_online_finetuner(
                 verbose=True,
                 opt_res_coarsness=0,
                 normalize=True,
+                sm_keys_to_apply=sm_keys,
             )
     result = einops.rearrange(result, "1 C X Y -> C X Y 1")
     result = result.detach().to(orig_device)

@@ -32,7 +32,7 @@ def datastore_emulator():
     stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:
-        time.sleep(stop_time)
+        time.sleep(20)
         elapsed_time += stop_time
         container.reload()
     print(f"CONTAINER STATUS AT START: {container.status}")

@@ -17,11 +17,10 @@ def datastore_emulator():
     client = docker.from_env()
     project = "test-project"
     options = "--no-store-on-disk --consistency=1.0 --host-port=0.0.0.0:8081"
-    command = f"gcloud beta emulators datastore start {options}"
+    command = f"gcloud --project {project} beta emulators datastore start {options}"
 
     container = client.containers.run(
-        #"motemen/datastore-emulator:alpine",
-        "graze/sqs-local",
+        "motemen/datastore-emulator:alpine",
         command=command,
         detach=True,
         #remove=True,

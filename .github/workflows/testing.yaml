@@ -52,7 +52,7 @@ jobs:
         run: docker pull motemen/datastore-emulator:alpine
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m py.test ./tests/unit
+        run: coverage run -m py.test ./tests/unit -s -vvv
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         if: ${{ steps.filter.outputs.py_modified == 'true' }}

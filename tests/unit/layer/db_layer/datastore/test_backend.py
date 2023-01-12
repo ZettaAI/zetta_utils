@@ -28,15 +28,15 @@ def datastore_emulator():
         network_mode="host",
     )
 
-    timeout = 300
+    timeout = 120
     stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:
         time.sleep(stop_time)
         elapsed_time += stop_time
         container.reload()
-
-    time.sleep(1)
+    print(f"CONTAINER STATUS AT START: {container.status}")
+    time.sleep(5)
 
     endpoint = "localhost:8081"
 
@@ -48,8 +48,10 @@ def datastore_emulator():
     environment["DATASTORE_PROJECT_ID"] = project
 
     with mock.patch.dict(os.environ, environment):
+        print(f"CONTAINER STATUS RIGHT BEFORE YIELD: {container.status}")
         yield project
 
+    print(f"CONTAINER STATUS RIGHT BEFORE KILL: {container.status}")
     container.kill()
     time.sleep(0.2)
 

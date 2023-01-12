@@ -21,9 +21,10 @@ def datastore_emulator():
 
     container = client.containers.run(
         "motemen/datastore-emulator:alpine",
+        #"graze/sqs-local",
         command=command,
         detach=True,
-        remove=True,
+        #remove=True,
         # ports={"8081": "8081"},
         network_mode="host",
     )
@@ -32,9 +33,11 @@ def datastore_emulator():
     stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:
-        time.sleep(20)
+        time.sleep(stop_time)
         elapsed_time += stop_time
+        print (f"CONTAINER LOGS RIGHT BEFORE RELOAD: {container.logs()}")
         container.reload()
+
     print(f"CONTAINER STATUS AT START: {container.status}")
     time.sleep(5)
 

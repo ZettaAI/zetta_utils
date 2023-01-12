@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import Dict, Iterable, List, Protocol, runtime_checkable
 
 import attrs
-from rich.progress import track
 from typeguard import typechecked
 
 from zetta_utils import log
@@ -40,7 +39,9 @@ class LocalExecutionQueue:
     task_outcomes: Dict[str, TaskOutcome] = attrs.field(init=False, factory=dict)
 
     def push_tasks(self, tasks: Iterable[Task]):
-        for task in track(tasks, description="Local task execution..."):
+        # TODO: Fix progress bar issue with multiple live displays in rich
+        # for task in track(tasks, description="Local task execution..."):
+        for task in tasks:
             task()
             assert task.outcome is not None
             self.task_outcomes[task.id_] = task.outcome

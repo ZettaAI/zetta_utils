@@ -20,8 +20,8 @@ def datastore_emulator():
     command = f"gcloud beta emulators datastore start {options}"
 
     container = client.containers.run(
-        "motemen/datastore-emulator:alpine",
-        #"graze/sqs-local",
+        #"motemen/datastore-emulator:alpine",
+        "graze/sqs-local",
         command=command,
         detach=True,
         #remove=True,

@@ -87,6 +87,12 @@ def test_from_slices(slices: Slices3D, resolution: Vec3D, expected_bounds: Slice
         [
             (1, 2, 3),
             (11, 12, 13),
+            None,
+            ((1, 11), (2, 12), (3, 13)),
+        ],
+        [
+            (1, 2, 3),
+            (11, 12, 13),
             (2, 4, 8),
             ((2, 22), (8, 48), (24, 104)),
         ],
@@ -190,7 +196,7 @@ def test_get_slice_exc(
     ],
 )
 def test_pad(bcube: BoundingCube, pad, resolution: Vec3D, expected: BoundingCube):
-    result = bcube.pad(pad=pad, resolution=resolution)
+    result = bcube.padded(pad=pad, resolution=resolution)
     assert result == expected
 
 
@@ -207,7 +213,7 @@ def test_pad(bcube: BoundingCube, pad, resolution: Vec3D, expected: BoundingCube
 )
 def test_pad_exc(bcube: BoundingCube, pad, resolution: Vec3D, expected_exc):
     with pytest.raises(expected_exc):
-        bcube.pad(pad=pad, resolution=resolution)
+        bcube.padded(pad=pad, resolution=resolution)
 
 
 @pytest.mark.parametrize(
@@ -222,14 +228,14 @@ def test_pad_exc(bcube: BoundingCube, pad, resolution: Vec3D, expected_exc):
         ],
     ],
 )
-def test_translate(
+def test_translated(
     bcube: BoundingCube,
     offset: Vec3D,
     resolution: Vec3D,
     in_place: bool,
     expected: BoundingCube,
 ):
-    result = bcube.translate(offset, resolution, in_place)
+    result = bcube.translated(offset, resolution, in_place)
     assert result == expected
 
 
@@ -245,14 +251,14 @@ def test_translate(
         ],
     ],
 )
-def test_translate_start(
+def test_translated_start(
     bcube: BoundingCube,
     offset: Vec3D,
     resolution: Vec3D,
     in_place: bool,
     expected: BoundingCube,
 ):
-    result = bcube.translate_start(offset, resolution, in_place)
+    result = bcube.translated_start(offset, resolution, in_place)
     assert result == expected
 
 
@@ -268,14 +274,14 @@ def test_translate_start(
         ],
     ],
 )
-def test_translate_stop(
+def test_translated_end(
     bcube: BoundingCube,
     offset: Vec3D,
     resolution: Vec3D,
     in_place: bool,
     expected: BoundingCube,
 ):
-    result = bcube.translate_stop(offset, resolution, in_place)
+    result = bcube.translated_end(offset, resolution, in_place)
     assert result == expected
 
 
@@ -302,8 +308,8 @@ def test_translate_stop(
         ],
     ],
 )
-def test_crop(bcube: BoundingCube, crop, resolution: Vec3D, expected: BoundingCube):
-    result = bcube.crop(crop=crop, resolution=resolution)
+def test_cropped(bcube: BoundingCube, crop, resolution: Vec3D, expected: BoundingCube):
+    result = bcube.cropped(crop=crop, resolution=resolution)
     assert result == expected
 
 
@@ -318,6 +324,46 @@ def test_crop(bcube: BoundingCube, crop, resolution: Vec3D, expected: BoundingCu
         ],
     ],
 )
-def test_crop_exc(bcube: BoundingCube, crop, resolution: Vec3D, expected_exc):
+def test_cropped_exc(bcube: BoundingCube, crop, resolution: Vec3D, expected_exc):
     with pytest.raises(expected_exc):
-        bcube.crop(crop=crop, resolution=resolution)
+        bcube.cropped(crop=crop, resolution=resolution)
+
+
+@pytest.mark.parametrize(
+    "bcube, grid_offset, grid_size, mode, expected",
+    [
+        [
+            BoundingCube(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            (1, 2, 3),
+            (1, 3, 5),
+            "shrink",
+            BoundingCube(bounds=((-1, 1), (-7, 8), (-22, 23))),
+        ],
+        [
+            BoundingCube(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            (0, -1, -2),
+            (1, 2, 3),
+            "expand",
+            BoundingCube(bounds=((-1, 1), (-3, 3), (-5, 7))),
+        ],
+    ],
+)
+def test_snapped(bcube: BoundingCube, grid_offset, grid_size, mode, expected: BoundingCube):
+    result = bcube.snapped(grid_offset=grid_offset, grid_size=grid_size, mode=mode)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bcube, grid_offset, grid_size, mode",
+    [
+        [
+            BoundingCube(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            (0, -1, -2),
+            (1, 2, 3),
+            "badmode",
+        ],
+    ],
+)
+def test_snapped_exc(bcube: BoundingCube, grid_offset, grid_size, mode):
+    with pytest.raises(ValueError):
+        bcube.snapped(grid_offset=grid_offset, grid_size=grid_size, mode=mode)

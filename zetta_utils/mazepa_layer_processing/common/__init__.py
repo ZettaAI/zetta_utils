@@ -3,6 +3,9 @@ from .blendable_apply_flow import (
     BlendableApplyFlowSchema,
     build_blendable_apply_flow,
 )
+from .subchunkable_apply_flow import (
+    build_subchunkable_apply_flow,
+)
 from .callable_operation import (
     CallableOperation,
     build_chunked_callable_flow_schema,

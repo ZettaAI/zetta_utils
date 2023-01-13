@@ -85,7 +85,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         info_spec=PrecomputedInfoSpec(
             reference_path=info_reference_path,
             field_overrides=info_field_overrides,
-            chunk_size=info_chunk_size,
+            default_chunk_size=info_chunk_size,
         ),
     )
 

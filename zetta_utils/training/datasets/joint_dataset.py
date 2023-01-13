@@ -39,13 +39,13 @@ class JointDataset(torch.utils.data.Dataset):
             for key in self.datasets.keys():
                 if num_samples == len(self.datasets[key]):
                     logger.warning(
-                        f"JointDataset: Dataset {key} has {len(self.datasets[key])} samples, "
+                        f"JointDataset: Dataset '{key}' has {len(self.datasets[key])} samples, "
                         f"which is the minimum number of samples for this horizontally joint "
                         "dataset."
                     )
                 if num_samples < len(self.datasets[key]):
                     logger.warning(
-                        f"JointDataset: Dataset {key} has {len(self.datasets[key])} samples, "
+                        f"JointDataset: Dataset '{key}' has {len(self.datasets[key])} samples, "
                         f"but only {num_samples} samples will be used."
                     )
 

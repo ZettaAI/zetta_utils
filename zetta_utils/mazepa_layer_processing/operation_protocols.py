@@ -1,10 +1,12 @@
-from typing import Any, Optional, Protocol, TypeVar, runtime_checkable
+from __future__ import annotations
+
+from typing import Optional, Protocol, TypeVar, runtime_checkable
 
 from typing_extensions import ParamSpec
 
 from zetta_utils import mazepa
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
-from zetta_utils.typing import Vec3D
+from zetta_utils.typing import IntVec3D, Vec3D
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -79,6 +81,9 @@ class ChunkableOpProtocol(Protocol[P, IndexT_contra, R_co]):
 
 class BlendableOpProtocol(Protocol[P, R_co]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
+        ...
+
+    def with_added_crop_pad(self, crop_pad: IntVec3D) -> BlendableOpProtocol[P, R_co]:
         ...
 
     def __call__(

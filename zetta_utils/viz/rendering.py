@@ -5,6 +5,7 @@ in automated testing, as they're not meand for production use."""
 from __future__ import annotations
 
 import copy
+import gc
 import io
 
 import cv2
@@ -90,29 +91,27 @@ def get_img_from_fig(
     img = cv2.imdecode(img_arr, 1)  # pylint: disable=E1101
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # pylint: disable=E1101
 
-    plt.figure().clear()
-    plt.close()
-    plt.cla()
-    plt.clf()
     return img
 
 
 @typechecked
 def render_img(
     img: Tensor,
-    figsize: tuple[int, int],
-    dpi: int,
+    figsize: tuple[int, int] = (8, 8),
+    dpi: int = 80,
     cmap: str = "gray",
 ) -> npt.NDArray:  # pragma: no cover
-    fig = matplotlib.figure.Figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     plt.tight_layout()
     plt.axis("off")
     plt.imshow(img, cmap=cmap)
     result = get_img_from_fig(fig, dpi=dpi)
-    plt.figure().clear()
-    plt.close()
     plt.cla()
     plt.clf()
+    plt.close(fig)
+    plt.close()
+    del fig
+    gc.collect()
     return result
 
 
@@ -123,8 +122,8 @@ render_seg = render_img
 @typechecked
 def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     fld: Tensor,
-    figsize: tuple[int, int],
-    dpi: int,
+    figsize: tuple[int, int] = (8, 8),
+    dpi: int = 80,
     grid_size: int = 50,
     alpha: float = 0.6,
     linewidth: float = 0.5,
@@ -156,7 +155,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
 
     interval = (x_coords[1] - x_coords[0]) // grid_size
 
-    fig = matplotlib.figure.Figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     plt.quiver(
         x[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
         y[x_coords[0] : x_coords[1] : interval, y_coords[0] : y_coords[1] : interval],
@@ -177,8 +176,10 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     plt.gca().invert_yaxis()
 
     result = get_img_from_fig(fig, dpi=dpi)
-    plt.figure().clear()
     plt.close()
+    plt.close(fig)
     plt.cla()
     plt.clf()
+    del fig
+    gc.collect()
     return result

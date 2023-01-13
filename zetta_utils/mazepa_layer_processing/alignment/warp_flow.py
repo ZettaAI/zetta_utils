@@ -27,6 +27,13 @@ class WarpOperation:
     mask_value_thr: float = 0
     # preserve_black: bool = False
 
+    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: IntVec3D) -> WarpOperation:
+        return attrs.evolve(self, crop=self.crop + crop_pad)
+
     def __attrs_post_init__(self):
         if self.crop[-1] != 0:
             raise ValueError(f"Z crop must be equal to 0. Received: {self.crop}")
@@ -38,7 +45,7 @@ class WarpOperation:
         src: VolumetricLayer,
         field: VolumetricLayer,
     ) -> None:
-        idx_padded = idx.pad(self.crop)
+        idx_padded = idx.padded(self.crop)
         field_data_raw = field[idx_padded]
         xy_translation = alignment.field_profilers.profile_field2d_percentile(field_data_raw)
 
@@ -48,13 +55,11 @@ class WarpOperation:
         # TODO: big question mark. In zetta_utils everything is XYZ, so I don't understand
         # why the order is flipped here. It worked for a corgie field, so leaving it in.
         # Pls help:
-        src_idx_padded = idx_padded.translate((xy_translation[1], xy_translation[0], 0))
+        src_idx_padded = idx_padded.translated(IntVec3D(xy_translation[1], xy_translation[0], 0))
         src_data_raw = src[src_idx_padded]
 
         src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
-        field_data = einops.rearrange(
-            field_data_raw, "C X Y Z -> Z C X Y"
-        ).field()  # type: ignore # no type for Torchfields yet
+        field_data = einops.rearrange(field_data_raw, "C X Y Z -> Z C X Y").field()  # type: ignore
 
         dst_data_raw = field_data.from_pixels()(src_data.float())
         if self.mode == "mask":

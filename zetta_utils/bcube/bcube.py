@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Generic, Optional, Sequence, Tuple, TypeVar, Union, cast
+from typing import Generic, Literal, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 import attrs
 
 from zetta_utils import builder
 from zetta_utils.typing import Slices3D, Vec3D
+
+EPS = 1e-4
 
 
 def _assert_equal_len(**kwargs: Union[Sequence, Vec3D]):
@@ -23,7 +25,7 @@ DEFAULT_UNIT = "nm"
 # TODO: Currently both SlicesT and VecT have to be passed independently.
 # Ideally, we'd parametrize BoundingBoxND by the number of dimensions,
 # and slice and vector types would be infered from it.
-# Maybe PEP 646 https://peps.python.org/pep-0646/ can help?
+# Maybe PEP 646 https://pEPS.python.org/pep-0646/ can help?
 
 SlicesT = TypeVar("SlicesT", bound=Tuple[slice, ...])
 VecT = TypeVar("VecT", bound=Union[Sequence[float], Vec3D])
@@ -45,6 +47,22 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     def ndim(self) -> int:
         """float of dimensions."""
         return len(self.bounds)
+
+    # NOTE: Cannot use VecT as return type since TypeVars are not callable.
+    @property
+    def start(self) -> Vec3D:  # pragma: no cover
+        """returns the start coordinates."""
+        return Vec3D(*(b[0] for b in self.bounds))
+
+    @property
+    def end(self) -> Vec3D:  # pragma: no cover
+        """returns the end coordinates."""
+        return Vec3D(*(b[1] for b in self.bounds))
+
+    @property
+    def shape(self) -> Vec3D:  # pragma: no cover
+        """returns the shape coordinates."""
+        return self.end - self.start
 
     @classmethod
     def from_slices(
@@ -74,7 +92,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             if s.step is not None:
                 raise ValueError(f"Cannot construct a boundingbox from strided slice: '{s}'.")
 
-        bounds = tuple((s.start * r, s.stop * r) for s, r in zip(slices, resolution))
+        bounds = tuple((float(s.start * r), float(s.stop * r)) for s, r in zip(slices, resolution))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -83,7 +101,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         cls,
         start_coord: VecT,
         end_coord: VecT,
-        resolution: VecT,
+        resolution: Optional[VecT] = None,
         unit: str = DEFAULT_UNIT,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a `BoundingBoxND` from start and end coordinates at the given resolution.
@@ -96,12 +114,19 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
         :return: `BoundingBoxND` built according to the specification.
 
         """
-        _assert_equal_len(
-            start_coord=start_coord,
-            end_coord=end_coord,
-            resolution=resolution,
-        )
-        bounds = tuple((s * r, e * r) for s, e, r in zip(start_coord, end_coord, resolution))
+        if resolution is not None:
+            _assert_equal_len(
+                start_coord=start_coord,
+                end_coord=end_coord,
+                resolution=resolution,
+            )
+            bounds = tuple((s * r, e * r) for s, e, r in zip(start_coord, end_coord, resolution))
+        else:
+            _assert_equal_len(
+                start_coord=start_coord,
+                end_coord=end_coord,
+            )
+            bounds = tuple((s, e) for s, e in zip(start_coord, end_coord))
         result = cls(bounds=bounds, unit=unit)
         return result
 
@@ -167,7 +192,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def crop(
+    def cropped(
         self,
         crop: Union[Sequence[Union[int, float, tuple[float, float]]], Vec3D],
         resolution: VecT,
@@ -217,7 +242,7 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def pad(
+    def padded(
         self,
         pad: Union[Sequence[Union[float, tuple[float, float]]], Vec3D],
         resolution: VecT,
@@ -269,10 +294,10 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def translate(
+    def translated(
         self,
-        offset: Union[Sequence[float], Vec3D],
-        resolution: Union[Sequence[float], Vec3D],
+        offset: VecT,
+        resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a translated version of this bounding box.
@@ -304,10 +329,10 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def translate_start(
+    def translated_start(
         self,
-        offset: Union[Sequence[float], Vec3D],
-        resolution: Union[Sequence[float], Vec3D],
+        offset: VecT,
+        resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
         """Create a version of the bounding box where the start (and not the stop)
@@ -336,13 +361,13 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
 
         return result
 
-    def translate_stop(
+    def translated_end(
         self,
-        offset: Union[Sequence[float], Vec3D],
-        resolution: Union[Sequence[float], Vec3D],
+        offset: VecT,
+        resolution: VecT,
         in_place: bool = False,
     ) -> BoundingBoxND[SlicesT, VecT]:
-        """Create a version of the bounding box where the stop (and not the start)
+        """Create a version of the bounding box where the end (and not the start)
         has been moved by the given offset.
 
         :param offset: Specification of how much to translate along each dimension.
@@ -371,6 +396,41 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
             )
 
         return result
+
+    def snapped(
+        self, grid_offset: VecT, grid_size: VecT, mode: Literal["shrink", "expand"]
+    ) -> BoundingBoxND[SlicesT, VecT]:
+        """Returns a BoundingBox snapped to a grid with the given offset and size.
+
+        :param grid_offset: The offset of the grid to snap to.
+        :param grid_size: The size of the grid to snap to.
+        :param mode: Whether to ``shrink`` to the given grid (discard partial boxes) or
+            to ``expand`` to the given grid(fill partial boxes).
+        """
+        if mode == "shrink":
+            start_shrunk = tuple(
+                ((b[0] - o - EPS) // s + 1) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+            end_shrunk = tuple(
+                (b[1] - o) // s * s + o for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+            return BoundingBoxND[SlicesT, VecT].from_coords(
+                start_coord=start_shrunk, end_coord=end_shrunk, unit=self.unit  # type: ignore
+            )
+        elif mode == "expand":
+            start_expanded = tuple(
+                (b[0] - o) // s * s + o for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+            end_expanded = tuple(
+                ((b[1] - o - EPS) // s + 1) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+            return BoundingBoxND[SlicesT, VecT].from_coords(
+                start_coord=start_expanded, end_coord=end_expanded, unit=self.unit  # type: ignore
+            )
+        else:
+            raise ValueError(f"`mode` must be either 'shrink' or 'expand'; received {mode}")
 
     def pformat(self, resolution: Optional[VecT] = None) -> str:  # pragma: no cover
         """Returns a pretty formatted string for this bounding box at the given
@@ -401,11 +461,22 @@ class BoundingBoxND(Generic[SlicesT, VecT]):
     def intersects(
         self: BoundingBoxND[SlicesT, VecT], other: BoundingBoxND[SlicesT, VecT]
     ) -> bool:  # pragma: no cover
+        assert self.unit == other.unit
         """Returns whether two BoundingBoxNDs intersect."""
         return all(
             (self_b[1] > other_b[0] and other_b[1] > self_b[0])
             for self_b, other_b in zip(self.bounds, other.bounds)
         )
+
+    def intersection(
+        self: BoundingBoxND[SlicesT, VecT], other: BoundingBoxND[SlicesT, VecT]
+    ) -> BoundingBoxND[SlicesT, VecT]:  # pragma: no cover
+        assert self.unit == other.unit
+        """Returns the intersection of two BoundingBoxNDs."""
+        bounds = tuple(
+            (max(s[0], o[0]), min(s[1], o[1])) for s, o in zip(self.bounds, other.bounds)
+        )
+        return BoundingBoxND[SlicesT, VecT](bounds=bounds, unit=self.unit)
 
 
 BoundingCube = BoundingBoxND[Slices3D, Vec3D]  # 3D version of BoundingBoxND
@@ -420,5 +491,5 @@ def pad_bcube(
     pad: Sequence[Union[float, tuple[float, float]]],
     pad_resolution: Vec3D,
 ) -> BoundingCube:  # pragma: no cover # no logic
-    result = bcube.pad(pad=pad, resolution=pad_resolution)
+    result = bcube.padded(pad=pad, resolution=pad_resolution)
     return result

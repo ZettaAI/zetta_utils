@@ -67,6 +67,11 @@ def test_build_layer(datastore_emulator):
 
 def test_read_write_simple(datastore_emulator) -> None:
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
+
+    # non existing key
+    with pytest.raises(KeyError):
+        _ = layer["key"]
+
     layer["key"] = "val"
     assert layer["key"] == "val"
 

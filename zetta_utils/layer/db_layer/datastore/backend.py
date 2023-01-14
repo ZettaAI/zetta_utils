@@ -22,10 +22,7 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
         end = start + len(col_keys)
         row_data = {}
         for j, ent in enumerate(entities[start:end]):
-            try:
-                row_data[col_keys[j]] = ent["value"]
-            except TypeError:
-                row_data[col_keys[j]] = None
+            row_data[col_keys[j]] = ent[col_keys[j]]
         data.append(row_data)
     return data
 
@@ -59,8 +56,11 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
                     keys.append(child_key)
                 else:
                     entity = Entity(key=child_key, exclude_from_indexes=(col_key,))
-                    entity[col_key] = data[i][col_key]
-                    entities.append(entity)
+                    try:
+                        entity[col_key] = data[i][col_key]
+                        entities.append(entity)
+                    except KeyError:
+                        ...
         return keys if data is None else entities
 
     @property

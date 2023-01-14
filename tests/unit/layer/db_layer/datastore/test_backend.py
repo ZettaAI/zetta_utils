@@ -65,7 +65,7 @@ def test_build_layer(datastore_emulator):
     assert isinstance(layer.backend, DatastoreBackend)
 
 
-def test_read_write(datastore_emulator) -> None:
+def test_read_write_simple(datastore_emulator) -> None:
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
     layer["key"] = "val"
     assert layer["key"] == "val"
@@ -77,7 +77,31 @@ def test_read_write(datastore_emulator) -> None:
     assert entity["value"] == "val"
 
 
+def test_read_write(datastore_emulator) -> None:
+    layer = build_datastore_layer(datastore_emulator, datastore_emulator)
+
+    row_keys = ["key0", "key1"]
+    idx_user = (row_keys, ("col0", "col1"))
+
+    data_user = [
+        {"col0": "val0", "col1": "val1"},
+        {"col0": "val0"},
+    ]
+
+    layer[idx_user] = data_user
+
+    data = layer[idx_user]
+    assert data == data_user
+
+
 def test_clone(datastore_emulator) -> None:
     backend = DatastoreBackend(datastore_emulator, project=datastore_emulator)
     backend2 = backend.clone(namespace=backend.namespace, project=backend.project)
     assert isinstance(backend2, DatastoreBackend)
+
+    with pytest.raises(KeyError):
+        backend2 = backend.clone(
+            namespace=backend.namespace,
+            project=backend.project,
+            some_key="test",
+        )

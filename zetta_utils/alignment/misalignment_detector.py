@@ -37,19 +37,21 @@ class MisalignmentDetector:
             data_in /= 255.0
 
             result = model(data_in.to(device))
-            src_zcxy_mask = tensor_ops.mask.filter_cc(
-                (src_zcxy == 127) + (src_zcxy == 0),
-                mode="keep_large",
-                thr=100,
-            )
-            tgt_zcxy_mask = tensor_ops.mask.filter_cc(
-                (tgt_zcxy == 127) + (tgt_zcxy == 0),
-                mode="keep_large",
-                thr=100,
-            )
-            result[src_zcxy_mask] = 1
-            result[tgt_zcxy_mask] = 1
+
             result = einops.rearrange(result, "Z C X Y -> C X Y Z")
+            src_mask = tensor_ops.mask.filter_cc(
+                (src == 127) + (src == 0),
+                mode="keep_large",
+                thr=1000,
+            )
+            tgt_mask = tensor_ops.mask.filter_cc(
+                (tgt == 127) + (tgt == 0),
+                mode="keep_large",
+                thr=1000,
+            )
+            result[src_mask] = 1
+            result[tgt_mask] = 1
+
             assert result.shape[0] == 1
 
             assert result.max() <= 1, "Final layer of misalignment detector assumed to be sigmoid"

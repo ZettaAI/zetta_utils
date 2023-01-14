@@ -1,40 +1,53 @@
-#Z_OFFSET: -1
-#TGT_OFFSET: [0, 0, #Z_OFFSET]
+// RUN ACED BLOCK 
 
-#Z_ADJUSTER: {
-	"@type": "VolumetricIndexTranslator"
-	offset: [0, 0, #Z_OFFSET]
-	resolution: [4, 4, 30]
-}
-
-#FOLDER: "large_test_x8"
-
+// INPUTS
 #IMG_PATH:      "gs://zfish_unaligned/coarse_x0/raw_masked"
 #BASE_ENC_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x0"
 #ENC_PATH:      "gs://zfish_unaligned/coarse_x0/encodings_masked"
 
-#FIELD_FWD_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/field_\(#Z_OFFSET)_fwd"
-#FIELD_BWD_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/field_\(#Z_OFFSET)_bwd"
-
-#IMG_WARPED_PATH:      "gs://sergiy_exp/aced/zfish/\(#FOLDER)/img_warped_\(#Z_OFFSET)"
-#WARPED_BASE_ENC_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/base_enc_warped_\(#Z_OFFSET)"
-
+// MODELS
 #BASE_ENC_MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
+#MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
-#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
+//OUTPUTS
+#FOLDER: "gs://sergiy_exp/aced/zfish/joint_test_x0"
 
-//#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr1.1_x4/last.ckpt.static-1.12.1+cu102-model.jit"
-//#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr2.1_x0/last.ckpt.static-1.12.1+cu102-model.jit"
-#MISD_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/misd_\(#Z_OFFSET)_with_zeros_v3"
+#PAIR_SUFFIX:     "_debug_x5"
+#FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd\(#PAIR_SUFFIX)"
+#FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd\(#PAIR_SUFFIX)"
+
+#IMGS_WARPED_PATH:      "\(#FOLDER)/imgs_warped\(#PAIR_SUFFIX)"
+#WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped\(#PAIR_SUFFIX)"
+#MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments\(#PAIR_SUFFIX)"
+
+#MATCH_OFFSETS_PATH: "\(#FOLDER)/match_offsets"
 
 #BCUBE: {
 	"@type": "BoundingCube"
-	start_coord: [0, 0, 3002]
-	end_coord: [1024, 1024, 3012]
+	start_coord: [0, 0, 1]
+	end_coord: [1024, 1024, 2]
 	resolution: [512, 512, 30]
 }
 
 #STAGES: [
+	#STAGE_TMPL & {
+		dst_resolution: [512, 512, 30]
+
+		operation: fn: {
+			sm:       100
+			num_iter: 250
+		}
+		chunk_size: [1024, 1024, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [256, 256, 30]
+
+		operation: fn: {
+			sm:       100
+			num_iter: 250
+		}
+		chunk_size: [1024, 1024, 1]
+	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 30]
 
@@ -102,7 +115,8 @@
 		info_chunk_size: [1024, 1024, 1]
 		info_field_overrides: {
 			"num_channels": 2
-			"data_type":    "float32"
+			encoding:       "zfpc"
+			data_type:      "float32"
 		}
 		on_info_exists: "overwrite"
 	}
@@ -114,53 +128,7 @@
 		info_chunk_size: [1024, 1024, 1]
 		info_field_overrides: {
 			"num_channels": 2
-			"data_type":    "float32"
-		}
-		on_info_exists: "overwrite"
-	}
-}
-
-#CF_FWD_FLOW: #CF_FLOW_TMPL & {
-	dst: path: #FIELD_FWD_PATH
-	tmp_layer_dir: "\(#FIELD_FWD_PATH)/tmp"
-	tgt_offset: [0, 0, #Z_OFFSET]
-}
-
-#CF_BWD_FLOW: #CF_FLOW_TMPL & {
-	dst: path: #FIELD_BWD_PATH
-	tmp_layer_dir: "\(#FIELD_BWD_PATH)/tmp"
-	src_offset: [0, 0, #Z_OFFSET]
-}
-
-#INV_FLOW: {
-	"@type": "build_chunked_apply_flow"
-	operation: {
-		"@type": "VolumetricCallableOperation"
-		fn: {
-			"@type": "invert_field"
-			"@mode": "partial"
-		}
-	}
-	chunker: {
-		"@type": "VolumetricIndexChunker"
-		chunk_size: [1024, 1024, 1]
-	}
-	idx: {
-		"@type": "VolumetricIndex"
-		bcube:   #BCUBE
-		resolution: [32, 32, 30]
-	}
-	field: {
-		"@type": "build_cv_layer"
-		path:    #FIELD_FWD_PATH
-	}
-	dst: {
-		"@type":             "build_cv_layer"
-		path:                #FIELD_BWD_PATH
-		info_reference_path: #IMG_PATH
-		info_chunk_size: [1024, 1024, 1]
-		info_field_overrides: {
-			"num_channels": 2
+			encoding:       "zfpc"
 			"data_type":    "float32"
 		}
 		on_info_exists: "overwrite"
@@ -169,36 +137,32 @@
 
 #WARP_FLOW_TMPL: {
 	"@type": "build_warp_flow"
-	mode:    "img"
+	mode:    _
 	crop: [256, 256, 0]
 	chunk_size: [2048, 2048, 1]
 	bcube:          #BCUBE
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	src: {
-		"@type": "build_cv_layer"
-		path:    _
-		index_adjs: [#Z_ADJUSTER]
+		"@type":         "build_cv_layer"
+		path:            _
+		read_postprocs?: _
+		index_adjs?:     _ | *[]
 	}
 	field: {
 		"@type": "build_cv_layer"
-		path:    #FIELD_BWD_PATH
+		path:    _
 	}
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                _
-		info_reference_path: _
+		info_reference_path: #IMG_PATH
 		info_chunk_size: [1024, 1024, 1]
-		on_info_exists: "overwrite"
+		on_info_exists:  "expect_same"
+		write_preprocs?: _
 	}
 }
 
-#IMG_WARP_FLOW: #WARP_FLOW_TMPL & {
-	src: path:                #IMG_PATH
-	dst: path:                #IMG_WARPED_PATH
-	dst: info_reference_path: #IMG_PATH
-}
-
-#ENCODE_FLOW: {
+#ENCODE_FLOW_TMPL: {
 	"@type": "build_chunked_apply_flow"
 	operation: {
 		"@type": "VolumetricCallableOperation"
@@ -219,18 +183,18 @@
 	}
 	src: {
 		"@type": "build_cv_layer"
-		path:    #IMG_WARPED_PATH
+		path:    _
 	}
 	dst: {
 		"@type":             "build_cv_layer"
-		path:                #WARPED_BASE_ENC_PATH
+		path:                _
 		info_reference_path: #IMG_PATH
 		info_chunk_size: [1024, 1024, 1]
 		on_info_exists: "overwrite"
 	}
 }
 
-#MISD_FLOW: {
+#MISD_FLOW_TMPL: {
 	"@type": "build_chunked_apply_flow"
 	operation: {
 		"@type": "VolumetricCallableOperation"
@@ -255,25 +219,60 @@
 	}
 	tgt: {
 		"@type": "build_cv_layer"
-		path:    #WARPED_BASE_ENC_PATH
+		path:    _
 	}
 	dst: {
 		"@type":             "build_cv_layer"
-		path:                #MISD_PATH
+		path:                _
 		info_reference_path: #IMG_PATH
 		info_chunk_size: [1024, 1024, 1]
 		on_info_exists: "overwrite"
 	}
 }
 
+#Z_OFFSETS: [-1]
+#JOINT_OFFSET_FLOW: {
+	"@type": "mazepa.concurrent_flow"
+	stages: [
+		for z_offset in #Z_OFFSETS {
+			"@type": "mazepa.concurrent_flow"
+			stages: [
+				{
+					"@type": "mazepa.seq_flow"
+					stages: [
+						#CF_FLOW_TMPL & {
+							dst: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
+							tmp_layer_dir: "\(#FIELDS_BWD_PATH)/\(z_offset)/tmp"
+							src_offset: [0, 0, z_offset]
+						},
+						#WARP_FLOW_TMPL & {
+							mode: "img"
+							src: path: #IMG_PATH
+							src: index_adjs: [
+								{
+									"@type": "VolumetricIndexTranslator"
+									offset: [0, 0, z_offset]
+									resolution: [4, 4, 30]
+								},
+							]
+							field: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
+							dst: path:   "\(#IMGS_WARPED_PATH)/\(z_offset)"
+						},
+					]
+				},
+			]
+		},
+	]
+}
+
 "@type":        "mazepa.execute_on_gcp_with_sqs"
 max_task_retry: 2
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x20"
+worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x30"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     15
+worker_replicas:     8
 worker_lease_sec:    10
 batch_gap_sleep_sec: 3
 
@@ -282,15 +281,9 @@ local_test: false
 target: {
 	"@type": "mazepa.seq_flow"
 	stages: [
-		{
-			"@type": "mazepa.concurrent_flow"
-			stages: [
-				//#CF_FWD_FLOW,
-				//#CF_BWD_FLOW,
-			]
-		},
-		//#IMG_WARP_FLOW,
-		//#ENCODE_FLOW,
-		#MISD_FLOW,
+		#JOINT_OFFSET_FLOW,
+		//#MATCH_OFFSETS_FLOW,
+		//#RELAX_FLOW,
+		//#JOINT_POST_ALIGN_FLOW,
 	]
 }

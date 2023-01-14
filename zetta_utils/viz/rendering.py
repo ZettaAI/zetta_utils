@@ -19,7 +19,6 @@ from typeguard import typechecked
 from zetta_utils import tensor_ops
 from zetta_utils.tensor_typing import Tensor
 
-matplotlib.use("Agg")
 DEFAULT_COMMON_KWARGS = {
     "dpi": 80,
     "figsize": (8, 8),

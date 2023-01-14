@@ -192,7 +192,11 @@ def _build_spec(field: Any) -> Any:  # pylint: disable=too-many-branches,too-man
                     result = ComparablePartial(registered_fn, **fn_kwargs)
                 elif mode == "lazy":
                     fn_kwargs[PARSE_KEY] = field[PARSE_KEY]
-                    result = ComparablePartial(build, spec=fn_kwargs)
+                    def wrapped(**kwargs):
+                        joint_kwargs = {**fn_kwargs, **kwargs}
+                        return build(spec=joint_kwargs)
+                    result = wrapped
+                    #result = ComparablePartial(build, spec=joing_kwargs)
                 else:
                     raise ValueError(f"Unsupported mode: {mode}")
 
@@ -204,6 +208,6 @@ def _build_spec(field: Any) -> Any:  # pylint: disable=too-many-branches,too-man
             else:
                 result = {k: _build_spec(v) for k, v in field.items()}
     else:
-        raise ValueError(f"Unsupported type: {type(field)}")
+        result = field
 
     return result

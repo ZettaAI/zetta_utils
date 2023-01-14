@@ -14,7 +14,7 @@ def align_with_online_finetuner(
     tgt,  # (C, X, Y, Z)
     sm=100,
     num_iter=200,
-    lr=3e-1,
+    lr=5e-2,
     src_field=None,  # (C, X, Y, Z)
 ):
     assert src.shape == tgt.shape

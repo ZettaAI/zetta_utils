@@ -12,38 +12,6 @@ from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from ..typing import IntVecND, VecND
 
-P = ParamSpec("P")
-
-
-class TensorOp(Protocol[P]):
-    """
-    Protocol which defines what it means for a funciton to be a tensor_op:
-    it must take a `data` argument of TensorTypeVar type, and return a
-    tensor of the same type.
-    """
-
-    def __call__(self, data: TensorTypeVar, *args: P.args, **k: P.kwargs) -> TensorTypeVar:
-        ...
-
-
-OpT = TypeVar("OpT", bound=TensorOp)
-
-
-def skip_on_empty_data(fn: OpT) -> OpT:
-    """
-    Decorator that ensures early exit for a tensor op when `data` is 0.
-    """
-
-    def wrapped(data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
-        if (data != 0).sum() == 0:
-            result = data
-        else:
-            result = fn(data, *args, **kwargs)
-        return result
-
-    return wrapped  # type: ignore
-
-
 @builder.register("rearrange")
 def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
     return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops

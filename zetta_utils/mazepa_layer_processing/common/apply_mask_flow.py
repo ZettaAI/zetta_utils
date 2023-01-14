@@ -26,7 +26,7 @@ def _apply_mask(
 
 
 @builder.register(
-    "build_apply_mask_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size"]
+    "build_apply_mask_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size", "crop"]
 )
 def build_apply_mask_flow(
     chunk_size: IntVec3D,
@@ -36,10 +36,12 @@ def build_apply_mask_flow(
     dst: VolumetricLayer,
     mask: VolumetricLayer,
     fill_value: float = 0.0,
+    crop: IntVec3D = IntVec3D(0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=_apply_mask,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
+        crop=crop,
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),

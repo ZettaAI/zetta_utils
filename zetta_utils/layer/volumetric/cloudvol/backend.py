@@ -61,7 +61,7 @@ class PrecomputedInfoSpec:
             result = {**reference_info, **field_overrides}
             if self.chunk_size is not None:
                 for e in result["scales"]:
-                    e["chunk_sizes"] = [tuple(self.chunk_size)]
+                    e["chunk_sizes"] = [list(self.chunk_size)]
 
             # if self.ensure_scales is not None:  # pragma: no cover
             #    raise NotImplementedError()

@@ -7,6 +7,7 @@ from __future__ import annotations
 import copy
 import gc
 import io
+import gc
 
 import cv2
 import matplotlib
@@ -18,7 +19,7 @@ from typeguard import typechecked
 from zetta_utils import tensor_ops
 from zetta_utils.tensor_typing import Tensor
 
-# matplotlib.use("Agg")
+matplotlib.use("Agg")
 DEFAULT_COMMON_KWARGS = {
     "dpi": 80,
     "figsize": (8, 8),
@@ -87,7 +88,7 @@ def get_img_from_fig(
     # plt.pause(.1) #TODO: investigate the effects
     buf.seek(0)
     img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
-    # buf.close()
+    buf.close()
     img = cv2.imdecode(img_arr, 1)  # pylint: disable=E1101
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # pylint: disable=E1101
 

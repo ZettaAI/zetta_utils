@@ -1,4 +1,4 @@
-#Z_OFFSET: -2
+#Z_OFFSET: -1
 #TGT_OFFSET: [0, 0, #Z_OFFSET]
 
 #Z_ADJUSTER: {
@@ -7,7 +7,7 @@
 	resolution: [4, 4, 30]
 }
 
-#FOLDER: "large_test_x7"
+#FOLDER: "large_test_x8"
 
 #IMG_PATH:      "gs://zfish_unaligned/coarse_x0/raw_masked"
 #BASE_ENC_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x0"
@@ -18,17 +18,19 @@
 
 #IMG_WARPED_PATH:      "gs://sergiy_exp/aced/zfish/\(#FOLDER)/img_warped_\(#Z_OFFSET)"
 #WARPED_BASE_ENC_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/base_enc_warped_\(#Z_OFFSET)"
-#MISD_PATH:            "gs://sergiy_exp/aced/zfish/\(#FOLDER)/misd_\(#Z_OFFSET)"
 
 #BASE_ENC_MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
 
-#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr1.0_x0/last.ckpt.static-1.12.1+cu102-model.jit"
-//#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr1.1_x0/last.ckpt.static-1.12.1+cu102-model.jit"
+#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
+
+//#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr1.1_x4/last.ckpt.static-1.12.1+cu102-model.jit"
+//#MISD_MODEL_PATH: "gs://sergiy_exp/training_artifacts/aced_misd/thr2.1_x0/last.ckpt.static-1.12.1+cu102-model.jit"
+#MISD_PATH: "gs://sergiy_exp/aced/zfish/\(#FOLDER)/misd_\(#Z_OFFSET)_with_zeros_v3"
 
 #BCUBE: {
 	"@type": "BoundingCube"
 	start_coord: [0, 0, 3002]
-	end_coord: [1024, 1024, 3015]
+	end_coord: [1024, 1024, 3012]
 	resolution: [512, 512, 30]
 }
 
@@ -266,13 +268,13 @@
 
 "@type":        "mazepa.execute_on_gcp_with_sqs"
 max_task_retry: 2
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x10"
+worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x20"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     10
-worker_lease_sec:    40
+worker_replicas:     15
+worker_lease_sec:    10
 batch_gap_sleep_sec: 3
 
 local_test: false
@@ -284,11 +286,11 @@ target: {
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				//#CF_FWD_FLOW,
-				#CF_BWD_FLOW,
+				//#CF_BWD_FLOW,
 			]
 		},
-		#IMG_WARP_FLOW,
-		#ENCODE_FLOW,
+		//#IMG_WARP_FLOW,
+		//#ENCODE_FLOW,
 		#MISD_FLOW,
 	]
 }

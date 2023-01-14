@@ -75,7 +75,6 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
         return _get_data_from_entities(idx, entities)
 
     def write(self, idx: DBIndex, data: DataT):
-        print(self.client.project)
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
 

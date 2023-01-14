@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Iterable, Sequence, Tuple, Union
+from typing import Iterable, List, Sequence, Tuple, Union
 
 from typeguard import typechecked
 from typing_extensions import TypeAlias
@@ -13,24 +13,24 @@ from .. import Backend, DataProcessor, DataWithIndexProcessor, IndexAdjuster
 from . import ColIndex, DataT, DBFrontend, DBIndex, RowDataT, ValueT
 
 DBLayer: TypeAlias = Layer[
-    Backend,
+    Backend[DBIndex, DataT],
     DBIndex,  # Backend Index
     DataT,  # BackendData
     str,  # UserReadIndexT0
     ValueT,  # UserReadDataT0
     str,  # UserWriteIndexT0
     ValueT,  # UserWriteDataT0
-    Sequence[str],
+    List[str],
     Sequence[ValueT],
-    Sequence[str],
+    List[str],
     Sequence[ValueT],
     Tuple[str, ColIndex],
     RowDataT,
     Tuple[str, ColIndex],
     RowDataT,
-    Tuple[Sequence[str], ColIndex],
+    Tuple[List[str], ColIndex],
     DataT,
-    Tuple[Sequence[str], ColIndex],
+    Tuple[List[str], ColIndex],
     DataT,
 ]
 

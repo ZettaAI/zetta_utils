@@ -14,9 +14,6 @@ def test_write_scalar(mocker) -> None:
     layer["key"] = "val"
     assert backend.write.call_args.kwargs["data"] == [{"value": "val"}]
 
-    layer["key"] = ["val"]  # this should not work but does
-    assert backend.write.call_args.kwargs["data"] == [{"value": "val"}]
-
 
 def test_write_list(mocker) -> None:
     backend = mocker.MagicMock()

@@ -17,7 +17,7 @@ def datastore_emulator():
     client = docker.from_env()
     project = "test-project"
     options = "--no-store-on-disk --consistency=1.0 --host-port=0.0.0.0:8081"
-    command = f"gcloud beta emulators datastore start {options}"
+    command = f"gcloud --project {project} beta emulators datastore start {options}"
 
     container = client.containers.run(
         "motemen/datastore-emulator:alpine",
@@ -28,15 +28,21 @@ def datastore_emulator():
         network_mode="host",
     )
 
-    timeout = 300
+    timeout = 120
     stop_time = 1
     elapsed_time = 0
     while container.status != "running" and elapsed_time < timeout:
         time.sleep(stop_time)
         elapsed_time += stop_time
-        container.reload()
+        try:
+            container.reload()
+        except docker.errors.DockerException:
+            break
 
-    time.sleep(1)
+    if container.status != "running":
+        raise RuntimeError(f"Container failed to start: {container.logs()}")
+
+    time.sleep(2)  # wait for emulator to boot
 
     endpoint = "localhost:8081"
 
@@ -60,10 +66,6 @@ def test_build_layer(datastore_emulator):
 
 
 def test_write_scalar(datastore_emulator) -> None:
-    # datastore_emulator = "test-project"
-    # endpoint = "127.0.0.1:8081"
-    # os.environ["DATASTORE_EMULATOR_HOST"] = endpoint
-
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
     layer["key"] = "val"
     assert layer["key"] == "val"

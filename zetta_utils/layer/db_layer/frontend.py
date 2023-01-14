@@ -97,7 +97,7 @@ class DBFrontend(Frontend):
     @overload
     def convert_write(
         self,
-        idx_user: Sequence[str],
+        idx_user: List[str],
         data_user: Sequence[ValueT],
     ) -> Tuple[DBIndex, DataT]:
         ...
@@ -113,7 +113,7 @@ class DBFrontend(Frontend):
     @overload
     def convert_write(
         self,
-        idx_user: Tuple[Sequence[str], ColIndex],
+        idx_user: Tuple[List[str], ColIndex],
         data_user: DataT,
     ) -> Tuple[DBIndex, DataT]:
         ...

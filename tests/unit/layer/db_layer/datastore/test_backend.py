@@ -42,7 +42,7 @@ def datastore_emulator():
     if container.status != "running":
         raise RuntimeError(f"Container failed to start: {container.logs()}")
 
-    time.sleep(2)  # wait for emulator to boot
+    time.sleep(5)  # wait for emulator to boot
 
     endpoint = "localhost:8081"
 
@@ -65,7 +65,19 @@ def test_build_layer(datastore_emulator):
     assert isinstance(layer.backend, DatastoreBackend)
 
 
-def test_write_scalar(datastore_emulator) -> None:
+def test_read_write(datastore_emulator) -> None:
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
     layer["key"] = "val"
     assert layer["key"] == "val"
+
+    parent_key = layer.backend.client.key("Row", "key")  # type: ignore
+    child_key = layer.backend.client.key("Column", "value", parent=parent_key)  # type: ignore
+
+    entity = layer.backend.client.get(child_key)  # type: ignore
+    assert entity["value"] == "val"
+
+
+def test_clone(datastore_emulator) -> None:
+    backend = DatastoreBackend(datastore_emulator, project=datastore_emulator)
+    backend2 = backend.clone(namespace=backend.namespace, project=backend.project)
+    assert isinstance(backend2, DatastoreBackend)

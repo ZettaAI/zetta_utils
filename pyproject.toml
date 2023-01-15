@@ -92,6 +92,9 @@ training = [
     "pytorch-lightning == 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",
 ]
+datastore = [
+    "google-cloud-datastore"
+]
 docs = [
     "piccolo_theme >= 0.11.1",
     "sphinx-autodoc-typehints >= 1.19.0",
@@ -125,6 +128,7 @@ modules = [ # put them in order of dependencies
     "zetta_utils[cloudvol,alignment]",
     "zetta_utils[training,mazepa]",
     "zetta_utils[mazepa_addons]",
+    "zetta_utils[datastore]",
 ]
 all = [
     "zetta_utils[modules,docs,test]",

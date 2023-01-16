@@ -10,7 +10,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#FOLDER:          "gs://sergiy_exp/aced/zfish/joint_test_x0"
+#FOLDER:          "gs://sergiy_exp/aced/zfish/joint_test_x5"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
 #FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
 
@@ -18,18 +18,48 @@
 #WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped"
 #MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments"
 
-#MATCH_OFFSETS_PATH:      "\(#FOLDER)/match_offsets"
-#AFIELD_PATH:             "\(#FOLDER)/afield"
-#IMG_ALIGNED_PATH:        "\(#FOLDER)/img_aligned"
-#IMG_MASK_PATH:           "\(#FOLDER)/img_mask"
-#IMG_ALIGNED_MASKED_PATH: "\(#FOLDER)/img_aligned_masked"
+#MATCH_OFFSETS_PATH: "\(#FOLDER)/match_offsets"
+
+#AFIELD_PATH:             "\(#FOLDER)/afield\(#RELAXATION_SUFFIX)"
+#IMG_ALIGNED_PATH:        "\(#FOLDER)/img_aligned\(#RELAXATION_SUFFIX)"
+#IMG_MASK_PATH:           "\(#FOLDER)/img_mask\(#RELAXATION_SUFFIX)"
+#IMG_ALIGNED_MASKED_PATH: "\(#FOLDER)/img_aligned_masked\(#RELAXATION_SUFFIX)"
+
+#CF_INFO_CHUNK: [512, 512, 1]
+#AFIELD_INFO_CHUNK: [512, 512, 1]
+#RELAXATION_CHUNK: [512, 512, 11]
+#RELAXATION_ITER: 150
+#RELAXATION_RIG:  10
+
+#RELAXATION_SUFFIX: "_fixboth_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)"
 
 #BCUBE: {
 	"@type": "BoundingCube"
-	start_coord: [0, 0, 0]
-	end_coord: [1024, 1024, 10]
+	start_coord: [0, 0, 68] // 57
+	end_coord: [1024, 1024, 100]
 	resolution: [512, 512, 30]
 }
+
+#COARSE_STAGES: [
+	#STAGE_TMPL & {
+		dst_resolution: [512, 512, 30]
+
+		operation: fn: {
+			sm:       100
+			num_iter: 250
+		}
+		chunk_size: [1024, 1024, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [256, 256, 30]
+
+		operation: fn: {
+			sm:       100
+			num_iter: 250
+		}
+		chunk_size: [1024, 1024, 1]
+	},
+]
 
 #STAGES: [
 	#STAGE_TMPL & {
@@ -37,7 +67,7 @@
 
 		operation: fn: {
 			sm:       100
-			num_iter: 300
+			num_iter: 200
 		}
 		chunk_size: [1024, 1024, 1]
 	},
@@ -96,10 +126,11 @@
 		"@type":             "build_cv_layer"
 		path:                _
 		info_reference_path: #IMG_PATH
-		info_chunk_size: [1024, 1024, 1]
+		info_chunk_size:     #CF_INFO_CHUNK
 		info_field_overrides: {
-			"num_channels": 2
-			"data_type":    "float32"
+			num_channels: 2
+			data_type:    "float32"
+			encoding:     "zfpc"
 		}
 		on_info_exists: "expect_same"
 	}
@@ -110,8 +141,9 @@
 		info_reference_path: #IMG_PATH
 		info_chunk_size: [1024, 1024, 1]
 		info_field_overrides: {
-			"num_channels": 2
-			"data_type":    "float32"
+			num_channels: 2
+			data_type:    "float32"
+			encoding:     "zfpc"
 		}
 		on_info_exists: "expect_same"
 	}
@@ -295,10 +327,13 @@
 }
 
 #RELAX_FLOW: {
-	"@type": "build_aced_relaxation_flow"
-	fix:     "both"
-	bcube:   #BCUBE
-	chunk_size: [1024, 1024, 10]
+	"@type":         "build_aced_relaxation_flow"
+	fix:             "both"
+	num_iter:        #RELAXATION_ITER
+	rigidity_weight: #RELAXATION_RIG
+
+	bcube:      #BCUBE
+	chunk_size: #RELAXATION_CHUNK
 	crop: [64, 64, 0]
 	dst_resolution: [32, 32, 30]
 	match_offsets: {
@@ -318,11 +353,12 @@
 		path:                #AFIELD_PATH
 		info_reference_path: #IMG_PATH
 		info_field_overrides: {
-			"num_channels": 2
-			"data_type":    "float32"
+			num_channels: 2
+			data_type:    "float32"
+			encoding:     "zfpc"
 		}
-		info_chunk_size: [1024, 1024, 1]
-		on_info_exists: "expect_same"
+		info_chunk_size: #AFIELD_INFO_CHUNK
+		on_info_exists:  "expect_same"
 	}
 }
 
@@ -337,24 +373,6 @@
 	mask: {
 		"@type": "build_cv_layer"
 		path:    #IMG_MASK_PATH
-		read_postprocs: [
-			{
-				"@type": "rearrange"
-				"@mode": "lazy"
-				pattern: "C X Y Z -> Z C X Y"
-			},
-			{
-				"@type": "filter_cc"
-				"@mode": "lazy"
-				mode:    "keep_large"
-				thr:     2000
-			},
-			{
-				"@type": "rearrange"
-				"@mode": "lazy"
-				pattern: "Z C X Y -> C X Y Z"
-			},
-		]
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -404,24 +422,23 @@
 }
 "@type":        "mazepa.execute_on_gcp_with_sqs"
 max_task_retry: 2
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x23"
+worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x31"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     10
-worker_lease_sec:    10
-batch_gap_sleep_sec: 3
+worker_replicas:     15
+worker_lease_sec:    40
+batch_gap_sleep_sec: 1
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "mazepa.seq_flow"
 	stages: [
-		//#JOINT_OFFSET_FLOW,
-		//#MATCH_OFFSETS_FLOW,
+		#JOINT_OFFSET_FLOW,
+		#MATCH_OFFSETS_FLOW,
 		//#RELAX_FLOW,
 		//#JOINT_POST_ALIGN_FLOW,
-		#APPLY_MASK_FLOW,
 	]
 }

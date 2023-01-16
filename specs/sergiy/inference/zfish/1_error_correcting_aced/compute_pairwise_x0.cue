@@ -1,4 +1,4 @@
-// RUN ACED BLOCK 
+// RUN ACED BLOCK
 
 // INPUTS
 #IMG_PATH:      "gs://zfish_unaligned/coarse_x0/raw_masked"

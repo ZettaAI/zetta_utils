@@ -9,4 +9,13 @@ def serialize(obj):  # pragma: no cover
 
 
 def deserialize(s):  # pragma: no cover
-    return dill.loads(zlib.decompress(codecs.decode(s.encode(), "base64")))
+    try:
+        result = dill.loads(zlib.decompress(codecs.decode(s.encode(), "base64")))
+    except AttributeError as e:
+        raise RuntimeError(
+            "Encountered and `AttributeError` during desearilization, indicating a mismatch "
+            "between serialization and deserialization environments. "
+            "This is most likely caused by worker image being _not_ up to date, "
+            "or scheduler and worker are running different python versions."
+        ) from e
+    return result

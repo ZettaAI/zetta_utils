@@ -77,25 +77,14 @@ class ComputeFieldOperation:
         tgt_data, tgt_field_data, _ = translation_adjusted_download(
             src=tgt, field=tgt_field, idx=idx_input_padded
         )
-        """
-        src_data = src[idx_input_padded]
-        tgt_data = tgt[idx_input_padded]
-        """
 
         if tgt_field_data is not None:
-            # tgt_field_data = tgt_field[idx_input_padded]
             tgt_data = einops.rearrange(
                 einops.rearrange(tgt_field_data, "C X Y Z -> Z C X Y")  # type: ignore
                 .field()
                 .from_pixels()(einops.rearrange(tgt_data, "C X Y Z -> Z C X Y")),
                 "Z C X Y -> C X Y Z",
             )
-        """
-        if src_field is not None:
-            src_field_data: Optional[torch.Tensor] = src_field[idx_input_padded]
-        else:
-            src_field_data = None
-        """
 
         result_raw = self.fn(
             src=src_data,
@@ -104,7 +93,6 @@ class ComputeFieldOperation:
         )
         result = tensor_ops.crop(result_raw, crop=self.output_crop_px)
 
-        # TODO: debug. The sign may be wrong
         result[0] += src_translation[0]
         result[1] += src_translation[1]
         dst[idx] = result
@@ -162,7 +150,7 @@ class ComputeFieldFlowSchema:
             src_field.index_adjs.insert(
                 0, VolumetricIndexTranslator(offset=src_offset, resolution=input_resolution)
             )
-        breakpoint()
+        #breakpoint()
         cf_flow = build_chunked_apply_flow(
             operation=self.operation,  # type: ignore
             chunker=self.chunker,

@@ -12,7 +12,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "coarse_no_iter_x0"
+#PAIRWISE_SUFFIX: "coarse_512nm_x0"
 #FOLDER:          "gs://sergiy_exp/aced/zfish/\(#PAIRWISE_SUFFIX)"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
 #FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
@@ -79,18 +79,8 @@
 		dst_resolution: [512, 512, 30]
 
 		operation: fn: {
-			sm:       400
-			num_iter: 2
-			lr:       0.015
-		}
-		chunk_size: [1024, 1024, 1]
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [256, 256, 30]
-
-		operation: fn: {
-			sm:       200
-			num_iter: 0
+			sm:       250
+			num_iter: 500
 			lr:       0.015
 		}
 		chunk_size: [1024, 1024, 1]
@@ -116,7 +106,7 @@
 
 #CF_FLOW_TMPL: {
 	"@type":     "build_compute_field_multistage_flow"
-	bcube:       #BCUBE
+	bcube:       #NOT_FIRST_SECTION_BCUBE
 	stages:      #STAGES
 	src_offset?: _
 	tgt_offset?: _

@@ -118,15 +118,23 @@ def build(
     else:
         final_spec = parsing.cue.load(path)
 
-    if PARSE_KEY in final_spec:
-        result = _build_spec(final_spec)
+    if isinstance(final_spec, dict):
+        if PARSE_KEY in final_spec:
+            result = _build_spec(final_spec)
+        else:
+            if must_build:
+                raise ValueError(
+                    f"Builder target is a dict that doesn't contain '{PARSE_KEY}' "
+                    "whille `must_build == True`."
+                )
+            result = final_spec
     else:
+        assert isinstance(final_spec, list)
         if must_build:
             raise ValueError(
-                f"The spec to be parsed doesn't contain '{PARSE_KEY}' "
-                "whille `must_build == True`."
+                "Builder target is a list whille `must_build == True`."
             )
-        result = final_spec
+        result = _build_spec(final_spec)
 
     return result
 

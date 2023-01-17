@@ -162,7 +162,7 @@ class ComputeFieldFlowSchema:
             src_field.index_adjs.insert(
                 0, VolumetricIndexTranslator(offset=src_offset, resolution=input_resolution)
             )
-
+        breakpoint()
         cf_flow = build_chunked_apply_flow(
             operation=self.operation,  # type: ignore
             chunker=self.chunker,

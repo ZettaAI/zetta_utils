@@ -114,9 +114,9 @@ class ComputeFieldMultistageFlowSchema:
             else:
                 stage_src_field = prev_dst
 
+            stage_src.index_adjs.insert(0, VolumetricIndexTranslator(offset=src_offset_in_unit))
             stage_tgt.index_adjs.insert(0, VolumetricIndexTranslator(offset=tgt_offset_in_unit))
 
-            stage_src.index_adjs.insert(0, VolumetricIndexTranslator(offset=src_offset_in_unit))
 
             stage_cf_flow_schema = ComputeFieldFlowSchema(
                 chunk_size=stage.chunk_size,

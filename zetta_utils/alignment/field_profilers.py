@@ -19,7 +19,7 @@ def profile_field2d_percentile(
         low_l = percentile(nonzero_field, low)
         high_l = percentile(nonzero_field, high)
         mid = 0.5 * (low_l + high_l)
-        result = (int(mid[0]), int(mid[1]))
+        result = (int(mid[1]), int(mid[1]))
 
     return result
 

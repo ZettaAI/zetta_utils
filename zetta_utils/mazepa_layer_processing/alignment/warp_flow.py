@@ -6,12 +6,15 @@ import attrs
 import einops
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
-from zetta_utils import alignment, builder, mazepa, tensor_ops
+from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.bcube import BoundingCube
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
     VolumetricLayer,
+)
+from zetta_utils.mazepa_layer_processing.alignment.common import (
+    translation_adjusted_download,
 )
 from zetta_utils.typing import IntVec3D, Vec3D
 
@@ -39,17 +42,12 @@ class WarpOperation:
         field: VolumetricLayer,
     ) -> None:
         idx_padded = idx.pad(self.crop)
-        field_data_raw = field[idx_padded]
-        xy_translation = alignment.field_profilers.profile_field2d_percentile(field_data_raw)
 
-        field_data_raw[0] -= xy_translation[0]
-        field_data_raw[1] -= xy_translation[1]
-
-        # TODO: big question mark. In zetta_utils everything is XYZ, so I don't understand
-        # why the order is flipped here. It worked for a corgie field, so leaving it in.
-        # Pls help:
-        src_idx_padded = idx_padded.translate((xy_translation[1], xy_translation[0], 0))
-        src_data_raw = src[src_idx_padded]
+        src_data_raw, field_data_raw, _ = translation_adjusted_download(
+            src=src,
+            field=field,
+            idx=idx_padded,
+        )
 
         src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
         field_data = einops.rearrange(

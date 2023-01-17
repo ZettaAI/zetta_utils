@@ -39,23 +39,42 @@ def align_with_online_finetuner(
         tgt = tgt.cuda()
         src_field = src_field.cuda()
 
-    if src.abs().sum() == 0 or tgt.abs().sum() == 0:
+    if src.abs().sum() == 0 or tgt.abs().sum() == 0 or num_iter <= 0:
         result = src_field
     else:
         sm_keys = {
             "src": [
                 {
-                    "name": "src",
+                    "name": "src_zeros",
                     "fm": 0,
-                    "mask_value": 1e-5,
-                    "binarization": {"strat": "neq", "value": 0},
+                    "mask_value": 1e-3,
+                    "binarization": {"strat": "eq", "value": 0},
                 }
             ],
             "tgt": [
                 {
-                    "name": "tgt",
+                    "name": "tgt_zeros",
                     "fm": 0,
-                    "binarization": {"strat": "neq", "value": 0},
+                    "mask_value": 1e-3,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+        }
+        mse_keys = {
+            "src": [
+                {
+                    "name": "src_zeros",
+                    "fm": 0,
+                    "mask_value": 0,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+            "tgt": [
+                {
+                    "name": "tgt_zeros",
+                    "fm": 0,
+                    "mask_value": 0,
+                    "binarization": {"strat": "eq", "value": 0},
                 }
             ],
         }
@@ -76,6 +95,7 @@ def align_with_online_finetuner(
                 opt_res_coarsness=0,
                 normalize=True,
                 sm_keys_to_apply=sm_keys,
+                mse_keys_to_apply=mse_keys,
             )
     result = einops.rearrange(result, "1 C X Y -> C X Y 1")
     result = result.detach().to(orig_device)

@@ -149,6 +149,7 @@ target-version = ["py38","py39"]
 
 [tool.pylint.format]
 max-line-length = 99
+max-locals=25
 
 [tool.pylint.basic]
 good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn,q,cf,tb'''

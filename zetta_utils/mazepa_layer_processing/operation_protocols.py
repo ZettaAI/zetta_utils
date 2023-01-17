@@ -45,6 +45,7 @@ class ComputeFieldOpProtocol(Protocol[R_co]):
         src: VolumetricLayer,
         tgt: VolumetricLayer,
         src_field: Optional[VolumetricLayer] = None,
+        tgt_field: Optional[VolumetricLayer] = None,
     ) -> R_co:
         ...
 
@@ -55,6 +56,7 @@ class ComputeFieldOpProtocol(Protocol[R_co]):
         src: VolumetricLayer,
         tgt: VolumetricLayer,
         src_field: Optional[VolumetricLayer] = None,
+        tgt_field: Optional[VolumetricLayer] = None,
     ) -> mazepa.Task[R_co]:
         ...
 

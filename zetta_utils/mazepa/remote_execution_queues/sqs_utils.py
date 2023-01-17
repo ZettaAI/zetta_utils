@@ -39,7 +39,7 @@ def get_queue_url(queue_name: str, region_name, endpoint_url: Optional[str] = No
     return result
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def receive_msgs(
     queue_name: str,
     region_name: str,
@@ -85,7 +85,7 @@ def receive_msgs(
     return result
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def send_msg(
     queue_name: str,
     region_name: str,
@@ -126,7 +126,7 @@ def delete_received_msgs(msgs: list[SQSReceivedMsg]) -> None:
             )
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_by_receipt_handle(
     receipt_handle: str,
     queue_name: str,
@@ -143,7 +143,7 @@ def delete_msg_by_receipt_handle(
     )
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def change_message_visibility(
     receipt_handle: str,
     visibility_timeout: int,
@@ -162,7 +162,7 @@ def change_message_visibility(
     )
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_batch(
     receipt_handles: list[str],
     queue_name: str,

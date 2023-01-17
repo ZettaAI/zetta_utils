@@ -1,20 +1,87 @@
 {
     "@type": "mazepa.execute_on_gcp_with_sqs",
-    "max_task_retry": 2,
-    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x23",
+    "max_task_retry": 3,
+    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x46",
     "worker_resources": {
         "memory": "18560Mi",
         "nvidia.com/gpu": "1"
     },
-    "worker_replicas": 10,
-    "worker_lease_sec": 10,
-    "batch_gap_sleep_sec": 3,
+    "worker_replicas": 20,
+    "worker_lease_sec": 20,
+    "batch_gap_sleep_sec": 1,
     "local_test": false,
     "target": {
         "@type": "mazepa.seq_flow",
         "stages": [
             {
-                "@type": "mazepa.concurrent_flow",
+                "@type": "build_aced_relaxation_flow",
+                "fix": "both",
+                "num_iter": 150,
+                "rigidity_weight": 20,
+                "bcube": {
+                    "@type": "BoundingCube",
+                    "start_coord": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "end_coord": [
+                        1024,
+                        1024,
+                        5
+                    ],
+                    "resolution": [
+                        512,
+                        512,
+                        30
+                    ]
+                },
+                "chunk_size": [
+                    512,
+                    512,
+                    5
+                ],
+                "crop": [
+                    64,
+                    64,
+                    0
+                ],
+                "dst_resolution": [
+                    32,
+                    32,
+                    30
+                ],
+                "match_offsets": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/match_offsets"
+                },
+                "field_zm1": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/fields_fwd/-1"
+                },
+                "field_zm2": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/fields_fwd/-2"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/afield_fixboth_iter150_rig20_z0-5",
+                    "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img",
+                    "info_field_overrides": {
+                        "num_channels": 2,
+                        "data_type": "float32",
+                        "encoding": "zfpc"
+                    },
+                    "info_chunk_size": [
+                        512,
+                        512,
+                        1
+                    ],
+                    "on_info_exists": "expect_same"
+                }
+            },
+            {
+                "@type": "mazepa.seq_flow",
                 "stages": [
                     {
                         "@type": "mazepa.seq_flow",
@@ -23,18 +90,29 @@
                                 "@type": "mazepa.concurrent_flow",
                                 "stages": [
                                     {
-                                        "@type": "build_compute_field_multistage_flow",
+                                        "@type": "build_warp_flow",
+                                        "mode": "img",
+                                        "crop": [
+                                            256,
+                                            256,
+                                            0
+                                        ],
+                                        "chunk_size": [
+                                            2048,
+                                            2048,
+                                            1
+                                        ],
                                         "bcube": {
                                             "@type": "BoundingCube",
                                             "start_coord": [
                                                 0,
                                                 0,
-                                                10
+                                                0
                                             ],
                                             "end_coord": [
                                                 1024,
                                                 1024,
-                                                20
+                                                5
                                             ],
                                             "resolution": [
                                                 512,
@@ -42,150 +120,55 @@
                                                 30
                                             ]
                                         },
-                                        "stages": [
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    128,
-                                                    128,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 100,
-                                                        "num_iter": 300
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    1024,
-                                                    1024,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    64,
-                                                    64,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 150
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    32,
-                                                    32,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 75
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            }
-                                        ],
-                                        "src_offset": [
-                                            0,
-                                            0,
-                                            -1
+                                        "dst_resolution": [
+                                            32,
+                                            32,
+                                            30
                                         ],
                                         "src": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
+                                            "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
                                         },
-                                        "tgt": {
+                                        "field": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
+                                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/afield_fixboth_iter150_rig20_z0-5"
                                         },
                                         "dst": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-1",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
+                                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_aligned_fixboth_iter150_rig20_z0-5",
+                                            "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img",
                                             "info_chunk_size": [
                                                 1024,
                                                 1024,
                                                 1
                                             ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        },
-                                        "tmp_layer_dir": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-1/tmp",
-                                        "tmp_layer_factory": {
-                                            "@type": "build_cv_layer",
-                                            "@mode": "partial",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
                                             "on_info_exists": "expect_same"
                                         }
                                     },
                                     {
-                                        "@type": "build_compute_field_multistage_flow",
+                                        "@type": "build_warp_flow",
+                                        "mode": "mask",
+                                        "crop": [
+                                            256,
+                                            256,
+                                            0
+                                        ],
+                                        "chunk_size": [
+                                            2048,
+                                            2048,
+                                            1
+                                        ],
                                         "bcube": {
                                             "@type": "BoundingCube",
                                             "start_coord": [
                                                 0,
                                                 0,
-                                                10
+                                                0
                                             ],
                                             "end_coord": [
                                                 1024,
                                                 1024,
-                                                20
+                                                5
                                             ],
                                             "resolution": [
                                                 512,
@@ -193,170 +176,54 @@
                                                 30
                                             ]
                                         },
-                                        "stages": [
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    128,
-                                                    128,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 100,
-                                                        "num_iter": 300
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    1024,
-                                                    1024,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    64,
-                                                    64,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 150
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    32,
-                                                    32,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 75
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            }
-                                        ],
-                                        "tgt_offset": [
-                                            0,
-                                            0,
-                                            -1
+                                        "dst_resolution": [
+                                            32,
+                                            32,
+                                            30
                                         ],
                                         "src": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
+                                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/match_offsets",
+                                            "read_postprocs": [
+                                                {
+                                                    "@type": "compare",
+                                                    "@mode": "partial",
+                                                    "mode": "==",
+                                                    "value": 0
+                                                }
+                                            ]
                                         },
-                                        "tgt": {
+                                        "field": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
+                                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/afield_fixboth_iter150_rig20_z0-5"
                                         },
                                         "dst": {
                                             "@type": "build_cv_layer",
-                                            "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_fwd/-1",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
+                                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_mask_fixboth_iter150_rig20_z0-5",
+                                            "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img",
                                             "info_chunk_size": [
                                                 1024,
                                                 1024,
                                                 1
                                             ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        },
-                                        "tmp_layer_dir": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_fwd/-1/tmp",
-                                        "tmp_layer_factory": {
-                                            "@type": "build_cv_layer",
-                                            "@mode": "partial",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
+                                            "on_info_exists": "expect_same",
+                                            "write_preprocs": [
+                                                {
+                                                    "@type": "to_uint8",
+                                                    "@mode": "partial"
+                                                }
+                                            ]
                                         }
                                     }
                                 ]
                             },
                             {
-                                "@type": "build_warp_flow",
-                                "mode": "img",
-                                "crop": [
-                                    256,
-                                    256,
-                                    0
-                                ],
+                                "@type": "build_apply_mask_flow",
                                 "chunk_size": [
                                     2048,
                                     2048,
                                     1
                                 ],
-                                "bcube": {
-                                    "@type": "BoundingCube",
-                                    "start_coord": [
-                                        0,
-                                        0,
-                                        10
-                                    ],
-                                    "end_coord": [
-                                        1024,
-                                        1024,
-                                        20
-                                    ],
-                                    "resolution": [
-                                        512,
-                                        512,
-                                        30
-                                    ]
-                                },
                                 "dst_resolution": [
                                     32,
                                     32,
@@ -364,687 +231,95 @@
                                 ],
                                 "src": {
                                     "@type": "build_cv_layer",
-                                    "path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "index_adjs": [
-                                        {
-                                            "@type": "VolumetricIndexTranslator",
-                                            "offset": [
-                                                0,
-                                                0,
-                                                -1
-                                            ],
-                                            "resolution": [
-                                                4,
-                                                4,
-                                                30
-                                            ]
-                                        }
-                                    ]
+                                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_aligned_fixboth_iter150_rig20_z0-5"
                                 },
-                                "field": {
+                                "mask": {
                                     "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-1"
+                                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_mask_fixboth_iter150_rig20_z0-5"
                                 },
                                 "dst": {
                                     "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/imgs_warped/-1",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
+                                    "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_aligned_masked_fixboth_iter150_rig20_z0-5",
+                                    "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
+                                },
+                                "bcube": {
+                                    "@type": "BoundingCube",
+                                    "start_coord": [
+                                        0,
+                                        0,
                                         1
                                     ],
-                                    "on_info_exists": "expect_same"
-                                }
-                            },
-                            {
-                                "@type": "build_chunked_apply_flow",
-                                "operation": {
-                                    "@type": "VolumetricCallableOperation",
-                                    "fn": {
-                                        "@type": "BaseEncoder",
-                                        "model_path": "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
-                                    },
-                                    "crop": [
-                                        32,
-                                        32,
-                                        0
-                                    ]
-                                },
-                                "chunker": {
-                                    "@type": "VolumetricIndexChunker",
-                                    "chunk_size": [
-                                        2048,
-                                        2048,
-                                        1
-                                    ]
-                                },
-                                "idx": {
-                                    "@type": "VolumetricIndex",
-                                    "bcube": {
-                                        "@type": "BoundingCube",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            10
-                                        ],
-                                        "end_coord": [
-                                            1024,
-                                            1024,
-                                            20
-                                        ],
-                                        "resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ]
-                                    },
+                                    "end_coord": [
+                                        1024,
+                                        1024,
+                                        5
+                                    ],
                                     "resolution": [
-                                        32,
-                                        32,
+                                        512,
+                                        512,
                                         30
                                     ]
-                                },
-                                "src": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/imgs_warped/-1"
-                                },
-                                "dst": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/base_encs_warped/-1",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
-                                        1
-                                    ],
-                                    "on_info_exists": "overwrite"
-                                }
-                            },
-                            {
-                                "@type": "build_chunked_apply_flow",
-                                "operation": {
-                                    "@type": "VolumetricCallableOperation",
-                                    "fn": {
-                                        "@type": "MisalignmentDetector",
-                                        "model_path": "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
-                                    },
-                                    "crop": [
-                                        32,
-                                        32,
-                                        0
-                                    ]
-                                },
-                                "chunker": {
-                                    "@type": "VolumetricIndexChunker",
-                                    "chunk_size": [
-                                        2048,
-                                        2048,
-                                        1
-                                    ]
-                                },
-                                "idx": {
-                                    "@type": "VolumetricIndex",
-                                    "bcube": {
-                                        "@type": "BoundingCube",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            10
-                                        ],
-                                        "end_coord": [
-                                            1024,
-                                            1024,
-                                            20
-                                        ],
-                                        "resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ]
-                                    },
-                                    "resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ]
-                                },
-                                "src": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zfish_unaligned/coarse_x0/base_enc_x0"
-                                },
-                                "tgt": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/base_encs_warped/-1"
-                                },
-                                "dst": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/misalignments/-1",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
-                                        1
-                                    ],
-                                    "on_info_exists": "overwrite"
                                 }
                             }
                         ]
                     },
                     {
-                        "@type": "mazepa.seq_flow",
-                        "stages": [
-                            {
-                                "@type": "mazepa.concurrent_flow",
-                                "stages": [
-                                    {
-                                        "@type": "build_compute_field_multistage_flow",
-                                        "bcube": {
-                                            "@type": "BoundingCube",
-                                            "start_coord": [
-                                                0,
-                                                0,
-                                                10
-                                            ],
-                                            "end_coord": [
-                                                1024,
-                                                1024,
-                                                20
-                                            ],
-                                            "resolution": [
-                                                512,
-                                                512,
-                                                30
-                                            ]
-                                        },
-                                        "stages": [
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    128,
-                                                    128,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 100,
-                                                        "num_iter": 300
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    1024,
-                                                    1024,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    64,
-                                                    64,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 150
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    32,
-                                                    32,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 75
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            }
-                                        ],
-                                        "src_offset": [
-                                            0,
-                                            0,
-                                            -2
-                                        ],
-                                        "src": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
-                                        },
-                                        "tgt": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
-                                        },
-                                        "dst": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-2",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        },
-                                        "tmp_layer_dir": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-2/tmp",
-                                        "tmp_layer_factory": {
-                                            "@type": "build_cv_layer",
-                                            "@mode": "partial",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        }
-                                    },
-                                    {
-                                        "@type": "build_compute_field_multistage_flow",
-                                        "bcube": {
-                                            "@type": "BoundingCube",
-                                            "start_coord": [
-                                                0,
-                                                0,
-                                                10
-                                            ],
-                                            "end_coord": [
-                                                1024,
-                                                1024,
-                                                20
-                                            ],
-                                            "resolution": [
-                                                512,
-                                                512,
-                                                30
-                                            ]
-                                        },
-                                        "stages": [
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    128,
-                                                    128,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 100,
-                                                        "num_iter": 300
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    1024,
-                                                    1024,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    64,
-                                                    64,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 150
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            },
-                                            {
-                                                "@type": "ComputeFieldStage",
-                                                "dst_resolution": [
-                                                    32,
-                                                    32,
-                                                    30
-                                                ],
-                                                "crop": 64,
-                                                "operation": {
-                                                    "@type": "VolumetricCallableOperation",
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 25,
-                                                        "num_iter": 75
-                                                    },
-                                                    "crop": [
-                                                        128,
-                                                        128,
-                                                        0
-                                                    ]
-                                                },
-                                                "chunk_size": [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            }
-                                        ],
-                                        "tgt_offset": [
-                                            0,
-                                            0,
-                                            -2
-                                        ],
-                                        "src": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
-                                        },
-                                        "tgt": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://zfish_unaligned/coarse_x0/encodings_masked"
-                                        },
-                                        "dst": {
-                                            "@type": "build_cv_layer",
-                                            "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_fwd/-2",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        },
-                                        "tmp_layer_dir": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_fwd/-2/tmp",
-                                        "tmp_layer_factory": {
-                                            "@type": "build_cv_layer",
-                                            "@mode": "partial",
-                                            "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                            "info_chunk_size": [
-                                                1024,
-                                                1024,
-                                                1
-                                            ],
-                                            "info_field_overrides": {
-                                                "num_channels": 2,
-                                                "data_type": "float32"
-                                            },
-                                            "on_info_exists": "expect_same"
-                                        }
-                                    }
-                                ]
-                            },
-                            {
-                                "@type": "build_warp_flow",
-                                "mode": "img",
-                                "crop": [
-                                    256,
-                                    256,
-                                    0
-                                ],
-                                "chunk_size": [
-                                    2048,
-                                    2048,
-                                    1
-                                ],
-                                "bcube": {
-                                    "@type": "BoundingCube",
-                                    "start_coord": [
-                                        0,
-                                        0,
-                                        10
-                                    ],
-                                    "end_coord": [
-                                        1024,
-                                        1024,
-                                        20
-                                    ],
-                                    "resolution": [
-                                        512,
-                                        512,
-                                        30
-                                    ]
+                        "@type": "build_apply_mask_flow",
+                        "chunk_size": [
+                            2048,
+                            2048,
+                            1
+                        ],
+                        "dst_resolution": [
+                            32,
+                            32,
+                            30
+                        ],
+                        "src": {
+                            "@type": "build_cv_layer",
+                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_aligned_fixboth_iter150_rig20_z0-5"
+                        },
+                        "mask": {
+                            "@type": "build_cv_layer",
+                            "path": "gs://zfish_unaligned/precoarse_x0/base_enc_x0",
+                            "read_postprocs": [
+                                {
+                                    "@type": "compare",
+                                    "@mode": "lazy",
+                                    "mode": "==",
+                                    "value": 0
                                 },
-                                "dst_resolution": [
-                                    32,
-                                    32,
-                                    30
-                                ],
-                                "src": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "index_adjs": [
-                                        {
-                                            "@type": "VolumetricIndexTranslator",
-                                            "offset": [
-                                                0,
-                                                0,
-                                                -2
-                                            ],
-                                            "resolution": [
-                                                4,
-                                                4,
-                                                30
-                                            ]
-                                        }
-                                    ]
-                                },
-                                "field": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/fields_bwd/-2"
-                                },
-                                "dst": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/imgs_warped/-2",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
-                                        1
-                                    ],
-                                    "on_info_exists": "expect_same"
+                                {
+                                    "@type": "filter_cc",
+                                    "@mode": "lazy",
+                                    "mode": "keep_large",
+                                    "thr": 1000
                                 }
-                            },
-                            {
-                                "@type": "build_chunked_apply_flow",
-                                "operation": {
-                                    "@type": "VolumetricCallableOperation",
-                                    "fn": {
-                                        "@type": "BaseEncoder",
-                                        "model_path": "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
-                                    },
-                                    "crop": [
-                                        32,
-                                        32,
-                                        0
-                                    ]
-                                },
-                                "chunker": {
-                                    "@type": "VolumetricIndexChunker",
-                                    "chunk_size": [
-                                        2048,
-                                        2048,
-                                        1
-                                    ]
-                                },
-                                "idx": {
-                                    "@type": "VolumetricIndex",
-                                    "bcube": {
-                                        "@type": "BoundingCube",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            10
-                                        ],
-                                        "end_coord": [
-                                            1024,
-                                            1024,
-                                            20
-                                        ],
-                                        "resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ]
-                                    },
-                                    "resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ]
-                                },
-                                "src": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/imgs_warped/-2"
-                                },
-                                "dst": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/base_encs_warped/-2",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
-                                        1
-                                    ],
-                                    "on_info_exists": "overwrite"
-                                }
-                            },
-                            {
-                                "@type": "build_chunked_apply_flow",
-                                "operation": {
-                                    "@type": "VolumetricCallableOperation",
-                                    "fn": {
-                                        "@type": "MisalignmentDetector",
-                                        "model_path": "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
-                                    },
-                                    "crop": [
-                                        32,
-                                        32,
-                                        0
-                                    ]
-                                },
-                                "chunker": {
-                                    "@type": "VolumetricIndexChunker",
-                                    "chunk_size": [
-                                        2048,
-                                        2048,
-                                        1
-                                    ]
-                                },
-                                "idx": {
-                                    "@type": "VolumetricIndex",
-                                    "bcube": {
-                                        "@type": "BoundingCube",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            10
-                                        ],
-                                        "end_coord": [
-                                            1024,
-                                            1024,
-                                            20
-                                        ],
-                                        "resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ]
-                                    },
-                                    "resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ]
-                                },
-                                "src": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zfish_unaligned/coarse_x0/base_enc_x0"
-                                },
-                                "tgt": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/base_encs_warped/-2"
-                                },
-                                "dst": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://sergiy_exp/aced/zfish/joint_test_x0/misalignments/-2",
-                                    "info_reference_path": "gs://zfish_unaligned/coarse_x0/raw_masked",
-                                    "info_chunk_size": [
-                                        1024,
-                                        1024,
-                                        1
-                                    ],
-                                    "on_info_exists": "overwrite"
-                                }
-                            }
-                        ]
+                            ]
+                        },
+                        "dst": {
+                            "@type": "build_cv_layer",
+                            "path": "gs://sergiy_exp/aced/zfish/one_pass_test_x0/img_aligned_masked_fixboth_iter150_rig20_z0-5",
+                            "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
+                        },
+                        "bcube": {
+                            "@type": "BoundingCube",
+                            "start_coord": [
+                                0,
+                                0,
+                                0
+                            ],
+                            "end_coord": [
+                                1024,
+                                1024,
+                                1
+                            ],
+                            "resolution": [
+                                512,
+                                512,
+                                30
+                            ]
+                        }
                     }
                 ]
             }

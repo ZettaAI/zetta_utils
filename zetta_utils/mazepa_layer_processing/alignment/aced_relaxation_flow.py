@@ -13,6 +13,7 @@ from zetta_utils.typing import IntVec3D, Vec3D
 
 from ..common import build_chunked_volumetric_callable_flow_schema
 
+
 @builder.register(
     "build_get_match_offsets_flow",
     cast_to_vec3d=["dst_resolution"],
@@ -41,6 +42,7 @@ def build_get_match_offsets_flow(
         misd_mask_zm3=misd_mask_zm3,
     )
     return flow
+
 
 @builder.register(
     "build_aced_relaxation_flow",

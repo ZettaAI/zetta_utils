@@ -1,3 +1,4 @@
+import copy
 import os
 from typing import Callable, List, Optional
 
@@ -5,12 +6,11 @@ import attrs
 
 from zetta_utils import builder, mazepa
 from zetta_utils.bcube import BoundingCube
-from zetta_utils.layer.volumetric import VolumetricLayer
+from zetta_utils.layer.volumetric import VolumetricIndexTranslator, VolumetricLayer
 from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from ..operation_protocols import ComputeFieldOpProtocol
-from .compute_field_flow import ComputeFieldFlowSchema
+from .compute_field_flow import ComputeFieldFlowSchema, ComputeFieldOperation
 
 
 @builder.register(
@@ -19,7 +19,7 @@ from .compute_field_flow import ComputeFieldFlowSchema
 @attrs.mutable
 class ComputeFieldStage:
     dst_resolution: Vec3D
-    operation: ComputeFieldOpProtocol
+    operation: ComputeFieldOperation
     chunk_size: IntVec3D
 
     crop: int = 0
@@ -32,7 +32,10 @@ class ComputeFieldStage:
         return self.operation.get_input_resolution(self.dst_resolution)
 
 
-@builder.register("ComputeFieldMultistageFlowSchema", cast_to_vec3d=["tgt_offset", "src_offset"])
+@builder.register(
+    "ComputeFieldMultistageFlowSchema",
+    cast_to_vec3d=["tgt_offset", "src_offset", "offset_resolution"],
+)
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldMultistageFlowSchema:
@@ -45,11 +48,33 @@ class ComputeFieldMultistageFlowSchema:
         bcube: BoundingCube,
         dst: VolumetricLayer,
         src_field: Optional[VolumetricLayer] = None,
+        tgt_field: Optional[VolumetricLayer] = None,
         src: Optional[VolumetricLayer] = None,
         tgt: Optional[VolumetricLayer] = None,
         tgt_offset: Vec3D = Vec3D(0, 0, 0),
         src_offset: Vec3D = Vec3D(0, 0, 0),
+        offset_resolution: Optional[Vec3D] = None,
     ):
+        if tgt_offset != Vec3D(0, 0, 0) or src_offset != Vec3D(0, 0, 0):
+            if offset_resolution is None:
+                raise Exception(
+                    "Must provide `offset_resolution` when either `src_offset` or `tgt_offset` "
+                    "are given."
+                )
+            src_offset_in_unit = src_offset * offset_resolution
+            tgt_offset_in_unit = tgt_offset * offset_resolution
+        else:
+            src_offset_in_unit = Vec3D(0, 0, 0)
+            tgt_offset_in_unit = Vec3D(0, 0, 0)
+
+        if tgt_field is not None:
+            tgt_field = copy.deepcopy(tgt_field)
+            tgt_field.index_adjs.insert(0, VolumetricIndexTranslator(offset=tgt_offset_in_unit))
+
+        if src_field is not None:
+            src_field = copy.deepcopy(src_field)
+            src_field.index_adjs.insert(0, VolumetricIndexTranslator(offset=src_offset_in_unit))
+
         prev_dst: Optional[VolumetricLayer] = None
 
         for i, stage in enumerate(self.stages):
@@ -73,21 +98,25 @@ class ComputeFieldMultistageFlowSchema:
                 stage_dst = self.tmp_layer_factory(path=stage_dst_path)
 
             if stage.src is not None:
-                stage_src = stage.src
+                stage_src = copy.deepcopy(stage.src)
             else:
                 assert src is not None
-                stage_src = src
+                stage_src = copy.deepcopy(src)
 
             if stage.tgt is not None:
-                stage_tgt = stage.tgt
+                stage_tgt = copy.deepcopy(stage.tgt)
             else:
                 assert tgt is not None
-                stage_tgt = tgt
+                stage_tgt = copy.deepcopy(tgt)
 
             if prev_dst is None:
                 stage_src_field = src_field
             else:
                 stage_src_field = prev_dst
+
+            stage_tgt.index_adjs.insert(0, VolumetricIndexTranslator(offset=tgt_offset_in_unit))
+
+            stage_src.index_adjs.insert(0, VolumetricIndexTranslator(offset=src_offset_in_unit))
 
             stage_cf_flow_schema = ComputeFieldFlowSchema(
                 chunk_size=stage.chunk_size,
@@ -100,8 +129,7 @@ class ComputeFieldMultistageFlowSchema:
                 src=stage_src,
                 tgt=stage_tgt,
                 src_field=stage_src_field,
-                tgt_offset=tgt_offset,
-                src_offset=src_offset,
+                tgt_field=tgt_field,
             )
             yield mazepa.Dependency()
 
@@ -109,7 +137,8 @@ class ComputeFieldMultistageFlowSchema:
 
 
 @builder.register(
-    "build_compute_field_multistage_flow", cast_to_vec3d=["tgt_offset", "src_offset"]
+    "build_compute_field_multistage_flow",
+    cast_to_vec3d=["tgt_offset", "src_offset", "offset_resolution"],
 )
 def build_compute_field_multistage_flow(
     stages: List[ComputeFieldStage],
@@ -118,10 +147,12 @@ def build_compute_field_multistage_flow(
     bcube: BoundingCube,
     dst: VolumetricLayer,
     src_field: Optional[VolumetricLayer] = None,
+    tgt_field: Optional[VolumetricLayer] = None,
     src: Optional[VolumetricLayer] = None,
     tgt: Optional[VolumetricLayer] = None,
     tgt_offset: Vec3D = Vec3D(0, 0, 0),
     src_offset: Vec3D = Vec3D(0, 0, 0),
+    offset_resolution: Optional[Vec3D] = None,
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,
@@ -132,9 +163,11 @@ def build_compute_field_multistage_flow(
         bcube=bcube,
         dst=dst,
         src_field=src_field,
+        tgt_field=tgt_field,
         src=src,
         tgt=tgt,
         tgt_offset=tgt_offset,
         src_offset=src_offset,
+        offset_resolution=offset_resolution,
     )
     return flow

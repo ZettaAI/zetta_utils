@@ -29,7 +29,7 @@ def translate_volumetric_index(
 @attrs.mutable
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
     offset: Vec3D
-    resolution: Vec3D
+    resolution: Vec3D = Vec3D(1, 1, 1)
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(

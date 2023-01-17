@@ -51,6 +51,7 @@ tensor-ops = [
     "connected-components-3d >= 3.10.0",
     "fastremap >= 1.12.2",
     "einops >= 0.4.1",
+    "torchfields >= 0.1.2",
 ]
 viz = [
     "zetta_utils[tensor_ops]",

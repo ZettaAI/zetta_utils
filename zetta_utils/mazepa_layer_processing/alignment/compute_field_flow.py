@@ -142,15 +142,21 @@ class ComputeFieldFlowSchema:
         if tgt_field is not None:
             tgt_field = copy.deepcopy(tgt_field)
             tgt_field.index_adjs.insert(
-                0, VolumetricIndexTranslator(offset=tgt_offset, resolution=input_resolution)
+                0,
+                VolumetricIndexTranslator(
+                    offset=tgt_offset, resolution=input_resolution
+                ),
             )
 
         if src_field is not None:
             src_field = copy.deepcopy(src_field)
             src_field.index_adjs.insert(
-                0, VolumetricIndexTranslator(offset=src_offset, resolution=input_resolution)
+                0,
+                VolumetricIndexTranslator(
+                    offset=src_offset, resolution=input_resolution
+                ),
             )
-        #breakpoint()
+        # breakpoint()
         cf_flow = build_chunked_apply_flow(
             operation=self.operation,  # type: ignore
             chunker=self.chunker,

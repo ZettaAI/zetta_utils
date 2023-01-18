@@ -1,3 +1,4 @@
+#pylint: disable=no-self-use
 from __future__ import annotations
 
 import attrs
@@ -14,6 +15,9 @@ def test_make_taskable_operation_cls() -> None:
     @taskable_operation_cls
     @attrs.mutable
     class DummyTaskCls:
+        def get_operation_name(self) -> str:
+            return "Dummy"
+
         def __call__(self) -> str:
             return "result"
 
@@ -46,3 +50,11 @@ def test_make_unbound_taskable_operation() -> None:
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
     assert task.upkeep_settings.perform_upkeep
+
+
+def test_make_lambda_taskable_operation() -> None:
+    dummy_task_fn = taskable_operation(time_bound=False)(lambda: None)
+
+    assert isinstance(dummy_task_fn, TaskableOperation)
+    task = dummy_task_fn.make_task()
+    assert isinstance(task, Task)

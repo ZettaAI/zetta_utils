@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, List, Optional, Protocol, Set, runtime_checkable
+from typing import Dict, List, Optional, Set, Union
 
 import attrs
 from typeguard import typechecked
@@ -16,26 +17,43 @@ from .tasks import Task
 logger = log.get_logger("mazepa")
 
 
-@runtime_checkable
-class ExecutionState(Protocol):  # pragma: no cover
+@attrs.frozen
+class ProgressReport:
+    submitted_count: int
+    completed_count: int
+
+
+class ExecutionState(ABC):  # pragma: no cover
     raise_on_failed_task: bool = True
 
-    def __init__(self, ongoing_flows: List[Flow]):
+    @abstractmethod
+    def get_ongoing_flows(self) -> List[Flow]:
         ...
 
+    @abstractmethod
+    def __init__(self, ongoing_flows: List[Flow], raise_on_failed_task: bool = True):
+        ...
+
+    @abstractmethod
     def get_ongoing_flow_ids(self) -> List[str]:
         ...
 
+    @abstractmethod
     def update_with_task_outcomes(self, task_outcomes: Dict[str, TaskOutcome]):
         ...
 
+    @abstractmethod
     def get_task_batch(self, max_batch_len: int = ...) -> list[Task]:
+        ...
+
+    @abstractmethod
+    def get_progress_reports(self) -> Dict[str, ProgressReport]:
         ...
 
 
 @typechecked
 @attrs.mutable
-class InMemoryExecutionState:
+class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instance-attributes
     """
     ``ExecutionState`` implementation that keeps progress and dependency information
     as in-memory data structures.
@@ -50,16 +68,35 @@ class InMemoryExecutionState:
     ongoing_children_map: Dict[str, Set[str]] = attrs.field(
         init=False, factory=lambda: defaultdict(set)
     )
-    ongoing_tasks: Dict[str, Task] = attrs.field(init=False, factory=dict)
+    ongoing_tasks_dict: Dict[str, Task] = attrs.field(init=False, factory=dict)
     raise_on_failed_task: bool = True
     completed_ids: Set[str] = attrs.field(
         init=False,
         factory=set,
     )
     dependency_map: Dict[str, Set[str]] = attrs.field(init=False, factory=lambda: defaultdict(set))
+    submitted_counts: Dict[str, int] = attrs.field(init=False, factory=lambda: defaultdict(int))
+    completed_counts: Dict[str, int] = attrs.field(init=False, factory=lambda: defaultdict(int))
 
     def __attrs_post_init__(self):
         self.ongoing_flows_dict = {e.id_: e for e in self.ongoing_flows}
+
+    def get_ongoing_flows(self) -> List[Flow]:
+        return self.ongoing_flows
+
+    def get_progress_reports(self) -> Dict[str, ProgressReport]:
+        result: Dict[str, ProgressReport] = {}
+        for op_name, submitted_count in self.submitted_counts.items():
+            completed_count = 0
+            if op_name in self.completed_counts:
+                completed_count = self.completed_counts[op_name]
+
+            result[op_name] = ProgressReport(
+                submitted_count=submitted_count,
+                completed_count=completed_count,
+            )
+
+        return result
 
     def get_ongoing_flow_ids(self) -> List[str]:
         """
@@ -75,21 +112,20 @@ class InMemoryExecutionState:
 
         :param task_ids: IDs of tasks indicated as completed.
         """
-
         for task_id, outcome in task_outcomes.items():
-            if task_id in self.ongoing_tasks:
-                self.ongoing_tasks[task_id].outcome = outcome
+            if task_id in self.ongoing_tasks_dict:
+                self.ongoing_tasks_dict[task_id].outcome = outcome
 
                 if outcome.exception is None:
-                    self.ongoing_tasks[task_id].status = TaskStatus.SUCCEEDED
+                    self.ongoing_tasks_dict[task_id].status = TaskStatus.SUCCEEDED
                 else:
-                    self.ongoing_tasks[task_id].status = TaskStatus.FAILED
+                    self.ongoing_tasks_dict[task_id].status = TaskStatus.FAILED
                     if self.raise_on_failed_task:
                         logger.error(f"Task traceback: {outcome.traceback_text}")
                         raise MazepaExecutionFailure("Task failure.")
                 self._update_completed_id(task_id)
 
-    def get_task_batch(self, max_batch_len: int = 10000) -> List[Task]:
+    def get_task_batch(self, max_batch_len: int = 10000) -> list[Task]:
         """
         Generate the next batch of tasks that are ready for execution.
 
@@ -99,21 +135,35 @@ class InMemoryExecutionState:
         """
 
         result = []  # type: List[Task]
-        for flow in list(self.ongoing_flows_dict.values()):
-            while (
-                flow.id_ in self.ongoing_flows_dict
-                and len(self.dependency_map[flow.id_]) == 0
-                and len(result) < max_batch_len
-                and flow.id_ not in self.ongoing_exhausted_flow_ids
-            ):
-                flow_batch = self._get_batch_from_flow(flow)
-                result.extend(flow_batch)
+        candidate_flows = list(self.ongoing_flows_dict.values())
+        while len(candidate_flows) > 0:
+            newly_added_flows = []
+            for flow in candidate_flows:
+                while (
+                    flow.id_ in self.ongoing_flows_dict
+                    and len(self.dependency_map[flow.id_]) == 0
+                    and len(result) < max_batch_len
+                    and flow.id_ not in self.ongoing_exhausted_flow_ids
+                ):
+                    flow_batch = self._get_batch_from_flow(flow)
+                    for e in flow_batch:
+                        if isinstance(e, Flow):
+                            self.ongoing_flows_dict[e.id_] = e
+                            newly_added_flows.append(e)
+                        else:
+                            assert isinstance(e, Task), "Typechecking error."
+                            result.append(e)
+
+                    if len(result) >= max_batch_len:
+                        break
 
             if len(result) >= max_batch_len:
                 break
+            candidate_flows = newly_added_flows
 
         for e in result:
-            self.ongoing_tasks[e.id_] = e
+            self.ongoing_tasks_dict[e.id_] = e
+            self.submitted_counts[e.operation_name] += 1
 
         return result
 
@@ -132,8 +182,13 @@ class InMemoryExecutionState:
     def _update_completed_id(self, id_: str):
         self.completed_ids.add(id_)
         self.ongoing_exhausted_flow_ids.discard(id_)
-        self.ongoing_flows_dict.pop(id_, None)
-        self.ongoing_tasks.pop(id_, None)
+
+        if id_ in self.ongoing_flows_dict:
+            del self.ongoing_flows_dict[id_]
+        else:
+            assert id_ in self.ongoing_tasks_dict
+            self.completed_counts[self.ongoing_tasks_dict[id_].operation_name] += 1
+            del self.ongoing_tasks_dict[id_]
 
         parent_id = self.ongoing_parent_map[id_]
         if parent_id is not None:
@@ -145,14 +200,23 @@ class InMemoryExecutionState:
             ):
                 self._update_completed_id(parent_id)
 
-    def _get_batch_from_flow(self, flow):
+    def _get_batch_from_flow(self, flow: Flow) -> list[Union[Task, Flow]]:
+        """
+        Returns a batch of ready tasks from the flow.
+        If the flow yields children flows, the children flows will be added
+        to the execution state, and won't be returned by this function.
+        If the flow yields dependencies, the dependencies will be added
+        to the execution state, and won't be returned by this function.
+        """
         flow_yield = flow.get_next_batch()
+
         result = []
         if flow_yield is None:  # Means the flows is exhausted
             self.ongoing_exhausted_flow_ids.add(flow.id_)
             self.dependency_map[flow.id_].update(self.ongoing_children_map[flow.id_])
             if len(self.dependency_map[flow.id_]) == 0:
                 self._update_completed_id(flow.id_)
+
         elif isinstance(flow_yield, Dependency):
             self._add_dependency(flow.id_, flow_yield)
         else:
@@ -160,10 +224,6 @@ class InMemoryExecutionState:
                 if e.id_ not in self.completed_ids:
                     self.ongoing_children_map[flow.id_].add(e.id_)
                     self.ongoing_parent_map[e.id_] = flow.id_
-                    if isinstance(e, Flow):
-                        self.ongoing_flows_dict[e.id_] = e
-                    else:
-                        assert isinstance(e, Task), "Typechecking error."
-                        result.append(e)
+                    result.append(e)
 
         return result

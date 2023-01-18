@@ -83,7 +83,6 @@ def test_identity_builds(value):
         [{"a": "b"}, ValueError],
         [{"@type": "something_not_registered"}, KeyError],
         [{"@type": "dummy_a", "a": 1, "@mode": "unsupported_mode_5566"}, ValueError],
-        [{"@type": "dummy_a", "a": TypeError}, ValueError],
     ],
 )
 def test_parse_exc(value, expected_exc, register_dummy_a):

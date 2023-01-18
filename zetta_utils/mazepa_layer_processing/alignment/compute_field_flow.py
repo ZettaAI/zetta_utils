@@ -22,6 +22,7 @@ from zetta_utils.typing import IntVec3D, Vec3D
 
 
 class ComputeFieldFn(Protocol):
+    __name__: str
     def __call__(
         self,
         src: torch.Tensor,
@@ -41,6 +42,17 @@ class ComputeFieldOperation:
     crop_pad: IntVec3D = IntVec3D(0, 0, 0)
     res_change_mult: Vec3D = Vec3D(1, 1, 1)
     output_crop_px: IntVec3D = attrs.field(init=False)
+
+    def get_operation_name( # pylint: disable=unused-argument
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        src: VolumetricLayer,
+        tgt: VolumetricLayer,
+        src_field: Optional[VolumetricLayer],
+        tgt_field: Optional[VolumetricLayer],
+    ) -> str:
+        return "ComputeField"
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         return dst_resolution / self.res_change_mult

@@ -34,6 +34,15 @@ class WarpOperation:
         if self.crop[-1] != 0:
             raise ValueError(f"Z crop must be equal to 0. Received: {self.crop}")
 
+    def get_operation_name( # pylint: disable=unused-argument
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        src: VolumetricLayer,
+        field: VolumetricLayer,
+    ) -> str:
+        return f"Warp {self.mode.upper()}"
+
     def __call__(  # pylint: disable=too-many-locals
         self,
         idx: VolumetricIndex,

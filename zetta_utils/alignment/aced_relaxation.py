@@ -46,7 +46,7 @@ def compute_aced_loss(
 
     loss = inter_loss + rigidity_weight * intra_loss
     print(inter_loss, rigidity_weight * intra_loss, loss)
-    return loss
+    return loss # type: ignore
 
 
 @builder.register("perform_aced_relaxation")

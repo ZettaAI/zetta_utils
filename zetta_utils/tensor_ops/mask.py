@@ -1,6 +1,6 @@
 import copy
 from typing import Literal
-from typing import Literal, Optional, Protocol, Sequence, SupportsIndex, TypeVar, Union
+from typing import Protocol, TypeVar
 from typing_extensions import ParamSpec
 
 import einops
@@ -15,7 +15,6 @@ from zetta_utils import builder
 from zetta_utils.tensor_typing import TensorTypeVar
 
 from . import convert
-#from .common import skip_on_empty_data
 
 MaskFilteringModes = Literal["keep_large", "keep_small"]
 
@@ -105,12 +104,13 @@ def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
     :param width: Amount of pixels by which to coarsen.
     :return: Coarsened mask tensor.
     """
-    data_torch = convert.to_torch(
-        einops.rearrange(
-            data,
-            "C X Y Z -> Z C X Y"
-        )
+    data_torch_cxyz = convert.to_torch(data)
+
+    data_torch = einops.rearrange(
+        data_torch_cxyz,
+        "C X Y Z -> Z C X Y"
     )
+
     kernel = torch.ones(
         [1, 1]
         + [
@@ -167,6 +167,5 @@ def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
     if len(data.shape) == 4:
         result_raw = np.expand_dims(result_raw, (0, -1))
 
-    result = convert.astype(result_raw, data)
-
+    result = convert.astype(result_raw, data) > 0
     return result

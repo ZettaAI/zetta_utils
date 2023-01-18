@@ -57,6 +57,7 @@ def build_interpolate_flow(
         fn=_interpolate,
         res_change_mult=res_change_mult,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
+        operation_base_name=f'Interpolate {mode.upper()}'
     )
 
     flow = flow_schema(

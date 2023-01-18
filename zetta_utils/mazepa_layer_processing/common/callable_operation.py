@@ -24,6 +24,12 @@ class CallableOperation(Generic[P, IndexT, R]):
 
     fn: Callable[P, R]
 
+    def get_operation_name( # pylint: disable=unused-argument
+        self, idx: IndexT, dst: LayerWithIndexT[IndexT], *args: P.args, **kwargs: P.kwargs
+
+    ) -> str:
+        return self.fn.__name__
+
     def __call__(
         self, idx: IndexT, dst: LayerWithIndexT[IndexT], *args: P.args, **kwargs: P.kwargs
     ) -> None:

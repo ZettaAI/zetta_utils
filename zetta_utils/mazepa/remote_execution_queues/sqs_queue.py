@@ -68,13 +68,16 @@ class SQSExecutionQueue:
     name: str
     region_name: str = attrs.field(default=taskqueue.secrets.AWS_DEFAULT_REGION)
     endpoint_url: Optional[str] = None
-    insertion_threads: int = 5
+    insertion_threads: int = 0
     outcome_queue_name: Optional[str] = None
     _queue: Any = attrs.field(init=False, default=None)
     pull_wait_sec: int = 0
     pull_lease_sec: int = 30
 
     def _get_tq_queue(self) -> Any:
+        # Has to be done as this cached getter function because
+        # `taskqueue` objects are not picklable
+
         if self._queue is None:
             # Use TaskQueue for fast insertion
             self._queue = taskqueue.TaskQueue(
@@ -83,6 +86,7 @@ class SQSExecutionQueue:
                 endpoint_url=self.endpoint_url,
                 green=False,
                 n_threads=self.insertion_threads,
+                progress=False,
             )
         return self._queue
 
@@ -105,7 +109,9 @@ class SQSExecutionQueue:
         for task in tasks:
             tq_task = TQTask(serialization.serialize(task))
             tq_tasks.append(tq_task)
-        self._get_tq_queue().insert(tq_tasks, parallel=self.insertion_threads)
+        self._get_tq_queue().insert(
+            tq_tasks, parallel=self.insertion_threads, skip_insert_counter=True
+        )
 
     def pull_task_outcomes(
         self, max_num: int = 100, max_time_sec: float = 2.5

@@ -80,6 +80,7 @@ class Flow:
     id_: str
     _iterator: FlowFnReturnType = attrs.field(init=False, default=None)
     tags: list[str] = attrs.field(factory=list)
+    _has_been_called: bool = attrs.field(init=False, default=False)
 
     # These are saved as attributes just for printability.
     args: Iterable = attrs.field(init=False, default=list)
@@ -96,9 +97,12 @@ class Flow:
     ):
         self.args = args
         self.kwargs = kwargs
-        self._iterator = self.fn(*args, **kwargs)
 
     def get_next_batch(self) -> BatchType:
+        if not self._has_been_called:
+            self._iterator = self.fn(*self.args, **self.kwargs)
+            self._has_been_called = True
+
         yielded = next(self._iterator, None)
 
         result: BatchType

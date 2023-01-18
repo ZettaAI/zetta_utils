@@ -12,7 +12,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "end_to_end_test_x0"
+#PAIRWISE_SUFFIX: "nico_test_x0_512nm_256nm_iter300"
 #FOLDER:          "gs://sergiy_exp/aced/zfish/\(#PAIRWISE_SUFFIX)"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
 #FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
@@ -36,7 +36,7 @@
 #RELAXATION_RIG:  20
 
 #Z_START:           0
-#Z_END:             3000
+#Z_END:             3
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
 #BCUBE: {
@@ -80,7 +80,7 @@
 
 		operation: fn: {
 			sm:       200
-			num_iter: 500
+			num_iter: 300
 			lr:       0.015
 		}
 		chunk_size: [2048, 2048, 1]
@@ -90,41 +90,12 @@
 
 		operation: fn: {
 			sm:       200
-			num_iter: 500
+			num_iter: 300
 			lr:       0.015
 		}
 		chunk_size: [2048, 2048, 1]
 	},
-	#STAGE_TMPL & {
-		dst_resolution: [128, 128, 30]
 
-		operation: fn: {
-			sm:       200
-			num_iter: 200
-			lr:       0.015
-		}
-		chunk_size: [2048, 2048, 1]
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [64, 64, 30]
-
-		operation: fn: {
-			sm:       200
-			num_iter: 200
-			lr:       0.02
-		}
-		chunk_size: [2048, 2048, 1]
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [32, 32, 30]
-
-		operation: fn: {
-			sm:       200
-			num_iter: 200
-			lr:       0.05
-		}
-		chunk_size: [2048, 2048, 1]
-	},
 ]
 
 #STAGE_TMPL: {
@@ -350,7 +321,7 @@
 #RUN_INFERENCE: {
 	"@type":        "mazepa.execute_on_gcp_with_sqs"
 	max_task_retry: 33
-	worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x55"
+	worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x56"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"

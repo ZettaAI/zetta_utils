@@ -54,6 +54,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     """
 
     fn: Callable[..., R_co]
+    operation_name: str = "Unclassified Task"
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     tags: list[str] = attrs.field(factory=list)
 
@@ -187,11 +188,19 @@ class TaskableOperation(Protocol[P, R_co]):
         ...
 
 
+
 @runtime_checkable
 class RawTaskableOperationCls(Protocol[P, R_co]):
     """
     Interface of a class that can be wrapped by `@taskable_operation_cls`.
     """
+
+    def get_operation_name(
+        self,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> str:
+        ...
 
     def __call__(
         self,
@@ -208,6 +217,7 @@ class _TaskableOperation(Generic[P, R_co]):
     """
 
     fn: Callable[P, R_co]
+    operation_name: str = "Unclassified Task"
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
@@ -234,6 +244,7 @@ class _TaskableOperation(Generic[P, R_co]):
         )
         result = Task[R_co](
             fn=self.fn,
+            operation_name=self.operation_name,
             id_=id_,
             tags=self.tags,
             upkeep_settings=upkeep_settings,
@@ -257,24 +268,34 @@ def taskable_operation(
     ...
 
 
-def taskable_operation(fn=None, *, time_bound: bool = True):
+def taskable_operation(fn=None, *, operation_name=None, time_bound: bool = True):
     if fn is not None:
-        return _TaskableOperation(fn=fn)
+        if operation_name is None:
+            operation_name = fn.__name__
+        return _TaskableOperation(fn=fn, operation_name=operation_name, time_bound=time_bound)
     else:
         return cast(
             Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]],
-            functools.partial(_TaskableOperation, time_bound=time_bound),
+            functools.partial(
+                taskable_operation,
+                operation_name=operation_name,
+                time_bound=time_bound,
+            ),
         )
 
 
 def taskable_operation_cls(cls: Type[RawTaskableOperationCls]):
     def _make_task(self, *args, **kwargs):
-        return _TaskableOperation(  # pylint: disable=protected-access
+        task = _TaskableOperation(  # pylint: disable=protected-access
             self,
-            # TODO: Other params passed to decorator
         ).make_task(
             *args, **kwargs
-        )  # pylint: disable=protected-access
+        )
+        task.operation_name = self.get_operation_name(
+            *args, **kwargs
+        )
+        return task
+
 
     # can't override __new__ because it doesn't combine well with attrs/dataclass
     setattr(cls, "make_task", _make_task)

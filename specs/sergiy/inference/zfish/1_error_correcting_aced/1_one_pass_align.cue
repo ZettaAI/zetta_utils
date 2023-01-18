@@ -458,9 +458,10 @@ worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     10
-worker_lease_sec:    10
-batch_gap_sleep_sec: 1
+worker_replicas:      10
+worker_lease_sec:     10
+batch_gap_sleep_sec:  1
+do_dryrun_estimation: true
 
 local_test: false
 

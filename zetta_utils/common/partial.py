@@ -1,17 +1,19 @@
 from typing import Any, Callable, Dict, Generic, TypeVar
 
 import attrs
-from typeguard import typechecked
 
 R = TypeVar("R")
 
 # Need this class to make our processors comparable
-@typechecked
 @attrs.mutable(repr=False, init=False, slots=False)
 class ComparablePartial(Generic[R]):
     def __init__(self, func: Callable[..., R], **kwargs):
         self.func: Callable = func
         self.kwargs: Dict[str, Any] = kwargs
+
+    @property
+    def __name__(self) -> str:
+        return self.func.__name__
 
     def __call__(self, *args, **kwargs) -> R:  # pragma: no cover
         return self.func(*args, **self.kwargs, **kwargs)

@@ -1,20 +1,23 @@
 # pylint: disable=too-many-locals
 from __future__ import annotations
 
+import copy
 import time
 from typing import Callable, Optional, Union
 
 import attrs
+from collections import defaultdict
 
 from zetta_utils.common import ComparablePartial
 from zetta_utils.log import get_logger
 
-from . import Flow, Task, ctx_vars, seq_flow
+from . import Flow, Task, ctx_vars, seq_flow, Dependency
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
 from .task_outcome import TaskStatus
 from .tasks import _TaskableOperation
+from .progress_tracker import progress_ctx
 
 logger = get_logger("mazepa")
 
@@ -50,6 +53,7 @@ def execute(
     execution_id: Optional[str] = None,
     raise_on_failed_task: bool = True,
     max_task_retry: int = 1,
+    do_dryrun_estimation: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -77,6 +81,7 @@ def execute(
         else:  # isinstance(target, (ComparablePartial, Callable)):
             task = _TaskableOperation(
                 fn=target,
+                operation_name="Custom Callable",
                 time_bound=False,
                 max_retry=max_task_retry,
             ).make_task()
@@ -100,6 +105,7 @@ def execute(
         max_batch_len=max_batch_len,
         batch_gap_sleep_sec=batch_gap_sleep_sec,
         upkeep_fn=upkeep_fn,
+        do_dryrun_estimation=do_dryrun_estimation,
     )
 
     end_time = time.time()
@@ -114,26 +120,34 @@ def _execute_from_state(
     max_batch_len: int,
     batch_gap_sleep_sec: float,
     upkeep_fn: Optional[Callable[[str], bool]],
+    do_dryrun_estimation: bool = False,
 ):
-    while True:
-        if len(state.get_ongoing_flow_ids()) == 0:
-            logger.debug("No ongoing flows left.")
-            break
+    if do_dryrun_estimation:
+        expected_operation_counts = get_expected_operation_counts(state.get_ongoing_flows())
+    else:
+        expected_operation_counts = {}
+    with progress_ctx(expected_operation_counts) as progress_updater:
+        while True:
+            progress_updater(state.get_progress_reports())
 
-        execution_should_continue = True
-        if upkeep_fn is not None:
-            execution_should_continue = upkeep_fn(execution_id)
+            if len(state.get_ongoing_flow_ids()) == 0:
+                logger.debug("No ongoing flows left.")
+                break
 
-        if not execution_should_continue:
-            logger.debug(f"Stopping execution by decision of {upkeep_fn}")
-            break
+            execution_should_continue = True
+            if upkeep_fn is not None:
+                execution_should_continue = upkeep_fn(execution_id)
 
-        process_ready_tasks(exec_queue, state, execution_id, max_batch_len)
+            if not execution_should_continue:
+                logger.debug(f"Stopping execution by decision of {upkeep_fn}")
+                break
 
-        if not isinstance(exec_queue, LocalExecutionQueue):
-            logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
-            time.sleep(batch_gap_sleep_sec)
-            logger.debug("Awake.")
+            process_ready_tasks(exec_queue, state, execution_id, max_batch_len)
+
+            if not isinstance(exec_queue, LocalExecutionQueue):
+                logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
+                time.sleep(batch_gap_sleep_sec)
+                logger.debug("Awake.")
 
 
 def process_ready_tasks(
@@ -142,7 +156,7 @@ def process_ready_tasks(
     logger.debug("Pulling task outcomes...")
     task_outcomes = queue.pull_task_outcomes()
     if len(task_outcomes) > 0:
-        logger.info(f"Received {len(task_outcomes)} completed task outcomes.")
+        logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
         logger.debug("Updating execution state with taks outcomes.")
         state.update_with_task_outcomes(task_outcomes)
 
@@ -156,3 +170,41 @@ def process_ready_tasks(
     queue.push_tasks(task_batch)
     for task in task_batch:
         task.status = TaskStatus.SUBMITTED
+
+
+def get_expected_operation_counts(flows: list[Flow]) -> dict[str, int]:
+    operation_task_ids = dryrun_for_task_ids(flows)
+    return {k: len(v) for k, v in operation_task_ids.items()}
+
+
+def dryrun_for_task_ids(flows: list[Flow]) -> dict[str, set[str]]:
+    dryrun_flows = copy.deepcopy(flows)
+    logger.info("Starting dryrun....")
+    result = _dryrun_for_task_ids(dryrun_flows)
+    logger.info("Dryrun finished.")
+    return result
+
+
+def _dryrun_for_task_ids(flows: list[Flow]) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = defaultdict(set)
+
+    for flow in flows:
+        flow_yield = flow.get_next_batch()
+
+        while flow_yield is not None:
+            if not isinstance(flow_yield, Dependency):
+                for e in flow_yield:
+                    if isinstance(e, Flow):
+                        this_flow_result = _dryrun_for_task_ids([e])
+                        result = defaultdict(
+                            set,
+                            {
+                                k: result[k].union(this_flow_result[k])
+                                for k in list(result.keys()) + list(this_flow_result.keys())
+                            },
+                        )
+                    else:
+                        result[e.operation_name].add(e.id_)
+            flow_yield = flow.get_next_batch()
+
+    return result

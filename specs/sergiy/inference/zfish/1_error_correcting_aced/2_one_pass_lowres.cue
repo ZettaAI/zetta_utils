@@ -4,7 +4,7 @@
 #COARSE_FIELD_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/coarse/v3/field/composed_drift_corrected"
 #IMG_PATH:          "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
 #BASE_ENC_PATH:     "gs://zfish_unaligned/precoarse_x0/base_enc_x0"
-#ENC_PATH:          "gs://zfish_unaligned/precoarse_x0/encodings_masked"
+#ENC_PATH:          "gs://zfish_unaligned/precoarse_x0/encodings_masked_x0"
 #COARSE_IMG_PATH:   "gs://zfish_unaligned/coarse_x0/raw_img"
 
 // MODELS
@@ -12,7 +12,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "coarse_512nm_x0"
+#PAIRWISE_SUFFIX: "end_to_end_test_x0"
 #FOLDER:          "gs://sergiy_exp/aced/zfish/\(#PAIRWISE_SUFFIX)"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
 #FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
@@ -42,7 +42,7 @@
 #BCUBE: {
 	"@type": "BoundingCube"
 	start_coord: [0, 0, #Z_START]
-	end_coord: [1024, 1024, #Z_END]
+	end_coord: [2048, 2048, #Z_END]
 	resolution: [512, 512, 30]
 }
 
@@ -64,13 +64,13 @@
 #NOT_FIRST_SECTION_BCUBE: {
 	"@type": "BoundingCube"
 	start_coord: [0, 0, #Z_START + 1]
-	end_coord: [1024, 1024, #Z_END]
+	end_coord: [2048, 2048, #Z_END]
 	resolution: [512, 512, 30]
 }
 #FIRST_SECTION_BCUBE: {
 	"@type": "BoundingCube"
 	start_coord: [0, 0, #Z_START]
-	end_coord: [1024, 1024, #Z_START + 1]
+	end_coord: [2048, 2048, #Z_START + 1]
 	resolution: [512, 512, 30]
 }
 
@@ -79,11 +79,51 @@
 		dst_resolution: [512, 512, 30]
 
 		operation: fn: {
-			sm:       250
+			sm:       200
 			num_iter: 500
 			lr:       0.015
 		}
-		chunk_size: [1024, 1024, 1]
+		chunk_size: [2048, 2048, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [256, 256, 30]
+
+		operation: fn: {
+			sm:       200
+			num_iter: 500
+			lr:       0.015
+		}
+		chunk_size: [2048, 2048, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [128, 128, 30]
+
+		operation: fn: {
+			sm:       200
+			num_iter: 200
+			lr:       0.015
+		}
+		chunk_size: [2048, 2048, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [64, 64, 30]
+
+		operation: fn: {
+			sm:       200
+			num_iter: 200
+			lr:       0.02
+		}
+		chunk_size: [2048, 2048, 1]
+	},
+	#STAGE_TMPL & {
+		dst_resolution: [32, 32, 30]
+
+		operation: fn: {
+			sm:       200
+			num_iter: 200
+			lr:       0.05
+		}
+		chunk_size: [2048, 2048, 1]
 	},
 ]
 
@@ -310,16 +350,16 @@
 #RUN_INFERENCE: {
 	"@type":        "mazepa.execute_on_gcp_with_sqs"
 	max_task_retry: 33
-	worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x52"
+	worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x55"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:     20
+	worker_replicas:     12
 	worker_lease_sec:    20
 	batch_gap_sleep_sec: 1
 
-	local_test: true
+	local_test: false
 
 	target: {
 		"@type": "mazepa.seq_flow"

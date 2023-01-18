@@ -79,16 +79,25 @@ class ComputeFieldOperation:
         )
 
         if tgt_field_data is not None:
-            tgt_data = einops.rearrange(
-                einops.rearrange(tgt_field_data, "C X Y Z -> Z C X Y")  # type: ignore
-                .field()
-                .from_pixels()(einops.rearrange(tgt_data, "C X Y Z -> Z C X Y")),
+            tgt_field_data_zcxy = einops.rearrange(tgt_field_data, "C X Y Z -> Z C X Y")
+            tgt_data_zcxy = einops.rearrange(tgt_data, "C X Y Z -> Z C X Y")
+            tgt_nonz_zcxy = tgt_data_zcxy != 0
+            tgt_data_warped = tgt_field_data_zcxy.field().from_pixels()( # type: ignore
+                tgt_data_zcxy
+            )
+            tgt_nonz_warped = tgt_field_data_zcxy.field().from_pixels()( # type: ignore
+                tgt_nonz_zcxy.float()
+            )
+            tgt_data_warped[tgt_nonz_warped < 0.1] = 0
+            tgt_data_final = einops.rearrange(
+                tgt_data_warped,
                 "Z C X Y -> C X Y Z",
             )
-
+        else:
+            tgt_data_final = tgt_data
         result_raw = self.fn(
             src=src_data,
-            tgt=tgt_data,
+            tgt=tgt_data_final,
             src_field=src_field_data,
         )
         result = tensor_ops.crop(result_raw, crop=self.output_crop_px)
@@ -143,18 +152,14 @@ class ComputeFieldFlowSchema:
             tgt_field = copy.deepcopy(tgt_field)
             tgt_field.index_adjs.insert(
                 0,
-                VolumetricIndexTranslator(
-                    offset=tgt_offset, resolution=input_resolution
-                ),
+                VolumetricIndexTranslator(offset=tgt_offset, resolution=input_resolution),
             )
 
         if src_field is not None:
             src_field = copy.deepcopy(src_field)
             src_field.index_adjs.insert(
                 0,
-                VolumetricIndexTranslator(
-                    offset=src_offset, resolution=input_resolution
-                ),
+                VolumetricIndexTranslator(offset=src_offset, resolution=input_resolution),
             )
         # breakpoint()
         cf_flow = build_chunked_apply_flow(

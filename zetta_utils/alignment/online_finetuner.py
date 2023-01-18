@@ -47,7 +47,7 @@ def align_with_online_finetuner(
                 {
                     "name": "src_zeros",
                     "fm": 0,
-                    "mask_value": 1e-3,
+                    "mask_value": 0.1,
                     "binarization": {"strat": "eq", "value": 0},
                 }
             ],
@@ -55,7 +55,7 @@ def align_with_online_finetuner(
                 {
                     "name": "tgt_zeros",
                     "fm": 0,
-                    "mask_value": 1e-3,
+                    "mask_value": 0.1,
                     "binarization": {"strat": "eq", "value": 0},
                 }
             ],
@@ -91,6 +91,9 @@ def align_with_online_finetuner(
                 num_iter=num_iter,
                 lr=lr,
                 sm=sm,
+                l2=0,
+                wd=0,
+                max_bad=5,
                 verbose=True,
                 opt_res_coarsness=0,
                 normalize=True,

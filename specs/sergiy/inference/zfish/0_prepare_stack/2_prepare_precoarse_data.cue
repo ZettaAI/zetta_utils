@@ -1,26 +1,26 @@
 #ENC_SRC_PATH:    "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_encodings"
-#ENC_MASKED_PATH: "gs://zfish_unaligned/precoarse_x0/encodings_masked"
+#ENC_MASKED_PATH: "gs://zfish_unaligned/precoarse_x0/encodings_masked_x0"
 
 #DEFECTS_SRC_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/defects_binarized"
 
 #IMG_SRC_PATH:    "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
-#IMG_MASKED_PATH: "gs://zfish_unaligned/precoarse_x0/raw_masked"
+#IMG_MASKED_PATH: "gs://zfish_unaligned/precoarse_x0/raw_masked_x0"
 
-#XY_OUT_CHUNK: 2048
+#XY_OUT_CHUNK: 1024
 
 #BCUBE: {
 	"@type": "BoundingCube"
 	start_coord: [0, 0, 0]
-	end_coord: [1024, 1024, 50]
+	end_coord: [1024, 1024, 100]
 	resolution: [512, 512, 30]
 }
 
 #RESOLUTIONS: [
-	//[512, 512, 30],
-	[256, 256, 30],
-	[128, 128, 30],
-	[64, 64, 30],
-	[32, 32, 30],
+	[512, 512, 30],
+	//[256, 256, 30],
+	//[128, 128, 30],
+	//[64, 64, 30],
+	//[32, 32, 30],
 ]
 
 #APPLY_MASK_TMPL: {
@@ -34,6 +34,13 @@
 	mask: {
 		"@type": "build_cv_layer"
 		path:    #DEFECTS_SRC_PATH
+		read_postprocs: [
+			{
+				"@type": "coarsen_mask"
+				"@mode": "lazy"
+				width:   1
+			},
+		]
 	}
 	dst: {
 		"@type":             "build_cv_layer"

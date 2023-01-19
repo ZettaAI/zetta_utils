@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Iterable
 from typing import Any, Callable, List, Optional, TypeVar, Union
 
 from typeguard import typechecked
@@ -168,11 +169,19 @@ def _build_spec(field: Any) -> Any:  # pylint: disable=too-many-branches,too-man
 
                 for kwarg_name in registered_cast_to_vec3d:
                     if kwarg_name in fn_kwargs:
-                        fn_kwargs[kwarg_name] = Vec3D(*fn_kwargs[kwarg_name])
+                        if isinstance(fn_kwargs[kwarg_name][0], Iterable):
+                            fn_kwargs[kwarg_name] = [Vec3D(*vec) for vec in fn_kwargs[kwarg_name]]
+                        else:
+                            fn_kwargs[kwarg_name] = Vec3D(*fn_kwargs[kwarg_name])
 
                 for kwarg_name in registered_cast_to_intvec3d:
                     if kwarg_name in fn_kwargs:
-                        fn_kwargs[kwarg_name] = IntVec3D(*fn_kwargs[kwarg_name])
+                        if isinstance(fn_kwargs[kwarg_name][0], Iterable):
+                            fn_kwargs[kwarg_name] = [
+                                IntVec3D(*vec) for vec in fn_kwargs[kwarg_name]
+                            ]
+                        else:
+                            fn_kwargs[kwarg_name] = IntVec3D(*fn_kwargs[kwarg_name])
 
                 if mode == "regular":
                     try:

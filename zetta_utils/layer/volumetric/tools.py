@@ -4,19 +4,21 @@ import attrs
 import torch
 from typeguard import typechecked
 
-from zetta_utils import builder, tensor_ops
+from zetta_utils import builder, log, tensor_ops
 from zetta_utils.bcube import BcubeStrider
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .. import DataProcessor, DataWithIndexProcessor, IndexChunker
+from .. import DataWithIndexProcessor, IndexChunker
 from . import VolumetricIndex
+
+logger = log.get_logger("zetta_utils")
 
 
 @typechecked
 def translate_volumetric_index(
     idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D
 ):  # pragma: no cover # under 3 statements, no conditionals
-    bcube = idx.bcube.translate(offset, resolution)
+    bcube = idx.bcube.translated(offset, resolution)
     result = VolumetricIndex(
         bcube=bcube,
         resolution=idx.resolution,
@@ -94,12 +96,16 @@ class VolumetricDataInterpolator(DataWithIndexProcessor):
 @attrs.mutable
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: IntVec3D
+    max_superchunk_size: Optional[IntVec3D] = None
     stride: Optional[IntVec3D] = None
     resolution: Optional[Vec3D] = None
     offset: IntVec3D = IntVec3D(0, 0, 0)
 
     def __call__(
-        self, idx: VolumetricIndex
+        self,
+        idx: VolumetricIndex,
+        stride_start_offset: Optional[IntVec3D] = None,
+        mode: Literal["shrink", "expand", "exact"] = "shrink",
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         if self.resolution is None:
             chunk_resolution = idx.resolution
@@ -112,11 +118,16 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             stride = self.stride
 
         bcube_strider = BcubeStrider(
-            bcube=idx.bcube.translate_start(offset=self.offset, resolution=chunk_resolution),
+            bcube=idx.bcube.translated_start(offset=self.offset, resolution=chunk_resolution),
             resolution=chunk_resolution,
             chunk_size=self.chunk_size,
+            max_superchunk_size=self.max_superchunk_size,
             stride=stride,
+            stride_start_offset=stride_start_offset,
+            mode=mode,
         )
+        if self.max_superchunk_size is not None:
+            logger.info(f"Superchunk size: {bcube_strider.chunk_size}")
         bcube_chunks = bcube_strider.get_all_chunk_bcubes()
         result = [
             VolumetricIndex(
@@ -135,7 +146,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             assert self.offset == IntVec3D(0, 0, 0)
         except Exception as e:
             raise NotImplementedError(
-                "can only split chunkers that have stride equal to chunk size" + " and no offset"
+                "can only split chunkers that have stride equal to chunk size and no offset"
             ) from e
         try:
             for s, p in zip(self.chunk_size, pad):  # pylint: disable=invalid-name
@@ -146,7 +157,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         offset_y = IntVec3D(0, self.chunk_size[1], 0)
         offset_z = IntVec3D(0, 0, self.chunk_size[2])
         chunk_size = self.chunk_size + pad * 2
-        stride = self.chunk_size * 3
+        stride = self.chunk_size * 2
 
         return [
             (
@@ -158,69 +169,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
                 ),
                 (x, y, z),
             )
-            for x in range(3)
-            for y in range(3)
-            for z in range(3)
+            for x in range(2)
+            for y in range(2)
+            for z in range(2)
         ]
-
-
-@builder.register("VolumetricDataBlendingWeighter", cast_to_intvec3d=["blend_pad"])
-@typechecked
-@attrs.mutable
-class VolumetricDataBlendingWeighter(DataProcessor):  # pragma: no cover
-    blend_pad: IntVec3D
-    blend_mode: Literal["linear", "quadratic"] = "linear"
-
-    def __call__(
-        self,
-        data: torch.Tensor,
-    ) -> torch.Tensor:
-        try:
-            for s, p in zip(  # pylint: disable=invalid-name
-                IntVec3D(*data.shape[-3:]), self.blend_pad
-            ):
-                assert s >= 2 * p
-        except Exception as e:
-            raise ValueError(
-                f"received {tuple(data.shape[-3:])} data, expected at least {2*self.blend_pad}"
-            ) from e
-        mask = torch.ones_like(data, dtype=torch.float)
-        x_pad = self.blend_pad[0]
-        y_pad = self.blend_pad[1]
-        z_pad = self.blend_pad[2]
-        if self.blend_mode == "linear":
-            for x in range(2 * x_pad):
-                weight = x / (2 * x_pad)
-                mask[:, x, :, :] *= weight
-                mask[:, -x, :, :] *= weight
-            for y in range(2 * y_pad):
-                weight = y / (2 * y_pad)
-                mask[:, :, y, :] *= weight
-                mask[:, :, -y, :] *= weight
-            for z in range(2 * z_pad):
-                weight = z / (2 * z_pad)
-                mask[:, :, :, z] *= weight
-                mask[:, :, :, -z] *= weight
-        elif self.blend_mode == "quadratic":
-            for x in range(x_pad):
-                weight = ((x / x_pad) ** 2) / 2
-                mask[:, x, :, :] *= weight
-                mask[:, -x, :, :] *= weight
-                mask[:, 2 * x_pad - x, :, :] *= 1 - weight
-                mask[:, -(2 * x_pad - x), :, :] *= 1 - weight
-            for y in range(y_pad):
-                weight = ((y / y_pad) ** 2) / 2
-                mask[:, :, y, :] *= weight
-                mask[:, :, -y, :] *= weight
-                mask[:, :, 2 * y_pad - y, :] *= 1 - weight
-                mask[:, :, -(2 * y_pad - y), :] *= 1 - weight
-            for z in range(z_pad):
-                weight = ((z / z_pad) ** 2) / 2
-                mask[:, :, :, z] *= weight
-                mask[:, :, :, -z] *= weight
-                mask[:, :, :, 2 * z_pad - z] *= 1 - weight
-                mask[:, :, :, -(2 * z_pad - z)] *= 1 - weight
-
-        result = tensor_ops.common.multiply(data, mask)
-
-        return result

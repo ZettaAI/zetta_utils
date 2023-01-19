@@ -4,7 +4,17 @@ from __future__ import annotations
 from collections import abc
 from inspect import currentframe
 from types import FrameType
-from typing import Any, Generic, Literal, Tuple, Type, TypeVar, Union, overload
+from typing import (
+    Any,
+    Generic,
+    Literal,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import typeguard
 
@@ -101,8 +111,10 @@ class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
             raise ValueError(f"Vec{self.ndim}D must have {self.ndim} elements") from e
         try:
             for arg in args:
-                assert isinstance(arg, self.dtype) or (
-                    self.dtype is float and isinstance(arg, int)
+                assert (
+                    isinstance(arg, self.dtype)
+                    or (self.dtype is float and isinstance(arg, int))
+                    or self.dtype(arg) == arg
                 )
             self.vec = tuple(self.dtype(arg) for arg in args)
         except Exception as e:
@@ -122,6 +134,19 @@ class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
     def __getitem__(self, key):
         return self.vec[key]
 
+    @overload
+    def __setitem__(self, key: int, val: DType) -> None:  # TODO: type val correctly
+        ...
+
+    @overload
+    def __setitem__(self, key: slice, val: Sequence[DType]) -> None:
+        ...
+
+    def __setitem__(self, key, val):
+        newvec = list(self.vec)
+        newvec.__setitem__(key, val)
+        self.__init__(*newvec)
+
     def __iter__(self):
         return self.vec.__iter__()
 
@@ -130,6 +155,18 @@ class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
 
     def __eq__(self, other) -> bool:
         return self.vec == other.vec
+
+    def __lt__(self, other) -> bool:
+        return all(s < o for (s, o) in zip(self.vec, other.vec))
+
+    def __le__(self, other) -> bool:
+        return all(s <= o for (s, o) in zip(self.vec, other.vec))
+
+    def __gt__(self, other) -> bool:
+        return all(s > o for (s, o) in zip(self.vec, other.vec))
+
+    def __ge__(self, other) -> bool:
+        return all(s >= o for (s, o) in zip(self.vec, other.vec))
 
     def __repr__(self) -> str:
         if self.dtype is int:
@@ -298,6 +335,34 @@ class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
         dtype = type(other_arg // self_arg)
         return _VecND[self.ndim_t, dtype](*(other // e for e in self))
 
+    @overload
+    def __mod__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
+        ...
+
+    @overload
+    def __mod__(self: _VecND[N, float], other: Union[_VecND[N, float], float]) -> _VecND[N, float]:
+        ...
+
+    def __mod__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(self_arg % other_arg)
+        if isinstance(other, (float, int)):
+            return _VecND[self.ndim_t, dtype](*(e % other for e in self))
+        return _VecND[self.ndim_t, dtype](*(e % f for (e, f) in zip(self, other)))
+
+    @overload
+    def __rmod__(self: _VecND[N, int], other: int) -> _VecND[N, int]:
+        ...
+
+    @overload
+    def __rmod__(self: _VecND[N, float], other: float) -> _VecND[N, float]:
+        ...
+
+    def __rmod__(self, other):
+        self_arg, other_arg = self._get_args(other)
+        dtype = type(other_arg % self_arg)
+        return _VecND[self.ndim_t, dtype](*(other % e for e in self))
+
     def to(self, dtype):  # pylint: disable=invalid-name #pragma: no-cover
         raise NotImplementedError(".to(dtype) is not implemented; use .int() or .float() instead")
 
@@ -325,7 +390,7 @@ IntVec5D = _VecND[Literal[5], int]
 
 
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover
-    """Type checking that works better for type generics"""
+    """Type checking that works better for type generics; still doesn't work with _VecND"""
     result = True
     try:
         typeguard.check_type("value", obj, cls)

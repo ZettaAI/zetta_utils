@@ -32,6 +32,7 @@ def build_get_match_offsets_flow(
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=alignment.aced_relaxation.get_aced_match_offsets,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
+        operation_base_name="Match Offset",
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
@@ -68,6 +69,7 @@ def build_aced_relaxation_flow(
         fn=alignment.aced_relaxation.perform_aced_relaxation,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
         crop=crop,
+        operation_base_name="Aced Relaxation",
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),

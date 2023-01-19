@@ -42,6 +42,7 @@ def build_apply_mask_flow(
         fn=_apply_mask,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
         crop=crop,
+        operation_base_name="Apply Mask",
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),

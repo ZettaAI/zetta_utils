@@ -42,7 +42,6 @@ class ProgressUpdateFN(Protocol):
 @contextlib.contextmanager
 def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpdateFN, None, None]:
     progress_ctx_mngr = progress.Progress(
-        progress.SpinnerColumn(),
         progress.TextColumn("[progress.description]{task.description}"),
         progress.BarColumn(),
         progress.TaskProgressColumn(),
@@ -50,6 +49,7 @@ def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpd
         progress.TimeElapsedColumn(),
         progress.TimeRemainingColumn(),
         transient=True,
+        refresh_per_second=1
     )
 
     with progress_ctx_mngr as progress_bar:

@@ -46,7 +46,12 @@ class VolumetricCallableOperation(Generic[P]):
         base = self.operation_base_name
 
         if base is None:
-            base = self.fn.__name__
+            if hasattr(base, "__name__"):
+                base = self.fn.__name__
+            else:
+                base = type(self.fn).__name__
+                if base == 'function':
+                    base = 'Unspecified Function'
 
         return base
 

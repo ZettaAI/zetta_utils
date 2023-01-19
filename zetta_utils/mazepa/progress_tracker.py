@@ -1,14 +1,15 @@
 from __future__ import annotations
-import signal
+
 import contextlib
-from typing import Protocol, Generator
+import signal
+from typing import Generator, Protocol
+
 import rich
 from rich import progress
 
-from .execution_state import ProgressReport
+from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
 
-from zetta_utils.common import get_user_confirmation
-from zetta_utils.common import custom_signal_handler_ctx
+from .execution_state import ProgressReport
 
 
 def get_confirm_sigint_fn(progress_bar: progress.Progress):
@@ -35,9 +36,11 @@ def get_confirm_sigint_fn(progress_bar: progress.Progress):
 
     return handler
 
+
 class ProgressUpdateFN(Protocol):
     def __call__(self, progress_reports: dict[str, ProgressReport]) -> None:
         ...
+
 
 @contextlib.contextmanager
 def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpdateFN, None, None]:
@@ -49,7 +52,7 @@ def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpd
         progress.TimeElapsedColumn(),
         progress.TimeRemainingColumn(),
         transient=True,
-        refresh_per_second=1
+        refresh_per_second=1,
     )
 
     with progress_ctx_mngr as progress_bar:
@@ -60,7 +63,7 @@ def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpd
                     total=v,
                     start=False,
                     spinner_color="cyan",
-                    auto_refresh=False
+                    auto_refresh=False,
                 )
                 for k, v in expected_total_counts.items()
             }

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Callable, Generic, TypeVar, Optional
+from typing import Callable, Generic, Optional, TypeVar
 
 import attrs
 import torch
@@ -37,11 +37,8 @@ class VolumetricCallableOperation(Generic[P]):
     input_idx_pad: IntVec3D = attrs.field(init=False)
     operation_base_name: Optional[str] = None
 
-    def get_operation_name(# pylint: disable=unused-argument
-        self,
-        idx: VolumetricIndex,
-        dst: VolumetricLayer,
-        *args: P.args, **kwargs: P.kwargs
+    def get_operation_name(  # pylint: disable=unused-argument
+        self, idx: VolumetricIndex, dst: VolumetricLayer, *args: P.args, **kwargs: P.kwargs
     ) -> str:
         base = self.operation_base_name
 
@@ -50,8 +47,8 @@ class VolumetricCallableOperation(Generic[P]):
                 base = self.fn.__name__
             else:
                 base = type(self.fn).__name__
-                if base == 'function':
-                    base = 'Unspecified Function'
+                if base == "function":
+                    base = "Unspecified Function"
 
         return base
 
@@ -105,10 +102,7 @@ def build_chunked_volumetric_callable_flow_schema(
     operation_base_name: Optional[str] = None,
 ) -> ChunkedApplyFlowSchema[P, IndexT, None]:
     operation = VolumetricCallableOperation[P](
-        fn=fn,
-        crop=crop,
-        res_change_mult=res_change_mult,
-        operation_base_name=operation_base_name
+        fn=fn, crop=crop, res_change_mult=res_change_mult, operation_base_name=operation_base_name
     )
     return ChunkedApplyFlowSchema[P, IndexT, None](
         chunker=chunker,

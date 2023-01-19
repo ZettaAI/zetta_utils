@@ -12,7 +12,6 @@ from .backend import (
 )
 from .tools import (
     VolumetricDataInterpolator,
-    VolumetricDataBlendingWeighter,
     VolumetricIndexResolutionAdjuster,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,

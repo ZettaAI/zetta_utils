@@ -153,6 +153,17 @@ def test_build(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
             {"@type": "dummy_c", "vec": (1.5, 2.5, 3.5), "intvec": (1, 2, 3)},
             DummyC(vec=Vec3D(1.5, 2.5, 3.5), intvec=IntVec3D(1, 2, 3)),
         ],
+        [
+            {
+                "@type": "dummy_c",
+                "vec": ((1.5, 2.5, 3.5), (4.5, 5.5, 6.5)),
+                "intvec": ((1, 2, 3), (4, 5, 6)),
+            },
+            DummyC(
+                vec=[Vec3D(1.5, 2.5, 3.5), Vec3D(4.5, 5.5, 6.5)],
+                intvec=[IntVec3D(1, 2, 3), IntVec3D(4, 5, 6)],
+            ),
+        ],
     ],
 )
 def test_cast(spec: dict, expected: Any, register_dummy_c):

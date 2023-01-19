@@ -13,9 +13,11 @@ import fsspec
 import numpy as np
 import torch
 from cloudvolume import CloudVolume
+from cloudvolume.lib import Bbox
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
+from zetta_utils.bcube import BoundingCube
 from zetta_utils.typing import IntVec3D, Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -39,16 +41,19 @@ def get_cv_cached(*args, **kwargs):
     return CloudVolume(*args, **kwargs)
 
 
-@builder.register("CVBackend")
+@builder.register("CVBackend", cast_to_intvec3d=["default_chunk_size", "default_voxel_offset"])
 @typechecked
 @attrs.mutable
 class PrecomputedInfoSpec:
     reference_path: Optional[str] = None
     field_overrides: Optional[Dict[str, Any]] = None
-    chunk_size: Optional[IntVec3D] = None
+    default_chunk_size: Optional[IntVec3D] = None
+    default_voxel_offset: Optional[IntVec3D] = None
+    chunk_size_map: Optional[Dict[str, IntVec3D]] = None
+    voxel_offset_map: Optional[Dict[str, IntVec3D]] = None
     # ensure_scales: Optional[Iterable[int]] = None
 
-    def make_info(self) -> Optional[Dict[str, Any]]:
+    def make_info(self) -> Optional[Dict[str, Any]]:  # pylint: disable=too-many-branches
         if self.reference_path is None and self.field_overrides is None:
             result = None
         else:
@@ -59,9 +64,20 @@ class PrecomputedInfoSpec:
             if self.reference_path is not None:
                 reference_info = _get_info(self.reference_path)
             result = {**reference_info, **field_overrides}
-            if self.chunk_size is not None:
+            if self.default_chunk_size is not None:
                 for e in result["scales"]:
-                    e["chunk_sizes"] = [tuple(self.chunk_size)]
+                    e["chunk_sizes"] = [[*self.default_chunk_size]]
+            if self.chunk_size_map is not None:
+                for e in result["scales"]:
+                    if e["key"] in self.chunk_size_map.keys():
+                        e["chunk_sizes"] = [[*self.chunk_size_map[e["key"]]]]
+            if self.default_voxel_offset is not None:
+                for e in result["scales"]:
+                    e["voxel_offset"] = [*self.default_voxel_offset]
+            if self.voxel_offset_map is not None:
+                for e in result["scales"]:
+                    if e["key"] in self.voxel_offset_map.keys():
+                        e["voxel_offset"] = [*self.voxel_offset_map[e["key"]]]
 
             # if self.ensure_scales is not None:  # pragma: no cover
             #    raise NotImplementedError()
@@ -80,6 +96,12 @@ def _get_info(path: str) -> Dict[str, Any]:
 
 
 InfoExistsModes = Literal["expect_same", "overwrite"]
+
+
+def _str(n: float) -> str:  # pragma: no cover
+    if int(n) == n:
+        return str(int(n))
+    return str(n)
 
 
 @builder.register("CVBackend")
@@ -164,7 +186,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     @name.setter
     def name(self, name: str) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set name for CVBackend directly;" + " use `backend.clone()` instead"
+            "cannot set name for CVBackend directly; use `backend.clone()` instead"
         )
 
     @property
@@ -213,3 +235,71 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             if k not in implemented_keys:
                 raise KeyError(f"key {k} received, expected one of {implemented_keys}")
         return attrs.evolve(deepcopy(self), path=kwargs["name"])
+
+    def get_voxel_offset(self, resolution: Vec3D) -> IntVec3D:
+        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        return IntVec3D(*cvol.voxel_offset)
+
+    def set_voxel_offset(self, voxel_offset: IntVec3D, resolution: Vec3D) -> None:
+        assert self.info_spec is not None
+        key = "_".join([_str(v) for v in resolution])
+        if self.info_spec.voxel_offset_map is None:
+            self.info_spec.voxel_offset_map = {}
+        self.info_spec.voxel_offset_map[key] = voxel_offset
+        self.on_info_exists = "overwrite"
+        self.__attrs_post_init__()
+
+    def get_chunk_size(self, resolution: Vec3D) -> IntVec3D:
+        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        return IntVec3D(*cvol.chunk_size)
+
+    def set_chunk_size(self, chunk_size: IntVec3D, resolution: Vec3D) -> None:
+        assert self.info_spec is not None
+        key = "_".join([_str(v) for v in resolution])
+        if self.info_spec.chunk_size_map is None:
+            self.info_spec.chunk_size_map = {}
+        self.info_spec.chunk_size_map[key] = chunk_size
+        self.on_info_exists = "overwrite"
+        self.__attrs_post_init__()
+
+    def get_chunk_aligned_index(  # pragma: no cover
+        self, index: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
+    ) -> VolumetricIndex:
+        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(index.resolution), **self.cv_kwargs)
+        bbox = Bbox(*tuple(zip(*((s.start, s.stop) for s in index.to_slices()))))
+        if mode == "expand":
+            bbox_aligned = bbox.expand_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
+        elif mode == "shrink":
+            bbox_aligned = bbox.shrink_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
+        elif mode == "round":
+            bbox_aligned = bbox.round_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
+        else:
+            raise NotImplementedError(
+                f"mode must be set to 'expand', 'shrink', or 'round'; received '{mode}'"
+            )
+        return VolumetricIndex(
+            resolution=index.resolution,
+            bcube=BoundingCube.from_coords(
+                IntVec3D(*bbox_aligned.minpt), IntVec3D(*bbox_aligned.maxpt), index.resolution
+            ),
+        )
+
+    def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:
+
+        # check that the idx given is chunk_aligned, and give suggestions
+        idx_expanded = self.get_chunk_aligned_index(idx, mode="expand")
+        idx_rounded = self.get_chunk_aligned_index(idx, mode="round")
+        idx_shrunk = self.get_chunk_aligned_index(idx, mode="shrink")
+
+        if idx != idx_expanded:
+            raise ValueError(
+                "The specified BoundingCube is not chunk-aligned with the VolumetricLayer at"
+                + f" `{self.name}`;\nin {tuple(idx.resolution)} {idx.bcube.unit} voxels:"
+                + f" offset: {self.get_voxel_offset(idx.resolution)},"
+                + f" chunk_size: {self.get_chunk_size(idx.resolution)}\n"
+                + f"Received BoundingCube: {idx.pformat()}\n"
+                + "Nearest chunk-aligned BoundingCubes:\n"
+                + f" - expanded : {idx_expanded.pformat()}\n"
+                + f" - rounded  : {idx_rounded.pformat()}\n"
+                + f" - shrunk   : {idx_shrunk.pformat()}"
+            )

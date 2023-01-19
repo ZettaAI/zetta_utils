@@ -24,6 +24,8 @@ def test_check_type(obj, cls, expected):
 some_float = 42.42
 some_int = 42
 vec2d = zt.Vec2D(1, 2)
+vec2d_lg = zt.Vec2D(1.5, 2.5)
+vec2d_mx = zt.Vec2D(0.5, 2.5)
 intvec2d = zt.IntVec2D(1, 2)
 vec3d = zt.Vec3D(1.0, 2.0, 3.0)
 intvec3d = zt.IntVec3D(1, 2, 3)
@@ -129,6 +131,62 @@ def test_eq_types(arg1, arg2, is_equal):
 
 
 @pytest.mark.parametrize(
+    "arg1, arg2, is_lt",
+    [
+        [vec2d, vec2d_lg, True],
+        [vec2d, vec2d, False],
+        [vec2d_lg, vec2d, False],
+        [vec2d, vec2d_mx, False],
+        [vec2d_mx, vec2d, False],
+    ],
+)
+def test_lt(arg1, arg2, is_lt):
+    assert (arg1 < arg2) == is_lt
+
+
+@pytest.mark.parametrize(
+    "arg1, arg2, is_le",
+    [
+        [vec2d, vec2d_lg, True],
+        [vec2d, vec2d, True],
+        [vec2d_lg, vec2d, False],
+        [vec2d, vec2d_mx, False],
+        [vec2d_mx, vec2d, False],
+    ],
+)
+def test_le(arg1, arg2, is_le):
+    assert (arg1 <= arg2) == is_le
+
+
+@pytest.mark.parametrize(
+    "arg1, arg2, is_gt",
+    [
+        [vec2d, vec2d_lg, False],
+        [vec2d, vec2d, False],
+        [vec2d_lg, vec2d, True],
+        [vec2d, vec2d_mx, False],
+        [vec2d_mx, vec2d, False],
+    ],
+)
+def test_gt(arg1, arg2, is_gt):
+    assert (arg1 > arg2) == is_gt
+
+
+@pytest.mark.parametrize(
+    "arg1, arg2, is_ge",
+    [
+        [vec2d, vec2d_lg, False],
+        [vec2d, vec2d, True],
+        [vec2d_lg, vec2d, True],
+        [vec2d, vec2d_mx, False],
+        [vec2d_mx, vec2d, False],
+    ],
+)
+def test_ge(arg1, arg2, is_ge):
+    assert (arg1 >= arg2) == is_ge
+
+
+@pytest.mark.parametrize(
     "arg1, arg2, fname, dtype",
     [
         [vec3d, some_float, "+", float],
@@ -171,6 +229,14 @@ def test_eq_types(arg1, arg2, is_equal):
         [intvec3d, some_int, "//", int],
         [intvec3d, vec3d, "//", float],
         [intvec3d, intvec3d, "//", int],
+        [vec3d, some_float, "%", float],
+        [vec3d, some_int, "%", float],
+        [vec3d, vec3d, "%", float],
+        [vec3d, intvec3d, "%", float],
+        [intvec3d, some_float, "%", float],
+        [intvec3d, some_int, "%", int],
+        [intvec3d, vec3d, "%", float],
+        [intvec3d, intvec3d, "%", int],
     ],
 )
 def test_ops(arg1, arg2, fname, dtype):
@@ -210,7 +276,6 @@ def test_unimplemented_ops(arg1, arg2, fname):
         [zt.VecND, (1, 2, 3), TypeError],
         [zt.IntVecND, (1, 2, 3), TypeError],
         [zt.Vec3D, (1, 2, 3, 4), ValueError],
-        [zt.IntVec3D, (1.0, 2.0, 3.0), TypeError],
         [zt.IntVec3D, (1.5, 2.5, 3.5), TypeError],
     ],
 )
@@ -231,6 +296,30 @@ def test_exc(constructor, args, expected_exc):
 def test_exc_tuple(constructor, args, expected_exc):
     with pytest.raises(expected_exc):
         constructor(args)
+
+
+@pytest.mark.parametrize(
+    "vec, idx, val",
+    [
+        [vec3d, 1, 4.5],
+        [intvec3d, 0, 2],
+    ],
+)
+def test_setitem(vec, idx, val):
+    vec[idx] = val
+    assert vec[idx] == val
+
+
+@pytest.mark.parametrize(
+    "vec, idx, val, expected_exc",
+    [
+        [intvec3d, 10, 1.0, IndexError],
+        [intvec3d, 0, 1.5, TypeError],
+    ],
+)
+def test_exc_setitem(vec, idx, val, expected_exc):
+    with pytest.raises(expected_exc):
+        vec[idx] = val
 
 
 vec1d = zt.Vec1D(1.0)
@@ -288,14 +377,17 @@ def test_subtyping() -> None:
         intvec1d - intvec1d,
         intvec1d * intvec1d,
         intvec1d // intvec1d,
+        intvec1d % intvec1d,
         intvec1d + some_int,
         intvec1d - some_int,
         intvec1d * some_int,
         intvec1d // some_int,
+        intvec1d % some_int,
         some_int + intvec1d,
         some_int - intvec1d,
         some_int * intvec1d,
         some_int // intvec1d,
+        some_int % intvec1d,
     ]:
 
         test_inference_return_int1d(x)
@@ -309,31 +401,37 @@ def test_subtyping() -> None:
         vec1d * intvec1d,
         vec1d // intvec1d,
         vec1d / intvec1d,
+        vec1d % intvec1d,
         intvec1d + vec1d,
         intvec1d - vec1d,
         intvec1d * vec1d,
         intvec1d // vec1d,
         intvec1d / vec1d,
+        vec1d % intvec1d,
         vec1d + some_int,
         vec1d - some_int,
         vec1d * some_int,
         vec1d // some_int,
         vec1d / some_int,
+        vec1d % some_int,
         some_int + vec1d,
         some_int - vec1d,
         some_int * vec1d,
         some_int // vec1d,
         some_int / vec1d,
+        some_int % vec1d,
         vec1d + some_float,
         vec1d - some_float,
         vec1d * some_float,
         vec1d // some_float,
         vec1d / some_float,
+        vec1d % some_float,
         some_float + vec1d,
         some_float - vec1d,
         some_float * vec1d,
         some_float // vec1d,
         some_float / vec1d,
+        some_float % vec1d,
         intvec1d + some_float,
         intvec1d - some_float,
         intvec1d * some_float,
@@ -345,5 +443,6 @@ def test_subtyping() -> None:
         some_float * intvec1d,
         some_float // intvec1d,
         some_float / intvec1d,
+        some_float % intvec1d,
     ]:
         test_inference_return_vec1d(y)

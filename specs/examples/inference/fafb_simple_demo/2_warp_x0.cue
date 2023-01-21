@@ -8,8 +8,8 @@
 "@type": "mazepa.execute"
 target: {
 	"@type": "build_warp_flow"
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 7, 1024 * 3, 2001]
 		end_coord: [1024 * 9, 1024 * 5, 2003]
 		resolution: [64, 64, 40]

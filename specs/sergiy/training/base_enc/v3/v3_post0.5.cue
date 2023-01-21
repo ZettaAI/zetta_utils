@@ -183,8 +183,8 @@ target: {
 				desired_resolution: [32, 32, 30]
 				chunk_size: [1024, 1024, 1]
 				stride: [512, 512, 1]
-				bcube: {
-					"@type":     "BoundingCube"
+				bbox: {
+					"@type":     "BBox3D.from_coords"
 					start_coord: _
 					end_coord:   _
 					resolution:  _
@@ -195,8 +195,8 @@ target: {
 }
 #field_indexer: {
 	"@type": "VolumetricStridedIndexer"
-	"bcube": {
-		"@type": "BoundingCube"
+	"bbox": {
+		"@type": "BBox3D.from_coords"
 		"end_coord": [
 			2048,
 			2048,
@@ -236,8 +236,8 @@ target: {
 }
 
 #train_dset: #dset_settings & {
-	datasets: images: sample_indexer: bcube: {
-		"@type": "BoundingCube"
+	datasets: images: sample_indexer: bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 24, 1024 * 23, 3000]
 		end_coord: [1024 * 73, 1024 * 100, 3016]
 		resolution: [4, 4, 30]
@@ -249,8 +249,8 @@ target: {
 }
 
 #val_dset: #dset_settings & {
-	datasets: images: sample_indexer: bcube: {
-		"@type": "BoundingCube"
+	datasets: images: sample_indexer: bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 30, 1024 * 40, 3016]
 		end_coord: [1024 * 60, 1024 * 80, 3017]
 		resolution: [4, 4, 30]

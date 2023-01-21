@@ -17,8 +17,8 @@ target: {
 	"@type":        "build_warp_flow"
 	mode:           "img"
 	dst_resolution: #DST_RESOLUTION
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 - 512, 1024 - 256, 3000]
 		end_coord: [1024, 1024 + 256, 3020]
 		resolution: [256, 256, 30]

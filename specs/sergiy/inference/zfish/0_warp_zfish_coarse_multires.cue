@@ -8,13 +8,13 @@
 #IDX_TMPL: {
 	"@type":    "VolumetricIndex"
 	resolution: _
-	bcube:
+	bbox:
 	{
-		"@type": "pad_bcube"
+		"@type": "pad_bbox"
 		pad: [#XY_OVERLAP / 2, #XY_OVERLAP / 2, 0]
 		pad_resolution: resolution // matches the idx resolution
-		bcube: {
-			"@type": "BoundingCube"
+		bbox: {
+			"@type": "BBox3D.from_coords"
 			start_coord: [0, 0, 3000]
 			end_coord: [2048, 2048, 3020]
 			resolution: [512, 512, 30]

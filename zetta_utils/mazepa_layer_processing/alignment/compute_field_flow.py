@@ -4,7 +4,7 @@ from typing import Optional
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -32,7 +32,7 @@ class ComputeFieldFlowSchema:
 
     def flow(
         self,
-        bcube: BoundingCube,
+        bbox: BBox3D,
         dst_resolution: Vec3D,
         dst: VolumetricLayer,
         src: VolumetricLayer,
@@ -51,7 +51,7 @@ class ComputeFieldFlowSchema:
         cf_flow = build_chunked_apply_flow(
             operation=self.operation,  # type: ignore
             chunker=self.chunker,
-            idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+            idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
             dst=dst,  # type: ignore
             src=src,  # type: ignore
             tgt=tgt,  # type: ignore
@@ -69,7 +69,7 @@ class ComputeFieldFlowSchema:
 def build_compute_field_flow(
     chunk_size: IntVec3D,
     operation: ComputeFieldOpProtocol,
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     dst: VolumetricLayer,
     src: VolumetricLayer,
@@ -79,7 +79,7 @@ def build_compute_field_flow(
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldFlowSchema(chunk_size=chunk_size, operation=operation)
     flow = flow_schema(
-        bcube=bcube,
+        bbox=bbox,
         dst_resolution=dst_resolution,
         dst=dst,
         src=src,

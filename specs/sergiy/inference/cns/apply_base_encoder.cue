@@ -8,7 +8,7 @@
 #RESOLUTION: [32, 32, 45]
 #CROP: [128, 128, 0]
 #BCUBE: {
-	"@type": "BoundingCube"
+	"@type": "BBox3D.from_coords"
 	start_coord: [1024, 0, 3000]
 	end_coord: [2048, 1024, 3001]
 	resolution: [512, 512, 45]
@@ -53,7 +53,7 @@ target: {
 	}
 	idx: {
 		"@type":    "VolumetricIndex"
-		bcube:      #BCUBE
+		bbox:      #BCUBE
 		resolution: #RESOLUTION
 	}
 }

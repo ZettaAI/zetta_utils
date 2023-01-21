@@ -7,7 +7,7 @@ import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa, tensor_ops
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -513,7 +513,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
 )
 def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     operation: BlendableOpProtocol[P, R_co],
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     processing_chunk_size: IntVec3D,
     max_reduction_chunk_size: Optional[IntVec3D] = None,
@@ -525,7 +525,7 @@ def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
-    idx = VolumetricIndex(resolution=dst_resolution, bcube=bcube)
+    idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
     flow_schema: BlendableApplyFlowSchema[P, R_co] = BlendableApplyFlowSchema(
         operation=operation,
         processing_chunk_size=processing_chunk_size,

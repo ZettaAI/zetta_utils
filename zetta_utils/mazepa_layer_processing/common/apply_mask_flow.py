@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 
 from zetta_utils import builder, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -30,7 +30,7 @@ def _apply_mask(
 )
 def build_apply_mask_flow(
     chunk_size: IntVec3D,
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     src: VolumetricLayer,
     dst: VolumetricLayer,
@@ -42,7 +42,7 @@ def build_apply_mask_flow(
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
     flow = flow_schema(
-        idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         dst=dst,
         src=src,
         mask=mask,

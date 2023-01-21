@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
 import pytest
 
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import VolumetricFrontend, VolumetricIndex
 from zetta_utils.typing import Vec3D
 
@@ -12,27 +12,27 @@ from zetta_utils.typing import Vec3D
         [
             {},
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
         ],
         [
             {},
-            (Vec3D(1, 2, 3), BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9)))),
+            (Vec3D(1, 2, 3), BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9)))),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
         ],
         [
             {"default_desired_resolution": Vec3D(1, 2, 3)},
-            BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+            BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
         ],
@@ -40,7 +40,7 @@ from zetta_utils.typing import Vec3D
             {},
             (Vec3D(1, 2, 3), slice(0, 1), slice(0, 2), slice(0, 3)),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
         ],
@@ -48,7 +48,7 @@ from zetta_utils.typing import Vec3D
             {},
             (Vec3D(1, 2, 3), (slice(0, 1), slice(0, 2), slice(0, 3))),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(1, 2, 3),
             ),
         ],
@@ -56,7 +56,7 @@ from zetta_utils.typing import Vec3D
             {"default_desired_resolution": Vec3D(8, 8, 8), "index_resolution": Vec3D(1, 2, 3)},
             (slice(0, 1), slice(0, 2), slice(0, 3)),
             VolumetricIndex(
-                bcube=BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
+                bbox=BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9))),
                 resolution=Vec3D(8, 8, 8),
             ),
         ],
@@ -82,7 +82,7 @@ def test_volumetric_convert(
         ],
         [
             {},
-            (None, BoundingCube.from_slices((slice(0, 1), slice(0, 4), slice(0, 9)))),
+            (None, BBox3D.from_slices((slice(0, 1), slice(0, 4), slice(0, 9)))),
             ValueError,
         ],
         [

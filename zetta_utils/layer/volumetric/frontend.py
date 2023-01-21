@@ -1,28 +1,28 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union, get_origin
+from typing import Optional, Tuple, Union
 
 import attrs
 import torch
 
 from zetta_utils import builder
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.typing import Slices3D, Vec3D
 
 from ..frontend_base import Frontend
 from . import VolumetricIndex
 
 SliceUserVolumetricIndex = Union[
-    Tuple[Optional[Vec3D], BoundingCube],
+    Tuple[Optional[Vec3D], BBox3D],
     Tuple[slice, slice, slice],  # making the tuple explicit
     Tuple[Optional[Vec3D], Slices3D],
     Tuple[Optional[Vec3D], slice, slice, slice],
 ]
 
 UnconvertedUserVolumetricIndex = Union[
-    BoundingCube,
-    Tuple[Optional[Vec3D], BoundingCube],
+    BBox3D,
+    Tuple[Optional[Vec3D], BBox3D],
     SliceUserVolumetricIndex,
 ]
 
@@ -39,21 +39,15 @@ class VolumetricFrontend(Frontend):
     default_desired_resolution: Optional[Vec3D] = None
     allow_slice_rounding: bool = False
 
-    def _get_bcube_from_user_vol_idx(
-        self, idx_user: UnconvertedUserVolumetricIndex
-    ) -> BoundingCube:
-        # static type system  generally confused here because of use of len() and get_origin.
-        # it understands neither
-
-        result: BoundingCube
-        if isinstance(idx_user, get_origin(BoundingCube)):  # type: ignore
-            result = idx_user  # type: ignore
-        elif len(idx_user) == 2 and isinstance(  # type: ignore
-            idx_user[1], get_origin(BoundingCube)  # type: ignore
-        ):
-            result = idx_user[1]  # type: ignore # mypy unaware of length
+    def _get_bbox_from_user_vol_idx(self, idx_user: UnconvertedUserVolumetricIndex) -> BBox3D:
+        result: BBox3D
+        if isinstance(idx_user, BBox3D):
+            result = idx_user
+        elif len(idx_user) == 2 and isinstance(idx_user[1], BBox3D):
+            result = idx_user[1]
         else:
-            idx_slice: SliceUserVolumetricIndex = idx_user  # type: ignore
+            idx_slice: SliceUserVolumetricIndex = idx_user
+            # MyPy is on very aware of length checks, leading to the following type ignores
             if len(idx_slice) == 4:  # Tuple[Optional[Vec3D], slice, slice, sclie]
                 specified_resolution: Optional[Vec3D] = idx_slice[0]  # type: ignore
                 slices_user: Slices3D = idx_slice[1:]  # type: ignore
@@ -75,7 +69,7 @@ class VolumetricFrontend(Frontend):
             else:
                 slice_resolution = specified_resolution
 
-            result = BoundingCube.from_slices(slices=slices_user, resolution=slice_resolution)
+            result = BBox3D.from_slices(slices=slices_user, resolution=slice_resolution)
 
         return result
 
@@ -102,12 +96,12 @@ class VolumetricFrontend(Frontend):
         if isinstance(idx_user, VolumetricIndex):
             result = idx_user
         else:
-            bcube = self._get_bcube_from_user_vol_idx(idx_user)
+            bbox = self._get_bbox_from_user_vol_idx(idx_user)
             desired_resolution = self._get_desired_res_from_user_vol_idx(idx_user)
 
             result = VolumetricIndex(
                 resolution=desired_resolution,
-                bcube=bcube,
+                bbox=bbox,
             )
 
         result.allow_slice_rounding = self.allow_slice_rounding

@@ -238,8 +238,8 @@ target: {
 }
 #field_indexer: {
 	"@type": "VolumetricStridedIndexer"
-	"bcube": {
-		"@type": "BoundingCube"
+	"bbox": {
+		"@type": "BBox3D.from_coords"
 		"end_coord": [
 			2048,
 			2048,

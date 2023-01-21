@@ -18,8 +18,8 @@ target: {
 	rigidity_weight: 3
 	num_iter:        150
 	fix:             "both"
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 - 512, 1024 - 256, 3010]
 		end_coord: [1024, 1024 + 256, 3020]
 		resolution: [256, 256, 30]

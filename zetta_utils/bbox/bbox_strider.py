@@ -10,23 +10,23 @@ from typeguard import typechecked
 from zetta_utils import builder, log
 from zetta_utils.typing import IntVec3D, Vec3D
 
-from .bcube import BoundingCube
+from .bbox import BBox3D
 
 logger = log.get_logger("zetta_utils")
 
 
 @builder.register(
-    "BcubeStrider",
+    "BBoxStrider",
     cast_to_vec3d=["resolution", "stride_start"],
     cast_to_intvec3d=["chunk_size", "stride"],
 )
 @typechecked
 @attrs.frozen
-class BcubeStrider:
+class BBoxStrider:
     """Strides over the bounding cube to produce a list of bounding cubes.
     Allows random indexing of the chunks without keeping the full chunk set in memory.
 
-    :param bcube: Input bounding cube.
+    :param bbox: Input bounding cube.
     :param resolution: Resolution at which ``chunk_size`` and ``stride`` are given.
     :param chunk_size: Size of an individual chunk.
     :param max_superchunk_size: Upper bound for the superchunks to consolidate the
@@ -35,15 +35,15 @@ class BcubeStrider:
     :param stride_start_offset: Where the stride should start in unit (not voxel),
         modulo ``chunk_size``.
     :param mode: The modes that can be chosen for the behaviour.
-        `shrink` is the default behaviour, which will round the bcube down to
-        be aligned with the ``stride_start_offset`` (or just the start of the bcube
+        `shrink` is the default behaviour, which will round the bbox down to
+        be aligned with the ``stride_start_offset`` (or just the start of the bbox
         if ``stride_start_offset`` is not set or ``stride`` != ``chunk_size``).
-        `expand` is similar to `shrink` except it expands the bcube.
+        `expand` is similar to `shrink` except it expands the bbox.
         `exact` will give full cubes aligned with the ``stride_start_offset`` and the
         ``chunk_size``, as well as the partial cubes at the edges.
     """
 
-    bcube: BoundingCube
+    bbox: BBox3D
     resolution: Vec3D
     chunk_size: IntVec3D
     stride: IntVec3D
@@ -51,7 +51,7 @@ class BcubeStrider:
     stride_start_offset: Optional[IntVec3D] = None
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     stride_in_unit: Vec3D = attrs.field(init=False)
-    bcube_snapped: BoundingCube = attrs.field(init=False)
+    bbox_snapped: BBox3D = attrs.field(init=False)
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
     step_start_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     step_end_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
@@ -86,7 +86,7 @@ class BcubeStrider:
             superchunk_size = self.chunk_size * (self.max_superchunk_size // self.chunk_size)
             object.__setattr__(self, "chunk_size", superchunk_size)
             object.__setattr__(self, "stride", superchunk_size)
-            object.__setattr__(self, "bcube", self.bcube_snapped)
+            object.__setattr__(self, "bbox", self.bbox_snapped)
             object.__setattr__(self, "stride_start_offset", None)
             object.__setattr__(self, "mode", "exact")
             object.__setattr__(self, "max_superchunk_size", None)
@@ -98,41 +98,41 @@ class BcubeStrider:
                 "`exact` mode is only supported when the `chunk_size` and `stride` are equal"
             )
         if self.stride_start_offset is None:
-            stride_start_offset_in_unit = self.bcube.start
+            stride_start_offset_in_unit = self.bbox.start
         else:
             stride_start_offset_in_unit = self.stride_start_offset * self.resolution
-        bcube_snapped = self.bcube.snapped(
+        bbox_snapped = self.bbox.snapped(
             grid_offset=stride_start_offset_in_unit,
             grid_size=self.chunk_size_in_unit,
             mode="shrink",
         )
-        bcube_snapped_size_in_unit = bcube_snapped.shape
+        bbox_snapped_size_in_unit = bbox_snapped.shape
         step_limits_snapped = Vec3D(
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(
-                    bcube_snapped_size_in_unit,
+                    bbox_snapped_size_in_unit,
                     self.chunk_size_in_unit,
                     self.stride_in_unit,
                 )
             )
         )
         step_limits = IntVec3D(*(floor(e) for e in step_limits_snapped))
-        bcube_start_diff = bcube_snapped.start - self.bcube.start
-        bcube_end_diff = self.bcube.end - bcube_snapped.end
-        step_start_partial = tuple(e > 0 for e in bcube_start_diff)
-        step_end_partial = tuple(e > 0 for e in bcube_end_diff)
+        bbox_start_diff = bbox_snapped.start - self.bbox.start
+        bbox_end_diff = self.bbox.end - bbox_snapped.end
+        step_start_partial = tuple(e > 0 for e in bbox_start_diff)
+        step_end_partial = tuple(e > 0 for e in bbox_end_diff)
         step_limits += IntVec3D(*(int(e) for e in step_start_partial))
         step_limits += IntVec3D(*(int(e) for e in step_end_partial))
         logger.info(
-            f"Exact bcube requested; out of {self.bcube.bounds},"
-            f" full cubes are in {bcube_snapped.bounds}, given offset"
-            f" {stride_start_offset_in_unit}{self.bcube.unit} with chunk size"
-            f" {self.chunk_size_in_unit}{self.bcube.unit}."
+            f"Exact bbox requested; out of {self.bbox.bounds},"
+            f" full cubes are in {bbox_snapped.bounds}, given offset"
+            f" {stride_start_offset_in_unit}{self.bbox.unit} with chunk size"
+            f" {self.chunk_size_in_unit}{self.bbox.unit}."
         )
         # Use `__setattr__` to keep the object frozen.
         object.__setattr__(self, "step_limits", step_limits)
-        object.__setattr__(self, "bcube_snapped", bcube_snapped)
+        object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
 
@@ -145,35 +145,35 @@ class BcubeStrider:
                     "`stride_start_offset` is only supported when the"
                     " `chunk_size` and `stride` are equal"
                 )
-            bcube_snapped = self.bcube
+            bbox_snapped = self.bbox
         else:
             if self.stride_start_offset is not None:
                 stride_start_offset_in_unit = self.stride_start_offset * self.resolution
             else:
-                stride_start_offset_in_unit = self.bcube.start * self.resolution
-            bcube_snapped = self.bcube.snapped(
+                stride_start_offset_in_unit = self.bbox.start * self.resolution
+            bbox_snapped = self.bbox.snapped(
                 grid_offset=stride_start_offset_in_unit,
                 grid_size=self.chunk_size_in_unit,
                 mode=self.mode,  # type: ignore #mypy doesn't realise that mode has been checked
             )
 
-        bcube_snapped_size_in_unit = bcube_snapped.end - bcube_snapped.start
+        bbox_snapped_size_in_unit = bbox_snapped.end - bbox_snapped.start
         step_limits_snapped = Vec3D(
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(
-                    bcube_snapped_size_in_unit,
+                    bbox_snapped_size_in_unit,
                     self.chunk_size_in_unit,
                     self.stride_in_unit,
                 )
             )
         )
-        bcube_size_in_unit = self.bcube.end - self.bcube.start
+        bbox_size_in_unit = self.bbox.end - self.bbox.start
         step_limits_raw = Vec3D(
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(
-                    bcube_size_in_unit,
+                    bbox_size_in_unit,
                     self.chunk_size_in_unit,
                     self.stride_in_unit,
                 )
@@ -182,11 +182,11 @@ class BcubeStrider:
         if self.mode == "shrink":
             step_limits = IntVec3D(*(floor(e) for e in step_limits_snapped))
             if step_limits_raw != step_limits:
-                rounded_bcube_bounds = tuple(
+                rounded_bbox_bounds = tuple(
                     (
-                        bcube_snapped.bounds[i][0],
+                        bbox_snapped.bounds[i][0],
                         (
-                            bcube_snapped.bounds[i][0]
+                            bbox_snapped.bounds[i][0]
                             + self.chunk_size_in_unit[i]
                             + (step_limits[i] - 1) * self.stride_in_unit[i]
                         ),
@@ -194,19 +194,19 @@ class BcubeStrider:
                     for i in range(3)
                 )
                 logger.info(
-                    f"Rounding down bcube bounds from {self.bcube.bounds} to"
-                    f" {rounded_bcube_bounds} to divide evenly by stride"
-                    f" {self.stride_in_unit}{self.bcube.unit} with chunk size"
-                    f" {self.chunk_size_in_unit}{self.bcube.unit}."
+                    f"Rounding down bbox bounds from {self.bbox.bounds} to"
+                    f" {rounded_bbox_bounds} to divide evenly by stride"
+                    f" {self.stride_in_unit}{self.bbox.unit} with chunk size"
+                    f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         if self.mode == "expand":
             step_limits = IntVec3D(*(ceil(e) for e in step_limits_snapped))
             if step_limits_raw != step_limits:
-                rounded_bcube_bounds = tuple(
+                rounded_bbox_bounds = tuple(
                     (
-                        bcube_snapped.bounds[i][0],
+                        bbox_snapped.bounds[i][0],
                         (
-                            bcube_snapped.bounds[i][0]
+                            bbox_snapped.bounds[i][0]
                             + self.chunk_size_in_unit[i]
                             + step_limits[i] * self.stride_in_unit[i]
                         ),
@@ -214,14 +214,14 @@ class BcubeStrider:
                     for i in range(3)
                 )
                 logger.info(
-                    f"Rounding up bcube bounds from {self.bcube.bounds} to"
-                    f" {rounded_bcube_bounds} to divide evenly by stride"
-                    f" {self.stride_in_unit}{self.bcube.unit} with chunk size"
-                    f" {self.chunk_size_in_unit}{self.bcube.unit}."
+                    f"Rounding up bbox bounds from {self.bbox.bounds} to"
+                    f" {rounded_bbox_bounds} to divide evenly by stride"
+                    f" {self.stride_in_unit}{self.bbox.unit} with chunk size"
+                    f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         # Use `__setattr__` to keep the object frozen.
         object.__setattr__(self, "step_limits", step_limits)
-        object.__setattr__(self, "bcube_snapped", bcube_snapped)
+        object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
 
@@ -231,13 +231,13 @@ class BcubeStrider:
         result = self.step_limits[0] * self.step_limits[1] * self.step_limits[2]
         return result
 
-    def get_all_chunk_bcubes(self) -> List[BoundingCube]:
+    def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
-        result = [self.get_nth_chunk_bcube(i) for i in range(self.num_chunks)]  # TODO: generator?
+        result = [self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)]  # TODO: generator?
         return result
 
-    def get_nth_chunk_bcube(self, n: int) -> BoundingCube:
-        """Get nth chunk bcube, in order.
+    def get_nth_chunk_bbox(self, n: int) -> BBox3D:
+        """Get nth chunk bbox, in order.
 
         :param n: Integer chunk index.
         :return: Volumetric index for the chunk, including
@@ -252,7 +252,7 @@ class BcubeStrider:
         )
         if self.mode in ("shrink", "expand"):
             chunk_origin_in_unit = [
-                self.bcube_snapped.bounds[i][0] + self.stride_in_unit[i] * steps_along_dim[i]
+                self.bbox_snapped.bounds[i][0] + self.stride_in_unit[i] * steps_along_dim[i]
                 for i in range(3)
             ]
             chunk_end_in_unit = [
@@ -261,7 +261,7 @@ class BcubeStrider:
             ]
         else:
             chunk_origin_in_unit = [
-                self.bcube_snapped.bounds[i][0]
+                self.bbox_snapped.bounds[i][0]
                 + self.stride_in_unit[i] * (steps_along_dim[i] - int(self.step_start_partial[i]))
                 for i in range(3)
             ]
@@ -271,16 +271,16 @@ class BcubeStrider:
             ]
             for i in range(3):
                 if steps_along_dim[i] == 0 and self.step_start_partial[i]:
-                    chunk_origin_in_unit[i] = self.bcube.start[i]
-                    chunk_end_in_unit[i] = self.bcube_snapped.start[i]
+                    chunk_origin_in_unit[i] = self.bbox.start[i]
+                    chunk_end_in_unit[i] = self.bbox_snapped.start[i]
                 if steps_along_dim[i] == self.step_limits[i] - 1 and self.step_end_partial[i]:
-                    chunk_origin_in_unit[i] = self.bcube_snapped.end[i]
-                    chunk_end_in_unit[i] = self.bcube.end[i]
+                    chunk_origin_in_unit[i] = self.bbox_snapped.end[i]
+                    chunk_end_in_unit[i] = self.bbox.end[i]
         slices = (
             slice(chunk_origin_in_unit[0], chunk_end_in_unit[0]),
             slice(chunk_origin_in_unit[1], chunk_end_in_unit[1]),
             slice(chunk_origin_in_unit[2], chunk_end_in_unit[2]),
         )
 
-        result = BoundingCube.from_slices(slices)
+        result = BBox3D.from_slices(slices)
         return result

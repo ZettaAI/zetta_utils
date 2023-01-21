@@ -17,7 +17,7 @@ from cloudvolume.lib import Bbox
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.typing import IntVec3D, Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -105,7 +105,7 @@ def _str(n: float) -> str:  # pragma: no cover
 
 
 @builder.register("CVBackend")
-@typechecked
+# @typechecked raises stop iteration, TOOD: make an issue
 @attrs.mutable
 class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
@@ -279,7 +279,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             )
         return VolumetricIndex(
             resolution=index.resolution,
-            bcube=BoundingCube.from_coords(
+            bbox=BBox3D.from_coords(
                 IntVec3D(*bbox_aligned.minpt), IntVec3D(*bbox_aligned.maxpt), index.resolution
             ),
         )
@@ -293,12 +293,12 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         if idx != idx_expanded:
             raise ValueError(
-                "The specified BoundingCube is not chunk-aligned with the VolumetricLayer at"
-                + f" `{self.name}`;\nin {tuple(idx.resolution)} {idx.bcube.unit} voxels:"
+                "The specified BBox3D is not chunk-aligned with the VolumetricLayer at"
+                + f" `{self.name}`;\nin {tuple(idx.resolution)} {idx.bbox.unit} voxels:"
                 + f" offset: {self.get_voxel_offset(idx.resolution)},"
                 + f" chunk_size: {self.get_chunk_size(idx.resolution)}\n"
-                + f"Received BoundingCube: {idx.pformat()}\n"
-                + "Nearest chunk-aligned BoundingCubes:\n"
+                + f"Received BBox3D: {idx.pformat()}\n"
+                + "Nearest chunk-aligned BBox3Ds:\n"
                 + f" - expanded : {idx_expanded.pformat()}\n"
                 + f" - rounded  : {idx_rounded.pformat()}\n"
                 + f" - shrunk   : {idx_shrunk.pformat()}"

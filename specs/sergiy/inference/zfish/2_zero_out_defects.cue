@@ -23,8 +23,8 @@
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "expect_same"
 	}
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3010]
 		end_coord: [2048, 2048, 3020]
 		resolution: [512, 512, 30]

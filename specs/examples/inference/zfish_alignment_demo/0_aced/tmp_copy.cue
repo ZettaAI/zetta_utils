@@ -11,8 +11,8 @@
 target: {
 	"@type":        "build_write_flow"
 	dst_resolution: #DST_RESOLUTION
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3010]
 		end_coord: [2048, 2048, 3020]
 		resolution: [256, 256, 30]

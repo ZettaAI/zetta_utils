@@ -2,7 +2,7 @@
 """Zetta AI Computational Connectomics Toolkit."""
 
 from . import common, parsing
-from . import builder, bcube, distributions, layer, log, typing, ng
+from . import builder, bbox, distributions, layer, log, typing, ng
 
 log.add_supress_traceback_module(builder)
 

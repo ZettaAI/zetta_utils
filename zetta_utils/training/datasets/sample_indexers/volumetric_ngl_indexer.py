@@ -4,7 +4,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.parsing import ngl_state
 from zetta_utils.typing import IntVec3D, Vec3D
 
@@ -26,7 +26,7 @@ class VolumetricNGLIndexer(SampleIndexer):
 
 
     BCUBE ANNOTATIONS NOT IMPLEMENETED YET.
-    For bcubes, the region specified by the bcube will be strided over with the given
+    For bboxes, the region specified by the bbox will be strided over with the given
     chunk size/stride. The region will rounded down to divide evenly.
 
     :param path: Path to the NGL annotation.
@@ -49,8 +49,8 @@ class VolumetricNGLIndexer(SampleIndexer):
     annotations: List[Vec3D] = attrs.field(init=False)
 
     # stride: IntVec3D
-    #:param stride: Distance between neighboring chunks along each dimension for bcube annotations.
-    # bcube_strider: BcubeStrider = attrs.field(init=False)
+    #:param stride: Distance between neighboring chunks along each dimension for bbox annotations.
+    # bbox_strider: BBoxStrider = attrs.field(init=False)
 
     def __attrs_post_init__(self):
         # Use `__setattr__` to keep the object frozen.
@@ -77,12 +77,12 @@ class VolumetricNGLIndexer(SampleIndexer):
         start_coord = (start_coord_raw // self.resolution) * self.resolution
         end_coord = start_coord + self.chunk_size * self.resolution
 
-        sample_bcube = BoundingCube.from_coords(start_coord, end_coord, resolution=Vec3D(1, 1, 1))
+        sample_bbox = BBox3D.from_coords(start_coord, end_coord, resolution=Vec3D(1, 1, 1))
 
         if self.index_resolution is not None:
-            slices = sample_bcube.to_slices(resolution=self.index_resolution)
+            slices = sample_bbox.to_slices(resolution=self.index_resolution)
         else:
-            slices = sample_bcube.to_slices(resolution=self.resolution)
+            slices = sample_bbox.to_slices(resolution=self.resolution)
 
         result = (self.desired_resolution, slices[0], slices[1], slices[2])
         return result

@@ -76,7 +76,6 @@ class WarpOperation:
         dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
         dst[idx] = dst_data
 
-
 @builder.register(
     "build_warp_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size", "crop"]
 )
@@ -91,14 +90,15 @@ def build_warp_flow(
     crop: IntVec3D = IntVec3D(0, 0, 0),
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
+    operation = WarpOperation(
+        crop=crop, mode=mode, mask_value_thr=mask_value_thr
+    )
     result = build_chunked_apply_flow(
-        operation=WarpOperation(
-            crop=crop, mode=mode, mask_value_thr=mask_value_thr
-        ),  # type: ignore
+        operation=operation,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
-        dst=dst,  # type: ignore
-        src=src,  # type: ignore
-        field=field,  # type: ignore
+        dst=dst,
+        src=src,
+        field=field,
     )
     return result

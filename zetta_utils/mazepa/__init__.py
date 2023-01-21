@@ -23,5 +23,3 @@ from .remote_execution_queues import SQSExecutionQueue
 
 from .execute import Executor, execute
 from .worker import run_worker
-
-from .tools import SubflowTask

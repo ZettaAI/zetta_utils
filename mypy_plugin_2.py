@@ -8,17 +8,27 @@ from mypy.plugins.common import add_method_to_class  # add_attribute_to_class,
 from mypy.types import AnyType, Parameters, TypeOfAny
 
 
-def task_maker_cls_hook(ctx):  # pragma: no cover # type: ignore
+def task_maker_cls_callback(ctx):  # pragma: no cover # type: ignore
     call_method = ctx.cls.info.get_method("__call__")
     if call_method is not None and call_method.type is not None:
         args = call_method.arguments
-        for arg in args[1:]:
+        for arg in args[1:]:  # don't need to annotate `self`
             if arg.type_annotation is None:
                 arg.type_annotation = AnyType(TypeOfAny.unannotated)
 
+        arg_types = [arg.type_annotation for arg in args]
+        arg_kinds = [arg.kind for arg in args]
+        # skip `self`
+        arg_names = call_method.arg_names  # [1:]
+        task_params = Parameters(
+            arg_types=arg_types[1:], arg_names=arg_names[1:], arg_kinds=arg_kinds[1:]
+        )
+        # make_params = Parameters(arg_types=arg_types, arg_names=arg_names, arg_kinds=arg_kinds)
         return_type = ctx.api.named_type(
             fullname="zetta_utils.mazepa.Task",
             args=[
+                # AnyType(TypeOfAny.unannotated),
+                # task_params,
                 call_method.type.ret_type,
             ],
         )
@@ -32,32 +42,28 @@ def task_maker_cls_hook(ctx):  # pragma: no cover # type: ignore
 
     return True
 
-def task_maker_cls_hook_2(ctx):  # pragma: no cover # type: ignore
 
-    reference_method = ctx.cls.info.get_method("__call__")
-    created_method = ctx.cls.info.get_method("make_task")
-    return True
-
-    for i in range(len(reference_method.arguments)):
-        if reference_method.arguments[i].variable.type != created_method.arguments[i].variable.type:
-            breakpoint()
-        if reference_method.arguments[i].variable.name!= created_method.arguments[i].variable.name:
-            breakpoint()
-
-    return True
-
-def flow_schema_cls_hook(ctx):  # pragma: no cover # type: ignore
+def flow_schema_cls_callback(ctx):  # pragma: no cover # type: ignore
     reference_method = ctx.cls.info.get_method("flow")
     if reference_method is not None:
         args = reference_method.arguments
         for arg in args[1:]:
             if arg.type_annotation is None:
                 arg.type_annotation = AnyType(TypeOfAny.unannotated)
-        #breakpoint()
-        return_type = ctx.api.named_type(
-            fullname="zetta_utils.mazepa.Flow",
+
+        arg_types = [arg.type_annotation for arg in args]
+        arg_kinds = [arg.kind for arg in args]
+        arg_names = reference_method.arg_names
+        params = Parameters(
+            arg_types=arg_types[1:], arg_names=arg_names[1:], arg_kinds=arg_kinds[1:]
         )
 
+        return_type = ctx.api.named_type(
+            fullname="zetta_utils.mazepa.Flow",
+            # args=[
+            #    params,
+            # ],
+        )
         add_method_to_class(
             ctx.api,
             ctx.cls,
@@ -68,18 +74,6 @@ def flow_schema_cls_hook(ctx):  # pragma: no cover # type: ignore
 
     return True
 
-def flow_schema_cls_hook_2(ctx):  # pragma: no cover # type: ignore
-    reference_method = ctx.cls.info.get_method("flow")
-    created_method = ctx.cls.info.get_method("__call__")
-
-    return True
-    for i in range(len(reference_method.arguments)):
-        if reference_method.arguments[i].variable.type != created_method.arguments[i].variable.type:
-            breakpoint()
-        if reference_method.arguments[i].variable.name!= created_method.arguments[i].variable.name:
-            breakpoint()
-
-    return True
 
 TASK_FACTORY_CLS_MAKERS: Final = {
     "zetta_utils.mazepa.tasks.taskable_operation_cls",
@@ -89,26 +83,15 @@ FLOW_TYPE_CLS_MAKERS: Final = {"zetta_utils.mazepa.flows.flow_schema_cls"}
 
 
 class MazepaPlugin(Plugin):
-    def get_class_decorator_hook(
-        self, fullname: str
-    ) -> Optional[Callable[[ClassDefContext], bool]]:  # pragma: no cover
-        if fullname in TASK_FACTORY_CLS_MAKERS:
-            return task_maker_cls_hook
-        if fullname in FLOW_TYPE_CLS_MAKERS:
-            return flow_schema_cls_hook
-        return None
-
     def get_class_decorator_hook_2(
         self, fullname: str
     ) -> Optional[Callable[[ClassDefContext], bool]]:  # pragma: no cover
-        if fullname in TASK_FACTORY_CLS_MAKERS:
-            return task_maker_cls_hook_2
+        # if fullname in TASK_FACTORY_CLS_MAKERS:
+        if "task" in fullname:
+            return task_maker_cls_callback
         if fullname in FLOW_TYPE_CLS_MAKERS:
-            return flow_schema_cls_hook_2
+            return flow_schema_cls_callback
         return None
-
-
-
 
 
 class DummyPlugin(Plugin):  # pragma: no cover

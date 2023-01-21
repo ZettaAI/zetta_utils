@@ -81,6 +81,7 @@ class ComputeFieldOperation:
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
         idx_input_padded = idx_input.pad(self.crop_pad)
+
         src_data, src_field_data, src_translation = translation_adjusted_download(
             src=src,
             field=src_field,
@@ -100,13 +101,15 @@ class ComputeFieldOperation:
             tgt_nonz_warped = tgt_field_data_zcxy.field().from_pixels()( # type: ignore
                 tgt_nonz_zcxy.float()
             )
-            tgt_data_warped[tgt_nonz_warped < 0.1] = 0
+            #tgt_data_warped[tgt_nonz_warped < 0.1] = 0
             tgt_data_final = einops.rearrange(
                 tgt_data_warped,
                 "Z C X Y -> C X Y Z",
             )
         else:
             tgt_data_final = tgt_data
+
+
         result_raw = self.fn(
             src=src_data,
             tgt=tgt_data_final,
@@ -175,14 +178,14 @@ class ComputeFieldFlowSchema:
             )
         # breakpoint()
         cf_flow = build_chunked_apply_flow(
-            operation=self.operation,  # type: ignore
+            operation=self.operation,
             chunker=self.chunker,
             idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
-            dst=dst,  # type: ignore
-            src=src,  # type: ignore
-            tgt=tgt,  # type: ignore
-            src_field=src_field,  # type: ignore
-            tgt_field=tgt_field,  # type: ignore
+            dst=dst,
+            src=src,
+            tgt=tgt,
+            src_field=src_field,
+            tgt_field=tgt_field,
         )
 
         yield cf_flow

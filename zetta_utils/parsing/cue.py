@@ -31,7 +31,7 @@ def load_local(local_path: str):
 
     if command_result.returncode != 0:
         raise RuntimeError(  # pragma: no cover
-            f"CUE failed parsing {local_path_str}: {str(command_result.stderr)}"
+            f"CUE failed parsing {local_path_str}: {(command_result.stderr).decode()}"
         )
 
     result_str = command_result.stdout

@@ -36,11 +36,11 @@ def build_get_match_offsets_flow(
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
-        non_tissue=non_tissue,
+        non_tissue=non_tissue, #type: ignore
         dst=dst,
-        misd_mask_zm1=misd_mask_zm1,
-        misd_mask_zm2=misd_mask_zm2,
-        misd_mask_zm3=misd_mask_zm3,
+        misd_mask_zm1=misd_mask_zm1, #type: ignore
+        misd_mask_zm2=misd_mask_zm2, #type: ignore
+        misd_mask_zm3=misd_mask_zm3, #type: ignore
     )
     return flow
 
@@ -71,13 +71,14 @@ def build_aced_relaxation_flow(
         crop=crop,
         operation_base_name="Aced Relaxation",
     )
+
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
         dst=dst,
-        match_offsets=match_offsets,
-        field_zm1=field_zm1,
-        field_zm2=field_zm2,
-        field_zm3=field_zm3,
+        match_offsets=match_offsets, # type: ignore
+        field_zm1=field_zm1, # type: ignore
+        field_zm2=field_zm2, # type: ignore
+        field_zm3=field_zm3, # type: ignore
         num_iter=num_iter,
         lr=lr,
         rigidity_weight=rigidity_weight,

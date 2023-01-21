@@ -28,13 +28,13 @@
 
 #CF_INFO_CHUNK: [512, 512, 1]
 #AFIELD_INFO_CHUNK: [512, 512, 1]
-#RELAXATION_CHUNK: [512, 512, 4]
-#RELAXATION_FIX:  "both"
+#RELAXATION_CHUNK: [512, 512, 9]
+#RELAXATION_FIX:  "first"
 #RELAXATION_ITER: 150
 #RELAXATION_RIG:  20
 
 #Z_START:           39
-#Z_END:             49
+#Z_END:             48
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
 #BCUBE: {
@@ -284,36 +284,36 @@
 		for z_offset in #Z_OFFSETS {
 			"@type": "mazepa.concurrent_flow"
 			stages: [
-				//#CF_FLOW_TMPL & {
-				//dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
-				//tmp_layer_dir: "\(#FIELDS_FWD_PATH)/\(z_offset)/tmp"
-				//tgt_offset: [0, 0, z_offset]
-				//},
+				#CF_FLOW_TMPL & {
+					dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
+					tmp_layer_dir: "\(#FIELDS_FWD_PATH)/\(z_offset)/tmp"
+					tgt_offset: [0, 0, z_offset]
+				},
 				{
 					"@type": "mazepa.seq_flow"
 					stages: [
-						//#CF_FLOW_TMPL & {
-						//dst: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
-						//tmp_layer_dir: "\(#FIELDS_BWD_PATH)/\(z_offset)/tmp"
-						//src_offset: [0, 0, z_offset]
-						//},
-						//#WARP_FLOW_TMPL & {
-						//mode: "img"
-						//src: path: #IMG_PATH
-						//src: index_adjs: [
-						//{
-						//"@type": "VolumetricIndexTranslator"
-						//offset: [0, 0, z_offset]
-						//resolution: [4, 4, 30]
-						//},
-						//]
-						//field: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
-						//dst: path:   "\(#IMGS_WARPED_PATH)/\(z_offset)"
-						//},
-						//#ENCODE_FLOW_TMPL & {
-						// src: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
-						// dst: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
-						//},
+						#CF_FLOW_TMPL & {
+							dst: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
+							tmp_layer_dir: "\(#FIELDS_BWD_PATH)/\(z_offset)/tmp"
+							src_offset: [0, 0, z_offset]
+						},
+						#WARP_FLOW_TMPL & {
+							mode: "img"
+							src: path: #IMG_PATH
+							src: index_adjs: [
+								{
+									"@type": "VolumetricIndexTranslator"
+									offset: [0, 0, z_offset]
+									resolution: [4, 4, 30]
+								},
+							]
+							field: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
+							dst: path:   "\(#IMGS_WARPED_PATH)/\(z_offset)"
+						},
+						#ENCODE_FLOW_TMPL & {
+							src: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
+							dst: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
+						},
 						#MISD_FLOW_TMPL & {
 							tgt: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
 							dst: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
@@ -486,7 +486,7 @@
 
 "@type":        "mazepa.execute_on_gcp_with_sqs"
 max_task_retry: 3
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x55"
+worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x57"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -501,8 +501,8 @@ do_dryrun_estimation: true
 target: {
 	"@type": "mazepa.seq_flow"
 	stages: [
-		#JOINT_OFFSET_FLOW,
-		#MATCH_OFFSETS_FLOW,
+		//#JOINT_OFFSET_FLOW,
+		//#MATCH_OFFSETS_FLOW,
 		#RELAX_FLOW,
 		#JOINT_POST_ALIGN_FLOW,
 	]

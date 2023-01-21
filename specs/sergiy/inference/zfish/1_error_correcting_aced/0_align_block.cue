@@ -327,7 +327,7 @@
 						//#MISD_FLOW_TMPL & {
 						//tgt: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
 						//dst: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
-						//},,,,,,,,,
+						//},,,,,,,,,,,,,,,,,,,,
 					]
 				},
 			]
@@ -495,15 +495,16 @@
 }
 
 "@type":        "mazepa.execute_on_gcp_with_sqs"
-max_task_retry: 33
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x52"
+max_task_retry: 1
+worker_image:   "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x59"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     20
-worker_lease_sec:    20
-batch_gap_sleep_sec: 1
+worker_replicas:      2
+worker_lease_sec:     2
+batch_gap_sleep_sec:  1
+do_dryrun_estimation: true
 
 local_test: false
 
@@ -511,8 +512,8 @@ target: {
 	"@type": "mazepa.seq_flow"
 	stages: [
 		#JOINT_OFFSET_FLOW,
-		//#MATCH_OFFSETS_FLOW,
-		//#RELAX_FLOW,
-		//#JOINT_POST_ALIGN_FLOW,
+		#MATCH_OFFSETS_FLOW,
+		#RELAX_FLOW,
+		#JOINT_POST_ALIGN_FLOW,
 	]
 }

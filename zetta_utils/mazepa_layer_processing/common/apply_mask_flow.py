@@ -48,9 +48,9 @@ def build_apply_mask_flow(
     )
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
-        dst=dst,
-        src=src,
-        mask=mask,
+        dst=dst,# type: ignore
+        src=src, # type: ignore
+        mask=mask, # type: ignore
         fill_value=fill_value,
     )
     return flow

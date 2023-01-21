@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import ExitStack
 import time
 from typing import Callable, Optional, Union
 
@@ -17,7 +18,7 @@ from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
 from .task_outcome import TaskStatus
 from .tasks import _TaskableOperation
-from .progress_tracker import progress_ctx
+from .progress_tracker import progress_ctx_mngr
 
 logger = get_logger("mazepa")
 
@@ -54,6 +55,7 @@ def execute(
     raise_on_failed_task: bool = True,
     max_task_retry: int = 1,
     do_dryrun_estimation: bool = False,
+    show_progress: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -106,6 +108,7 @@ def execute(
         batch_gap_sleep_sec=batch_gap_sleep_sec,
         upkeep_fn=upkeep_fn,
         do_dryrun_estimation=do_dryrun_estimation,
+        show_progress=show_progress,
     )
 
     end_time = time.time()
@@ -121,12 +124,19 @@ def _execute_from_state(
     batch_gap_sleep_sec: float,
     upkeep_fn: Optional[Callable[[str], bool]],
     do_dryrun_estimation: bool = False,
+    show_progress: bool = False,
 ):
     if do_dryrun_estimation:
         expected_operation_counts = get_expected_operation_counts(state.get_ongoing_flows())
     else:
         expected_operation_counts = {}
-    with progress_ctx(expected_operation_counts) as progress_updater:
+
+    with ExitStack() as stack:
+        if True:
+            progress_updater = stack.enter_context(progress_ctx_mngr(expected_operation_counts))
+        else:
+            progress_updater = lambda *args, **kwargs: None
+    #with progress_ctx(expected_operation_counts) as progress_updater:
         while True:
             progress_updater(state.get_progress_reports())
 

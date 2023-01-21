@@ -28,7 +28,6 @@ class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
-        # can't figure out how to force mypy to check this
         assert len(args) == 0
         logger.info(f"Breaking {idx} into chunks with {self.chunker}.")
         idx_chunks = self.chunker(idx)
@@ -42,7 +41,6 @@ class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
         logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.operation}.")
         yield tasks
 
-
 @builder.register("build_chunked_apply_flow")
 def build_chunked_apply_flow(
     operation: ChunkableOpProtocol[P, IndexT, R_co],
@@ -51,7 +49,7 @@ def build_chunked_apply_flow(
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
-    flow_schema = ChunkedApplyFlowSchema(
+    flow_schema = ChunkedApplyFlowSchema[P, IndexT, R_co](
         chunker=chunker,
         operation=operation,
     )

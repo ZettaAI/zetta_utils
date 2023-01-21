@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import os
+import sys
 import contextlib
 import signal
-from typing import Generator, Protocol
+from typing import Generator, Protocol, Callable, Any
 
 import rich
 from rich import progress
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
+from zetta_utils.common.ctx_managers import breakpointhook_ctx_mngr
 
 from .execution_state import ProgressReport
 
@@ -41,10 +44,21 @@ class ProgressUpdateFN(Protocol):
     def __call__(self, progress_reports: dict[str, ProgressReport]) -> None:
         ...
 
+def progress_stopping_hook(
+    progress_bar: progress.Progress
+) -> Callable[[Callable], Any]:
+    def hook(old_hook: Callable):
+        import sys
+        import pdb
+        progress_bar.stop()
+        pdb.Pdb().set_trace(sys._getframe().f_back)
+
+    return hook
 
 @contextlib.contextmanager
-def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpdateFN, None, None]:
-    progress_ctx_mngr = progress.Progress(
+def progress_ctx_mngr(expected_total_counts: dict[str, int]) -> Generator[ProgressUpdateFN, None, None]:
+    progress_bar = progress.Progress(
+        progress.SpinnerColumn(),
         progress.TextColumn("[progress.description]{task.description}"),
         progress.BarColumn(),
         progress.TaskProgressColumn(),
@@ -52,10 +66,26 @@ def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpd
         progress.TimeElapsedColumn(),
         progress.TimeRemainingColumn(),
         transient=True,
-        refresh_per_second=1,
+        #refresh_per_second=1,
     )
 
-    with progress_ctx_mngr as progress_bar:
+    def custom_debugger_hook():
+        # reading the value of the environment variable
+        val = os.environ.get('PYTHONBREAKPOINT')
+        # if the value has been set to 0, skip all breakpoints
+        if val == '0':
+            return None
+        # else if the value is an empty string, invoke the default pdb debugger
+        elif val is not None and val != 'pdb.set_trace':
+            raise Exception("Custom debuggers are not allowed when `rich.progress is in use.`")
+
+        progress_bar.stop()
+        import pdb # pylint: disable=import-outside-toplevel
+        return pdb.Pdb().set_trace(sys._getframe().f_back) # pylint: disable=protected-access
+
+    sys.breakpointhook = custom_debugger_hook
+
+    with progress_bar as progress_bar:
         with custom_signal_handler_ctx(get_confirm_sigint_fn(progress_bar), signal.SIGINT):
             submission_tracker_ids = {
                 k: progress_bar.add_task(
@@ -71,6 +101,9 @@ def progress_ctx(expected_total_counts: dict[str, int]) -> Generator[ProgressUpd
             execution_tracker_ids: dict[str, progress.TaskID] = {}
 
             def update_fn(progress_reports: dict[str, ProgressReport]) -> None:
+                if not hasattr(sys, 'gettrace') or sys.gettrace() is None:
+                    progress_bar.start()
+
                 for k, v in progress_reports.items():
                     if k in submission_tracker_ids:
                         progress_bar.start_task(submission_tracker_ids[k])

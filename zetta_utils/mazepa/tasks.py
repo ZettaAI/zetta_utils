@@ -195,12 +195,12 @@ class RawTaskableOperationCls(Protocol[P, R_co]):
     Interface of a class that can be wrapped by `@taskable_operation_cls`.
     """
 
-    def get_operation_name(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> str:
-        ...
+    #def get_operation_name(
+        #self,
+       # *args: P.args,
+       # **kwargs: P.kwargs,
+    #) -> str:
+    #    ...
 
     def __call__(
         self,

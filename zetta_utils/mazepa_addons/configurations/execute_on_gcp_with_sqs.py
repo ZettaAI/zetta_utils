@@ -66,6 +66,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
     local_test: bool = False,
     do_dryrun_estimation: bool = False,
+    show_progress: bool = False,
 ):
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
@@ -96,4 +97,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             max_task_retry=max_task_retry,
             do_dryrun_estimation=do_dryrun_estimation,
+            show_progress=show_progress,
         )

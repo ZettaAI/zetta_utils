@@ -62,8 +62,8 @@ def build_interpolate_flow(
 
     flow = flow_schema(
         idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
-        dst=dst,
-        src=src,
+        dst=dst,# type: ignore
+        src=src,# type: ignore
         scale_factor=scale_factor,
         mode=mode,
         mask_value_thr=mask_value_thr,

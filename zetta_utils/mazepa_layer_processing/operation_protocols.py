@@ -1,4 +1,4 @@
-from typing import Any, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Optional, Protocol, TypeVar, runtime_checkable
 
 from typing_extensions import ParamSpec
 
@@ -26,9 +26,11 @@ class MultiresOpProtocol(Protocol[P, R_co]):
 
     def make_task(
         self,
-        idx: VolumetricIndex,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        *args,
+        **kwargs,
+        #idx: VolumetricIndex,
+        #*args: P.args,
+        #**kwargs: P.kwargs,
     ) -> mazepa.Task[R_co]:
         ...
 
@@ -72,12 +74,13 @@ class ChunkableOpProtocol(Protocol[P, IndexT_contra, R_co]):
 
     def make_task(
         self,
-        idx: IndexT_contra,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        *args,
+        **kwargs,
+        #idx: ,
+        #*args: P.args,
+        #**kwargs: P.kwargs,
     ) -> mazepa.Task[R_co]:
         ...
-
 
 class BlendableOpProtocol(Protocol[P, R_co]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
@@ -94,9 +97,11 @@ class BlendableOpProtocol(Protocol[P, R_co]):
 
     def make_task(
         self,
-        idx: VolumetricIndex,
-        dst: VolumetricLayer,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        *args,
+        **kwargs,
+        #idx: VolumetricIndex,
+        #dst: VolumetricLayer,
+        #*args: P.args,
+        #**kwargs: P.kwargs,
     ) -> mazepa.Task[R_co]:
         ...

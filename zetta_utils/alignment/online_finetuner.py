@@ -78,15 +78,18 @@ def align_with_online_finetuner(
                 }
             ],
         }
+        mse_keys = {"src": [], "tgt": []}
+        sm_keys = {"src": []}
+
         with torchfields.set_identity_mapping_cache(True, clear_cache=True):
             result = metroem.finetuner.optimize_pre_post_ups(
                 src,
                 tgt,
                 src_field,
-                src_zeros=(src == 0.0),
-                tgt_zeros=(tgt == 0.0),
-                src_defects=(src == 0.0),
-                tgt_defects=(tgt == 0.0),
+                src_zeros=(src[:, 0] == 0.0).unsqueeze(1),
+                tgt_zeros=(tgt[:, 0] == 0.0).unsqueeze(1),
+                src_defects=torch.zeros((src.shape[0], 1, src.shape[1], src.shape[2])),
+                tgt_defects=torch.zeros((src.shape[0], 1, src.shape[1], src.shape[2])),
                 crop=2,
                 num_iter=num_iter,
                 lr=lr,

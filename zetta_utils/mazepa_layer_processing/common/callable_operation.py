@@ -31,7 +31,7 @@ class CallableOperation(Generic[P, IndexT, R]):
         return self.fn.__name__
 
     def __call__(
-        self, idx: IndexT, dst: LayerWithIndexT[IndexT], *args: P.args, **kwargs: P.kwargs
+        self, idx: IndexT, dst: LayerWithIndexT[IndexT], /, *args: P.args, **kwargs: P.kwargs
     ) -> None:
         assert len(args) == 0
         fn_kwargs = {}
@@ -49,9 +49,9 @@ class CallableOperation(Generic[P, IndexT, R]):
 def build_chunked_callable_flow_schema(
     fn: Callable[P, R], chunker: IndexChunker[IndexT]
 ) -> ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None,]:
-    operation = CallableOperation[P, IndexT, R](fn=fn)
-
+    operation = CallableOperation[Concatenate[LayerWithIndexT[IndexT], P], IndexT, R](fn=fn)
+    reveal_type(ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None].__call__)
     return ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None](
         chunker=chunker,
-        operation=operation,  # type: ignore
+        operation=operation, # type: ignore # mypy `Concatenate` bug
     )

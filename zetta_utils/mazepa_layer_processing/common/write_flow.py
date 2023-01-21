@@ -27,7 +27,11 @@ def generic_write_flow(
         fn=_write_callable,
         chunker=chunker,
     )
-    result = flow_schema(idx=idx, dst=dst, src=src)
+    result = flow_schema(
+        idx=idx,
+        dst=dst,
+        src=src,
+    )
     return result
 
 

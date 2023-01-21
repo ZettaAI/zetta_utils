@@ -14,8 +14,8 @@ import "path"
 target: {
 	"@type": "build_warp_flow"
 	dst_resolution: [#DST_XY_RESOLUTION, #DST_XY_RESOLUTION, 30]
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3001]
 		end_coord: [2048, 2048, 3002]
 		resolution: [256, 256, 30]

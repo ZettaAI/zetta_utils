@@ -131,8 +131,8 @@ trainer: {
 				resolution: [32, 32, 45]
 				chunk_size: [768, 768, 1]
 				stride: [384, 384, 1]
-				bcube: {
-					"@type":     "BoundingCube"
+				bbox: {
+					"@type":     "BBox3D.from_coords"
 					start_coord: _
 					end_coord:   _
 					resolution: [4, 4, 45]
@@ -166,8 +166,8 @@ trainer: {
 					resolution: [128, 128, 40]
 					chunk_size: [768, 768, 1]
 					stride: [64, 64, 1]
-					bcube: {
-						"@type":     "BoundingCube"
+					bbox: {
+						"@type":     "BBox3D.from_coords"
 						start_coord: _
 						end_coord:   _
 						resolution: [4, 4, 40]
@@ -182,8 +182,8 @@ trainer: {
 	datasets: {
 		image: {
 			sample_indexer: {
-				bcube: {
-					"@type": "BoundingCube"
+				bbox: {
+					"@type": "BBox3D.from_coords"
 					start_coord: [98304, 32768, 2500]
 					end_coord: [164340, 65536, 3499]
 					resolution: [4, 4, 45]
@@ -193,8 +193,8 @@ trainer: {
 		field: {
 			sample_indexer: {
 				inner_indexer: {
-					bcube: {
-						"@type": "BoundingCube"
+					bbox: {
+						"@type": "BBox3D.from_coords"
 						start_coord: [98304, 32768, 2000]
 						end_coord: [131072, 65536, 3999]
 						resolution: [4, 4, 40]
@@ -209,8 +209,8 @@ trainer: {
 	datasets: {
 		image: {
 			sample_indexer: {
-				bcube: {
-					"@type": "BoundingCube"
+				bbox: {
+					"@type": "BBox3D.from_coords"
 					start_coord: [98304, 32768, 3499]
 					end_coord: [114688, 65536, 3500]
 					resolution: [4, 4, 45]
@@ -220,8 +220,8 @@ trainer: {
 		field: {
 			sample_indexer: {
 				inner_indexer: {
-					bcube: {
-						"@type": "BoundingCube"
+					bbox: {
+						"@type": "BBox3D.from_coords"
 						start_coord: [98304, 32768, 3999]
 						end_coord: [131072, 65536, 4000]
 						resolution: [4, 4, 40]

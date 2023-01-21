@@ -4,7 +4,7 @@ from typing import Callable, List, Optional
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import VolumetricLayer
 from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
 from zetta_utils.typing import IntVec3D, Vec3D
@@ -42,7 +42,7 @@ class ComputeFieldMultistageFlowSchema:
 
     def flow(  # pylint: disable=too-many-locals
         self,
-        bcube: BoundingCube,
+        bbox: BBox3D,
         dst: VolumetricLayer,
         src_field: Optional[VolumetricLayer] = None,
         src: Optional[VolumetricLayer] = None,
@@ -57,7 +57,7 @@ class ComputeFieldMultistageFlowSchema:
 
                 yield build_interpolate_flow(
                     chunk_size=stage.chunk_size,
-                    bcube=bcube,
+                    bbox=bbox,
                     src=prev_dst,
                     src_resolution=self.stages[i - 1].dst_resolution,
                     dst_resolution=stage.input_resolution,
@@ -93,7 +93,7 @@ class ComputeFieldMultistageFlowSchema:
                 operation=stage.operation,
             )
             yield stage_cf_flow_schema(
-                bcube=bcube,
+                bbox=bbox,
                 dst_resolution=stage.dst_resolution,
                 dst=stage_dst,
                 src=stage_src,
@@ -111,7 +111,7 @@ def build_compute_field_multistage_flow(
     stages: List[ComputeFieldStage],
     tmp_layer_dir: str,
     tmp_layer_factory: Callable[..., VolumetricLayer],
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst: VolumetricLayer,
     src_field: Optional[VolumetricLayer] = None,
     src: Optional[VolumetricLayer] = None,
@@ -124,6 +124,6 @@ def build_compute_field_multistage_flow(
         tmp_layer_factory=tmp_layer_factory,
     )
     flow = flow_schema(
-        bcube=bcube, dst=dst, src_field=src_field, src=src, tgt=tgt, tgt_offset=tgt_offset
+        bbox=bbox, dst=dst, src_field=src_field, src=src, tgt=tgt, tgt_offset=tgt_offset
     )
     return flow

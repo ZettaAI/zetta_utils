@@ -7,7 +7,7 @@ import einops
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import alignment, builder, mazepa, tensor_ops
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -79,7 +79,7 @@ class WarpOperation:
     "build_warp_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size", "crop"]
 )
 def build_warp_flow(
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     chunk_size: IntVec3D,
     dst: VolumetricLayer,
@@ -94,7 +94,7 @@ def build_warp_flow(
             crop=crop, mode=mode, mask_value_thr=mask_value_thr
         ),  # type: ignore
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
-        idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         dst=dst,  # type: ignore
         src=src,  # type: ignore
         field=field,  # type: ignore

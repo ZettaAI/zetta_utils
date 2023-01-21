@@ -5,7 +5,7 @@ from typing import Optional, Sequence, Union
 import torch
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -38,7 +38,7 @@ def _interpolate(
 )
 def build_interpolate_flow(
     chunk_size: IntVec3D,
-    bcube: BoundingCube,
+    bbox: BBox3D,
     src_resolution: Vec3D,
     dst_resolution: Vec3D,
     src: VolumetricLayer,
@@ -60,7 +60,7 @@ def build_interpolate_flow(
     )
 
     flow = flow_schema(
-        idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         dst=dst,
         src=src,
         scale_factor=scale_factor,

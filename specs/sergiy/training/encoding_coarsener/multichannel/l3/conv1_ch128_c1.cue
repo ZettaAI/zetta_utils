@@ -151,8 +151,8 @@ trainer: {
 		stride: [512, 512, 1]
 		resolution: [256, 256, 45]
 		desired_resolution: [256, 256, 45]
-		bcube: {
-			"@type":     "BoundingCube"
+		bbox: {
+			"@type":     "BBox3D.from_coords"
 			start_coord: _
 			end_coord:   _
 			resolution: [4, 4, 45]
@@ -162,8 +162,8 @@ trainer: {
 
 #train_dset: #dset_settings & {
 	sample_indexer: {
-		bcube: {
-			"@type": "BoundingCube"
+		bbox: {
+			"@type": "BBox3D.from_coords"
 			start_coord: [0 * 1024, 0 * 1024, 2900]
 			end_coord: [196608, 65536, 3000]
 			resolution: [4, 4, 45]
@@ -173,8 +173,8 @@ trainer: {
 
 #val_dset: #dset_settings & {
 	sample_indexer: {
-		bcube: {
-			"@type": "BoundingCube"
+		bbox: {
+			"@type": "BBox3D.from_coords"
 			start_coord: [0 * 1024, 0 * 1024, 3100]
 			end_coord: [196608, 65536, 3110]
 			resolution: [4, 4, 45]

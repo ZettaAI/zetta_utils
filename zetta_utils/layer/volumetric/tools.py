@@ -5,7 +5,7 @@ import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
-from zetta_utils.bcube import BcubeStrider
+from zetta_utils.bbox import BBoxStrider
 from zetta_utils.typing import IntVec3D, Vec3D
 
 from .. import DataWithIndexProcessor, IndexChunker
@@ -18,9 +18,9 @@ logger = log.get_logger("zetta_utils")
 def translate_volumetric_index(
     idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D
 ):  # pragma: no cover # under 3 statements, no conditionals
-    bcube = idx.bcube.translated(offset, resolution)
+    bbox = idx.bbox.translated(offset, resolution)
     result = VolumetricIndex(
-        bcube=bcube,
+        bbox=bbox,
         resolution=idx.resolution,
     )
     return result
@@ -50,7 +50,7 @@ class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statement
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = VolumetricIndex(
-            bcube=idx.bcube,
+            bbox=idx.bbox,
             resolution=self.resolution,
         )
         return result
@@ -117,8 +117,8 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         else:
             stride = self.stride
 
-        bcube_strider = BcubeStrider(
-            bcube=idx.bcube.translated_start(offset=self.offset, resolution=chunk_resolution),
+        bbox_strider = BBoxStrider(
+            bbox=idx.bbox.translated_start(offset=self.offset, resolution=chunk_resolution),
             resolution=chunk_resolution,
             chunk_size=self.chunk_size,
             max_superchunk_size=self.max_superchunk_size,
@@ -127,14 +127,14 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             mode=mode,
         )
         if self.max_superchunk_size is not None:
-            logger.info(f"Superchunk size: {bcube_strider.chunk_size}")
-        bcube_chunks = bcube_strider.get_all_chunk_bcubes()
+            logger.info(f"Superchunk size: {bbox_strider.chunk_size}")
+        bbox_chunks = bbox_strider.get_all_chunk_bboxes()
         result = [
             VolumetricIndex(
                 resolution=idx.resolution,
-                bcube=bcube_chunk,
+                bbox=bbox_chunk,
             )
-            for bcube_chunk in bcube_chunks
+            for bbox_chunk in bbox_chunks
         ]
         return result
 

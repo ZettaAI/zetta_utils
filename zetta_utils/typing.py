@@ -55,7 +55,7 @@ def get_orig_class(obj: Any) -> Type:  # pragma: no cover
         return type(None)
 
 
-class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
+class _VecND(Generic[N, T_co], abc.Sequence):
     """
     The backend primitive for an N-dimensional vector. This class should not be used or
     its constructor called directly. Use `VecND`, `IntVecND` to type annotate arbitrarily
@@ -393,7 +393,7 @@ def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover
     """Type checking that works better for type generics; still doesn't work with _VecND"""
     result = True
     try:
-        typeguard.check_type("value", obj, cls)
-    except TypeError:
+        typeguard.check_type(obj, cls)
+    except typeguard.TypeCheckError:
         result = False
     return result

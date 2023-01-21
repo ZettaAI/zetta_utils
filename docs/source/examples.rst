@@ -61,21 +61,21 @@ Generic conversion:
    <class 'torch.Tensor'>
 
 
-BoundingCube
+BBox3D
 ------------
 
 .. doctest::
 
    >>> from zetta_utils.typing import Vec3D
-   >>> from zetta_utils.bcube import BoundingCube
-   >>> bcube = BoundingCube.from_coords(
+   >>> from zetta_utils.bbox import BBox3D
+   >>> bbox = BBox3D.from_coords(
    ...    start_coord=Vec3D(100, 100, 10),
    ...    end_coord=Vec3D(200, 200, 20),
    ...    resolution=Vec3D(4, 4, 40)
    ... )
-   >>> print(bcube)
-   BoundingBoxND(bounds=((400.0, 800.0), (400.0, 800.0), (400.0, 800.0)), unit='nm')
-   >>> slices = bcube.to_slices(resolution=(16, 16, 100))
+   >>> print(bbox)
+   BBox3D(bounds=((400.0, 800.0), (400.0, 800.0), (400.0, 800.0)), unit='nm', pprint_px_resolution=(1, 1, 1))
+   >>> slices = bbox.to_slices(resolution=(16, 16, 100))
    >>> print(slices)
    (slice(25, 50, None), slice(25, 50, None), slice(4, 8, None))
 
@@ -171,12 +171,12 @@ In this example, we will be using ``VolumetricStridedIndexer``:
 .. doctest::
    >>> from zetta_utils import training
    >>> from zetta_utils.typing import Vec3D
-   >>> from zetta_utils.bcube import BoundingCube
+   >>> from zetta_utils.bbox import BBox3D
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
    >>> indexer = training.datasets.sample_indexers.VolumetricStridedIndexer(
    ...    # Range over which to sample
-   ...    bcube=BoundingCube.from_coords(
+   ...    bbox=BBox3D.from_coords(
    ...       start_coord=Vec3D(1000, 1000, 2000),
    ...       end_coord=Vec3D(2000, 2000, 2100),
    ...       resolution=Vec3D(64, 64, 40)
@@ -265,8 +265,8 @@ such as the dataset from the earlier example:
    ...    },
    ...    "sample_indexer": {
    ...        "@type": "VolumetricStridedIndexer",
-   ...        "bcube": {
-   ...           "@type": "BoundingCube",
+   ...        "bbox": {
+   ...           "@type": "BBox3D.from_coords",
    ...           "start_coord": (1000, 1000, 2000),
    ...           "end_coord": (2000, 2000, 2100),
    ...           "resolution": (64, 64, 40),

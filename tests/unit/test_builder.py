@@ -77,8 +77,8 @@ def test_identity_builds(value):
     "value, expected_exc",
     [
         [None, ValueError],
-        [1, TypeError],
-        ["yo", TypeError],
+        [1, Exception],
+        ["yo", Exception],
         [{}, ValueError],
         [{"a": "b"}, ValueError],
         [{"@type": "something_not_registered"}, KeyError],

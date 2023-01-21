@@ -34,8 +34,8 @@ target: {
 	mode:    "img"
 	chunk_size: [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
 	dst_resolution: [32, 32, 30]
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3001]
 		end_coord: [2048, 2048, 3016]
 		resolution: [256, 256, 30]

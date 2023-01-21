@@ -5,8 +5,8 @@
 target: {
 	"@type": "build_write_flow"
 	chunk_size: [1024, 1024, 1]
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 200, 1024 * 80, 200]
 		end_coord: [1024 * 205, 1024 * 85, 400]
 		resolution: [4, 4, 45]

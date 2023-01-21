@@ -3,8 +3,8 @@
 "@type": "mazepa.execute"
 target: {
 	"@type": "build_interpolate_flow"
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 2, 1024 * 0, 2000]
 		end_coord: [1024 * 10, 1024 * 8, 2005]
 		resolution: [64, 64, 40]

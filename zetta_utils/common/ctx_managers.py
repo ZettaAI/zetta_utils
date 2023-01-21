@@ -3,7 +3,7 @@ import os
 
 
 @contextlib.contextmanager
-def set_env(**environ):
+def set_env_ctx_mngr(**environ):
     """
     Temporarily set the process environment variables.
 

@@ -172,8 +172,8 @@ target: {
 				desired_resolution: [32, 32, 30]
 				stride: [#CHUNK_XY, #CHUNK_XY, 1]
 				chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
-				bcube: {
-					"@type":     "BoundingCube"
+				bbox: {
+					"@type":     "BBox3D.from_coords"
 					start_coord: _
 					end_coord:   _
 					resolution: [
@@ -189,8 +189,8 @@ target: {
 
 #field_indexer: {
 	"@type": "VolumetricStridedIndexer"
-	"bcube": {
-		"@type": "BoundingCube"
+	"bbox": {
+		"@type": "BBox3D.from_coords"
 		"end_coord": [
 			2048,
 			2048,
@@ -234,7 +234,7 @@ target: {
 		"@type":       "RandomIndexer"
 		inner_indexer: #field_indexer
 	}
-	datasets: images: sample_indexer: bcube: {
+	datasets: images: sample_indexer: bbox: {
 		start_coord: [1024 * 24, 1024 * 27, 3001]
 		end_coord: [1024 * 70, 1024 * 95, 3015]
 	}
@@ -246,7 +246,7 @@ target: {
 		inner_indexer: #field_indexer
 	}
 
-	datasets: images: sample_indexer: bcube: {
+	datasets: images: sample_indexer: bbox: {
 		start_coord: [1024 * 35, 1024 * 45, 3015]
 		end_coord: [1024 * 55, 1024 * 65, 3016]
 	}

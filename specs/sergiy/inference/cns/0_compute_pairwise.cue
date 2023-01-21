@@ -4,7 +4,7 @@
 #SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/rigid_v2"
 #DST_PATH: "gs://sergiy_exp/cns/alignment_tmp_\(#VERSION)/field"
 #BCUBE: {
-	"@type": "BoundingCube"
+	"@type": "BBox3D.from_coords"
 	start_coord: [0, 0, 2508]
 	end_coord: [2048, 2048, 2509]
 	resolution: [512, 512, 45]
@@ -31,7 +31,7 @@
 "@type": "mazepa.execute"
 target: {
 	"@type": "build_compute_field_multistage_flow"
-	bcube:   #BCUBE
+	bbox:   #BCUBE
 	stages: [
 		for res in #RESOLUTIONS {
 			#STAGE_TMPL & {'dst_resolution': res}

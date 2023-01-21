@@ -13,7 +13,7 @@ def test_to_np(x, expected):
 
 
 def test_to_np_exc():
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         convert.to_np("hello")
 
 

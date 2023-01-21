@@ -13,8 +13,8 @@
 		"@type": "WarpOperation"
 		mode:    "img"
 	}
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [256, 256, 3000]
 		end_coord: [1024, 1024, 3001]
 		resolution: [512, 512, 30]

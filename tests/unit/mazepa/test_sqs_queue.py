@@ -5,12 +5,16 @@ from multiprocessing import Process
 import boto3
 import coolname
 import pytest
+from moto import mock_sqs
 
 import docker
-from zetta_utils import mazepa_layer_processing  # pylint: disable=all
-from zetta_utils import builder, mazepa
+
+# from zetta_utils import mazepa_layer_processing, common # pylint: disable=all
+from zetta_utils import builder, common, mazepa
 from zetta_utils.mazepa import SQSExecutionQueue
 from zetta_utils.mazepa.tasks import Task, _TaskableOperation
+
+boto3.setup_default_session()
 
 
 def test_push_tasks_exc(mocker):
@@ -29,30 +33,42 @@ def test_pull_task_outcomes_exc(mocker):
 
 
 @pytest.fixture(scope="session")
-def sqs_endpoint():
-    """Ensure that SQS service is up and responsive."""
+def aws_credentials():
+    with common.set_env_ctx_mngr(
+        AWS_ACCESS_KEY_ID="testing",
+        AWS_SECRET_ACCESS_KEY="testing",
+        AWS_SECURITY_TOKEN="testing",
+        AWS_SESSION_TOKEN="testing",
+        AWS_DEFAULT_REGION="us-east-1",
+    ):
+        yield
 
-    # `port_for` takes a container port and returns the corresponding host port
-    # port = docker_services.port_for("sqs", 9324)
-    # url = f"http://{docker_ip}:{port}"
-    # docker_services.wait_until_responsive(
-    #    timeout=90.0, pause=0.1, check=lambda: is_responsive(url)
-    # )
-    client = docker.from_env()
-    # container = client.containers.run("vsouza/sqs-local", detach=True, ports={"9324": "9324"})
-    container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
 
-    timeout = 120
-    stop_time = 1
-    elapsed_time = 0
-    while container.status != "running" and elapsed_time < timeout:
-        time.sleep(stop_time)
-        elapsed_time += stop_time
-        container.reload()
-    endpoint = "http://localhost:9324"
-    yield endpoint
-    container.kill()
-    time.sleep(0.2)
+@pytest.fixture(scope="session")
+def sqs_endpoint(aws_credentials):
+    """Ensure that SQS service i s up and responsive."""
+    with mock_sqs():
+        # `port_for` takes a container port and returns the corresponding host port
+        # port = docker_services.port_for("sqs", 9324)
+        # url = f"http://{docker_ip}:{port}"
+        # docker_services.wait_until_responsive(
+        #    timeout=90.0, pause=0.1, check=lambda: is_responsive(url)
+        # )
+        client = docker.from_env()
+        # container = client.containers.run("vsouza/sqs-local", detach=True, ports={"9324": "9324"})
+        container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
+
+        timeout = 120
+        stop_time = 1
+        elapsed_time = 0
+        while container.status != "running" and elapsed_time < timeout:
+            time.sleep(stop_time)
+            elapsed_time += stop_time
+            container.reload()
+        endpoint = "http://localhost:9324"
+        yield endpoint
+        container.kill()
+        time.sleep(0.2)
 
 
 @pytest.fixture
@@ -98,7 +114,7 @@ def queue_with_worker(work_queue, outcome_queue):
     #    target=mazepa.run_worker,
     #    kwargs={"exec_queue": queue, "sleep_sec": 0.05, "max_runtime": 5.0},
     # )
-    from zetta_utils import mazepa_layer_processing  # pylint: disable=all
+    # from zetta_utils import mazepa_layer_processing  # pylint: disable=all
 
     worker_p = Process(
         target=builder.build,

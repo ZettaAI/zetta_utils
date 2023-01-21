@@ -13,8 +13,7 @@ from neuroglancer.viewer_state import (
     make_layer,
 )
 
-from zetta_utils.bcube import BoundingCube
-from zetta_utils.bcube.bcube import BoundingBoxND
+from zetta_utils.bbox import BBox3D
 from zetta_utils.log import get_logger
 from zetta_utils.typing import Vec3D
 
@@ -44,7 +43,7 @@ class DefaultLayerValues(Enum):
     TOOL = "annotateBoundingBox"
 
 
-def read_remote_annotations(layer_name: str) -> List[Union[BoundingCube, Vec3D]]:
+def read_remote_annotations(layer_name: str) -> List[Union[BBox3D, Vec3D]]:
     remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
     logger.info(f"Remote layer: {remote_path}/{layer_name}.")
 
@@ -57,20 +56,20 @@ def read_remote_annotations(layer_name: str) -> List[Union[BoundingCube, Vec3D]]
     return _parse_annotations(layer)
 
 
-def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D]]:
-    result: List[Union[BoundingCube, Vec3D]] = []
+def _parse_annotations(layer: AnnotationLayer) -> List[Union[BBox3D, Vec3D]]:
+    result: List[Union[BBox3D, Vec3D]] = []
     resolution: Vec3D = layer.to_json()[NglLayerKeys.RESOLUTION.value]
     for annotation in layer.annotations:
         assert isinstance(
             annotation, (AxisAlignedBoundingBoxAnnotation, PointAnnotation)
         ), "Annotation type not supported."
         try:
-            bcube = BoundingCube.from_coords(
+            bbox = BBox3D.from_coords(
                 annotation.point_a,
                 annotation.point_b,
                 resolution=resolution,
             )
-            result.append(bcube)
+            result.append(bbox)
         except AttributeError:
             point: Vec3D = annotation.point * resolution
             result.append(point)
@@ -80,7 +79,7 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BoundingCube, Vec3D
 def write_remote_annotations(
     layer_name: str,
     resolution: Vec3D,
-    bcubes_or_points: List[Union[BoundingCube, Vec3D]],
+    bboxes_or_points: List[Union[BBox3D, Vec3D]],
 ) -> None:
     remote_path = environ.get("REMOTE_LAYERS_PATH", "gs://remote-annotations")
     annotations: List[Dict] = []
@@ -93,9 +92,9 @@ def write_remote_annotations(
         NglLayerKeys.ANNOTATIONS.value: annotations,
     }
 
-    for i, bcubes_or_point in enumerate(bcubes_or_points):
-        if isinstance(bcubes_or_point, BoundingBoxND):
-            x, y, z = bcubes_or_point.bounds
+    for i, bboxes_or_point in enumerate(bboxes_or_points):
+        if isinstance(bboxes_or_point, BBox3D):
+            x, y, z = bboxes_or_point.bounds
             point_a = np.array([x[0], y[0], z[0]])
             point_b = np.array([x[1], y[1], z[1]])
             annotation = {
@@ -108,11 +107,11 @@ def write_remote_annotations(
         else:
             annotation = {
                 AnnotationKeys.ID.value: str(i),
-                AnnotationKeys.POINT.value: np.array(bcubes_or_point) / resolution,
+                AnnotationKeys.POINT.value: np.array(bboxes_or_point) / resolution,
                 AnnotationKeys.TYPE.value: PointAnnotation().type,
             }
             annotations.append(annotation)
 
     cf = CloudFiles(remote_path)
-    logger.info(f"Writing {len(bcubes_or_points)} bcubes/points to {remote_path}/{layer_name}.")
+    logger.info(f"Writing {len(bboxes_or_points)} bboxes/points to {remote_path}/{layer_name}.")
     cf.put_json(layer_name, make_layer(layer_d).to_json())

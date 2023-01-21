@@ -8,7 +8,7 @@
 #RESOLUTION: [32, 32, 30]
 #CROP: [128, 128, 0]
 #BCUBE: {
-	"@type": "BoundingCube"
+	"@type": "BBox3D.from_coords"
 	start_coord: [0, 0, 3000]
 	end_coord: [2048, 2048, 3020]
 	resolution: [512, 512, 30]
@@ -22,7 +22,7 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
+local_test: true
 
 target: {
 	"@type": "build_chunked_apply_flow"
@@ -52,7 +52,7 @@ target: {
 	}
 	idx: {
 		"@type":    "VolumetricIndex"
-		bcube:      #BCUBE
+		bbox:       #BCUBE
 		resolution: #RESOLUTION
 	}
 }

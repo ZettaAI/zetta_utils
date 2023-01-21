@@ -42,8 +42,8 @@ local_test: false
 
 target: {
 	"@type": "build_compute_field_multistage_flow"
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3001]
 		end_coord: [2048, 2048, 3016]
 		resolution: [256, 256, 30]

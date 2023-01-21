@@ -2,7 +2,7 @@
 import pytest
 import torch
 
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import VolumetricIndex, build_volumetric_layer
 from zetta_utils.typing import Vec3D
 
@@ -29,7 +29,7 @@ def test_data_resolution_read_interp(mocker):
     backend.read.assert_called_with(
         idx=VolumetricIndex(
             resolution=Vec3D(2, 2, 2),
-            bcube=BoundingCube.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
+            bbox=BBox3D.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
         )
     )
     assert torch.equal(
@@ -52,7 +52,7 @@ def test_data_resolution_write_interp(mocker):
 
     idx = VolumetricIndex(
         resolution=Vec3D(2, 2, 2),
-        bcube=BoundingCube.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
+        bbox=BBox3D.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
     )
 
     layer[0:1, 0:1, 0:1] = torch.ones((2, 1, 1, 1))

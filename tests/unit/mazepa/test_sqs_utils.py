@@ -7,6 +7,8 @@ from moto import mock_sqs
 
 from zetta_utils import mazepa
 
+boto3.setup_default_session()
+
 
 @pytest.mark.parametrize("num_msg", [1, 8, 10, 15])
 @mock_sqs

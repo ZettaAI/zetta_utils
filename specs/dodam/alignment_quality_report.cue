@@ -11,8 +11,8 @@
 
 #IDX: {
 	"@type": "VolumetricIndex"
-	bcube: {
-		"@type":     "BoundingCube"
+	bbox: {
+		"@type":     "BBox3D.from_coords"
 		start_coord: #BCUBE_START
 		end_coord:   #BCUBE_END
 		resolution:  #BCUBE_RESOLUTION

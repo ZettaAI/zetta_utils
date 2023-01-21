@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from zetta_utils import alignment, builder, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -21,7 +21,7 @@ from ..common import build_chunked_volumetric_callable_flow_schema
 )
 def build_aced_relaxation_flow(
     chunk_size: IntVec3D,
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     dst: VolumetricLayer,
     field: VolumetricLayer,
@@ -37,7 +37,7 @@ def build_aced_relaxation_flow(
         crop_pad=crop_pad,
     )
     flow = flow_schema(
-        idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         dst=dst,
         field=field,
         num_iter=num_iter,

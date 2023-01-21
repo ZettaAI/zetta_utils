@@ -6,7 +6,7 @@ from torch import Tensor
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.typing import IntVec3D, Vec3D
 
@@ -62,7 +62,7 @@ def expand_if_singleton(arg: Union[T, List[T]], length: int) -> List[T]:
     ],
 )
 def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst: VolumetricLayer,
     dst_resolution: Vec3D,
     temp_layers_dirs: Union[str, List[str]],
@@ -80,7 +80,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
 
-    idx = VolumetricIndex(resolution=dst_resolution, bcube=bcube)
+    idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -143,7 +143,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             n_region_chunks_rounded = IntVec3D(*(round(e) for e in n_region_chunks))
             if processing_region % n_region_chunks_rounded == Vec3D(0, 0, 0):
                 rec_processing_chunk_size = IntVec3D(
-                    *(processing_region / n_region_chunks_rounded)  # type: ignore #mypy does not know that this is exact
+                    *(processing_region / n_region_chunks_rounded)
                 )
                 rec_str = f"Recommendation for `processing_chunk_size[level]`: {rec_processing_chunk_size}"
             else:

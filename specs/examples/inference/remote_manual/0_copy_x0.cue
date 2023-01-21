@@ -28,8 +28,8 @@ exec_queue: {
 target: {
 	"@type": "build_write_flow"
 	chunk_size: [1024, 1024, 1]
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 7, 1024 * 3, 2000]
 		end_coord: [1024 * 9, 1024 * 5, 2005]
 		resolution: [64, 64, 40]

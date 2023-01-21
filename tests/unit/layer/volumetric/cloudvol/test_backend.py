@@ -5,7 +5,7 @@ import pathlib
 import pytest
 import torch
 
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
 from zetta_utils.typing import IntVec3D, Vec3D
@@ -108,12 +108,12 @@ def test_cv_backend_read(clear_caches, mocker):
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
+        bbox=BBox3D.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
     )
     result = cvb.read(index)
     assert_array_equal(result, expected)
-    cv_m.__getitem__.assert_called_with(index.bcube.to_slices(index.resolution))
+    cv_m.__getitem__.assert_called_with(index.bbox.to_slices(index.resolution))
 
 
 def test_cv_backend_write(clear_caches, mocker):
@@ -125,11 +125,11 @@ def test_cv_backend_write(clear_caches, mocker):
     expected_written = torch.ones([3, 4, 5, 2])  # channel as ch 0
 
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
+        bbox=BBox3D.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
     )
     cvb.write(index, value)
-    assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
+    assert cv_m.__setitem__.call_args[0][0] == index.bbox.to_slices(index.resolution)
     assert_array_equal(
         cv_m.__setitem__.call_args[0][1],
         expected_written,
@@ -145,11 +145,11 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
     expected_written = 1
 
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
+        bbox=BBox3D.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
     )
     cvb.write(index, value)
-    assert cv_m.__setitem__.call_args[0][0] == index.bcube.to_slices(index.resolution)
+    assert cv_m.__setitem__.call_args[0][0] == index.bbox.to_slices(index.resolution)
     assert cv_m.__setitem__.call_args[0][1] == expected_written
 
 
@@ -166,7 +166,7 @@ def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     cvb = CVBackend(path="path")
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
+        bbox=BBox3D.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
     )
     with pytest.raises(expected_exc):
@@ -241,7 +241,7 @@ def test_cv_assert_idx_is_chunk_aligned(clear_caches):
     )
     cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices(
+        bbox=BBox3D.from_slices(
             (slice(1, 4), slice(-8, 12), slice(-18, -11)), resolution=Vec3D(8, 8, 8)
         ),
         resolution=Vec3D(8, 8, 8),
@@ -257,7 +257,7 @@ def test_cv_assert_idx_is_chunk_aligned_exc(clear_caches):
     )
     cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
-        bcube=BoundingCube.from_slices(
+        bbox=BBox3D.from_slices(
             (slice(0, 13), slice(0, 13), slice(0, 13)), resolution=Vec3D(8, 8, 8)
         ),
         resolution=Vec3D(8, 8, 8),

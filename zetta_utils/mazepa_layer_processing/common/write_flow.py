@@ -1,7 +1,7 @@
 from typing import TypeVar
 
 from zetta_utils import builder, mazepa
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.layer import IndexChunker
 from zetta_utils.layer.protocols import LayerWithIndexT
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricIndexChunker
@@ -36,14 +36,14 @@ def generic_write_flow(
 )
 def build_write_flow(
     chunk_size: IntVec3D,
-    bcube: BoundingCube,
+    bbox: BBox3D,
     dst_resolution: Vec3D,
     dst: LayerWithIndexT[VolumetricIndex],
     src: LayerWithIndexT[VolumetricIndex],
 ) -> mazepa.Flow:
     result = generic_write_flow(
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
-        idx=VolumetricIndex(bcube=bcube, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         src=src,
         dst=dst,
     )

@@ -147,7 +147,7 @@ def _build_spec(field: Any) -> Any:  # pylint: disable=too-many-branches,too-man
         except TypeError:
             ...
 
-        with ctx_managers.set_env(CURRENT_BUILD_SPEC=spec_as_str):
+        with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
             if PARSE_KEY in field:
                 registered_fn = get_callable_from_name(field[PARSE_KEY])
                 registered_cast_to_vec3d = get_cast_to_vec3d_from_name(field[PARSE_KEY])

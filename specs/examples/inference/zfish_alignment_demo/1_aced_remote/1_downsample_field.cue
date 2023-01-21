@@ -13,8 +13,8 @@
 	chunk_size: [#XY_OUT_CHUNK, #XY_OUT_CHUNK, 1]
 	src_resolution: _
 	dst_resolution: _
-	bcube: {
-		"@type": "BoundingCube"
+	bbox: {
+		"@type": "BBox3D.from_coords"
 		start_coord: [0, 0, 3000]
 		end_coord: [2048, 2048, 3020]
 		resolution: [256, 256, 30]

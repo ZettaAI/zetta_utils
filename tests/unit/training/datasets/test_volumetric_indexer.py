@@ -1,12 +1,12 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
-from zetta_utils.bcube import BoundingCube
+from zetta_utils.bbox import BBox3D
 from zetta_utils.training.datasets.sample_indexers import VolumetricStridedIndexer
 from zetta_utils.typing import IntVec3D, Vec3D
 
 
 def test_len(mocker):
     vsi = VolumetricStridedIndexer(
-        bcube=BoundingCube.from_coords(
+        bbox=BBox3D.from_coords(
             start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(1, 2, 3), resolution=Vec3D(1, 1, 1)
         ),
         chunk_size=IntVec3D(1, 1, 1),
@@ -18,7 +18,7 @@ def test_len(mocker):
 
 def test_call_default(mocker):
     vsi = VolumetricStridedIndexer(
-        bcube=BoundingCube.from_coords(
+        bbox=BBox3D.from_coords(
             start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(1, 2, 3), resolution=Vec3D(1, 1, 1)
         ),
         chunk_size=IntVec3D(1, 1, 1),
@@ -30,7 +30,7 @@ def test_call_default(mocker):
 
 def test_call_index_res(mocker):
     vsi = VolumetricStridedIndexer(
-        bcube=BoundingCube.from_coords(
+        bbox=BBox3D.from_coords(
             start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(1, 2, 3), resolution=Vec3D(1, 1, 1)
         ),
         chunk_size=IntVec3D(1, 1, 1),
@@ -43,7 +43,7 @@ def test_call_index_res(mocker):
 
 def test_call_desired_res(mocker):
     vsi = VolumetricStridedIndexer(
-        bcube=BoundingCube.from_coords(
+        bbox=BBox3D.from_coords(
             start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(1, 2, 3), resolution=Vec3D(1, 1, 1)
         ),
         chunk_size=IntVec3D(1, 1, 1),

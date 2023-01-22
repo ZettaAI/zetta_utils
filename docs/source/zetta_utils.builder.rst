@@ -12,7 +12,8 @@ Use ``builder.register()`` to make a callable accessibule with ``zu.builder``:
 
 .. doctest::
 
-   >>> @zu.builder.register("MyClass")
+   >>> from zetta_utils import builder
+   >>> @builder.register("MyClass")
    ... class MyClass:
    ...    def __init__(self, a):
    ...       self.a = a
@@ -26,7 +27,7 @@ and providing the initialization parameters:
    ...    "@type": "MyClass",
    ...    "a": 100
    ... }
-   >>> obj = zu.builder.build(spec)
+   >>> obj = builder.build(spec)
    >>> print (type(obj))
    <class 'MyClass'>
    >>> print (obj.a)

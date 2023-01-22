@@ -6,13 +6,13 @@ from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
     VolumetricLayer,
 )
 from zetta_utils.mazepa import Dependency
-from zetta_utils.typing import IntVec3D, Vec3D
 
 logger = log.get_logger("zetta_utils")
 

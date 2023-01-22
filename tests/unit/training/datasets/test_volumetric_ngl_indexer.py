@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
+from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.training.datasets.sample_indexers import VolumetricNGLIndexer
-from zetta_utils.typing import IntVec3D, Vec3D
 
 
 def test_len(mocker):

@@ -6,9 +6,8 @@ from torch import Tensor
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from ..operation_protocols import BlendableOpProtocol
 from .blendable_apply_flow import BlendableApplyFlowSchema

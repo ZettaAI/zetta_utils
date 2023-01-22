@@ -4,9 +4,8 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.parsing import ngl_state
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from .base import SampleIndexer
 

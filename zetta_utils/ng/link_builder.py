@@ -7,7 +7,7 @@ import requests
 from typeguard import typechecked
 
 from zetta_utils import builder, log
-from zetta_utils.typing import Vec3D
+from zetta_utils.geometry import Vec3D
 
 logger = log.get_logger("zetta_utils")
 

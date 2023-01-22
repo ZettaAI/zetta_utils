@@ -6,7 +6,7 @@ import pytest
 
 from zetta_utils import builder
 from zetta_utils.common.partial import ComparablePartial
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import IntVec3D, Vec3D
 
 PARSE_KEY = "@type"
 RECURSIVE_KEY = "@recursive_parse"

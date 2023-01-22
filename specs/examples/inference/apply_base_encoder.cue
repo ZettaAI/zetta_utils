@@ -15,14 +15,15 @@
 }
 
 "@type":          "mazepa.execute_on_gcp_with_sqs"
-worker_image:     "us.gcr.io/zetta-research/zetta_utils:inference_x17"
-worker_replicas:  5
-worker_lease_sec: 30
+worker_image:     "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x60_p39"
+max_task_retry:   1
+worker_replicas:  1
+worker_lease_sec: 2
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "build_chunked_apply_flow"
@@ -32,7 +33,7 @@ target: {
 			"@type":    "BaseEncoder"
 			model_path: #MODEL_PATH
 		}
-		crop: #CROP
+		crop_pad: #CROP
 	}
 	chunker: {
 		"@type":      "VolumetricIndexChunker"

@@ -1,9 +1,8 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
 import pytest
 
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricFrontend, VolumetricIndex
-from zetta_utils.typing import Vec3D
 
 
 @pytest.mark.parametrize(

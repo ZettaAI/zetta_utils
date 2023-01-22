@@ -5,10 +5,9 @@ import pathlib
 import pytest
 import torch
 
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, cloudvol
 from zetta_utils.layer.volumetric.cloudvol import CVBackend
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from ....helpers import assert_array_equal
 

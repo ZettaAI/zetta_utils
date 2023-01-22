@@ -4,7 +4,7 @@ import pathlib
 
 from cloudfiles import CloudFiles
 
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D
 from zetta_utils.parsing import ngl_state
 
 PARENT_DIR = pathlib.Path(__file__).parents[1]

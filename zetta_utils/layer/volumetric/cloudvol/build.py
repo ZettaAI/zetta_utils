@@ -5,8 +5,8 @@ import torch
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.tensor_ops import InterpolationMode
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from ... import DataProcessor, DataWithIndexProcessor, IndexAdjuster
 from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer

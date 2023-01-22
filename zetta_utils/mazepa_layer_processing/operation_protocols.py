@@ -5,8 +5,8 @@ from typing import Optional, Protocol, TypeVar, runtime_checkable
 from typing_extensions import ParamSpec
 
 from zetta_utils import mazepa
+from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
-from zetta_utils.typing import IntVec3D, Vec3D
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)

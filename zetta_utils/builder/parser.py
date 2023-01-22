@@ -11,8 +11,7 @@ from typeguard import typechecked
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 from zetta_utils.common.partial import ComparablePartial
-
-from ..typing import IntVec3D, Vec3D
+from zetta_utils.geometry import IntVec3D, Vec3D  # pylint: disable
 
 REGISTRY: dict[str, dict[str, Any]] = {}
 PARSE_KEY = "@type"

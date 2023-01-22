@@ -28,7 +28,7 @@ def _get_seunglab_branch_json_state(
 
 
 @typechecked
-@builder.register("make_ng_link", cast_to_vec3d=["position"])
+@builder.register("make_ng_link")
 def make_ng_link(
     layers: Sequence[Sequence[str]],
     position: Optional[Vec3D] = None,

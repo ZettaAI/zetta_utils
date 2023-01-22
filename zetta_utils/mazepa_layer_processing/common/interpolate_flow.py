@@ -30,11 +30,7 @@ def _interpolate(
     )
 
 
-@builder.register(
-    "build_interpolate_flow",
-    cast_to_vec3d=["src_resolution", "dst_resolution"],
-    cast_to_intvec3d=["chunk_size"],
-)
+@builder.register("build_interpolate_flow")
 def build_interpolate_flow(
     chunk_size: IntVec3D,
     bbox: BBox3D,

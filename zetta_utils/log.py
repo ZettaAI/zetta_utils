@@ -127,7 +127,6 @@ CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_CTX_VARS}
 
 
 def set_logging_tag(name, value):
-    print(f"Set up logging tag '{name}' to {value}")
     CTX_VARS[name].set(value)
 
 
@@ -155,13 +154,4 @@ if GRAFANA_KEY is not None:
         url=f"https://{GRAFANA_USER_ID}:{GRAFANA_KEY}@logs-prod3.grafana.net/loki/api/v1/push",
         version="1",
     )
-    print(
-        "Configured Grafana Cloud Loki logging. "
-        "Access logs from this machine at https://zutils.grafana.net/explore"
-    )
-else:
-    print(
-        "Failed to find `GRAFANA_CLOUD_ACCESS_KEY` env variable -- Loki logs won't be accessible."
-    )
-
 configure_logger()

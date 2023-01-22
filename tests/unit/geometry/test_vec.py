@@ -4,6 +4,7 @@ import typing
 import numpy as np
 import pytest
 
+from zetta_utils import builder
 from zetta_utils.geometry.vec import (
     IntVec1D,
     IntVec2D,
@@ -87,6 +88,7 @@ def test_iter(arg, val):
 @pytest.mark.parametrize(
     "arg1, arg2, is_equal",
     [
+        [vec2d, [1, 2, 3], False],
         [vec2d, vec2d, True],
         [vec2d, intvec2d, True],
         [vec2d, vec3d, False],
@@ -440,3 +442,9 @@ def test_subtyping() -> None:
         some_float % intvec1d,
     ]:
         test_inference_return_vec1d(y)
+
+
+def test_builder_autoconvert():
+    built = builder.build({"a": [1, 2, 3], "b": [1.1, 2, 3], "c": [1, 2, 3, 4]})
+    expected = {"a": IntVec3D(1, 2, 3), "b": Vec3D(1.1, 2, 3), "c": [1, 2, 3, 4]}
+    assert built == expected

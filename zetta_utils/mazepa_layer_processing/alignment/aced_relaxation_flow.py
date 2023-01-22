@@ -13,11 +13,7 @@ from zetta_utils.layer.volumetric import (
 from ..common import build_chunked_volumetric_callable_flow_schema
 
 
-@builder.register(
-    "build_aced_relaxation_flow",
-    cast_to_vec3d=["dst_resolution"],
-    cast_to_intvec3d=["chunk_size", "crop_pad"],
-)
+@builder.register("build_aced_relaxation_flow")
 def build_aced_relaxation_flow(
     chunk_size: IntVec3D,
     bbox: BBox3D,

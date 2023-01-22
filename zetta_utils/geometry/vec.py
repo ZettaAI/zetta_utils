@@ -2,8 +2,19 @@
 from __future__ import annotations
 
 from collections import abc
-from typing import Generic, Literal, Sequence, Tuple, Type, TypeVar, Union, overload
+from typing import (
+    Any,
+    Generic,
+    Literal,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    overload,
+)
 
+from zetta_utils import builder
 from zetta_utils.typing import get_orig_class
 
 NDType = Literal[1, 2, 3, 4, 5]
@@ -112,6 +123,8 @@ class _VecND(Generic[N, T_co], abc.Sequence):
         return self.ndim
 
     def __eq__(self, other) -> bool:
+        if not hasattr(other, "vec"):
+            return False
         return self.vec == other.vec
 
     def __lt__(self, other) -> bool:
@@ -345,3 +358,19 @@ IntVec2D = _VecND[Literal[2], int]
 IntVec3D = _VecND[Literal[3], int]
 IntVec4D = _VecND[Literal[4], int]
 IntVec5D = _VecND[Literal[5], int]
+
+
+def convert_list3_to_vec3d(value: Any) -> Any:
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        if isinstance(value[0], int) and isinstance(value[1], int) and isinstance(value[2], int):
+            return IntVec3D(*value)
+        elif (
+            isinstance(value[0], (float, int))
+            and isinstance(value[1], (float, int))
+            and isinstance(value[2], (float, int))
+        ):
+            return Vec3D(*value)
+    return value
+
+
+builder.AUTOCONVERTERS.append(convert_list3_to_vec3d)

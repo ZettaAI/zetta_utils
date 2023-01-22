@@ -15,11 +15,7 @@ from .bbox import BBox3D
 logger = log.get_logger("zetta_utils")
 
 
-@builder.register(  # type: ignore
-    "BBoxStrider",
-    cast_to_vec3d=["resolution", "stride_start"],
-    cast_to_intvec3d=["chunk_size", "stride"],
-)
+@builder.register("BBoxStrider")
 @typechecked
 @attrs.frozen
 class BBoxStrider:

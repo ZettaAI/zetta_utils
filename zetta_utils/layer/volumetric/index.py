@@ -11,7 +11,7 @@ from zetta_utils import builder
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 
 
-@builder.register("VolumetricIndex", cast_to_vec3d=["resolution"])
+@builder.register("VolumetricIndex")
 @attrs.mutable
 class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D

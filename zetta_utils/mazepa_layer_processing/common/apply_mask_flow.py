@@ -24,9 +24,7 @@ def _apply_mask(
     return result
 
 
-@builder.register(
-    "build_apply_mask_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size"]
-)
+@builder.register("build_apply_mask_flow")
 def build_apply_mask_flow(
     chunk_size: IntVec3D,
     bbox: BBox3D,

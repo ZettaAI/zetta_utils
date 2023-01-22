@@ -17,7 +17,7 @@ from zetta_utils.layer.volumetric import (
 from ..common import build_chunked_apply_flow
 
 
-@builder.register("WarpOperation", cast_to_intvec3d=["crop"])
+@builder.register("WarpOperation")
 @mazepa.taskable_operation_cls
 @attrs.frozen()
 class WarpOperation:
@@ -74,9 +74,7 @@ class WarpOperation:
         dst[idx] = dst_data
 
 
-@builder.register(
-    "build_warp_flow", cast_to_vec3d=["dst_resolution"], cast_to_intvec3d=["chunk_size", "crop"]
-)
+@builder.register("build_warp_flow")
 def build_warp_flow(
     bbox: BBox3D,
     dst_resolution: Vec3D,

@@ -22,7 +22,7 @@ Generic ops:
 
 .. doctest::
 
-   >>> from zetta_utils import tensor_ops
+   >>> from zetta_utils import tensor_ops # doctest:+ELLIPSIS
    >>> import numpy as np
    >>> a = np.ones((2, 2))
    >>> a = tensor_ops.unsqueeze(a)

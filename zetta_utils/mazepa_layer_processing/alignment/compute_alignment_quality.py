@@ -54,9 +54,7 @@ def lrpad(
 
 
 # f-string-without-interpolation should not be necessary, but pylint seems to have a bug
-@builder.register(
-    "compute_alignment_quality", cast_to_vec3d=["resolution"], cast_to_intvec3d=["chunk_size"]
-)
+@builder.register("compute_alignment_quality")
 @mazepa.flow_schema
 @typechecked
 def compute_alignment_quality(

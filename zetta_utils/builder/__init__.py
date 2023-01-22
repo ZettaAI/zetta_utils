@@ -1,2 +1,2 @@
 """Building objects from specs"""
-from .parser import REGISTRY, build, get_callable_from_name, register
+from .build import REGISTRY, AUTOCONVERTERS, SPECIAL_KEYS, build, get_callable_from_name, register

@@ -40,7 +40,7 @@ def get_cv_cached(*args, **kwargs):
     return CloudVolume(*args, **kwargs)
 
 
-@builder.register("CVBackend", cast_to_intvec3d=["default_chunk_size", "default_voxel_offset"])
+@builder.register("CVBackend")
 @typechecked
 @attrs.mutable
 class PrecomputedInfoSpec:

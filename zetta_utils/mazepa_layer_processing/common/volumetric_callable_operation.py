@@ -18,9 +18,7 @@ P = ParamSpec("P")
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
 
 
-@builder.register(
-    "VolumetricCallableOperation", cast_to_vec3d=["res_change_mult"], cast_to_intvec3d=["crop_pad"]
-)
+@builder.register("VolumetricCallableOperation")
 @mazepa.taskable_operation_cls
 @attrs.mutable
 class VolumetricCallableOperation(Generic[P]):
@@ -83,11 +81,7 @@ class VolumetricCallableOperation(Generic[P]):
         dst[idx] = dst_data
 
 
-@builder.register(
-    "build_chunked_volumetric_callable_flow_schema",
-    cast_to_vec3d=["res_change_mult"],
-    cast_to_intvec3d=["crop_pad"],
-)
+@builder.register("build_chunked_volumetric_callable_flow_schema")
 def build_chunked_volumetric_callable_flow_schema(
     fn: Callable[P, torch.Tensor],
     chunker: IndexChunker[IndexT],

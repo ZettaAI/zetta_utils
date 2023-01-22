@@ -9,11 +9,7 @@ from zetta_utils.geometry import BBox3D, BBoxStrider, IntVec3D, Vec3D
 from .base import SampleIndexer
 
 
-@builder.register(
-    "VolumetricStridedIndexer",
-    cast_to_vec3d=["resolution", "index_resolution", "desired_resolution"],
-    cast_to_intvec3d=["chunk_size", "stride"],
-)
+@builder.register("VolumetricStridedIndexer")
 @typechecked
 @attrs.frozen
 class VolumetricStridedIndexer(SampleIndexer):

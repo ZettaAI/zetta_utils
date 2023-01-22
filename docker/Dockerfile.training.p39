@@ -4,9 +4,9 @@ FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update \
-  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common python3.9-dev \
+  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common \
   && add-apt-repository ppa:deadsnakes/ppa -y \
-  && apt-get install -y --no-install-recommends python3.9 python3-pip  \
+  && apt-get install -y --no-install-recommends python3.9 python3-pip python3.9-dev \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.9 1 \
   && apt-get install -y python3.9-distutils \
   && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \

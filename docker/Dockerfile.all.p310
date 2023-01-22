@@ -1,0 +1,30 @@
+#FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
+FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
+
+ENV DEBIAN_FRONTEND="noninteractive"
+
+RUN apt-get update \
+  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common \
+  && add-apt-repository ppa:deadsnakes/ppa -y \
+  && apt-get install -y --no-install-recommends python3.10 python3-pip  python3.10-dev \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
+  && apt-get install -y python3.10-distutils \
+  && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+  && python3.10 get-pip.py \
+  && pip install posix-ipc \
+  && apt-get --purge autoremove -y build-essential \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/* \
+  && mkdir /opt/cue \
+  && cd /opt/cue \
+  && wget https://github.com/cue-lang/cue/releases/download/v0.4.3/cue_v0.4.3_linux_amd64.tar.gz \
+  && tar -xzvf cue_v0.4.3_linux_amd64.tar.gz  \
+  && cp cue /bin/
+
+ADD pyproject.toml /opt/zetta_utils/
+ADD setup.cfg /opt/zetta_utils/
+WORKDIR /opt/zetta_utils
+ENV PYTHONPATH /opt/zetta_utils
+
+RUN pip install -e '.[all]'
+COPY . /opt/zetta_utils/

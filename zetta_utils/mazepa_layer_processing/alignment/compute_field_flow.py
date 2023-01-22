@@ -4,7 +4,7 @@ from typing import Optional
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -12,7 +12,6 @@ from zetta_utils.layer.volumetric import (
     VolumetricLayer,
 )
 from zetta_utils.mazepa_layer_processing.common import build_chunked_apply_flow
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from ..operation_protocols import ComputeFieldOpProtocol
 

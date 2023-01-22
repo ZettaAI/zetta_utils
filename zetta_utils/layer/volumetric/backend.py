@@ -4,7 +4,7 @@ from typing import Literal
 
 import torch
 
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import IntVec3D, Vec3D
 
 from .. import Backend
 from . import VolumetricIndex

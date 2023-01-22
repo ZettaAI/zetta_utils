@@ -7,11 +7,12 @@ from typing import Literal, Optional, Sequence, cast
 import attrs
 
 from zetta_utils import builder
-from zetta_utils.typing import Slices3D, Vec3D
+
+from . import Vec3D
 
 # from typeguard import typechecked
 
-
+Slices3D = tuple[slice, slice, slice]
 EPS = 1e-4
 
 DEFAULT_UNIT = "nm"
@@ -441,5 +442,5 @@ class BBox3D:
         return BBox3D(bounds=bounds, unit=self.unit)
 
 
-builder.register("BBox3D.from_slices")(BBox3D.from_slices)
-builder.register("BBox3D.from_coords")(BBox3D.from_coords)
+builder.register("BBox3D.from_slices")(BBox3D.from_slices)  # type: ignore
+builder.register("BBox3D.from_coords")(BBox3D.from_coords)  # type: ignore

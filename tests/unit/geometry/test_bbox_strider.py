@@ -1,8 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object,unused-variable
 import pytest
 
-from zetta_utils.bbox import BBox3D, BBoxStrider
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, BBoxStrider, IntVec3D, Vec3D
 
 
 # basic functionality tests

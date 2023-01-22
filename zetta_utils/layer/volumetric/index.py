@@ -8,8 +8,7 @@ import attrs
 from zetta_utils import builder
 
 # from zetta_utils.common.partial import ComparablePartial
-from zetta_utils.bbox import BBox3D
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 
 
 @builder.register("VolumetricIndex", cast_to_vec3d=["resolution"])

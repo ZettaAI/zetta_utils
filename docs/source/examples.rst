@@ -66,15 +66,14 @@ BBox3D
 
 .. doctest::
 
-   >>> from zetta_utils.typing import Vec3D
-   >>> from zetta_utils.bbox import BBox3D
+   >>> from zetta_utils.geometry import BBox3D
    >>> bbox = BBox3D.from_coords(
-   ...    start_coord=Vec3D(100, 100, 10),
-   ...    end_coord=Vec3D(200, 200, 20),
-   ...    resolution=Vec3D(4, 4, 40)
+   ...    start_coord=(100, 100, 10),
+   ...    end_coord=(200, 200, 20),
+   ...    resolution=(4, 4, 40)
    ... )
    >>> print(bbox)
-   BBox3D(bounds=((400.0, 800.0), (400.0, 800.0), (400.0, 800.0)), unit='nm', pprint_px_resolution=(1, 1, 1))
+   BBox3D(bounds=((400, 800), (400, 800), (400, 800)), unit='nm', pprint_px_resolution=(1, 1, 1))
    >>> slices = bbox.to_slices(resolution=(16, 16, 100))
    >>> print(slices)
    (slice(25, 50, None), slice(25, 50, None), slice(4, 8, None))
@@ -99,7 +98,7 @@ Layers for CloudVolume IO:
 
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-   >>> from zetta_utils.typing import Vec3D
+   >>> from zetta_utils.geometry import Vec3D
    >>> # Advanced features:
    >>> # Custom index resolution, desired resolution, data resolution
    >>> cvl = build_cv_layer(
@@ -117,7 +116,7 @@ Layer sets for grouping layers together:
 
 .. doctest::
 
-   >>> from zetta_utils.typing import Vec3D
+   >>> from zetta_utils.geometry import Vec3D
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
    >>> cvl_x0 = build_cv_layer(
@@ -169,9 +168,9 @@ well as specify how many training samples there will be in total.
 In this example, we will be using ``VolumetricStridedIndexer``:
 
 .. doctest::
+
    >>> from zetta_utils import training
-   >>> from zetta_utils.typing import Vec3D
-   >>> from zetta_utils.bbox import BBox3D
+   >>> from zetta_utils.geometry import BBox3D, Vec3D
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> from zetta_utils.layer import build_layer_set
    >>> indexer = training.datasets.sample_indexers.VolumetricStridedIndexer(
@@ -194,11 +193,11 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    >>> print(len(indexer)) # total number of samples
    78400
    >>> print(indexer(0))
-   (Vec3D(64., 64., 40.), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64.0, 64.0, 40.0), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(1))
-   (Vec3D(64., 64., 40.), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64.0, 64.0, 40.0), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(78399))
-   (Vec3D(64., 64., 40.), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
+   (Vec3D(64.0, 64.0, 40.0), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
    >>> dset = training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,

@@ -8,14 +8,14 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder, log
-from zetta_utils.typing import IntVec3D, Vec3D
 
+from . import IntVec3D, Vec3D
 from .bbox import BBox3D
 
 logger = log.get_logger("zetta_utils")
 
 
-@builder.register(
+@builder.register(  # type: ignore
     "BBoxStrider",
     cast_to_vec3d=["resolution", "stride_start"],
     cast_to_intvec3d=["chunk_size", "stride"],
@@ -57,7 +57,7 @@ class BBoxStrider:
     step_end_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     mode: Optional[Literal["shrink", "expand", "exact"]] = "shrink"
 
-    def __attrs_post_init__(self):
+    def __attrs_post_init__(self) -> None:
         stride_in_unit = self.stride * self.resolution
         chunk_size_in_unit = self.chunk_size * self.resolution
         object.__setattr__(self, "chunk_size_in_unit", chunk_size_in_unit)

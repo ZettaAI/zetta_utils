@@ -1,7 +1,7 @@
 import attrs
 
 from zetta_utils import mazepa
-from zetta_utils.typing import IntVec3D
+from zetta_utils.geometry import IntVec3D
 
 
 @attrs.frozen

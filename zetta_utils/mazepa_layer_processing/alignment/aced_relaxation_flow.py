@@ -3,13 +3,12 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 from zetta_utils import alignment, builder, mazepa
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
     VolumetricLayer,
 )
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from ..common import build_chunked_volumetric_callable_flow_schema
 

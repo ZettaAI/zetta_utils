@@ -8,9 +8,9 @@ import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.layer import IndexChunker, Layer
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
-from zetta_utils.typing import IntVec3D, Vec3D
 
 from . import ChunkedApplyFlowSchema
 

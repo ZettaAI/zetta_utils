@@ -2,9 +2,8 @@
 import pytest
 import torch
 
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, build_volumetric_layer
-from zetta_utils.typing import Vec3D
 
 
 def test_build_exc(mocker):

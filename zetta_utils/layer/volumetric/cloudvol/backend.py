@@ -17,8 +17,7 @@ from cloudvolume.lib import Bbox
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.bbox import BBox3D
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
 

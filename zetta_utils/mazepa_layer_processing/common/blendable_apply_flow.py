@@ -195,11 +195,7 @@ def write_blending_weights(  # pylint:disable=too-many-branches
     dst[idx_subchunk] = mask
 
 
-@builder.register(
-    "BlendableApplyFlowSchema",
-    cast_to_vec3d=["dst_resolution"],
-    cast_to_intvec3d=["processing_chunk_size", "crop_pad", "blend_pad"],
-)
+@builder.register("BlendableApplyFlowSchema")
 @mazepa.flow_schema_cls
 @attrs.mutable
 class BlendableApplyFlowSchema(Generic[P, R_co]):
@@ -500,16 +496,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             yield tasks_reduce
 
 
-@builder.register(
-    "build_blendable_apply_flow",
-    cast_to_vec3d=["dst_resolution"],
-    cast_to_intvec3d=[
-        "blend_pad",
-        "crop_pad",
-        "max_reduction_chunk_size",
-        "processing_chunk_size",
-    ],
-)
+@builder.register("build_blendable_apply_flow")
 def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     operation: BlendableOpProtocol[P, R_co],
     bbox: BBox3D,

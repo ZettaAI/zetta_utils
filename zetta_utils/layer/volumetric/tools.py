@@ -25,7 +25,7 @@ def translate_volumetric_index(
     return result
 
 
-@builder.register("VolumetricIndexTranslator", cast_to_vec3d=["offset", "resolution"])
+@builder.register("VolumetricIndexTranslator")
 @typechecked
 @attrs.mutable
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
@@ -41,7 +41,7 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
-@builder.register("VolumetricIndexResolutionAdjuster", cast_to_vec3d=["resolution"])
+@builder.register("VolumetricIndexResolutionAdjuster")
 @typechecked
 @attrs.mutable
 class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statements, no conditionals
@@ -86,11 +86,7 @@ class VolumetricDataInterpolator(DataWithIndexProcessor):
         return result
 
 
-@builder.register(
-    "VolumetricIndexChunker",
-    cast_to_vec3d=["resolution"],
-    cast_to_intvec3d=["chunk_size", "stride"],
-)
+@builder.register("VolumetricIndexChunker")
 @typechecked
 @attrs.mutable
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):

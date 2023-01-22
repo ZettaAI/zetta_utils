@@ -10,11 +10,7 @@ from zetta_utils.parsing import ngl_state
 from .base import SampleIndexer
 
 
-@builder.register(
-    "VolumetricNGLIndexer",
-    cast_to_vec3d=["resolution", "index_resolution", "desired_resolution"],
-    cast_to_intvec3d=["chunk_size", "stride"],
-)
+@builder.register("VolumetricNGLIndexer")
 @typechecked
 @attrs.frozen
 class VolumetricNGLIndexer(SampleIndexer):

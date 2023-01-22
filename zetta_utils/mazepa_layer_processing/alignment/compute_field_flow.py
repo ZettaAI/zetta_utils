@@ -16,9 +16,7 @@ from zetta_utils.mazepa_layer_processing.common import build_chunked_apply_flow
 from ..operation_protocols import ComputeFieldOpProtocol
 
 
-@builder.register(
-    "ComputeFieldFlowSchema", cast_to_vec3d=["tgt_offset"], cast_to_intvec3d=["chunk_size"]
-)
+@builder.register("ComputeFieldFlowSchema")
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldFlowSchema:
@@ -60,11 +58,7 @@ class ComputeFieldFlowSchema:
         yield cf_flow
 
 
-@builder.register(
-    "build_compute_field_flow",
-    cast_to_vec3d=["dst_resolution", "tgt_offset"],
-    cast_to_intvec3d=["chunk_size"],
-)
+@builder.register("build_compute_field_flow")
 def build_compute_field_flow(
     chunk_size: IntVec3D,
     operation: ComputeFieldOpProtocol,

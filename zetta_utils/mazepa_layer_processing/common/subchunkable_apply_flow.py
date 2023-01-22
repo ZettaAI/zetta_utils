@@ -49,17 +49,7 @@ def expand_if_singleton(arg: Union[T, List[T]], length: int) -> List[T]:
     return [arg for _ in range(length)]
 
 
-@builder.register(
-    "build_subchunkable_apply_flow",
-    cast_to_vec3d=["dst_resolution"],
-    cast_to_intvec3d=[
-        "fn_or_op_crop_pad",
-        "blend_pads",
-        "crop_pads",
-        "processing_chunk_sizes",
-        "max_reduction_chunk_sizes",
-    ],
-)
+@builder.register("build_subchunkable_apply_flow")
 def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches
     bbox: BBox3D,
     dst: VolumetricLayer,

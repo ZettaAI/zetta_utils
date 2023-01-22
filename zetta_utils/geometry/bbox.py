@@ -442,5 +442,5 @@ class BBox3D:
         return BBox3D(bounds=bounds, unit=self.unit)
 
 
-builder.register("BBox3D.from_slices")(BBox3D.from_slices)  # type: ignore
-builder.register("BBox3D.from_coords")(BBox3D.from_coords)  # type: ignore
+builder.register("BBox3D.from_slices")(BBox3D.from_slices)
+builder.register("BBox3D.from_coords")(BBox3D.from_coords)

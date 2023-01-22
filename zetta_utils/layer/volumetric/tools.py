@@ -5,8 +5,7 @@ import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
-from zetta_utils.bbox import BBoxStrider
-from zetta_utils.typing import IntVec3D, Vec3D
+from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
 
 from .. import DataWithIndexProcessor, IndexChunker
 from . import VolumetricIndex

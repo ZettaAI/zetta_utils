@@ -1,8 +1,9 @@
 # pylint: disable=missing-docstring
 import pytest
 
-from zetta_utils.bbox import BBox3D
-from zetta_utils.typing import Slices3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
+
+Slices3D = tuple[slice, slice, slice]
 
 
 @pytest.mark.parametrize(

@@ -26,7 +26,6 @@ extensions = [
 ]
 
 doctest_global_setup = """
-import zetta_utils as zu
 """
 
 default_role = "any"

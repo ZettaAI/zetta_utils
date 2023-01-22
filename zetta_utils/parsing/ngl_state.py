@@ -13,9 +13,8 @@ from neuroglancer.viewer_state import (
     make_layer,
 )
 
-from zetta_utils.bbox import BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.log import get_logger
-from zetta_utils.typing import Vec3D
 
 logger = get_logger("zetta_utils")
 

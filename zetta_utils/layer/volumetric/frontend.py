@@ -7,12 +7,12 @@ import attrs
 import torch
 
 from zetta_utils import builder
-from zetta_utils.bbox import BBox3D
-from zetta_utils.typing import Slices3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 
 from ..frontend_base import Frontend
 from . import VolumetricIndex
 
+Slices3D = tuple[slice, slice, slice]
 SliceUserVolumetricIndex = Union[
     Tuple[Optional[Vec3D], BBox3D],
     Tuple[slice, slice, slice],  # making the tuple explicit

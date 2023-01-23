@@ -12,6 +12,7 @@ from .backend import (
 )
 from .tools import (
     DataResolutionInterpolator,
+    InvertProcessor,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,
 )

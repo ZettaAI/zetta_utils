@@ -192,6 +192,9 @@ class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
         dtype = type(other_arg / self_arg)
         return _VecND[self.ndim_t, dtype](*(other / e for e in self))  # type: ignore
 
+    def __neg__(self: _VecND[N, T_co]) -> _VecND[N, T_co]:
+        return _VecND[self.ndim_t, self.dtype](*(-e for e in self))  # type: ignore
+
     @overload
     def __add__(self: _VecND[N, int], other: Union[_VecND[N, int], int]) -> _VecND[N, int]:
         ...

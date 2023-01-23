@@ -32,7 +32,7 @@ class VolumetricCallableOperation(Generic[P]):
     fn: Callable[P, torch.Tensor]
     crop_pad: IntVec3D = IntVec3D(0, 0, 0)
     res_change_mult: Vec3D = Vec3D(1, 1, 1)
-    output_crop: IntVec3D = attrs.field(init=False)
+    input_crop_pad: IntVec3D = attrs.field(init=False)
     operation_name: str | None = None
 
     def get_operation_name(self):
@@ -51,30 +51,28 @@ class VolumetricCallableOperation(Generic[P]):
         return attrs.evolve(self, crop_pad=self.crop_pad + crop_pad)
 
     def __attrs_post_init__(self):
-        output_crop_raw = self.crop_pad / self.res_change_mult
-        for e in output_crop_raw:
+        input_crop_pad_raw = self.crop_pad * self.res_change_mult
+        for e in input_crop_pad_raw:
             if not isinstance(e, int) and not e.is_integer():
                 raise ValueError(
                     f"Destination layer crop_pad of {self.crop_pad} with resolution change "
                     f"multiplier of {self.res_change_mult} results in non-integer "
-                    f"final output crop of {output_crop_raw}."
+                    f"final input crop of {input_crop_pad_raw}."
                 )
-        self.output_crop = output_crop_raw.int()
+        self.input_crop_pad = input_crop_pad_raw.int()
 
     def __call__(  # pylint: disable=keyword-arg-before-vararg
         self,
         idx: VolumetricIndex,
         dst: VolumetricLayer,
-        # crop_pad: Optional[IntVec3D] = None,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
         assert len(args) == 0
-        # if crop_pad is not None:
-        #    self.__attrs_post_init__()
+
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(self.crop_pad)
+        idx_input_padded = idx_input.padded(self.input_crop_pad)
         task_kwargs = {}
         for k, v in kwargs.items():
             if isinstance(v, Layer):
@@ -85,7 +83,7 @@ class VolumetricCallableOperation(Generic[P]):
         result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the
         # difference between the resolutions of idx and dst_idx
-        dst_data = tensor_ops.crop(result_raw, crop=self.output_crop)
+        dst_data = tensor_ops.crop(result_raw, crop=self.crop_pad)
         dst[idx] = dst_data
 
 

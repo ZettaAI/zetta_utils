@@ -10,7 +10,15 @@ from typeguard import typechecked
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 
-REGISTRY: dict[str, Callable] = {}
+REGISTRY: dict[str, RegistryEntry] = {}
+
+
+@attrs.frozen
+class RegistryEntry:
+    fn: Callable
+    allow_partial: bool
+
+
 AUTOCONVERTERS: list[Callable[[Any], Any]] = []
 
 SPECIAL_KEYS: Final = {
@@ -18,11 +26,13 @@ SPECIAL_KEYS: Final = {
     "type": "@type",
 }
 
+LAMBDA_STR_MAX_LENGTH: int = 80
+
 T = TypeVar("T", bound=Callable)
 
 
 def get_callable_from_name(name: str):  # pragma: no cover
-    return REGISTRY[name]
+    return REGISTRY[name].fn
 
 
 def apply_autoconverters(thing: Any) -> Any:
@@ -33,18 +43,31 @@ def apply_autoconverters(thing: Any) -> Any:
 
 
 @typechecked
-def register(name: str) -> Callable[[T], T]:
+def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
     """Decorator for registering classes to be buildable.
 
     :param name: Name which will be used for to indicate an object of the
         decorated type.
+    :param allow_partial: Whether to allow `@mode: "partial"`.
     """
 
     def decorator(fn: T) -> T:
-        REGISTRY[name] = fn
+        REGISTRY[name] = RegistryEntry(fn=fn, allow_partial=allow_partial)
         return fn
 
     return decorator
+
+
+@register("lambda", False)
+def parse_lambda_str(lambda_str: str) -> Callable:
+    """Parses strings that are lambda functions"""
+    if not isinstance(lambda_str, str):
+        raise TypeError("`lambda_str` must be a string.")
+    if not lambda_str.startswith("lambda "):
+        raise ValueError("`lambda_str` must start with 'lambda'.")
+    if len(lambda_str) > LAMBDA_STR_MAX_LENGTH:
+        raise ValueError(f"`lambda_str` must be at most {LAMBDA_STR_MAX_LENGTH} characters.")
+    return eval(lambda_str)  # pylint: disable=eval-used
 
 
 @typechecked
@@ -126,7 +149,7 @@ def _build_dict_spec(spec: dict[str, Any], name_prefix: str) -> Any:
     mode = spec.get(SPECIAL_KEYS["mode"], "regular")
 
     if mode == "regular":
-        fn = REGISTRY[spec[SPECIAL_KEYS["type"]]]
+        fn = REGISTRY[spec[SPECIAL_KEYS["type"]]].fn
         fn_kwargs = {
             k: _traverse_spec(v, _build_dict_spec, f"{name_prefix}.{k}")
             for k, v in spec.items()
@@ -147,6 +170,11 @@ def _build_dict_spec(spec: dict[str, Any], name_prefix: str) -> Any:
             )
             raise e from None
     elif mode == "partial":
+        if not REGISTRY[spec[SPECIAL_KEYS["type"]]].allow_partial:
+            raise ValueError(
+                f'"@mode": "partial" is not allowed for '
+                f'"@type": "{spec[SPECIAL_KEYS["type"]]}"'
+            )
         result = BuilderPartial(spec=spec)
     else:
         raise ValueError(f"Unsupported mode: {mode}")
@@ -193,7 +221,7 @@ class BuilderPartial:
             spec_as_str = '{"error": "Unserializable Spec"}'
 
         with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
-            fn = REGISTRY[self.spec[SPECIAL_KEYS["type"]]]
+            fn = REGISTRY[self.spec[SPECIAL_KEYS["type"]]].fn
             result = fn(
                 *args,
                 **self._get_built_spec_kwargs(),

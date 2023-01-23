@@ -82,6 +82,27 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
         return result
 
 
+@builder.register("InvertProcessor")
+@typechecked
+@attrs.mutable
+class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
+    invert: bool
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        return idx
+
+    def process_data(self, data: torch.Tensor, mode: Literal["read", "write"]) -> torch.Tensor:
+        if self.invert:
+            if not data.dtype == torch.uint8:
+                raise NotImplementedError("InvertProcessor is only supported for UInt8 layers.")
+            result = torch.bitwise_not(data) + 2
+        else:
+            result = data
+        return result
+
+
 @builder.register("VolumetricIndexChunker")
 @typechecked
 @attrs.mutable
@@ -95,7 +116,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     def __call__(
         self,
         idx: VolumetricIndex,
-        stride_start_offset: Optional[IntVec3D] = None,
+        stride_start_offset: IntVec3D = IntVec3D(0, 0, 0),
         mode: Literal["shrink", "expand", "exact"] = "shrink",
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         if self.resolution is None:
@@ -114,7 +135,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             chunk_size=self.chunk_size,
             max_superchunk_size=self.max_superchunk_size,
             stride=stride,
-            stride_start_offset=stride_start_offset,
+            stride_start_offset=stride_start_offset + self.offset,
             mode=mode,
         )
         if self.max_superchunk_size is not None:
@@ -131,7 +152,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
 
     def split_into_nonoverlapping_chunkers(
         self, pad: IntVec3D = IntVec3D(0, 0, 0)
-    ) -> List[Tuple[IndexChunker[VolumetricIndex], Tuple[int, int, int]]]:  # pragma: no cover
+    ) -> List[Tuple[VolumetricIndexChunker, Tuple[int, int, int]]]:  # pragma: no cover
         try:
             assert (self.stride is None) or (self.stride == self.chunk_size)
             assert self.offset == IntVec3D(0, 0, 0)

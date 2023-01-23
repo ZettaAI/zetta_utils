@@ -90,6 +90,28 @@ def test_bbox_strider_get_all_chunks(mocker):
             4,
         ],
         [
+            Vec3D(0, -1, 0),
+            Vec3D(1, 2, 3),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            None,
+            "exact",
+            None,
+            4,
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(4, 4, 5),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(-2, -2, 0),
+            "exact",
+            IntVec3D(4, 4, 4),
+            4,
+        ],
+        [
             Vec3D(0, 0, 0),
             Vec3D(4, 5, 6),
             Vec3D(1, 1, 1),
@@ -99,6 +121,17 @@ def test_bbox_strider_get_all_chunks(mocker):
             "expand",
             IntVec3D(5, 5, 5),
             4,
+        ],
+        [
+            Vec3D(-4, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            IntVec3D(1, 1, 1),
+            "shrink",
+            None,
+            6,
         ],
     ],
 )
@@ -167,6 +200,30 @@ def test_bbox_strider_len(
             BBox3D.from_slices((slice(0, 1), slice(-1, 0), slice(0, 2))),
         ],
         [
+            Vec3D(0, -1, 0),
+            Vec3D(1, 2, 3),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            None,
+            "exact",
+            None,
+            0,
+            BBox3D.from_slices((slice(0, 1), slice(-1, 1), slice(0, 2))),
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(4, 4, 5),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(-2, -2, 0),
+            "exact",
+            IntVec3D(4, 4, 4),
+            0,
+            BBox3D.from_slices((slice(0, 4), slice(-1, 0), slice(0, 4))),
+        ],
+        [
             Vec3D(0, 0, 0),
             Vec3D(4, 5, 6),
             Vec3D(1, 1, 1),
@@ -177,6 +234,18 @@ def test_bbox_strider_len(
             IntVec3D(5, 5, 5),
             3,
             BBox3D.from_slices((slice(0, 4), slice(4, 6), slice(4, 6))),
+        ],
+        [
+            Vec3D(-4, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            IntVec3D(1, 1, 1),
+            "shrink",
+            None,
+            5,
+            BBox3D.from_slices((slice(1, 4), slice(1, 4), slice(3, 6))),
         ],
     ],
 )
@@ -221,7 +290,7 @@ def test_bbox_strider_exc(mocker):
             mode="exact",
         )
 
-    # check stride_start_offset doesn't work with stride != chunk_size
+    # check stride_start_offset doesn't work with stride != chunk_size and expand
     with pytest.raises(NotImplementedError):
         strider = BBoxStrider(
             bbox=bbox,
@@ -232,16 +301,6 @@ def test_bbox_strider_exc(mocker):
             mode="expand",
         )
 
-    with pytest.raises(NotImplementedError):
-        strider = BBoxStrider(
-            bbox=bbox,
-            resolution=Vec3D(1, 1, 1),
-            chunk_size=IntVec3D(1, 1, 1),
-            stride=IntVec3D(2, 2, 2),
-            stride_start_offset=IntVec3D(1, 1, 1),
-            mode="shrink",
-        )
-
     # check superchunking doesn't work with stride != chunk_size
     with pytest.raises(NotImplementedError):
         strider = BBoxStrider(
@@ -250,17 +309,6 @@ def test_bbox_strider_exc(mocker):
             chunk_size=IntVec3D(1, 1, 1),
             stride=IntVec3D(2, 2, 2),
             max_superchunk_size=IntVec3D(3, 3, 3),
-        )
-
-    # check superchunking doesn't work with mode="exact"
-    with pytest.raises(NotImplementedError):
-        strider = BBoxStrider(
-            bbox=bbox,
-            resolution=Vec3D(1, 1, 1),
-            chunk_size=IntVec3D(1, 1, 1),
-            stride=IntVec3D(1, 1, 1),
-            max_superchunk_size=IntVec3D(3, 3, 3),
-            mode="exact",
         )
 
     # check superchunking doesn't work when max_superchunk_size is not at least as large as the chunk_size

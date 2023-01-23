@@ -16,7 +16,6 @@ from .common import (
     build_blendable_apply_flow,
 )
 
-
 builder.register("mazepa.Executor")(mazepa.Executor)
 builder.register("mazepa.execute")(mazepa.execute)
 builder.register("mazepa.LocalExecutionQueue")(mazepa.LocalExecutionQueue)

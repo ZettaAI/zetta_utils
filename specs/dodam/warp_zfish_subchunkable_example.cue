@@ -1,55 +1,49 @@
-#SRC_PATH:   "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_encodings"
-#FIELD_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/coarse/v3/field/composed_drift_corrected"
-#DST_PATH:   "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/subchunks_0/"
-#TEMP_PATH:  "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/subchunks_0/temp/"
-
-#XY_OVERLAP:   512
-#XY_CROP:      256
-#XY_OUT_CHUNK: 2048
+#SRC_PATH:   "gs://zfish_unaligned/coarse_x0/raw_masked"
+#FIELD_PATH: "gs://sergiy_exp/aced/zfish/large_test_x8/afield_debug_x6"
+#DST_PATH:   "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/newblend44/"
+#TEMP_PATH1: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/newblend1/temp/"
+#TEMP_PATH0: "file:///tmp/zetta_cvols/"
 
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
-		"@type": "WarpOperation"
-		mode:    "img"
+		"@type": "VolumetricCallableOperation"
+		fn: {
+			"@type":    "lambda"
+			lambda_str: "lambda src: src+1"
+		}
+
 	}
-	bbox: {
-		"@type": "BBox3D.from_coords"
-		start_coord: [256, 256, 3000]
-		end_coord: [1024, 1024, 3001]
-		resolution: [512, 512, 30]
-	}
+
+	start_coord: [4096, 4096, 3003]
+	end_coord: [8192, 12288, 3005]
+	coord_resolution: [32, 32, 30]
+
 	dst_resolution: [32, 32, 30]
 
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
-	processing_chunk_sizes: [[6144, 6144, 1], [3104, 3088, 1], [1552, 1544, 1]]
+	processing_chunk_sizes: [[4224, 4160, 1], [1056, 1056, 1]]
+	processing_crop_pads: [[0, 32, 0], [0, 0, 0]]
+	processing_blend_pads: [[0, 0, 0], [16, 16, 0]]
+	processing_blend_modes: "quadratic"
+
+	fov_crop_pad: [64, 64, 0]
+
 	max_reduction_chunk_sizes: [4096, 4096, 1]
-	fn_or_op_crop_pad: [16, 16, 0]
-	crop_pads: [[0, 0, 0], [32, 16, 0], [0, 0, 0]]
-	blend_pads: [[0, 0, 0], [0, 0, 0], [32, 32, 0]]
-	blend_modes: "linear"
-	temp_layers_dirs: [#TEMP_PATH, #TEMP_PATH, #TEMP_PATH]
-	// TODO add execution mode / resources
-	// gs -> file -> mem
+
+	temp_layers_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+	allow_cache_up_to_level: 1
 
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
-		read_procs: []
-	}
-	field: {
-		"@type": "build_cv_layer"
-		path:    #FIELD_PATH
-		data_resolution: [256, 256, 30]
-		interpolation_mode: "field"
 	}
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
-		on_info_exists:      "expect_same"
-		write_procs: []
+		on_info_exists:      "overwrite"
 	}
 }
 

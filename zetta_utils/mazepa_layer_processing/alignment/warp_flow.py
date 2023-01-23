@@ -36,7 +36,7 @@ class WarpOperation:
         return dst_resolution
 
     def with_added_crop_pad(self, crop_pad: IntVec3D) -> WarpOperation:
-        return attrs.evolve(self, crop=self.crop_pad + crop_pad)
+        return attrs.evolve(self, crop_pad=self.crop_pad + crop_pad)
 
     def __attrs_post_init__(self):
         if self.crop_pad[-1] != 0:
@@ -55,7 +55,6 @@ class WarpOperation:
             field=field,
             idx=idx_padded,
         )
-
         src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
         field_data = einops.rearrange(
             field_data_raw, "C X Y Z -> Z C X Y"

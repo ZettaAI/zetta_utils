@@ -19,6 +19,7 @@ from zetta_utils.geometry.vec import (
 some_float = 42.42
 some_int = 42
 vec2d = Vec2D(1, 2)
+vec2d_neg = Vec2D(-1, -2)
 vec2d_lg = Vec2D(1.5, 2.5)
 vec2d_mx = Vec2D(0.5, 2.5)
 intvec2d = IntVec2D(1, 2)
@@ -180,6 +181,17 @@ def test_gt(arg1, arg2, is_gt):
 )
 def test_ge(arg1, arg2, is_ge):
     assert (arg1 >= arg2) == is_ge
+
+
+@pytest.mark.parametrize(
+    "arg",
+    [
+        [vec2d, vec2d_neg],
+    ],
+)
+def test_neg(arg):
+    assert -vec2d == vec2d_neg
+    assert vec2d == -vec2d_neg
 
 
 @pytest.mark.parametrize(

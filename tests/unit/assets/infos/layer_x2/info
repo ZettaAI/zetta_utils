@@ -1,12 +1,12 @@
 {
-  "data_type": "uint8",
+  "data_type": "nonsense",
   "num_channels": 1,
   "scales": [
     {
       "chunk_sizes": [
         [
-          512,
-          512,
+          1024,
+          1024,
           1
         ]
       ],

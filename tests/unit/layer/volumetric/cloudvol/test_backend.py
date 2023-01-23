@@ -18,11 +18,12 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
+LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x5")
 
 
 @pytest.fixture
 def clear_caches():
-    cloudvol.backend._cv_cache.clear()
+    cloudvol.backend._info_cache.clear()
 
 
 def test_cv_backend_specific_mip_exc():
@@ -31,8 +32,26 @@ def test_cv_backend_specific_mip_exc():
 
 
 def test_cv_backend_bad_path_exc():
-    with pytest.raises(ValueError):
+    with pytest.raises(FileNotFoundError):
         CVBackend(path="abc")
+
+
+def test_cv_backend_dtype():
+    info_spec = cloudvol.backend.PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH, data_type="uint8"
+    )
+    cvb = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="overwrite")
+
+    assert cvb.dtype == torch.uint8
+
+
+def test_cv_backend_dtype_exc():
+    info_spec = cloudvol.backend.PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH, data_type="nonsense"
+    )
+    cvb = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    with pytest.raises(ValueError):
+        cvb.dtype
 
 
 def test_cv_backend_info_expect_same_exc(mocker):
@@ -80,10 +99,9 @@ def test_cv_backend_info_no_action(path, reference, mode, mocker):
     [
         [LAYER_X1_PATH, LAYER_X0_PATH, "overwrite"],
         [".", LAYER_X0_PATH, "overwrite"],
-        [".", LAYER_X0_PATH, "expect_same"],
     ],
 )
-def test_cv_backend_info_overwrite(path, reference, mode, mocker):
+def test_cv_backend_info_overwrite(clear_caches, path, reference, mode, mocker):
     cv_m = mocker.MagicMock()
     mocker.patch(
         "cloudvolume.CloudVolume.__new__",
@@ -99,13 +117,35 @@ def test_cv_backend_info_overwrite(path, reference, mode, mocker):
     cv_m.commit_info.assert_called_once()
 
 
+@pytest.mark.parametrize(
+    "path, reference",
+    [
+        [LAYER_X0_PATH, LAYER_X0_PATH],
+    ],
+)
+def test_cv_backend_info_no_overwrite_when_same_as_cached(clear_caches, path, reference, mocker):
+    cv_m = mocker.MagicMock()
+    mocker.patch(
+        "cloudvolume.CloudVolume.__new__",
+        return_value=cv_m,
+    )
+    cv_m.commit_info = mocker.MagicMock()
+    info_spec = cloudvol.backend.PrecomputedInfoSpec(
+        reference_path=reference,
+    )
+    CVBackend(path=path, info_spec=info_spec, on_info_exists="overwrite")
+
+    cv_m.commit_info.assert_not_called()
+
+
 def test_cv_backend_read(clear_caches, mocker):
     data_read = torch.ones([3, 4, 5, 2])
     expected = torch.ones([2, 3, 4, 5])
     cv_m = mocker.MagicMock()
     cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
+    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
+    cvb = CVBackend(path=LAYER_X0_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
@@ -119,7 +159,7 @@ def test_cv_backend_write(clear_caches, mocker):
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
+    cvb = CVBackend(path=LAYER_X0_PATH)
     value = torch.ones([2, 3, 4, 5])
     expected_written = torch.ones([3, 4, 5, 2])  # channel as ch 0
 
@@ -139,7 +179,7 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
+    cvb = CVBackend(path=LAYER_X0_PATH)
     value = torch.tensor([1])
     expected_written = 1
 
@@ -163,29 +203,13 @@ def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
+    cvb = CVBackend(path=LAYER_X0_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
     )
     with pytest.raises(expected_exc):
         cvb.write(index, data_in)
-
-
-def test_cv_with_changes(clear_caches, mocker):
-    cv_m = mocker.MagicMock()
-    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
-    cvb_new = cvb.with_changes(name="path_new")
-    assert cvb_new.name == "path_new"
-
-
-def test_cv_with_changes_exc(clear_caches, mocker):
-    cv_m = mocker.MagicMock()
-    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path="path")
-    with pytest.raises(KeyError):
-        cvb.with_changes(nonsensename="nonsensevalue")
 
 
 def test_cv_get_chunk_size(clear_caches):
@@ -196,17 +220,6 @@ def test_cv_get_chunk_size(clear_caches):
     cvb = CVBackend(path=LAYER_X2_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
     assert cvb.get_chunk_size(Vec3D(8, 8, 8)) == IntVec3D(1024, 1024, 1)
-
-
-def test_cv_set_chunk_size(clear_caches):
-    info_spec = cloudvol.backend.PrecomputedInfoSpec(
-        reference_path=LAYER_X0_PATH,
-        default_chunk_size=IntVec3D(1024, 1024, 1),
-    )
-    cvb = CVBackend(path=LAYER_X2_PATH, info_spec=info_spec, on_info_exists="overwrite")
-    cvb.set_chunk_size(IntVec3D(512, 512, 1), Vec3D(8, 8, 8))
-
-    assert cvb.get_chunk_size(Vec3D(8, 8, 8)) == IntVec3D(512, 512, 1)
 
 
 def test_cv_get_voxel_offset(clear_caches):
@@ -220,16 +233,34 @@ def test_cv_get_voxel_offset(clear_caches):
     assert cvb.get_voxel_offset(Vec3D(8, 8, 8)) == IntVec3D(1, 2, 3)
 
 
-def test_cv_set_voxel_offset(clear_caches):
+def test_cv_with_changes(clear_caches, mocker):
     info_spec = cloudvol.backend.PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
-        default_voxel_offset=IntVec3D(1, 2, 3),
     )
-    cvb = CVBackend(path=LAYER_X3_PATH, info_spec=info_spec, on_info_exists="overwrite")
-    cvb.set_voxel_offset(IntVec3D(3, 2, 1), Vec3D(8, 8, 8))
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb_new = cvb.with_changes(
+        name=LAYER_X5_PATH,
+        voxel_offset_res=(IntVec3D(3, 2, 1), Vec3D(8, 8, 8)),
+        chunk_size_res=(IntVec3D(512, 512, 1), Vec3D(8, 8, 8)),
+        use_compression=False,
+        enforce_chunk_aligned_writes=False,
+    )
+    assert cvb_new.name == LAYER_X5_PATH
+    assert cvb_new.get_voxel_offset(Vec3D(8, 8, 8)) == IntVec3D(3, 2, 1)
+    assert cvb_new.get_chunk_size(Vec3D(8, 8, 8)) == IntVec3D(512, 512, 1)
+    assert not cvb_new.use_compression
+    assert not cvb_new.enforce_chunk_aligned_writes
 
-    assert cvb.get_voxel_offset(Vec3D(8, 8, 8)) == IntVec3D(3, 2, 1)
+
+def test_cv_with_changes_exc(clear_caches, mocker):
+    info_spec = cloudvol.backend.PrecomputedInfoSpec(
+        reference_path=LAYER_X5_PATH,
+        default_chunk_size=IntVec3D(1024, 1024, 1),
+    )
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    with pytest.raises(KeyError):
+        cvb.with_changes(nonsensename="nonsensevalue")
 
 
 def test_cv_assert_idx_is_chunk_aligned(clear_caches):

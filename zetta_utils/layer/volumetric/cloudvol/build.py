@@ -28,6 +28,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_reference_path: Optional[str] = None,
     info_field_overrides: Optional[Dict[str, Any]] = None,
     info_chunk_size: Optional[IntVec3D] = None,
+    info_chunk_size_map: Optional[Dict[str, IntVec3D]] = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
@@ -84,6 +85,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             reference_path=info_reference_path,
             field_overrides=info_field_overrides,
             default_chunk_size=info_chunk_size,
+            chunk_size_map=info_chunk_size_map,
         ),
     )
 

@@ -9,6 +9,8 @@ DataT = TypeVar("DataT")
 
 
 class Backend(ABC, Generic[IndexT, DataT]):  # pylint: disable=too-few-public-methods
+    name: str
+
     @abstractmethod
     def read(self, idx: IndexT) -> DataT:
         """Reads data from the given index"""
@@ -19,7 +21,9 @@ class Backend(ABC, Generic[IndexT, DataT]):  # pylint: disable=too-few-public-me
 
     @abstractmethod
     def with_changes(self, **kwargs) -> Backend[IndexT, DataT]:
-        """Changes the Backend with the kwargs being passed to the backend.
-        Currently untyped; see `Layer.with_backend_changes()` for the reason."""
-
-    name: str
+        """Remakes the Layer with the requested backend changes. The kwargs are not typed
+        since the implementation is currently based on `attrs.evolve` and the
+        base Backend class does not have any attrs, leaving all implementation to the inherited
+        classes.
+        In the future, Backend can be typed using a ParamSpec so that kwargs can be typed as
+        `P.kwargs`."""

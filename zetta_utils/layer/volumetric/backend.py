@@ -17,12 +17,36 @@ class VolumetricBackend(
 ):  # pylint: disable=too-few-public-methods
     @property
     @abstractmethod
+    def is_local(self) -> bool:
+        ...
+
+    @property
+    @abstractmethod
+    def dtype(self) -> torch.dtype:
+        ...
+
+    @property
+    @abstractmethod
+    def num_channels(self) -> int:
+        ...
+
+    @property
+    @abstractmethod
+    def allow_cache(self) -> bool:
+        ...
+
+    @property
+    @abstractmethod
     def enforce_chunk_aligned_writes(self) -> bool:
         ...
 
-    @enforce_chunk_aligned_writes.setter
+    @property
     @abstractmethod
-    def enforce_chunk_aligned_writes(self, value: bool) -> None:
+    def use_compression(self) -> bool:
+        ...
+
+    @abstractmethod
+    def clear_cache(self) -> None:
         ...
 
     @abstractmethod
@@ -30,24 +54,25 @@ class VolumetricBackend(
         ...
 
     @abstractmethod
-    def set_voxel_offset(self, voxel_offset: IntVec3D, resolution: Vec3D) -> None:
-        """Sets the voxel offset at the given resolution for the backend.
-        The offsets for other resolutions are unaffected."""
-
-    @abstractmethod
     def get_chunk_size(self, resolution: Vec3D) -> IntVec3D:
         ...
-
-    @abstractmethod
-    def set_chunk_size(self, chunk_size: IntVec3D, resolution: Vec3D) -> None:
-        """Sets the chunk size at the given resolution for the backend.
-        The sizes for other resolutions are unaffected."""
 
     @abstractmethod
     def get_chunk_aligned_index(
         self, index: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
         ...
+
+    """
+    TODO: Turn this into a ParamSpec.
+    The .with_changes for VolumetricBackend
+        MUST handle the following parameters:
+    "allow_cache" = value: Union[bool, str]
+    "use_compression" = value: str
+    "enforce_chunk_aligned_writes" = value: bool
+    "voxel_offset_res" = (voxel_offset, resolution): Tuple[IntVec3D, Vec3D]
+    "chunk_size_res" = (chunk_size, resolution): Tuple[IntVec3D, Vec3D]
+    """
 
     @abstractmethod
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:

@@ -2,7 +2,6 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
-from copy import copy
 from typing import Any, Generic, Iterable, TypeVar, Union, overload
 
 import attrs
@@ -251,45 +250,6 @@ class Layer(
         data_user,
     ):  # pragma: no cover
         return self.write(idx_user, data_user)
-
-    def with_backend_changes(
-        self, **kwargs
-    ) -> Layer[
-        BackendT,
-        BackendIndexT,
-        BackendDataT,
-        UserReadIndexT0_contra,
-        UserReadDataT0_co,
-        UserWriteIndexT0_contra,
-        UserWriteDataT0_contra,
-        UserReadIndexT1_contra,
-        UserReadDataT1_co,
-        UserWriteIndexT1_contra,
-        UserWriteDataT1_contra,
-        UserReadIndexT2_contra,
-        UserReadDataT2_co,
-        UserWriteIndexT2_contra,
-        UserWriteDataT2_contra,
-        UserReadIndexT3_contra,
-        UserReadDataT3_co,
-        UserWriteIndexT3_contra,
-        UserWriteDataT3_contra,
-    ]:  # pragma: no cover # pure delegation
-        """Remakes the Layer with the requested backend changes. The kwargs are not typed
-        since the implementation is currently based on `attrs.evolve` and the
-        base Backend class does not have any attrs, leaving all implementation to the inherited
-        classes.
-        In the future, Backend can be typed using a ParamSpec so that kwargs can be typed as
-        `P.kwargs`.
-        Note that `attrs.evolve` will keep the same reference to the attrs that are not
-        updated, meaning that attrs that are mutable must be copied for safety."""
-        return attrs.evolve(
-            self,
-            backend=self.backend.with_changes(**kwargs),
-            index_procs=copy(self.index_procs),
-            read_procs=copy(self.read_procs),
-            write_procs=copy(self.write_procs),
-        )
 
     def with_procs(
         self,

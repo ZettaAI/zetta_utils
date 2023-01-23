@@ -68,11 +68,13 @@ class BBoxStrider:
         if self.max_superchunk_size is None:
             return
         else:
-            if self.mode not in ("expand", "shrink"):
-                raise NotImplementedError(
-                    "superchunking is only supported when the"
-                    " `chunk_mode` is set to `expand` or `shrink`"
-                )
+            object.__setattr__(
+                self,
+                "stride_start_offset",
+                (self.bbox_snapped.start / self.resolution).int(),
+            )
+            if self.mode in ("expand", "shrink"):
+                object.__setattr__(self, "bbox", self.bbox_snapped)
             if not self.max_superchunk_size >= self.chunk_size:
                 raise ValueError("`max_superchunk_size` must be at least as large as `chunk_size`")
             if self.chunk_size != self.stride:
@@ -82,8 +84,6 @@ class BBoxStrider:
             superchunk_size = self.chunk_size * (self.max_superchunk_size // self.chunk_size)
             object.__setattr__(self, "chunk_size", superchunk_size)
             object.__setattr__(self, "stride", superchunk_size)
-            object.__setattr__(self, "bbox", self.bbox_snapped)
-            object.__setattr__(self, "stride_start_offset", None)
             object.__setattr__(self, "mode", "exact")
             object.__setattr__(self, "max_superchunk_size", None)
             self.__attrs_post_init__()
@@ -99,7 +99,7 @@ class BBoxStrider:
             stride_start_offset_in_unit = self.stride_start_offset * self.resolution
         bbox_snapped = self.bbox.snapped(
             grid_offset=stride_start_offset_in_unit,
-            grid_size=self.chunk_size_in_unit,
+            grid_size=self.stride_in_unit,
             mode="shrink",
         )
         bbox_snapped_size_in_unit = bbox_snapped.shape
@@ -135,23 +135,28 @@ class BBoxStrider:
     def _attrs_post_init_nonexact(self) -> None:
         step_start_partial = [False, False, False]
         step_end_partial = [False, False, False]
-        if self.chunk_size != self.stride:
-            if self.stride_start_offset is not None:
+        if self.stride_start_offset is not None:
+            if self.mode == "expand" and self.chunk_size != self.stride:
                 raise NotImplementedError(
-                    "`stride_start_offset` is only supported when the"
-                    " `chunk_size` and `stride` are equal"
+                    "`stride_start_offset` is currently unsupported when "
+                    " mode is `expand` and `chunk_size` != `stride`."
                 )
-            bbox_snapped = self.bbox
+            stride_start_offset_in_unit = self.stride_start_offset * self.resolution
+            for i in range(3):
+                while stride_start_offset_in_unit[i] > self.bbox.start[i]:
+                    stride_start_offset_in_unit[i] -= self.stride_in_unit[i]
         else:
-            if self.stride_start_offset is not None:
-                stride_start_offset_in_unit = self.stride_start_offset * self.resolution
-            else:
-                stride_start_offset_in_unit = self.bbox.start  # * self.resolution
-            bbox_snapped = self.bbox.snapped(
+            stride_start_offset_in_unit = self.bbox.start
+
+        bbox_snapped = (
+            self.bbox.translated_end(-self.chunk_size_in_unit, resolution=Vec3D(1, 1, 1))
+            .snapped(
                 grid_offset=stride_start_offset_in_unit,
-                grid_size=self.chunk_size_in_unit,
+                grid_size=self.stride_in_unit,
                 mode=self.mode,  # type: ignore #mypy doesn't realise that mode has been checked
             )
+            .translated_end(self.chunk_size_in_unit, resolution=Vec3D(1, 1, 1))
+        )
 
         bbox_snapped_size_in_unit = bbox_snapped.end - bbox_snapped.start
         step_limits_snapped = Vec3D(

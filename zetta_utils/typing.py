@@ -38,7 +38,7 @@ def get_orig_class(obj: Any) -> Type:  # pragma: no cover
 
 
 def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover
-    """Type checking that works better for type generics; still doesn't work with _VecND"""
+    """Type checking that works better for type generics"""
     result = True
     try:
         typeguard.check_type(obj, cls)

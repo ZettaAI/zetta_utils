@@ -62,7 +62,7 @@ viz = [
 ]
 cloudvol = [
     "cloud-files== 4.11.0",
-    "cloud-volume == 8.16.0",
+    "cloud-volume @ git+https://github.com/ZettaAI/cloud-volume.git@bde11201610f7a1878f5304f01571928a76b8018",
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [
@@ -87,6 +87,10 @@ mazepa = [
 mazepa-addons = [
     "zetta_utils[mazepa]",
     "kubernetes >= 25.3.0",
+]
+segmentation = [
+    "onnx >= 1.13.0",
+    "onnxruntime-gpu >= 1.13.1",
 ]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
@@ -132,6 +136,7 @@ modules = [ # put them in order of dependencies
     "zetta_utils[training,mazepa]",
     "zetta_utils[mazepa_addons]",
     "zetta_utils[datastore]",
+    "zetta_utils[segmentation]",
 ]
 all = [
     "zetta_utils[modules,docs,test]",

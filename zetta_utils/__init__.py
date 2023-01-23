@@ -32,6 +32,7 @@ def load_inference_modules():
         convnet,
         mazepa,
         mazepa_layer_processing,
+        segmentation,
         tensor_ops,
         tensor_typing,
     )

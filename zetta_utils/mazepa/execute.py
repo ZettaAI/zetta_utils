@@ -29,6 +29,8 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
     upkeep_fn: Optional[Callable[[str], bool]] = None
     raise_on_failed_task: bool = True
+    do_dryrun_estimation: bool = True
+    show_progress: bool = True
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         return execute(
@@ -39,6 +41,8 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             state_constructor=self.state_constructor,
             upkeep_fn=self.upkeep_fn,
             raise_on_failed_task=self.raise_on_failed_task,
+            show_progress=self.show_progress,
+            do_dryrun_estimation=self.do_dryrun_estimation,
         )
 
 

@@ -131,7 +131,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             try:
                 for fn in self.upkeep_settings.callbacks:
                     fn()
-            except tenacity.RetryError as e:
+            except tenacity.RetryError as e:  # pragma: no cover
                 logger.info(f"Couldn't perform upkeep: {e}")
 
         upkeep = RepeatTimer(self.upkeep_settings.interval_sec, _perform_upkeep_callbacks)

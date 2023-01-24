@@ -15,7 +15,7 @@
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
-		read_postprocs: [
+		read_procs: [
 			{
 				"@type": "rearrange"
 				"@mode": "partial"
@@ -55,7 +55,7 @@
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "expect_same"
-		write_preprocs: [
+		write_procs: [
 			{
 				"@type": "rearrange"
 				"@mode": "partial"

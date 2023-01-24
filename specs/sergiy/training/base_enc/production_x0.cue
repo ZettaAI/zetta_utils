@@ -6,7 +6,7 @@
 #CLIP:          0e-5
 #K:             3
 #EQUI_WEIGHT:   0.5
-#EXP_VERSION:   "ft_patch\(#CHUNK_XY)_post\(#POST_WEIGHT)_lr\(#LR)_deep_k\(#K)_clip\(#CLIP)_equi\(#EQUI_WEIGHT)_f1f2_tileaug_x17"
+#EXP_VERSION:   "ft_patch\(#CHUNK_XY)_post\(#POST_WEIGHT)_lr\(#LR)_deep_k\(#K)_clip\(#CLIP)_equi\(#EQUI_WEIGHT)_f1f2_tileaug_x17_repro_x0"
 #CHUNK_XY:      1024
 
 #START_EXP_VERSION: "ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x16"
@@ -162,7 +162,7 @@ target: {
 				cv_kwargs: {
 					//cache: "/home/sergiy/.cloudvolume/memcache"
 				}
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type":   "rearrange"
 						"@mode":   "partial"
@@ -183,7 +183,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: #IMG_PROCS
+						read_procs: #IMG_PROCS
 					}
 					tgt: {
 						"@type": "build_cv_layer"
@@ -191,7 +191,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: #IMG_PROCS
+						read_procs: #IMG_PROCS
 					}
 				}
 			}

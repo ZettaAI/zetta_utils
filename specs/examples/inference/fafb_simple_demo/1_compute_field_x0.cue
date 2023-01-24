@@ -27,7 +27,7 @@ target: {
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
-		read_postprocs: [
+		read_procs: [
 			{
 				"@type": "divide"
 				"@mode": "partial"

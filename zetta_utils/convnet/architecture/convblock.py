@@ -1,59 +1,42 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from typing import (
-    Callable,
-    Dict,
-    Hashable,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-    overload,
-)
+from collections.abc import Sequence as AbcSequence
+from typing import Callable, Literal, Sequence, TypeAlias, Union, overload
 
 import torch
 from torch import nn
 from typeguard import typechecked
-from typing_extensions import TypeGuard
 
 from zetta_utils import builder
 
-Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
-PaddingMode = Literal["zeros", "reflect", "replicate", "circular"]
-
-_T = TypeVar("_T", bound=Hashable)  # in lieu of ``Immutable`` type
-
-
-def _is_list(x: _T | List[_T]) -> TypeGuard[List[_T]]:
-    return isinstance(x, List)
-
-
-def _is_not_list(x: _T | List[_T]) -> TypeGuard[_T]:
-    # TypeGuard only ensures type for positive outcome
-    return not isinstance(x, List)
+Padding: TypeAlias = Union[Literal["same", "valid"], Sequence[int]]
+PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
 
 
 @overload
-def _ensure_list(x: _T, length: int) -> List[_T]:
+def _ensure_seq_of_seq(
+    x: str | Sequence[int | float | bool], length: int
+) -> list[str | Sequence[int | float | bool]]:
     ...
 
 
 @overload
-def _ensure_list(x: List[_T], length: int) -> List[_T]:
+def _ensure_seq_of_seq(
+    x: Sequence[str | Sequence[int | float | bool]], length: int
+) -> list[str | Sequence[int | float | bool]]:
     ...
 
 
-def _ensure_list(x, length):
-    if _is_list(x):
+def _ensure_seq_of_seq(x, length):
+    if not isinstance(x, str) and isinstance(x, AbcSequence) and isinstance(x[0], AbcSequence):
         if len(x) != length:
-            raise ValueError(f"Expected list of {length} entries, but got {len(x)}: {x}")
-        x_list = x
-    elif _is_not_list(x):
-        x_list = [x] * length
-    return x_list
+            raise ValueError(f"Expected sequence of {length} entries, but got {len(x)}: {x}")
+        result = x
+    else:
+        result = [x] * length
+
+    return result
 
 
 @builder.register("ConvBlock")
@@ -64,7 +47,7 @@ class ConvBlock(nn.Module):
     A block with sequential convolutions with activations, optional normalization and residual
     connections.
 
-    :param num_channels: List of integers specifying the number of channels of each
+    :param num_channels: list of integers specifying the number of channels of each
         convolution. For example, specification [1, 2, 3] will correspond to a sequence of
         2 convolutions, where the first one has 1 input channel and 2 output channels and
         the second one has 2 input channels and 3 output channels.
@@ -72,62 +55,69 @@ class ConvBlock(nn.Module):
     :param activation: Constructor for activation layers.
     :param normalization: Constructor for normalization layers. Normalization will
         be applied after convolution before activation.
-    :param kernel_sizes: Convolution kernel sizes. When specified as a single integer or a
-        tuple, it will be passed as ``k`` parameter to all convolution constructors.
-        When specified as a list, each item in the list will be passed as ``k`` to the
-        corresponding convolution in order. The list length must match the number of
-        convolutions.
-    :param strides: Convolution strides. When specified as a single integer or a
-        tuple, it will be passed as the stride parameter to all convolution constructors.
-        When specified as a list, each item in the list will be passed as stride to the
-        corresponding convolution in order. The list length must match the number of
-        convolutions.
-    :param paddings: Convolution padding sizes. Can accept "same", "valid", a single integer,
-        a tuple, or a list of any of these. When specified as a single string, integer, or a
-        tuple, it will be passed as the padding parameter to all convolution constructors.
-        When specified as a list, each item in the list will be passed as padding to the
-        corresponding convolution in order. The list length must match the number of
-        convolutions.
+    :param kernel_sizes: Convolution kernel sizes. When specified as a sequence of integerss
+        it will be passed as ``k`` parameter to all convolution constructors.
+        When specified as a sequence of sequence of integers, each item in the outer sequence will
+        be passed as ``k`` to the corresponding convolution in order, and the outer sequence
+        length must match the number of convolutions.
+
+    :param strides: Convolution strides. When specified as a sequence of integers
+        it will be passed as the stride parameter to all convolution constructors.
+        When specified as a sequence of sequences, each item in the outer sequence will be passed
+        as stride to the corresponding convolution in order, and the outer sequence length must
+        match the number of convolutions.
+
+    :param paddings: Convolution padding sizes.  When specified as a single string, or a
+        sequence of integers, it will be passed as the padding parameter to all convolution
+        constructors. When specified as a sequence of strings or sequence of int sequences, each
+        item in the outer sequence will be passed as padding to the corresponding convolution in
+        order, and the outer sequence length must match the number of convolutions.
+
     :param skips: Specification for residual skip connection. For example,
         ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
         first convolution (index 1) to the input of third convolution (index 3).
         0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
-    :param padding_modes: Convolution padding modes. Accepts "zeros" (default), "reflect",
-        "replicate" and "circular". When specified as a single string, it will be passed as
-        the padding mode parameter to all convolution constructors.
-        When specified as a list, each item in the list will be passed as padding mode to
-        the corresponding convolution in order. The list length must match the number of
-        convolutions.
+
+    :param padding_modes: Convolution padding modes. When specified as a single string,
+        it will be passed as the padding mode parameter to all convolution constructors.
+        When specified as a sequence of strings, each item in the sequence will be passed as
+        padding mode to the corresponding convolution in order. The list length must match
+        the number of convolutions.
     """
 
     def __init__(
         self,
-        num_channels: List[int],
-        activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
+        num_channels: Sequence[int],
+        kernel_sizes: Sequence[int] | Sequence[Sequence[int]],
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
-        normalization: Optional[Callable[[int], torch.nn.Module]] = None,
-        kernel_sizes: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 3,
-        strides: Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]] = 1,
-        paddings: Union[Padding, List[Padding]] = "same",
-        skips: Optional[Dict[str, int]] = None,
+        strides: Sequence[int] | Sequence[Sequence[int]] | None = None,
+        activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
+        normalization: Callable[[int], torch.nn.Module] | None = None,
+        skips: dict[str, int] | None = None,
         normalize_last: bool = False,
         activate_last: bool = False,
-        padding_modes: Union[PaddingMode, List[PaddingMode]] = "zeros",
+        paddings: Padding | Sequence[Padding] = "same",
+        padding_modes: PaddingMode | Sequence[PaddingMode] = "zeros",
     ):  # pylint: disable=too-many-locals
         super().__init__()
         if skips is None:
             self.skips = {}
         else:
             self.skips = skips
+
         self.layers = torch.nn.ModuleList()
 
         num_conv = len(num_channels) - 1
-        kernel_sizes_ = _ensure_list(kernel_sizes, num_conv)
-        strides_ = _ensure_list(strides, num_conv)
-        paddings_ = _ensure_list(paddings, num_conv)
-        padding_modes_ = _ensure_list(padding_modes, num_conv)
+        kernel_sizes_ = _ensure_seq_of_seq(kernel_sizes, num_conv)
+        if strides is not None:
+            strides_ = _ensure_seq_of_seq(strides, num_conv)
+        else:
+            strides_ = [[1 for _ in range(len(kernel_sizes_[0]))] for __ in range(num_conv)]
+
+        padding_modes_ = _ensure_seq_of_seq(padding_modes, num_conv)
+        paddings_ = _ensure_seq_of_seq(paddings, num_conv)
 
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
             new_conv = conv(
@@ -152,7 +142,7 @@ class ConvBlock(nn.Module):
                 self.layers.append(activation())
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        skip_data_for = {}  # type: Dict[int, torch.Tensor]
+        skip_data_for = {}  # type: dict[int, torch.Tensor]
         conv_count = 1
         if "0" in self.skips:
             skip_dest = self.skips["0"]

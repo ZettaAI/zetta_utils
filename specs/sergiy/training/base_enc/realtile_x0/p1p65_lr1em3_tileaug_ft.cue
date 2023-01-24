@@ -163,7 +163,7 @@ target: {
 				cv_kwargs: {
 					//cache: "/home/sergiy/.cloudvolume/memcache"
 				}
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type":   "rearrange"
 						"@mode":   "partial"
@@ -184,7 +184,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: #IMG_PROCS
+						read_procs: #IMG_PROCS
 					}
 					tgt: {
 						"@type": "build_cv_layer"
@@ -192,7 +192,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: #IMG_PROCS
+						read_procs: #IMG_PROCS
 					}
 				}
 			}

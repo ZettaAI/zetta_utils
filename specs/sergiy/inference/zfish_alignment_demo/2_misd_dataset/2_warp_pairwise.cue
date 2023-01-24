@@ -55,7 +55,7 @@ target: {
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "overwrite"
 		info_chunk_size: [1024, 1024, 1]
-		index_adjs: [
+		index_procs: [
 			{
 				"@type": "VolumetricIndexTranslator"
 				offset: [0, 0, -1]

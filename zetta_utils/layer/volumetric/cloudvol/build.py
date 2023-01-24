@@ -28,14 +28,14 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_chunk_size: Optional[IntVec3D] = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
-    index_adjs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
-    read_postprocs: Iterable[
+    index_procs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
+    read_procs: Iterable[
         Union[
             DataProcessor[torch.Tensor],
             DataWithIndexProcessor[torch.Tensor, VolumetricIndex],
         ]
     ] = (),
-    write_preprocs: Iterable[
+    write_procs: Iterable[
         Union[
             DataProcessor[torch.Tensor],
             DataWithIndexProcessor[torch.Tensor, VolumetricIndex],
@@ -63,11 +63,11 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
         ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
-    :param index_adjs: List of adjustors that will be applied to the index given by the user
+    :param index_procs: List of processors that will be applied to the index given by the user
         prior to IO operations.
-    :param read_postprocs: List of processors that will be applied to the read data before
+    :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
-    :param write_preprocs: List of processors that will be applied to the data given by
+    :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
 
@@ -93,8 +93,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         interpolation_mode=interpolation_mode,
         readonly=readonly,
         allow_slice_rounding=allow_slice_rounding,
-        index_adjs=index_adjs,
-        read_postprocs=read_postprocs,
-        write_preprocs=write_preprocs,
+        index_procs=index_procs,
+        read_procs=read_procs,
+        write_procs=write_procs,
     )
     return result

@@ -27,6 +27,7 @@ from ..helpers import assert_array_equal
 )
 def test_channel_number(list_num_channels: list[list[int]]):
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=list_num_channels,
         downsample=torch.nn.AvgPool2d,
         upsample=partial(torch.nn.Upsample, scale_factor=2),
@@ -48,10 +49,8 @@ def test_channel_number(list_num_channels: list[list[int]]):
 @pytest.mark.parametrize(
     "kernel_sizes, expected",
     [
-        [3, [(3, 3), (3, 3), (3, 3)]],
-        [[3, 5, 7], [(3, 3), (5, 5), (7, 7)]],
+        [(3, 3), [(3, 3), (3, 3), (3, 3)]],
         [(3, 1), [(3, 1), (3, 1), (3, 1)]],
-        [[(3, 1), (3, 2), 5], [(3, 1), (3, 2), (5, 5)]],
     ],
 )
 def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
@@ -73,17 +72,16 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
 @pytest.mark.parametrize(
     "strides, expected",
     [
-        [3, [(3, 3), (3, 3), (3, 3)]],
-        [[3, 5, 7], [(3, 3), (5, 5), (7, 7)]],
+        [(3, 3), [(3, 3), (3, 3), (3, 3)]],
         [(3, 1), [(3, 1), (3, 1), (3, 1)]],
-        [[(3, 1), (3, 2), 5], [(3, 1), (3, 2), (5, 5)]],
     ],
 )
 def test_stride(strides, expected: list[tuple[int]]):
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         strides=strides,
-        paddings=1,
+        paddings=[1, 1],
         downsample=partial(torch.nn.Conv2d, kernel_size=2, stride=2, padding=0),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
@@ -99,15 +97,14 @@ def test_stride(strides, expected: list[tuple[int]]):
 @pytest.mark.parametrize(
     "paddings, expected",
     [
-        [3, [(3, 3), (3, 3), (3, 3)]],
-        [[3, 5, 7], [(3, 3), (5, 5), (7, 7)]],
+        [(3, 3), [(3, 3), (3, 3), (3, 3)]],
         [(3, 1), [(3, 1), (3, 1), (3, 1)]],
-        [[(3, 1), (3, 2), 5], [(3, 1), (3, 2), (5, 5)]],
     ],
 )
 def test_padding(paddings, expected: list[tuple[int]]):
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
+        kernel_sizes=[3, 3],
         paddings=paddings,
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
@@ -123,6 +120,7 @@ def test_padding(paddings, expected: list[tuple[int]]):
 
 def test_norm():
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
@@ -139,6 +137,7 @@ def test_norm():
 
 def test_norm_last():
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
@@ -156,6 +155,7 @@ def test_norm_last():
 
 def test_activate_last():
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         normalization=torch.nn.BatchNorm2d,
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
@@ -174,6 +174,7 @@ def test_activate_last():
 def not_test_forward_naive(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 1], [1, 1], [1, 1]],
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
@@ -187,12 +188,13 @@ def not_test_forward_naive(mocker):
 def test_forward_skips(mocker):
     mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
     unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
         list_num_channels=[[1, 1, 1], [1, 1, 1, 1], [1, 1, 1]],
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
-        skips=[{"0": 2}, {"0": 2, "1": 3}, {"0": 2}],
+        skips={"0": 2},
     )
     result = unet.forward(torch.ones([1, 1, 2, 2]))
     assert_array_equal(
-        result.cpu().detach().numpy(), 20 * torch.ones([1, 1, 2, 2]).cpu().detach().numpy()
+        result.cpu().detach().numpy(), 12 * torch.ones([1, 1, 2, 2]).cpu().detach().numpy()
     )

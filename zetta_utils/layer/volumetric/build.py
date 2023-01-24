@@ -57,11 +57,11 @@ def build_volumetric_layer(
     interpolation_mode: Optional[InterpolationMode] = None,
     readonly: bool = False,
     allow_slice_rounding: bool = False,
-    index_adjs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
-    read_postprocs: Iterable[
+    index_procs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
+    read_procs: Iterable[
         Union[DataProcessor[torch.Tensor], DataWithIndexProcessor[torch.Tensor, VolumetricIndex]]
     ] = (),
-    write_preprocs: Iterable[
+    write_procs: Iterable[
         Union[DataProcessor[torch.Tensor], DataWithIndexProcessor[torch.Tensor, VolumetricIndex]]
     ] = (),
 ) -> VolumetricLayer:
@@ -80,11 +80,11 @@ def build_volumetric_layer(
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
         ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
-    :param index_adjs: List of adjustors that will be applied to the index given by the user
+    :param index_procs: List of processors that will be applied to the index given by the user
         prior to IO operations.
-    :param read_postprocs: List of processors that will be applied to the read data before
+    :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
-    :param write_preprocs: List of processors that will be applied to the data given by
+    :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
 
@@ -95,19 +95,19 @@ def build_volumetric_layer(
         allow_slice_rounding=allow_slice_rounding,
     )
 
-    index_adjs_final = copy.copy(list(index_adjs))
+    index_procs_final = copy.copy(list(index_procs))
     if data_resolution is not None:
         if interpolation_mode is None:
             raise ValueError("`data_resolution` is set, but `interpolation_mode` is not provided.")
         resolution_adj = VolumetricIndexResolutionAdjuster(
             resolution=data_resolution,
         )
-        index_adjs_final.insert(
+        index_procs_final.insert(
             0,
             resolution_adj,
         )
-        read_postprocs = list(read_postprocs)
-        read_postprocs.insert(
+        read_procs = list(read_procs)
+        read_procs.insert(
             0,
             VolumetricDataInterpolator(
                 interpolation_mode=interpolation_mode,
@@ -115,8 +115,8 @@ def build_volumetric_layer(
                 allow_slice_rounding=allow_slice_rounding,
             ),
         )
-        write_preprocs = list(write_preprocs)
-        write_preprocs.insert(
+        write_procs = list(write_procs)
+        write_procs.insert(
             -1,
             VolumetricDataInterpolator(
                 interpolation_mode=interpolation_mode,
@@ -129,8 +129,8 @@ def build_volumetric_layer(
         backend=backend,
         readonly=readonly,
         frontend=frontend,
-        index_adjs=list(index_adjs_final),
-        read_postprocs=list(read_postprocs),
-        write_preprocs=list(write_preprocs),
+        index_procs=list(index_procs_final),
+        read_procs=list(read_procs),
+        write_procs=list(write_procs),
     )
     return result

@@ -83,7 +83,7 @@ target: {
 			data_in: {
 				"@type": "build_cv_layer"
 				path:    #IMG_CV
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type": "rearrange"
 						"@mode": "partial"
@@ -104,7 +104,7 @@ target: {
 			target: {
 				"@type": "build_cv_layer"
 				path:    #ENC_CV
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type": "rearrange"
 						"@mode": "partial"

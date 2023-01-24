@@ -40,11 +40,9 @@ DBLayer: TypeAlias = Layer[
 def build_db_layer(
     backend: Backend[DBIndex, DataT],
     readonly: bool = False,
-    index_adjs: Iterable[IndexAdjuster[DBIndex]] = (),
-    read_postprocs: Iterable[
-        Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]
-    ] = (),
-    write_preprocs: Iterable[
+    index_procs: Iterable[IndexAdjuster[DBIndex]] = (),
+    read_procs: Iterable[Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]] = (),
+    write_procs: Iterable[
         Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]
     ] = (),
 ) -> DBLayer:
@@ -52,11 +50,11 @@ def build_db_layer(
 
     :param backend: Layer backend.
     :param readonly: Whether layer is read only.
-    :param index_adjs: List of adjustors that will be applied to the index given by the user
+    :param index_procs: List of processors that will be applied to the index given by the user
         prior to IO operations.
-    :param read_postprocs: List of processors that will be applied to the read data before
+    :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
-    :param write_preprocs: List of processors that will be applied to the data given by
+    :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
 
@@ -65,8 +63,8 @@ def build_db_layer(
         backend=backend,
         readonly=readonly,
         frontend=DBFrontend(),
-        index_adjs=list(index_adjs),
-        read_postprocs=list(read_postprocs),
-        write_preprocs=list(write_preprocs),
+        index_procs=list(index_procs),
+        read_procs=list(read_procs),
+        write_procs=list(write_procs),
     )
     return result

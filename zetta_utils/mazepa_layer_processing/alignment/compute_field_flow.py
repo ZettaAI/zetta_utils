@@ -42,7 +42,7 @@ class ComputeFieldFlowSchema:
 
         tgt = copy.deepcopy(tgt)
         input_resolution = self.operation.get_input_resolution(dst_resolution)
-        tgt.index_adjs.insert(
+        tgt.index_procs.insert(
             0, VolumetricIndexTranslator(offset=tgt_offset, resolution=input_resolution)
         )
         cf_flow = build_chunked_apply_flow(

@@ -40,11 +40,11 @@ LayerSet = Layer[
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,
-    index_adjs: Iterable[IndexAdjuster[LayerSetIndex]] = (),
-    read_postprocs: Iterable[
+    index_procs: Iterable[IndexAdjuster[LayerSetIndex]] = (),
+    read_procs: Iterable[
         Union[DataProcessor[Dict[str, Any]], DataWithIndexProcessor[Dict[str, Any], LayerSetIndex]]
     ] = (),
-    write_preprocs: Iterable[
+    write_procs: Iterable[
         Union[DataProcessor[Dict[str, Any]], DataWithIndexProcessor[Dict[str, Any], LayerSetIndex]]
     ] = (),
 ) -> LayerSet:
@@ -52,11 +52,11 @@ def build_layer_set(
 
     :param layers: Mapping from layer names to layers.
     :param readonly: Whether layer is read only.
-    :param index_adjs: List of adjustors that will be applied to the index given by the user
+    :param index_procs: List of processors that will be applied to the index given by the user
         prior to IO operations.
-    :param read_postprocs: List of processors that will be applied to the read data before
+    :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
-    :param write_preprocs: List of processors that will be applied to the data given by
+    :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
 
@@ -66,8 +66,8 @@ def build_layer_set(
         backend=backend,
         readonly=readonly,
         frontend=LayerSetFrontend(),
-        index_adjs=list(index_adjs),
-        read_postprocs=list(read_postprocs),
-        write_preprocs=list(write_preprocs),
+        index_procs=list(index_procs),
+        read_procs=list(read_procs),
+        write_procs=list(write_procs),
     )
     return result

@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Callable, Sequence
 
 import torch
 from torch import nn
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.convnet.architecture import ConvBlock
 
-Padding = Union[Literal["same", "valid"], int, Tuple[int, ...]]
+from .convblock import ConvBlock, Padding
 
 
 @builder.register("UNet")
@@ -32,28 +31,14 @@ class UNet(nn.Module):
     :param activation: Constructor for activation layers.
     :param normalization: Constructor for normalization layers. Normalization will
         be applied after convolution before activation.
-    :param kernel_sizes: List of convolution kernel sizes. When specified as a single
-        integer or a tuple, it will be passed as ``k`` parameter to all convolution constructors
-        for all ConvBlocks.
-        When specified as a list containing lists or a single or a tuple, each value will
-        be passed as the ``kernel_size`` for each ConvBlock, with the behaviour documented in
-        ConvBlock.
-        The top level list length must match the number of ConvBlocks.
-    :param strides: List of convolution strides. When specified as a single integer or a
-        tuple, it will be passed as the stride parameter to all convolution constructors for
-        all ConvBlocks.
-        When specified as a list containing lists or a single or a tuple, each value will
-        be passed for each ConvBlock as the ``strides`` parameter, with the behaviour documented
-        in ConvBlock. The top level list length must match the number of ConvBlocks.
-    :param paddings: List of convolution padding sizes. When specified as a single "same", "valid",
-        integer or a tuple, it will be passed as the ``paddings`` parameter to all convolution
-        constructors for all ConvBlocks.
-        When specified as a list containing lists or a single or a tuple, each value will
-        be passed for each ConvBlock as the ``paddings`` parameter, with the behaviour documented
-        in ConvBlock. The top level list length must match the number of ConvBlocks.
-    :param skips: List of specifications for residual skip connections as documented in ConvBlock.
-        If nonempty, the list must match the number of ConvBlocks; this parameter will not be
-        expanded.
+    :param kernel_sizes: List of convolution kernel sizes.
+        Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
+    :param strides: List of convolution strides.
+        Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
+    :param paddings: List of convolution padding sizes.
+        Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
+    :param skips: Specifications for residual skip connections as documented in ConvBlock.
+        Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
     :param normalize_last: Whether to apply normalization after the last layer. Note that
         normalization is included by default within and at the end of the convblocks when the
         normalization layer is specified, and cannot be turned off.
@@ -63,24 +48,16 @@ class UNet(nn.Module):
 
     def __init__(
         self,
-        list_num_channels: List[List[int]],
+        list_num_channels: Sequence[Sequence[int]],
+        kernel_sizes: Sequence[int] | Sequence[Sequence[int]],
         conv: Callable[..., torch.nn.modules.conv._ConvNd] = torch.nn.Conv2d,
+        strides: Sequence[int] | Sequence[Sequence[int]] | None = None,
         downsample: Callable[..., torch.nn.Module] = partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample: Callable[..., torch.nn.Module] = partial(torch.nn.Upsample, scale_factor=2),
         activation: Callable[[], torch.nn.Module] = torch.nn.LeakyReLU,
-        normalization: Optional[Callable[[int], torch.nn.Module]] = None,
-        kernel_sizes: Union[
-            int,
-            Tuple[int, ...],
-            List[Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]]],
-        ] = 3,
-        strides: Union[
-            int,
-            Tuple[int, ...],
-            List[Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]]],
-        ] = 1,
-        paddings: Union[Padding, List[Union[Padding, List[Padding]]]] = "same",
-        skips: Optional[List[Dict[str, int]]] = None,
+        normalization: Callable[[int], torch.nn.Module] | None = None,
+        paddings: Padding | Sequence[Padding] = "same",
+        skips: dict[str, int] | None = None,
         normalize_last: bool = False,
         activate_last: bool = False,
     ):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
@@ -90,34 +67,6 @@ class UNet(nn.Module):
         assert upsample is not None
 
         self.layers = torch.nn.ModuleList()
-
-        if isinstance(kernel_sizes, list):
-            kernel_sizes_ = (
-                kernel_sizes
-            )  # type: List[Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]]]
-            assert len(kernel_sizes_) == len(list_num_channels)
-        else:
-            kernel_sizes_ = [kernel_sizes for _ in range(len(list_num_channels))]
-
-        if isinstance(strides, list):
-            strides_ = (
-                strides
-            )  # type: List[Union[int, Tuple[int, ...], List[Union[int, Tuple[int, ...]]]]]
-            assert len(strides_) == len(list_num_channels)
-        else:
-            strides_ = [strides for _ in range(len(list_num_channels))]
-
-        if isinstance(paddings, list):
-            paddings_ = paddings  # type: List[Union[Padding, List[Padding]]]
-            assert len(paddings_) == len(list_num_channels)
-        else:
-            paddings_ = [paddings for _ in range(len(list_num_channels))]
-
-        if isinstance(skips, list):
-            skips_ = skips  # type: List[Dict[str, int]]
-            assert len(skips_) == len(list_num_channels)
-        else:
-            skips_ = [{} for _ in range(len(list_num_channels))]
 
         normalize_last_ = [(normalization is not None) for _ in range(len(list_num_channels))]
         normalize_last_[-1] = normalize_last
@@ -142,16 +91,16 @@ class UNet(nn.Module):
 
             self.layers.append(
                 ConvBlock(
-                    num_channels,
-                    activation,
-                    conv,
-                    normalization,
-                    kernel_sizes_[i],
-                    strides_[i],
-                    paddings_[i],
-                    skips_[i],
-                    normalize_last_[i],
-                    activate_last_[i],
+                    num_channels=num_channels,
+                    activation=activation,
+                    conv=conv,
+                    normalization=normalization,
+                    kernel_sizes=kernel_sizes,
+                    strides=strides,
+                    paddings=paddings,
+                    skips=skips,
+                    normalize_last=normalize_last_[i],
+                    activate_last=activate_last_[i],
                 )
             )
 
@@ -172,7 +121,7 @@ class UNet(nn.Module):
             self.skips[skip_in] = skip_out
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        skip_data_for = {}  # type: Dict[int, torch.Tensor]
+        skip_data_for = {}  # type: dict[int, torch.Tensor]
         result = data
 
         for i, layer in enumerate(self.layers):

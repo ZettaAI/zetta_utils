@@ -115,7 +115,7 @@ trainer: {
 						"@type": "build_cv_layer"
 						path:    #ENC_CV
 						cv_kwargs: {cache: true}
-						read_postprocs: [
+						read_procs: [
 							{
 								"@type": "rearrange"
 								"@mode": "partial"
@@ -148,7 +148,7 @@ trainer: {
 						"@type": "build_cv_layer"
 						path:    #FIELD_CV
 						//cv_kwargs: {cache: true}
-						read_postprocs: [
+						read_procs: [
 							{
 								"@type": "rearrange"
 								"@mode": "partial"

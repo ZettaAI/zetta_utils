@@ -11,7 +11,7 @@ from typeguard import typechecked
 # from zetta_utils.log import logger
 from zetta_utils.common.partial import ComparablePartial
 
-from .. import Task, TaskOutcome, serialization
+from .. import Task, TaskOutcome, constants, serialization
 from . import sqs_utils
 
 
@@ -72,7 +72,8 @@ class SQSExecutionQueue:
     outcome_queue_name: Optional[str] = None
     _queue: Any = attrs.field(init=False, default=None)
     pull_wait_sec: int = 0
-    pull_lease_sec: int = 30
+    # This pull lease sec will work for tasks of ANY duration. Change only if expert/debugging
+    pull_lease_sec: int = constants.DEFAULT_UPKEEP_INTERVAL * constants.DEFAULT_UPKEEPS_PER_LEASE
 
     def _get_tq_queue(self) -> Any:
         if self._queue is None:
@@ -142,7 +143,6 @@ class SQSExecutionQueue:
             # Deserialize task object
             tq_task = taskqueue.totask(json.loads(msg.body))
             task = serialization.deserialize(tq_task.task_ser)
-            task.curr_retry = msg.approx_receive_count - 1
 
             # Specify completion behavior through callbacks
             task.completion_callbacks.append(
@@ -164,7 +164,7 @@ class SQSExecutionQueue:
                         queue_name=self.name,
                         region_name=self.region_name,
                         endpoint_url=self.endpoint_url,
-                        visibility_timeout=math.ceil(task.upkeep_settings.interval_secs * 3),
+                        visibility_timeout=math.ceil(task.upkeep_settings.interval_sec * 5),
                     )
                 )
 

@@ -79,7 +79,8 @@ alignment = [
     "torch == 1.12.1", # mypy error on newer
 ]
 mazepa = [
-    "chardet==5.0.0",
+    "pebble >= 5.0.3",
+    "chardet == 5.0.0",
     "coolname >= 1.1.0",
     "task-queue >= 2.12.0",
     "boto3 == 1.26.10",

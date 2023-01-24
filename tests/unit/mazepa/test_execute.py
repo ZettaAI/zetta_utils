@@ -130,7 +130,7 @@ def test_local_execution_state_queue(reset_task_count):
                 dummy_flow(),
             ]
         ),
-        exec_queue=LocalExecutionQueue(),
+        exec_queue=LocalExecutionQueue(debug=True),
         batch_gap_sleep_sec=0,
         max_batch_len=2,
     )

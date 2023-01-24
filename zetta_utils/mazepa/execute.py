@@ -49,7 +49,6 @@ def execute(
     upkeep_fn: Optional[Callable[[str], bool]] = None,
     execution_id: Optional[str] = None,
     raise_on_failed_task: bool = True,
-    max_task_retry: int = 1,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -75,11 +74,7 @@ def execute(
         elif isinstance(target, Flow):
             flows = [target]
         else:  # isinstance(target, (ComparablePartial, Callable)):
-            task = _TaskableOperation(
-                fn=target,
-                time_bound=False,
-                max_retry=max_task_retry,
-            ).make_task()
+            task = _TaskableOperation(fn=target).make_task()
             flows = [seq_flow([task])]
 
         state = state_constructor(ongoing_flows=flows, raise_on_failed_task=raise_on_failed_task)
@@ -88,7 +83,7 @@ def execute(
     if exec_queue is not None:
         exec_queue_built = exec_queue
     else:
-        exec_queue_built = LocalExecutionQueue()
+        exec_queue_built = LocalExecutionQueue(debug=True)
 
     logger.debug(f"STARTING: execution of {target}.")
     start_time = time.time()

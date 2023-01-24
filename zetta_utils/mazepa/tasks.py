@@ -6,12 +6,11 @@ import threading
 import time
 import traceback
 import uuid
+from concurrent.futures import TimeoutError as PebbleTimeoutError
 from typing import (
     Callable,
-    Dict,
     Generic,
     Iterable,
-    Optional,
     Protocol,
     Type,
     TypeVar,
@@ -21,11 +20,12 @@ from typing import (
 )
 
 import attrs
+from pebble import concurrent
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
 
-from . import exceptions, id_generation
+from . import constants, exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
 
 logger = log.get_logger("mazepa")
@@ -43,7 +43,7 @@ class RepeatTimer(threading.Timer):
 @attrs.mutable
 class TaskUpkeepSettings:
     perform_upkeep: bool = False
-    interval_secs: Optional[float] = None
+    interval_sec: float | None = None
     callbacks: list[Callable] = attrs.field(factory=list)
 
 
@@ -59,17 +59,16 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
 
     args_are_set: bool = attrs.field(init=False, default=False)
     args: Iterable = attrs.field(init=False, factory=list)
-    kwargs: Dict = attrs.field(init=False, factory=dict)
+    kwargs: dict = attrs.field(init=False, factory=dict)
 
     completion_callbacks: list[Callable] = attrs.field(factory=list)
     upkeep_settings: TaskUpkeepSettings = attrs.field(factory=TaskUpkeepSettings)
-    execution_id: Optional[str] = attrs.field(init=False, default=None)
+    execution_id: str | None = attrs.field(init=False, default=None)
 
     status: TaskStatus = TaskStatus.NOT_SUBMITTED
-    outcome: Optional[TaskOutcome[R_co]] = None
+    outcome: TaskOutcome[R_co] | None = None
+    runtime_limit_sec: float | None = None
 
-    curr_retry: Optional[int] = None
-    max_retry: int = 3
     # cache_expiration: datetime.timedelta = None
 
     def add_tags(self, tags: list[str]) -> Task:  # pragma: no cover
@@ -79,37 +78,39 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     # Split into __init__ and _set_up because ParamSpec doesn't allow us
     # to play with kwargs.
     # cc: https://peps.python.org/pep-0612/#concatenating-keyword-parameters
-    def _set_up(self, *args: Iterable, **kwargs: Dict):
+    def _set_up(self, *args: Iterable, **kwargs: dict):
         assert not self.args_are_set
         self.args = args
         self.kwargs = kwargs
         self.args_are_set = True
 
-    def __call__(self) -> TaskOutcome[R_co]:
+    def __call__(self, debug: bool = True) -> TaskOutcome[R_co]:
         self.status = TaskStatus.RUNNING
         if self.upkeep_settings.perform_upkeep:
-            outcome = self._call_with_upkeep()
+            outcome = self._call_with_upkeep(debug=debug)
         else:
-            outcome = self._call_without_upkeep()
+            # All tasks perform upkeep for now, so no need to test this case
+            outcome = self._call_without_upkeep(debug=debug)  # pragma: no cover
 
         self.outcome = outcome
         logger.debug(f"DONE: Execution of {self}.")
 
         if self.outcome.exception is None:
+            run_completion_callbacks = True
             self.status = TaskStatus.SUCCEEDED
         else:
+            run_completion_callbacks = True
             self.status = TaskStatus.FAILED
+            if isinstance(self.outcome.exception, PebbleTimeoutError):
+                logger.debug(f"Task {self.id_} execution timed out!")
+                # Abstract the pebble library from the user
+                self.outcome.exception = TimeoutError(str(self.outcome.exception))
+                run_completion_callbacks = False
 
-        if self.status == TaskStatus.SUCCEEDED or (
-            self.curr_retry is not None and self.curr_retry >= self.max_retry
-        ):
+        if run_completion_callbacks:
             logger.debug("Running completion callbacks...")
             for callback in self.completion_callbacks:
                 callback(task=self)
-        else:
-            logger.debug(
-                f"Not running completion callbacks: retry {self.curr_retry}/{self.max_retry}."
-            )
 
         return outcome
 
@@ -120,26 +121,33 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         for callback in self.completion_callbacks:
             callback(task=self)
 
-    def _call_with_upkeep(self) -> TaskOutcome[R_co]:
-        assert self.upkeep_settings.interval_secs is not None
+    def _call_with_upkeep(self, debug: bool) -> TaskOutcome[R_co]:
+        assert self.upkeep_settings.interval_sec is not None
 
         def _perform_upkeep_callbacks():
             for fn in self.upkeep_settings.callbacks:
                 fn()
 
-        upkeep = RepeatTimer(self.upkeep_settings.interval_secs, _perform_upkeep_callbacks)
+        upkeep = RepeatTimer(self.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
         upkeep.start()
-        result = self._call_without_upkeep()
+        result = self._call_without_upkeep(debug=debug)
         upkeep.cancel()
         return result
 
-    def _call_without_upkeep(self) -> TaskOutcome[R_co]:
+    def _call_without_upkeep(self, debug: bool) -> TaskOutcome[R_co]:
         assert self.args_are_set
         logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
+
         try:
-            # TODO: parametrize by task execution environment
-            return_value = self.fn(*self.args, **self.kwargs)
+            if debug or self.runtime_limit_sec is None:
+                return_value = self.fn(*self.args, **self.kwargs)
+            else:
+                future = concurrent.process(timeout=self.runtime_limit_sec)(self.fn)(
+                    *self.args, **self.kwargs
+                )
+                return_value = future.result()
+
             exception = None
             traceback_text = None
             logger.debug("Successful task execution.")
@@ -157,7 +165,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         outcome = TaskOutcome(
             exception=exception,
             traceback_text=traceback_text,
-            execution_secs=time_end - time_start,
+            execution_sec=time_end - time_start,
             return_value=return_value,
         )
 
@@ -212,8 +220,8 @@ class _TaskableOperation(Generic[P, R_co]):
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
     tags: list[str] = attrs.field(factory=list)
-    time_bound: bool = True
-    max_retry: int = 3
+    runtime_limit_sec: float | None = None
+    upkeep_interval_sec: float = constants.DEFAULT_UPKEEP_INTERVAL
 
     def __call__(
         self,
@@ -229,15 +237,15 @@ class _TaskableOperation(Generic[P, R_co]):
     ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, list(args), kwargs)
         upkeep_settings = TaskUpkeepSettings(
-            perform_upkeep=(not self.time_bound),
-            interval_secs=5,
+            perform_upkeep=True,  # All tasks perform upkeep now
+            interval_sec=self.upkeep_interval_sec,
         )
         result = Task[R_co](
             fn=self.fn,
             id_=id_,
             tags=self.tags,
             upkeep_settings=upkeep_settings,
-            max_retry=self.max_retry,
+            runtime_limit_sec=self.runtime_limit_sec,
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
@@ -245,25 +253,25 @@ class _TaskableOperation(Generic[P, R_co]):
 
 @overload
 def taskable_operation(
-    fn: Callable[P, R_co], *, time_bound: bool = ...
+    fn: Callable[P, R_co], *, runtime_limit_sec: float | None = ...
 ) -> TaskableOperation[P, R_co]:
     ...
 
 
 @overload
 def taskable_operation(
-    *, time_bound: bool = ...
+    *, runtime_limit_sec: float | None = ...
 ) -> Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]]:
     ...
 
 
-def taskable_operation(fn=None, *, time_bound: bool = True):
+def taskable_operation(fn=None, *, runtime_limit_sec: float | None = None):
     if fn is not None:
         return _TaskableOperation(fn=fn)
     else:
         return cast(
             Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]],
-            functools.partial(_TaskableOperation, time_bound=time_bound),
+            functools.partial(_TaskableOperation, runtime_limit_sec=runtime_limit_sec),
         )
 
 

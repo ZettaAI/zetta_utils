@@ -87,7 +87,7 @@ def test_write_scalar_with_processor(mocker):
         backend,
         default_desired_resolution=Vec3D(1, 1, 1),
         index_resolution=Vec3D(1, 1, 1),
-        write_preprocs=[lambda data: data + 1],
+        write_procs=[lambda data: data + 1],
     )
 
     layer[0:1, 0:1, 0:1] = 1.0

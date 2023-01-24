@@ -101,14 +101,14 @@ class Layer(
     ]
     readonly: bool = False
 
-    index_adjs: List[IndexAdjuster[BackendIndexT]] = attrs.field(factory=list)
-    read_postprocs: List[
+    index_procs: List[IndexAdjuster[BackendIndexT]] = attrs.field(factory=list)
+    read_procs: List[
         Union[
             DataProcessor[BackendDataT],
             DataWithIndexProcessor[BackendDataT, BackendIndexT],
         ]
     ] = attrs.field(factory=list)
-    write_preprocs: List[
+    write_procs: List[
         Union[
             DataProcessor[BackendDataT],
             DataWithIndexProcessor[BackendDataT, BackendIndexT],
@@ -147,7 +147,7 @@ class Layer(
     ]:
         idx = self.frontend.convert_read_idx(idx_user)
         idx_proced = idx
-        for adj in self.index_adjs:
+        for adj in self.index_procs:
             idx_proced = adj(idx_proced)
 
         data_backend = self.backend.read(idx=idx_proced)
@@ -156,7 +156,7 @@ class Layer(
             data=data_backend,
             idx=idx,
             idx_proced=idx_proced,
-            procs=self.read_postprocs,
+            procs=self.read_procs,
         )
         data_user = self.frontend.convert_read_data(idx_user, data_backend)
         return data_user
@@ -191,14 +191,14 @@ class Layer(
 
         idx, data = self.frontend.convert_write(idx_user=idx_user, data_user=data_user)
         idx_proced = idx
-        for adj in self.index_adjs:
+        for adj in self.index_procs:
             idx_proced = adj(idx_proced)
 
         data = _apply_procs(
             data=data,
             idx=idx,
             idx_proced=idx_proced,
-            procs=self.write_preprocs,
+            procs=self.write_procs,
         )
         self.backend.write(idx=idx_proced, data=data)
 
@@ -293,7 +293,7 @@ class Layer(
         return attrs.evolve(
             self,
             backend=self.backend.clone(**kwargs),
-            index_adjs=copy(self.index_adjs),
-            read_postprocs=copy(self.read_postprocs),
-            write_preprocs=copy(self.write_preprocs),
+            index_procs=copy(self.index_procs),
+            read_procs=copy(self.read_procs),
+            write_procs=copy(self.write_procs),
         )

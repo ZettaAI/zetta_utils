@@ -37,7 +37,7 @@
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
-		read_postprocs: []
+		read_procs: []
 	}
 	field: {
 		"@type": "build_cv_layer"
@@ -50,7 +50,7 @@
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "expect_same"
-		write_preprocs: []
+		write_procs: []
 	}
 	idx: _
 }

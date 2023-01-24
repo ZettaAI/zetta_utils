@@ -42,7 +42,7 @@ trainer: {
 					cache:     true
 					lru_bytes: 1024 * 1024 * 1024 * 2
 				}
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type": "divide"
 						"@mode": "partial"
@@ -58,7 +58,7 @@ trainer: {
 					cache:     true
 					lru_bytes: 1024 * 1024 * 2
 				}
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type": "divide"
 						"@mode": "partial"

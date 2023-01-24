@@ -103,7 +103,7 @@ target: {
 				cv_kwargs: {
 					//cache: "/home/sergiy/.cloudvolume/memcache"
 				}
-				read_postprocs: [
+				read_procs: [
 					{
 						"@type":   "rearrange"
 						"@mode":   "partial"
@@ -133,7 +133,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: [
+						read_procs: [
 							{
 								"@mode":   "partial"
 								"@type":   "rearrange"
@@ -157,7 +157,7 @@ target: {
 						cv_kwargs: {
 							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
-						read_postprocs: [
+						read_procs: [
 							{
 								"@mode":   "partial"
 								"@type":   "rearrange"

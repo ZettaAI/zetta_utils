@@ -16,6 +16,8 @@ from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
 boto3.setup_default_session()
 
+builder.register("mazepa.SQSExecutionQueue")(SQSExecutionQueue)
+
 
 def test_push_tasks_exc(mocker):
     mocker.patch("taskqueue.TaskQueue", lambda *args, **kwargs: mocker.MagicMock())
@@ -48,14 +50,7 @@ def aws_credentials():
 def sqs_endpoint(aws_credentials):
     """Ensure that SQS service i s up and responsive."""
     with mock_sqs():
-        # `port_for` takes a container port and returns the corresponding host port
-        # port = docker_services.port_for("sqs", 9324)
-        # url = f"http://{docker_ip}:{port}"
-        # docker_services.wait_until_responsive(
-        #    timeout=90.0, pause=0.1, check=lambda: is_responsive(url)
-        # )
         client = docker.from_env()
-        # container = client.containers.run("vsouza/sqs-local", detach=True, ports={"9324": "9324"})
         container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
 
         timeout = 120
@@ -126,8 +121,10 @@ def queue_with_worker(work_queue, outcome_queue):
                     "name": work_queue_name,
                     "outcome_queue_name": outcome_queue_name,
                     "endpoint_url": endpoint_url,
+                    "pull_lease_sec": 1,
                 },
                 "sleep_sec": 0.2,
+                "debug": True,
                 "max_runtime": 5.0,
             },
         ),
@@ -171,6 +168,27 @@ def queue_with_cancelling_worker(work_queue, outcome_queue):
     time.sleep(0.2)
 
 
+def test_task_upkeep(queue_with_worker) -> None:
+    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
+    queue = SQSExecutionQueue(
+        name=work_queue_name,
+        region_name=region_name,
+        endpoint_url=endpoint_url,
+        outcome_queue_name=outcome_queue_name,
+    )
+    task = _TaskableOperation(
+        lambda: exec("import time; time.sleep(1.5);"),
+        upkeep_interval_sec=0.1,
+    ).make_task()
+    queue.push_tasks([task])
+    time.sleep(1.0)
+    rdy_tasks = queue.pull_tasks()
+    assert len(rdy_tasks) == 0
+    time.sleep(2.0)
+    rdy_tasks = queue.pull_tasks()
+    assert len(rdy_tasks) == 0
+
+
 def test_execution(work_queue, outcome_queue):
     work_queue_name, _, _ = work_queue
     outcome_queue_name, region_name, endpoint_url = outcome_queue
@@ -186,7 +204,6 @@ def test_execution(work_queue, outcome_queue):
         _TaskableOperation(lambda: "Success").make_task(),
     ]
     failing_task = _TaskableOperation(lambda: exec("raise(Exception())")).make_task()
-    failing_task.curr_retry = failing_task.max_retry
     tasks.append(failing_task)
     queue.push_tasks(tasks)
     tasks[0]()
@@ -198,58 +215,7 @@ def test_execution(work_queue, outcome_queue):
     assert outcomes[tasks[2].id_].return_value is None
 
 
-def test_reaching_max_retry(work_queue, outcome_queue) -> None:
-    work_queue_name, _, _ = work_queue
-    outcome_queue_name, region_name, endpoint_url = outcome_queue
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=1,
-    )
-    failing_task = _TaskableOperation(lambda: exec("raise(Exception())"), max_retry=1).make_task()
-    queue.push_tasks([failing_task])
-
-    task_x0 = queue.pull_tasks()[0]
-    task_x0()
-    outcomes = queue.pull_task_outcomes()
-    assert len(outcomes) == 0
-    time.sleep(0.3)
-
-    task_x1 = queue.pull_tasks()[0]
-    task_x1()
-    time.sleep(0.3)
-    outcomes = queue.pull_task_outcomes()
-    assert len(outcomes) == 1
-    assert outcomes[failing_task.id_].exception is not None
-
-
-def test_unbound_task_upkeep(queue_with_worker) -> None:
-    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=4,
-    )
-    task = _TaskableOperation(
-        lambda: exec("import time; time.sleep(1);"),
-        time_bound=False,
-        max_retry=0,
-    ).make_task()
-    task.upkeep_settings.interval_secs = 0.5
-    queue.push_tasks([task])
-    time.sleep(1.0)
-    rdy_tasks = queue.pull_tasks()
-    assert len(rdy_tasks) == 0
-    time.sleep(2.0)
-    rdy_tasks = queue.pull_tasks()
-    assert len(rdy_tasks) == 0
-
-
-def test_unbound_task_upkeep_finish(queue_with_worker) -> None:
+def test_task_upkeep_finish(queue_with_worker) -> None:
     work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
     queue = SQSExecutionQueue(
         name=work_queue_name,
@@ -260,10 +226,9 @@ def test_unbound_task_upkeep_finish(queue_with_worker) -> None:
     )
     task = _TaskableOperation(
         lambda: exec("import time; time.sleep(0.1)"),
-        time_bound=False,
-        max_retry=1,
+        # max_retry=1,
     ).make_task()
-    task.upkeep_settings.interval_secs = 0.5
+    task.upkeep_settings.interval_sec = 0.5
     queue.push_tasks([task])
     time.sleep(3.0)
     rdy_tasks = queue.pull_tasks()
@@ -283,8 +248,6 @@ def test_cancelling_worker(queue_with_cancelling_worker) -> None:
     )
     task: mazepa.Task = _TaskableOperation(
         lambda: exec("import time; time.sleep(5);"),
-        time_bound=False,
-        max_retry=0,
     ).make_task()
     queue.push_tasks([task])
     time.sleep(1.0)

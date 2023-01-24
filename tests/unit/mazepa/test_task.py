@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import attrs
 
 from zetta_utils.mazepa import (
@@ -37,12 +39,13 @@ def test_make_taskable_operation() -> None:
     assert isinstance(task, Task)
 
 
-def test_make_unbound_taskable_operation() -> None:
-    @taskable_operation(time_bound=False)
+def test_task_runtime_limit() -> None:
+    @taskable_operation(runtime_limit_sec=0.1)
     def dummy_task_fn():
-        pass
+        time.sleep(0.3)
 
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
-    assert task.upkeep_settings.perform_upkeep
+    outcome = task(debug=False)
+    assert isinstance(outcome.exception, TimeoutError)

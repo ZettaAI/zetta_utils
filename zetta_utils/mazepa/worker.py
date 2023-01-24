@@ -20,6 +20,7 @@ def run_worker(
     max_pull_num: int = 1,
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
+    debug: bool = False,
 ):
     start_time = time.time()
     while True:
@@ -34,7 +35,7 @@ def run_worker(
                 if task_filter_fn(task):
                     with log.logging_tag_ctx("task_id", task.id_):
                         with log.logging_tag_ctx("execution_id", task.execution_id):
-                            task()
+                            task(debug=debug)
                 else:
                     task.cancel_without_starting()
 

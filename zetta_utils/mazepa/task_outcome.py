@@ -20,5 +20,5 @@ R_co = TypeVar("R_co", covariant=True)
 class TaskOutcome(Generic[R_co]):
     exception: Optional[BaseException] = None
     traceback_text: Optional[str] = None
-    execution_secs: Optional[float] = None
+    execution_sec: Optional[float] = None
     return_value: Optional[R_co] = None

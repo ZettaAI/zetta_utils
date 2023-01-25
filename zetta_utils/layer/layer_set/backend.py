@@ -46,17 +46,17 @@ class LayerSetBackend(
         for k in layer_selection:
             self.layers[k].write(idx.layer_idx, data[k])
 
-    def clone(self, **kwargs) -> LayerSetBackend:  # pragma: no cover
-        """Clones all layers with the parameters in a dictionary of dictionaries"""
+    def with_changes(self, **kwargs) -> LayerSetBackend:  # pragma: no cover
+        """Changes the backends for all layers with the parameters in a
+        dictionary of dictionaries"""
         for k in kwargs:
             if k not in self.layers:
-                raise KeyError(f"key {k} not found in the LayerSet")
+                raise KeyError(f"key `{k}` not found in the LayerSet")
         new_layers: Dict[str, Layer] = {}
         for k in self.layers:
             if k in kwargs:
-                new_layers[k] = self.layers[k].clone(**(kwargs[k]))
+                new_layers[k] = self.layers[k].with_backend_changes(**(kwargs[k]))
             else:
-                new_layers[k] = self.layers[k].clone()
+                new_layers[k] = self.layers[k].with_backend_changes()
         res = attrs.evolve(self, layer=new_layers)
-
         return res

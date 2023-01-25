@@ -320,7 +320,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             self.blend_pad
         ):
 
-            dst_temp = dst.clone(
+            dst_temp = dst.with_backend_changes(
                 name=path.join(
                     self.temp_layers_dir,
                     f"_{self.operation.__class__.__name__}_temp_{idx.pformat()}_{chunker_idx}",
@@ -346,7 +346,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                     f" {self.processing_chunk_size}"
                 )
             if self.use_checkerboarding_weights:
-                dst_temp_weights = dst_temp.clone(
+                dst_temp_weights = dst_temp.with_backend_changes(
                     name=path.join(
                         self.temp_layers_dir,
                         f"_{self.operation.__class__.__name__}_temp"

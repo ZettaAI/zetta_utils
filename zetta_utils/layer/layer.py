@@ -252,7 +252,7 @@ class Layer(
     ):  # pragma: no cover
         return self.write(idx_user, data_user)
 
-    def clone(
+    def with_backend_changes(
         self, **kwargs
     ) -> Layer[
         BackendT,
@@ -275,12 +275,17 @@ class Layer(
         UserWriteIndexT3_contra,
         UserWriteDataT3_contra,
     ]:  # pragma: no cover # pure delegation
-        """Clones the Layer with the kwargs being passed to the backend.
+        """Remakes the Layer with the requested backend changes. The kwargs are not typed
+        since the implementation is currently based on `attrs.evolve` and the
+        base Backend class does not have any attrs, leaving all implementation to the inherited
+        classes.
+        In the future, Backend can be typed using a ParamSpec so that kwargs can be typed as
+        `P.kwargs`.
         Note that `attrs.evolve` will keep the same reference to the attrs that are not
-        updated, meaning that things that might be mutated must be copied and passed to it"""
+        updated, meaning that attrs that are mutable must be copied for safety."""
         return attrs.evolve(
             self,
-            backend=self.backend.clone(**kwargs),
+            backend=self.backend.with_changes(**kwargs),
             index_procs=copy(self.index_procs),
             read_procs=copy(self.read_procs),
             write_procs=copy(self.write_procs),

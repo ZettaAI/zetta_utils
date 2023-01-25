@@ -7,7 +7,7 @@ from typeguard import typechecked
 from zetta_utils import builder, log, tensor_ops
 from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
 
-from .. import DataWithIndexProcessor, IndexChunker
+from .. import IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
@@ -32,57 +32,47 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
     offset: Vec3D
     resolution: Vec3D
 
-    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+    def __call__(self, inputval: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
-            idx=idx,
+            idx=inputval,
             offset=self.offset,
             resolution=self.resolution,
         )
         return result
 
 
-@builder.register("VolumetricIndexResolutionAdjuster")
+@builder.register("DataResolutionInterpolator")
 @typechecked
 @attrs.mutable
-class VolumetricIndexResolutionAdjuster:  # pragma: no cover # under 3 statements, no conditionals
-    resolution: Vec3D
+class DataResolutionInterpolator(JointIndexDataProcessor):
+    data_resolution: Vec3D
+    interpolation_mode: tensor_ops.InterpolationMode
+    allow_slice_rounding: bool = False
+    prepared_scale_factor: Vec3D | None = attrs.field(init=False, default=None)
 
-    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
-        result = VolumetricIndex(
-            bbox=idx.bbox,
-            resolution=self.resolution,
-        )
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        if mode == "read":
+            self.prepared_scale_factor = self.data_resolution / idx.resolution
+        else:
+            assert mode == "write"
+            self.prepared_scale_factor = idx.resolution / self.data_resolution
+
+        result = VolumetricIndex(bbox=idx.bbox, resolution=self.data_resolution)
         return result
 
-
-@builder.register("VolumetricDataInterpolator")
-@typechecked
-@attrs.mutable
-class VolumetricDataInterpolator(DataWithIndexProcessor):
-    interpolation_mode: tensor_ops.InterpolationMode
-    mode: Literal["read", "write"]
-    allow_slice_rounding: bool = False
-
-    def __call__(
-        self,
-        data: torch.Tensor,
-        idx: VolumetricIndex,
-        idx_proced: VolumetricIndex,
-    ) -> torch.Tensor:
-        if self.mode == "read":
-            scale_factor = tuple(idx_proced.resolution[i] / idx.resolution[i] for i in range(3))
-        else:
-            assert self.mode == "write"
-            scale_factor = tuple(idx.resolution[i] / idx_proced.resolution[i] for i in range(3))
+    def process_data(self, data: torch.Tensor, mode: Literal["read", "write"]) -> torch.Tensor:
+        assert self.prepared_scale_factor is not None
 
         result = tensor_ops.interpolate(
             data=data,
-            scale_factor=scale_factor,
+            scale_factor=self.prepared_scale_factor,
             mode=self.interpolation_mode,
             allow_slice_rounding=self.allow_slice_rounding,
             unsqueeze_input_to=5,  # b + c + xyz
         )
-
+        self.prepared_scale_factor = None
         return result
 
 

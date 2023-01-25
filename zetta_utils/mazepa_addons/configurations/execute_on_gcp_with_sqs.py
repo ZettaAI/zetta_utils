@@ -4,7 +4,7 @@ import copy
 from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Iterable, Optional, Union
 
-from zetta_utils import builder, common, log, mazepa
+from zetta_utils import builder, log, mazepa
 from zetta_utils.mazepa_addons import resource_allocation
 
 logger = log.get_logger("zetta_utils")
@@ -20,7 +20,6 @@ def get_gcp_with_sqs_config(
     ctx_managers: list[AbstractContextManager],
 ) -> tuple[mazepa.ExecutionQueue, list[AbstractContextManager]]:
 
-    ctx_managers.append(common.signal_handlers.confirm_sigint_ctx())
     work_queue_name = f"zzz-{execution_id}-work"
     ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(work_queue_name))
     outcome_queue_name = f"zzz-{execution_id}-outcome"

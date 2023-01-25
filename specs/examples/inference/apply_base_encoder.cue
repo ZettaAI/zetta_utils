@@ -14,16 +14,15 @@
 	resolution: [512, 512, 30]
 }
 
-"@type":          "mazepa.execute_on_gcp_with_sqs"
-worker_image:     "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x60_p39"
-max_task_retry:   1
-worker_replicas:  1
-worker_lease_sec: 2
+"@type":         "mazepa.execute_on_gcp_with_sqs"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x60_p39"
+worker_replicas: 1
+
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
+local_test: true
 
 target: {
 	"@type": "build_chunked_apply_flow"

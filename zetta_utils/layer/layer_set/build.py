@@ -66,8 +66,8 @@ def build_layer_set(
         backend=backend,
         readonly=readonly,
         frontend=LayerSetFrontend(),
-        index_procs=list(index_procs),
-        read_procs=list(read_procs),
-        write_procs=list(write_procs),
+        index_procs=tuple(index_procs),
+        read_procs=tuple(read_procs),
+        write_procs=tuple(write_procs),
     )
     return result

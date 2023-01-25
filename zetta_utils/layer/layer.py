@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import Callable, Generic, Iterable, List, TypeVar, Union, overload
+from typing import Any, Callable, Generic, Iterable, TypeVar, Union, overload
 
 import attrs
 
@@ -53,7 +53,7 @@ def _apply_procs(
 
 # TODO: Generic parametrization for Read/Write data type
 @builder.register("Layer")
-@attrs.mutable
+@attrs.frozen
 class Layer(
     Generic[
         BackendT,
@@ -77,7 +77,6 @@ class Layer(
         UserWriteDataT3_contra,
     ]
 ):
-
     backend: BackendT
     frontend: Frontend[
         BackendIndexT,
@@ -101,19 +100,15 @@ class Layer(
     ]
     readonly: bool = False
 
-    index_procs: List[IndexAdjuster[BackendIndexT]] = attrs.field(factory=list)
-    read_procs: List[
-        Union[
-            DataProcessor[BackendDataT],
-            DataWithIndexProcessor[BackendDataT, BackendIndexT],
-        ]
-    ] = attrs.field(factory=list)
-    write_procs: List[
-        Union[
-            DataProcessor[BackendDataT],
-            DataWithIndexProcessor[BackendDataT, BackendIndexT],
-        ]
-    ] = attrs.field(factory=list)
+    index_procs: tuple[IndexAdjuster[BackendIndexT], ...] = ()
+    read_procs: tuple[
+        Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]],
+        ...,
+    ] = ()
+    write_procs: tuple[
+        Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]],
+        ...,
+    ] = ()
 
     @overload
     def read(self, idx_user: BackendIndexT) -> BackendDataT:
@@ -138,13 +133,13 @@ class Layer(
     def read(
         self,
         idx_user,
-    ) -> Union[
-        BackendDataT,
-        UserReadDataT0_co,
-        UserReadDataT1_co,
-        UserReadDataT2_co,
-        UserReadDataT3_co,
-    ]:
+    ) -> (
+        BackendDataT
+        | UserReadDataT0_co
+        | UserReadDataT1_co
+        | UserReadDataT2_co
+        | UserReadDataT3_co
+    ):
         idx = self.frontend.convert_read_idx(idx_user)
         idx_proced = idx
         for adj in self.index_procs:
@@ -228,13 +223,13 @@ class Layer(
 
     def __getitem__(
         self, idx_user
-    ) -> Union[
-        BackendDataT,
-        UserReadDataT0_co,
-        UserReadDataT1_co,
-        UserReadDataT2_co,
-        UserReadDataT3_co,
-    ]:  # pragma: no cover
+    ) -> (
+        BackendDataT
+        | UserReadDataT0_co
+        | UserReadDataT1_co
+        | UserReadDataT2_co
+        | UserReadDataT3_co
+    ):  # pragma: no cover
         return self.read(idx_user)
 
     @overload
@@ -297,3 +292,25 @@ class Layer(
             read_procs=copy(self.read_procs),
             write_procs=copy(self.write_procs),
         )
+
+    def with_procs(
+        self,
+        index_procs: Iterable[IndexAdjuster[BackendIndexT]] | None = None,
+        read_procs: Iterable[
+            Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]]
+        ]
+        | None = None,
+        write_procs: Iterable[
+            Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]]
+        ]
+        | None = None,
+    ):
+        proc_mods = {}  # type: dict[str, Any]
+        if index_procs is not None:
+            proc_mods["index_procs"] = tuple(index_procs)
+        if read_procs is not None:
+            proc_mods["read_procs"] = tuple(read_procs)
+        if write_procs is not None:
+            proc_mods["write_procs"] = tuple(write_procs)
+
+        return attrs.evolve(self, **proc_mods)

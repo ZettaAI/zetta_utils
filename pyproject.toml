@@ -156,7 +156,7 @@ max-locals=25
 good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn,op,q,cf,tb'''
 additional-builtins = '''reveal_type'''
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,logging-not-lazy,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable,no-else-return,unsupported-membership-test'''
+disable = '''duplicate-code,C0330,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,logging-not-lazy,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable,no-else-return,unsupported-membership-test,abstract-class-instantiated'''
 extension-pkg-allow-list = [
   "pymssql._mssql",
 ]

@@ -33,6 +33,16 @@ class VolumetricCallableOperation(Generic[P]):
     crop_pad: IntVec3D = IntVec3D(0, 0, 0)
     res_change_mult: Vec3D = Vec3D(1, 1, 1)
     input_idx_pad: IntVec3D = attrs.field(init=False)
+    operation_name: str | None = None
+
+    def get_operation_name(self):
+        if hasattr(self.fn, "__name__"):
+            result = self.fn.__name__
+        else:
+            result = type(self.fn).__name__
+            if result == "function":
+                result = "Unspecified Function"
+        return result
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         return dst_resolution / self.res_change_mult

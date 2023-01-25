@@ -36,29 +36,30 @@ class ExecutionQueue(Protocol):  # pragma: no cover
 @attrs.mutable
 class LocalExecutionQueue:
     name: str = "local_execution"
-    task_outcomes: Dict[str, TaskOutcome] = attrs.field(init=False, factory=dict)
+    tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
+    execution_batch_len: int = 1
 
     def push_tasks(self, tasks: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich
         # for task in track(tasks, description="Local task execution..."):
-        for task in tasks:
-            task(debug=self.debug)
-            assert task.outcome is not None
-            self.task_outcomes[task.id_] = task.outcome
-
-            # raise immediatelly for local exec
-            if task.outcome.exception is not None:
-                raise task.outcome.exception  # pragma: no cover
+        self.tasks_todo += list(tasks)
 
     def pull_task_outcomes(
         self, max_num: int = 100000, max_time_sec: float = 2.5  # pylint: disable=unused-argument
     ) -> Dict[str, TaskOutcome]:
-        outcome_items = list(self.task_outcomes.items())
-        return_num = min(max_num, len(self.task_outcomes))
-        result = dict(outcome_items[:return_num])
-        self.task_outcomes = dict(outcome_items[return_num:])
-        return result
+        task_outcomes: Dict[str, TaskOutcome] = {}
+
+        for task in self.tasks_todo[: self.execution_batch_len]:
+            task(debug=self.debug)
+            assert task.outcome is not None
+            task_outcomes[task.id_] = task.outcome
+
+            # raise immediatelly for local exec
+            if task.outcome.exception is not None:
+                raise task.outcome.exception  # pragma: no cover
+        self.tasks_todo = self.tasks_todo[self.execution_batch_len :]
+        return task_outcomes
 
     def pull_tasks(  # pylint: disable=no-self-use
         self, max_num: int = 1  # pylint: disable=unused-argument

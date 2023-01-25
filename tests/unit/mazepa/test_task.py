@@ -13,30 +13,42 @@ from zetta_utils.mazepa import (
 
 
 def test_make_taskable_operation_cls() -> None:
-    @taskable_operation_cls
+    @taskable_operation_cls(operation_name="OpDummyClass1")
     @attrs.mutable
     class DummyTaskCls:
         def __call__(self) -> str:
             return "result"
 
+    @taskable_operation_cls
+    @attrs.mutable
+    class DummyTaskCls2:
+        def __call__(self) -> str:
+            return "result"
+
     obj: TaskableOperation[[], str] = DummyTaskCls()
     obj = DummyTaskCls()
+    obj2 = DummyTaskCls2()
 
     assert isinstance(obj, TaskableOperation)
+    assert isinstance(obj2, TaskableOperation)
     task = obj.make_task()
+    task2 = obj2.make_task()
     assert isinstance(task, Task)
+    assert isinstance(task2, Task)
     outcome = obj()
     assert outcome == "result"
+    assert task.operation_name == "OpDummyClass1"
 
 
 def test_make_taskable_operation() -> None:
-    @taskable_operation
+    @taskable_operation(operation_name="OpDummy")
     def dummy_task_fn():
         pass
 
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
+    assert task.operation_name == "OpDummy"
 
 
 def test_task_runtime_limit() -> None:

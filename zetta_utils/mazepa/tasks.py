@@ -8,6 +8,7 @@ import traceback
 import uuid
 from concurrent.futures import TimeoutError as PebbleTimeoutError
 from typing import (
+    Any,
     Callable,
     Generic,
     Iterable,
@@ -54,6 +55,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     """
 
     fn: Callable[..., R_co]
+    operation_name: str = "Unclassified Task"
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     tags: list[str] = attrs.field(factory=list)
 
@@ -130,8 +132,13 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
 
         upkeep = RepeatTimer(self.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
         upkeep.start()
-        result = self._call_without_upkeep(debug=debug)
-        upkeep.cancel()
+        try:
+            result = self._call_without_upkeep(debug=debug)
+        except Exception as e:  # pragma: no cover
+            raise e from None
+        finally:
+            upkeep.cancel()
+
         return result
 
     def _call_without_upkeep(self, debug: bool) -> TaskOutcome[R_co]:
@@ -216,6 +223,7 @@ class _TaskableOperation(Generic[P, R_co]):
     """
 
     fn: Callable[P, R_co]
+    operation_name: str = "Unclassified Task"
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
@@ -242,6 +250,7 @@ class _TaskableOperation(Generic[P, R_co]):
         )
         result = Task[R_co](
             fn=self.fn,
+            operation_name=self.operation_name,
             id_=id_,
             tags=self.tags,
             upkeep_settings=upkeep_settings,
@@ -253,37 +262,73 @@ class _TaskableOperation(Generic[P, R_co]):
 
 @overload
 def taskable_operation(
-    fn: Callable[P, R_co], *, runtime_limit_sec: float | None = ...
+    fn: Callable[P, R_co],
+    *,
+    runtime_limit_sec: float | None = ...,
+    operation_name: str | None = ...,
 ) -> TaskableOperation[P, R_co]:
     ...
 
 
 @overload
 def taskable_operation(
-    *, runtime_limit_sec: float | None = ...
+    *, runtime_limit_sec: float | None = ..., operation_name: str | None = ...
 ) -> Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]]:
     ...
 
 
-def taskable_operation(fn=None, *, runtime_limit_sec: float | None = None):
+def taskable_operation(
+    fn=None, *, runtime_limit_sec: float | None = None, operation_name: str | None = None
+):
     if fn is not None:
-        return _TaskableOperation(fn=fn)
+        if operation_name is None:
+            operation_name = fn.__name__
+        return _TaskableOperation(
+            fn=fn, runtime_limit_sec=runtime_limit_sec, operation_name=operation_name
+        )
     else:
         return cast(
             Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]],
-            functools.partial(_TaskableOperation, runtime_limit_sec=runtime_limit_sec),
+            functools.partial(
+                _TaskableOperation,
+                runtime_limit_sec=runtime_limit_sec,
+                operation_name=operation_name,
+            ),
         )
 
 
-def taskable_operation_cls(cls: Type[RawTaskableOperationCls]):
+def taskable_operation_cls(
+    cls: Type[RawTaskableOperationCls] | None = None, *, operation_name: str | None = None
+):
     def _make_task(self, *args, **kwargs):
-        return _TaskableOperation(  # pylint: disable=protected-access
+        if operation_name is None:
+            if hasattr(self, "get_operation_name"):
+                operation_name_final = self.get_operation_name()  # pragma: no cover # viz
+            else:
+                operation_name_final = type(self).__name__
+        else:
+            operation_name_final = operation_name
+        task = _TaskableOperation(  # pylint: disable=protected-access
             self,
+            operation_name=operation_name_final,
             # TODO: Other params passed to decorator
         ).make_task(
             *args, **kwargs
         )  # pylint: disable=protected-access
+        return task
 
-    # can't override __new__ because it doesn't combine well with attrs/dataclass
-    setattr(cls, "make_task", _make_task)
-    return cls
+    if cls is not None:
+        # can't override __new__ because it doesn't combine well with attrs/dataclass
+        setattr(cls, "make_task", _make_task)
+        return cls
+    else:
+        return cast(
+            Callable[
+                [Type[RawTaskableOperationCls]],
+                Any,  # Any bc mypy ignores class decorator return type
+            ],
+            functools.partial(
+                taskable_operation_cls,
+                operation_name=operation_name,
+            ),
+        )

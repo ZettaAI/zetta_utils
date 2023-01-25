@@ -185,7 +185,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     @name.setter
     def name(self, name: str) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set name for CVBackend directly; use `backend.clone()` instead"
+            "cannot set name for CVBackend directly;"
+            " use `backend.with_changes(name='name')` instead."
         )
 
     @property
@@ -228,7 +229,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         cvol[slices] = data_final
         cvol.autocrop = False
 
-    def clone(self, **kwargs) -> CVBackend:
+    def with_changes(self, **kwargs) -> CVBackend:
+        """Currently untyped. See `Layer.with_backend_changes() for the reason."""
         implemented_keys = ["name"]
         for k in kwargs:
             if k not in implemented_keys:

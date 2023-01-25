@@ -78,7 +78,8 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
 
-    def clone(self, **kwargs) -> DatastoreBackend:
+    def with_changes(self, **kwargs) -> DatastoreBackend:
+        """Currently not typed. See `Layer.with_backend_changes()` for the reason."""
         implemented_keys = ["namespace", "project"]
         for k in kwargs:
             if k not in implemented_keys:

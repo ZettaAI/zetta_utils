@@ -99,13 +99,13 @@ def test_read_write(datastore_emulator) -> None:
     assert data == data_user
 
 
-def test_clone(datastore_emulator) -> None:
+def test_with_changes(datastore_emulator) -> None:
     backend = DatastoreBackend(datastore_emulator, project=datastore_emulator)
-    backend2 = backend.clone(namespace=backend.namespace, project=backend.project)
+    backend2 = backend.with_changes(namespace=backend.namespace, project=backend.project)
     assert isinstance(backend2, DatastoreBackend)
 
     with pytest.raises(KeyError):
-        backend2 = backend.clone(
+        backend2 = backend.with_changes(
             namespace=backend.namespace,
             project=backend.project,
             some_key="test",

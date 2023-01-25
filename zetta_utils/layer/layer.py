@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from copy import copy
-from typing import Any, Callable, Generic, Iterable, TypeVar, Union, overload
+from typing import Any, Generic, Iterable, TypeVar, Union, overload
 
 import attrs
 
 from zetta_utils import builder
 
-from . import Backend, DataProcessor, DataWithIndexProcessor, Frontend, IndexAdjuster
+from . import Backend, Frontend, JointIndexDataProcessor, Processor
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
@@ -36,22 +36,6 @@ UserWriteIndexT2_contra = TypeVar("UserWriteIndexT2_contra", contravariant=True)
 UserWriteIndexT3_contra = TypeVar("UserWriteIndexT3_contra", contravariant=True)
 
 
-def _apply_procs(
-    data: BackendDataT,
-    idx: BackendIndexT,
-    idx_proced: BackendIndexT,
-    procs: Iterable[Callable],
-) -> BackendDataT:
-    result = data
-    for proc in procs:
-        if isinstance(proc, DataWithIndexProcessor):
-            result = proc(data=result, idx=idx, idx_proced=idx_proced)
-        else:
-            result = proc(data=result)
-    return result
-
-
-# TODO: Generic parametrization for Read/Write data type
 @builder.register("Layer")
 @attrs.frozen
 class Layer(
@@ -100,13 +84,13 @@ class Layer(
     ]
     readonly: bool = False
 
-    index_procs: tuple[IndexAdjuster[BackendIndexT], ...] = ()
+    index_procs: tuple[Processor[BackendIndexT], ...] = ()
     read_procs: tuple[
-        Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]],
+        Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
         ...,
     ] = ()
     write_procs: tuple[
-        Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]],
+        Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
         ...,
     ] = ()
 
@@ -142,18 +126,23 @@ class Layer(
     ):
         idx = self.frontend.convert_read_idx(idx_user)
         idx_proced = idx
-        for adj in self.index_procs:
-            idx_proced = adj(idx_proced)
+        for proc_idx in self.index_procs:
+            idx_proced = proc_idx(idx_proced)
+
+        for e in self.read_procs:
+            if isinstance(e, JointIndexDataProcessor):
+                idx_proced = e.process_index(idx_proced, mode="read")
 
         data_backend = self.backend.read(idx=idx_proced)
 
-        data_backend = _apply_procs(
-            data=data_backend,
-            idx=idx,
-            idx_proced=idx_proced,
-            procs=self.read_procs,
-        )
-        data_user = self.frontend.convert_read_data(idx_user, data_backend)
+        data_proced = data_backend
+        for e in self.read_procs:
+            if isinstance(e, JointIndexDataProcessor):
+                data_proced = e.process_data(data_proced, mode="read")
+            else:
+                data_proced = e(data_proced)
+
+        data_user = self.frontend.convert_read_data(idx_user, data_proced)
         return data_user
 
     @overload
@@ -181,21 +170,25 @@ class Layer(
         idx_user,
         data_user,
     ):
-        if self.readonly:  # pragma: no cover
+        if self.readonly:
             raise IOError(f"Attempting to write to a read only layer {self}")
 
         idx, data = self.frontend.convert_write(idx_user=idx_user, data_user=data_user)
         idx_proced = idx
-        for adj in self.index_procs:
-            idx_proced = adj(idx_proced)
+        for proc_idx in self.index_procs:
+            idx_proced = proc_idx(idx_proced)
 
-        data = _apply_procs(
-            data=data,
-            idx=idx,
-            idx_proced=idx_proced,
-            procs=self.write_procs,
-        )
-        self.backend.write(idx=idx_proced, data=data)
+        for e in self.write_procs:
+            if isinstance(e, JointIndexDataProcessor):
+                idx_proced = e.process_index(idx_proced, mode="write")
+
+        data_proced = data
+        for e in self.write_procs:
+            if isinstance(e, JointIndexDataProcessor):
+                data_proced = e.process_data(data_proced, mode="write")
+            else:
+                data_proced = e(data_proced)
+        self.backend.write(idx=idx_proced, data=data_proced)
 
     @property
     def name(self) -> str:  # pragma: no cover
@@ -295,13 +288,13 @@ class Layer(
 
     def with_procs(
         self,
-        index_procs: Iterable[IndexAdjuster[BackendIndexT]] | None = None,
+        index_procs: Iterable[Processor[BackendIndexT]] | None = None,
         read_procs: Iterable[
-            Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]]
+            Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]]
         ]
         | None = None,
         write_procs: Iterable[
-            Union[DataProcessor[BackendDataT], DataWithIndexProcessor[BackendDataT, BackendIndexT]]
+            Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]]
         ]
         | None = None,
     ):

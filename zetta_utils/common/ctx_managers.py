@@ -1,5 +1,17 @@
 import contextlib
 import os
+import sys
+from typing import Callable
+
+
+@contextlib.contextmanager
+def breakpointhook_ctx_mngr(
+    new_hook_maker: Callable[[Callable], Callable[[], None]]
+):  # pragma: no cover # Any good ideas on how to test this?
+    old_hook = sys.breakpointhook
+    sys.breakpointhook = new_hook_maker(old_hook)
+    yield
+    sys.breakpointhook = old_hook
 
 
 @contextlib.contextmanager

@@ -34,17 +34,19 @@ DBLayer: TypeAlias = Layer[
     DataT,
 ]
 
+IndexProcType = IndexAdjuster[DBIndex]
+ReadProcType = Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]
+WriteProcType = ReadProcType
+
 
 @typechecked
 @builder.register("build_db_layer")
 def build_db_layer(
     backend: Backend[DBIndex, DataT],
     readonly: bool = False,
-    index_procs: Iterable[IndexAdjuster[DBIndex]] = (),
-    read_procs: Iterable[Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]] = (),
-    write_procs: Iterable[
-        Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]
-    ] = (),
+    index_procs: Iterable[IndexProcType] = (),
+    read_procs: Iterable[ReadProcType] = (),
+    write_procs: Iterable[WriteProcType] = (),
 ) -> DBLayer:
     """Build a DB Layer.
 
@@ -63,8 +65,8 @@ def build_db_layer(
         backend=backend,
         readonly=readonly,
         frontend=DBFrontend(),
-        index_procs=list(index_procs),
-        read_procs=list(read_procs),
-        write_procs=list(write_procs),
+        index_procs=tuple(index_procs),
+        read_procs=tuple(read_procs),
+        write_procs=tuple(write_procs),
     )
     return result

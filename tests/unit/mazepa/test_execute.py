@@ -47,6 +47,15 @@ def dummy_flow():
 
 
 @flow_schema
+def dummy_flow2():
+    task1 = dummy_task.make_task(argument="x1")
+    yield task1
+    yield Dependency(task1)
+    task2 = dummy_task.make_task(argument="x2")
+    yield task2
+
+
+@flow_schema
 def empty_flow():
     yield []
 
@@ -62,6 +71,7 @@ def test_local_execution_defaults(reset_task_count):
         ),
         batch_gap_sleep_sec=0,
         max_batch_len=2,
+        do_dryrun_estimation=False,
     )
     assert TASK_COUNT == 6
 
@@ -71,6 +81,7 @@ def test_local_execution_one_flow(reset_task_count):
         dummy_flow(),
         batch_gap_sleep_sec=0,
         max_batch_len=1,
+        do_dryrun_estimation=False,
     )
     assert TASK_COUNT == 2
 
@@ -80,6 +91,7 @@ def test_local_execution_one_callable(reset_task_count) -> None:
         functools.partial(dummy_task, argument="x0"),
         batch_gap_sleep_sec=0,
         max_batch_len=1,
+        do_dryrun_estimation=False,
     )
     assert TASK_COUNT == 1
 
@@ -88,14 +100,27 @@ def test_local_execution_one_task(reset_task_count) -> None:
     execute(
         dummy_task.make_task(argument="x0"),
         batch_gap_sleep_sec=0,
+        do_dryrun_estimation=False,
         max_batch_len=1,
     )
     assert TASK_COUNT == 1
 
 
 def test_local_execution_killed_by_upkeep(reset_task_count):
-    execute(dummy_flow(), batch_gap_sleep_sec=0, max_batch_len=1, upkeep_fn=lambda _: False)
+    execute(
+        dummy_flow(),
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+        upkeep_fn=lambda _: False,
+        do_dryrun_estimation=False,
+        show_progress=False,
+    )
     assert TASK_COUNT == 0
+
+
+def test_local_execution_with_dryrun(reset_task_count):
+    execute(dummy_flow2(), max_batch_len=1, do_dryrun_estimation=True, show_progress=False)
+    assert TASK_COUNT == 2
 
 
 def make_mock_ctx_mngr(mocker) -> AbstractContextManager[Any]:
@@ -117,6 +142,7 @@ def test_local_execution_state(reset_task_count):
         execution_id="yo",
         batch_gap_sleep_sec=0,
         max_batch_len=2,
+        do_dryrun_estimation=False,
     )
     assert TASK_COUNT == 6
 
@@ -132,6 +158,7 @@ def test_local_execution_state_queue(reset_task_count):
         ),
         exec_queue=LocalExecutionQueue(debug=True),
         batch_gap_sleep_sec=0,
+        do_dryrun_estimation=False,
         max_batch_len=2,
     )
     assert TASK_COUNT == 6
@@ -143,6 +170,7 @@ def test_local_no_sleep(mocker):
         empty_flow(),
         batch_gap_sleep_sec=10,
         max_batch_len=2,
+        do_dryrun_estimation=False,
     )
     sleep_m.assert_not_called()
 
@@ -154,6 +182,7 @@ def test_non_local_sleep(mocker):
         empty_flow(),
         batch_gap_sleep_sec=10,
         max_batch_len=2,
+        do_dryrun_estimation=False,
         exec_queue=queue_m,
     )
     sleep_m.assert_called_once()

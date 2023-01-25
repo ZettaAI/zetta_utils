@@ -26,8 +26,10 @@ class WarpOperation:
     mask_value_thr: float = 0
     # preserve_black: bool = False
 
-    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+    def get_operation_name(self):
+        return f"WarpOperation[{self.mode}]"
 
+    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
         return dst_resolution
 
     def with_added_crop_pad(self, crop_pad: IntVec3D) -> WarpOperation:

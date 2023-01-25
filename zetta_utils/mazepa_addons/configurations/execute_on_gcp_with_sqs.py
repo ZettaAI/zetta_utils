@@ -12,7 +12,6 @@ logger = log.get_logger("zetta_utils")
 
 def get_gcp_with_sqs_config(
     execution_id: str,
-    worker_lease_sec: int,
     worker_image: str,
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
@@ -28,7 +27,6 @@ def get_gcp_with_sqs_config(
         "@type": "mazepa.SQSExecutionQueue",
         "name": work_queue_name,
         "outcome_queue_name": outcome_queue_name,
-        "pull_lease_sec": worker_lease_sec,
     }
     exec_queue = builder.build(exec_queue_spec)
 
@@ -56,7 +54,6 @@ def get_gcp_with_sqs_config(
 @builder.register("mazepa.execute_on_gcp_with_sqs")
 def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],
-    worker_lease_sec: int,
     worker_image: str,
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
@@ -64,6 +61,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
+    show_progress: bool = True,
+    do_dryrun_estimation: bool = True,
     local_test: bool = False,
 ):
     execution_id = mazepa.id_generation.get_unique_id(
@@ -80,7 +79,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_labels=worker_labels,
             worker_replicas=worker_replicas,
             worker_resources=worker_resources,
-            worker_lease_sec=worker_lease_sec,
             ctx_managers=ctx_managers,
         )
 
@@ -93,4 +91,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             exec_queue=exec_queue,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
+            show_progress=show_progress,
+            do_dryrun_estimation=do_dryrun_estimation,
         )

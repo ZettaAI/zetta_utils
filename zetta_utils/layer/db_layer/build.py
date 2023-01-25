@@ -9,7 +9,7 @@ from typing_extensions import TypeAlias
 from zetta_utils import builder
 from zetta_utils.layer import Layer
 
-from .. import Backend, DataProcessor, DataWithIndexProcessor, IndexAdjuster
+from .. import Backend, JointIndexDataProcessor, Processor
 from . import ColIndex, DataT, DBFrontend, DBIndex, RowDataT, ValueT
 
 DBLayer: TypeAlias = Layer[
@@ -34,8 +34,8 @@ DBLayer: TypeAlias = Layer[
     DataT,
 ]
 
-IndexProcType = IndexAdjuster[DBIndex]
-ReadProcType = Union[DataProcessor[DataT], DataWithIndexProcessor[DataT, DBIndex]]
+IndexProcType = Processor[DBIndex]
+ReadProcType = Union[Processor[DataT], JointIndexDataProcessor[DataT, DBIndex]]
 WriteProcType = ReadProcType
 
 

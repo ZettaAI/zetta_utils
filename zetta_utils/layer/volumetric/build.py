@@ -13,14 +13,13 @@ from zetta_utils.geometry import Vec3D
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 
-from .. import DataProcessor, DataWithIndexProcessor, IndexAdjuster
+from .. import JointIndexDataProcessor, Processor
 from . import (
+    DataResolutionInterpolator,
     UserVolumetricIndex,
     VolumetricBackend,
-    VolumetricDataInterpolator,
     VolumetricFrontend,
     VolumetricIndex,
-    VolumetricIndexResolutionAdjuster,
 )
 
 VolumetricLayer: TypeAlias = Layer[
@@ -57,12 +56,12 @@ def build_volumetric_layer(
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
     allow_slice_rounding: bool = False,
-    index_procs: Iterable[IndexAdjuster[VolumetricIndex]] = (),
+    index_procs: Iterable[Processor[VolumetricIndex]] = (),
     read_procs: Iterable[
-        DataProcessor[torch.Tensor] | DataWithIndexProcessor[torch.Tensor, VolumetricIndex]
+        Processor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
     ] = (),
     write_procs: Iterable[
-        DataProcessor[torch.Tensor] | DataWithIndexProcessor[torch.Tensor, VolumetricIndex]
+        Processor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
     ] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.
@@ -96,34 +95,17 @@ def build_volumetric_layer(
     )
 
     index_procs_final = copy.copy(list(index_procs))
+
     if data_resolution is not None:
         if interpolation_mode is None:
             raise ValueError("`data_resolution` is set, but `interpolation_mode` is not provided.")
-        resolution_adj = VolumetricIndexResolutionAdjuster(
-            resolution=data_resolution,
+        resolution_interpolator = DataResolutionInterpolator(
+            data_resolution=data_resolution,
+            interpolation_mode=interpolation_mode,
+            allow_slice_rounding=allow_slice_rounding,
         )
-        index_procs_final.insert(
-            0,
-            resolution_adj,
-        )
-        read_procs = list(read_procs)
-        read_procs.insert(
-            0,
-            VolumetricDataInterpolator(
-                interpolation_mode=interpolation_mode,
-                mode="read",
-                allow_slice_rounding=allow_slice_rounding,
-            ),
-        )
-        write_procs = list(write_procs)
-        write_procs.insert(
-            -1,
-            VolumetricDataInterpolator(
-                interpolation_mode=interpolation_mode,
-                mode="write",
-                allow_slice_rounding=allow_slice_rounding,
-            ),
-        )
+        read_procs = [resolution_interpolator] + list(read_procs)
+        write_procs = [resolution_interpolator] + list(write_procs)
 
     result = VolumetricLayer(
         backend=backend,

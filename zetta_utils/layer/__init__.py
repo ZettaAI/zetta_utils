@@ -2,11 +2,9 @@ from .backend_base import Backend
 from .frontend_base import Frontend
 
 from .tools_base import (
-    DataWithIndexProcessor,
-    IdentityIndexChunker,
-    IndexAdjuster,
+    JointIndexDataProcessor,
     IndexChunker,
-    DataProcessor,
+    Processor,
 )
 
 from .layer import Layer

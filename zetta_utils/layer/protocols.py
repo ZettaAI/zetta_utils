@@ -1,6 +1,6 @@
 from typing import Any, List, Protocol, TypeVar, Union, runtime_checkable
 
-from . import DataProcessor, DataWithIndexProcessor, IndexAdjuster
+from . import JointIndexDataProcessor, Processor
 
 IndexT = TypeVar("IndexT")
 DataT = TypeVar("DataT")
@@ -8,7 +8,7 @@ DataT = TypeVar("DataT")
 
 @runtime_checkable
 class LayerWithIndexT(Protocol[IndexT]):
-    index_procs: List[IndexAdjuster[IndexT]]
+    index_procs: List[Processor[IndexT]]
 
     def read(self, idx_user: IndexT) -> Any:
         ...
@@ -25,18 +25,18 @@ class LayerWithIndexT(Protocol[IndexT]):
 
 @runtime_checkable
 class LayerWithIndexDataT(Protocol[IndexT, DataT]):
-    index_procs: List[IndexAdjuster[IndexT]]
+    index_procs: List[Processor[IndexT]]
     read_procs: List[
         Union[
-            DataProcessor[DataT],
-            DataWithIndexProcessor[DataT, IndexT],
+            Processor[DataT],
+            JointIndexDataProcessor[DataT, IndexT],
         ]
     ]
 
     write_procs: List[
         Union[
-            DataProcessor[DataT],
-            DataWithIndexProcessor[DataT, IndexT],
+            Processor[DataT],
+            JointIndexDataProcessor[DataT, IndexT],
         ]
     ]
 

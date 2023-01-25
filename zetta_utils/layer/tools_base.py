@@ -1,44 +1,37 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Generic, Iterable, Protocol, TypeVar
-
-import attrs
+from typing import Generic, Iterable, Literal, Protocol, TypeVar
 
 RawIndexT = TypeVar("RawIndexT")
 IndexT = TypeVar("IndexT")
 DataT = TypeVar("DataT")
+T = TypeVar("T")
 
 
-class IndexAdjuster(Protocol[IndexT]):
-    def __call__(self, idx: IndexT) -> IndexT:
+class Processor(Protocol[T]):
+    def __call__(self, inputval: T) -> T:
         ...
 
 
-class DataProcessor(Protocol[DataT]):
-    def __call__(self, idx: DataT) -> DataT:
-        ...
-
-
-class DataWithIndexProcessor(ABC, Generic[DataT, IndexT]):
+class JointIndexDataProcessor(ABC, Generic[DataT, IndexT]):
     @abstractmethod
-    def __call__(
+    def process_index(
+        self,
+        idx: IndexT,
+        mode: Literal["read", "write"],
+    ) -> IndexT:
+        ...
+
+    @abstractmethod
+    def process_data(
         self,
         data: DataT,
-        idx: IndexT,
-        idx_proced: IndexT,
+        mode: Literal["read", "write"],
     ) -> DataT:
-        """
-        Modifies data given both original and adjusted indexes
-        """
+        ...
 
 
 class IndexChunker(Protocol[IndexT]):
     def __call__(self, idx: IndexT) -> Iterable[IndexT]:
         ...
-
-
-@attrs.frozen
-class IdentityIndexChunker(Generic[IndexT]):
-    def __call__(self, idx: IndexT) -> Iterable[IndexT]:  # pragma: no cover # identity
-        return [idx]

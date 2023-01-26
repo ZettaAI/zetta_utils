@@ -11,15 +11,15 @@ env:
   SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
-  strategy:
-    matrix:
-      os:
-        - ubuntu-latest
-      python-version:
-        - "3.9"
-        - "3.10"
-        - "3.11"
   pytest:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -65,6 +65,14 @@ jobs:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
   pylint-isort:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -99,6 +107,14 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --check-only --df --verbose --profile black .
   mypy:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -131,6 +147,14 @@ jobs:
         run: mypy .
 
   test_docs:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

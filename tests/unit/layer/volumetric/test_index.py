@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
+from __future__ import annotations
+
 import pytest
 
 from zetta_utils.geometry import BBox3D, Vec3D

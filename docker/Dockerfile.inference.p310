@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND="noninteractive"
 RUN apt-get update \
   && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common \
   && add-apt-repository ppa:deadsnakes/ppa -y \
-  && apt-get install -y --no-install-recommends python3.10 python3.10-devpython3.10-dev python3-pip  \
+  && apt-get install -y --no-install-recommends python3.10 python3.10-dev python3-pip  \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \
   && apt-get install -y python3.10-distutils \
   && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \

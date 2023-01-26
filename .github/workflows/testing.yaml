@@ -11,8 +11,16 @@ env:
   SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
+  strategy:
+    matrix:
+      os:
+        - ubuntu-latest
+      python-version:
+        - "3.9"
+        - "3.10"
+        - "3.11"
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -33,7 +41,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Setup Go
@@ -57,7 +65,7 @@ jobs:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
   pylint-isort:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -78,7 +86,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -91,7 +99,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --check-only --df --verbose --profile black .
   mypy:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -112,7 +120,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -123,7 +131,7 @@ jobs:
         run: mypy .
 
   test_docs:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -146,7 +154,7 @@ jobs:
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import os
 from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Iterable, Optional, Union
 
@@ -8,6 +9,25 @@ from zetta_utils import builder, log, mazepa
 from zetta_utils.mazepa_addons import resource_allocation
 
 logger = log.get_logger("zetta_utils")
+
+REQUIRED_ENV_VARS: list[str] = [
+    # "GRAFANA_CLOUD_ACCESS_KEY",
+    "ZETTA_USER",
+    "ZETTA_PROJECT",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "WANDB_API_KEY",
+]
+
+
+def _ensure_required_env_vars():
+    missing_vars = set()
+    for e in REQUIRED_ENV_VARS:
+        if e not in os.environ:
+            missing_vars.add(e)
+
+    if len(missing_vars) != 0:
+        raise RuntimeError(f"Missing the following required environment variables: {missing_vars}")
 
 
 def get_gcp_with_sqs_config(
@@ -38,14 +58,7 @@ def get_gcp_with_sqs_config(
             replicas=worker_replicas,
             labels=worker_labels,
             resources=worker_resources,
-            share_envs=[
-                "GRAFANA_CLOUD_ACCESS_KEY",
-                "ZETTA_USER",
-                "ZETTA_PROJECT",
-                "AWS_ACCESS_KEY_ID",
-                "AWS_SECRET_ACCESS_KEY",
-                "WANDB_API_KEY",
-            ],
+            share_envs=REQUIRED_ENV_VARS,
         )
     )
     return exec_queue, ctx_managers
@@ -65,6 +78,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
 ):
+    _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )

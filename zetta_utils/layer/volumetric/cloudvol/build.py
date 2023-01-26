@@ -10,7 +10,7 @@ from zetta_utils import builder
 from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.tensor_ops import InterpolationMode
 
-from ... import JointIndexDataProcessor, Processor
+from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
 from . import CVBackend, InfoExistsModes, PrecomputedInfoSpec
 
@@ -30,16 +30,16 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_chunk_size: Optional[IntVec3D] = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
-    index_procs: Iterable[Processor[VolumetricIndex]] = (),
+    index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
         Union[
-            Processor[torch.Tensor],
+            DataProcessor[torch.Tensor],
             JointIndexDataProcessor[torch.Tensor, VolumetricIndex],
         ]
     ] = (),
     write_procs: Iterable[
         Union[
-            Processor[torch.Tensor],
+            DataProcessor[torch.Tensor],
             JointIndexDataProcessor[torch.Tensor, VolumetricIndex],
         ]
     ] = (),

@@ -4,7 +4,8 @@ from .frontend_base import Frontend
 from .tools_base import (
     JointIndexDataProcessor,
     IndexChunker,
-    Processor,
+    DataProcessor,
+    IndexProcessor,
 )
 
 from .layer import Layer

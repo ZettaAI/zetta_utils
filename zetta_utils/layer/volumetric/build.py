@@ -13,7 +13,7 @@ from zetta_utils.geometry import Vec3D
 from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 
-from .. import JointIndexDataProcessor, Processor
+from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from . import (
     DataResolutionInterpolator,
     UserVolumetricIndex,
@@ -56,12 +56,12 @@ def build_volumetric_layer(
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
     allow_slice_rounding: bool = False,
-    index_procs: Iterable[Processor[VolumetricIndex]] = (),
+    index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
-        Processor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+        DataProcessor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
     ] = (),
     write_procs: Iterable[
-        Processor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+        DataProcessor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
     ] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Iterable
+from typing import Iterable, Union
 
 import torch
 from typeguard import typechecked
@@ -29,20 +29,20 @@ VolumetricLayer: TypeAlias = Layer[
     UserVolumetricIndex,  # UserReadIndexT0
     torch.Tensor,  # UserReadDataT0
     UserVolumetricIndex,  # UserWriteIndexT0
-    torch.Tensor | float | int,  # UserWriteDataT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
     ### DUMMIES TO FILL IN
     UserVolumetricIndex,  # UserReadIndexT0
     torch.Tensor,  # UserReadDataT0
     UserVolumetricIndex,  # UserWriteIndexT0
-    torch.Tensor | float | int,  # UserWriteDataT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
     UserVolumetricIndex,  # UserReadIndexT0
     torch.Tensor,  # UserReadDataT0
     UserVolumetricIndex,  # UserWriteIndexT0
-    torch.Tensor | float | int,  # UserWriteDataT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
     UserVolumetricIndex,  # UserReadIndexT0
     torch.Tensor,  # UserReadDataT0
     UserVolumetricIndex,  # UserWriteIndexT0
-    torch.Tensor | float | int,  # UserWriteDataT0
+    Union[torch.Tensor, float, int],  # UserWriteDataT0
 ]
 
 

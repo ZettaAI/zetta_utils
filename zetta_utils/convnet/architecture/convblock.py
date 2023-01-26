@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence as AbcSequence
-from typing import Callable, Literal, Sequence, TypeAlias, Union, overload
+from typing import Callable, Literal, Sequence, Union, overload
 
 import torch
 from torch import nn
 from typeguard import typechecked
+from typing_extensions import TypeAlias
 
 from zetta_utils import builder
 

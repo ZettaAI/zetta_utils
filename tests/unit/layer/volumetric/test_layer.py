@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
+from __future__ import annotations
+
 import pytest
 import torch
 

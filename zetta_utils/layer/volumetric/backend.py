@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring # pragma: no cover
+from __future__ import annotations
+
 from abc import abstractmethod
 from typing import Literal
 

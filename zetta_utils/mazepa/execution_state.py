@@ -229,5 +229,4 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
                     self.ongoing_children_map[flow.id_].add(e.id_)
                     self.ongoing_parent_map[e.id_] = flow.id_
                     result.append(e)
-
         return result

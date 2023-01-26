@@ -12,7 +12,14 @@ env:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -33,7 +40,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Setup Go
@@ -57,7 +64,14 @@ jobs:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
   pylint-isort:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -78,7 +92,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -91,7 +105,14 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: isort --check-only --df --verbose --profile black .
   mypy:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -112,7 +133,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -122,8 +143,15 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
 
-  test_docs:
-    runs-on: ubuntu-latest
+  test-docs:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+        python-version:
+          - "3.9"
+          - "3.10"
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -146,7 +174,7 @@ jobs:
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         uses: actions/setup-python@v2
         with:
-          python-version: 3.10.9
+          python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
@@ -158,3 +186,15 @@ jobs:
       - name: Build Docs
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run:  make -C docs html
+
+  all-checks-test:
+    runs-on: ubuntu-20.04
+    needs: [mypy, pytest, pylint-isort, test-docs]
+    if: always()
+    steps:
+      - name: Success
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failure
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1

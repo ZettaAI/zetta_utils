@@ -15,17 +15,16 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
 ]
 keywords = ["neuroscience connectomics EM"]
 license = {text = "MIT"}
 urls = {Homepage = "https://github.com/zettaai/zetta_utils"}
-requires-python = ">= 3.8"
+requires-python = ">3.8,<3.11"
 dependencies = [
     "attrs >= 21.3",
-    "typeguard @ git+https://github.com/ZettaAI/typeguard.git",
+    "typeguard @ git+https://github.com/agronholm/typeguard.git",
     "cachetools >= 5.2.0",
     "fsspec >= 2022.8.2",
     "rich >= 12.6.0",

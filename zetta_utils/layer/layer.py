@@ -9,7 +9,7 @@ import attrs
 
 from zetta_utils import builder
 
-from . import Backend, Frontend, JointIndexDataProcessor, Processor
+from . import Backend, DataProcessor, Frontend, IndexProcessor, JointIndexDataProcessor
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
@@ -84,13 +84,13 @@ class Layer(
     ]
     readonly: bool = False
 
-    index_procs: tuple[Processor[BackendIndexT], ...] = ()
+    index_procs: tuple[IndexProcessor[BackendIndexT], ...] = ()
     read_procs: tuple[
-        Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
+        Union[DataProcessor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
         ...,
     ] = ()
     write_procs: tuple[
-        Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
+        Union[DataProcessor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
         ...,
     ] = ()
 
@@ -131,18 +131,18 @@ class Layer(
 
         for e in self.read_procs:
             if isinstance(e, JointIndexDataProcessor):
-                idx_proced = e.process_index(idx_proced, mode="read")
+                idx_proced = e.process_index(idx=idx_proced, mode="read")
 
         data_backend = self.backend.read(idx=idx_proced)
 
         data_proced = data_backend
         for e in self.read_procs:
             if isinstance(e, JointIndexDataProcessor):
-                data_proced = e.process_data(data_proced, mode="read")
+                data_proced = e.process_data(data=data_proced, mode="read")
             else:
-                data_proced = e(data_proced)
+                data_proced = e(data=data_proced)
 
-        data_user = self.frontend.convert_read_data(idx_user, data_proced)
+        data_user = self.frontend.convert_read_data(idx_user=idx_user, data=data_proced)
         return data_user
 
     @overload
@@ -187,7 +187,7 @@ class Layer(
             if isinstance(e, JointIndexDataProcessor):
                 data_proced = e.process_data(data_proced, mode="write")
             else:
-                data_proced = e(data_proced)
+                data_proced = e(data=data_proced)
         self.backend.write(idx=idx_proced, data=data_proced)
 
     @property
@@ -293,13 +293,17 @@ class Layer(
 
     def with_procs(
         self,
-        index_procs: Iterable[Processor[BackendIndexT]] | None = None,
+        index_procs: Iterable[IndexProcessor[BackendIndexT]] | None = None,
         read_procs: Iterable[
-            Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]]
+            Union[
+                DataProcessor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]
+            ]
         ]
         | None = None,
         write_procs: Iterable[
-            Union[Processor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]]
+            Union[
+                DataProcessor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]
+            ]
         ]
         | None = None,
     ):

@@ -9,8 +9,13 @@ DataT = TypeVar("DataT")
 T = TypeVar("T")
 
 
-class Processor(Protocol[T]):
-    def __call__(self, inputval: T) -> T:
+class DataProcessor(Protocol[T]):
+    def __call__(self, data: T) -> T:
+        ...
+
+
+class IndexProcessor(Protocol[T]):
+    def __call__(self, idx: T) -> T:
         ...
 
 

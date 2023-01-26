@@ -34,9 +34,9 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
     offset: Vec3D
     resolution: Vec3D
 
-    def __call__(self, inputval: VolumetricIndex) -> VolumetricIndex:
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
-            idx=inputval,
+            idx=idx,
             offset=self.offset,
             resolution=self.resolution,
         )

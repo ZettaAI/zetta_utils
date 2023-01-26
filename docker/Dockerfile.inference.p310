@@ -4,7 +4,7 @@ FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update \
-  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common \
+  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common unixodbc-dev \
   && add-apt-repository ppa:deadsnakes/ppa -y \
   && apt-get install -y --no-install-recommends python3.10 python3.10-dev python3-pip  \
   && update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1 \

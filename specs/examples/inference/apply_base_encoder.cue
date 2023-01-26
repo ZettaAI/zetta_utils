@@ -15,14 +15,14 @@
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_x60_p39"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_p310_x5"
 worker_replicas: 1
 
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "build_chunked_apply_flow"

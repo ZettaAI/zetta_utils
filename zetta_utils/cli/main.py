@@ -12,7 +12,7 @@ logger = log.get_logger("zetta_utils")
 
 
 @click.group()
-@click.option("-v", "--verbose", count=True)
+@click.option("-v", "--verbose", count=True, default=2)
 @click.option(
     "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
 )
@@ -28,9 +28,9 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
         zetta_utils.load_training_modules()
 
     verbosity_map = {
-        0: "WARN",
-        1: "INFO",
-        2: "DEBUG",
+        1: "WARN",
+        2: "INFO",
+        3: "DEBUG",
     }
 
     verbose = min(verbose, 2)

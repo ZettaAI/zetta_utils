@@ -1,3 +1,4 @@
+from . import common
 from .compute_alignment_quality import compute_alignment_quality
 from .. import ComputeFieldOpProtocol
 from .compute_field_flow import ComputeFieldFlowSchema, build_compute_field_flow

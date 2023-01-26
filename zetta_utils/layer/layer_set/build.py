@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring
+from __future__ import annotations
+
 from typing import Any, Dict, Iterable, Union
 
 from typeguard import typechecked

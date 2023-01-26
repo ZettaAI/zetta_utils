@@ -143,7 +143,7 @@ jobs:
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
         run: mypy .
 
-  test_docs:
+  test-docs:
     strategy:
       matrix:
         os:
@@ -186,3 +186,15 @@ jobs:
       - name: Build Docs
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
         run:  make -C docs html
+
+  all-checks-test:
+    runs-on: ubuntu-20.04
+    needs: [mypy, pytest, pylint-isort, test-docs]
+    if: always()
+    steps:
+      - name: Success
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Failure
+        if: ${{ contains(needs.*.result, 'failure') }}
+        run: exit 1

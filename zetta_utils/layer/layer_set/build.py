@@ -7,7 +7,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .. import JointIndexDataProcessor, Layer, Processor
+from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from . import LayerSetBackend, LayerSetFrontend, LayerSetIndex, UserLayerSetIndex
 
 LayerSet = Layer[
@@ -42,12 +42,16 @@ LayerSet = Layer[
 def build_layer_set(
     layers: Dict[str, Layer],
     readonly: bool = False,
-    index_procs: Iterable[Processor[LayerSetIndex]] = (),
+    index_procs: Iterable[IndexProcessor[LayerSetIndex]] = (),
     read_procs: Iterable[
-        Union[Processor[Dict[str, Any]], JointIndexDataProcessor[Dict[str, Any], LayerSetIndex]]
+        Union[
+            DataProcessor[Dict[str, Any]], JointIndexDataProcessor[Dict[str, Any], LayerSetIndex]
+        ]
     ] = (),
     write_procs: Iterable[
-        Union[Processor[Dict[str, Any]], JointIndexDataProcessor[Dict[str, Any], LayerSetIndex]]
+        Union[
+            DataProcessor[Dict[str, Any]], JointIndexDataProcessor[Dict[str, Any], LayerSetIndex]
+        ]
     ] = (),
 ) -> LayerSet:
     """Build a layer representing a set of layers given as input.

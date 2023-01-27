@@ -6,8 +6,7 @@ import logging
 import os
 import pickle
 from contextlib import contextmanager
-from contextvars import ContextVar
-from typing import Optional
+from typing import Any
 
 import attr
 import attrs
@@ -123,16 +122,23 @@ ENV_CTX_VARS = [
     "my_pod_ip",
     "my_pod_service_account",
 ]
-CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_CTX_VARS}
+# TODO: contextvars can't be `dill`-ed
+# from contextvars import ContextVar
+# CTX_VARS = {k: ContextVar[Optional[str]](k, default=None) for k in ENV_CTX_VARS}
+CTX_VARS: dict[str, Any] = {k: None for k in ENV_CTX_VARS}
 
 
 def set_logging_tag(name, value):
-    CTX_VARS[name].set(value)
+    CTX_VARS[name] = value
 
 
 @contextmanager
 def logging_tag_ctx(key, value):
-    old_value = CTX_VARS[key].get()
+    if key in CTX_VARS:
+        old_value = CTX_VARS[key]
+    else:
+        old_value = None
+
     set_logging_tag(key, value)
     yield
     set_logging_tag(key, old_value)

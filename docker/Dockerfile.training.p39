@@ -21,10 +21,9 @@ RUN apt-get update \
   && tar -xzvf cue_v0.4.3_linux_amd64.tar.gz  \
   && cp cue /bin/
 
-ADD pyproject.toml /opt/zetta_utils/
-ADD setup.cfg /opt/zetta_utils/
-WORKDIR /opt/zetta_utils
 ENV PYTHONPATH /opt/zetta_utils
-
-RUN pip install -e '.[mazepa,tensor-ops,cli,alignment,cloudvol,training]'
+WORKDIR /opt/zetta_utils
+ADD pyproject.toml /opt/zetta_utils/
+RUN pip install '.[all]'
 COPY . /opt/zetta_utils/
+RUN zetta --help

@@ -1,6 +1,6 @@
 [build-system]
 requires = [
-    "setuptools < 64.0.0",
+    "setuptools >= 66.0.1",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
@@ -88,7 +88,7 @@ mazepa-addons = [
     "kubernetes >= 25.3.0",
 ]
 training = [
-    "zetta_utils[tensor_ops,cloudvol,convnet]",
+    "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
     "torch == 1.12.1", # mypy error on newer
     "pytorch-lightning == 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",

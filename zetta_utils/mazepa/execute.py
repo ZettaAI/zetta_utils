@@ -7,10 +7,10 @@ from typing import Callable, Optional, Union
 
 import attrs
 
+from zetta_utils import log
 from zetta_utils.common import ComparablePartial
-from zetta_utils.log import get_logger
 
-from . import Flow, Task, ctx_vars, dryrun, seq_flow
+from . import Flow, Task, dryrun, seq_flow
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
@@ -18,7 +18,7 @@ from .progress_tracker import progress_ctx_mngr
 from .task_outcome import TaskStatus
 from .tasks import _TaskableOperation
 
-logger = get_logger("mazepa")
+logger = log.get_logger("mazepa")
 
 
 @attrs.mutable
@@ -66,46 +66,48 @@ def execute(
     else:
         execution_id_final = execution_id
 
-    ctx_vars.execution_id.set(execution_id_final)
-    logger.debug(f"Starting execution '{execution_id_final}'")
+    with log.logging_tag_ctx("execution_id", execution_id_final):
+        logger.debug(f"Starting execution '{execution_id_final}'")
 
-    if isinstance(target, ExecutionState):
-        state = target
-        logger.debug(f"Loaded execution state {state}.")
-    else:
-        if isinstance(target, Task):
-            flows = [seq_flow([target])]
-        elif isinstance(target, Flow):
-            flows = [target]
-        else:  # isinstance(target, (ComparablePartial, Callable)):
-            task = _TaskableOperation(fn=target).make_task()
-            flows = [seq_flow([task])]
+        if isinstance(target, ExecutionState):
+            state = target
+            logger.debug(f"Loaded execution state {state}.")
+        else:
+            if isinstance(target, Task):
+                flows = [seq_flow([target])]
+            elif isinstance(target, Flow):
+                flows = [target]
+            else:  # isinstance(target, (ComparablePartial, Callable)):
+                task = _TaskableOperation(fn=target).make_task()
+                flows = [seq_flow([task])]
 
-        state = state_constructor(ongoing_flows=flows, raise_on_failed_task=raise_on_failed_task)
-        logger.debug(f"Built initial execution state {state}.")
+            state = state_constructor(
+                ongoing_flows=flows, raise_on_failed_task=raise_on_failed_task
+            )
+            logger.debug(f"Built initial execution state {state}.")
 
-    if exec_queue is not None:
-        exec_queue_built = exec_queue
-    else:
-        exec_queue_built = LocalExecutionQueue(debug=True)
+        if exec_queue is not None:
+            exec_queue_built = exec_queue
+        else:
+            exec_queue_built = LocalExecutionQueue(debug=True)
 
-    logger.debug(f"STARTING: execution of {target}.")
-    start_time = time.time()
+        logger.debug(f"STARTING: execution of {target}.")
+        start_time = time.time()
 
-    _execute_from_state(
-        execution_id=execution_id_final,
-        state=state,
-        exec_queue=exec_queue_built,
-        max_batch_len=max_batch_len,
-        batch_gap_sleep_sec=batch_gap_sleep_sec,
-        upkeep_fn=upkeep_fn,
-        do_dryrun_estimation=do_dryrun_estimation,
-        show_progress=show_progress,
-    )
+        _execute_from_state(
+            execution_id=execution_id_final,
+            state=state,
+            exec_queue=exec_queue_built,
+            max_batch_len=max_batch_len,
+            batch_gap_sleep_sec=batch_gap_sleep_sec,
+            upkeep_fn=upkeep_fn,
+            do_dryrun_estimation=do_dryrun_estimation,
+            show_progress=show_progress,
+        )
 
-    end_time = time.time()
-    logger.debug(f"DONE: mazepa execution of {target}.")
-    logger.info(f"Total execution time: {end_time - start_time:.1f}secs")
+        end_time = time.time()
+        logger.debug(f"DONE: mazepa execution of {target}.")
+        logger.info(f"Total execution time: {end_time - start_time:.1f}secs")
 
 
 def _execute_from_state(

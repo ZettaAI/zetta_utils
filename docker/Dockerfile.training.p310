@@ -26,5 +26,9 @@ ADD setup.cfg /opt/zetta_utils/
 WORKDIR /opt/zetta_utils
 ENV PYTHONPATH /opt/zetta_utils
 
-RUN pip install -e '.[mazepa,tensor-ops,cli,alignment,cloudvol,training]'
+ENV PYTHONPATH /opt/zetta_utils
+WORKDIR /opt/zetta_utils
+ADD pyproject.toml /opt/zetta_utils/
+RUN pip install '.[all]'
 COPY . /opt/zetta_utils/
+RUN zetta --help

@@ -17,7 +17,7 @@ def deserialize(s):  # pragma: no cover
         result = dill.loads(zlib.decompress(codecs.decode(s.encode(), "base64")))
     except MazepaException as e:
         raise e
-    except e:
+    except Exception as e:
         raise RuntimeError(
             "Encountered an error during desearilization, indicating a mismatch "
             "between serialization and deserialization environments. "

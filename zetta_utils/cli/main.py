@@ -56,10 +56,10 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
 def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
-        assert str_spec is None, "Exectly one of `path` and `str_spec` must be provided."
+        assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
         spec = zetta_utils.parsing.cue.load(path)
     else:
-        assert str_spec is not None, "Exectly one of `path` and `str_spec` must be provided."
+        assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
         spec = zetta_utils.parsing.cue.loads(str_spec)
 
     os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)

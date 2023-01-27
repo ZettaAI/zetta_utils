@@ -32,7 +32,7 @@ class InjectingFilter(logging.Filter):
 
     def filter(self, record):
         for k in ["zetta_user", "zetta_project"]:
-            value = CTX_VARS[k].get()
+            value = CTX_VARS[k]
             if LOKI_HANDLER is not None:
                 LOKI_HANDLER.emitter.tags[k] = value
             setattr(record, k, value)

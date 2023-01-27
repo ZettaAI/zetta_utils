@@ -26,14 +26,13 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
     else:
         assert load_mode == "training"
         zetta_utils.load_training_modules()
-
     verbosity_map = {
         1: "WARN",
         2: "INFO",
         3: "DEBUG",
     }
 
-    verbose = min(verbose, 2)
+    verbose = min(verbose, 3)
     log.set_verbosity(verbosity_map[verbose])
     log.configure_logger()
 

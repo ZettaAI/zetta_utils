@@ -19,10 +19,30 @@ boto3.setup_default_session()
 builder.register("mazepa.SQSExecutionQueue")(SQSExecutionQueue)
 
 
+def success_fn():
+    return "Success"
+
+
+def runtime_error_fn():
+    raise RuntimeError
+
+
+def sleep_0p1_fn():
+    time.sleep(0.1)
+
+
+def sleep_1p5_fn():
+    time.sleep(1.5)
+
+
+def sleep_5_fn():
+    time.sleep(5)
+
+
 def test_push_tasks_exc(mocker):
     mocker.patch("taskqueue.TaskQueue", lambda *args, **kwargs: mocker.MagicMock())
     sqseq = SQSExecutionQueue("q", outcome_queue_name=None)
-    task = Task(lambda: "outcome")
+    task = Task(success_fn)
     with pytest.raises(RuntimeError):
         sqseq.push_tasks([task])
 
@@ -177,7 +197,7 @@ def test_task_upkeep(queue_with_worker) -> None:
         outcome_queue_name=outcome_queue_name,
     )
     task = _TaskableOperation(
-        lambda: exec("import time; time.sleep(1.5);"),
+        sleep_1p5_fn,
         upkeep_interval_sec=0.1,
     ).make_task()
     queue.push_tasks([task])
@@ -200,10 +220,10 @@ def test_execution(work_queue, outcome_queue):
         insertion_threads=0,
     )
     tasks = [
-        _TaskableOperation(lambda: "Success").make_task(),
-        _TaskableOperation(lambda: "Success").make_task(),
+        _TaskableOperation(success_fn).make_task(),
+        _TaskableOperation(success_fn).make_task(),
     ]
-    failing_task = _TaskableOperation(lambda: exec("raise(Exception())")).make_task()
+    failing_task = _TaskableOperation(runtime_error_fn).make_task()
     tasks.append(failing_task)
     queue.push_tasks(tasks)
     tasks[0]()
@@ -224,10 +244,7 @@ def test_task_upkeep_finish(queue_with_worker) -> None:
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=2,
     )
-    task = _TaskableOperation(
-        lambda: exec("import time; time.sleep(0.1)"),
-        # max_retry=1,
-    ).make_task()
+    task = _TaskableOperation(sleep_0p1_fn).make_task()
     task.upkeep_settings.interval_sec = 0.5
     queue.push_tasks([task])
     time.sleep(3.0)
@@ -246,9 +263,7 @@ def test_cancelling_worker(queue_with_cancelling_worker) -> None:
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=2,
     )
-    task: mazepa.Task = _TaskableOperation(
-        lambda: exec("import time; time.sleep(5);"),
-    ).make_task()
+    task: mazepa.Task = _TaskableOperation(sleep_5_fn).make_task()
     queue.push_tasks([task])
     time.sleep(1.0)
     rdy_tasks = queue.pull_tasks()
@@ -268,7 +283,7 @@ def test_polling_not_done(work_queue, outcome_queue):
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=1,
     )
-    queue.push_tasks([_TaskableOperation(lambda: "Success").make_task()])
+    queue.push_tasks([_TaskableOperation(success_fn).make_task()])
     pulled_tasks = queue.pull_tasks()
     time.sleep(1.5)
     pulled_tasks = queue.pull_tasks()
@@ -285,7 +300,7 @@ def test_polling_done(work_queue, outcome_queue):
         outcome_queue_name=outcome_queue_name,
         pull_lease_sec=1,
     )
-    queue.push_tasks([_TaskableOperation(lambda: "Success").make_task()])
+    queue.push_tasks([_TaskableOperation(success_fn).make_task()])
     pulled_tasks = queue.pull_tasks()
     pulled_tasks[0]()
     time.sleep(0.1)

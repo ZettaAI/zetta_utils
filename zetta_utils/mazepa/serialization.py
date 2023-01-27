@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 import codecs
-import pickle
 import zlib
+
+import dill
 
 from .exceptions import MazepaException
 
 
 def serialize(obj):  # pragma: no cover
-    return codecs.encode(zlib.compress(pickle.dumps(obj, protocol=4)), "base64").decode()
+    return codecs.encode(zlib.compress(dill.dumps(obj, protocol=4)), "base64").decode()
 
 
 def deserialize(s):  # pragma: no cover
     try:
-        result = pickle.loads(zlib.decompress(codecs.decode(s.encode(), "base64")))
+        result = dill.loads(zlib.decompress(codecs.decode(s.encode(), "base64")))
     except MazepaException as e:
         raise e
     except Exception as e:

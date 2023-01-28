@@ -17,8 +17,8 @@
 	dst_resolution: [32, 32, 30]
 	bbox: {
 		"@type": "BBox3D.from_coords"
-		start_coord: [0, 0, 3000]
-		end_coord: [2048, 2048, 3020]
+		start_coord: [0, 0, 50]
+		end_coord: [2048, 2048, 51]
 		resolution: [256, 256, 30]
 	}
 	src: {
@@ -42,14 +42,15 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:inference_x11"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_inference_p39_x5"
 worker_resources: {
 	memory: "18560Mi"
 }
-worker_replicas:     30
-worker_lease_sec:    15
+worker_replicas:     10
 batch_gap_sleep_sec: 1.5
-local_test:          false
+
+local_test: false
+
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [

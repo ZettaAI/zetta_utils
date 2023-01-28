@@ -57,7 +57,13 @@ class Renderer:  # pylint: disable=too-few-public-methods
     def __call__(self, x):  # pragma: no cover
         x = tensor_ops.convert.to_np(x).squeeze()
         if len(x.shape) == 3:
-            return render_fld(x, **self.fld_kwargs)
+            if x.shape[0] == 2:
+                return render_fld(x, **self.fld_kwargs)
+            else:
+                x_rgb = x - x.min()
+                x_rgb = 255.0 * x_rgb / x_rgb.max()
+                x_rgb = np.transpose(x_rgb.astype(np.uint8), (1, 2, 0))
+                return render_img(x_rgb)
         if x.dtype == bool:
             return render_msk(x, **self.msk_kwargs)
         if np.issubdtype(x.dtype, np.integer):

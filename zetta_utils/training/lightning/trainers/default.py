@@ -118,7 +118,7 @@ def build_default_trainer(
     def log_config(config):
         if experiment_version.startswith("tmp"):
             logger.info(
-                "Not saving configuration for a temproary experiment {experiment_version}."
+                f"Not saving configuration for a temproary experiment {experiment_version}."
             )
         else:
             wandb_logger.experiment.config["training_configuration"] = config

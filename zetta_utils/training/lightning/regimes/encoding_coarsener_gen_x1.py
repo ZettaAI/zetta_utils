@@ -76,8 +76,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         seed_field = (
             seed_field * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
         ).field()
-
-        if ((src == self.zero_value)).bool().sum() / src.numel() > 0.5:
+        if ((src == self.zero_value)).bool().sum() / src.numel() > 0.7:
             return None
 
         equivar_rot = self.equivar_rot_deg_distr()

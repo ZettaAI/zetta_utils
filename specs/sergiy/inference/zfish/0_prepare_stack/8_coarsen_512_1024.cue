@@ -1,7 +1,7 @@
-#SRC_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0"
-#DST_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0_tmp_128nm_512nm_1.0_x0"
+#SRC_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0_tmp_128nm_512nm_1.0_x0"
+#DST_PATH: "gs://zfish_unaligned/coarse_x0/tmp/tmp_512nm_1024nm_1.0_x1"
 
-#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_128nm_512nm_1.0_x0/last.ckpt.encoder.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_512nm_1024nm_1.0_x1/last.ckpt.encoder.spec.json"
 
 #CHUNK_SIZE: [1024, 1024, 1]
 
@@ -9,8 +9,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 4]
-	end_coord: [1024, 1024, 200]
+	start_coord: [0, 0, 0]
+	end_coord: [2048, 2048, 4]
 	resolution: [512, 512, 30]
 }
 
@@ -32,7 +32,7 @@ target: {
 			model_path: #MODEL_PATH
 		}
 		crop_pad: [128, 128, 0]
-		res_change_mult: [4, 4, 1]
+		res_change_mult: [2, 2, 1]
 	}
 	chunker: {
 		"@type":      "VolumetricIndexChunker"
@@ -55,6 +55,6 @@ target: {
 	idx: {
 		"@type": "VolumetricIndex"
 		bbox:    #BBOX
-		resolution: [512, 512, 30]
+		resolution: [1024, 1024, 30]
 	}
 }

@@ -6,11 +6,11 @@ from typeguard import typechecked
 from zetta_utils import builder, convnet
 
 
-@builder.register("BaseEncoder")
+@builder.register("EncodingCoarsener")
 @typechecked
 @attrs.mutable
-class BaseEncoder:
-    # Input uint8 [   0 .. 255]
+class EncodingCoarsener:
+    # Input int8 [   -127 .. 127]
     # Output int8 Encodings [-127 .. 127]
 
     # Don't create the model during initialization for efficient serialization
@@ -18,9 +18,6 @@ class BaseEncoder:
     abs_val_thr: float = 0.005
 
     def __call__(self, src: torch.Tensor) -> torch.Tensor:
-        if (src != 0).sum() == 0:
-            return torch.zeros_like(src, dtype=torch.int8)
-
         if torch.cuda.is_available():
             device = "cuda"
         else:
@@ -28,9 +25,8 @@ class BaseEncoder:
 
         # load model during the call _with caching_
         model = convnet.utils.load_model(self.model_path, device=device, use_cache=True)
-
-        if src.dtype == torch.uint8:
-            data_in = src.float() / 255.0  # [0.0 .. 1.0]
+        if src.dtype == torch.int8:
+            data_in = src.float() / 127.0
         else:
             raise ValueError(f"Unsupported src dtype: {src.dtype}")
 

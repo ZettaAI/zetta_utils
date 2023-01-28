@@ -13,9 +13,9 @@ from PIL import Image
 from zetta_utils import builder, tensor_ops
 
 
-@builder.register("EncodingCoarsener")
+@builder.register("EncodingCoarsenerRegime")
 @attrs.mutable(eq=False)
-class EncodingCoarsener(pl.LightningModule):  # pylint: disable=too-many-ancestors
+class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     encoder: torch.nn.Module
     decoder: torch.nn.Module
     lr: float

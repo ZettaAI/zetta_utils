@@ -2,16 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import uuid
 from contextlib import ExitStack, contextmanager
 from typing import Any, Dict, Iterable, Optional, Union
-
-import attrs
 
 import kubernetes as k8s
 from zetta_utils import builder, log, mazepa
 
-from .tracker import ExecutionResource, get_execution_resource_db
+from .tracker import ExecutionResource, register_execution_resource
 
 logger = log.get_logger("zetta_utils")
 
@@ -221,10 +218,7 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     logger.info(f"Creating deployment `{deployment_spec['metadata']['name']}`")
     k8s_apps_v1_api.create_namespaced_deployment(body=deployment_spec, namespace="default")
 
-    resource_uuid = str(uuid.uuid4())
-    execution_db = get_execution_resource_db()
-    execution_resource = ExecutionResource(execution_id, "k8s_deployment", execution_id)
-    execution_db[resource_uuid] = attrs.asdict(execution_resource)  # type: ignore
+    register_execution_resource(ExecutionResource(execution_id, "k8s_deployment", execution_id))
 
     with ExitStack() as stack:
         for mngr in secret_ctx_mngrs:
@@ -259,10 +253,7 @@ def k8s_secret_ctx_mngr(
     logger.info(f"Creating secret `{name}`")
     k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
 
-    resource_uuid = str(uuid.uuid4())
-    execution_db = get_execution_resource_db()
-    execution_resource = ExecutionResource(execution_id, "k8s_secret", name)
-    execution_db[resource_uuid] = attrs.asdict(execution_resource)  # type: ignore
+    register_execution_resource(ExecutionResource(execution_id, "k8s_secret", name))
 
     try:
         yield

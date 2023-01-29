@@ -1,19 +1,52 @@
 import copy
-from typing import Literal
+from typing import Literal, Protocol, TypeVar
 
 import cc3d
+import einops
 import fastremap
 import numpy as np
 import scipy
 import torch
 from typeguard import typechecked
+from typing_extensions import ParamSpec
 
-from zetta_utils import builder, tensor_ops
+from zetta_utils import builder
 from zetta_utils.tensor_typing import TensorTypeVar
 
-from .common import skip_on_empty_data
+from . import convert
 
 MaskFilteringModes = Literal["keep_large", "keep_small"]
+
+P = ParamSpec("P")
+
+
+class TensorOp(Protocol[P]):
+    """
+    Protocol which defines what it means for a funciton to be a tensor_op:
+    it must take a `data` argument of TensorTypeVar type, and return a
+    tensor of the same type.
+    """
+
+    def __call__(self, data: TensorTypeVar, *args: P.args, **k: P.kwargs) -> TensorTypeVar:
+        ...
+
+
+OpT = TypeVar("OpT", bound=TensorOp)
+
+
+def skip_on_empty_data(fn: OpT) -> OpT:
+    """
+    Decorator that ensures early exit for a tensor op when `data` is 0.
+    """
+
+    def wrapped(data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
+        if (data != 0).sum() == 0:
+            result = data
+        else:
+            result = fn(data, *args, **kwargs)
+        return result
+
+    return wrapped  # type: ignore
 
 
 @builder.register("filter_cc")  # type: ignore # TODO: pyright
@@ -34,12 +67,12 @@ def filter_cc(
     :param thr:  Pixel size threshold.
     :return: Tensor with the filtered clusters removed.
     """
-    data_np = tensor_ops.convert.to_np(data)
-
+    data_np = convert.to_np(data)
     if len(data.shape) == 4:
+        # CXYZ
         assert data.shape[0] == 1
-        assert data.shape[1] == 1
-        data_np = data_np.squeeze(0).squeeze(0)
+        assert data.shape[-1] == 1
+        data_np = data_np.squeeze(0).squeeze(-1)
 
     cc_labels = cc3d.connected_components(data_np != 0)
     segids, counts = np.unique(cc_labels, return_counts=True)
@@ -54,9 +87,9 @@ def filter_cc(
     result_raw[filtered_mask == 0] = 0
 
     if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, 1))
+        result_raw = np.expand_dims(result_raw, (0, -1))
 
-    result = tensor_ops.convert.astype(result_raw, data)
+    result = convert.astype(result_raw, data)
 
     return result
 
@@ -72,8 +105,10 @@ def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
     :param width: Amount of pixels by which to coarsen.
     :return: Coarsened mask tensor.
     """
+    data_torch_cxyz = convert.to_torch(data)
 
-    data_torch = tensor_ops.convert.to_torch(data)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
     kernel = torch.ones(
         [1, 1]
         + [
@@ -88,7 +123,8 @@ def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
         result_torch = (conved >= thr).float()
 
     result_torch = (result_torch > 0).to(data_torch.dtype)
-    result = tensor_ops.convert.astype(result_torch, data)
+
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
     return result
 
 
@@ -103,12 +139,13 @@ def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
     :param iterations: Number of closing iterations.
     :return: Closed mask tensor.
     """
-    data_np = tensor_ops.convert.to_np(data)
+    data_np = convert.to_np(data)
 
     if len(data.shape) == 4:
+        # CXYZ
         assert data.shape[0] == 1
-        assert data.shape[1] == 1
-        data_np = data_np.squeeze(0).squeeze(0)
+        assert data.shape[-1] == 1
+        data_np = data_np.squeeze(0).squeeze(-1)
 
     result_raw = scipy.ndimage.binary_closing(data_np, iterations=iterations)
     # Prevent boundary erosion
@@ -119,8 +156,7 @@ def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
     result_raw = result_raw.astype(data_np.dtype)
 
     if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, 1))
+        result_raw = np.expand_dims(result_raw, (0, -1))
 
-    result = tensor_ops.convert.astype(result_raw, data)
-
+    result = convert.astype(result_raw, data) > 0
     return result

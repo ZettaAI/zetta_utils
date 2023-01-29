@@ -26,8 +26,10 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
     worst_val_sample: dict = attrs.field(init=False, factory=dict)
     worst_val_sample_idx: Optional[int] = attrs.field(init=False, default=None)
 
+    min_data_thr: float = 0.85
     equivar_weight: float = 1.0
     significance_weight: float = 0.5
+    centering_weight: float = 0.5
     equivar_rot_deg_distr: distributions.Distribution = distributions.uniform_distr(0, 360)
     equivar_shear_deg_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
     equivar_trans_px_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
@@ -76,9 +78,8 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         seed_field = (
             seed_field * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
         ).field()
-        if ((src == self.zero_value)).bool().sum() / src.numel() > 0.7:
+        if ((src == self.zero_value)).bool().sum() / src.numel() > self.min_data_thr:
             return None
-
         equivar_rot = self.equivar_rot_deg_distr()
 
         equivar_field = (
@@ -126,10 +127,15 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         )
         significance_loss = significance_loss_map[..., tissue_final_downs.squeeze() == 1].sum()
         significance_loss_map[..., tissue_final_downs.squeeze() == 0] = 0
-
-        loss = diff_loss + self.significance_weight * significance_loss
+        centering_loss = enc.sum((0, 2, 3)).abs().sum()
+        loss = (
+            diff_loss
+            + self.significance_weight * significance_loss
+            + self.centering_weight * centering_loss
+        )
         self.log(f"loss/{mode}_significance", significance_loss, on_step=True, on_epoch=True)
         self.log(f"loss/{mode}_diff", diff_loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_centering", centering_loss, on_step=True, on_epoch=True)
 
         if log_row:
             self.log_results(
@@ -151,7 +157,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
                 waned_significance=wanted_significance,
                 waned_zeros=wanted_significance == 0,
                 enc_zeros=enc.abs().mean(1) < 0.01,
-                tissue_final_downs=tissue_final_downs,
+                # tissue_final_downs=tissue_final_downs,
             )
 
         return loss

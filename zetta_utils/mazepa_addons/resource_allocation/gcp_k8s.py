@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from contextlib import ExitStack, contextmanager
 from typing import Any, Dict, Iterable, Optional, Union
 
+import attrs
+
 import kubernetes as k8s
 from zetta_utils import builder, log, mazepa
+
+from .tracker import ExecutionResource, get_execution_resource_db
 
 logger = log.get_logger("zetta_utils")
 
@@ -206,12 +211,21 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,
     )
+
+    # create secrets to be mounted into deployment first
+    secret_ctx_mngrs = [
+        k8s_secret_ctx_mngr(execution_id, k, {"value": v}) for k, v in secrets_kv.items()
+    ]
     k8s_apps_v1_api = k8s.client.AppsV1Api()  # type: ignore
 
     logger.info(f"Creating deployment `{deployment_spec['metadata']['name']}`")
     k8s_apps_v1_api.create_namespaced_deployment(body=deployment_spec, namespace="default")
 
-    secret_ctx_mngrs = [k8s_secret_ctx_mngr(k, {"value": v}) for k, v in secrets_kv.items()]
+    resource_uuid = str(uuid.uuid4())
+    execution_db = get_execution_resource_db()
+    execution_resource = ExecutionResource(execution_id, "k8s_deployment", execution_id)
+    execution_db[resource_uuid] = attrs.asdict(execution_resource)  # type: ignore
+
     with ExitStack() as stack:
         for mngr in secret_ctx_mngrs:
             stack.enter_context(mngr)
@@ -229,6 +243,7 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
 @builder.register("k8s_secret_ctx_mngr")
 @contextmanager
 def k8s_secret_ctx_mngr(
+    execution_id: str,
     name: str,
     string_data: Dict[str, str],
 ):
@@ -243,6 +258,11 @@ def k8s_secret_ctx_mngr(
     k8s_core_v1_api = k8s.client.CoreV1Api()  # type: ignore
     logger.info(f"Creating secret `{name}`")
     k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
+
+    resource_uuid = str(uuid.uuid4())
+    execution_db = get_execution_resource_db()
+    execution_resource = ExecutionResource(execution_id, "k8s_secret", name)
+    execution_db[resource_uuid] = attrs.asdict(execution_resource)  # type: ignore
 
     try:
         yield

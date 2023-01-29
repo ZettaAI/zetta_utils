@@ -14,7 +14,7 @@ def align_with_online_finetuner(
     tgt,  # (C, X, Y, Z)
     sm=100,
     num_iter=200,
-    lr=3e-1,
+    lr=5e-2,
     src_field=None,  # (C, X, Y, Z)
 ):
     assert src.shape == tgt.shape
@@ -39,25 +39,67 @@ def align_with_online_finetuner(
         tgt = tgt.cuda()
         src_field = src_field.cuda()
 
-    if src.abs().sum() == 0 or tgt.abs().sum() == 0:
+    if src.abs().sum() == 0 or tgt.abs().sum() == 0 or num_iter <= 0:
         result = src_field
     else:
+        sm_keys = {
+            "src": [
+                {
+                    "name": "src_zeros",
+                    "fm": 0,
+                    "mask_value": 0.001,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+            "tgt": [
+                {
+                    "name": "tgt_zeros",
+                    "fm": 0,
+                    "mask_value": 0.001,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+        }
+        mse_keys = {
+            "src": [
+                {
+                    "name": "src_zeros",
+                    "fm": 0,
+                    "mask_value": 0,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+            "tgt": [
+                {
+                    "name": "tgt_zeros",
+                    "fm": 0,
+                    "mask_value": 0,
+                    "binarization": {"strat": "eq", "value": 0},
+                }
+            ],
+        }
+
         with torchfields.set_identity_mapping_cache(True, clear_cache=True):
             result = metroem.finetuner.optimize_pre_post_ups(
                 src,
                 tgt,
                 src_field,
-                src_zeros=(src == 0.0),
-                tgt_zeros=(tgt == 0.0),
-                src_defects=(src == 0.0),
-                tgt_defects=(tgt == 0.0),
+                src_zeros=(src[:, 0] == 0.0).unsqueeze(1),
+                tgt_zeros=(tgt[:, 0] == 0.0).unsqueeze(1),
+                src_defects=torch.zeros((src.shape[0], 1, src.shape[1], src.shape[2])),
+                tgt_defects=torch.zeros((src.shape[0], 1, src.shape[1], src.shape[2])),
                 crop=2,
                 num_iter=num_iter,
                 lr=lr,
                 sm=sm,
+                l2=0,
+                wd=0,
+                max_bad=5,
                 verbose=True,
                 opt_res_coarsness=0,
                 normalize=True,
+                sm_keys_to_apply=sm_keys,
+                mse_keys_to_apply=mse_keys,
             )
     result = einops.rearrange(result, "1 C X Y -> C X Y 1")
     result = result.detach().to(orig_device)

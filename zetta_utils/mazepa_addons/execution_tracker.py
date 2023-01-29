@@ -11,7 +11,7 @@ EXECUTION_DB = build_db_layer(
 )
 
 
-def update_execution_info(execution_id: str) -> bool:
+def update_execution_info(execution_id: str) -> bool:  # pragma: no cover
     execution_info: RowDataT = {
         "zetta_user": str(os.environ["ZETTA_USER"]),
         "heartbeat": time.time(),

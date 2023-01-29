@@ -171,7 +171,7 @@ class BuilderPartial:
     _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
 
     @property
-    def name(self):
+    def name(self):  # pragma: no cover # pretty print
         if SPECIAL_KEYS["type"] in self.spec:
             return self.spec[SPECIAL_KEYS["type"]]
         else:

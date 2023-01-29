@@ -1,5 +1,5 @@
-#SRC_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0"
-#DST_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0_tmp_128nm_512nm_1.0_x0"
+#SRC_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
+#DST_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
 
 #MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_128nm_512nm_1.0_x0/last.ckpt.encoder.spec.json"
 
@@ -9,13 +9,13 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 4]
-	end_coord: [1024, 1024, 200]
+	start_coord: [0, 0, 10]
+	end_coord: [1024, 1024, 20]
 	resolution: [512, 512, 30]
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x14"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x25"
 worker_replicas: 10
 worker_resources: {
 	"nvidia.com/gpu": "1"

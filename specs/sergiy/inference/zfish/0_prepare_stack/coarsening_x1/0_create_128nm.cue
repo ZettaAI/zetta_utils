@@ -1,7 +1,7 @@
 #SRC_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
 #DST_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
 
-#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_debug_4x_x9_signi0.5/last.ckpt.encoder.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/touch_up_x0_32nm_128nm_x1/last.ckpt.encoder.spec.json"
 
 #CHUNK_SIZE: [1024, 1024, 1]
 
@@ -9,8 +9,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 10]
-	end_coord: [1024, 1024, 20]
+	start_coord: [0, 0, 20]
+	end_coord: [1024, 1024, 200]
 	resolution: [512, 512, 30]
 }
 

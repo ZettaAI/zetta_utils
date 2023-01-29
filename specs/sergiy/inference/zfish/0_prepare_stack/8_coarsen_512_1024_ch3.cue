@@ -1,7 +1,7 @@
-#SRC_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
-#DST_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
+#SRC_PATH: "gs://zfish_unaligned/coarse_x0/tmp/coarsne_debug_x0_tmp_128nm_512nm_1.0_x0"
+#DST_PATH: "gs://zfish_unaligned/coarse_x0/tmp/tmp_512nm_1024nm_1.0_ch3_x1"
 
-#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_debug_4x_x9_signi0.5/last.ckpt.encoder.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/coarsener_gen_x1/tmp_512nm_1024nm_1.0_ch3_x1/last.ckpt.encoder.spec.json"
 
 #CHUNK_SIZE: [1024, 1024, 1]
 
@@ -9,19 +9,19 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 10]
-	end_coord: [1024, 1024, 20]
+	start_coord: [0, 0, 0]
+	end_coord: [2048, 2048, 10]
 	resolution: [512, 512, 30]
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x25"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x14"
 worker_replicas: 10
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
+local_test: true
 
 target: {
 	"@type": "build_chunked_apply_flow"
@@ -32,7 +32,7 @@ target: {
 			model_path: #MODEL_PATH
 		}
 		crop_pad: [128, 128, 0]
-		res_change_mult: [4, 4, 1]
+		res_change_mult: [2, 2, 1]
 	}
 	chunker: {
 		"@type":      "VolumetricIndexChunker"
@@ -48,13 +48,14 @@ target: {
 		info_reference_path: #SRC_PATH
 		info_chunk_size:     #DST_INFO_CHUNK_SIZE
 		info_field_overrides: {
-			data_type: "int8"
+			data_type:    "int8"
+			num_channels: 3
 		}
 		on_info_exists: "expect_same"
 	}
 	idx: {
 		"@type": "VolumetricIndex"
 		bbox:    #BBOX
-		resolution: [128, 128, 30]
+		resolution: [1024, 1024, 30]
 	}
 }

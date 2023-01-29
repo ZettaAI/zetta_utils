@@ -1,7 +1,8 @@
-#SRC_PATH: "gs://zfish_unaligned/coarse_x0/raw_masked"
+		//#SRC_PATH: "gs://zfish_unaligned/precoarse_x0/raw_masked"
+#SRC_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
 
 //#DST_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x1"
-#DST_PATH: "gs://zfish_unaligned/coarse_x0/tmp/tmp_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x13"
+#DST_PATH: "gs://zfish_unaligned/precoarse_x0/test_x0/encodings_x1"
 
 //#MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/tmp_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0003_x11/last.ckpt.static-1.12.1+cu102-model.jit"
 #MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/tmp_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x13/last.ckpt.static-1.12.1+cu102-model.jit"
@@ -13,19 +14,19 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 0]
-	end_coord: [1024, 1024, 10]
+	start_coord: [0, 0, 10]
+	end_coord: [1024, 1024, 200]
 	resolution: [512, 512, 30]
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x12"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x21"
 worker_replicas: 10
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "build_chunked_apply_flow"

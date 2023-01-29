@@ -8,8 +8,11 @@ import attrs
 
 from zetta_utils import builder, mazepa
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndexTranslator, VolumetricLayer
-from zetta_utils.mazepa_layer_processing.common import build_interpolate_flow
+from zetta_utils.layer.volumetric import (
+    DataResolutionInterpolator,
+    VolumetricIndexTranslator,
+    VolumetricLayer,
+)
 
 from .compute_field_flow import (
     ComputeFieldFlowSchema,
@@ -43,7 +46,7 @@ class ComputeFieldStage:
 
     @property
     def input_resolution(self):
-        return self.opearation.get_input_resolution(self.dst_resolution)
+        return self.operation.get_input_resolution(self.dst_resolution)
 
 
 def _set_up_offsets(
@@ -132,16 +135,14 @@ class ComputeFieldMultistageFlowSchema:
         for i, stage in enumerate(stages):
             if i > 0 and stage.input_resolution != stages[i - 1].dst_resolution:
                 assert prev_dst is not None
-
-                yield build_interpolate_flow(
-                    chunk_size=stage.chunk_size,
-                    bbox=bbox,
-                    src=prev_dst,
-                    src_resolution=stages[i - 1].dst_resolution,
-                    dst_resolution=stage.input_resolution,
-                    mode="field",
+                prev_dst = prev_dst.with_procs(
+                    read_procs=(
+                        DataResolutionInterpolator(
+                            data_resolution=stages[i - 1].dst_resolution,
+                            interpolation_mode="field",
+                        ),
+                    )
                 )
-                yield mazepa.Dependency()
 
             if i == len(stages) - 1:
                 stage_dst = dst

@@ -42,7 +42,12 @@ class ComputeFieldOperation:
     output_crop_px: IntVec3D = attrs.field(init=False)
 
     def get_operation_name(self) -> str:
-        return f"ComputeField[{self.fn.__name__}]"
+        if hasattr(self.fn, "__name__"):
+            return f"ComputeField({self.fn.__name__})"
+        elif hasattr(self.fn, "name"):
+            return f"ComputeField({self.fn.name})"
+        else:
+            return "ComputeField"
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         return dst_resolution / self.res_change_mult
@@ -86,10 +91,10 @@ class ComputeFieldOperation:
             tgt_data_zcxy = einops.rearrange(tgt_data, "C X Y Z -> Z C X Y")
             tgt_nonz_zcxy = tgt_data_zcxy != 0
             tgt_data_warped = tgt_field_data_zcxy.field().from_pixels()(  # type: ignore
-                tgt_data_zcxy
+                tgt_data_zcxy.float()
             )
             tgt_nonz_warped = tgt_field_data_zcxy.field().from_pixels()(  # type: ignore
-                tgt_nonz_zcxy.float()
+                (tgt_nonz_zcxy != 0).float()
             )
             tgt_data_warped[tgt_nonz_warped < 0.1] = 0
             tgt_data_final = einops.rearrange(

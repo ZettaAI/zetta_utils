@@ -18,7 +18,7 @@ EXECUTION_RESOURCE_DB = build_db_layer(
 )
 
 
-@attrs.define
+@attrs.frozen
 class ExecutionResource:
     execution_id: str
     resource_type: str
@@ -26,5 +26,7 @@ class ExecutionResource:
 
 
 def register_execution_resource(resource: ExecutionResource) -> None:
-    resource_uuid = str(uuid.uuid4())
-    EXECUTION_RESOURCE_DB[resource_uuid] = attrs.asdict(resource)  # type: ignore
+    _resource = attrs.asdict(resource)
+    row_key = str(uuid.uuid4())
+    col_keys = tuple(_resource.keys())
+    EXECUTION_RESOURCE_DB[(row_key, col_keys)] = _resource

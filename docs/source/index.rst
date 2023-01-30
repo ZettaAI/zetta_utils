@@ -10,9 +10,6 @@ Welcome to ``zetta_utils`` documentation!
 ..
    **zetta_utils** is a colleciton of core components used in Zetta AI's connectomics pipeline.
 
-.. note::
-
-   This project is in pre-release stage and the APIs are subject to change.
 
 
 Getting Started
@@ -27,8 +24,16 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
 
    $ git clone git@github.com:ZettaAI/zetta_utils.git
    $ cd zetta_utils
-   $ pip install -e .
+   $ pip install '.[all]'
 
+Note that the command above would install all of the optional ``zetta_utils`` modules.
+In order to get a more barebones installation, you can specify exact modules you require in comma separated format inside brackets.
+You can refer to ``pyproject.toml`` ``project.optional-dependencies`` section for the full list of the optional modules.
+
+.. note::
+
+   If you are performing a local editable install(``pip install -e .[{modules}]``), you may want to set environment variable ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable``.
+   This is caused by a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535).
 
 If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
 It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
@@ -40,6 +45,7 @@ If you are planning to use `zetta_utils.viz` toolkit, you will need to install n
     $ curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
     $ sudo apt install -y nodejs
 
+Depending on your system, you may need to install severqal other non-python dependencies. Please refer to the provided `Dockerfiles <https://github.com/ZettaAI/zetta_utils/tree/main/docker>`_ for the comprehensive setup process.
 
 The next steps will get you up and running in no time:
 

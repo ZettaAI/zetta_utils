@@ -129,7 +129,7 @@ class Layer(
         for proc_idx in self.index_procs:
             idx_proced = proc_idx(idx_proced)
 
-        for e in self.read_procs:
+        for e in reversed(self.read_procs):
             if isinstance(e, JointIndexDataProcessor):
                 idx_proced = e.process_index(idx=idx_proced, mode="read")
 
@@ -175,7 +175,7 @@ class Layer(
 
         idx, data = self.frontend.convert_write(idx_user=idx_user, data_user=data_user)
         idx_proced = idx
-        for proc_idx in self.index_procs:
+        for proc_idx in reversed(self.index_procs):
             idx_proced = proc_idx(idx_proced)
 
         for e in self.write_procs:

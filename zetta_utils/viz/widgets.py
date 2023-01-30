@@ -29,7 +29,7 @@ def entry_loader(
     plt.show()
 
 
-def list_viz(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover
+def visualize_list(entries, grid_size=1, grid_x=0, grid_y=0, renderer=None):  # pragma: no cover
     """Interactive visualizer for a list of images.
 
     :param entries: A list of images to be visualized. Images will be squeezed before being

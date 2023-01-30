@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 import attrs
+from typeguard import typechecked
 
 from zetta_utils import builder
 
@@ -11,6 +12,7 @@ from zetta_utils import builder
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 
 
+@typechecked
 @builder.register("VolumetricIndex")
 @attrs.mutable
 class VolumetricIndex:  # pragma: no cover # pure delegation, no logic

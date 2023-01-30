@@ -5,12 +5,11 @@ from math import floor
 from typing import Literal, Optional, Sequence, cast
 
 import attrs
+from typeguard import typechecked
 
 from zetta_utils import builder
 
 from . import Vec3D
-
-# from typeguard import typechecked
 
 Slices3D = tuple[slice, slice, slice]
 EPS = 1e-4
@@ -19,7 +18,7 @@ DEFAULT_UNIT = "nm"
 Tuple2D = tuple[float, float]
 
 
-# @typechecked
+@typechecked
 @attrs.frozen()
 class BBox3D:
     """
@@ -369,7 +368,7 @@ class BBox3D:
         :param mode: Whether to ``shrink`` to the given grid (discard partial boxes) or
             to ``expand`` to the given grid(fill partial boxes).
         """
-        if len(grid_offset) != 3 or len(grid_size) != 3:
+        if len(grid_offset) != 3 or len(grid_size) != 3:  # pragma: no cover
             raise ValueError("Only 3-dimensional inputs are supported.")
 
         if mode == "shrink":

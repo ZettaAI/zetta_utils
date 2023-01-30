@@ -146,7 +146,7 @@ class BBoxStrider:
             if self.stride_start_offset is not None:
                 stride_start_offset_in_unit = self.stride_start_offset * self.resolution
             else:
-                stride_start_offset_in_unit = self.bbox.start * self.resolution
+                stride_start_offset_in_unit = self.bbox.start  # * self.resolution
             bbox_snapped = self.bbox.snapped(
                 grid_offset=stride_start_offset_in_unit,
                 grid_size=self.chunk_size_in_unit,

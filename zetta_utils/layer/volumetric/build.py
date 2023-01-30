@@ -104,8 +104,8 @@ def build_volumetric_layer(
             interpolation_mode=interpolation_mode,
             allow_slice_rounding=allow_slice_rounding,
         )
-        read_procs = list(read_procs) + [resolution_interpolator]
-        write_procs = list(write_procs) + [resolution_interpolator]
+        read_procs = [resolution_interpolator] + list(read_procs)
+        write_procs = [resolution_interpolator] + list(write_procs)
 
     result = VolumetricLayer(
         backend=backend,

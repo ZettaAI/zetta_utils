@@ -61,7 +61,11 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
             assert mode == "write"
             self.prepared_scale_factor = idx.resolution / self.data_resolution
 
-        result = VolumetricIndex(bbox=idx.bbox, resolution=self.data_resolution)
+        result = VolumetricIndex(
+            bbox=idx.bbox,
+            resolution=self.data_resolution,
+            allow_slice_rounding=idx.allow_slice_rounding,
+        )
         return result
 
     def process_data(self, data: torch.Tensor, mode: Literal["read", "write"]) -> torch.Tensor:

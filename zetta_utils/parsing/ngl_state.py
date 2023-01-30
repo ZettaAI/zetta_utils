@@ -64,9 +64,9 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BBox3D, Vec3D]]:
         ), "Annotation type not supported."
         try:
             bbox = BBox3D.from_coords(
-                annotation.point_a,
-                annotation.point_b,
-                resolution=resolution,
+                Vec3D(*annotation.point_a),
+                Vec3D(*annotation.point_b),
+                resolution=Vec3D(*resolution),
             )
             result.append(bbox)
         except AttributeError:

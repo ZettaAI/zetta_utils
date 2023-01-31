@@ -58,7 +58,7 @@ viz = [
     "zetta_utils[tensor_ops]",
     "matplotlib >= 3.5.2",
     "ipywidgets >= 7.7.0",
-    "opencv-python >= 4.5.5"
+    "opencv-python-headless >= 4.5.5"
 ]
 cloudvol = [
     "cloud-files== 4.11.0",

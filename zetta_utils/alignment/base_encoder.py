@@ -16,7 +16,7 @@ class BaseEncoder:
     # Don't create the model during initialization for efficient serialization
     model_path: str
     abs_val_thr: float = 0.005
-    uint_output: bool = True
+    uint_output: bool = False
 
     def __call__(self, src: torch.Tensor) -> torch.Tensor:
         if (src != 0).sum() == 0:

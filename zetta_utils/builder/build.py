@@ -187,10 +187,16 @@ class BuilderPartial:
         return self._built_spec_kwargs
 
     def __call__(self, *args, **kwargs):
-        fn = REGISTRY[self.spec[SPECIAL_KEYS["type"]]]
-        result = fn(
-            *args,
-            **self._get_built_spec_kwargs(),
-            **kwargs,
-        )
-        return result
+        try:
+            spec_as_str = json.dumps({**self.spec, **kwargs, "__args": args})
+        except TypeError:
+            spec_as_str = '{"error": "Unserializable Spec"}'
+
+        with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
+            fn = REGISTRY[self.spec[SPECIAL_KEYS["type"]]]
+            result = fn(
+                *args,
+                **self._get_built_spec_kwargs(),
+                **kwargs,
+            )
+            return result

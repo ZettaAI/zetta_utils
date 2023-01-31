@@ -1,5 +1,5 @@
-#SRC_PATH: "gs://zetta_lee_mouse_spinal_cord_001_image/dorsal_sections/dorsal_sections_500/affinity/minnie_mye_v2"
-#DST_PATH: "gs://sergiy_exp/aff_dsets/x0/aff"
+#SRC_PATH: "gs://sergiy_exp/aff_dsets/x0/aff"
+#DST_PATH: "gs://sergiy_exp/aff_dsets/x0/aff_bin"
 #INFO_CHUNK_SIZE: [128, 128, 1]
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
@@ -16,7 +16,7 @@ target: {
 	bbox: {
 		"@type": "BBox3D.from_coords"
 		start_coord: [1024 * 200, 1024 * 80, 200]
-		end_coord: [1024 * 205, 1024 * 85, 400]
+		end_coord: [1024 * 205, 1024 * 85, 205]
 		resolution: [4, 4, 45]
 	}
 	dst_resolution: [8, 8, 45]
@@ -29,6 +29,9 @@ target: {
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
 		info_chunk_size:     #INFO_CHUNK_SIZE
-		on_info_exists:      "overwrite"
+		info_field_overrides: {
+			"data_type": "bool"
+		}
+		on_info_exists: "overwrite"
 	}
 }

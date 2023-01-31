@@ -43,8 +43,8 @@
 #RELAXATION_RIG: 20
 //#COMPUTE FIELD DONE FOR 4 -> 25
 
-#Z_START:           158
-#Z_END:             160
+#Z_START:           128
+#Z_END:             200
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
 #BBOX: {
@@ -83,6 +83,7 @@
 	resolution: [512, 512, 30]
 }
 
+#ENC_1024NM: "gs://zfish_unaligned/coarse_x0/tmp/tmp_512nm_1024nm_1.0_x1"
 #STAGES: [
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 30]
@@ -93,8 +94,8 @@
 		}
 		tgt: src
 		fn: {
-			sm:       250
-			num_iter: 700
+			sm:       500
+			num_iter: 400
 			lr:       0.015
 		}
 		chunk_size: [2048, 2048, 1]
@@ -108,8 +109,8 @@
 		}
 		tgt: src
 		fn: {
-			sm:       250
-			num_iter: 500
+			sm:       500
+			num_iter: 400
 			lr:       0.015
 		}
 		chunk_size: [2048, 2048, 1]
@@ -123,8 +124,8 @@
 		}
 		tgt: src
 		fn: {
-			sm:       100
-			num_iter: 400
+			sm:       500
+			num_iter: 200
 			lr:       0.015
 		}
 		chunk_size: [2048, 2048, 1]
@@ -137,16 +138,16 @@
 		tgt: src
 		dst_resolution: [128, 128, 30]
 		fn: {
-			sm:       100
-			num_iter: 400
+			sm:       200
+			num_iter: 150
 		}
 		chunk_size: [2048, 2048, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 30]
 		fn: {
-			sm:       100
-			num_iter: 300
+			sm:       200
+			num_iter: 150
 		}
 		chunk_size: [2048, 2048, 1]
 	},
@@ -166,8 +167,8 @@
 		}
 		chunk_size: [2048, 2048, 1]
 	},
-
 ]
+
 #STAGE_TMPL: {
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
@@ -367,8 +368,8 @@
 							dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
 							tmp_layer_dir: "\(#FIELDS_FWD_PATH)/\(z_offset)/tmp"
 							tgt_offset: [0, 0, z_offset]
-						},
-						#WARP_FWD_FLOW,
+						}
+						//#WARP_FWD_FLOW,,,,,,,,,,,,,,,
 					]
 				},
 				{
@@ -580,7 +581,7 @@
 	target: {
 		"@type": "mazepa.seq_flow"
 		stages: [
-			//#JOINT_OFFSET_FLOW,
+			#JOINT_OFFSET_FLOW,
 			#MATCH_OFFSETS_FLOW,
 			#RELAX_FLOW,
 			#JOINT_POST_ALIGN_FLOW,

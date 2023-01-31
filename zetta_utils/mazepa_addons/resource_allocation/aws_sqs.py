@@ -4,7 +4,7 @@ import boto3
 
 from zetta_utils import builder, log
 
-from .tracker import ExecutionResource, register_execution_resource
+from .resource_tracker import ExecutionResource, register_execution_resource
 
 logger = log.get_logger("zetta_utils")
 

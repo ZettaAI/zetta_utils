@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, Optional, Union, no_type_check
 import kubernetes as k8s
 from zetta_utils import builder, log, mazepa
 
-from .tracker import ExecutionResource, register_execution_resource
+from .resource_tracker import ExecutionResource, register_execution_resource
 
 logger = log.get_logger("zetta_utils")
 

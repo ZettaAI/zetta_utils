@@ -23,7 +23,7 @@ def main():
         "-p",
         type=str,
         default="3.9",
-        choices=["3.9", "3.10"],
+        choices=["3.9"],
         help="Which python version to use for the image.",
     )
 

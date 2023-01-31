@@ -10,7 +10,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .convblock import ConvBlock, Padding
+from .convblock import ConvBlock, Padding, PaddingMode
 
 
 @builder.register("UNet")
@@ -44,6 +44,8 @@ class UNet(nn.Module):
         normalization layer is specified, and cannot be turned off.
     :param activate_last: Whether to apply activation after the last layer. Note that activation
         is included by default within and at the end of the convblocks and cannot be turned off.
+    :param padding_modes:
+        Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
     """
 
     def __init__(
@@ -60,6 +62,7 @@ class UNet(nn.Module):
         skips: dict[str, int] | None = None,
         normalize_last: bool = False,
         activate_last: bool = False,
+        padding_modes: PaddingMode | Sequence[PaddingMode] = "zeros",
     ):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
         super().__init__()
         assert len(list_num_channels) % 2 == 1
@@ -101,6 +104,7 @@ class UNet(nn.Module):
                     skips=skips,
                     normalize_last=normalize_last_[i],
                     activate_last=activate_last_[i],
+                    padding_modes=padding_modes,
                 )
             )
 

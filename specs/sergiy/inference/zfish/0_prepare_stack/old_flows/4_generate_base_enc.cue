@@ -9,13 +9,13 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 10]
-	end_coord: [1024, 1024, 50]
+	start_coord: [0, 0, 15]
+	end_coord: [1024, 1024, 20]
 	resolution: [512, 512, 30]
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x12"
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x37"
 worker_replicas: 10
 worker_resources: {
 	"nvidia.com/gpu": "1"
@@ -47,9 +47,9 @@ target: {
 		info_reference_path: #SRC_PATH
 		info_chunk_size:     #DST_INFO_CHUNK_SIZE
 		info_field_overrides: {
-			data_type: "int8"
+			data_type: "uint8"
 		}
-		on_info_exists: "expect_same"
+		on_info_exists: "overwrite"
 	}
 	idx: {
 		"@type": "VolumetricIndex"

@@ -17,7 +17,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "late_jan_cutout_x0"
+#PAIRWISE_SUFFIX: "late_jan_single_section_debug_x0_more_iter_x2_less_sm"
 
 #FOLDER:          "gs://sergiy_exp/aced/zfish/\(#PAIRWISE_SUFFIX)"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
@@ -43,8 +43,8 @@
 #RELAXATION_RIG: 20
 //#COMPUTE FIELD DONE FOR 4 -> 25
 
-#Z_START:           158
-#Z_END:             160
+#Z_START:           128
+#Z_END:             130
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
 #BBOX: {
@@ -83,6 +83,7 @@
 	resolution: [512, 512, 30]
 }
 
+#ENC_1024NM: "gs://zfish_unaligned/coarse_x0/tmp/tmp_512nm_1024nm_1.0_x1"
 #STAGES: [
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 30]
@@ -168,6 +169,7 @@
 	},
 
 ]
+
 #STAGE_TMPL: {
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
@@ -353,7 +355,7 @@
 	field: path: "\(#FIELDS_FWD_PATH)/-1"
 	dst: path:   "\(#IMGS_WARPED_PATH)/+1"
 }
-#Z_OFFSETS: [-1, -2]
+#Z_OFFSETS: [-1]
 #JOINT_OFFSET_FLOW: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
@@ -391,14 +393,6 @@
 							]
 							field: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
 							dst: path:   "\(#IMGS_WARPED_PATH)/\(z_offset)"
-						},
-						#ENCODE_FLOW_TMPL & {
-							src: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
-							dst: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
-						},
-						#MISD_FLOW_TMPL & {
-							tgt: path: "\(#WARPED_BASE_ENCS_PATH)/\(z_offset)"
-							dst: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
 						},
 					]
 				},
@@ -580,10 +574,10 @@
 	target: {
 		"@type": "mazepa.seq_flow"
 		stages: [
-			//#JOINT_OFFSET_FLOW,
-			#MATCH_OFFSETS_FLOW,
-			#RELAX_FLOW,
-			#JOINT_POST_ALIGN_FLOW,
+			#JOINT_OFFSET_FLOW,
+			//#MATCH_OFFSETS_FLOW,
+			//#RELAX_FLOW,
+			//#JOINT_POST_ALIGN_FLOW,
 		]
 	}
 }

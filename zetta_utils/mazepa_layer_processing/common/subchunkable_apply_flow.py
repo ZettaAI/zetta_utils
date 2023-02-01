@@ -130,9 +130,9 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         if processing_region % processing_chunk_size != IntVec3D(0, 0, 0):
             n_region_chunks = processing_region / processing_chunk_size
             n_region_chunks_rounded = IntVec3D(*(round(e) for e in n_region_chunks))
-            if processing_region % n_region_chunks_rounded == Vec3D(0, 0, 0):
+            if processing_region % n_region_chunks_rounded == IntVec3D(0, 0, 0):
                 rec_processing_chunk_size = IntVec3D(
-                    *(processing_region / n_region_chunks_rounded)
+                    *(processing_region // n_region_chunks_rounded)
                 )
                 rec_str = f"Recommendation for `processing_chunk_size[level]`: {rec_processing_chunk_size}"
             else:

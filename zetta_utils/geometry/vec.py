@@ -24,7 +24,7 @@ N = TypeVar("N", bound=NDType)
 T_co = TypeVar("T_co", covariant=True, bound=DType)
 
 
-class _VecND(Generic[N, T_co], abc.Sequence):
+class _VecND(Generic[N, T_co], abc.Sequence[T_co]):
     """
     The backend primitive for an N-dimensional vector. This class should not be used or
     its constructor called directly. Use `VecND`, `IntVecND` to type annotate arbitrarily

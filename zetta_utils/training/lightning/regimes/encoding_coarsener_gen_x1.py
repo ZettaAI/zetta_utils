@@ -6,6 +6,7 @@ from typing import Optional
 import attrs
 import pytorch_lightning as pl
 import torch
+import torchfields
 import wandb
 from pytorch_lightning import seed_everything
 
@@ -30,6 +31,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
     equivar_weight: float = 1.0
     significance_weight: float = 0.5
     centering_weight: float = 0.5
+    neighbor_weight: float = 100.0
     equivar_rot_deg_distr: distributions.Distribution = distributions.uniform_distr(0, 360)
     equivar_shear_deg_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
     equivar_trans_px_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
@@ -73,12 +75,14 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         return loss
 
     def compute_gen_x1_loss(self, batch: dict, mode: str, log_row: bool, sample_name: str = ""):
-        src = batch["src"]
+        assert batch["src"].shape[1] <= 2
+        src = batch["src"][:,:1,:,:]
+        tgt = src if batch["src"].shape[1] == 1 else batch["src"][:,1:2,:,:]
         seed_field = batch["field"]
         seed_field = (
             seed_field * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
         ).field()
-        if ((src == self.zero_value)).bool().sum() / src.numel() > self.min_data_thr:
+        if (((src == self.zero_value)).bool().sum() / src.numel() > self.min_data_thr) or (((tgt == self.zero_value)).bool().sum() / src.numel() > self.min_data_thr):
             return None
         equivar_rot = self.equivar_rot_deg_distr()
 
@@ -112,7 +116,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
             equivar_field.from_pixels()(torch.ones_like(src))
         )
 
-        diff_map = (src - dec).abs()
+        diff_map = (tgt - dec).abs()
         diff_loss = diff_map[tissue_final != 0].sum()
         diff_map[tissue_final == 0] = 0
         wanted_significance = torch.nn.functional.max_pool2d(
@@ -127,21 +131,29 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         )
         significance_loss = significance_loss_map[..., tissue_final_downs.squeeze() == 1].sum()
         significance_loss_map[..., tissue_final_downs.squeeze() == 0] = 0
+
+        neighbor_loss_map = (enc - torch.nn.functional.avg_pool2d(enc, kernel_size=3, stride=1, padding=1)).abs()
+        neighbor_loss_map[..., tissue_final_downs.squeeze() == 0] = 0
+        neighbor_loss = neighbor_loss_map[..., tissue_final_downs.squeeze() == 1].sum()
+
         centering_loss = enc.sum((0, 2, 3)).abs().sum()
         loss = (
             diff_loss
             + self.significance_weight * significance_loss
             + self.centering_weight * centering_loss
+            + self.neighbor_weight * neighbor_loss
         )
         self.log(f"loss/{mode}_significance", significance_loss, on_step=True, on_epoch=True)
         self.log(f"loss/{mode}_diff", diff_loss, on_step=True, on_epoch=True)
         self.log(f"loss/{mode}_centering", centering_loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_neighbor", neighbor_loss, on_step=True, on_epoch=True)
 
         if log_row:
             self.log_results(
                 mode,
                 sample_name,
                 src=src,
+                tgt=tgt,
                 src_warped=src_warped,
                 src_warped_abs=src_warped.abs(),
                 enc_warped_naive=tensor_ops.interpolate(
@@ -153,6 +165,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
                 dec=dec,
                 diff_map=diff_map,
                 significance_loss_map=significance_loss_map,
+                neighbor_loss_map=neighbor_loss_map,
                 enc_error=enc_error,
                 waned_significance=wanted_significance,
                 waned_zeros=wanted_significance == 0,

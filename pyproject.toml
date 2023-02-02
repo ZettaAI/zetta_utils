@@ -30,20 +30,20 @@ dependencies = [
     "python-logging-loki >= 0.3.1",
     "neuroglancer >= 2.32",
     "dill >= 0.3.6",
-    "requests==2.28.1", # version conflicts otherwise
-    "requests-oauthlib==1.3.1", # version conflicts otherwise
+    "requests>=2.28.1", # version conflicts otherwise
+    "requests-oauthlib>=1.3.1", # version conflicts otherwise
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
 cli = [
-    "click == 8.0.1"
+    "click >= 8.0.1"
 ]
 gcs = [
     "gcsfs >= 2022.7.1"
 ]
 tensor-typing = [
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 1.12.1", # mypy error on newer
     "numpy >= 1.23.4",
 ]
 tensor-ops = [
@@ -61,27 +61,27 @@ viz = [
     "opencv-python-headless >= 4.5.5"
 ]
 cloudvol = [
-    "cloud-files== 4.11.0",
-    "cloud-volume == 8.16.0",
+    "cloud-files>= 4.11.0",
+    "cloud-volume >= 8.16.0",
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [
     "zetta_utils[tensor_ops]"
 ]
 convnet = [
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 1.12.1", # mypy error on newer
     "artificery >= 0.0.3.3"
 ]
 alignment = [
     "metroem >= 0.1.2",
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 1.12.1", # mypy error on newer
 ]
 mazepa = [
     "pebble >= 5.0.3",
-    "chardet == 5.0.0",
+    "chardet >= 5.0.0",
     "coolname >= 1.1.0",
     "task-queue >= 2.12.0",
-    "boto3 == 1.26.10",
+    "boto3 >= 1.26.10",
 ]
 mazepa-addons = [
     "zetta_utils[mazepa]",
@@ -89,8 +89,8 @@ mazepa-addons = [
 ]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
-    "torch == 1.12.1", # mypy error on newer
-    "pytorch-lightning == 1.7.7", # mypy error on newer
+    "torch >= 1.12.1", # mypy error on newer
+    "pytorch-lightning ~= 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",
 ]
 datastore = [
@@ -103,27 +103,27 @@ docs = [
     "sphinx_copybutton >= 0.5.0",
 ]
 types = [
-    "types-Pillow == 9.3.0.1",
-    "types-cachetools == 5.2.1",
-    "types-requests == 2.28.11.7"
+    "types-Pillow >= 9.3.0.1",
+    "types-cachetools >= 5.2.1",
+    "types-requests >= 2.28.11.7"
 ]
 test = [
     "zetta_utils[types]",
-    "docker == 6.0.0",
-    "black == 21.9b0",
-    "click == 8.0.1", # for black to work
-    "pydocstyle == 6.1.1",
-    "flake8 == 4.0.1",
-    "mypy == 0.991",
-    "mypy-extensions == 0.4.3",
-    "pytest == 7.1.1",
-    "pytest-cov == 3.0.0",
-    "coverage == 6.5.0",
-    "pytest-mock == 3.8.2",
-    "pylint == 2.13.9",
-    "isort == 5.10.1",
-    "pre-commit == 2.19.0",
-    "moto == 4.1.0",
+    "docker >= 6.0.0",
+    "black >= 21.9b0",
+    "click >= 8.0.1", # for black to work
+    "pydocstyle >= 6.1.1",
+    "flake8 >= 4.0.1",
+    "mypy >= 0.991",
+    "mypy-extensions >= 0.4.3",
+    "pytest >= 7.1.1",
+    "pytest-cov >= 3.0.0",
+    "coverage >= 6.5.0",
+    "pytest-mock >= 3.8.2",
+    "pylint >= 2.13.9",
+    "isort >= 5.10.1",
+    "pre-commit >= 2.19.0",
+    "moto >= 4.1.0",
 ]
 modules = [ # put them in order of dependencies
     "zetta_utils[tensor_ops, viz, cli, gcs]",

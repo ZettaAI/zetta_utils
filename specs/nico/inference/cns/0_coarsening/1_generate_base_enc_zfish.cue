@@ -1,9 +1,7 @@
-#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/M7_500xSM200_M6_500xSM200_M5_500xSM200_M4_250xSM200_M3_250xSM200_VV3_CT2.5_BS10/mip1/img/img_rendered"
+#SRC_PATH: "gs://sergiy_exp/pairs_dsets/zfish_x0/src"
+#DST_PATH: "gs://zetta-research-nico/pairs_dsets/zfish_x0/src/enc/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns/enc_rendered"
 
-//#DST_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x1"
-#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/M7_500xSM200_M6_500xSM200_M5_500xSM200_M4_250xSM200_M3_250xSM200_VV3_CT2.5_BS10/enc/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x13_cns_5c/enc_rendered"
-
-#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_encodings/tmp_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x13_cns_5c/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_encodings/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns/last.ckpt.model.spec.json"
 
 #CHUNK_SIZE: [2048, 2048, 1]
 
@@ -11,9 +9,9 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2999]
-	end_coord: [512, 576, 3003]
-	resolution: [2048, 2048, 45]
+	start_coord: [256, 256, 0]
+	end_coord: [1024, 1024, 41]
+	resolution: [256, 256, 30]
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
@@ -56,6 +54,6 @@ target: {
 	idx: {
 		"@type": "VolumetricIndex"
 		bbox:    #BBOX
-		resolution: [32, 32, 45]
+		resolution: [32, 32, 30]
 	}
 }

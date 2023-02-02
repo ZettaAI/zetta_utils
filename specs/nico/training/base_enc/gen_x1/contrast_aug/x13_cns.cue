@@ -1,6 +1,6 @@
 #EXP_NAME:      "base_encodings"
 #TRAINING_ROOT: "gs://zetta-research-nico/training_artifacts"
-#POST_WEIGHT:   1.625
+#POST_WEIGHT:   1.7
 #ZCONS_WEIGHT:  0.0
 #LR:            1e-4
 #CLIP:          0e-5
@@ -12,7 +12,7 @@
 #GAMMA_PROB:    1.0
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
-#EXP_VERSION:   "tmp_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x13_cns_6"
+#EXP_VERSION:   "gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_post\(#POST_WEIGHT)_zfish_cns"
 
 // #START_EXP_VERSION: "ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17"
 #MODEL_CKPT:    "gs://zetta-research-nico/training_artifacts/base_encodings/tmp_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x13_cns_5c/last.ckpt"

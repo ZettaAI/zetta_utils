@@ -27,6 +27,7 @@ class WarpOperation:
     mode: Literal["mask", "img", "field"]
     crop_pad: IntVec3D = IntVec3D(0, 0, 0)
     mask_value_thr: float = 0
+    use_translation_adjustment: bool = True
     # preserve_black: bool = False
 
     def get_operation_name(self):
@@ -50,20 +51,30 @@ class WarpOperation:
         field: VolumetricLayer,
     ) -> None:
         idx_padded = idx.padded(self.crop_pad)
-        src_data_raw, field_data_raw, _ = translation_adjusted_download(
-            src=src,
-            field=field,
-            idx=idx_padded,
-        )
+        if self.use_translation_adjustment:
+            src_data_raw, field_data_raw, _ = translation_adjusted_download(
+                src=src,
+                field=field,
+                idx=idx_padded,
+            )
+        else:
+            src_data_raw = src[idx_padded]
+            field_data_raw = field[idx_padded]
 
         src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
         field_data = einops.rearrange(
             field_data_raw, "C X Y Z -> Z C X Y"
         ).field()  # type: ignore # no type for Torchfields yet
 
+        if self.mode == "field":
+            src_data = src_data.field().from_pixels()  # type: ignore
+
         dst_data_raw = field_data.from_pixels()(src_data.float())
         if self.mode == "mask":
             dst_data_raw = dst_data_raw > self.mask_value_thr
+        elif self.mode == "field":
+            dst_data_raw = dst_data_raw.pixels()
+
         dst_data_raw = dst_data_raw.to(src_data.dtype)
 
         # Cropping along 2 spatial dimentions, Z is batch

@@ -30,6 +30,9 @@ def multiply(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return value * data
 
 
+builder.register("abs")(abs)
+
+
 @builder.register("add")
 def add(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return value + data

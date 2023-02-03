@@ -145,7 +145,6 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         assert self.args_are_set
         logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
-
         try:
             if debug or self.runtime_limit_sec is None:
                 return_value = self.fn(*self.args, **self.kwargs)

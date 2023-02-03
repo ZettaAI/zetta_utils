@@ -26,6 +26,19 @@ def _get_weights_mask(
     return result
 
 
+@builder.register("gamma_contrast_aug")
+@typechecked
+@prob_aug
+def gamma_contrast_aug(
+    data: TensorTypeVar, gamma_distr: Union[distributions.Distribution, float], max_magn: float
+) -> TensorTypeVar:
+    data_torch = tensor_ops.to_torch(data).float()
+    gamma = distributions.to_distribution(gamma_distr)()
+    result_torch = max_magn * ((data_torch / max_magn) ** gamma)
+    result = tensor_ops.astype(result_torch, data)
+    return result
+
+
 @builder.register("brightness_aug")
 @typechecked
 @prob_aug

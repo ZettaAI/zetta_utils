@@ -3,14 +3,11 @@
 #LR:             1e-4
 #CLIP:           0e-5
 #K:              3
-#EXP_VERSION:    "tmp_test_x13"
+#EXP_VERSION:    "v2_x1"
 #CHUNK_XY:       1024
 #FIELD_MAGN_THR: 0.8
 
 #MODEL_CKPT: null
-
-#SRC_CV: "gs://sergiy_exp/pairs_dsets/zfish_x0/src_base_enc_x0"
-#TGT_CV: "gs://sergiy_exp/pairs_dsets/zfish_x0/dst_base_enc_x0"
 
 #FIELD_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
@@ -29,7 +26,6 @@ local_test: true
 
 target: {
 	"@type": "lightning_train"
-	//"@mode": "lazy"
 
 	regime: {
 		"@type":                "MisalignmentDetectorAcedRegime"
@@ -57,7 +53,7 @@ target: {
 							[32, 32, 32],
 							[32, 32, 1],
 						]
-						kernel_sizes: #K
+						kernel_sizes: [#K, #K]
 					},
 					{
 						"@type": "torch.nn.Sigmoid"
@@ -79,7 +75,7 @@ target: {
 		experiment_name:         #EXP_NAME
 		experiment_version:      #EXP_VERSION
 		log_every_n_steps:       10
-		val_check_interval:      500
+		val_check_interval:      350
 		gradient_clip_algorithm: "norm"
 		gradient_clip_val:       #CLIP
 		checkpointing_kwargs: {
@@ -95,13 +91,6 @@ target: {
 		num_workers: 8
 		dataset:     #train_dset
 	}
-	val_dataloader: {
-		"@type":     "TorchDataLoader"
-		batch_size:  1
-		shuffle:     false
-		num_workers: 8
-		dataset:     #val_dset
-	}
 }
 #IMG_PROCS: [
 	{
@@ -110,14 +99,9 @@ target: {
 		"pattern": "c x y 1 -> c x y"
 	},
 	{
-		"@type": "add"
-		"@mode": "partial"
-		value:   -127.0
-	},
-	{
 		"@type": "divide"
 		"@mode": "partial"
-		value:   255.0
+		value:   127.0
 	},
 ]
 
@@ -155,7 +139,7 @@ target: {
 						layers: {
 							src: {
 								"@type": "build_cv_layer"
-								path:    #SRC_CV
+								path:    "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0"
 								cv_kwargs: {
 									//cache: "/home/sergiy/.cloudvolume/memcache"
 								}
@@ -163,7 +147,7 @@ target: {
 							}
 							tgt: {
 								"@type": "build_cv_layer"
-								path:    #TGT_CV
+								path:    "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0/aligned_z-1"
 								cv_kwargs: {
 									//cache: "/home/sergiy/.cloudvolume/memcache"
 								}
@@ -187,7 +171,7 @@ target: {
 						layers: {
 							src: {
 								"@type": "build_cv_layer"
-								path:    #SRC_CV
+								path:    "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0"
 								cv_kwargs: {
 									//cache: "/home/sergiy/.cloudvolume/memcache"
 								}
@@ -195,7 +179,7 @@ target: {
 							}
 							tgt: {
 								"@type": "build_cv_layer"
-								path:    #TGT_CV
+								path:    "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0/aligned_z-2"
 								cv_kwargs: {
 									//cache: "/home/sergiy/.cloudvolume/memcache"
 								}
@@ -262,21 +246,5 @@ target: {
 	datasets: field: sample_indexer: {
 		"@type":       "RandomIndexer"
 		inner_indexer: #field_indexer
-	}
-	datasets: images: sample_indexer: bbox: {
-		start_coord: [1024 * 24, 1024 * 27, 3001]
-		end_coord: [1024 * 70, 1024 * 95, 3015]
-	}
-}
-
-#val_dset: #dset_settings & {
-	datasets: field: sample_indexer: {
-		"@type":       "RandomIndexer"
-		inner_indexer: #field_indexer
-	}
-
-	datasets: images: sample_indexer: bbox: {
-		start_coord: [1024 * 35, 1024 * 45, 3015]
-		end_coord: [1024 * 55, 1024 * 65, 3016]
 	}
 }

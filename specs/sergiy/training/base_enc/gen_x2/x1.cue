@@ -1,6 +1,6 @@
 #EXP_NAME:      "base_encodings"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
-#POST_WEIGHT:   1.55
+#POST_WEIGHT:   1.5
 #ZCONS_WEIGHT:  0.0
 #LR:            2e-4
 #CLIP:          0e-5
@@ -13,7 +13,7 @@
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
 
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x3_ft"
+#EXP_VERSION: "tmp_gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x3"
 
 #START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x0_try_x3"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
@@ -30,82 +30,85 @@ worker_replicas: 1
 local_test:      true
 
 target: {
-	"@type": "lightning_train"
-	"@mode": "partial"
+	"@type": "mazepa.Task"
+	fn: {
+		"@type": "lightning_train"
+		"@mode": "partial"
 
-	regime: {
-		"@type":                "BaseEncoderRegime"
-		field_magn_thr:         0.8
-		val_log_row_interval:   1
-		train_log_row_interval: 150
-		lr:                     #LR
-		equivar_weight:         #EQUI_WEIGHT
-		post_weight:            #POST_WEIGHT
-		zero_conserve_weight:   #ZCONS_WEIGHT
-		model: {
-			"@type": "load_weights_file"
+		regime: {
+			"@type":                "BaseEncoderRegime"
+			field_magn_thr:         0.8
+			val_log_row_interval:   1
+			train_log_row_interval: 150
+			lr:                     #LR
+			equivar_weight:         #EQUI_WEIGHT
+			post_weight:            #POST_WEIGHT
+			zero_conserve_weight:   #ZCONS_WEIGHT
 			model: {
-				"@type": "torch.nn.Sequential"
-				modules: [
-					{
-						"@type": "UNet"
-						list_num_channels: [
-							[1, 32, 32],
-							[32, 32, 32],
-							[32, 32, 32],
-							[32, 32, 32],
+				"@type": "load_weights_file"
+				model: {
+					"@type": "torch.nn.Sequential"
+					modules: [
+						{
+							"@type": "UNet"
+							list_num_channels: [
+								[1, 32, 32],
+								[32, 32, 32],
+								[32, 32, 32],
+								[32, 32, 32],
 
-							[32, 32, 32],
+								[32, 32, 32],
 
-							[32, 32, 32],
-							[32, 32, 32],
-							[32, 32, 32],
-							[32, 32, 1],
-						]
-						kernel_sizes: [#K, #K]
-					},
-					{
-						"@type": "torch.nn.Tanh"
-					},
+								[32, 32, 32],
+								[32, 32, 32],
+								[32, 32, 32],
+								[32, 32, 1],
+							]
+							kernel_sizes: [#K, #K]
+						},
+						{
+							"@type": "torch.nn.Tanh"
+						},
+					]
+				}
+				ckpt_path: #MODEL_CKPT
+				component_names: [
+					"model",
 				]
 			}
-			ckpt_path: #MODEL_CKPT
-			component_names: [
-				"model",
-			]
 		}
-	}
-	trainer: {
-		"@type":                 "ZettaDefaultTrainer"
-		accelerator:             "gpu"
-		devices:                 1
-		max_epochs:              100
-		default_root_dir:        #TRAINING_ROOT
-		experiment_name:         #EXP_NAME
-		experiment_version:      #EXP_VERSION
-		log_every_n_steps:       10
-		val_check_interval:      100
-		gradient_clip_algorithm: "norm"
-		gradient_clip_val:       #CLIP
-		checkpointing_kwargs: {
-			update_every_n_secs: 60
-			backup_every_n_secs: 900
+		trainer: {
+			"@type":                 "ZettaDefaultTrainer"
+			accelerator:             "gpu"
+			devices:                 1
+			max_epochs:              100
+			default_root_dir:        #TRAINING_ROOT
+			experiment_name:         #EXP_NAME
+			experiment_version:      #EXP_VERSION
+			log_every_n_steps:       10
+			val_check_interval:      100
+			gradient_clip_algorithm: "norm"
+			gradient_clip_val:       #CLIP
+			checkpointing_kwargs: {
+				update_every_n_secs: 60
+				backup_every_n_secs: 900
+			}
 		}
-	}
 
-	train_dataloader: {
-		"@type":     "TorchDataLoader"
-		batch_size:  1
-		shuffle:     true
-		num_workers: 8
-		dataset:     #train_dset
-	}
-	val_dataloader: {
-		"@type":     "TorchDataLoader"
-		batch_size:  1
-		shuffle:     false
-		num_workers: 8
-		dataset:     #val_dset
+		train_dataloader: {
+			"@type":     "TorchDataLoader"
+			batch_size:  1
+			shuffle:     true
+			num_workers: 4
+			dataset:     #train_dset
+		}
+		val_dataloader: {
+			"@type":     "TorchDataLoader"
+			batch_size:  1
+			shuffle:     false
+			num_workers: 4
+			dataset:     #val_dset
+		}
 	}
 }
 #VAL_IMG_PROCS: [

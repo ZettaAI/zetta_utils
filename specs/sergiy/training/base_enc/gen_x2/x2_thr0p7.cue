@@ -12,8 +12,8 @@
 #GAMMA_PROB:    1.0
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
-
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x3_ft"
+#FIELD_THR:     0.7
+#EXP_VERSION:   "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_field\(#FIELD_THR)_x0_try_x3_ft_x2"
 
 #START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x0_try_x3"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
@@ -27,7 +27,7 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      true
+local_test:      false
 
 target: {
 	"@type": "lightning_train"
@@ -35,7 +35,7 @@ target: {
 
 	regime: {
 		"@type":                "BaseEncoderRegime"
-		field_magn_thr:         0.8
+		field_magn_thr:         #FIELD_THR
 		val_log_row_interval:   1
 		train_log_row_interval: 150
 		lr:                     #LR

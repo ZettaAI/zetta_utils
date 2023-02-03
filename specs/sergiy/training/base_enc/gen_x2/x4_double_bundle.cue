@@ -13,21 +13,21 @@
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
 
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x3_ft"
+#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x3_double_bundle_v1_ft"
 
-#START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x0_try_x3"
+#START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x3_double_bundle_v1"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
 
 #FIELD_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x39"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x41"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      true
+local_test:      false
 
 target: {
 	"@type": "lightning_train"
@@ -97,14 +97,14 @@ target: {
 		"@type":     "TorchDataLoader"
 		batch_size:  1
 		shuffle:     true
-		num_workers: 8
+		num_workers: 4
 		dataset:     #train_dset
 	}
 	val_dataloader: {
 		"@type":     "TorchDataLoader"
 		batch_size:  1
 		shuffle:     false
-		num_workers: 8
+		num_workers: 4
 		dataset:     #val_dset
 	}
 }
@@ -217,6 +217,10 @@ target: {
 			}
 		}
 	}
+	sample_indexer: _
+}
+
+#CUTOUT_X0_BCUBE: #CUTOUT_X0 & {
 	sample_indexer: {
 		"@type": "VolumetricStridedIndexer"
 		resolution: [32, 32, 30]
@@ -229,7 +233,16 @@ target: {
 			resolution:  _
 			start_coord: _
 		}
+	}
+}
 
+#CUTOUT_X0_NGL: #CUTOUT_X0 & {
+	sample_indexer: {
+		"@type": "VolumetricNGLIndexer"
+		resolution: [32, 32, 30]
+		desired_resolution: [32, 32, 30]
+		chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+		path: _
 	}
 }
 #dset_settings: {
@@ -312,23 +325,18 @@ target: {
 			sample_indexer: path: "sergiy/base_enc_train_x0"
 			_img_procs: #TRAIN_IMG_PROCS
 		}
-		cutout_x0_part0: #CUTOUT_X0 & {
-			sample_indexer: bbox: {
-				resolution: [4, 4, 30]
-				start_coord: [1024 * 25, 1024 * 30, 130]
-				end_coord: [1024 * 75, 1024 * 100, 155]
-			}
+		cutout_x0_defects: #CUTOUT_X0_NGL & {
+			sample_indexer: path: "sergiy/base_enc_train_defects_x3"
 			_img_procs: #TRAIN_IMG_PROCS
 		}
-		cutout_x0_part1: #CUTOUT_X0 & {
+		cutout_x0_top_bundle: #CUTOUT_X0_NGL & {
+			sample_indexer: path: "sergiy/base_enc_train_bundle_x3"
 			_img_procs: #TRAIN_IMG_PROCS
-			sample_indexer: bbox: {
-				resolution: [4, 4, 30]
-				start_coord: [1024 * 25, 1024 * 30, 170]
-				end_coord: [1024 * 75, 1024 * 100, 200]
-			}
 		}
-
+		cutout_x0_top_bundle_x2: #CUTOUT_X0_NGL & {
+			sample_indexer: path: "sergiy/base_enc_train_bundle_x3"
+			_img_procs: #TRAIN_IMG_PROCS
+		}
 	}
 }
 

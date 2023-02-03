@@ -3,20 +3,20 @@
 #LR:             1e-4
 #CLIP:           0e-5
 #K:              3
-#EXP_VERSION:    "tmp_test_x13"
 #CHUNK_XY:       1024
-#FIELD_MAGN_THR: 0.8
+#FIELD_MAGN_THR: 1.0
+
+#EXP_VERSION: "tmp_thr\(#FIELD_MAGN_THR)_x2"
 
 #MODEL_CKPT: null
 
-#SRC_CV: "gs://sergiy_exp/pairs_dsets/zfish_x0/src_base_enc_x0"
-#TGT_CV: "gs://sergiy_exp/pairs_dsets/zfish_x0/dst_base_enc_x0"
+#SRC_CV: "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0"
+#TGT_CV: "gs://zfish_unaligned/precoarse_x0/enc_gen3_x0/aligned_z-1"
 
 #FIELD_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
-"@type":        "mazepa.execute_on_gcp_with_sqs"
-max_task_retry: 1000
-worker_image:   "us.gcr.io/zetta-research/zetta_utils:all_x12"
+"@type":      "mazepa.execute_on_gcp_with_sqs"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x41"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -29,7 +29,7 @@ local_test: true
 
 target: {
 	"@type": "lightning_train"
-	//"@mode": "lazy"
+	"@mode": "lazy"
 
 	regime: {
 		"@type":                "MisalignmentDetectorAcedRegime"
@@ -48,11 +48,9 @@ target: {
 							[2, 32, 32],
 							[32, 32, 32],
 							[32, 32, 32],
-							[32, 32, 32],
 
 							[32, 32, 32],
 
-							[32, 32, 32],
 							[32, 32, 32],
 							[32, 32, 32],
 							[32, 32, 1],
@@ -74,7 +72,7 @@ target: {
 		"@type":                 "ZettaDefaultTrainer"
 		accelerator:             "gpu"
 		devices:                 1
-		max_epochs:              100
+		max_epochs:              400
 		default_root_dir:        #TRAINING_ROOT
 		experiment_name:         #EXP_NAME
 		experiment_version:      #EXP_VERSION
@@ -110,14 +108,9 @@ target: {
 		"pattern": "c x y 1 -> c x y"
 	},
 	{
-		"@type": "add"
-		"@mode": "partial"
-		value:   -127.0
-	},
-	{
 		"@type": "divide"
 		"@mode": "partial"
-		value:   255.0
+		value:   127.0
 	},
 ]
 
@@ -144,72 +137,43 @@ target: {
 			"sample_indexer": _
 		}
 		images: {
-			"@type": "JointDataset"
-			mode:    "vertical"
-
-			datasets: {
-				zm1: {
-					"@type": "LayerDataset"
-					layer: {
-						"@type": "build_layer_set"
-						layers: {
-							src: {
-								"@type": "build_cv_layer"
-								path:    #SRC_CV
-								cv_kwargs: {
-									//cache: "/home/sergiy/.cloudvolume/memcache"
-								}
-								read_procs: #IMG_PROCS
-							}
-							tgt: {
-								"@type": "build_cv_layer"
-								path:    #TGT_CV
-								cv_kwargs: {
-									//cache: "/home/sergiy/.cloudvolume/memcache"
-								}
-								read_procs: #IMG_PROCS
-							}
+			"@type": "LayerDataset"
+			layer: {
+				"@type": "build_layer_set"
+				layers: {
+					src: {
+						"@type": "build_cv_layer"
+						path:    #SRC_CV
+						cv_kwargs: {
+							//cache: "/home/sergiy/.cloudvolume/memcache"
 						}
+						read_procs: #IMG_PROCS
 					}
-					sample_indexer: {
-						"@type": "VolumetricNGLIndexer"
-						resolution: [32, 32, 30]
-						desired_resolution: [32, 32, 30]
-						chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
-						path: "sergiy/base_enc_train_defects_x3"
+					tgt: {
+						"@type": "build_cv_layer"
+						path:    #TGT_CV
+						cv_kwargs: {
+							//cache: "/home/sergiy/.cloudvolume/memcache"
+						}
+						read_procs: #IMG_PROCS
 					}
 				}
-
-				zm2: {
-					"@type": "LayerDataset"
-					layer: {
-						"@type": "build_layer_set"
-						layers: {
-							src: {
-								"@type": "build_cv_layer"
-								path:    #SRC_CV
-								cv_kwargs: {
-									//cache: "/home/sergiy/.cloudvolume/memcache"
-								}
-								read_procs: #IMG_PROCS
-							}
-							tgt: {
-								"@type": "build_cv_layer"
-								path:    #TGT_CV
-								cv_kwargs: {
-									//cache: "/home/sergiy/.cloudvolume/memcache"
-								}
-								read_procs: #IMG_PROCS
-							}
-						}
-					}
-					sample_indexer: {
-						"@type": "VolumetricNGLIndexer"
-						resolution: [32, 32, 30]
-						desired_resolution: [32, 32, 30]
-						chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
-						path: "sergiy/misd_train_zm2_x3"
-					}
+			}
+			sample_indexer: {
+				"@type": "VolumetricStridedIndexer"
+				resolution: [32, 32, 30]
+				desired_resolution: [32, 32, 30]
+				stride: [#CHUNK_XY, #CHUNK_XY, 1]
+				chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+				bbox: {
+					"@type":     "BBox3D.from_coords"
+					start_coord: _
+					end_coord:   _
+					resolution: [
+						4,
+						4,
+						30,
+					]
 				}
 			}
 		}

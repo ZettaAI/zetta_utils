@@ -43,18 +43,33 @@
 #RELAXATION_RIG: 20
 //#COMPUTE FIELD DONE FOR 4 -> 25
 
-#Z_START:           158
-#Z_END:             160
+#Z_START:           128
+#Z_END:             200
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
+#X_START: 0 //  56 * 1024
+
+#Y_START: 0 //64 * 1024
+
+#X_END: 1024 //72 * 1024
+
+#Y_END: 1024 //80 * 1024
+#COORD_RESOLUTION: [512, 512, 30]
+
 #BBOX: {
-	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, #Z_START]
-	end_coord: [2048, 2048, #Z_END]
-	resolution: [512, 512, 30]
+	"@type":    "BBox3D.from_coords"
+	resolution: #COORD_RESOLUTION
+	start_coord: [#X_START, #Y_START, #Z_START]
+	end_coord: [#X_END, #Y_END, #Z_END]
 }
 
 #TITLE: #PAIRWISE_SUFFIX
+#SPECIAL_BOX: {
+	"@type":    "BBox3D.from_coords"
+	resolution: #COORD_RESOLUTION
+	start_coord: [#X_START, #Y_START, #Z_START]
+	end_coord: [#X_END, #Y_END, #Z_END]
+}
 #MAKE_NG_URL: {
 	"@type": "make_ng_link"
 	title:   #TITLE
@@ -72,15 +87,15 @@
 
 #NOT_FIRST_SECTION_BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, #Z_START + 1]
-	end_coord: [2048, 2048, #Z_END]
-	resolution: [512, 512, 30]
+	start_coord: [#X_START, #Y_START, #Z_START + 1]
+	end_coord: [#X_END, #Y_END, #Z_END]
+	resolution: #COORD_RESOLUTION
 }
 #FIRST_SECTION_BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, #Z_START]
-	end_coord: [2048, 2048, #Z_START + 1]
-	resolution: [512, 512, 30]
+	start_coord: [#X_START, #Y_START, #Z_START]
+	end_coord: [#X_END, #Y_END, #Z_START + 1]
+	resolution: #COORD_RESOLUTION
 }
 
 #STAGES: [
@@ -567,12 +582,12 @@
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x37"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x43"
 	worker_resources: {
-		memory:           "18560Mi"
-		"nvidia.com/gpu": "1"
+		memory: "18560Mi"
+		//"nvidia.com/gpu": "1"
 	}
-	worker_replicas:      25
+	worker_replicas:      50
 	batch_gap_sleep_sec:  1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -581,8 +596,8 @@
 		"@type": "mazepa.seq_flow"
 		stages: [
 			//#JOINT_OFFSET_FLOW,
-			#MATCH_OFFSETS_FLOW,
-			#RELAX_FLOW,
+			// #MATCH_OFFSETS_FLOW,
+			// #RELAX_FLOW,
 			#JOINT_POST_ALIGN_FLOW,
 		]
 	}

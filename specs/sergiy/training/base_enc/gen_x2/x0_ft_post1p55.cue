@@ -5,7 +5,7 @@
 #LR:            2e-4
 #CLIP:          0e-5
 #K:             3
-#EQUI_WEIGHT:   0.5
+#EQUI_WEIGHT:   0.8
 #CHUNK_XY:      1024
 #GAMMA_LOW:     0.25
 #GAMMA_HIGH:    4.0
@@ -13,21 +13,21 @@
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
 
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x3_ft"
+#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x3_ft_post\(#POST_WEIGHT)_equi\(#EQUI_WEIGHT)_x2"
 
-#START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x0_try_x3"
+#START_EXP_VERSION: "gen_x3_gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0002_x0_try_x3_ft_post1.55_x0"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
 
 #FIELD_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x39"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x41"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      true
+local_test:      false
 
 target: {
 	"@type": "lightning_train"

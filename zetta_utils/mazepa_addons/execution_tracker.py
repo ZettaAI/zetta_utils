@@ -11,9 +11,27 @@ EXECUTION_DB = build_db_layer(
 )
 
 
-def update_execution_info(execution_id: str) -> bool:  # pragma: no cover
+def add_execution_info(execution_id: str) -> None:  # pragma: no cover
+    """
+    Add execcution info to database.
+    """
     execution_info: RowDataT = {
-        "zetta_user": str(os.environ["ZETTA_USER"]),
+        "zetta_user": os.environ["ZETTA_USER"],
+        "zetta_run_spec": os.environ["ZETTA_RUN_SPEC"],
+        "heartbeat": time.time(),
+    }
+
+    row_key = execution_id
+    col_keys = tuple(execution_info.keys())
+    EXECUTION_DB[(row_key, col_keys)] = execution_info
+
+
+def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
+    """
+    Update execution heartbeat.
+    Meant to be called periodically for upkeep (`upkeep_fn`).
+    """
+    execution_info: RowDataT = {
         "heartbeat": time.time(),
     }
 

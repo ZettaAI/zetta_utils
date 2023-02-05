@@ -1,4 +1,3 @@
-import os
 import uuid
 
 import attrs
@@ -7,9 +6,8 @@ from zetta_utils.layer.db_layer import build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 
 DEFAULT_PROJECT = "zetta-research"
-EXECUTION_RESOURCE_DB_PROJECT = os.environ.get("EXECUTION_RESOURCE_DB_PROJECT", DEFAULT_PROJECT)
+EXECUTION_RESOURCE_DB_NAME = "execution-resource"
 
-EXECUTION_RESOURCE_DB_NAME = f"{EXECUTION_RESOURCE_DB_PROJECT}-execution-resource"
 EXECUTION_RESOURCE_DB = build_db_layer(
     DatastoreBackend(
         namespace=EXECUTION_RESOURCE_DB_NAME,

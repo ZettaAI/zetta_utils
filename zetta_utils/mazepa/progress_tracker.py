@@ -113,7 +113,8 @@ def progress_ctx_mngr(
 
                 progress_bar.refresh()
 
+            yield update_fn
             try:
-                yield update_fn
-            finally:
                 progress_bar.stop()
+            except IndexError:
+                pass

@@ -143,7 +143,7 @@ def delete_msg_by_receipt_handle(
     )
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+@retry(stop=stop_after_attempt(10), wait=wait_random(min=0.1, max=5))
 def change_message_visibility(
     receipt_handle: str,
     visibility_timeout: int,

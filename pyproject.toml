@@ -77,6 +77,7 @@ alignment = [
     "torch == 1.12.1", # mypy error on newer
 ]
 mazepa = [
+    "tenacity == 8.1.0", # 8.2 didn't type `retry` properly -- expects no args
     "pebble >= 5.0.3",
     "chardet == 5.0.0",
     "coolname >= 1.1.0",

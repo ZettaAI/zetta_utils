@@ -21,6 +21,7 @@ from typing import (
 )
 
 import attrs
+import tenacity
 from pebble import concurrent
 from typing_extensions import ParamSpec
 
@@ -127,8 +128,11 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         assert self.upkeep_settings.interval_sec is not None
 
         def _perform_upkeep_callbacks():
-            for fn in self.upkeep_settings.callbacks:
-                fn()
+            try:
+                for fn in self.upkeep_settings.callbacks:
+                    fn()
+            except tenacity.RetryError as e:
+                logger.info(f"Couldn't perform upkeep: {e}")
 
         upkeep = RepeatTimer(self.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
         upkeep.start()

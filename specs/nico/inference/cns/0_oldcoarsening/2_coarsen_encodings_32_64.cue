@@ -1,7 +1,7 @@
 #SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns"
-#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_64nm_unet"
+#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_64nm_unet_pow_post1.1"
 
-#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_coarsener/tmp_ft_patch1024_post1.55_postmult1.05_lr0.0001_deep_k3_clip0.00000_equi0.5_fmt1.1_f1f2_apply_1_m3_int8_more_data_4/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_coarsener_simplified/tmp_ft_patch1024_post1.4_lr0.00002_deep_k3_clip0.00000_equi0.5_fmt1.1_f1f2_m3/last.ckpt.model.spec.json"
 
 #CHUNK_SIZE: [1024, 1024, 1]
 

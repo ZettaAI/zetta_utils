@@ -6,9 +6,9 @@
 #SIGNI_WEIGHT:  0.5
 #FIELD_MAG:     0.8
 #XY_WEIGHT:     0.0
-#EXP_VERSION:   "tmp_128_256_chunk_z\(#IMG_CHUNK_Z)_sig\(#SIGNI_WEIGHT)_lr\(#LR)_fieldmag\(#FIELD_MAG)_xy\(#XY_WEIGHT)_chan2_conv3_cns"
+#EXP_VERSION:   "tmp_128_256_chunk_z\(#IMG_CHUNK_Z)_sig\(#SIGNI_WEIGHT)_lr\(#LR)_fieldmag\(#FIELD_MAG)_xy\(#XY_WEIGHT)_chan1_conv3_cns"
 #CHUNK_XY:      1024
-#IMG_CHUNK_Z:   1  // 1 for same section warping, 2 for comparing dec(src) to tgt
+#IMG_CHUNK_Z:   2  // 1 for same section warping, 2 for comparing dec(src) to tgt
 
 #MODEL_CKPT: null
 
@@ -39,7 +39,7 @@ target: {
 				modules: [
 					{
 						"@type": "ConvBlock"
-						num_channels: [1, 32, 32, 32]
+						num_channels: [1, 32, 32]
 						activate_last: true
 						kernel_sizes: [#K, #K]
 						padding_modes: "reflect"
@@ -50,7 +50,7 @@ target: {
 					},
 					{
 						"@type": "ConvBlock"
-						num_channels: [32, 32, 32, 2]
+						num_channels: [32, 32, 1]
 						kernel_sizes: [#K, #K]
 						padding_modes: "reflect"
 						activate_last: false
@@ -72,7 +72,7 @@ target: {
 				modules: [
 					{
 						"@type": "ConvBlock"
-						num_channels: [2, 32, 32, 32]
+						num_channels: [1, 32, 32]
 						kernel_sizes: [#K, #K]
 						padding_modes: "reflect"
 						activate_last: true
@@ -84,7 +84,7 @@ target: {
 					},
 					{
 						"@type": "ConvBlock"
-						num_channels: [32, 32, 32, 1]
+						num_channels: [32, 32, 1]
 						kernel_sizes: [#K, #K]
 						padding_modes: "reflect"
 						activate_last: false
@@ -163,7 +163,7 @@ target: {
 				"@type": "VolumetricStridedIndexer"
 				resolution: [128, 128, 45]
 				desired_resolution: [128, 128, 45]
-				chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+				chunk_size: [#CHUNK_XY, #CHUNK_XY, #IMG_CHUNK_Z]
 				stride: [#CHUNK_XY, #CHUNK_XY, 1]
 				bbox: {
 					"@type":       "BBox3D.from_coords"

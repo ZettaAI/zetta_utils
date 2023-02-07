@@ -5,5 +5,7 @@ from . import encoding_coarsener_gen_x1
 from . import noop
 from . import base_encoder
 from . import base_coarsener
+from . import base_coarsener_simplified
+from . import base_encoder_coarsener
 from . import misalignment_detector
 from . import misalignment_detector_aced

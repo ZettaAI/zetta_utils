@@ -1,7 +1,7 @@
-#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_128nm_unet"
-#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_256nm_unet"
+#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_128nm_unet_pow_post1.0_fmr1.41"
+#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.25_high4.0_prob1.0_tile_0.1_0.4_lr0.0001_post1.7_zfish_cns_256nm_unet_pow_post1.0_fmr1.41"
 
-#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_coarsener/tmp_ft_patch1024_post1.25_postmult1.05_lr0.0001_deep_k3_clip0.00000_equi0.5_fmt1.1_f1f2_apply_1_m5_int8_more_data_6/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://zetta-research-nico/training_artifacts/base_coarsener_simplified/tmp_ft_patch1024_post1.0_lr0.0001_deep_k3_clip0.00000_equi0.5_fmt1.41_f1f2_m5/last.ckpt.model.spec.json"
 
 #CHUNK_SIZE: [1024, 1024, 1]
 
@@ -11,8 +11,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [8192, 0, 2700]
-	end_coord: [24576, 32768, 3200]
+	start_coord: [8192, 0, 2997]
+	end_coord: [24576, 32768, 3000]
 	resolution: [32, 32, 45]
 }
 
@@ -23,7 +23,7 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
+local_test: true
 
 target: {
 	"@type": "build_chunked_apply_flow"

@@ -2,19 +2,22 @@
 # pylint: disable=too-many-locals
 
 from typing import Optional
+import random
+from math import log2
 
 import attrs
-import cc3d
 import pytorch_lightning as pl
+import cc3d
 import torch
+import torchfields
 import wandb
 
 from zetta_utils import builder, distributions, tensor_ops, viz
 
 
-@builder.register("BaseEncoderRegime")
+@builder.register("BaseCoarsenerSimplifiedRegime")
 @attrs.mutable(eq=False)
-class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
+class BaseCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module
     lr: float
     train_log_row_interval: int = 200
@@ -23,7 +26,6 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
     max_displacement_px: float = 16.0
     post_weight: float = 0.5
     zero_value: float = 0
-    zero_conserve_weight: float = 0.5
     worst_val_loss: float = attrs.field(init=False, default=0)
     worst_val_sample: dict = attrs.field(init=False, factory=dict)
     worst_val_sample_idx: Optional[int] = attrs.field(init=False, default=None)
@@ -64,7 +66,10 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
         log_row = batch_idx % self.train_log_row_interval == 0
-        loss = self.compute_metroem_loss(batch=batch, mode="train", log_row=log_row)
+
+        with torchfields.set_identity_mapping_cache(True, clear_cache=False):
+            loss = self.compute_metroem_loss(batch=batch, mode="train", log_row=log_row)
+
         return loss
 
     def _get_warped(self, img, field):
@@ -81,17 +86,21 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         img_warped[zeros_warped] = self.zero_value
         return img_warped, zeros_warped
 
+    def _down_zeros_mask(self, zeros_mask, count=1):
+        scale_factor = 0.5 ** count
+        return torch.nn.functional.interpolate(zeros_mask.float(), scale_factor=scale_factor, mode='bilinear') > 0.99  # 0.01
+
     def compute_metroem_loss(self, batch: dict, mode: str, log_row: bool, sample_name: str = ""):
         src = batch["images"]["src"]
         tgt = batch["images"]["tgt"]
 
-        if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.8:
+        if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.4:
             return None
 
         seed_field = batch["field"].field_()
         f_warp_large = seed_field * self.max_displacement_px
         f_warp_small = (
-            seed_field * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
+            seed_field * 2.0 * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
         )
 
         f_aff = (
@@ -110,15 +119,28 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         f1_trans = f_aff.from_pixels()(f_warp_large.from_pixels()).pixels()
         f2_trans = f_warp_small.from_pixels()(f1_trans.from_pixels()).pixels()
 
+        if False: # random.choice((True, False)):
+            # Swap fields to prevent net from cheating (and use inverse for the post loss)
+            f1_trans, f2_trans = f2_trans, f1_trans
+            magn_field = f_warp_small.from_pixels().inverse().pixels()
+        else:
+            magn_field = f_warp_small
+
         src_f1, src_zeros_f1 = self._get_warped(src, f1_trans)
         src_f2, src_zeros_f2 = self._get_warped(src, f2_trans)
         tgt_f1, tgt_zeros_f1 = self._get_warped(tgt, f1_trans)
 
-        src_enc = self.model(src)
-        src_f1_enc = self.model(src_f1)
+        src_zeros_f1 = self._down_zeros_mask(src_zeros_f1)
+        src_zeros_f2 = self._down_zeros_mask(src_zeros_f2)
+        tgt_zeros_f1 = self._down_zeros_mask(tgt_zeros_f1)
 
-        src_enc_f1 = torch.nn.functional.pad(src_enc, (1,1,1,1), value=0.0)
-        src_enc_f1 = torch.nn.functional.pad(f1_trans, (1,1,1,1), mode='replicate').from_pixels().sample(src_enc_f1, padding_mode='border')  # type: ignore
+        src_enc = src
+        src_f1_enc = src_f1
+        src_enc = self.model(src_enc)
+        src_f1_enc = self.model(src_f1_enc)
+
+        src_enc_f1 = torch.nn.functional.pad(src_enc, (1,1,1,1), value=0.0)  # TanH! - fill with output zero value
+        src_enc_f1 = torch.nn.functional.pad(f1_trans, (2,2,2,2), mode='replicate').from_pixels().down().sample(src_enc_f1, padding_mode='border')  # type: ignore
         src_enc_f1 = torch.nn.functional.pad(src_enc_f1, (-1,-1,-1,-1), value=0.0)
 
         equi_diff = (src_enc_f1 - src_f1_enc).abs()
@@ -127,8 +149,10 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         equi_diff_map = equi_diff.clone()
         # equi_diff_map[src_zeros_f1] = 0
 
-        src_f2_enc = self.model(src_f2)
-        tgt_f1_enc = self.model(tgt_f1)
+        src_f2_enc = src_f2
+        tgt_f1_enc = tgt_f1
+        src_f2_enc = self.model(src_f2_enc)
+        tgt_f1_enc = self.model(tgt_f1_enc)
 
         pre_diff = (src_f1_enc - tgt_f1_enc).abs()
 
@@ -139,11 +163,15 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
         post_tissue_mask = tensor_ops.mask.coarsen(tgt_zeros_f1 + src_zeros_f2, width=2) == 0
 
-        post_magn_mask = (f_warp_small.abs().max(1)[0] > self.field_magn_thr).tensor_()
+        post_magn_mask = ((magn_field.from_pixels().down().pixels().abs().max(1)[0]) > self.field_magn_thr).tensor_()
+        # post_magn_mask[..., 0:10, :] = 0
+        # post_magn_mask[..., -10:, :] = 0
+        # post_magn_mask[..., :, 0:10] = 0
+        # post_magn_mask[..., :, -10:] = 0
 
         post_diff_map = (src_f2_enc - tgt_f1_enc).abs()
         post_mask = post_magn_mask * post_tissue_mask
-        if post_mask.sum() < 16:
+        if post_mask.sum() < 256 // 4:
             return None
 
         post_loss = post_diff_map[..., post_mask].sum()
@@ -152,10 +180,10 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         post_diff_masked[..., post_mask == 0] = 0
 
         loss = pre_loss - post_loss * self.post_weight + equi_loss * self.equivar_weight
-        self.log(f"loss/{mode}", loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_pre", pre_loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_post", post_loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_equi", equi_loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_apply", loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_apply_pre", pre_loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_apply_post", post_loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}_apply_equi", equi_loss, on_step=True, on_epoch=True)
         if log_row:
             self.log_results(
                 mode,
@@ -168,18 +196,17 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
                 src_f2_enc=src_f2_enc,
                 tgt_f1=tgt_f1,
                 tgt_f1_enc=tgt_f1_enc,
-                field=f_warp_small.tensor_(),
+                field=seed_field.tensor_(),
                 equi_diff_map=equi_diff_map,
                 post_diff_masked=post_diff_masked,
                 pre_diff_masked=pre_diff_masked,
             )
         return loss
 
+
     def validation_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
         log_row = batch_idx % self.val_log_row_interval == 0
         sample_name = f"{batch_idx // self.val_log_row_interval}"
 
-        loss = self.compute_metroem_loss(
-            batch=batch, mode="val", log_row=log_row, sample_name=sample_name
-        )
+        loss = self.compute_metroem_loss(batch=batch, mode="val", log_row=log_row, sample_name=sample_name)
         return loss

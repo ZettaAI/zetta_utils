@@ -210,7 +210,7 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     ]
     k8s_apps_v1_api = k8s.client.AppsV1Api()  # type: ignore
 
-    logger.info(f"Creating deployment `{deployment_spec['metadata']['name']}`")
+    logger.info(f"Creating deployment `{deployment_spec.metadata.name}`")
     k8s_apps_v1_api.create_namespaced_deployment(body=deployment_spec, namespace="default")
 
     register_execution_resource(ExecutionResource(execution_id, "k8s_deployment", execution_id))
@@ -222,9 +222,9 @@ def worker_k8s_deployment_ctx_mngr(  # pylint: disable=too-many-locals
         try:
             yield
         finally:
-            logger.info(f"Deleting deployment `{deployment_spec['metadata']['name']}`")
+            logger.info(f"Deleting deployment `{deployment_spec.metadata.name}`")
             k8s_apps_v1_api.delete_namespaced_deployment(
-                name=deployment_spec["metadata"]["name"],
+                name=deployment_spec.metadata.name,
                 namespace="default",
             )
 

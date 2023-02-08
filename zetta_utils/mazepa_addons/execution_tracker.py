@@ -2,7 +2,7 @@ import os
 import time
 from datetime import datetime
 
-from cloudfiles import CloudFiles
+from cloudfiles import CloudFiles, paths
 
 from zetta_utils.layer.db_layer import RowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
@@ -51,6 +51,7 @@ def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
 def record_execution_info(execution_id: str) -> None:  # pragma: no cover
     zetta_user = os.environ["ZETTA_USER"]
     zetta_project = os.environ["ZETTA_PROJECT"]
+    zetta_run_spec_path = (os.environ.get("ZETTA_RUN_SPEC_PATH", "None"),)
     info_path = os.environ.get("EXECUTION_INFO_PATH", EXECUTION_INFO_PATH)
     info_path_user = f"{info_path}/{zetta_user}"
 
@@ -58,6 +59,7 @@ def record_execution_info(execution_id: str) -> None:  # pragma: no cover
         "zetta_user": zetta_user,
         "zetta_project": zetta_project,
         "zetta_run_spec": os.environ["ZETTA_RUN_SPEC"],
+        "zetta_run_spec_file": paths.basename(zetta_run_spec_path),
         "executed_at": datetime.utcnow(),
     }
 

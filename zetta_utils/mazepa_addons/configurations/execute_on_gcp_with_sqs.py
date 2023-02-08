@@ -6,7 +6,7 @@ from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.mazepa_addons import resource_allocation
+from zetta_utils.mazepa_addons import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
 
@@ -86,6 +86,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
+    execution_tracker.record_execution_info(execution_id)
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:

@@ -54,15 +54,25 @@ def get_gcp_with_sqs_config(
     }
     exec_queue = builder.build(exec_queue_spec)
 
+    secrets, env_secret_mapping = resource_allocation.gcp_k8s.get_k8s_secrets_and_mapping(
+        execution_id, REQUIRED_ENV_VARS
+    )
+
+    deployment = resource_allocation.gcp_k8s.get_k8s_deployment(
+        execution_id=execution_id,
+        image=worker_image,
+        queue=exec_queue_spec,
+        replicas=worker_replicas,
+        resources=worker_resources,
+        env_secret_mapping=env_secret_mapping,
+        labels=worker_labels,
+    )
+
     ctx_managers.append(
-        resource_allocation.gcp_k8s.worker_k8s_deployment_ctx_mngr(
+        resource_allocation.gcp_k8s.k8s_namespace_ctx_mngr(
             execution_id=execution_id,
-            image=worker_image,
-            queue=exec_queue_spec,
-            replicas=worker_replicas,
-            labels=worker_labels,
-            resources=worker_resources,
-            share_envs=REQUIRED_ENV_VARS,
+            secrets=secrets,
+            deployments=[deployment],
         )
     )
     return exec_queue, ctx_managers

@@ -1,3 +1,4 @@
+import collections
 from typing import Callable, Generic, TypeVar
 
 import attrs
@@ -14,6 +15,21 @@ R = TypeVar("R")
 P = ParamSpec("P")
 
 
+def _process_callable_kwargs(idx: IndexT, kwargs: dict) -> dict:
+    result = {}
+
+    for k, v in kwargs.items():
+        if isinstance(v, Layer):
+            result[k] = v[idx]
+        elif isinstance(v, dict) and all(isinstance(vv, Layer) for vv in v.values()):
+            result[k] = {kk: vv[idx] for kk, vv in v.items()}
+        elif isinstance(v, collections.abc.Iterable) and all(isinstance(vv, Layer) for vv in v):
+            result[k] = [vv[idx] for vv in v]
+        else:
+            result[k] = v
+    return result
+
+
 @builder.register("CallableOperation")
 @mazepa.taskable_operation_cls
 @attrs.mutable
@@ -28,13 +44,7 @@ class CallableOperation(Generic[P, IndexT, R]):
         self, idx: IndexT, dst: LayerWithIndexT[IndexT], *args: P.args, **kwargs: P.kwargs
     ) -> None:
         assert len(args) == 0
-        fn_kwargs = {}
-        for k, v in kwargs.items():
-            if isinstance(v, Layer):
-                fn_kwargs[k] = v[idx]
-            else:
-                fn_kwargs[k] = v
-
+        fn_kwargs = _process_callable_kwargs(idx, kwargs)
         result = self.fn(**fn_kwargs)
         dst[idx] = result
 

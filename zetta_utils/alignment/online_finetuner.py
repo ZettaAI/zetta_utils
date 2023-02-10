@@ -103,4 +103,5 @@ def align_with_online_finetuner(
             )
     result = einops.rearrange(result, "1 C X Y -> C X Y 1")
     result = result.detach().to(orig_device)
+    result[result.abs() < 0.001] = 0
     return result

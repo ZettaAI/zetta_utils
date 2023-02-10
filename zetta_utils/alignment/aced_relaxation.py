@@ -54,6 +54,19 @@ def compute_aced_loss(
     return loss  # type: ignore
 
 
+def _get_opt_range(fix: Literal["first", "last", "both"] | None, num_sections: int):
+    if fix is None:
+        opt_range = range(num_sections)
+    elif fix == "first":
+        opt_range = range(1, num_sections)
+    elif fix == "last":
+        opt_range = range(num_sections - 1)
+    else:
+        assert fix == "both"
+        opt_range = range(1, num_sections - 1)
+    return opt_range
+
+
 @builder.register("perform_aced_relaxation")
 def perform_aced_relaxation(
     match_offsets: torch.Tensor,
@@ -65,7 +78,11 @@ def perform_aced_relaxation(
     rigidity_weight=10.0,
     fix: Optional[Literal["first", "last", "both"]] = "first",
 ) -> torch.Tensor:
-    if (match_offsets != 0).sum() == 0:
+    max_displacement = 0.0
+    for field in [field_zm1, field_zm2, field_zm2]:
+        if field is not None:
+            max_displacement = max(max_displacement, field.abs().max().item())
+    if (match_offsets != 0).sum() == 0 or max_displacement < 0.01:
         return torch.zeros_like(field_zm1)
 
     match_offsets_zcxy = einops.rearrange(match_offsets, "C X Y Z -> Z C X Y").cuda()
@@ -92,16 +109,7 @@ def perform_aced_relaxation(
         for _ in range(num_sections)
     ]
 
-    if fix is None:
-        opt_range = range(num_sections)
-    elif fix == "first":
-        opt_range = range(1, num_sections)
-    elif fix == "last":
-        opt_range = range(num_sections - 1)
-    else:
-        assert fix == "both"
-        opt_range = range(1, num_sections - 1)
-
+    opt_range = _get_opt_range(fix=fix, num_sections=num_sections)
     for i in opt_range:
         afields[i].requires_grad = True
 

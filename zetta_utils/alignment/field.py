@@ -1,6 +1,8 @@
 from typing import Tuple
 
+import einops
 import torch
+import torchfields  # pylint: disable=unused-import
 
 
 def profile_field2d_percentile(
@@ -42,3 +44,18 @@ def percentile(field: torch.Tensor, q: float):
     k = 1 + round(0.01 * float(q) * (field.shape[1] - 1))
     result = field.kthvalue(k, dim=1).values
     return result
+
+
+def invert_field(field: torch.Tensor, num_iter: int = 200, lr: float = 1e-5):
+    field_zcxy = einops.rearrange(field, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
+    inverse_zcxy = (-field_zcxy).clone().field().from_pixels()
+    inverse_zcxy.requires_grad = True
+
+    optimizer = torch.optim.Adam([inverse_zcxy], lr=lr)
+    for _ in range(num_iter):
+        loss = inverse_zcxy(field_zcxy.from_pixels()).pixels().abs().sum()
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    return einops.rearrange(inverse_zcxy.pixels(), "Z C X Y -> C X Y Z")

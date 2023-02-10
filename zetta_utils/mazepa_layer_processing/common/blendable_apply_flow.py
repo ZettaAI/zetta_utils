@@ -38,39 +38,42 @@ def get_intersection_and_subindex(small: VolumetricIndex, large: VolumetricIndex
     return intersection, subindex
 
 
-@mazepa.taskable_operation
-def reduce_by_weighted_sum(
-    src_idxs: List[VolumetricIndex],
-    src_layers: List[VolumetricLayer],
-    red_idx: VolumetricIndex,
-    fov_idx: VolumetricIndex,
-    dst: VolumetricLayer,
-    processing_blend_pad: IntVec3D = IntVec3D(0, 0, 0),
-    processing_blend_mode: Literal["linear", "quadratic"] = "linear",
-) -> None:
-    if len(src_layers) == 0:
-        return
-    res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+@mazepa.taskable_operation_cls
+@attrs.mutable
+class ReduceByWeightedSum:
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricLayer],
+        red_idx: VolumetricIndex,
+        fov_idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        processing_blend_pad: IntVec3D = IntVec3D(0, 0, 0),
+        processing_blend_mode: Literal["linear", "quadratic"] = "linear",
+    ) -> None:
+        if len(src_layers) == 0:
+            return
+        res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
 
-    assert len(src_layers) > 0
-    if processing_blend_pad != IntVec3D(0, 0, 0):
-        for src_idx, layer in zip(src_idxs, src_layers):
-            weight = get_blending_weights(
-                idx_subchunk=src_idx,
-                idx_fov=fov_idx,
-                idx_red=red_idx,
-                processing_blend_pad=processing_blend_pad,
-                processing_blend_mode=processing_blend_mode,
-            )
-            intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-            subidx.insert(0, slice(0, res.shape[0]))
-            res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn] * weight)
-    else:
-        for src_idx, layer in zip(src_idxs, src_layers):
-            intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-            subidx.insert(0, slice(0, res.shape[0]))
-            res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn])
-    dst[red_idx] = res
+        assert len(src_layers) > 0
+        if processing_blend_pad != IntVec3D(0, 0, 0):
+            for src_idx, layer in zip(src_idxs, src_layers):
+                weight = get_blending_weights(
+                    idx_subchunk=src_idx,
+                    idx_fov=fov_idx,
+                    idx_red=red_idx,
+                    processing_blend_pad=processing_blend_pad,
+                    processing_blend_mode=processing_blend_mode,
+                )
+                intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
+                subidx.insert(0, slice(0, res.shape[0]))
+                res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn] * weight)
+        else:
+            for src_idx, layer in zip(src_idxs, src_layers):
+                intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
+                subidx.insert(0, slice(0, res.shape[0]))
+                res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn])
+        dst[red_idx] = res
 
 
 def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
@@ -428,7 +431,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             yield tasks
             yield mazepa.Dependency()
             tasks_reduce = [
-                reduce_by_weighted_sum.make_task(
+                ReduceByWeightedSum().make_task(
                     src_idxs=red_chunk_task_idxs,
                     src_layers=red_chunk_temps,
                     red_idx=red_chunk,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Collection
+
 import torch
 
 from zetta_utils import builder, mazepa
@@ -15,11 +17,12 @@ from . import build_chunked_volumetric_callable_flow_schema
 
 def _apply_mask(
     src: torch.Tensor,
-    mask: torch.Tensor,
+    masks: Collection[torch.Tensor],
     fill_value: float = 0,
 ) -> torch.Tensor:
     result = src
-    result[mask > 0] = fill_value
+    for mask in masks:
+        result[mask > 0] = fill_value
     result = result.to(src.dtype)
     return result
 
@@ -31,7 +34,7 @@ def build_apply_mask_flow(
     dst_resolution: Vec3D,
     src: VolumetricLayer,
     dst: VolumetricLayer,
-    mask: VolumetricLayer,
+    masks: Collection[VolumetricLayer],
     fill_value: float = 0.0,
 ) -> mazepa.Flow:
     flow_schema = build_chunked_volumetric_callable_flow_schema(
@@ -42,7 +45,7 @@ def build_apply_mask_flow(
         idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
         dst=dst,
         src=src,
-        mask=mask,
+        masks=masks,
         fill_value=fill_value,
     )
     return flow

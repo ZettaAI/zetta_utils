@@ -51,7 +51,7 @@ def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
 def record_execution_info(execution_id: str) -> None:  # pragma: no cover
     zetta_user = os.environ["ZETTA_USER"]
     zetta_project = os.environ["ZETTA_PROJECT"]
-    zetta_run_spec_path = (os.environ.get("ZETTA_RUN_SPEC_PATH", "None"),)
+    zetta_run_spec_path = os.environ.get("ZETTA_RUN_SPEC_PATH", "None")
     info_path = os.environ.get("EXECUTION_INFO_PATH", EXECUTION_INFO_PATH)
     info_path_user = f"{info_path}/{zetta_user}"
 

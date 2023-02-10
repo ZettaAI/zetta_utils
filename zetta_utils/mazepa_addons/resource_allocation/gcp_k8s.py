@@ -226,7 +226,7 @@ def k8s_namespace_ctx_mngr(
     namespace_config = k8s_client.V1Namespace(metadata=k8s_client.V1ObjectMeta(name=execution_id))
 
     logger.info(f"Creating namespace `{execution_id}`")
-    k8s_core_v1_api().create_namespace(namespace_config)
+    k8s_core_v1_api.create_namespace(namespace_config)
 
     register_execution_resource(ExecutionResource(execution_id, "k8s_namespace", execution_id))
 

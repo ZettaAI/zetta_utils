@@ -8,6 +8,8 @@
 
 .. autoclass:: zetta_utils.training.datasets.JointDataset
 
+.. autoclass:: zetta_utils.training.datasets.sample_indexers.ChainIndexer
+
 .. autoclass:: zetta_utils.training.datasets.sample_indexers.RandomIndexer
 
 .. autoclass:: zetta_utils.training.datasets.sample_indexers.VolumetricStridedIndexer

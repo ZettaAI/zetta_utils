@@ -225,21 +225,21 @@ def k8s_namespace_ctx_mngr(
 
     namespace_config = k8s_client.V1Namespace(metadata=k8s_client.V1ObjectMeta(name=execution_id))
 
-    logger.info(f"Creating namespace `{execution_id}`")
+    logger.info(f"Creating k8s namespace `{execution_id}`")
     k8s_core_v1_api.create_namespace(namespace_config)
 
     register_execution_resource(ExecutionResource(execution_id, "k8s_namespace", execution_id))
 
     for secret in secrets:
-        logger.info(f"Creating secret `{secret.metadata.name}`")
+        logger.info(f"Creating namespaced k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=execution_id, body=secret)
 
     for deployment in deployments:
-        logger.info(f"Creating deployment `{deployment.metadata.name}`")
+        logger.info(f"Creating namespaced k8s deployment `{deployment.metadata.name}`")
         k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=execution_id)
 
     try:
         yield
     finally:
-        logger.info(f"Deleting namespace `{execution_id}`")
+        logger.info(f"Deleting k8s namespace `{execution_id}`")
         k8s_core_v1_api.delete_namespace(name=execution_id)

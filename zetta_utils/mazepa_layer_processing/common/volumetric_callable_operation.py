@@ -9,10 +9,11 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.geometry import IntVec3D, Vec3D
-from zetta_utils.layer import IndexChunker, Layer
+from zetta_utils.layer import IndexChunker
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 
 from . import ChunkedApplyFlowSchema
+from .callable_operation import _process_callable_kwargs
 
 P = ParamSpec("P")
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
@@ -72,14 +73,8 @@ class VolumetricCallableOperation(Generic[P]):
 
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(self.input_crop_pad)
-        task_kwargs = {}
-        for k, v in kwargs.items():
-            if isinstance(v, Layer):
-                task_kwargs[k] = v[idx_input_padded]
-            else:
-                task_kwargs[k] = v
-
+        idx_input_padded = idx_input.padded(self.crop_pad)
+        task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
         result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the
         # difference between the resolutions of idx and dst_idx

@@ -32,7 +32,7 @@ def translation_adjusted_download(
 ) -> tuple[torch.Tensor, torch.Tensor | None, tuple[int, int]]:
     if field is not None:
         field_data = field[idx]
-        xy_translation = alignment.field_profilers.profile_field2d_percentile(field_data)
+        xy_translation = alignment.field.profile_field2d_percentile(field_data)
 
         field_data[0] -= xy_translation[0]
         field_data[1] -= xy_translation[1]

@@ -1,8 +1,10 @@
+import json
 import os
 import time
 from datetime import datetime
 
-from cloudfiles import CloudFiles, paths
+import fsspec
+from cloudfiles import paths
 
 from zetta_utils.layer.db_layer import RowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
@@ -52,18 +54,18 @@ def record_execution_info(execution_id: str) -> None:  # pragma: no cover
     zetta_user = os.environ["ZETTA_USER"]
     zetta_project = os.environ["ZETTA_PROJECT"]
     zetta_run_spec_path = os.environ.get("ZETTA_RUN_SPEC_PATH", "None")
-    info_path = os.environ.get("EXECUTION_INFO_PATH", EXECUTION_INFO_PATH)
-    info_path_user = f"{info_path}/{zetta_user}"
 
     execution_info = {
         "zetta_user": zetta_user,
         "zetta_project": zetta_project,
-        "zetta_run_spec": os.environ["ZETTA_RUN_SPEC"],
+        "executed_ts": datetime.utcnow().isoformat(),
         "zetta_run_spec_file": paths.basename(zetta_run_spec_path),
-        "executed_at": datetime.utcnow(),
+        "zetta_run_spec": json.loads(os.environ["ZETTA_RUN_SPEC"]),
     }
 
-    logger.info(f"Recording execution info to {info_path_user}/{execution_id}.")
+    info_path = os.environ.get("EXECUTION_INFO_PATH", EXECUTION_INFO_PATH)
+    info_path = os.path.join(info_path, zetta_user, f"{execution_id}.json")
+    logger.info(f"Recording execution info to {info_path}")
 
-    cf = CloudFiles(info_path_user)
-    cf.put_json(execution_id, execution_info)
+    with fsspec.open(info_path, "w") as f:
+        json.dump(execution_info, f, indent=2)

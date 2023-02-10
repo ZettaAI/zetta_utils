@@ -1,0 +1,478 @@
+[
+    {
+        "@type": "make_ng_link",
+        "title": "try_x0",
+        "position": [
+            50000,
+            60000,
+            2951
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+            ],
+            [
+                "+1 try_x0",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/imgs_warped/+1"
+            ],
+            [
+                "aligned _fixboth_iter150_rig20_z2950-2960",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/img_aligned_fixboth_iter150_rig20_z2950-2960"
+            ],
+            [
+                "aligned masked _fixboth_iter150_rig20_z2950-2960",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/img_aligned_masked_fixboth_iter150_rig20_z2950-2960"
+            ]
+        ]
+    },
+    {
+        "@type": "mazepa.execute_on_gcp_with_sqs",
+        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x54",
+        "worker_resources": {
+            "memory": "18560Mi",
+            "nvidia.com/gpu": "1"
+        },
+        "worker_replicas": 20,
+        "batch_gap_sleep_sec": 1,
+        "do_dryrun_estimation": true,
+        "local_test": false,
+        "target": {
+            "@type": "mazepa.seq_flow",
+            "stages": [
+                {
+                    "@type": "mazepa.concurrent_flow",
+                    "stages": [
+                        {
+                            "@type": "mazepa.concurrent_flow",
+                            "stages": [
+                                {
+                                    "@type": "mazepa.seq_flow",
+                                    "stages": [
+                                        {
+                                            "@type": "build_compute_field_multistage_flow",
+                                            "bbox": {
+                                                "@type": "BBox3D.from_coords",
+                                                "start_coord": [
+                                                    0,
+                                                    0,
+                                                    2951
+                                                ],
+                                                "end_coord": [
+                                                    2048,
+                                                    2048,
+                                                    2960
+                                                ],
+                                                "resolution": [
+                                                    512,
+                                                    512,
+                                                    45
+                                                ]
+                                            },
+                                            "stages": [
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        1024,
+                                                        1024,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        512,
+                                                        512,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 50,
+                                                        "num_iter": 1000,
+                                                        "lr": 0.015
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        512,
+                                                        512,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        1024,
+                                                        1024,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 50,
+                                                        "num_iter": 700,
+                                                        "lr": 0.015
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        256,
+                                                        256,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 50,
+                                                        "num_iter": 700,
+                                                        "lr": 0.03
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        128,
+                                                        128,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 500,
+                                                        "lr": 0.05
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        1024,
+                                                        1024,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        512,
+                                                        512,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 1000,
+                                                        "lr": 0.015
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        512,
+                                                        512,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        1024,
+                                                        1024,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 700,
+                                                        "lr": 0.015
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        256,
+                                                        256,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 700,
+                                                        "lr": 0.03
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        128,
+                                                        128,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 500,
+                                                        "lr": 0.05
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        64,
+                                                        64,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 300,
+                                                        "lr": 0.1
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                },
+                                                {
+                                                    "@type": "ComputeFieldStage",
+                                                    "dst_resolution": [
+                                                        32,
+                                                        32,
+                                                        45
+                                                    ],
+                                                    "chunk_size": [
+                                                        2048,
+                                                        2048,
+                                                        1
+                                                    ],
+                                                    "fn": {
+                                                        "@type": "align_with_online_finetuner",
+                                                        "@mode": "partial",
+                                                        "sm": 10,
+                                                        "num_iter": 200,
+                                                        "lr": 0.1
+                                                    },
+                                                    "crop_pad": [
+                                                        64,
+                                                        64,
+                                                        0
+                                                    ]
+                                                }
+                                            ],
+                                            "tgt_offset": [
+                                                0,
+                                                0,
+                                                -1
+                                            ],
+                                            "offset_resolution": [
+                                                4,
+                                                4,
+                                                45
+                                            ],
+                                            "src": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+                                            },
+                                            "tgt": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+                                            },
+                                            "dst": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/try_x0/fields_fwd/-1",
+                                                "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked",
+                                                "info_field_overrides": {
+                                                    "num_channels": 2,
+                                                    "data_type": "float32",
+                                                    "encoding": "zfpc"
+                                                },
+                                                "on_info_exists": "overwrite"
+                                            },
+                                            "tmp_layer_dir": "gs://sergiy_exp/aced/demo_x0/try_x0/fields_fwd/-1/tmp",
+                                            "tmp_layer_factory": {
+                                                "@type": "build_cv_layer",
+                                                "@mode": "partial",
+                                                "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked",
+                                                "info_field_overrides": {
+                                                    "num_channels": 2,
+                                                    "data_type": "float32",
+                                                    "encoding": "zfpc"
+                                                },
+                                                "on_info_exists": "overwrite"
+                                            }
+                                        },
+                                        {
+                                            "@type": "build_warp_flow",
+                                            "mode": "img",
+                                            "crop_pad": [
+                                                256,
+                                                256,
+                                                0
+                                            ],
+                                            "chunk_size": [
+                                                2048,
+                                                2048,
+                                                1
+                                            ],
+                                            "bbox": {
+                                                "@type": "BBox3D.from_coords",
+                                                "start_coord": [
+                                                    0,
+                                                    0,
+                                                    2950
+                                                ],
+                                                "end_coord": [
+                                                    2048,
+                                                    2048,
+                                                    2960
+                                                ],
+                                                "resolution": [
+                                                    512,
+                                                    512,
+                                                    45
+                                                ]
+                                            },
+                                            "dst_resolution": [
+                                                32,
+                                                32,
+                                                45
+                                            ],
+                                            "src": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+                                            },
+                                            "field": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/try_x0/fields_fwd/-1"
+                                            },
+                                            "dst": {
+                                                "@type": "build_cv_layer",
+                                                "path": "gs://sergiy_exp/aced/demo_x0/try_x0/imgs_warped/+1",
+                                                "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked",
+                                                "on_info_exists": "overwrite",
+                                                "index_procs": [
+                                                    {
+                                                        "@type": "VolumetricIndexTranslator",
+                                                        "offset": [
+                                                            0,
+                                                            0,
+                                                            -1
+                                                        ],
+                                                        "resolution": [
+                                                            4,
+                                                            4,
+                                                            45
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "@type": "make_ng_link",
+        "title": "try_x0",
+        "position": [
+            50000,
+            60000,
+            2951
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+            ],
+            [
+                "+1 try_x0",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/imgs_warped/+1"
+            ],
+            [
+                "aligned _fixboth_iter150_rig20_z2950-2960",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/img_aligned_fixboth_iter150_rig20_z2950-2960"
+            ],
+            [
+                "aligned masked _fixboth_iter150_rig20_z2950-2960",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/try_x0/img_aligned_masked_fixboth_iter150_rig20_z2950-2960"
+            ]
+        ]
+    }
+]

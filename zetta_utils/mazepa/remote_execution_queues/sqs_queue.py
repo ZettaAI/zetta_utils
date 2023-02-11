@@ -109,7 +109,7 @@ class SQSExecutionQueue:
         self._get_tq_queue().insert(tq_tasks, parallel=self.insertion_threads)
 
     def pull_task_outcomes(
-        self, max_num: int = 100, max_time_sec: float = 2.5
+        self, max_num: int = 500, max_time_sec: float = 2.5
     ) -> Dict[str, TaskOutcome]:
         if self.outcome_queue_name is None:
             raise RuntimeError(

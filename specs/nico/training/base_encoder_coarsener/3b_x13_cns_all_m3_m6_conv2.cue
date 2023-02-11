@@ -311,7 +311,7 @@ target: {
 		{
 			"@type": "divide"
 			"@mode": "partial"
-			value:   255.0
+			value:   127.0
 		},
 	]
 	datasets: images: sample_indexer: {

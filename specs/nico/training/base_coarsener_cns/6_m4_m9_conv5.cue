@@ -1,19 +1,28 @@
-#EXP_NAME:      "base_encoder_coarsener"
+#EXP_NAME:      "base_coarsener_cns"
 #TRAINING_ROOT: "gs://zetta-research-nico/training_artifacts"
-#POST_WEIGHT:   1.03
+#POST_WEIGHT:   1.8
 #FIELD_MAGN_THR: 0.8
 #LR:            1e-4
 #CLIP:          0e-5
 #K:             3
-#EQUI_WEIGHT:   0.5
+#EQUI_WEIGHT:   0.4
 #CHUNK_XY:      1024
-#EXP_VERSION:   "M3_M8_conv2_lr\(#LR)_post\(#POST_WEIGHT)_fmt\(#FIELD_MAGN_THR)_cns_all_newenc"
+#GAMMA_LOW:     0.5
+#GAMMA_HIGH:    1.5
+#GAMMA_PROB:    1.0
+#TILE_LOW:      0.0
+#TILE_HIGH:     0.2
 
-#START_EXP_VERSION: "tmp_M3_M8_conv2_lr0.0001_post1.1_cns_all_newenc"
-#MODEL_CKPT:    "gs://zetta-research-nico/training_artifacts/base_encoder_coarsener/\(#START_EXP_VERSION)/last.ckpt"
+#SOURCE_RES:    [64, 64, 45]
+#SOURCE_PATH:   "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img"
+
+#EXP_VERSION:   "1_M4_M9_conv5_lr\(#LR)_equi\(#EQUI_WEIGHT)_post\(#POST_WEIGHT)_fmt\(#FIELD_MAGN_THR)_cns_all"
+
+#START_EXP_VERSION: "1_M4_M9_conv5_lr0.0001_equi0.1_post1.8_fmt\(#FIELD_MAGN_THR)_cns_all"
+#MODEL_CKPT:    null  // "gs://zetta-research-nico/training_artifacts/base_coarsener_cns/\(#START_EXP_VERSION)/last.ckpt"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:py3.9_torch_1.13.1_cu11.7_zu20230207_m6"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:py3.9_torch_1.13.1_cu11.7_zu20230210"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -29,7 +38,7 @@ target: {
 		"@type":                "BaseEncoderCoarsenerRegime"
 		field_magn_thr:         #FIELD_MAGN_THR
 		max_displacement_px:    32.0
-		val_log_row_interval:   4
+		val_log_row_interval:   24
 		train_log_row_interval: 250
 		lr:                     #LR
 		equivar_weight:         #EQUI_WEIGHT
@@ -146,6 +155,7 @@ target: {
 		dataset:     #val_dset
 	}
 }
+
 #IMG_PROCS: [
 	{
 		"@mode":   "partial"
@@ -155,8 +165,47 @@ target: {
 	{
 		"@type": "divide"
 		"@mode": "partial"
-		value:   127.0
-	}
+		value:   255.0
+	},
+	{
+		"@type": "gamma_contrast_aug"
+		"@mode": "partial"
+		prob:    #GAMMA_PROB
+		gamma_distr: {
+			"@type": "uniform_distr"
+			low:     #GAMMA_LOW
+			high:    #GAMMA_HIGH
+		}
+		max_magn: 1.0
+	},
+	{
+		"@type": "square_tile_pattern_aug"
+		"@mode": "partial"
+		prob:    1.0
+		tile_size: {
+			"@type": "uniform_distr"
+			low:     64
+			high:    1024
+		}
+		tile_stride: {
+			"@type": "uniform_distr"
+			low:     64
+			high:    1024
+		}
+		max_brightness_change: {
+			"@type": "uniform_distr"
+			low:     #TILE_LOW
+			high:    #TILE_HIGH
+		}
+		rotation_degree: {
+			"@type": "uniform_distr"
+			low:     0
+			high:    90
+		}
+		preserve_data_val: 0.0
+		repeats:           3
+		device:            "cpu"
+	},
 ]
 
 #dset_settings: {
@@ -172,12 +221,12 @@ target: {
 				layers: {
 					src: {
 						"@type":    "build_cv_layer"
-						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.75_high1.5_prob1.0_tile_0.0_0.2_lr0.0002_post1.8_cns"
+						path:       #SOURCE_PATH
 						read_procs: _img_procs
 					}
 					tgt: {
 						"@type":    "build_cv_layer"
-						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.75_high1.5_prob1.0_tile_0.0_0.2_lr0.0002_post1.8_cns"
+						path:       #SOURCE_PATH
 						read_procs: _img_procs
 						index_procs: [
                             {
@@ -261,17 +310,61 @@ target: {
 	datasets: images: sample_indexer: {
 		"@type": "RandomIndexer"
 		inner_indexer: {
-			"@type": "VolumetricStridedIndexer"
-			resolution: [32, 32, 45]
-			desired_resolution: [32, 32, 45]
-			chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
-			stride: [#CHUNK_XY, #CHUNK_XY, 1]
-			bbox: {
-				"@type":       "BBox3D.from_coords"
-				start_coord: [1280, 0, 2701]
-				end_coord: [2816, 3584, 3180]
-				resolution: [256, 256, 45]
-			}
+			"@type": "ChainIndexer"
+			inner_indexer: [
+				{
+					"@type": "VolumetricStridedIndexer"
+					resolution: #SOURCE_RES
+					desired_resolution: #SOURCE_RES
+					chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+					stride: [#CHUNK_XY, #CHUNK_XY, 1]
+					bbox: {
+						"@type":       "BBox3D.from_coords"
+						start_coord: [ 1 * 1024,  0 * 1024, 1001]
+						end_coord:   [15 * 1024, 5 * 1024, 2000]
+						resolution: [64, 64, 45]
+					}
+				},
+				{
+					"@type": "VolumetricStridedIndexer"
+					resolution: #SOURCE_RES
+					desired_resolution: #SOURCE_RES
+					chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+					stride: [#CHUNK_XY, #CHUNK_XY, 1]
+					bbox: {
+						"@type":       "BBox3D.from_coords"
+						start_coord: [5 * 1024, 7 * 1024, 1001]
+						end_coord:   [10 * 1024, 11 * 1024, 2000]
+						resolution: [64, 64, 45]
+					}
+				},
+				{
+					"@type": "VolumetricStridedIndexer"
+					resolution: #SOURCE_RES
+					desired_resolution: #SOURCE_RES
+					chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+					stride: [#CHUNK_XY, #CHUNK_XY, 1]
+					bbox: {
+						"@type":       "BBox3D.from_coords"
+						start_coord: [ 1 * 1024,  0 * 1024, 2501]
+						end_coord:   [14 * 1024,  5 * 1024, 3500]
+						resolution: [64, 64, 45]
+					}
+				},
+				{
+					"@type": "VolumetricStridedIndexer"
+					resolution: #SOURCE_RES
+					desired_resolution: #SOURCE_RES
+					chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
+					stride: [#CHUNK_XY, #CHUNK_XY, 1]
+					bbox: {
+						"@type":       "BBox3D.from_coords"
+						start_coord: [5 * 1024,  5 * 1024, 2501]
+						end_coord:   [11 * 1024, 11 * 1024, 3500]
+						resolution: [64, 64, 45]
+					}
+				}
+			]
 		}
 	}
 }
@@ -290,20 +383,20 @@ target: {
 		{
 			"@type": "divide"
 			"@mode": "partial"
-			value:   127.0
+			value:   255.0
 		},
 	]
 	datasets: images: sample_indexer: {
 		"@type": "VolumetricStridedIndexer"
-		resolution: [32, 32, 45]
-		desired_resolution: [32, 32, 45]
+		resolution: #SOURCE_RES
+		desired_resolution: #SOURCE_RES
 		chunk_size: [#CHUNK_XY, #CHUNK_XY, 1]
 		stride: [#CHUNK_XY, #CHUNK_XY, 1]
 		bbox: {
 			"@type":       "BBox3D.from_coords"
-			start_coord: [2048, 256, 3180]
-			end_coord: [2512, 1024, 3182]
-			resolution: [256, 256, 45]
+			start_coord: [2 * 1024,  1 * 1024, 3182]
+			end_coord:   [12 * 1024, 4 * 1024, 3186]
+			resolution: [64, 64, 45]
 		}
 	}
 }

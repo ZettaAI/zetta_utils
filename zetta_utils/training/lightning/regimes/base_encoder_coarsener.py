@@ -2,7 +2,6 @@
 # pylint: disable=too-many-locals
 
 from typing import Optional
-import random
 from math import log2
 
 import attrs
@@ -99,7 +98,7 @@ class BaseCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-ances
         src = batch["images"]["src"]
         tgt = batch["images"]["tgt"]
 
-        if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.4:
+        if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.9:
             return None
 
         seed_field = batch["field"].field_()

@@ -1,15 +1,20 @@
 #EXP_NAME:      "base_encoder_coarsener"
 #TRAINING_ROOT: "gs://zetta-research-nico/training_artifacts"
 #POST_WEIGHT:   1.03
-#FIELD_MAGN_THR: 0.8
+#FIELD_MAGN_THR: 1.1
 #LR:            1e-4
 #CLIP:          0e-5
 #K:             3
 #EQUI_WEIGHT:   0.5
 #CHUNK_XY:      1024
-#EXP_VERSION:   "M3_M8_conv2_lr\(#LR)_post\(#POST_WEIGHT)_fmt\(#FIELD_MAGN_THR)_cns_all_newenc"
+#GAMMA_LOW:     0.5
+#GAMMA_HIGH:    1.5
+#GAMMA_PROB:    1.0
+#TILE_LOW:      0.0
+#TILE_HIGH:     0.2
+#EXP_VERSION:   "M3_M8_conv2_lr\(#LR)_post\(#POST_WEIGHT)_fmt\(#FIELD_MAGN_THR)_cns_all_rawimg"
 
-#START_EXP_VERSION: "tmp_M3_M8_conv2_lr0.0001_post1.1_cns_all_newenc"
+#START_EXP_VERSION: "M3_M8_conv2_lr0.0001_post1.1_fmt\(#FIELD_MAGN_THR)_cns_all_rawimg"
 #MODEL_CKPT:    "gs://zetta-research-nico/training_artifacts/base_encoder_coarsener/\(#START_EXP_VERSION)/last.ckpt"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
@@ -146,6 +151,7 @@ target: {
 		dataset:     #val_dset
 	}
 }
+
 #IMG_PROCS: [
 	{
 		"@mode":   "partial"
@@ -155,8 +161,47 @@ target: {
 	{
 		"@type": "divide"
 		"@mode": "partial"
-		value:   127.0
-	}
+		value:   255.0
+	},
+	{
+		"@type": "gamma_contrast_aug"
+		"@mode": "partial"
+		prob:    #GAMMA_PROB
+		gamma_distr: {
+			"@type": "uniform_distr"
+			low:     #GAMMA_LOW
+			high:    #GAMMA_HIGH
+		}
+		max_magn: 1.0
+	},
+	{
+		"@type": "square_tile_pattern_aug"
+		"@mode": "partial"
+		prob:    1.0
+		tile_size: {
+			"@type": "uniform_distr"
+			low:     64
+			high:    1024
+		}
+		tile_stride: {
+			"@type": "uniform_distr"
+			low:     64
+			high:    1024
+		}
+		max_brightness_change: {
+			"@type": "uniform_distr"
+			low:     #TILE_LOW
+			high:    #TILE_HIGH
+		}
+		rotation_degree: {
+			"@type": "uniform_distr"
+			low:     0
+			high:    90
+		}
+		preserve_data_val: 0.0
+		repeats:           3
+		device:            "cpu"
+	},
 ]
 
 #dset_settings: {
@@ -172,12 +217,12 @@ target: {
 				layers: {
 					src: {
 						"@type":    "build_cv_layer"
-						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.75_high1.5_prob1.0_tile_0.0_0.2_lr0.0002_post1.8_cns"
+						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/M7_500xSM200_M6_500xSM200_M5_500xSM200_M4_250xSM200_M3_250xSM200_VV3_CT2.5_BS10/mip1/img/img_rendered"
 						read_procs: _img_procs
 					}
 					tgt: {
 						"@type":    "build_cv_layer"
-						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/experiments/encoding_coarsener/gamma_low0.75_high1.5_prob1.0_tile_0.0_0.2_lr0.0002_post1.8_cns"
+						path:       "gs://zetta_lee_fly_cns_001_alignment_temp/fine_v4/M7_500xSM200_M6_500xSM200_M5_500xSM200_M4_250xSM200_M3_250xSM200_VV3_CT2.5_BS10/mip1/img/img_rendered"
 						read_procs: _img_procs
 						index_procs: [
                             {
@@ -290,7 +335,7 @@ target: {
 		{
 			"@type": "divide"
 			"@mode": "partial"
-			value:   127.0
+			value:   255.0
 		},
 	]
 	datasets: images: sample_indexer: {

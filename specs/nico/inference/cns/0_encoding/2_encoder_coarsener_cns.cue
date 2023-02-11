@@ -19,11 +19,13 @@ worker_replicas: 10
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
-local_test: true
+local_test: false
 
 target: {
 	"@type": "build_subchunkable_apply_flow"
-    bbox: #BBOX
+	start_coord: [0, 0, 3001]
+	end_coord: [32768, 32768, 3050]
+	coord_resolution: [32, 32, 45]
 
 	dst: {
 		"@type":             "build_cv_layer"

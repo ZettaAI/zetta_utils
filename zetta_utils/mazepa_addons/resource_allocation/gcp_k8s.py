@@ -1,17 +1,30 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 from contextlib import contextmanager
+from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
+import attrs
+from google import auth as google_auth
+from google.cloud.container_v1 import ClusterManagerClient
+
 from kubernetes import client as k8s_client  # type: ignore
-from kubernetes import config as k8s_config  # type: ignore
 from zetta_utils import builder, log, mazepa
 
 from .resource_tracker import ExecutionResource, register_execution_resource
 
 logger = log.get_logger("zetta_utils")
+
+
+@builder.register("mazepa.GKEClusterInfo")
+@attrs.frozen
+class GKEClusterInfo:
+    cluster_id: str
+    region: str = "us-east1"
+    project: str = "zetta-research"
 
 
 def _get_worker_command(queue_spec: Dict[str, Any]):
@@ -212,14 +225,40 @@ def get_k8s_deployment(  # pylint: disable=too-many-locals
     )
 
 
+def _get_cluster_configuration(cluster_info: GKEClusterInfo) -> k8s_client.Configuration:
+    project_id = cluster_info.project
+    region = cluster_info.region
+    cluster_id = cluster_info.cluster_id
+    cluster_name = f"projects/{project_id}/locations/{region}/clusters/{cluster_id}"
+
+    # see https://github.com/googleapis/python-container/issues/6
+    container_client = ClusterManagerClient()
+    cluster = container_client.get_cluster(name=cluster_name)
+
+    creds, _ = google_auth.default()
+    auth_req = google_auth.transport.requests.Request()
+    creds.refresh(auth_req)
+
+    configuration = k8s_client.Configuration()
+    configuration.host = f"https://{cluster.endpoint}"
+    with NamedTemporaryFile(delete=False) as ca_cert:
+        ca_cert.write(base64.b64decode(cluster.master_auth.cluster_ca_certificate))
+        configuration.ssl_ca_cert = ca_cert.name
+
+    configuration.api_key_prefix["authorization"] = "Bearer"
+    configuration.api_key["authorization"] = creds.token
+    return configuration
+
+
 @builder.register("k8s_namespace_ctx_mngr")
 @contextmanager
 def k8s_namespace_ctx_mngr(
     execution_id: str,
+    cluster_info: GKEClusterInfo,
     secrets: List[k8s_client.V1Secret],
     deployments: List[k8s_client.V1Deployment],
 ):
-    k8s_config.load_kube_config()
+    k8s_client.Configuration.set_default(_get_cluster_configuration(cluster_info))
     k8s_core_v1_api = k8s_client.CoreV1Api()
     k8s_apps_v1_api = k8s_client.AppsV1Api()
 

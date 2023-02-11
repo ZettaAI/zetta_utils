@@ -33,6 +33,7 @@ def _ensure_required_env_vars():
 def get_gcp_with_sqs_config(
     execution_id: str,
     worker_image: str,
+    worker_cluster: resource_allocation.gcp_k8s.GKEClusterInfo,
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
@@ -71,6 +72,7 @@ def get_gcp_with_sqs_config(
     ctx_managers.append(
         resource_allocation.gcp_k8s.k8s_namespace_ctx_mngr(
             execution_id=execution_id,
+            cluster_info=worker_cluster,
             secrets=secrets,
             deployments=[deployment],
         )
@@ -85,6 +87,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]] = None,
+    worker_cluster: Optional[resource_allocation.gcp_k8s.GKEClusterInfo] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
@@ -102,9 +105,12 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     if local_test:
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
+        if worker_cluster is None:
+            worker_cluster = resource_allocation.gcp_k8s.GKEClusterInfo("zutils-x3")
         exec_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
             worker_image=worker_image,
+            worker_cluster=worker_cluster,
             worker_labels=worker_labels,
             worker_replicas=worker_replicas,
             worker_resources=worker_resources,

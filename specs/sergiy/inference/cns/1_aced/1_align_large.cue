@@ -10,9 +10,9 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "try_x0"
+#PAIRWISE_SUFFIX: "cutout_x1"
 
-#FOLDER:          "gs://sergiy_exp/aced/demo_x0/\(#PAIRWISE_SUFFIX)"
+#FOLDER:          "gs://sergiy_exp/aced/cns/\(#PAIRWISE_SUFFIX)"
 #FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
 #FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
 
@@ -34,8 +34,8 @@
 #RELAXATION_ITER: 150
 #RELAXATION_RIG:  20
 
-#Z_START:           2950
-#Z_END:             2960
+#Z_START:           2550
+#Z_END:             2750
 #RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 
 #BBOX: {
@@ -350,8 +350,8 @@
 							dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
 							tmp_layer_dir: "\(#FIELDS_FWD_PATH)/\(z_offset)/tmp"
 							tgt_offset: [0, 0, z_offset]
-						},
-						#WARP_FWD_FLOW,
+						}
+						//#WARP_FWD_FLOW,,,
 					]
 				},
 				//{
@@ -384,12 +384,12 @@
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x54"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x58"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:      20
+	worker_replicas:      25
 	batch_gap_sleep_sec:  1
 	do_dryrun_estimation: true
 	local_test:           false

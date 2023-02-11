@@ -15,7 +15,7 @@
 	start_coord: [0, 0, #Z_START]
 	end_coord: [1024, 1024, #Z_END]
 	coord_resolution: [512, 512, 45]
-	temp_layers_dirs: ["gs://tmp_2w/tmp_dirs", "file://~/.zutils/tmp_layers/"]
+	temp_layers_dirs: ["gs://tmp_2w/tmp_dirs", "file://~/.cloudvolume/memcache/"]
 	src: {
 		"@type":    "build_cv_layer"
 		path:       _
@@ -35,6 +35,7 @@
 		on_info_exists: "overwrite"
 		write_procs:    _ | *[]
 	}
+	allow_cache_up_to_level: 1
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"

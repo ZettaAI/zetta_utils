@@ -20,6 +20,17 @@ REQUIRED_ENV_VARS: list[str] = [
 ]
 
 
+DEFAULT_GCP_CLUSTER_NAME = "zutils-x3"
+DEFAULT_GCP_CLUSTER_REGION = "us-east1"
+DEFAULT_GCP_CLUSTER_PROJECT = "zetta-research"
+
+DEFAULT_GCP_CLUSTER = resource_allocation.k8s.ClusterInfo(
+    name=DEFAULT_GCP_CLUSTER_NAME,
+    region=DEFAULT_GCP_CLUSTER_REGION,
+    project=DEFAULT_GCP_CLUSTER_PROJECT,
+)
+
+
 def _ensure_required_env_vars():
     missing_vars = set()
     for e in REQUIRED_ENV_VARS:
@@ -33,7 +44,7 @@ def _ensure_required_env_vars():
 def get_gcp_with_sqs_config(
     execution_id: str,
     worker_image: str,
-    worker_cluster: resource_allocation.gcp_k8s.GKEClusterInfo,
+    worker_cluster: resource_allocation.k8s.ClusterInfo,
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
@@ -55,11 +66,11 @@ def get_gcp_with_sqs_config(
     }
     exec_queue = builder.build(exec_queue_spec)
 
-    secrets, env_secret_mapping = resource_allocation.gcp_k8s.get_k8s_secrets_and_mapping(
+    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    deployment = resource_allocation.gcp_k8s.get_k8s_deployment(
+    deployment = resource_allocation.k8s.get_deployment(
         execution_id=execution_id,
         image=worker_image,
         queue=exec_queue_spec,
@@ -70,7 +81,7 @@ def get_gcp_with_sqs_config(
     )
 
     ctx_managers.append(
-        resource_allocation.gcp_k8s.k8s_namespace_ctx_mngr(
+        resource_allocation.k8s.namespace_ctx_mngr(
             execution_id=execution_id,
             cluster_info=worker_cluster,
             secrets=secrets,
@@ -87,7 +98,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]] = None,
-    worker_cluster: Optional[resource_allocation.gcp_k8s.GKEClusterInfo] = None,
+    worker_cluster: Optional[resource_allocation.k8s.ClusterInfo] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
@@ -106,7 +117,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
         if worker_cluster is None:
-            worker_cluster = resource_allocation.gcp_k8s.GKEClusterInfo("zutils-x3")
+            logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
+            worker_cluster = DEFAULT_GCP_CLUSTER
         exec_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
             worker_image=worker_image,

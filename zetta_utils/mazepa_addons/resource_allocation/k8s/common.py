@@ -1,30 +1,31 @@
+"""
+Tools to interact with kubernetes clusters.
+"""
 from __future__ import annotations
 
-import base64
 import json
 import os
 from contextlib import contextmanager
-from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import attrs
-from google import auth as google_auth
-from google.cloud.container_v1 import ClusterManagerClient
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-from .resource_tracker import ExecutionResource, register_execution_resource
+from ..resource_tracker import ExecutionResource, register_execution_resource
+from .eks import eks_cluster_data
+from .gke import gke_cluster_data
 
 logger = log.get_logger("zetta_utils")
 
 
-@builder.register("mazepa.GKEClusterInfo")
+@builder.register("mazepa.k8s.ClusterInfo")
 @attrs.frozen
-class GKEClusterInfo:
-    cluster_id: str
-    region: str = "us-east1"
-    project: str = "zetta-research"
+class ClusterInfo:
+    name: str
+    region: Optional[str] = None
+    project: Optional[str] = None
 
 
 def _get_worker_command(queue_spec: Dict[str, Any]):
@@ -159,7 +160,7 @@ def _get_worker_deployment_spec(
     return deployment
 
 
-def get_k8s_secrets_and_mapping(
+def get_secrets_and_mapping(
     execution_id: str, share_envs: Iterable[str] = ()
 ) -> Tuple[List[k8s_client.V1Secret], Dict[str, str]]:
     env_secret_mapping: Dict[str, str] = {}
@@ -190,7 +191,7 @@ def get_k8s_secrets_and_mapping(
     return secrets, env_secret_mapping
 
 
-def get_k8s_deployment(  # pylint: disable=too-many-locals
+def get_deployment(  # pylint: disable=too-many-locals
     execution_id: str,
     image: str,
     queue: Union[mazepa.ExecutionQueue, Dict[str, Any]],
@@ -225,36 +226,28 @@ def get_k8s_deployment(  # pylint: disable=too-many-locals
     )
 
 
-def _get_cluster_configuration(cluster_info: GKEClusterInfo) -> k8s_client.Configuration:
-    project_id = cluster_info.project
-    region = cluster_info.region
-    cluster_id = cluster_info.cluster_id
-    cluster_name = f"projects/{project_id}/locations/{region}/clusters/{cluster_id}"
-
-    # see https://github.com/googleapis/python-container/issues/6
-    container_client = ClusterManagerClient()
-    cluster = container_client.get_cluster(name=cluster_name)
-
-    creds, _ = google_auth.default()
-    auth_req = google_auth.transport.requests.Request()
-    creds.refresh(auth_req)
+def _get_cluster_configuration(info: ClusterInfo) -> k8s_client.Configuration:
+    if info.project is not None:
+        assert info.region is not None, "GKE cluster needs both `project` and `region`."
+        logger.info("Cluster provider: GKE/GCP.")
+        endpoint, cert, token = gke_cluster_data(info.name, info.region, info.project)
+    else:
+        logger.info("Cluster provider: EKS/AWS.")
+        endpoint, cert, token = eks_cluster_data(info.name)
 
     configuration = k8s_client.Configuration()
-    configuration.host = f"https://{cluster.endpoint}"
-    with NamedTemporaryFile(delete=False) as ca_cert:
-        ca_cert.write(base64.b64decode(cluster.master_auth.cluster_ca_certificate))
-        configuration.ssl_ca_cert = ca_cert.name
-
+    configuration.host = f"https://{endpoint}"
+    configuration.ssl_ca_cert = cert
     configuration.api_key_prefix["authorization"] = "Bearer"
-    configuration.api_key["authorization"] = creds.token
+    configuration.api_key["authorization"] = token
     return configuration
 
 
 @builder.register("k8s_namespace_ctx_mngr")
 @contextmanager
-def k8s_namespace_ctx_mngr(
+def namespace_ctx_mngr(
     execution_id: str,
-    cluster_info: GKEClusterInfo,
+    cluster_info: ClusterInfo,
     secrets: List[k8s_client.V1Secret],
     deployments: List[k8s_client.V1Deployment],
 ):
@@ -280,5 +273,7 @@ def k8s_namespace_ctx_mngr(
     try:
         yield
     finally:
+        # new configuration to refresh expired tokens (long running executions)
+        k8s_client.Configuration.set_default(_get_cluster_configuration(cluster_info))
         logger.info(f"Deleting k8s namespace `{execution_id}`")
         k8s_core_v1_api.delete_namespace(name=execution_id)

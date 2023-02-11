@@ -15,7 +15,7 @@ def profile_field2d_percentile(
 
     nonzero_field = field[..., nonzero_field_mask].squeeze()
 
-    if nonzero_field.sum() == 0:
+    if nonzero_field.sum() == 0 or len(nonzero_field.shape) == 1:
         result = (0, 0)
     else:
         low_l = percentile(nonzero_field, low)

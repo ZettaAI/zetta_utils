@@ -31,7 +31,7 @@ class BBoxStrider:
     :param stride_start_offset: Where the stride should start in unit (not voxel),
         modulo ``chunk_size``.
     :param mode: The modes that can be chosen for the behaviour.
-        `shrink` is the default behaviour, which will round the bbox down to
+        `shrink` will round the bbox down to
         be aligned with the ``stride_start_offset`` (or just the start of the bbox
         if ``stride_start_offset`` is not set or ``stride`` != ``chunk_size``).
         `expand` is similar to `shrink` except it expands the bbox.

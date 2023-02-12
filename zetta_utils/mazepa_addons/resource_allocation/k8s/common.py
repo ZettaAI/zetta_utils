@@ -13,7 +13,6 @@ import attrs
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-from ..resource_tracker import ExecutionResource, register_execution_resource
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
 
@@ -259,8 +258,6 @@ def namespace_ctx_mngr(
 
     logger.info(f"Creating k8s namespace `{execution_id}`")
     k8s_core_v1_api.create_namespace(namespace_config)
-
-    register_execution_resource(ExecutionResource(execution_id, "k8s_namespace", execution_id))
 
     for secret in secrets:
         logger.info(f"Creating namespaced k8s secret `{secret.metadata.name}`")

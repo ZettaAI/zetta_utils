@@ -52,13 +52,9 @@ def get_gcp_with_sqs_config(
 ) -> tuple[mazepa.ExecutionQueue, list[AbstractContextManager]]:
 
     work_queue_name = f"zzz-{execution_id}-work"
-    ctx_managers.append(
-        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, work_queue_name)
-    )
+    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(work_queue_name))
     outcome_queue_name = f"zzz-{execution_id}-outcome"
-    ctx_managers.append(
-        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue_name)
-    )
+    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(outcome_queue_name))
     exec_queue_spec = {
         "@type": "mazepa.SQSExecutionQueue",
         "name": work_queue_name,

@@ -4,6 +4,8 @@ import einops
 import torch
 import torchfields  # pylint: disable=unused-import
 
+from zetta_utils import builder
+
 
 def profile_field2d_percentile(
     field: torch.Tensor,  # C, X, Y, Z
@@ -46,14 +48,18 @@ def percentile(field: torch.Tensor, q: float):
     return result
 
 
-def invert_field(field: torch.Tensor, num_iter: int = 200, lr: float = 1e-5):
-    field_zcxy = einops.rearrange(field, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
-    inverse_zcxy = (-field_zcxy).clone().field().from_pixels()
+@builder.register("invert_field")
+def invert_field(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5):
+    if src.abs().sum() == 0:
+        return src
+
+    src_zcxy = einops.rearrange(src, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
+    inverse_zcxy = (-src_zcxy).clone().field().from_pixels()
     inverse_zcxy.requires_grad = True
 
     optimizer = torch.optim.Adam([inverse_zcxy], lr=lr)
     for _ in range(num_iter):
-        loss = inverse_zcxy(field_zcxy.from_pixels()).pixels().abs().sum()
+        loss = inverse_zcxy(src_zcxy.from_pixels()).pixels().abs().sum()
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

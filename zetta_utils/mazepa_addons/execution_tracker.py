@@ -2,13 +2,17 @@ import json
 import os
 import time
 from datetime import datetime
+from typing import Mapping
 
+import attrs
 import fsspec
 from cloudfiles import paths
 
 from zetta_utils.layer.db_layer import RowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.log import get_logger
+
+from .resource_allocation.k8s import ClusterInfo
 
 logger = get_logger("zetta_utils")
 
@@ -20,18 +24,27 @@ EXECUTION_DB = build_db_layer(
 )
 
 
-def add_execution_info(execution_id: str) -> None:  # pragma: no cover
+def register_execution(execution_id: str, clusters: list[ClusterInfo]) -> None:  # pragma: no cover
     """
-    Add execcution info to database.
+    Register execution info to database, for the garbage collector.
     """
     execution_info: RowDataT = {
         "zetta_user": os.environ["ZETTA_USER"],
         "heartbeat": time.time(),
+        "clusters": json.dumps([attrs.asdict(cluster) for cluster in clusters]),
     }
 
     row_key = execution_id
     col_keys = tuple(execution_info.keys())
     EXECUTION_DB[(row_key, col_keys)] = execution_info
+
+
+def read_execution_clusters(execution_id: str) -> list[ClusterInfo]:
+    row_key = execution_id
+    col_keys = ("clusters",)
+    clusters_str = EXECUTION_DB[(row_key, col_keys)][col_keys[0]]
+    clusters: list[Mapping] = json.loads(clusters_str)  # type: ignore
+    return [ClusterInfo(**cluster) for cluster in clusters]
 
 
 def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
@@ -50,7 +63,10 @@ def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
     return True
 
 
-def record_execution_info(execution_id: str) -> None:  # pragma: no cover
+def record_execution_run(execution_id: str) -> None:  # pragma: no cover
+    """
+    Records execution data in a bucket for archiving.
+    """
     zetta_user = os.environ["ZETTA_USER"]
     zetta_project = os.environ["ZETTA_PROJECT"]
     zetta_run_spec_path = os.environ.get("ZETTA_RUN_SPEC_PATH", "None")

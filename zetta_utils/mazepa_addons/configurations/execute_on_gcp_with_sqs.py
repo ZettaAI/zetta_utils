@@ -106,7 +106,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
-    execution_tracker.record_execution_info(execution_id)
+    execution_tracker.record_execution_run(execution_id)
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:
@@ -115,6 +115,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         if worker_cluster is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
             worker_cluster = DEFAULT_GCP_CLUSTER
+        execution_tracker.register_execution(execution_id, [worker_cluster])
         exec_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
             worker_image=worker_image,

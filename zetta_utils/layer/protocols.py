@@ -1,55 +1,36 @@
 from __future__ import annotations
 
-from typing import Any, List, Protocol, TypeVar, Union, runtime_checkable
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
-from . import DataProcessor, IndexProcessor, JointIndexDataProcessor
-
-IndexT = TypeVar("IndexT")
+IndexT_contra = TypeVar("IndexT_contra", contravariant=True)
 DataT = TypeVar("DataT")
 
 
 @runtime_checkable
-class LayerWithIndexT(Protocol[IndexT]):
-    index_procs: List[IndexProcessor[IndexT]]
-
-    def read(self, idx_user: IndexT) -> Any:
+class LayerWithIndexT(Protocol[IndexT_contra]):
+    def read(self, idx_user: IndexT_contra) -> Any:
         ...
 
-    def write(self, idx_user: IndexT, data_user: Any):
+    def write(self, idx_user: IndexT_contra, data_user: Any):
         ...
 
-    def __getitem__(self, idx_user: IndexT) -> Any:
+    def __getitem__(self, idx_user: IndexT_contra) -> Any:
         ...
 
-    def __setitem__(self, idx_user: IndexT, data_user: Any):
+    def __setitem__(self, idx_user: IndexT_contra, data_user: Any):
         ...
 
 
 @runtime_checkable
-class LayerWithIndexDataT(Protocol[IndexT, DataT]):
-    index_procs: List[IndexProcessor[IndexT]]
-    read_procs: List[
-        Union[
-            DataProcessor[DataT],
-            JointIndexDataProcessor[DataT, IndexT],
-        ]
-    ]
-
-    write_procs: List[
-        Union[
-            DataProcessor[DataT],
-            JointIndexDataProcessor[DataT, IndexT],
-        ]
-    ]
-
-    def read(self, idx_user: IndexT) -> DataT:
+class LayerWithIndexDataT(Protocol[IndexT_contra, DataT]):
+    def read(self, idx_user: IndexT_contra) -> DataT:
         ...
 
-    def write(self, idx_user: IndexT, data_user: DataT):
+    def write(self, idx_user: IndexT_contra, data_user: DataT):
         ...
 
-    def __getitem__(self, idx_user: IndexT) -> DataT:
+    def __getitem__(self, idx_user: IndexT_contra) -> DataT:
         ...
 
-    def __setitem__(self, idx_user: IndexT, data_user: DataT):
+    def __setitem__(self, idx_user: IndexT_contra, data_user: DataT):
         ...

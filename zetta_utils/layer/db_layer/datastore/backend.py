@@ -55,7 +55,7 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
                 if data is None:
                     keys.append(child_key)
                 else:
-                    entity = Entity(key=child_key, exclude_from_indexes=(col_key,))
+                    entity = Entity(key=child_key)
                     try:
                         entity[col_key] = data[i][col_key]
                         entities.append(entity)

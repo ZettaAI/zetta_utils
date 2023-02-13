@@ -273,5 +273,7 @@ def namespace_ctx_mngr(
     finally:
         # new configuration to refresh expired tokens (long running executions)
         k8s_client.Configuration.set_default(get_cluster_configuration(cluster_info))
+        # need to create a new client for the above to take effect?
+        k8s_core_v1_api = k8s_client.CoreV1Api()
         logger.info(f"Deleting k8s namespace `{execution_id}`")
         k8s_core_v1_api.delete_namespace(name=execution_id)

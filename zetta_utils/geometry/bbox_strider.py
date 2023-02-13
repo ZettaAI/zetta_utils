@@ -51,7 +51,7 @@ class BBoxStrider:
     step_limits: Tuple[int, int, int] = attrs.field(init=False)
     step_start_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     step_end_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
-    mode: Optional[Literal["shrink", "expand", "exact"]] = "shrink"
+    mode: Optional[Literal["shrink", "expand", "exact"]] = "expand"
 
     def __attrs_post_init__(self) -> None:
         stride_in_unit = self.stride * self.resolution

@@ -117,7 +117,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         self,
         idx: VolumetricIndex,
         stride_start_offset: IntVec3D = IntVec3D(0, 0, 0),
-        mode: Literal["shrink", "expand", "exact"] = "shrink",
+        mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         if self.resolution is None:
             chunk_resolution = idx.resolution

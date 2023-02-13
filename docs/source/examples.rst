@@ -189,6 +189,8 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    ...    index_resolution=Vec3D(64, 64, 40),
    ...    # What to set as `desired_resolution` in the index
    ...    desired_resolution=Vec3D(64, 64, 40),
+   ...    # What to do if `bbox` doesn't divide evenly
+   ...    mode="shrink",
    ... )
    >>> print(len(indexer)) # total number of samples
    78400
@@ -275,6 +277,7 @@ such as the dataset from the earlier example:
    ...        "stride": (32, 32, 1),
    ...        "index_resolution": (64, 64, 40),
    ...        "desired_resolution": (64, 64, 40),
+   ...        "mode": "shrink",
    ...    }
    ... }
    >>> dset = builder.build(spec)

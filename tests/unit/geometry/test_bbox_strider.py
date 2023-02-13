@@ -13,6 +13,7 @@ def test_bbox_rounding(mocker):
         chunk_size=IntVec3D(1, 1, 3),
         stride=IntVec3D(1, 1, 3),
         resolution=Vec3D(1, 1, 1),
+        mode="shrink",
     )
     assert strider.num_chunks == 1
     assert strider.step_limits == IntVec3D(1, 1, 1)

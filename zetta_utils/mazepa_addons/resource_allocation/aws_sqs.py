@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from typing import Optional
 
 import boto3
 
@@ -20,3 +21,22 @@ def sqs_queue_ctx_mngr(name: str):
         logger.info(f"Deleting SQS queue '{name}'")
         logger.debug(f"Deleting SQS queue with URL={queue.url}")
         queue.delete()
+
+
+def get_queues(prefix: Optional[str] = None):
+    """
+    Gets a list of SQS queues. When a prefix is specified, only queues with names
+    that start with the prefix are returned.
+
+    :param prefix: The prefix used to restrict the list of returned queues.
+    :return: A list of Queue objects.
+    """
+    sqs = boto3.resource("sqs")
+    if prefix:
+        queue_iter = sqs.queues.filter(QueueNamePrefix=prefix)
+    else:
+        queue_iter = sqs.queues.all()
+
+    queues = list(queue_iter)
+    logger.info(f"Found {len(queues)} queues.")
+    return queues

@@ -225,7 +225,7 @@ def get_deployment(  # pylint: disable=too-many-locals
     )
 
 
-def _get_cluster_configuration(info: ClusterInfo) -> k8s_client.Configuration:
+def get_cluster_configuration(info: ClusterInfo) -> k8s_client.Configuration:
     if info.project is not None:
         assert info.region is not None, "GKE cluster needs both `project` and `region`."
         logger.info("Cluster provider: GKE/GCP.")
@@ -234,6 +234,7 @@ def _get_cluster_configuration(info: ClusterInfo) -> k8s_client.Configuration:
         logger.info("Cluster provider: EKS/AWS.")
         endpoint, cert, token = eks_cluster_data(info.name)
 
+    logger.debug(f"Cluster endpoint: {endpoint}")
     configuration = k8s_client.Configuration()
     configuration.host = f"https://{endpoint}"
     configuration.ssl_ca_cert = cert
@@ -250,7 +251,7 @@ def namespace_ctx_mngr(
     secrets: List[k8s_client.V1Secret],
     deployments: List[k8s_client.V1Deployment],
 ):
-    k8s_client.Configuration.set_default(_get_cluster_configuration(cluster_info))
+    k8s_client.Configuration.set_default(get_cluster_configuration(cluster_info))
     k8s_core_v1_api = k8s_client.CoreV1Api()
     k8s_apps_v1_api = k8s_client.AppsV1Api()
 
@@ -271,6 +272,6 @@ def namespace_ctx_mngr(
         yield
     finally:
         # new configuration to refresh expired tokens (long running executions)
-        k8s_client.Configuration.set_default(_get_cluster_configuration(cluster_info))
+        k8s_client.Configuration.set_default(get_cluster_configuration(cluster_info))
         logger.info(f"Deleting k8s namespace `{execution_id}`")
         k8s_core_v1_api.delete_namespace(name=execution_id)

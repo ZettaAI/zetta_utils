@@ -329,7 +329,9 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             # expand to allow for processing_blend_pad around the edges
             idx_expanded = idx.padded(self.processing_blend_pad)
 
-            task_idxs = chunker(idx_expanded, stride_start_offset=idx_expanded.start)
+            task_idxs = chunker(
+                idx_expanded, stride_start_offset=idx_expanded.start, mode="shrink"
+            )
 
             for task_idx in task_idxs:
                 tasks.append(self.op.make_task(task_idx, dst_temp, **kwargs))

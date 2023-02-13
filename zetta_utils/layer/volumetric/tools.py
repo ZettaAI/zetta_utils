@@ -106,6 +106,7 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
 @builder.register("VolumetricIndexChunker")
 @typechecked
 @attrs.mutable
+# TODO: Refacter the offset part into a separate subclass
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     chunk_size: IntVec3D
     max_superchunk_size: Optional[IntVec3D] = None
@@ -116,7 +117,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     def __call__(
         self,
         idx: VolumetricIndex,
-        stride_start_offset: IntVec3D = IntVec3D(0, 0, 0),
+        stride_start_offset: Optional[IntVec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         if self.resolution is None:
@@ -129,13 +130,18 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         else:
             stride = self.stride
 
+        if stride_start_offset is None:
+            stride_start_offset_to_use = (idx.bbox.start + self.offset).int()
+        else:
+            stride_start_offset_to_use = (stride_start_offset + self.offset).int()
+
         bbox_strider = BBoxStrider(
             bbox=idx.bbox.translated_start(offset=self.offset, resolution=chunk_resolution),
             resolution=chunk_resolution,
             chunk_size=self.chunk_size,
             max_superchunk_size=self.max_superchunk_size,
             stride=stride,
-            stride_start_offset=stride_start_offset + self.offset,
+            stride_start_offset=stride_start_offset_to_use,
             mode=mode,
         )
         if self.max_superchunk_size is not None:

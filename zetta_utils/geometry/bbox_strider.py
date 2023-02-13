@@ -136,15 +136,13 @@ class BBoxStrider:
         step_start_partial = [False, False, False]
         step_end_partial = [False, False, False]
         if self.stride_start_offset is not None:
-            if self.mode == "expand" and self.chunk_size != self.stride:
-                raise NotImplementedError(
-                    "`stride_start_offset` is currently unsupported when "
-                    " mode is `expand` and `chunk_size` != `stride`."
-                )
+            # align stride_start_offset to just larger than the start of the bbox
             stride_start_offset_in_unit = self.stride_start_offset * self.resolution
-            for i in range(3):
-                while stride_start_offset_in_unit[i] > self.bbox.start[i]:
-                    stride_start_offset_in_unit[i] -= self.stride_in_unit[i]
+            stride_start_offset_in_unit += (
+                (self.bbox.start - stride_start_offset_in_unit)
+                // self.stride_in_unit
+                * self.stride_in_unit
+            )
         else:
             stride_start_offset_in_unit = self.bbox.start
 
@@ -194,7 +192,7 @@ class BBoxStrider:
                     )
                     for i in range(3)
                 )
-                logger.info(
+                logger.debug(
                     f"Rounding down bbox bounds from {self.bbox.bounds} to"
                     f" {rounded_bbox_bounds} to divide evenly by stride"
                     f" {self.stride_in_unit}{self.bbox.unit} with chunk size"
@@ -214,7 +212,7 @@ class BBoxStrider:
                     )
                     for i in range(3)
                 )
-                logger.info(
+                logger.debug(
                     f"Rounding up bbox bounds from {self.bbox.bounds} to"
                     f" {rounded_bbox_bounds} to divide evenly by stride"
                     f" {self.stride_in_unit}{self.bbox.unit} with chunk size"

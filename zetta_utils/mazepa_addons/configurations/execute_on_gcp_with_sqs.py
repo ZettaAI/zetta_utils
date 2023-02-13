@@ -137,4 +137,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             show_progress=show_progress,
             do_dryrun_estimation=do_dryrun_estimation,
+            upkeep_fn=execution_tracker.update_execution_heartbeat,
         )

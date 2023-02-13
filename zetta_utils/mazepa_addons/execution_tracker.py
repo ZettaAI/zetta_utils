@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime
+from enum import Enum
 from typing import Mapping
 
 import attrs
@@ -24,14 +25,22 @@ EXECUTION_DB = build_db_layer(
 )
 
 
+class ExecutionInfoKeys(Enum):
+    ZETTA_USER = "zetta_user"
+    HEARTBEAT = "heartbeat"
+    CLUSTERS = "clusters"
+
+
 def register_execution(execution_id: str, clusters: list[ClusterInfo]) -> None:  # pragma: no cover
     """
     Register execution info to database, for the garbage collector.
     """
     execution_info: RowDataT = {
-        "zetta_user": os.environ["ZETTA_USER"],
-        "heartbeat": time.time(),
-        "clusters": json.dumps([attrs.asdict(cluster) for cluster in clusters]),
+        ExecutionInfoKeys.ZETTA_USER.value: os.environ["ZETTA_USER"],
+        ExecutionInfoKeys.HEARTBEAT.value: time.time(),
+        ExecutionInfoKeys.CLUSTERS.value: json.dumps(
+            [attrs.asdict(cluster) for cluster in clusters]
+        ),
     }
 
     row_key = execution_id
@@ -39,7 +48,7 @@ def register_execution(execution_id: str, clusters: list[ClusterInfo]) -> None: 
     EXECUTION_DB[(row_key, col_keys)] = execution_info
 
 
-def read_execution_clusters(execution_id: str) -> list[ClusterInfo]:
+def read_execution_clusters(execution_id: str) -> list[ClusterInfo]:  # pragma: no cover
     row_key = execution_id
     col_keys = ("clusters",)
     clusters_str = EXECUTION_DB[(row_key, col_keys)][col_keys[0]]
@@ -71,7 +80,7 @@ def record_execution_run(execution_id: str) -> None:  # pragma: no cover
     zetta_project = os.environ["ZETTA_PROJECT"]
     zetta_run_spec_path = os.environ.get("ZETTA_RUN_SPEC_PATH", "None")
 
-    execution_info = {
+    execution_run = {
         "zetta_user": zetta_user,
         "zetta_project": zetta_project,
         "executed_ts": datetime.utcnow().isoformat(),
@@ -84,4 +93,4 @@ def record_execution_run(execution_id: str) -> None:  # pragma: no cover
     logger.info(f"Recording execution info to {info_path}")
 
     with fsspec.open(info_path, "w") as f:
-        json.dump(execution_info, f, indent=2)
+        json.dump(execution_run, f, indent=2)

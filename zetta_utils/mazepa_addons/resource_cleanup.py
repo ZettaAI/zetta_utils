@@ -11,18 +11,27 @@ from kubernetes.client.exceptions import ApiException as K8sApiException
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils.log import get_logger
 
-from .execution_tracker import EXECUTION_DB, read_execution_clusters
+from .execution_tracker import EXECUTION_DB, ExecutionInfoKeys, read_execution_clusters
 from .resource_allocation.aws_sqs import get_queues
 from .resource_allocation.k8s import get_cluster_configuration
 
 logger = get_logger("zetta_utils")
 
 
-def _get_stale_execution_ids() -> list[str]:
+def _delete_execution_entry(execution_id: str) -> None:  # pragma: no cover
+    client = EXECUTION_DB.backend.client  # type: ignore
+    columns = [key.value for key in list(ExecutionInfoKeys)]
+    parent_key = client.key("Row", execution_id)
+    for column in columns:
+        col_key = client.key("Column", column, parent=parent_key)
+        client.delete(col_key)
+
+
+def _get_stale_execution_ids() -> list[str]:  # pragma: no cover
     client = EXECUTION_DB.backend.client  # type: ignore
     query = client.query(kind="Column")
 
-    lookback = int(os.environ["EXEC_HEARTBEAT_LOOKBACK"])
+    lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = time.time() - lookback
 
     query = query.add_filter("heartbeat", "<", time_diff)
@@ -32,7 +41,7 @@ def _get_stale_execution_ids() -> list[str]:
     return [entity.key.parent.id_or_name for entity in entities]
 
 
-def _cleanup_execution_resources(execution_id: str):
+def cleanup_execution_resources(execution_id: str):  # pragma: no cover
     logger.info(f"Deleting resources from execution {execution_id}")
     clusters = read_execution_clusters(execution_id)
     for cluster in clusters:
@@ -53,8 +62,10 @@ def _cleanup_execution_resources(execution_id: str):
         except Boto3Error as exc:
             logger.info(f"Failed to delete SQS queue: {exc}")
 
+    _delete_execution_entry(execution_id)
 
-if __name__ == "__main__":
+
+if __name__ == "__main__":  # pragma: no cover
     execution_ids = _get_stale_execution_ids()
     for exec_id in execution_ids:
-        _cleanup_execution_resources(exec_id)
+        cleanup_execution_resources(exec_id)

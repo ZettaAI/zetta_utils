@@ -4,6 +4,7 @@
 from typing import Optional
 
 import attrs
+import cc3d
 import pytorch_lightning as pl
 import torch
 import wandb
@@ -19,6 +20,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
     train_log_row_interval: int = 200
     val_log_row_interval: int = 25
     field_magn_thr: float = 1
+    max_displacement_px: float = 16.0
     post_weight: float = 0.5
     zero_value: float = 0
     zero_conserve_weight: float = 0.5
@@ -66,9 +68,17 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         return loss
 
     def _get_warped(self, img, field):
-        img_warped = field.field().from_pixels()(img)
-        zeros_warped = field.field().from_pixels()((img == self.zero_value).float()) > 0.1
-        img_warped[zeros_warped] = 0
+        img_padded = torch.nn.functional.pad(img, (1,1,1,1), value=self.zero_value)  # TanH! - fill with output zero value
+        img_warped = field.from_pixels()(img)
+
+        zeros_padded = img_padded == self.zero_value
+        zeros_padded_cc = cc3d.connected_components(zeros_padded.detach().squeeze().cpu().numpy(), connectivity=4).reshape(zeros_padded.shape)
+        zeros_padded[torch.tensor(zeros_padded_cc != zeros_padded_cc.ravel()[0], device=zeros_padded.device)] = False  # keep masking resin, restore most soma
+
+        zeros_warped = torch.nn.functional.pad(field, (1,1,1,1), mode='replicate').from_pixels().sample((~zeros_padded).float(), padding_mode='border') <= 0.1
+        zeros_warped = torch.nn.functional.pad(zeros_warped, (-1,-1,-1,-1), value=True)
+
+        img_warped[zeros_warped] = self.zero_value
         return img_warped, zeros_warped
 
     def compute_metroem_loss(self, batch: dict, mode: str, log_row: bool, sample_name: str = ""):
@@ -78,8 +88,9 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.4:
             return None
 
-        seed_field = batch["field"]
-        seed_field = (
+        seed_field = batch["field"].field_()
+        f_warp_large = seed_field * self.max_displacement_px
+        f_warp_small = (
             seed_field * self.field_magn_thr / torch.quantile(seed_field.abs().max(1)[0], 0.5)
         )
 
@@ -93,29 +104,28 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
                 trans_x_px=self.equivar_trans_px_distr(),
                 trans_y_px=self.equivar_trans_px_distr(),
             )
-            .field()
             .pixels()
             .to(seed_field.device)
         )
-        f1_trans = torch.tensor(f_aff.from_pixels()(seed_field.field().from_pixels()).pixels())
-        f2_trans = torch.tensor(
-            seed_field.field()
-            .from_pixels()(f1_trans.field().from_pixels())  # type: ignore
-            .pixels()
-        )
+        f1_trans = f_aff.from_pixels()(f_warp_large.from_pixels()).pixels()
+        f2_trans = f_warp_small.from_pixels()(f1_trans.from_pixels()).pixels()
 
         src_f1, src_zeros_f1 = self._get_warped(src, f1_trans)
         src_f2, src_zeros_f2 = self._get_warped(src, f2_trans)
         tgt_f1, tgt_zeros_f1 = self._get_warped(tgt, f1_trans)
 
         src_enc = self.model(src)
-        src_enc_f1 = f1_trans.field().from_pixels()(src_enc)  # type: ignore
         src_f1_enc = self.model(src_f1)
 
+        src_enc_f1 = torch.nn.functional.pad(src_enc, (1,1,1,1), value=0.0)
+        src_enc_f1 = torch.nn.functional.pad(f1_trans, (1,1,1,1), mode='replicate').from_pixels().sample(src_enc_f1, padding_mode='border')  # type: ignore
+        src_enc_f1 = torch.nn.functional.pad(src_enc_f1, (-1,-1,-1,-1), value=0.0)
+
         equi_diff = (src_enc_f1 - src_f1_enc).abs()
-        equi_loss = equi_diff[src_zeros_f1 == 0].sum()
+        # equi_loss = equi_diff[src_zeros_f1 == 0].sum()
+        equi_loss = equi_diff.sum()
         equi_diff_map = equi_diff.clone()
-        equi_diff_map[src_zeros_f1] = 0
+        # equi_diff_map[src_zeros_f1] = 0
 
         src_f2_enc = self.model(src_f2)
         tgt_f1_enc = self.model(tgt_f1)
@@ -129,11 +139,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
 
         post_tissue_mask = tensor_ops.mask.coarsen(tgt_zeros_f1 + src_zeros_f2, width=2) == 0
 
-        post_magn_mask = seed_field.abs().max(1)[0] > self.field_magn_thr
-        post_magn_mask[..., 0:10, :] = 0
-        post_magn_mask[..., -10:, :] = 0
-        post_magn_mask[..., :, 0:10] = 0
-        post_magn_mask[..., :, -10:] = 0
+        post_magn_mask = (f_warp_small.abs().max(1)[0] > self.field_magn_thr).tensor_()
 
         post_diff_map = (src_f2_enc - tgt_f1_enc).abs()
         post_mask = post_magn_mask * post_tissue_mask
@@ -162,76 +168,8 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
                 src_f2_enc=src_f2_enc,
                 tgt_f1=tgt_f1,
                 tgt_f1_enc=tgt_f1_enc,
-                field=torch.tensor(seed_field),
+                field=f_warp_small.tensor_(),
                 equi_diff_map=equi_diff_map,
-                post_diff_masked=post_diff_masked,
-                pre_diff_masked=pre_diff_masked,
-            )
-        return loss
-
-    def compute_metroem_loss_old(
-        self, batch: dict, mode: str, log_row: bool, sample_name: str = ""
-    ):
-        src = batch["images"]["src"]
-        tgt = batch["images"]["tgt"]
-
-        field = batch["field"]
-
-        tgt_zeros = tensor_ops.mask.coarsen(tgt == self.zero_value, width=1)
-        src_zeros = tensor_ops.mask.coarsen(src == self.zero_value, width=1)
-
-        pre_tissue_mask = (src_zeros + tgt_zeros) == 0
-        if pre_tissue_mask.sum() / src.numel() < 0.4:
-            return None
-
-        zero_magns = 0
-        tgt_enc = self.model(tgt)
-        zero_magns += tgt_enc[tgt_zeros].abs().sum()
-
-        src_warped = field.field().from_pixels()(src)
-        src_warped_enc = self.model(src_warped)
-        src_zeros_warped = field.field().from_pixels()(src_zeros.float()) > 0.1
-
-        zero_magns += src_warped_enc[src_zeros_warped].abs().sum()
-
-        # src_enc = (~(field.field().from_pixels()))(src_warped_enc)
-        src_enc = self.model(src)
-
-        pre_diff = (src_enc - tgt_enc).abs()
-        pre_loss = pre_diff[..., pre_tissue_mask].sum()
-        pre_diff_masked = pre_diff.clone()
-        pre_diff_masked[..., pre_tissue_mask == 0] = 0
-
-        post_tissue_mask = tensor_ops.mask.coarsen(src_zeros_warped + tgt_zeros, width=5) == 0
-        post_magn_mask = field.abs().sum(1) > self.field_magn_thr
-
-        post_magn_mask[..., 0:10, :] = 0
-        post_magn_mask[..., -10:, :] = 0
-        post_magn_mask[..., :, 0:10] = 0
-        post_magn_mask[..., :, -10:] = 0
-        post_diff_map = (src_warped_enc - tgt_enc).abs()
-        post_mask = post_magn_mask * post_tissue_mask
-        post_diff_masked = post_diff_map.clone()
-        post_diff_masked[..., post_tissue_mask == 0] = 0
-        if post_mask.sum() < 256:
-            return None
-
-        post_loss = post_diff_map[..., post_mask].sum()
-        loss = pre_loss - post_loss * self.post_weight + zero_magns * self.zero_conserve_weight
-        self.log(f"loss/{mode}", loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_pre", pre_loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_post", post_loss, on_step=True, on_epoch=True)
-        self.log(f"loss/{mode}_zcons", zero_magns, on_step=True, on_epoch=True)
-        if log_row:
-            self.log_results(
-                mode,
-                sample_name,
-                src=src,
-                src_enc=src_enc,
-                src_warped_enc=src_warped_enc,
-                tgt=tgt,
-                tgt_enc=tgt_enc,
-                field=field,
                 post_diff_masked=post_diff_masked,
                 pre_diff_masked=pre_diff_masked,
             )

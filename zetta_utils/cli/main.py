@@ -58,6 +58,7 @@ def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
         spec = zetta_utils.parsing.cue.load(path)
+        os.environ["ZETTA_RUN_SPEC_PATH"] = path
     else:
         assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
         spec = zetta_utils.parsing.cue.loads(str_spec)

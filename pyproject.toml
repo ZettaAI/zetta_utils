@@ -87,6 +87,8 @@ mazepa = [
 mazepa-addons = [
     "zetta_utils[mazepa]",
     "kubernetes >= 25.3.0",
+    "google-cloud-container",
+    "awscli",
 ]
 segmentation = [
     "onnx >= 1.13.0",

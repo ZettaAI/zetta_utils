@@ -98,7 +98,8 @@ target: {
 	"@type": "mazepa.seq_flow"
 	stages: [
 		#JOINT_OFFSET_FLOW,
-		//#MATCH_OFFSETS_FLOW,
+		#MATCH_OFFSETS_FLOW,
+
 		//#RELAX_FLOW,
 		//#JOINT_POST_ALIGN_FLOW,
 	]

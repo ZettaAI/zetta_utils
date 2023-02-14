@@ -13,8 +13,8 @@
 #PAIRWISE_SUFFIX: "cutout_x1"
 
 #FOLDER:          "gs://sergiy_exp/aced/cns/\(#PAIRWISE_SUFFIX)"
-#FIELDS_FWD_PATH: "\(#FOLDER)/fields_fwd"
-#FIELDS_BWD_PATH: "\(#FOLDER)/fields_bwd"
+#FIELDS_PATH:     "\(#FOLDER)/fields_fwd"
+#FIELDS_INV_PATH: "\(#FOLDER)/fields_inv"
 
 #IMGS_WARPED_PATH:      "\(#FOLDER)/imgs_warped"
 #WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped"
@@ -29,17 +29,21 @@
 
 #CF_INFO_CHUNK: [512, 512, 1]
 #AFIELD_INFO_CHUNK: [512, 512, 1]
-#RELAXATION_CHUNK: [512, 512, 4]
+#RELAXATION_CHUNK: [512, 512, #Z_END - #Z_START]
 #RELAXATION_FIX:  "both"
 #RELAXATION_ITER: 150
 #RELAXATION_RIG:  20
 
-#Z_START:           2550
-#Z_END:             2750
-#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
+#Z_START: 2645
+#Z_END:   2781
+
+//#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
+#RELAXATION_SUFFIX: "_try_x0"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
+	//start_coord: [512 + 256, 512, #Z_START]
+	//end_coord: [1024, 512 + 256, #Z_END]
 	start_coord: [0, 0, #Z_START]
 	end_coord: [2048, 2048, #Z_END]
 	resolution: [512, 512, 45]
@@ -228,6 +232,66 @@
 	}
 }
 
+#MISD_TMP_FLOW: {
+	"@type": "build_chunked_apply_flow"
+	operation: {
+		"@type": "VolumetricCallableOperation"
+		fn: {
+			"@type": "misd_tmp"
+			"@mode": "partial"
+		}
+	}
+	chunker: {
+		"@type": "VolumetricIndexChunker"
+		chunk_size: [2048, 2048, 1]
+	}
+	idx: {
+		"@type": "VolumetricIndex"
+		bbox:    #BBOX
+		resolution: [32, 32, 45]
+	}
+	src: {
+		"@type": "build_cv_layer"
+		path:    "\(#IMGS_WARPED_PATH)/-1"
+	}
+	tgt: {
+		"@type": "build_cv_layer"
+		path:    #IMG_PATH
+	}
+	dst: {
+		"@type": "build_cv_layer"
+		//path:                "\(#MISALIGNMENTS_PATH)/-1"
+		path:                #MATCH_OFFSETS_PATH
+		info_reference_path: #IMG_PATH
+		on_info_exists:      "overwrite"
+		write_procs: [
+			{
+				"@type": "coarsen_mask"
+				"@mode": "partial"
+				width:   3
+			},
+			{
+				"@type": "to_float32"
+				"@mode": "partial"
+			},
+			{
+				"@type": "add"
+				"@mode": "partial"
+				value:   -1
+			},
+			{
+				"@type": "multiply"
+				"@mode": "partial"
+				value:   -1
+			},
+			{
+				"@type": "to_uint8"
+				"@mode": "partial"
+			},
+		]
+	}
+}
+
 #WARP_FLOW_TMPL: {
 	"@type": "build_warp_flow"
 	mode:    _
@@ -322,7 +386,7 @@
 	}
 }
 
-#WARP_FWD_FLOW: #WARP_FLOW_TMPL & {
+#WARP_INV_FLOW: #WARP_FLOW_TMPL & {
 	mode: "img"
 	src: path: #IMG_PATH
 	dst: index_procs: [
@@ -332,9 +396,45 @@
 			resolution: [4, 4, 45]
 		},
 	]
-	field: path: "\(#FIELDS_FWD_PATH)/-1"
+	field: path: "\(#FIELDS_PATH)/-1"
 	dst: path:   "\(#IMGS_WARPED_PATH)/+1"
 }
+
+#INVERT_FLOW_TMPL: {
+	//       "@type": "build_chunked_apply_flow"
+	//       operation: {
+	//        "@type": "VolumetricCallableOperation"
+	//        fn: {"@type": "invert_field", "@mode": "partial"}
+	//        crop_pad: [64, 64, 0]
+	//       }
+	//       chunker: {
+	//        "@type": "VolumetricIndexChunker"
+	//        chunk_size: [2048, 2048, 1]
+	//       }
+	//       idx: {
+	//        "@type": "VolumetricIndex"
+	//        bbox:    #BBOX
+	//        resolution: [32, 32, 45]
+	//       }
+	"@type": "build_subchunkable_apply_flow"
+	fn: {"@type": "invert_field", "@mode": "partial"}
+	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1]]
+	processing_crop_pads: [[64, 64, 0]]
+	temp_layers_dirs: ["file://~/.zutils/cache/"]
+	dst_resolution: [32, 32, 45]
+	bbox: #BBOX
+	src: {
+		"@type": "build_cv_layer"
+		path:    _
+	}
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                _
+		info_reference_path: src.path
+		on_info_exists:      "overwrite"
+	}
+}
+
 #Z_OFFSETS: [-1]
 #JOINT_OFFSET_FLOW: {
 	"@type": "mazepa.concurrent_flow"
@@ -346,12 +446,29 @@
 				{
 					"@type": "mazepa.seq_flow"
 					stages: [
-						#CF_FLOW_TMPL & {
-							dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
-							tmp_layer_dir: "\(#FIELDS_FWD_PATH)/\(z_offset)/tmp"
-							tgt_offset: [0, 0, z_offset]
-						}
-						//#WARP_FWD_FLOW,,,
+						//  #CF_FLOW_TMPL & {
+						//   dst: path: "\(#FIELDS_PATH)/\(z_offset)"
+						//   tmp_layer_dir: "\(#FIELDS_PATH)/\(z_offset)/tmp"
+						//   tgt_offset: [0, 0, z_offset]
+						//  },
+						// #INVERT_FLOW_TMPL & {
+						//  src: path: "\(#FIELDS_PATH)/\(z_offset)"
+						//  dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+						// },
+						// #WARP_FLOW_TMPL & {
+						//  mode: "img"
+						//  dst: path:   "\(#IMGS_WARPED_PATH)/\(z_offset)"
+						//  src: path: #IMG_PATH
+						//  src: index_procs: [
+						//   {
+						//    "@type": "VolumetricIndexTranslator"
+						//    offset: [0, 0, z_offset]
+						//    resolution: [4, 4, 45]
+						//   },
+						//  ]
+						//  field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+						// },
+						#MISD_TMP_FLOW,
 					]
 				},
 				//{
@@ -382,14 +499,88 @@
 	]
 }
 
+#RELAX_FLOW: {
+	"@type":         "build_aced_relaxation_flow"
+	fix:             #RELAXATION_FIX
+	num_iter:        #RELAXATION_ITER
+	rigidity_weight: #RELAXATION_RIG
+
+	bbox:       #BBOX
+	chunk_size: #RELAXATION_CHUNK
+	crop_pad: [64, 64, 0]
+	dst_resolution: [32, 32, 45]
+	match_offsets: {
+		"@type":             "build_cv_layer"
+		path:                #MATCH_OFFSETS_PATH
+		info_reference_path: #IMG_PATH
+		on_info_exists:      "expect_same"
+		//read_procs: [
+		// {"@type": "add", "@mode": "partial", "value": 1},
+		//]
+	}
+	field_zm1: {
+		"@type": "build_cv_layer"
+		path:    "\(#FIELDS_PATH)/-1"
+	}
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                #AFIELD_PATH
+		info_reference_path: #IMG_PATH
+		info_field_overrides: {
+			num_channels: 2
+			data_type:    "float32"
+			encoding:     "zfpc"
+		}
+		info_chunk_size: #AFIELD_INFO_CHUNK
+		on_info_exists:  "overwrite"
+	}
+}
+
+#MATCH_OFFSETS_FLOW: {
+	"@type": "build_get_match_offsets_flow"
+	bbox:    #BBOX
+	chunk_size: [2048, 2048, 1]
+	dst_resolution: [32, 32, 30]
+	non_tissue: {
+		"@type": "build_cv_layer"
+		path:    #ENC_PATH
+		read_procs: [
+			{
+				"@type": "compare"
+				"@mode": "partial"
+				mode:    "=="
+				value:   0
+			},
+		]
+	}
+	misd_mask_zm1: {
+		"@type": "build_cv_layer"
+		path:    "\(#MISALIGNMENTS_PATH)/-1"
+	}
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                #MATCH_OFFSETS_PATH
+		info_reference_path: #IMG_PATH
+		info_chunk_size: [1024, 1024, 1]
+		on_info_exists: "expect_same"
+	}
+}
+
+#POST_ALIGN_FLOW: #WARP_FLOW_TMPL & {
+	mode: "img"
+	src: path:   #IMG_PATH
+	field: path: #AFIELD_PATH
+	dst: path:   #IMG_ALIGNED_PATH
+}
+
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x58"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x64"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:      25
+	worker_replicas:      50
 	batch_gap_sleep_sec:  1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -397,10 +588,10 @@
 	target: {
 		"@type": "mazepa.seq_flow"
 		stages: [
-			#JOINT_OFFSET_FLOW,
+			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,
-			//#RELAX_FLOW,
-			//#JOINT_POST_ALIGN_FLOW,
+			#RELAX_FLOW,
+			//#POST_ALIGN_FLOW,
 		]
 	}
 }

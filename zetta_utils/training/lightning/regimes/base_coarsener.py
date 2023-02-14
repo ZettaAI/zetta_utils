@@ -1,12 +1,12 @@
 # pragma: no cover
 # pylint: disable=too-many-locals
 
-from typing import Optional
 from math import log2
+from typing import Optional
 
 import attrs
-import pytorch_lightning as pl
 import cc3d
+import pytorch_lightning as pl
 import torch
 import torchfields
 import wandb

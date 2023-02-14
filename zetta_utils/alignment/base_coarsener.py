@@ -36,20 +36,35 @@ class BaseCoarsener:
                 raise ValueError(f"Unsupported src dtype: {src.dtype}")
 
             data_in = einops.rearrange(data_in, "C X Y Z -> Z C X Y").to(device)
-            result = torch.zeros_like(data_in[..., :data_in.shape[-2] // self.ds_factor, :data_in.shape[-1] // self.ds_factor]).float()
+            result = torch.zeros_like(
+                data_in[
+                    ...,
+                    : data_in.shape[-2] // self.ds_factor,
+                    : data_in.shape[-1] // self.ds_factor,
+                ]
+            ).float()
 
             tile_pad_out = self.tile_pad_in // self.ds_factor
             tile_size_out = self.tile_size // self.ds_factor
             for x in range(self.tile_pad_in, data_in.shape[-2] - self.tile_pad_in, self.tile_size):
                 xs = x - self.tile_pad_in
                 xe = x + self.tile_size + self.tile_pad_in
-                for y in range(self.tile_pad_in, data_in.shape[-1] - self.tile_pad_in, self.tile_size):
+                for y in range(
+                    self.tile_pad_in, data_in.shape[-1] - self.tile_pad_in, self.tile_size
+                ):
                     ys = y - self.tile_pad_in
                     ye = y + self.tile_size + self.tile_pad_in
                     tile = data_in[:, :, xs:xe, ys:ye]
                     if (tile != 0).sum() > 0.0:
-                        tile_result = model(tile)[:, :, tile_pad_out:-tile_pad_out, tile_pad_out:-tile_pad_out]
-                        result[:, :, x//self.ds_factor:x//self.ds_factor+tile_size_out, y//self.ds_factor:y//self.ds_factor+tile_size_out] = tile_result
+                        tile_result = model(tile)[
+                            :, :, tile_pad_out:-tile_pad_out, tile_pad_out:-tile_pad_out
+                        ]
+                        result[
+                            :,
+                            :,
+                            x // self.ds_factor : x // self.ds_factor + tile_size_out,
+                            y // self.ds_factor : y // self.ds_factor + tile_size_out,
+                        ] = tile_result
 
             result = einops.rearrange(result, "Z C X Y -> C X Y Z")
 

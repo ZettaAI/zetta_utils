@@ -68,15 +68,26 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         return loss
 
     def _get_warped(self, img, field):
-        img_padded = torch.nn.functional.pad(img, (1,1,1,1), value=self.zero_value)  # TanH! - fill with output zero value
+        img_padded = torch.nn.functional.pad(
+            img, (1, 1, 1, 1), value=self.zero_value
+        )  # TanH! - fill with output zero value
         img_warped = field.from_pixels()(img)
 
         zeros_padded = img_padded == self.zero_value
-        zeros_padded_cc = cc3d.connected_components(zeros_padded.detach().squeeze().cpu().numpy(), connectivity=4).reshape(zeros_padded.shape)
-        zeros_padded[torch.tensor(zeros_padded_cc != zeros_padded_cc.ravel()[0], device=zeros_padded.device)] = False  # keep masking resin, restore most soma
+        zeros_padded_cc = cc3d.connected_components(
+            zeros_padded.detach().squeeze().cpu().numpy(), connectivity=4
+        ).reshape(zeros_padded.shape)
+        zeros_padded[
+            torch.tensor(zeros_padded_cc != zeros_padded_cc.ravel()[0], device=zeros_padded.device)
+        ] = False  # keep masking resin, restore most soma
 
-        zeros_warped = torch.nn.functional.pad(field, (1,1,1,1), mode='replicate').from_pixels().sample((~zeros_padded).float(), padding_mode='border') <= 0.1
-        zeros_warped = torch.nn.functional.pad(zeros_warped, (-1,-1,-1,-1), value=True)
+        zeros_warped = (
+            torch.nn.functional.pad(field, (1, 1, 1, 1), mode="replicate")
+            .from_pixels()
+            .sample((~zeros_padded).float(), padding_mode="border")
+            <= 0.1
+        )
+        zeros_warped = torch.nn.functional.pad(zeros_warped, (-1, -1, -1, -1), value=True)
 
         img_warped[zeros_warped] = self.zero_value
         return img_warped, zeros_warped
@@ -117,9 +128,9 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         src_enc = self.model(src)
         src_f1_enc = self.model(src_f1)
 
-        src_enc_f1 = torch.nn.functional.pad(src_enc, (1,1,1,1), value=0.0)
-        src_enc_f1 = torch.nn.functional.pad(f1_trans, (1,1,1,1), mode='replicate').from_pixels().sample(src_enc_f1, padding_mode='border')  # type: ignore
-        src_enc_f1 = torch.nn.functional.pad(src_enc_f1, (-1,-1,-1,-1), value=0.0)
+        src_enc_f1 = torch.nn.functional.pad(src_enc, (1, 1, 1, 1), value=0.0)
+        src_enc_f1 = torch.nn.functional.pad(f1_trans, (1, 1, 1, 1), mode="replicate").from_pixels().sample(src_enc_f1, padding_mode="border")  # type: ignore
+        src_enc_f1 = torch.nn.functional.pad(src_enc_f1, (-1, -1, -1, -1), value=0.0)
 
         equi_diff = (src_enc_f1 - src_f1_enc).abs()
         # equi_loss = equi_diff[src_zeros_f1 == 0].sum()

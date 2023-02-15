@@ -338,9 +338,19 @@ def namespace_ctx_mngr(
     logger.info(f"Creating k8s namespace `{execution_id}`")
     k8s_core_v1_api.create_namespace(namespace_config)
 
+    # Allow the Kubernetes service account to impersonate the IAM service account.
     worker_sa = get_worker_sa(k8s_core_v1_api)
     logger.debug(f"Adding ksa workload identity access via `{worker_sa}`")
     add_workload_identity_role(execution_id, cluster_info, workload_pool, principal=worker_sa)
+
+    # Annotate the Kubernetes service account with the email address of the IAM service account.
+    ksa = k8s_core_v1_api.read_namespaced_service_account(name="default", namespace=execution_id)
+    if not ksa.metadata.annotations:
+        ksa.metadata.annotations = {}
+    ksa.metadata.annotations["iam.gke.io/gcp-service-account"] = worker_sa
+    k8s_core_v1_api.patch_namespaced_service_account(
+        name="default", namespace=execution_id, body=ksa
+    )
 
     _copy_cv_secrets_from_default_ns(k8s_core_v1_api, execution_id)
     for secret in secrets:

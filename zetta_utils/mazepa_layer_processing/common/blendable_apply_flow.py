@@ -4,6 +4,7 @@ from typing import Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
 
 import attrs
 import torch
+from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa, tensor_ops
@@ -228,18 +229,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
         ):
             self.use_checkerboarding = True
         else:
-            # even if fov_crop_pad and processing_blend_pad are both zero,
-            # use checkerboarding if max_reduction_chunk is set
-            if self.max_reduction_chunk_size is not None:
-                self.use_checkerboarding = True
-                logger.info(
-                    "Using checkerboarding even though `fov_crop_pad` "
-                    " and `processing_blend_pad` are zero"
-                    " since `max_reduction_chunk_size` is nonzero;"
-                    " received {self.max_reduction_chunk_size}"
-                )
-            else:
-                self.use_checkerboarding = False
+            self.use_checkerboarding = False
         if self.use_checkerboarding:
             if not self.processing_blend_pad <= self.processing_chunk_size // 2:
                 raise ValueError(
@@ -332,13 +322,13 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             task_idxs = chunker(
                 idx_expanded, stride_start_offset=idx_expanded.start, mode="shrink"
             )
-
-            for task_idx in task_idxs:
-                tasks.append(self.op.make_task(task_idx, dst_temp, **kwargs))
-                for i, red_chunk in enumerate(red_chunks):
-                    if task_idx.intersects(red_chunk):
-                        red_chunks_task_idxs[i].append(task_idx)
-                        red_chunks_temps[i].append(dst_temp)
+            with suppress_type_checks():
+                for task_idx in task_idxs:
+                    tasks.append(self.op.make_task(task_idx, dst_temp, **kwargs))
+                    for i, red_chunk in enumerate(red_chunks):
+                        if task_idx.intersects(red_chunk):
+                            red_chunks_task_idxs[i].append(task_idx)
+                            red_chunks_temps[i].append(dst_temp)
 
         return (tasks, red_chunks_task_idxs, red_chunks_temps, dst_temps)
 

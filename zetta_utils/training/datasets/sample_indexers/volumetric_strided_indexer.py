@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import attrs
 from typeguard import typechecked
@@ -19,6 +19,7 @@ class VolumetricStridedIndexer(SampleIndexer):
     :param resolution: Resolution at which ``chunk_size`` is given.
     :param chunk_size: Size of a training chunk.
     :param stride: Distance between neighboring chunks along each dimension.
+    :param mode: Behavior when bbox cannot be divided evenly.
 
     :param index_resolution: Resolution at at which to form an index for each chunk.
         When ``index_resolution is None``, the `resolution` value will be used.
@@ -35,6 +36,7 @@ class VolumetricStridedIndexer(SampleIndexer):
     index_resolution: Optional[Vec3D] = None
     desired_resolution: Optional[Vec3D] = None
     bbox_strider: BBoxStrider = attrs.field(init=False)
+    mode: Literal["expand", "shrink"] = "expand"
 
     def __attrs_post_init__(self):
         # Use `__setattr__` to keep the object frozen.
@@ -43,6 +45,7 @@ class VolumetricStridedIndexer(SampleIndexer):
             resolution=self.resolution,
             chunk_size=self.chunk_size,
             stride=self.stride,
+            mode=self.mode,
         )
         object.__setattr__(self, "bbox_strider", bbox_strider)
 

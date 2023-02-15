@@ -13,6 +13,7 @@ def test_bbox_rounding(mocker):
         chunk_size=IntVec3D(1, 1, 3),
         stride=IntVec3D(1, 1, 3),
         resolution=Vec3D(1, 1, 1),
+        mode="shrink",
     )
     assert strider.num_chunks == 1
     assert strider.step_limits == IntVec3D(1, 1, 1)
@@ -110,6 +111,28 @@ def test_bbox_strider_get_all_chunks(mocker):
             "exact",
             IntVec3D(4, 4, 4),
             4,
+        ],
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            None,
+            "expand",
+            None,
+            12,
+        ],
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            IntVec3D(-1, 1, -3),
+            "expand",
+            None,
+            18,
         ],
         [
             Vec3D(0, 0, 0),
@@ -227,6 +250,30 @@ def test_bbox_strider_len(
             Vec3D(0, 0, 0),
             Vec3D(4, 5, 6),
             Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            None,
+            "expand",
+            None,
+            11,
+            BBox3D.from_slices((slice(2, 5), slice(2, 5), slice(4, 7))),
+        ],
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
+            IntVec3D(3, 3, 3),
+            IntVec3D(2, 2, 2),
+            IntVec3D(-1, 1, -3),
+            "expand",
+            None,
+            0,
+            BBox3D.from_slices((slice(-1, 2), slice(-1, 2), slice(-1, 2))),
+        ],
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(4, 5, 6),
+            Vec3D(1, 1, 1),
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
             None,
@@ -288,17 +335,6 @@ def test_bbox_strider_exc(mocker):
             chunk_size=IntVec3D(1, 1, 1),
             stride=IntVec3D(2, 2, 2),
             mode="exact",
-        )
-
-    # check stride_start_offset doesn't work with stride != chunk_size and expand
-    with pytest.raises(NotImplementedError):
-        strider = BBoxStrider(
-            bbox=bbox,
-            resolution=Vec3D(1, 1, 1),
-            chunk_size=IntVec3D(1, 1, 1),
-            stride=IntVec3D(2, 2, 2),
-            stride_start_offset=IntVec3D(1, 1, 1),
-            mode="expand",
         )
 
     # check superchunking doesn't work with stride != chunk_size

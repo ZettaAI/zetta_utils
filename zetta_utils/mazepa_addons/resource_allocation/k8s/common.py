@@ -37,6 +37,20 @@ class ClusterAuth:
     token: str
 
 
+def _get_init_container_command() -> str:
+    command = """
+    curl -sS -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
+        --retry 30 \
+        --retry-connrefused \
+        --retry-max-time 60 \
+        --connect-timeout 3 \
+        --fail \
+        --retry-all-errors > /dev/null && \
+        exit 0 || echo 'Retry limit exceeded. Check if the gke-metadata-server is healthy.' >&2; exit 1
+    """
+    return command
+
+
 def _get_worker_command(queue_spec: Dict[str, Any]):
     result = (
         """
@@ -101,8 +115,8 @@ def _get_worker_deployment_spec(
     ]
 
     container = k8s_client.V1Container(
-        args=["-c", worker_command],
         command=["/bin/sh"],
+        args=["-c", worker_command],
         env=_get_worker_env_vars(env_secret_mapping),
         name="zutils-worker",
         image=image,
@@ -114,6 +128,15 @@ def _get_worker_deployment_spec(
         termination_message_path="/dev/termination-log",
         termination_message_policy="File",
         volume_mounts=volume_mounts,
+    )
+
+    # this isn't ideal, google specfic
+    metadata_init_container = k8s_client.V1Container(
+        command=["/bin/bash"],
+        args=["-c", _get_init_container_command()],
+        name="zutils-worker-init",
+        image="gcr.io/google.com/cloudsdktool/cloud-sdk:alpine",
+        image_pull_policy="IfNotPresent",
     )
 
     schedule_toleration = k8s_client.V1Toleration(
@@ -132,6 +155,7 @@ def _get_worker_deployment_spec(
     pod_spec = k8s_client.V1PodSpec(
         containers=[container],
         dns_policy="Default",
+        init_containers=[metadata_init_container],
         restart_policy="Always",
         scheduler_name="default-scheduler",
         security_context={},

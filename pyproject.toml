@@ -82,13 +82,13 @@ mazepa = [
     "chardet == 5.0.0",
     "coolname >= 1.1.0",
     "task-queue >= 2.12.0",
-    "boto3 == 1.26.10",
+    "boto3 >= 1.26.10",
 ]
 mazepa-addons = [
     "zetta_utils[mazepa]",
     "kubernetes >= 25.3.0",
     "google-cloud-container",
-    "awscli",
+    "awscli == 1.27.71",
 ]
 segmentation = [
     "onnx >= 1.13.0",

@@ -13,7 +13,7 @@ import attrs
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-from ..gcloud import crm as gcloud_crm
+from ..gcloud import iam as gcloud_iam
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
 
@@ -260,8 +260,11 @@ def add_workload_identity_role(
         assert info.region is not None, "GKE cluster needs both `project` and `region`."
 
         member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
-        gcloud_crm.add_role(
-            info.project, gcloud_crm.Role.WORKLOAD_IDENTITY_USER, member, principal=principal
+        gcloud_iam.add_role(
+            info.project,
+            principal,
+            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
+            member,
         )
     else:
         NotImplementedError("Other provider clusters not supported at this time.")
@@ -274,8 +277,11 @@ def rm_workload_identity_role(
         assert info.region is not None, "GKE cluster needs both `project` and `region`."
 
         member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
-        gcloud_crm.remove_role(
-            info.project, gcloud_crm.Role.WORKLOAD_IDENTITY_USER, member, principal=principal
+        gcloud_iam.remove_role(
+            info.project,
+            principal,
+            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
+            member,
         )
     else:
         NotImplementedError("Other provider clusters not supported at this time.")

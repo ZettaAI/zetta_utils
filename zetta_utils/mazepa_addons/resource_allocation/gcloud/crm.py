@@ -6,10 +6,6 @@ from typing import Optional
 import google.auth
 import googleapiclient.discovery
 
-# Initialize Cloud Resource Manager service.
-CREDS, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-CRM_SERVICE = googleapiclient.discovery.build("cloudresourcemanager", "v1", credentials=CREDS)
-
 
 class Role(Enum):
     WORKLOAD_IDENTITY_USER = "roles/iam.workloadIdentityUser"
@@ -54,8 +50,12 @@ def remove_role(project_id: str, role: Role, member: str, principal: Optional[st
 
 def get_policy(resource: str, version=3):
     """Gets IAM policy for the resource."""
+
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    crm = googleapiclient.discovery.build("cloudresourcemanager", "v1", credentials=creds)
+
     policy = (
-        CRM_SERVICE.projects()
+        crm.projects()
         .getIamPolicy(
             resource=resource,
             body={"options": {"requestedPolicyVersion": version}},
@@ -67,7 +67,8 @@ def get_policy(resource: str, version=3):
 
 def set_policy(resource: str, policy):
     """Sets IAM policy for the resource."""
-    policy = (
-        CRM_SERVICE.projects().setIamPolicy(resource=resource, body={"policy": policy}).execute()
-    )
+
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    crm = googleapiclient.discovery.build("cloudresourcemanager", "v1", credentials=creds)
+    policy = crm.projects().setIamPolicy(resource=resource, body={"policy": policy}).execute()
     return policy

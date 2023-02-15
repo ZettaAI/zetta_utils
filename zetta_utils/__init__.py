@@ -24,6 +24,11 @@ def try_load_train_inference():  # pragma: no cover
     except ImportError:
         ...
 
+    try:
+        from . import mazepa_addons
+    except ImportError:
+        ...
+
 
 def load_inference_modules():
     from . import (

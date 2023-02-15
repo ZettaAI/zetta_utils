@@ -13,7 +13,11 @@ from zetta_utils.log import get_logger
 
 from .execution_tracker import EXECUTION_DB, ExecutionInfoKeys, read_execution_clusters
 from .resource_allocation.aws_sqs import get_queues
-from .resource_allocation.k8s import get_cluster_configuration
+from .resource_allocation.k8s import (
+    get_cluster_data,
+    get_worker_sa,
+    rm_workload_identity_role,
+)
 
 logger = get_logger("zetta_utils")
 
@@ -46,9 +50,14 @@ def cleanup_execution_resources(execution_id: str):  # pragma: no cover
     clusters = read_execution_clusters(execution_id)
     for cluster in clusters:
         try:
-            k8s_client.Configuration.set_default(get_cluster_configuration(cluster))
+            configuration, workload_pool = get_cluster_data(cluster)
+            k8s_client.Configuration.set_default(configuration)
             logger.info(f"Deleting k8s namespace `{execution_id}`")
             k8s_core_v1_api = k8s_client.CoreV1Api()
+
+            worker_sa = get_worker_sa(k8s_core_v1_api)
+            rm_workload_identity_role(execution_id, cluster, workload_pool, principal=worker_sa)
+
             k8s_core_v1_api.delete_namespace(name=execution_id)
         except K8sApiException as exc:
             logger.info(f"Failed to delete k8s namespace `{execution_id}`: {exc}")

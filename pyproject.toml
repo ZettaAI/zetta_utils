@@ -89,6 +89,7 @@ mazepa-addons = [
     "kubernetes >= 25.3.0",
     "awscli >= 1.27.71",
     "google-cloud-container",
+    "google-api-python-client",
 ]
 segmentation = [
     "onnx >= 1.13.0",

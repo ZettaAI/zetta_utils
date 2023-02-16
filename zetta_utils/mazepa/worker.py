@@ -24,7 +24,6 @@ def run_worker(
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
     debug: bool = False,
 ):
-    time.sleep(3)
     start_time = time.time()
     while True:
         tasks = exec_queue.pull_tasks(max_num=max_pull_num)

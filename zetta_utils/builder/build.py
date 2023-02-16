@@ -58,16 +58,22 @@ def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
     return decorator
 
 
+@register("invoke_lambda_str", False)
+def invoke_lambda_str(*args: list, lambda_str: str, **kwargs: dict) -> Any:
+    return eval(lambda_str)(*args, **kwargs)  # pylint: disable=eval-used
+
+
 @register("lambda", False)
-def parse_lambda_str(lambda_str: str) -> Callable:
+def efficient_parse_lambda_str(lambda_str: str) -> Callable:
     """Parses strings that are lambda functions"""
     if not isinstance(lambda_str, str):
         raise TypeError("`lambda_str` must be a string.")
-    if not lambda_str.startswith("lambda "):
+    if not lambda_str.startswith("lambda"):
         raise ValueError("`lambda_str` must start with 'lambda'.")
     if len(lambda_str) > LAMBDA_STR_MAX_LENGTH:
         raise ValueError(f"`lambda_str` must be at most {LAMBDA_STR_MAX_LENGTH} characters.")
-    return eval(lambda_str)  # pylint: disable=eval-used
+
+    return BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": lambda_str})
 
 
 @typechecked

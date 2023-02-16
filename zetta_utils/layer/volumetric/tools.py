@@ -104,7 +104,7 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
 
 
 @builder.register("VolumetricIndexChunker")
-@typechecked
+# @typechecked # checks type of every item in iterable, too slow
 @attrs.mutable
 # TODO: Refacter the offset part into a separate subclass
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):

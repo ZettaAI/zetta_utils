@@ -13,10 +13,13 @@ import attrs
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
+from ..gcloud import iam as gcloud_iam
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
 
 logger = log.get_logger("zetta_utils")
+
+CV_SECRETS_NAME = "cloudvolume-secrets"
 
 
 @builder.register("mazepa.k8s.ClusterInfo")
@@ -25,6 +28,27 @@ class ClusterInfo:
     name: str
     region: Optional[str] = None
     project: Optional[str] = None
+
+
+@attrs.frozen
+class ClusterAuth:
+    cert_name: str
+    endpoint: str
+    token: str
+
+
+def _get_init_container_command() -> str:
+    command = """
+    curl -sS -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
+        --retry 30 \
+        --retry-connrefused \
+        --retry-max-time 60 \
+        --connect-timeout 3 \
+        --fail \
+        --retry-all-errors > /dev/null && \
+        exit 0 || echo 'Retry limit exceeded. Check if the gke-metadata-server is healthy.' >&2; exit 1
+    """
+    return command
 
 
 def _get_worker_command(queue_spec: Dict[str, Any]):
@@ -84,15 +108,15 @@ def _get_worker_deployment_spec(
 ) -> k8s_client.V1Deployment:
     volume_mounts = [
         k8s_client.V1VolumeMount(
-            mount_path="/root/.cloudvolume/secrets", name="cloudvolume-secrets", read_only=True
+            mount_path="/root/.cloudvolume/secrets", name=CV_SECRETS_NAME, read_only=True
         ),
         k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
         k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
     ]
 
     container = k8s_client.V1Container(
-        args=["-c", worker_command],
         command=["/bin/sh"],
+        args=["-c", worker_command],
         env=_get_worker_env_vars(env_secret_mapping),
         name="zutils-worker",
         image=image,
@@ -106,12 +130,21 @@ def _get_worker_deployment_spec(
         volume_mounts=volume_mounts,
     )
 
+    # this isn't ideal, google specfic
+    metadata_init_container = k8s_client.V1Container(
+        command=["/bin/bash"],
+        args=["-c", _get_init_container_command()],
+        name="zutils-worker-init",
+        image="gcr.io/google.com/cloudsdktool/cloud-sdk:alpine",
+        image_pull_policy="IfNotPresent",
+    )
+
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
 
-    secret = k8s_client.V1SecretVolumeSource(default_mode=420, secret_name="cloudvolume-secrets")
-    volume0 = k8s_client.V1Volume(name="cloudvolume-secrets", secret=secret)
+    secret = k8s_client.V1SecretVolumeSource(default_mode=420, secret_name=CV_SECRETS_NAME)
+    volume0 = k8s_client.V1Volume(name=CV_SECRETS_NAME, secret=secret)
     volume1 = k8s_client.V1Volume(
         name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
     )
@@ -122,6 +155,7 @@ def _get_worker_deployment_spec(
     pod_spec = k8s_client.V1PodSpec(
         containers=[container],
         dns_policy="Default",
+        init_containers=[metadata_init_container],
         restart_policy="Always",
         scheduler_name="default-scheduler",
         security_context={},
@@ -225,22 +259,95 @@ def get_deployment(  # pylint: disable=too-many-locals
     )
 
 
-def get_cluster_configuration(info: ClusterInfo) -> k8s_client.Configuration:
+def _get_provider_cluster_data(info: ClusterInfo) -> Tuple[ClusterAuth, str]:
     if info.project is not None:
         assert info.region is not None, "GKE cluster needs both `project` and `region`."
         logger.info("Cluster provider: GKE/GCP.")
-        endpoint, cert, token = gke_cluster_data(info.name, info.region, info.project)
+
+        cluster_data, cert, token = gke_cluster_data(info.name, info.region, info.project)
+        endpoint = cluster_data.endpoint
+        workload_pool = cluster_data.workload_identity_config.workload_pool
     else:
         logger.info("Cluster provider: EKS/AWS.")
-        endpoint, cert, token = eks_cluster_data(info.name)
 
-    logger.debug(f"Cluster endpoint: {endpoint}")
+        cluster_data, cert, token = eks_cluster_data(info.name)
+        endpoint = cluster_data["endpoint"]
+        workload_pool = cluster_data["workload_identity_config"]["workload_pool"]
+
+    return ClusterAuth(cert, endpoint, token), workload_pool
+
+
+def add_workload_identity_role(
+    execution_id: str, info: ClusterInfo, workload_pool: str, principal: str
+) -> None:
+    if info.project is not None:
+        assert info.region is not None, "GKE cluster needs both `project` and `region`."
+
+        member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
+        gcloud_iam.add_role(
+            info.project,
+            principal,
+            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
+            member,
+        )
+    else:
+        NotImplementedError("Other provider clusters not supported at this time.")
+
+
+def rm_workload_identity_role(
+    execution_id: str, info: ClusterInfo, workload_pool: str, principal: str
+) -> None:
+    if info.project is not None:
+        assert info.region is not None, "GKE cluster needs both `project` and `region`."
+
+        member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
+        gcloud_iam.remove_role(
+            info.project,
+            principal,
+            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
+            member,
+        )
+    else:
+        NotImplementedError("Other provider clusters not supported at this time.")
+
+
+def get_cluster_data(info: ClusterInfo) -> Tuple[k8s_client.Configuration, str]:
+    cluster_auth, workload_pool = _get_provider_cluster_data(info)
+
+    logger.debug(f"Cluster endpoint: {cluster_auth.endpoint}")
     configuration = k8s_client.Configuration()
-    configuration.host = f"https://{endpoint}"
-    configuration.ssl_ca_cert = cert
+    configuration.host = f"https://{cluster_auth.endpoint}"
+    configuration.ssl_ca_cert = cluster_auth.cert_name
     configuration.api_key_prefix["authorization"] = "Bearer"
-    configuration.api_key["authorization"] = token
-    return configuration
+    configuration.api_key["authorization"] = cluster_auth.token
+    return configuration, workload_pool
+
+
+def get_worker_sa(k8s_api: k8s_client.CoreV1Api) -> str:
+    """Extract pre-configured service account for workload identity access in default ns"""
+    try:
+        default_ksa = k8s_api.read_namespaced_service_account(name="default", namespace="default")
+        return default_ksa.metadata.annotations["iam.gke.io/gcp-service-account"]
+    except KeyError as err:
+        raise KeyError(f"Workload Identity not configured: {err}") from err
+
+
+def _copy_cv_secrets_from_default_ns(k8s_api: k8s_client.CoreV1Api, execution_id: str) -> None:
+    """Copy pre-configured cloudvolume secrets from default ns to current ns."""
+    namespaced_cv_secret = k8s_api.read_namespaced_secret(
+        name=CV_SECRETS_NAME, namespace="default"
+    )
+
+    old_metadata = namespaced_cv_secret.metadata
+    new_metadata = k8s_client.V1ObjectMeta(
+        name=CV_SECRETS_NAME,
+        namespace=execution_id,
+        annotations=old_metadata.annotations,
+        labels=old_metadata.labels,
+    )
+
+    namespaced_cv_secret.metadata = new_metadata
+    k8s_api.create_namespaced_secret(namespace=execution_id, body=namespaced_cv_secret)
 
 
 @builder.register("k8s_namespace_ctx_mngr")
@@ -251,7 +358,8 @@ def namespace_ctx_mngr(
     secrets: List[k8s_client.V1Secret],
     deployments: List[k8s_client.V1Deployment],
 ):
-    k8s_client.Configuration.set_default(get_cluster_configuration(cluster_info))
+    configuration, workload_pool = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
     k8s_core_v1_api = k8s_client.CoreV1Api()
     k8s_apps_v1_api = k8s_client.AppsV1Api()
 
@@ -260,6 +368,21 @@ def namespace_ctx_mngr(
     logger.info(f"Creating k8s namespace `{execution_id}`")
     k8s_core_v1_api.create_namespace(namespace_config)
 
+    # Allow the Kubernetes service account to impersonate the IAM service account.
+    worker_sa = get_worker_sa(k8s_core_v1_api)
+    logger.debug(f"Adding ksa workload identity access via `{worker_sa}`")
+    add_workload_identity_role(execution_id, cluster_info, workload_pool, principal=worker_sa)
+
+    # Annotate the Kubernetes service account with the email address of the IAM service account.
+    ksa = k8s_core_v1_api.read_namespaced_service_account(name="default", namespace=execution_id)
+    if not ksa.metadata.annotations:
+        ksa.metadata.annotations = {}
+    ksa.metadata.annotations["iam.gke.io/gcp-service-account"] = worker_sa
+    k8s_core_v1_api.patch_namespaced_service_account(
+        name="default", namespace=execution_id, body=ksa
+    )
+
+    _copy_cv_secrets_from_default_ns(k8s_core_v1_api, execution_id)
     for secret in secrets:
         logger.info(f"Creating namespaced k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=execution_id, body=secret)
@@ -272,7 +395,12 @@ def namespace_ctx_mngr(
         yield
     finally:
         # new configuration to refresh expired tokens (long running executions)
-        k8s_client.Configuration.set_default(get_cluster_configuration(cluster_info))
+        configuration, workload_pool = get_cluster_data(cluster_info)
+
+        logger.debug(f"Removing ksa workload identity access via `{worker_sa}`")
+        rm_workload_identity_role(execution_id, cluster_info, workload_pool, principal=worker_sa)
+
+        k8s_client.Configuration.set_default(configuration)
         # need to create a new client for the above to take effect?
         k8s_core_v1_api = k8s_client.CoreV1Api()
         logger.info(f"Deleting k8s namespace `{execution_id}`")

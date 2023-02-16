@@ -1,5 +1,5 @@
-#EXP_NAME:      "base_encodings"
-#TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
+#EXP_NAME:      "debug"
+#TRAINING_ROOT: "gs://tmp_2w"
 #POST_WEIGHT:   1.55
 #ZCONS_WEIGHT:  0.0
 #LR:            2e-4
@@ -13,21 +13,21 @@
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
 
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x4"
+#EXP_VERSION: "debug_old_image_new_zutils"
 
 #START_EXP_VERSION: "ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17"
-#MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
+#MODEL_CKPT:        null// "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
 
 #FIELD_CV: "https://storage.googleapis.com/fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m4_x0"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x39"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:old_img_new_zutils_local"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      false
+local_test:      true
 
 target: {
 	"@type": "lightning_train"
@@ -131,17 +131,7 @@ target: {
 		"@mode": "partial"
 		value:   255.0
 	},
-	{
-		"@type": "gamma_contrast_aug"
-		"@mode": "partial"
-		prob:    #GAMMA_PROB
-		gamma_distr: {
-			"@type": "uniform_distr"
-			low:     #GAMMA_LOW
-			high:    #GAMMA_HIGH
-		}
-		max_magn: 1.0
-	},
+
 	{
 		"@type": "square_tile_pattern_aug"
 		"@mode": "partial"

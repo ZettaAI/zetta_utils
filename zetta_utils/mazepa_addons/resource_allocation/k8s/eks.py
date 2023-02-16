@@ -3,7 +3,7 @@ Fetch EKS Cluster info.
 """
 import base64
 from tempfile import NamedTemporaryFile
-from typing import Tuple
+from typing import Any, Tuple
 
 import boto3
 from awscli.customizations.eks.get_token import STSClientFactory, TokenGenerator
@@ -17,7 +17,7 @@ def get_eks_token(cluster_name: str) -> str:
     return TokenGenerator(sts_client).get_token(cluster_name)
 
 
-def eks_cluster_data(name: str) -> Tuple[str, str, str]:
+def eks_cluster_data(name: str) -> Tuple[Any, str, str]:
     bclient = boto3.client("eks")
     cluster_response = bclient.describe_cluster(name=name)
     cluster_data = cluster_response["cluster"]
@@ -28,4 +28,4 @@ def eks_cluster_data(name: str) -> Tuple[str, str, str]:
         cert_name = ca_cert.name
 
     token = get_eks_token(name)
-    return cluster_data["endpoint"], cert_name, token
+    return cluster_data, cert_name, token

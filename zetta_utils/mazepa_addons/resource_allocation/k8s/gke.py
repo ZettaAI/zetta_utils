@@ -6,10 +6,10 @@ from tempfile import NamedTemporaryFile
 from typing import Tuple
 
 from google import auth as google_auth
-from google.cloud.container_v1 import ClusterManagerClient
+from google.cloud.container_v1 import Cluster, ClusterManagerClient
 
 
-def gke_cluster_data(name: str, region: str, project: str) -> Tuple[str, str, str]:
+def gke_cluster_data(name: str, region: str, project: str) -> Tuple[Cluster, str, str]:
     cluster_name = f"projects/{project}/locations/{region}/clusters/{name}"
 
     # see https://github.com/googleapis/python-container/issues/6
@@ -22,4 +22,4 @@ def gke_cluster_data(name: str, region: str, project: str) -> Tuple[str, str, st
 
     creds, _ = google_auth.default()
     creds.refresh(google_auth.transport.requests.Request())
-    return cluster_data.endpoint, cert_name, creds.token
+    return cluster_data, cert_name, creds.token

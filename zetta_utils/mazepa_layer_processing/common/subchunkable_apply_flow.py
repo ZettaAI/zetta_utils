@@ -89,11 +89,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 "`bbox` was supplied, so `start_coord`, end_coord`, and"
                 " `coord_resolution` cannot be specified."
             )
-
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
-    dst = attrs.evolve(
-        deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
-    )
 
     num_levels = len(processing_chunk_sizes)
     if max_reduction_chunk_sizes is None:
@@ -191,6 +187,31 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     Append fov_crop pads into one list
     """
     fov_crop_pads = [fov_crop_pad] + processing_crop_pads[:-1]
+    """
+    Check for no checkerboarding
+    """
+    for i in range(0, num_levels - 1):
+        if fov_crop_pads[i] == IntVec3D(0, 0, 0) and processing_blend_pads[i] == IntVec3D(0, 0, 0):
+            logger.info(
+                f"Level {num_levels - i - 1}: Chunks will not be checkerboarded since `processing_crop_pad[level+1]`"
+                f" (`fov_crop_pad` for the top level) and `processing_blend_pad[level]` are both {IntVec3D(0, 0, 0)}."
+            )
+    if processing_blend_pads[num_levels - 1] == IntVec3D(0, 0, 0):
+        logger.info(
+            f"Level 0: Chunks will not be checkerboarded since `processing_blend_pad[level]` is {IntVec3D(0, 0, 0)}."
+        )
+    if fov_crop_pads[0] == IntVec3D(0, 0, 0) and processing_blend_pads[0] == IntVec3D(0, 0, 0):
+        logger.info(
+            "Since checkerboarding is skipped at the top level, the FOV is required to be chunk-aligned."
+        )
+        dst = attrs.evolve(
+            deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
+        )
+    else:
+        dst = attrs.evolve(
+            deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
+        )
+
     """
     Basic building blocks where the work gets done, at the very bottom
     """

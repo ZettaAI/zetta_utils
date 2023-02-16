@@ -18,6 +18,7 @@ def compute_aced_loss(
     afields: List[torch.Tensor],
     match_offsets: List[torch.Tensor],
     rigidity_weight: float,
+    rigidity_masks: torch.Tensor,
 ) -> torch.Tensor:
     intra_loss = 0
     inter_loss = 0
@@ -40,14 +41,12 @@ def compute_aced_loss(
                 > 0.0
             )
             this_inter_loss = (inter_loss_map[..., inter_loss_map_mask] ** 2).sum()
-            # this_inter_loss = (inter_loss_map ** 2).mean()
-
-            intra_loss_map = metroem.loss.rigidity(afields[i])
-            this_intra_loss = intra_loss_map.sum()
-
-            intra_loss += this_intra_loss
             inter_loss += this_inter_loss
             offset += 1
+
+        intra_loss_map = metroem.loss.rigidity(afields[i])
+        this_intra_loss = intra_loss_map[rigidity_masks[i].squeeze()].sum()
+        intra_loss += this_intra_loss
 
     loss = inter_loss + rigidity_weight * intra_loss
     print(inter_loss, rigidity_weight * intra_loss, loss)
@@ -73,6 +72,7 @@ def perform_aced_relaxation(
     field_zm1: torch.Tensor,
     field_zm2: Optional[torch.Tensor] = None,
     field_zm3: Optional[torch.Tensor] = None,
+    rigidity_masks: torch.Tensor | None = None,
     num_iter=100,
     lr=0.3,
     rigidity_weight=10.0,
@@ -84,8 +84,13 @@ def perform_aced_relaxation(
             max_displacement = max(max_displacement, field.abs().max().item())
     if (match_offsets != 0).sum() == 0 or max_displacement < 0.01:
         return torch.zeros_like(field_zm1)
-
     match_offsets_zcxy = einops.rearrange(match_offsets, "C X Y Z -> Z C X Y").cuda()
+
+    if rigidity_masks is not None:
+        rigidity_masks_zcxy = einops.rearrange(rigidity_masks, "C X Y Z -> Z C X Y").cuda()
+    else:
+        rigidity_masks_zcxy = torch.ones_like(match_offsets_zcxy)
+
     num_sections = match_offsets_zcxy.shape[0]
     assert num_sections > 1, "Can't relax blocks with just one section"
     field_map = {
@@ -93,7 +98,6 @@ def perform_aced_relaxation(
         2: field_zm2,
         3: field_zm3,
     }
-
     pfields: Dict[Tuple[int, int], torch.Tensor] = {}
     for offset, field in field_map.items():
         if field is not None:
@@ -122,6 +126,7 @@ def perform_aced_relaxation(
         loss = compute_aced_loss(
             pfields=pfields,
             afields=afields,
+            rigidity_masks=rigidity_masks_zcxy,
             match_offsets=[match_offsets_zcxy[i] for i in range(num_sections)],
             rigidity_weight=rigidity_weight,
         )

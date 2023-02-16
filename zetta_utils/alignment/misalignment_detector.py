@@ -6,6 +6,12 @@ from typeguard import typechecked
 from zetta_utils import builder, convnet, tensor_ops
 
 
+@builder.register("naive_misd")
+def naive_misd(src: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
+    result = ((src == 0) + (tgt == 0)).byte()
+    return result
+
+
 @builder.register("MisalignmentDetector")
 @typechecked
 @attrs.mutable

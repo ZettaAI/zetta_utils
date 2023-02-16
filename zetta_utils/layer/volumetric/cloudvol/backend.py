@@ -10,6 +10,7 @@ import attrs
 import cachetools
 import cloudvolume as cv
 import fsspec
+import fsspec.asyn
 import numpy as np
 import torch
 from cachetools.keys import hashkey
@@ -31,6 +32,7 @@ def _get_info(path: str) -> Dict[str, Any]:
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
     try:
+        fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
         with fsspec.open(path) as f:
             result = json.load(f)
     except FileNotFoundError as e:

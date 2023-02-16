@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Literal, Tuple
 
 import einops
 import torch
@@ -49,7 +49,20 @@ def percentile(field: torch.Tensor, q: float):
 
 
 @builder.register("invert_field")
-def invert_field(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5):
+def invert_field(src: torch.Tensor, mode: Literal["opti", "torchfields"] = "opti") -> torch.Tensor:
+    if src.abs().sum() == 0:
+        return src
+
+    if mode == "opti":
+        result = invert_field_opti(src)
+    else:
+        src_zcxy = einops.rearrange(src, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
+        result_zcxy = (~(src_zcxy.from_pixels())).pixels()
+        result = einops.rearrange(result_zcxy, "Z C X Y -> C X Y Z")
+    return result
+
+
+def invert_field_opti(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5) -> torch.Tensor:
     if src.abs().sum() == 0:
         return src
 

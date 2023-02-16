@@ -32,15 +32,15 @@
 #CF_INFO_CHUNK: [512, 512, 1]
 #AFIELD_INFO_CHUNK: [512, 512, 1]
 #RELAXATION_CHUNK: [512, 512, #Z_END - #Z_START]
-#RELAXATION_FIX:  "both"
+#RELAXATION_FIX:  "first"
 #RELAXATION_ITER: 150
-#RELAXATION_RIG:  20
+#RELAXATION_RIG:  500
 
 #Z_START: 3300
 #Z_END:   3400
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
-#RELAXATION_SUFFIX: "_try_x0"
+#RELAXATION_SUFFIX: "_try_x0_rig500_mask_x0"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -248,7 +248,7 @@
 	operation: {
 		"@type": "VolumetricCallableOperation"
 		fn: {
-			"@type": "misd_tmp"
+			"@type": "naive_misd"
 			"@mode": "partial"
 		}
 	}
@@ -279,7 +279,7 @@
 			{
 				"@type": "coarsen_mask"
 				"@mode": "partial"
-				width:   3
+				width:   1
 			},
 			{
 				"@type": "to_float32"
@@ -457,29 +457,29 @@
 				{
 					"@type": "mazepa.seq_flow"
 					stages: [
-						#CF_FLOW_TMPL & {
-							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
-							tmp_layer_dir: "\(#FIELDS_PATH)/\(z_offset)/tmp"
-							tgt_offset: [0, 0, z_offset]
-						},
-						#INVERT_FLOW_TMPL & {
-							src: path: "\(#FIELDS_PATH)/\(z_offset)"
-							dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
-						},
-						#WARP_FLOW_TMPL & {
-							mode: "img"
-							dst: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
-							src: path: #IMG_PATH
-							src: index_procs: [
-								{
-									"@type": "VolumetricIndexTranslator"
-									offset: [0, 0, z_offset]
-									resolution: [4, 4, 45]
-								},
-							]
-							field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
-						}
-						//#MISD_TMP_FLOW,,,
+						// #CF_FLOW_TMPL & {
+						//  dst: path: "\(#FIELDS_PATH)/\(z_offset)"
+						//  tmp_layer_dir: "\(#FIELDS_PATH)/\(z_offset)/tmp"
+						//  tgt_offset: [0, 0, z_offset]
+						// },
+						// #INVERT_FLOW_TMPL & {
+						//  src: path: "\(#FIELDS_PATH)/\(z_offset)"
+						//  dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+						// },
+						// #WARP_FLOW_TMPL & {
+						//  mode: "img"
+						//  dst: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
+						//  src: path: #IMG_PATH
+						//  src: index_procs: [
+						//   {
+						//    "@type": "VolumetricIndexTranslator"
+						//    offset: [0, 0, z_offset]
+						//    resolution: [4, 4, 45]
+						//   },
+						//  ]
+						//  field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+						// }
+						#MISD_TMP_FLOW,
 					]
 				},
 				//{
@@ -518,16 +518,25 @@
 
 	bbox:       #BBOX
 	chunk_size: #RELAXATION_CHUNK
-	crop_pad: [64, 64, 0]
+	crop_pad: [128, 128, 0]
 	dst_resolution: [32, 32, 45]
+	rigidity_masks: {
+		"@type": "build_cv_layer"
+		path:    #IMG_PATH
+		read_procs: [
+			{
+				"@type": "compare"
+				"@mode": "partial"
+				mode:    "!="
+				value:   0
+			},
+		]
+	}
 	match_offsets: {
 		"@type":             "build_cv_layer"
 		path:                #MATCH_OFFSETS_PATH
 		info_reference_path: #IMG_PATH
 		on_info_exists:      "expect_same"
-		//read_procs: [
-		// {"@type": "add", "@mode": "partial", "value": 1},
-		//]
 	}
 	field_zm1: {
 		"@type": "build_cv_layer"
@@ -586,12 +595,12 @@
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x77"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x83"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:      30
+	worker_replicas:      70
 	batch_gap_sleep_sec:  1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -599,10 +608,10 @@
 	target: {
 		"@type": "mazepa.seq_flow"
 		stages: [
-			#JOINT_OFFSET_FLOW,
+			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,
-			//#RELAX_FLOW,
-			//#POST_ALIGN_FLOW,
+			#RELAX_FLOW,
+			#POST_ALIGN_FLOW,
 		]
 	}
 }

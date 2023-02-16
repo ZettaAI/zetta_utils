@@ -24,11 +24,11 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      true
+local_test:      false
 
 target: {
 	"@type": "lightning_train"
-	//"@mode": "lazy"
+	"@mode": "partial"
 
 	regime: {
 		"@type":                "BaseEncoderRegime"

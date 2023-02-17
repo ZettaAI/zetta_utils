@@ -56,7 +56,7 @@ def receive_msgs(
         resp = sqs_client.receive_message(
             QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
             AttributeNames=["All"],
-            MaxNumberOfMessages=msg_batch_size,
+            MaxNumberOfMessages=min(msg_batch_size, max_msg_num),
             VisibilityTimeout=visibility_timeout,
             WaitTimeSeconds=1,
         )

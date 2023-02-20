@@ -29,7 +29,7 @@ def test_channel_number(list_num_channels: list[list[int]]):
     unet = convnet.architecture.UNet(
         kernel_sizes=[3, 3],
         list_num_channels=list_num_channels,
-        downsample=torch.nn.AvgPool2d,
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     in_num_channels = [c for block in list_num_channels for c in block[:-1]]
@@ -57,7 +57,7 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
     unet = convnet.architecture.UNet(
         list_num_channels=[[1, 3], [3, 3], [3, 1]],
         kernel_sizes=kernel_sizes,
-        downsample=torch.nn.AvgPool2d,
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
     )
     conv_count = 0

@@ -84,9 +84,12 @@ class UNet(nn.Module):
                 skips_out.append(len(self.layers))
                 try:
                     self.layers.append(
-                        upsample(list_num_channels[i - 1][-1], list_num_channels[i][0])
+                        upsample(
+                            in_channels=list_num_channels[i - 1][-1],
+                            out_channels=list_num_channels[i][0],
+                        )
                     )
-                except:  # pylint: disable=bare-except
+                except TypeError:
                     self.layers.append(upsample())
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i][0]))
@@ -110,11 +113,14 @@ class UNet(nn.Module):
 
             if i < len(list_num_channels) // 2:
                 try:
-                    self.layers.append(downsample())
-                except:  # pylint: disable=bare-except
                     self.layers.append(
-                        downsample(list_num_channels[i][-1], list_num_channels[i + 1][0])
+                        downsample(
+                            in_channels=list_num_channels[i][-1],
+                            out_channels=list_num_channels[i + 1][0],
+                        )
                     )
+                except TypeError:
+                    self.layers.append(downsample())
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i + 1][0]))
                 self.layers.append(activation())

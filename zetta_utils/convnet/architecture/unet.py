@@ -89,7 +89,6 @@ class UNet(nn.Module):
 
         for i, num_channels in enumerate(list_num_channels):
             if i >= len(list_num_channels) // 2 + 1:
-                skips_out.append(len(self.layers))
                 try:
                     self.layers.append(
                         upsample(
@@ -102,6 +101,7 @@ class UNet(nn.Module):
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i][0]))
                 self.layers.append(activation())
+                skips_out.append(len(self.layers))
 
                 # FIXME: Assumes skip connection input has the same number of channels
                 if self.unet_skip_mode == "concat":
@@ -124,6 +124,7 @@ class UNet(nn.Module):
             )
 
             if i < len(list_num_channels) // 2:
+                skips_in.append(len(self.layers) - 1)
                 try:
                     self.layers.append(
                         downsample(
@@ -136,7 +137,6 @@ class UNet(nn.Module):
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i + 1][0]))
                 self.layers.append(activation())
-                skips_in.append(len(self.layers) - 1)
 
         self.skips = {}
         for skip_in, skip_out in zip(skips_in, skips_out[-1::-1]):

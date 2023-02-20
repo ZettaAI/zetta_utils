@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence as AbcSequence
-from typing import Any, List, Literal, Sequence
+from functools import partial
+from typing import Any, Callable, List, Literal, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -148,3 +149,24 @@ class Clamp(torch.nn.Module):  # pragma: no cover
 
     def forward(self, x):
         return torch.clamp(x, self.min, self.max)
+
+
+@builder.register("UpConv")
+class UpConv(torch.nn.Module):  # pragma: no cover
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int | Sequence[int],
+        upsampler: Callable[..., torch.nn.Module] = partial(torch.nn.Upsample, scale_factor=2),
+        conv: Callable[..., torch.nn.Module] = partial(torch.nn.Conv2d, padding="same"),
+    ):
+        super().__init__()
+        self.upsampler = upsampler()
+        self.conv = conv(
+            in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size
+        )
+
+    def forward(self, x):
+        x = self.upsampler(x)
+        return self.conv(x)

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import sys
-import threading
 import time
 import traceback
 import uuid
@@ -26,6 +25,7 @@ from pebble import concurrent
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
+from zetta_utils.common import RepeatTimer
 
 from . import constants, exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
@@ -34,12 +34,6 @@ logger = log.get_logger("mazepa")
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
-
-
-class RepeatTimer(threading.Timer):
-    def run(self):
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
 
 
 @attrs.mutable
@@ -132,7 +126,8 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
                 for fn in self.upkeep_settings.callbacks:
                     fn()
             except tenacity.RetryError as e:  # pragma: no cover
-                logger.info(f"Couldn't perform upkeep: {e}")
+                logger.info("Couldn't perform upkeep:")
+                logger.exception(e)
 
         upkeep = RepeatTimer(self.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
         upkeep.start()

@@ -57,6 +57,7 @@ def progress_ctx_mngr(
         progress.TimeRemainingColumn(),
         transient=True,
         # refresh_per_second=1,
+        speed_estimate_period=90,
     )
 
     def custom_debugger_hook():

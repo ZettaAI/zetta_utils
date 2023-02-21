@@ -1,4 +1,4 @@
-from random import randint
+import random
 from typing import Any
 
 import attrs
@@ -11,16 +11,20 @@ from .base import SampleIndexer
 
 @builder.register("RandomIndexer")
 @typechecked
-@attrs.frozen
+@attrs.mutable
 class RandomIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under 3 LoC
-    """Indexer which wraps a PieceIndexer to index at random.
-    Does NOT guarantee any coverage.
+    """Indexer randomizes the order at which `inner_indexer` samples are pulled.
 
-    :param indexer: PieceIndexer to be used.
+    :param indexer: SampleIndexer to be randomized.
 
     """
 
     inner_indexer: SampleIndexer
+    order: list[int] = attrs.field(init=False)
+
+    def __attrs_post_init__(self):
+        self.order = list(range(0, len(self.inner_indexer)))
+        random.shuffle(self.order)
 
     def __len__(self):
         num_samples = len(self.inner_indexer)
@@ -34,5 +38,5 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under
         :return: Index of the type used by the wrapped PieceIndexer.
 
         """
-        rand_idx = randint(0, len(self.inner_indexer) - 1)
+        rand_idx = self.order[idx]
         return self.inner_indexer(rand_idx)

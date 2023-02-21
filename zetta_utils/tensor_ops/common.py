@@ -265,7 +265,7 @@ def interpolate(  # pylint: disable=too-many-locals
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     allow_slice_rounding: bool = False,
-    unsqueeze_input_to: Optional[int] = None,
+    unsqueeze_input_to: Optional[int] = 5,
 ) -> TensorTypeVar:
     """
     Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
@@ -286,6 +286,7 @@ def interpolate(  # pylint: disable=too-many-locals
     :return: Interpolated tensor of the same type as the input tensor_ops.
     """
     original_ndim = data.ndim
+    # breakpoint()
     data = unsqueeze_to(data, unsqueeze_input_to)
 
     scale_factor_tuple = _standardize_scale_factor(

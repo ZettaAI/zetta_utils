@@ -133,6 +133,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         mazepa.execute(
             target=target,
             exec_queue=exec_queue,
+            execution_id=execution_id,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             show_progress=show_progress,

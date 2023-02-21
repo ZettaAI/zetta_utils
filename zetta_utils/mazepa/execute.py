@@ -66,7 +66,9 @@ def execute(
     Implementation: this function performs misc setup and delegates to _execute_from_state.
     """
     if execution_id is None:
-        execution_id_final = get_unique_id(prefix="execution")
+        execution_id_final = get_unique_id(
+            prefix="default-exec", slug_len=4, add_uuid=False, max_len=50
+        )
     else:
         execution_id_final = execution_id
 

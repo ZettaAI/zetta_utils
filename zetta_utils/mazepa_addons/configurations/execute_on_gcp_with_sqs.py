@@ -129,7 +129,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     with ExitStack() as stack:
         for mngr in ctx_managers:
             stack.enter_context(mngr)
-
+        # TODO: get the heartbeats in
         mazepa.execute(
             target=target,
             exec_queue=exec_queue,
@@ -138,5 +138,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             show_progress=show_progress,
             do_dryrun_estimation=do_dryrun_estimation,
-            upkeep_fn=execution_tracker.update_execution_heartbeat,
+            # upkeep_fn=execution_tracker.update_execution_heartbeat,
         )

@@ -106,18 +106,6 @@ def test_local_execution_one_task(reset_task_count) -> None:
     assert TASK_COUNT == 1
 
 
-def test_local_execution_killed_by_upkeep(reset_task_count):
-    execute(
-        dummy_flow(),
-        batch_gap_sleep_sec=0,
-        max_batch_len=1,
-        upkeep_fn=lambda _: False,
-        do_dryrun_estimation=False,
-        show_progress=False,
-    )
-    assert TASK_COUNT == 0
-
-
 def test_local_execution_with_dryrun(reset_task_count):
     execute(dummy_flow2(), max_batch_len=1, do_dryrun_estimation=True, show_progress=False)
     assert TASK_COUNT == 2

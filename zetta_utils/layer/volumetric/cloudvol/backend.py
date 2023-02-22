@@ -269,7 +269,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def clear_cache(self) -> None:  # pragma: no cover
         info = _get_info(self.path)
         for scale in info["scales"]:
-            res = Vec3D(*scale["resolution"])
+            res = Vec3D[float](*scale["resolution"])
             self._get_cv_at_resolution(res).cache.flush()
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:

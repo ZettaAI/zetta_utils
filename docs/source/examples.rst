@@ -195,11 +195,11 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    >>> print(len(indexer)) # total number of samples
    78400
    >>> print(indexer(0))
-   (Vec3D(64.0, 64.0, 40.0), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64, 64, 40), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(1))
-   (Vec3D(64.0, 64.0, 40.0), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   (Vec3D(64, 64, 40), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
    >>> print(indexer(78399))
-   (Vec3D(64.0, 64.0, 40.0), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
+   (Vec3D(64, 64, 40), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
    >>> dset = training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,

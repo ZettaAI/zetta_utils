@@ -27,7 +27,6 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     batch_gap_sleep_sec: float = 4.0
     max_batch_len: int = 1000
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
-    upkeep_fn: Optional[Callable[[str], bool]] = None
     raise_on_failed_task: bool = True
     do_dryrun_estimation: bool = True
     show_progress: bool = True
@@ -39,7 +38,6 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             batch_gap_sleep_sec=self.batch_gap_sleep_sec,
             max_batch_len=self.max_batch_len,
             state_constructor=self.state_constructor,
-            upkeep_fn=self.upkeep_fn,
             raise_on_failed_task=self.raise_on_failed_task,
             show_progress=self.show_progress,
             do_dryrun_estimation=self.do_dryrun_estimation,
@@ -52,7 +50,6 @@ def execute(
     max_batch_len: int = 1000,
     batch_gap_sleep_sec: float = 1.0,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
-    upkeep_fn: Optional[Callable[[str], bool]] = None,
     execution_id: Optional[str] = None,
     raise_on_failed_task: bool = True,
     do_dryrun_estimation: bool = True,
@@ -106,7 +103,6 @@ def execute(
             exec_queue=exec_queue_built,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
-            upkeep_fn=upkeep_fn,
             do_dryrun_estimation=do_dryrun_estimation,
             show_progress=show_progress,
         )
@@ -122,7 +118,6 @@ def _execute_from_state(
     exec_queue: ExecutionQueue,
     max_batch_len: int,
     batch_gap_sleep_sec: float,
-    upkeep_fn: Optional[Callable[[str], bool]],
     do_dryrun_estimation: bool,
     show_progress: bool,
 ):
@@ -141,14 +136,6 @@ def _execute_from_state(
             progress_updater(state.get_progress_reports())
             if len(state.get_ongoing_flow_ids()) == 0:
                 logger.debug("No ongoing flows left.")
-                break
-
-            execution_should_continue = True
-            if upkeep_fn is not None:
-                execution_should_continue = upkeep_fn(execution_id)
-
-            if not execution_should_continue:
-                logger.debug(f"Stopping execution by decision of {upkeep_fn}")
                 break
 
             process_ready_tasks(exec_queue, state, execution_id, max_batch_len)

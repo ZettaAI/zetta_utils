@@ -70,7 +70,7 @@ def _parse_annotations(layer: AnnotationLayer) -> List[Union[BBox3D, Vec3D]]:
             )
             result.append(bbox)
         except AttributeError:
-            point = Vec3D(*annotation.point) * Vec3D(*resolution)
+            point = Vec3D[float](*annotation.point) * Vec3D(*resolution)
             result.append(point)
     return result
 

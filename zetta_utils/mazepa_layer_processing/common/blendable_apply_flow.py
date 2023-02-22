@@ -185,6 +185,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
     processing_chunk_size: IntVec3D
     dst_resolution: Vec3D
     max_reduction_chunk_size: Optional[IntVec3D] = None
+    max_reduction_chunk_size_final: IntVec3D = attrs.field(init=False)
     fov_crop_pad: Optional[IntVec3D] = None
     processing_blend_pad: Optional[IntVec3D] = None
     processing_blend_mode: Literal["linear", "quadratic"] = "linear"
@@ -243,7 +244,9 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             chunk_size=self.processing_chunk_size, resolution=self.dst_resolution
         )
         if self.max_reduction_chunk_size is None:
-            self.max_reduction_chunk_size = self.processing_chunk_size
+            self.max_reduction_chunk_size_final = self.processing_chunk_size
+        else:
+            self.max_reduction_chunk_size_final = self.max_reduction_chunk_size
 
     def make_tasks_without_checkerboarding(
         self, idx_chunks: Iterable[VolumetricIndex], dst: VolumetricLayer, **kwargs: P.kwargs
@@ -384,19 +387,19 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                     )
                     e.args = (error_str + e.args[0],)
                     raise e
-            if not self.max_reduction_chunk_size >= dst.backend.get_chunk_size(
+            if not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
                 self.dst_resolution
             ):
                 raise ValueError(
                     "`max_reduction_chunk_size` (which defaults to `processing_chunk_size` when"
                     " not specified)` must be at least as large as the `dst` VolumetricLayer's"
-                    f" chunk size; received {self.max_reduction_chunk_size}, which is"
+                    f" chunk size; received {self.max_reduction_chunk_size_final}, which is"
                     f" smaller than {dst.backend.get_chunk_size(self.dst_resolution)}"
                 )
             reduction_chunker = VolumetricIndexChunker(
                 chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
                 resolution=self.dst_resolution,
-                max_superchunk_size=self.max_reduction_chunk_size,
+                max_superchunk_size=self.max_reduction_chunk_size_final,
             )
             logger.info(
                 f"Breaking {idx} into reduction chunks with checkerboarding"

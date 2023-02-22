@@ -103,7 +103,7 @@ class BBoxStrider:
             mode="shrink",
         )
         bbox_snapped_size_in_unit = bbox_snapped.shape
-        step_limits_snapped = Vec3D(
+        step_limits_snapped = Vec3D[float](
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(
@@ -137,7 +137,7 @@ class BBoxStrider:
         step_end_partial = [False, False, False]
         if self.stride_start_offset is not None:
             # align stride_start_offset to just larger than the start of the bbox
-            stride_start_offset_in_unit = self.stride_start_offset * self.resolution
+            stride_start_offset_in_unit = Vec3D(*self.stride_start_offset)  # * self.resolution
             stride_start_offset_in_unit += (
                 (self.bbox.start - stride_start_offset_in_unit)
                 // self.stride_in_unit
@@ -157,7 +157,7 @@ class BBoxStrider:
         )
 
         bbox_snapped_size_in_unit = bbox_snapped.end - bbox_snapped.start
-        step_limits_snapped = Vec3D(
+        step_limits_snapped = Vec3D[float](
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(
@@ -168,7 +168,7 @@ class BBoxStrider:
             )
         )
         bbox_size_in_unit = self.bbox.end - self.bbox.start
-        step_limits_raw = Vec3D(
+        step_limits_raw: Vec3D[float] = Vec3D[float](
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(

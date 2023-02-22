@@ -4,8 +4,8 @@
 #IMG_PATH:      "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
 #BASE_ENC_PATH: "TODO"
 
-//#ENC_PATH:      "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
-#ENC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/elastic_m3_m9_v1_masked"
+#ENC_PATH: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
+//#ENC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/encodings/elastic_m3_m9_v1_masked"
 
 // MODELS
 #BASE_ENC_MODEL_PATH: "gs://sergiy_exp/training_artifacts/base_encodings/ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17/last.ckpt.static-1.12.1+cu102-model.jit"
@@ -37,8 +37,8 @@
 #RELAXATION_LR:   0.02
 #RELAXATION_RIG:  400
 
-#Z_START: 3300
-#Z_END:   3310
+#Z_START: 2505
+#Z_END:   2525
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 #RELAXATION_SUFFIX: "_try_x0_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)"
@@ -60,7 +60,7 @@
 	scale_bar_nm: 30000
 	layers: [
 		["precoarse_img", "image", "precomputed://\(#IMG_PATH)"],
-		["+1 \(#PAIRWISE_SUFFIX)", "image", "precomputed://\(#IMGS_WARPED_PATH)/+1"],
+		["-1 \(#PAIRWISE_SUFFIX)", "image", "precomputed://\(#IMGS_WARPED_PATH)/-1"],
 		["aligned \(#RELAXATION_SUFFIX)", "image", "precomputed://\(#IMG_ALIGNED_PATH)"],
 		["aligned masked \(#RELAXATION_SUFFIX)", "image", "precomputed://\(#IMG_ALIGNED_MASKED_PATH)"],
 	]
@@ -80,15 +80,6 @@
 }
 
 #STAGES: [
-	#STAGE_TMPL & {
-		dst_resolution: [2048, 2048, 45]
-		fn: {
-			sm:       100
-			num_iter: 1000
-			lr:       0.015
-		}
-		chunk_size: [512, 512, 1]
-	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
 		fn: {
@@ -447,7 +438,7 @@
 	}
 }
 
-#Z_OFFSETS: [-2]
+#Z_OFFSETS: [-1, -2]
 #JOINT_OFFSET_FLOW: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
@@ -480,7 +471,7 @@
 							]
 							field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
 						}
-						//#MISD_TMP_FLOW,,,,,,,,
+						//#MISD_TMP_FLOW,,,,,,,,,,,,,,,,,,,
 					]
 				},
 				//{
@@ -610,10 +601,10 @@
 	target: {
 		"@type": "mazepa.seq_flow"
 		stages: [
-			//#JOINT_OFFSET_FLOW,
+			#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,
-			#RELAX_FLOW,
-			#POST_ALIGN_FLOW,
+			//#RELAX_FLOW,
+			//#POST_ALIGN_FLOW,
 		]
 	}
 }

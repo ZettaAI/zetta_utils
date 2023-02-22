@@ -10,8 +10,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 100]
-	end_coord: [1024, 1024, 1000]
+	start_coord: [0, 0, 2900]
+	end_coord: [1024, 1024, 3200]
 	resolution: [512, 512, 30]
 
 }
@@ -33,19 +33,19 @@
 		"@type": "build_cv_layer"
 		path:    _
 	}
-	mask: {
-		"@type": "build_cv_layer"
-		path:    #DEFECTS_SRC_PATH
-		read_procs: [
-			{
-				"@type": "coarsen_mask"
-				"@mode": "partial"
-				width:   1
-			},
-
-		]
-
-	}
+	masks: [
+		{
+			"@type": "build_cv_layer"
+			path:    #DEFECTS_SRC_PATH
+			read_procs: [
+				{
+					"@type": "coarsen_mask"
+					"@mode": "partial"
+					width:   1
+				},
+			]
+		},
+	]
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                _
@@ -55,7 +55,6 @@
 	}
 	bbox: #BBOX
 }
-
 #APPLY_MASK_TO_ENCS_FLOW: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
@@ -66,11 +65,8 @@
 				dst: path:                #ENC_MASKED_PATH
 				dst: info_reference_path: #ENC_SRC_PATH
 			}
-
 		},
-
 	]
-
 }
 
 #APPLY_MASK_TO_IMGS_FLOW: {
@@ -83,19 +79,17 @@
 				dst: path:                #IMG_MASKED_PATH
 				dst: info_reference_path: #IMG_SRC_PATH
 			}
-
 		},
-
 	]
-
 }
+
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x37"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x87"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"
 }
-worker_replicas:     20
+worker_replicas:     30
 batch_gap_sleep_sec: 1
 
 local_test: false
@@ -113,5 +107,4 @@ target: {
 		},
 
 	]
-
 }

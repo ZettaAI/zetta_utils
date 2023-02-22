@@ -15,8 +15,8 @@
 		pad_resolution: resolution // matches the idx resolution
 		bbox: {
 			"@type": "BBox3D.from_coords"
-			start_coord: [0, 0, 3000]
-			end_coord: [2048, 2048, 3020]
+			start_coord: [0, 0, 2950]
+			end_coord: [2048, 2048, 3100]
 			resolution: [512, 512, 30]
 		}
 	}
@@ -56,14 +56,14 @@
 }
 
 #RESOLUTIONS: [
-	//[512, 512, 30],
-	//[256, 256, 30],
-	//[128, 128, 30],
+	[512, 512, 30],
+	[256, 256, 30],
+	[128, 128, 30],
 	[64, 64, 30],
 	[32, 32, 30],
 ]
 
-"@type": "mazepa.execute"
+"@type": "mazepa.execute_on_gcp_with_sqs"
 target: [
 	for res in #RESOLUTIONS {
 		{#FLOW_TMPL & {chunker: resolution: res}} & {

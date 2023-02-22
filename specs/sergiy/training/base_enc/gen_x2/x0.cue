@@ -13,7 +13,7 @@
 #TILE_LOW:      0.1
 #TILE_HIGH:     0.4
 
-#EXP_VERSION: "gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x4"
+#EXP_VERSION: "tmp_gen_x3_gamma_low\(#GAMMA_LOW)_high\(#GAMMA_HIGH)_prob\(#GAMMA_PROB)_tile_\(#TILE_LOW)_\(#TILE_HIGH)_lr\(#LR)_x0_try_x4"
 
 #START_EXP_VERSION: "ft_patch1024_post1.55_lr0.001_deep_k3_clip0.00000_equi0.5_f1f2_tileaug_x17"
 #MODEL_CKPT:        "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#START_EXP_VERSION)/last.ckpt"
@@ -27,7 +27,7 @@ worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 worker_replicas: 1
-local_test:      false
+local_test:      true
 
 target: {
 	"@type": "lightning_train"
@@ -97,14 +97,14 @@ target: {
 		"@type":     "TorchDataLoader"
 		batch_size:  1
 		shuffle:     true
-		num_workers: 4
+		num_workers: 8
 		dataset:     #train_dset
 	}
 	val_dataloader: {
 		"@type":     "TorchDataLoader"
 		batch_size:  1
 		shuffle:     false
-		num_workers: 4
+		num_workers: 0
 		dataset:     #val_dset
 	}
 }
@@ -130,17 +130,6 @@ target: {
 		"@type": "divide"
 		"@mode": "partial"
 		value:   255.0
-	},
-	{
-		"@type": "gamma_contrast_aug"
-		"@mode": "partial"
-		prob:    #GAMMA_PROB
-		gamma_distr: {
-			"@type": "uniform_distr"
-			low:     #GAMMA_LOW
-			high:    #GAMMA_HIGH
-		}
-		max_magn: 1.0
 	},
 	{
 		"@type": "square_tile_pattern_aug"

@@ -5,7 +5,6 @@ from typing import Literal, Sequence
 from zetta_utils import builder, mazepa, parsing
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricLayer
-from zetta_utils.typing import check_type
 
 from ..common import build_write_flow
 
@@ -27,9 +26,9 @@ class AnnotatedSectionCopyFlowSchema:
         annotations = parsing.ngl_state.read_remote_annotations(annotation_path)
         annotation_zs = []
         for e in annotations:
-            if not check_type(e, Vec3D):
+            if not isinstance(e, Vec3D):
                 raise ValueError(f"All given annotations must be of Point type. Got: {type(e)}")
-            annotation_zs.append(e[-1])  # type: ignore # mypy doesn't undertand `check_type`
+            annotation_zs.append(e[-1])
 
         if order == "low_to_high":
             annotation_zs.sort()
@@ -38,12 +37,10 @@ class AnnotatedSectionCopyFlowSchema:
         else:
             ...
 
-        if not check_type(fill_resolutions, Vec3D):
+        if not isinstance(fill_resolutions, Vec3D):
             fill_resolutions_list = fill_resolutions
         else:
-            fill_resolutions_list = [
-                fill_resolutions  # type: ignore # mypy doesn't get check_type
-            ]
+            fill_resolutions_list = [fill_resolutions]
 
         for z in annotation_zs:
             for fill_res in fill_resolutions_list:

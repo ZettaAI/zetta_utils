@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import sys
-import threading
 import time
 import traceback
 import uuid
@@ -26,6 +25,7 @@ from pebble import concurrent
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
+from zetta_utils.common import RepeatTimer
 
 from . import constants, exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
@@ -34,12 +34,6 @@ logger = log.get_logger("mazepa")
 
 R_co = TypeVar("R_co", covariant=True)
 P = ParamSpec("P")
-
-
-class RepeatTimer(threading.Timer):
-    def run(self):
-        while not self.finished.wait(self.interval):
-            self.function(*self.args, **self.kwargs)
 
 
 @attrs.mutable

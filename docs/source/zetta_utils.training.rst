@@ -13,7 +13,7 @@
 * Powerful training-inference integration.
 
 
-All trainings start with a call to  ``zetta_utils.training.lightning.train``. Other than training and validation dataloaders and checkpoint paths, this function is given a training *regime* and a *trainer*. Regime defines the specifics of how the given network is to be trained. This includes training loss calulation, validation loss calculation, any actions that need to be taken at the beginning or end of each validation epoch, etc. Regimes are usually created by the scientist performing experiments.
+All trainings start with a call to  ``zetta_utils.training.lightning.train.lightning_train``. Other than training and validation dataloaders and checkpoint paths, this function is given a training *regime* and a *trainer*. Regime defines the specifics of how the given network is to be trained. This includes training loss calulation, validation loss calculation, any actions that need to be taken at the beginning or end of each validation epoch, etc. Regimes are usually created by the scientist performing experiments.
 Trainer defines training loop behavior that is commons for all regimes, such as logging, checkpointing, gradient clipping, etc. Trainer extensions are usually developed by the engineering team.
 
 You can find existing reimes in [`zetta_utils/training/lightning/regimes <https://github.com/ZettaAI/zetta_utils/tree/main/zetta_utils/training/lightning/regimes>`_].
@@ -25,7 +25,7 @@ API reference
 ``zetta_utils.training.lightning``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. autofunction:: zetta_utils.training.lightning.train.train
+.. autofunction:: zetta_utils.training.lightning.train.lightning_train
 
 
 ``zetta_utils.training.datasets``

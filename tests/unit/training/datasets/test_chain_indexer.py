@@ -2,6 +2,7 @@
 import pytest
 
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.training.datasets.sample_indexers import (
     ChainIndexer,
     VolumetricStridedIndexer,
@@ -43,8 +44,12 @@ def test_len(mocker):
 
 def test_call(mocker):
     vsi_chain = _gen_chain()
-    assert vsi_chain(0) == (None, slice(0, 1), slice(0, 1), slice(0, 1))
-    assert vsi_chain(6) == (None, slice(10, 11), slice(10, 11), slice(10, 11))
+    assert vsi_chain(0) == VolumetricIndex(
+        resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((0, 1), (0, 1), (0, 1)))
+    )
+    assert vsi_chain(6) == VolumetricIndex(
+        resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((10, 11), (10, 11), (10, 11)))
+    )
 
 
 def test_call_error(mocker):

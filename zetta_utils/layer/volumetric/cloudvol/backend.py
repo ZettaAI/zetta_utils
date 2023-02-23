@@ -367,10 +367,10 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return IntVec3D(*cvol.chunk_size)
 
     def get_chunk_aligned_index(  # pragma: no cover
-        self, index: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
+        self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
-        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(index.resolution), **self.cv_kwargs)
-        bbox = Bbox(*tuple(zip(*((s.start, s.stop) for s in index.to_slices()))))
+        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(idx.resolution), **self.cv_kwargs)
+        bbox = Bbox(*tuple(zip(*((s.start, s.stop) for s in idx.to_slices()))))
         if mode == "expand":
             bbox_aligned = bbox.expand_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
         elif mode == "shrink":
@@ -382,9 +382,9 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 f"mode must be set to 'expand', 'shrink', or 'round'; received '{mode}'"
             )
         return VolumetricIndex(
-            resolution=index.resolution,
+            resolution=idx.resolution,
             bbox=BBox3D.from_coords(
-                IntVec3D(*bbox_aligned.minpt), IntVec3D(*bbox_aligned.maxpt), index.resolution
+                IntVec3D(*bbox_aligned.minpt), IntVec3D(*bbox_aligned.maxpt), idx.resolution
             ),
         )
 

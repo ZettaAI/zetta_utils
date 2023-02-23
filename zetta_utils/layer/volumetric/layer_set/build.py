@@ -7,22 +7,22 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .. import IndexProcessor
-from . import DBBackend, DBDataProcT, DBIndex, DBLayer
+from ... import IndexProcessor
+from .. import VolumetricIndex, VolumetricLayer
+from . import VolumetricLayerSet, VolumetricLayerSetBackend, VolumetricSetDataProcT
 
 
 @typechecked
-@builder.register("build_db_layer")
-def build_db_layer(
-    backend: DBBackend,
+@builder.register("build_volumetric_layer_set")
+def build_volumetric_layer_set(
+    layers: dict[str, VolumetricLayer],
     readonly: bool = False,
-    index_procs: Iterable[IndexProcessor[DBIndex]] = (),
-    read_procs: Iterable[DBDataProcT] = (),
-    write_procs: Iterable[DBDataProcT] = (),
-) -> DBLayer:
-    """Build a DB Layer.
-
-    :param backend: Layer backend.
+    index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
+    read_procs: Iterable[VolumetricSetDataProcT] = (),
+    write_procs: Iterable[VolumetricSetDataProcT] = (),
+) -> VolumetricLayerSet:
+    """Build a set of volumetric layers.
+    :param layers: Mapping from layer names to layers.
     :param readonly: Whether layer is read only.
     :param index_procs: List of processors that will be applied to the index given by the user
         prior to IO operations.
@@ -31,9 +31,9 @@ def build_db_layer(
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
-
     """
-    result = DBLayer(
+    backend = VolumetricLayerSetBackend(layers)
+    result = VolumetricLayerSet(
         backend=backend,
         readonly=readonly,
         index_procs=tuple(index_procs),

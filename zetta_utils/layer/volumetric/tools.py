@@ -134,7 +134,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             stride_start_offset_to_use = (idx.bbox.start + self.offset).int()
         else:
             stride_start_offset_to_use = (stride_start_offset + self.offset).int()
-
         bbox_strider = BBoxStrider(
             bbox=idx.bbox.translated_start(offset=self.offset, resolution=chunk_resolution),
             resolution=chunk_resolution,

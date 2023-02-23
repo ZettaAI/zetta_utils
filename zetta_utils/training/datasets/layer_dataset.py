@@ -45,6 +45,6 @@ class LayerDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> Any:
         layer_idx = self.sample_indexer(idx)
-        sample_raw = self.layer[layer_idx]
+        sample_raw = self.layer.read_with_procs(layer_idx)
         sample = _convert_to_torch_nested(sample_raw)
         return sample

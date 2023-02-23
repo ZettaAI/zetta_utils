@@ -1,8 +1,8 @@
-# pylint: disable=missing-docstring
+# pylint: disable=protected-access
 
 import pytest
 
-from zetta_utils.layer.db_layer import DBFrontend, build_db_layer
+from zetta_utils.layer.db_layer import DBLayer, build_db_layer
 
 
 def test_write_scalar(mocker) -> None:
@@ -108,7 +108,8 @@ def test_db_read_convert(
     idx_user,
     data,
     expected,
+    mocker,
 ):
-    frontend = DBFrontend()
-    result = frontend.convert_read_data(idx_user, data)
+    layer = DBLayer(backend=mocker.MagicMock())
+    result = layer._convert_read_data(idx_user, data)
     assert result == expected

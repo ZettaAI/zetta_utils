@@ -59,7 +59,7 @@ class VolumetricBackend(
 
     @abstractmethod
     def get_chunk_aligned_index(
-        self, index: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
+        self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
         ...
 

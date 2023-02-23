@@ -129,22 +129,6 @@ Layer sets for grouping layers together:
    >>> lset = build_layer_set(
    ...    layers={"img": cvl_x0, "img_norm": cvl_x1}
    ... )
-   >>> # Create an index variable to index both
-   >>> idx = (
-   ...    Vec3D(64, 64, 40),
-   ...    slice(1000, 1100),
-   ...    slice(1000, 1100),
-   ...    slice(2000, 2001),
-   ... )
-   >>> data_x0 = lset[Vec3D(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
-   >>> print(list(data_x0.keys()))
-   ['img', 'img_norm']
-   >>> print(data_x0['img'].shape)
-   torch.Size([1, 100, 100, 1])
-   >>> # Select read layers as a part of the index
-   >>> data_x1 = lset[('img', ), Vec3D(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
-   >>> print(list(data_x1.keys()))
-   ['img']
 
 
 Datasets
@@ -181,25 +165,22 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    ...       resolution=Vec3D(64, 64, 40)
    ...    ),
    ...    # How big each chunk will be
-   ...    resolution=Vec3D(64, 64, 40),
    ...    chunk_size=Vec3D(128, 128, 1),
+   ...    # Which resolution we want 
+   ...    resolution=Vec3D(64, 64, 40),
    ...    # How close together samples can be
    ...    stride=Vec3D(32, 32, 1),
-   ...    # What resolution to get slices at
-   ...    index_resolution=Vec3D(64, 64, 40),
-   ...    # What to set as `desired_resolution` in the index
-   ...    desired_resolution=Vec3D(64, 64, 40),
    ...    # What to do if `bbox` doesn't divide evenly
    ...    mode="shrink",
    ... )
    >>> print(len(indexer)) # total number of samples
    78400
    >>> print(indexer(0))
-   (Vec3D(64, 64, 40), slice(1000, 1128, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((64000.0, 72192.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
    >>> print(indexer(1))
-   (Vec3D(64, 64, 40), slice(1032, 1160, None), slice(1000, 1128, None), slice(2000, 2001, None))
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((66048.0, 74240.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
    >>> print(indexer(78399))
-   (Vec3D(64, 64, 40), slice(1864, 1992, None), slice(1864, 1992, None), slice(2099, 2100, None))
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((119296.0, 127488.0), (119296.0, 127488.0), (83960.0, 84000.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
    >>> dset = training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,
@@ -275,8 +256,6 @@ such as the dataset from the earlier example:
    ...        "resolution": (64, 64, 40),
    ...        "chunk_size": (128, 128, 1),
    ...        "stride": (32, 32, 1),
-   ...        "index_resolution": (64, 64, 40),
-   ...        "desired_resolution": (64, 64, 40),
    ...        "mode": "shrink",
    ...    }
    ... }

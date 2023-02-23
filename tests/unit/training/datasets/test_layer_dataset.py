@@ -44,7 +44,7 @@ def test_layer_dataset(mocker):
             )
         ),
     }
-    layer_m.__getitem__ = mocker.Mock(return_value=data)
+    layer_m.read_with_procs = mocker.Mock(return_value=data)
 
     lds = LayerDataset(layer_m, indexer_m)
     assert len(lds) == 10

@@ -1,6 +1,8 @@
 from .index import (
     DBIndex,
 )
-from .frontend import DBFrontend, DataT, UserDBIndex, ValueT, MultiValueT, RowDataT, ColIndex
+from .backend import DBDataT, DBBackend, DBValueT, DBRowDataT
 
-from .build import build_db_layer, DBLayer
+from .layer import DBLayer, UserDBIndex, ColIndex, DBDataProcT
+
+from .build import build_db_layer

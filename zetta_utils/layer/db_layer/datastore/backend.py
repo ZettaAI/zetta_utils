@@ -9,12 +9,11 @@ from google.cloud.datastore import Client, Entity, Key
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.layer import Backend
 
-from .. import DataT, DBIndex
+from .. import DBBackend, DBDataT, DBIndex
 
 
-def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
+def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DBDataT:
     data = []
     for i in range(idx.get_size()):
         col_keys = idx.col_keys[i]
@@ -30,7 +29,7 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DataT:
 @builder.register("DatastoreBackend")
 @typechecked
 @attrs.mutable
-class DatastoreBackend(Backend[DBIndex, DataT]):
+class DatastoreBackend(DBBackend):
     """
     Backend for IO on a given google datastore `namespace`.
 
@@ -44,7 +43,7 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
     _client: Optional[Client] = None
 
     def _get_keys_or_entities(
-        self, idx: DBIndex, data: Optional[DataT] = None
+        self, idx: DBIndex, data: Optional[DBDataT] = None
     ) -> Union[List[Key], List[Entity]]:
         keys = []
         entities = []
@@ -69,12 +68,12 @@ class DatastoreBackend(Backend[DBIndex, DataT]):
             self._client = Client(project=self.project, namespace=self.namespace)
         return self._client
 
-    def read(self, idx: DBIndex) -> DataT:
+    def read(self, idx: DBIndex) -> DBDataT:
         keys = self._get_keys_or_entities(idx)
         entities = self.client.get_multi(keys)
         return _get_data_from_entities(idx, entities)
 
-    def write(self, idx: DBIndex, data: DataT):
+    def write(self, idx: DBIndex, data: DBDataT):
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
 

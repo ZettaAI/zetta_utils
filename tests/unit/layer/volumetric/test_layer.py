@@ -12,11 +12,6 @@ from zetta_utils.layer.volumetric import (
 )
 
 
-def test_build_exc(mocker):
-    with pytest.raises(ValueError):
-        build_volumetric_layer(backend=mocker.MagicMock(), data_resolution=Vec3D(2, 1, 1))
-
-
 def test_data_resolution_read_interp(mocker):
     backend = mocker.MagicMock()
     backend.read = mocker.MagicMock(return_value=torch.ones((2, 2, 2, 2)) * 2)
@@ -41,6 +36,11 @@ def test_data_resolution_read_interp(mocker):
         read_data,
         torch.ones((2, 1, 1, 1)),
     )
+
+
+def test_data_resolution_interp_exc(mocker):
+    with pytest.raises(ValueError):
+        build_volumetric_layer(backend=mocker.MagicMock(), data_resolution=Vec3D(2, 1, 1))
 
 
 def test_data_resolution_write_interp(mocker):

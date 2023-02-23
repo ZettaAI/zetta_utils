@@ -154,7 +154,6 @@ class ComputeFieldFlowSchema:
 
         if src_field is not None:
             src_field = src_field.with_procs(index_procs=(src_offsetter,) + src_field.index_procs)
-
         cf_flow = build_chunked_apply_flow(
             operation=self.operation,  # type: ignore
             chunker=self.chunker,

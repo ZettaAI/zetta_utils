@@ -21,9 +21,11 @@ You can find example training specs that use some of those regimes in [`specs/ex
 
 API reference
 -------------
+
 ``zetta_utils.training.lightning``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. autofunction:: zetta_utils.training.lightning.train
+
+.. autofunction:: zetta_utils.training.lightning.train.train
 
 
 ``zetta_utils.training.datasets``

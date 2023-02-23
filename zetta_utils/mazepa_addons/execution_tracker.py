@@ -9,7 +9,7 @@ import attrs
 import fsspec
 from cloudfiles import paths
 
-from zetta_utils.layer.db_layer import RowDataT, build_db_layer
+from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.log import get_logger
 
@@ -35,7 +35,7 @@ def register_execution(execution_id: str, clusters: list[ClusterInfo]) -> None: 
     """
     Register execution info to database, for the garbage collector.
     """
-    execution_info: RowDataT = {
+    execution_info: DBRowDataT = {
         ExecutionInfoKeys.ZETTA_USER.value: os.environ["ZETTA_USER"],
         ExecutionInfoKeys.HEARTBEAT.value: time.time(),
         ExecutionInfoKeys.CLUSTERS.value: json.dumps(
@@ -52,7 +52,7 @@ def read_execution_clusters(execution_id: str) -> list[ClusterInfo]:  # pragma: 
     row_key = execution_id
     col_keys = ("clusters",)
     clusters_str = EXECUTION_DB[(row_key, col_keys)][col_keys[0]]
-    clusters: list[Mapping] = json.loads(clusters_str)  # type: ignore
+    clusters: list[Mapping] = json.loads(clusters_str)
     return [ClusterInfo(**cluster) for cluster in clusters]
 
 
@@ -61,7 +61,7 @@ def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
     Update execution heartbeat.
     Meant to be called periodically for upkeep (`upkeep_fn`).
     """
-    execution_info: RowDataT = {
+    execution_info: DBRowDataT = {
         "heartbeat": time.time(),
     }
 

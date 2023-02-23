@@ -20,11 +20,11 @@ def _process_callable_kwargs(idx: IndexT, kwargs: dict) -> dict:
 
     for k, v in kwargs.items():
         if isinstance(v, Layer):
-            result[k] = v[idx]
+            result[k] = v.read_with_procs(idx)
         elif isinstance(v, dict) and all(isinstance(vv, Layer) for vv in v.values()):
-            result[k] = {kk: vv[idx] for kk, vv in v.items()}
+            result[k] = {kk: vv.read_with_procs(idx) for kk, vv in v.items()}
         elif isinstance(v, collections.abc.Iterable) and all(isinstance(vv, Layer) for vv in v):
-            result[k] = [vv[idx] for vv in v]
+            result[k] = [vv.read_with_procs(idx) for vv in v]
         else:
             result[k] = v
     return result

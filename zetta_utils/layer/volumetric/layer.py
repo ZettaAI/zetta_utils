@@ -1,28 +1,26 @@
-# pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import attrs
 import torch
 
-from zetta_utils import builder
 from zetta_utils.geometry import BBox3D, Vec3D
 
-from ..frontend_base import Frontend
-from . import VolumetricIndex
+from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
+from . import VolumetricBackend, VolumetricIndex
 
 Slices3D = tuple[slice, slice, slice]
 SliceUserVolumetricIndex = Union[
-    Tuple[Optional[Vec3D], BBox3D],
-    Tuple[slice, slice, slice],  # making the tuple explicit
-    Tuple[Optional[Vec3D], Slices3D],
-    Tuple[Optional[Vec3D], slice, slice, slice],
+    tuple[Optional[Vec3D], BBox3D],
+    tuple[slice, slice, slice],  # making the tuple explicit
+    tuple[Optional[Vec3D], Slices3D],
+    tuple[Optional[Vec3D], slice, slice, slice],
 ]
 
 UnconvertedUserVolumetricIndex = Union[
     BBox3D,
-    Tuple[Optional[Vec3D], BBox3D],
+    tuple[Optional[Vec3D], BBox3D],
     SliceUserVolumetricIndex,
 ]
 
@@ -32,11 +30,22 @@ UserVolumetricIndex = Union[
 ]
 
 
-@builder.register("VolumetricIndexConverter")
-@attrs.mutable
-class VolumetricFrontend(Frontend):
-    index_resolution: Optional[Vec3D] = None
-    default_desired_resolution: Optional[Vec3D] = None
+VolumetricDataProcT = Union[
+    DataProcessor[torch.Tensor], JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+]
+
+
+@attrs.frozen
+class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
+    backend: VolumetricBackend
+    readonly: bool = False
+
+    index_procs: tuple[IndexProcessor[VolumetricIndex], ...] = ()
+    read_procs: tuple[VolumetricDataProcT, ...] = ()
+    write_procs: tuple[VolumetricDataProcT, ...] = ()
+
+    index_resolution: Vec3D | None = None
+    default_desired_resolution: Vec3D | None = None
     allow_slice_rounding: bool = False
 
     def _get_bbox_from_user_vol_idx(self, idx_user: UnconvertedUserVolumetricIndex) -> BBox3D:
@@ -107,15 +116,9 @@ class VolumetricFrontend(Frontend):
         result.allow_slice_rounding = self.allow_slice_rounding
         return result
 
-    def convert_read_idx(self, idx_user: UserVolumetricIndex) -> VolumetricIndex:
-        return self._convert_idx(idx_user)
-
-    def convert_read_data(self, idx_user: UserVolumetricIndex, data: torch.Tensor) -> torch.Tensor:
-        return data
-
-    def convert_write(
+    def _convert_write(
         self, idx_user: UserVolumetricIndex, data_user: Union[torch.Tensor, float, int, bool]
-    ) -> Tuple[VolumetricIndex, torch.Tensor]:
+    ) -> tuple[VolumetricIndex, torch.Tensor]:
         idx = self._convert_idx(idx_user)
         if isinstance(data_user, (float, int)):
             dtype_mapping = {
@@ -129,3 +132,11 @@ class VolumetricFrontend(Frontend):
             data = data_user
 
         return idx, data
+
+    def __getitem__(self, idx: UserVolumetricIndex) -> torch.Tensor:
+        idx_backend = self._convert_idx(idx)
+        return self.read_with_procs(idx=idx_backend)
+
+    def __setitem__(self, idx: UserVolumetricIndex, data: torch.Tensor | float | int | bool):
+        idx_backend, data_backend = self._convert_write(idx, data)
+        self.write_with_procs(idx=idx_backend, data=data_backend)

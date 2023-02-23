@@ -2,52 +2,24 @@
 from __future__ import annotations
 
 import copy
-from typing import Iterable, Union
+from typing import Iterable
 
 import torch
 from typeguard import typechecked
-from typing_extensions import TypeAlias
 
-from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
-from zetta_utils.layer import Layer
 from zetta_utils.tensor_ops import InterpolationMode
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from . import (
     DataResolutionInterpolator,
-    UserVolumetricIndex,
     VolumetricBackend,
-    VolumetricFrontend,
     VolumetricIndex,
+    VolumetricLayer,
 )
-
-VolumetricLayer: TypeAlias = Layer[
-    VolumetricBackend,
-    VolumetricIndex,  # Backend Index
-    torch.Tensor,  # BackendData
-    UserVolumetricIndex,  # UserReadIndexT0
-    torch.Tensor,  # UserReadDataT0
-    UserVolumetricIndex,  # UserWriteIndexT0
-    Union[torch.Tensor, float, int],  # UserWriteDataT0
-    ### DUMMIES TO FILL IN
-    UserVolumetricIndex,  # UserReadIndexT0
-    torch.Tensor,  # UserReadDataT0
-    UserVolumetricIndex,  # UserWriteIndexT0
-    Union[torch.Tensor, float, int],  # UserWriteDataT0
-    UserVolumetricIndex,  # UserReadIndexT0
-    torch.Tensor,  # UserReadDataT0
-    UserVolumetricIndex,  # UserWriteIndexT0
-    Union[torch.Tensor, float, int],  # UserWriteDataT0
-    UserVolumetricIndex,  # UserReadIndexT0
-    torch.Tensor,  # UserReadDataT0
-    UserVolumetricIndex,  # UserWriteIndexT0
-    Union[torch.Tensor, float, int],  # UserWriteDataT0
-]
 
 
 @typechecked
-@builder.register("build_volumetric_layer")
 def build_volumetric_layer(
     backend: VolumetricBackend,
     default_desired_resolution: Vec3D | None = None,
@@ -65,7 +37,6 @@ def build_volumetric_layer(
     ] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.
-
     :param backend: Layer backend.
     :param default_desired_resolution: Default resolution used when the desired resolution
         is not given as a part of an index.
@@ -86,14 +57,7 @@ def build_volumetric_layer(
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
     :return: Layer built according to the spec.
-
     """
-    frontend = VolumetricFrontend(
-        index_resolution=index_resolution,
-        default_desired_resolution=default_desired_resolution,
-        allow_slice_rounding=allow_slice_rounding,
-    )
-
     index_procs_final = copy.copy(list(index_procs))
 
     if data_resolution is not None:
@@ -110,9 +74,11 @@ def build_volumetric_layer(
     result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
-        frontend=frontend,
         index_procs=tuple(index_procs_final),
         read_procs=tuple(read_procs),
         write_procs=tuple(write_procs),
+        index_resolution=index_resolution,
+        default_desired_resolution=default_desired_resolution,
+        allow_slice_rounding=allow_slice_rounding,
     )
     return result

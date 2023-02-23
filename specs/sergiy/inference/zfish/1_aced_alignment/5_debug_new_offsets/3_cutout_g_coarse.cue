@@ -5,9 +5,10 @@
 
 //#IMG_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
 
-#IMG_PATH:      "gs://zfish_unaligned/coarse_x0/raw_img_masked"
-#BASE_ENC_PATH: "gs://zfish_unaligned/coarse_x0/base_enc_x0"
-#ENC_PATH:      "gs://zfish_unaligned/coarse_x0/encodings_masked"
+#IMG_PATH:            "gs://zfish_unaligned/coarse_x0/raw_img_masked"
+#BASE_ENC_PATH:       "gs://zfish_unaligned/coarse_x0/base_enc_x0"
+#BASE_ENC_ZERO_VALUE: 127
+#ENC_PATH:            "gs://zfish_unaligned/coarse_x0/encodings_masked"
 
 #COARSE_IMG_PATH: "gs://zfish_unaligned/coarse_x0/raw_img"
 
@@ -26,7 +27,7 @@
 #WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped"
 #MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments"
 
-#MATCH_OFFSETS_PATH: "\(#FOLDER)/debug_x0/match_offsets"
+#MATCH_OFFSETS_PATH: "\(#FOLDER)/debug_x0/match_offsets_x2"
 
 #AFIELD_PATH:             "\(#FOLDER)/afield\(#RELAXATION_SUFFIX)"
 #IMG_ALIGNED_PATH:        "\(#FOLDER)/img_aligned\(#RELAXATION_SUFFIX)"
@@ -44,7 +45,8 @@
 
 #Z_START: 2957
 
-#Z_END: 3059
+#Z_END: 2967 //3059
+
 //#Z_START: 3058
 //#Z_END:   3098
 
@@ -372,25 +374,26 @@
 	op: {
 		"@type": "AcedMatchOffsetOp"
 	}
-	processing_chunk_sizes: [[2048, 2048, 1]]
+	processing_chunk_sizes: [[2048, 2048, #Z_END - #Z_START]]
 	processing_crop_pads: [[128, 128, 0]]
 	temp_layers_dirs: ["file://~/.zutils/cache/"]
 
 	dst_resolution: [32, 32, 30]
+	max_dist: 2
 
 	tissue_mask: {
 		"@type": "build_cv_layer"
-		path:    #ENC_PATH
+		path:    #BASE_ENC_PATH
 		read_procs: [
 			{
 				"@type": "compare"
 				"@mode": "partial"
 				mode:    "!="
-				value:   0
+				value:   #BASE_ENC_ZERO_VALUE
 			},
 		]
 	}
-	misd_masks: {
+	misalignment_masks: {
 		for offset in #Z_OFFSETS {
 			"\(offset)": {
 				"@type": "build_cv_layer"
@@ -423,6 +426,29 @@
 				info_reference_path: #IMG_PATH
 				info_chunk_size: [1024, 1024, 1]
 				on_info_exists: "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			img_mask: {
+				"@type":             "build_cv_layer"
+				path:                "\(#MATCH_OFFSETS_PATH)/img_mask"
+				info_reference_path: #IMG_PATH
+				info_chunk_size: [1024, 1024, 1]
+				on_info_exists: "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			aff_mask: {
+				"@type":             "build_cv_layer"
+				path:                "\(#MATCH_OFFSETS_PATH)/aff_mask"
+				info_reference_path: #IMG_PATH
+				info_chunk_size: [1024, 1024, 1]
+				on_info_exists: "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
 			}
 		}
 

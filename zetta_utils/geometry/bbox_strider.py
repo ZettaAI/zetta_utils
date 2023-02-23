@@ -68,11 +68,7 @@ class BBoxStrider:
         if self.max_superchunk_size is None:
             return
         else:
-            object.__setattr__(
-                self,
-                "stride_start_offset",
-                (self.bbox_snapped.start / self.resolution).int(),
-            )
+            object.__setattr__(self, "stride_start_offset_in_unit", self.bbox_snapped.start)
             if self.mode in ("expand", "shrink"):
                 object.__setattr__(self, "bbox", self.bbox_snapped)
             if not self.max_superchunk_size >= self.chunk_size:

@@ -5,6 +5,7 @@ import attrs
 import pytorch_lightning as pl
 import torch
 import wandb
+from pytorch_lightning import seed_everything
 
 from zetta_utils import builder, viz
 
@@ -18,6 +19,7 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
     val_log_row_interval: int = 25
     field_magn_thr: float = 1
     zero_value: float = 0
+    tolerance: float = 0.1
 
     worst_val_loss: float = attrs.field(init=False, default=0)
     worst_val_sample: dict = attrs.field(init=False, factory=dict)
@@ -41,6 +43,9 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
             }
         )
 
+    def validation_epoch_start(self, _):  # pylint: disable=no-self-use
+        seed_everything(42)
+
     def validation_epoch_end(self, _):
         self.log_results(
             "val",
@@ -50,6 +55,7 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         self.worst_val_loss = 0
         self.worst_val_sample = {}
         self.worst_val_sample_idx = None
+        seed_everything(None)
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
         log_row = batch_idx % self.train_log_row_interval == 0
@@ -92,12 +98,17 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         tgt_warped_tissue = (
             tgt_field.field().from_pixels()((tgt != 0).float()) > 0.0  # type: ignore
         )
-        joint_tissue = tgt_warped_tissue + src_warped_tissue
+        joint_tissue = tgt_warped_tissue * src_warped_tissue
         prediction = self.model(torch.cat((src_warped, tgt_warped), 1))
         loss_map = (prediction - gt_labels.unsqueeze(1).float()).abs()
-        loss = loss_map[joint_tissue].sum()
+        tolerance_region = (src_field.abs().max(1)[0] > self.field_magn_thr - self.tolerance) * (
+            src_field.abs().max(1)[0] < self.field_magn_thr + self.tolerance
+        )
+
+        loss = loss_map[joint_tissue * (tolerance_region == 0)].sum()
         loss_map_masked = loss_map.clone()
-        loss_map_masked[joint_tissue == 0] = 0
+        loss_map_masked[..., joint_tissue == 0] = 0
+        loss_map_masked[..., tolerance_region] = 0
 
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
@@ -112,6 +123,7 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                 src_warped_tissue=src_warped_tissue,
                 tgt_warped_tissue=tgt_warped_tissue,
                 joint_tissue=joint_tissue,
+                tolerance_region=tolerance_region,
                 gt_labels=gt_labels,
                 prediction=prediction,
                 loss_map=loss_map,

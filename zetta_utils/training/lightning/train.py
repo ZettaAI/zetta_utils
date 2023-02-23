@@ -29,7 +29,7 @@ def lightning_train(
     Perform neural net trainig with Zetta's PytorchLightning integration.
 
     :param regime: Training regime. Defines behavior on training, vallidation steps
-    and epochs. Includes the model being trained as an instance variable.
+        and epochs. Includes the model being trained as an instance variable.
     :param trainer: Pytorch Lightning Trainer object responsible for handling
         traing loop details that are common for all regimes, such as checkpointing
         behavior, logging behavior, etc. For Zetta training configuration, use

@@ -55,7 +55,7 @@ def test_bbox_strider_get_all_chunks(mocker):
 
 
 @pytest.mark.parametrize(
-    "start_coord, end_coord, resolution, chunk_size, stride, stride_start_offset, mode, max_superchunk_size, expected",
+    "start_coord, end_coord, resolution, chunk_size, stride, stride_start_offset_in_unit, mode, max_superchunk_size, expected",
     [
         [
             Vec3D(0, 0, 0),
@@ -164,7 +164,7 @@ def test_bbox_strider_len(
     resolution,
     chunk_size,
     stride,
-    stride_start_offset,
+    stride_start_offset_in_unit,
     mode,
     max_superchunk_size,
     expected,
@@ -176,7 +176,7 @@ def test_bbox_strider_len(
         chunk_size=chunk_size,
         resolution=resolution,
         stride=stride,
-        stride_start_offset=stride_start_offset,
+        stride_start_offset_in_unit=stride_start_offset_in_unit,
         mode=mode,
         max_superchunk_size=max_superchunk_size,
     )
@@ -184,7 +184,7 @@ def test_bbox_strider_len(
 
 
 @pytest.mark.parametrize(
-    "start_coord, end_coord, resolution, chunk_size, stride, stride_start_offset, mode, max_superchunk_size, idx, expected",
+    "start_coord, end_coord, resolution, chunk_size, stride, stride_start_offset_in_unit, mode, max_superchunk_size, idx, expected",
     [
         [
             Vec3D(0, 0, 0),
@@ -302,7 +302,7 @@ def test_bbox_strider_get_nth_res(
     resolution,
     chunk_size,
     stride,
-    stride_start_offset,
+    stride_start_offset_in_unit,
     mode,
     max_superchunk_size,
     idx,
@@ -315,7 +315,7 @@ def test_bbox_strider_get_nth_res(
         chunk_size=chunk_size,
         resolution=resolution,
         stride=stride,
-        stride_start_offset=stride_start_offset,
+        stride_start_offset_in_unit=stride_start_offset_in_unit,
         mode=mode,
         max_superchunk_size=max_superchunk_size,
     )

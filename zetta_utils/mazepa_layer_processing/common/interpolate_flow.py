@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from typing import Optional, Sequence, Union
 
 import torch
@@ -12,7 +13,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricLayer,
 )
 
-from . import build_chunked_volumetric_callable_flow_schema
+from . import VolumetricCallableOperation, build_chunked_volumetric_callable_flow_schema
 
 
 def _interpolate(
@@ -21,6 +22,7 @@ def _interpolate(
     mode: tensor_ops.InterpolationMode,
     mask_value_thr: float = 0,
 ) -> torch.Tensor:
+    # This dummy function is necessary to rename `src` to `data` arg
     return tensor_ops.interpolate(
         data=src,
         scale_factor=scale_factor,
@@ -28,6 +30,24 @@ def _interpolate(
         mask_value_thr=mask_value_thr,
         unsqueeze_input_to=5,
     )
+
+
+@builder.register("InterpolateOperation")
+def make_interpolate_operation(
+    scale_factor: Vec3D,
+    mode: tensor_ops.InterpolationMode,
+    mask_value_thr: float = 0,
+):
+    op = VolumetricCallableOperation(
+        fn=functools.partial(
+            _interpolate,
+            mode=mode,
+            scale_factor=scale_factor,
+            mask_value_thr=mask_value_thr,
+        ),
+        res_change_mult=1 / scale_factor,
+    )
+    return op
 
 
 @builder.register("build_interpolate_flow")

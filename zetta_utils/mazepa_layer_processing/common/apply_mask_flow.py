@@ -15,7 +15,8 @@ from zetta_utils.layer.volumetric import (
 from . import build_chunked_volumetric_callable_flow_schema
 
 
-def _apply_mask(
+@builder.register("apply_mask")
+def apply_mask(
     src: torch.Tensor,
     masks: Iterable[torch.Tensor],
     fill_value: float = 0,
@@ -38,7 +39,7 @@ def build_apply_mask_flow(
     fill_value: float = 0.0,
 ) -> mazepa.Flow:
     flow_schema = build_chunked_volumetric_callable_flow_schema(
-        fn=_apply_mask,
+        fn=apply_mask,
         chunker=VolumetricIndexChunker(chunk_size=chunk_size),
     )
     flow = flow_schema(

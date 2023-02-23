@@ -1,6 +1,6 @@
 #EXP_NAME:      "mimic_encodings"
-#EXP_VERSION:   "new_demo_x25"
-#TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
+#EXP_VERSION:   "tile_aug_x2"
+#TRAINING_ROOT: "gs://tmp_2w/nkem/training_artifacts"
 
 //#MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt"
 #MODEL_CKPT: null // Set to a path to only load the net weights
@@ -17,12 +17,12 @@ regime: {
 		model: {
 			"@type": "ConvBlock"
 			num_channels: [1, 32, 32, 32, 32, 1]
-			kernel_sizes: 5
+			kernel_sizes: [5, 5]
 			skips: {"0": 3}
 		}
 		ckpt_path: #MODEL_CKPT
 		component_names: [
-			'model',
+			"model",
 		]
 	}
 }
@@ -54,19 +54,54 @@ trainer: {
 				//cv_kwargs: {cache: true}
 				read_procs: [
 					{
-						"@type": "rearrange"
-						"@mode": "partial"
-						pattern: "c x y 1 -> c x y"
-					},
-					{
 						"@type": "divide"
 						"@mode": "partial"
-						value:   256.0
+						value:   255.0
+					},
+					{
+						"@type": "square_tile_pattern_aug"
+						"@mode": "partial"
+						prob:    1.0
+						tile_size: {
+							"@type": "uniform_distr"
+							low:     64
+							high:    1024
+						}
+						tile_stride: {
+							"@type": "uniform_distr"
+							low:     64
+							high:    1024
+						}
+						max_brightness_change: {
+							"@type": "uniform_distr"
+							low:     0.2
+							high:    0.4
+						}
+						rotation_degree: {
+							"@type": "uniform_distr"
+							low:     0
+							high:    45
+						}
+						preserve_data_val: 0.0
+						repeats:           3
+						device:            "cpu"
 					},
 					{
 						"@type": "add"
 						"@mode": "partial"
 						value:   -0.5
+					},
+					{
+						"@type":    "clamp_values_aug"
+						"@mode":    "partial"
+						prob:       1.0
+						low_distr:  -0.5
+						high_distr: 0.5
+					},
+					{
+						"@type": "rearrange"
+						"@mode": "partial"
+						pattern: "c x y 1 -> c x y"
 					},
 				]
 			}
@@ -86,10 +121,9 @@ trainer: {
 	}
 	sample_indexer: {
 		"@type": "VolumetricStridedIndexer"
-		resolution: [64, 64, 40]
-		desired_resolution: [64, 64, 40]
 		chunk_size: [1024, 1024, 1]
 		stride: [512, 512, 1]
+		resolution: [64, 64, 40]
 		bbox: {
 			"@type":     "BBox3D.from_coords"
 			start_coord: _
@@ -124,13 +158,13 @@ train_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     true
-	num_workers: 4
+	num_workers: 8
 	dataset:     #train_dset
 }
 val_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     false
-	num_workers: 4
+	num_workers: 8
 	dataset:     #val_dset
 }

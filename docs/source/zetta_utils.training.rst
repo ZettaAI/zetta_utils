@@ -14,7 +14,7 @@
 
 
 All trainings start with a call to  ``zetta_utils.training.lightning.train.lightning_train``. Other than training and validation dataloaders and checkpoint paths, this function is given a training *regime* and a *trainer*. Regime defines the specifics of how the given network is to be trained. This includes training loss calulation, validation loss calculation, any actions that need to be taken at the beginning or end of each validation epoch, etc. Regimes are usually created by the scientist performing experiments.
-Trainer defines training loop behavior that is commons for all regimes, such as logging, checkpointing, gradient clipping, etc. Trainer extensions are usually developed by the engineering team.
+Trainer defines training loop behavior that is commons for all regimes, such as logging, checkpointing, gradient clipping, etc. Trainer is developed and maintained by the engineering team.
 
 You can find existing reimes in [`zetta_utils/training/lightning/regimes <https://github.com/ZettaAI/zetta_utils/tree/main/zetta_utils/training/lightning/regimes>`_].
 You can find example training specs that use some of those regimes in [`specs/examples/training <https://github.com/ZettaAI/zetta_utils/tree/main/zetta_utils/training/lightning/regimes>`_]. To learn more about the spec file format, refer to `zetta_utils.builder` documetnation.

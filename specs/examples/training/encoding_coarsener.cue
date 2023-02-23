@@ -3,8 +3,6 @@
 
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 
-
-
 //#ENCODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
 //#DECODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
 #ENCODER_CKPT: null
@@ -16,9 +14,9 @@
 //////////////////////// Training Spec ////////////////////////////
 ///////////////////////////////////////////////////////////////////
 
-"@type":   "lightning_train"
+"@type": "lightning_train"
 regime: {
-	"@type": "EncodingCoarsener"
+	"@type": "EncodingCoarsenerRegime"
 	lr:      4e-4
 	encoder: {
 		"@type":   "load_weights_file"
@@ -64,7 +62,7 @@ trainer: {
 		{
 			"@type": "ConvBlock"
 			num_channels: [1, 32, 32, 32]
-			kernel_sizes: 3
+			kernel_sizes: [3, 3]
 		},
 		{
 			"@type":     "torch.nn.AvgPool2d"
@@ -73,7 +71,7 @@ trainer: {
 		{
 			"@type": "ConvBlock"
 			num_channels: [32, 32, 32, 1]
-			kernel_sizes: 3
+			kernel_sizes: [3, 3]
 		},
 	]
 }
@@ -84,7 +82,7 @@ trainer: {
 		{
 			"@type": "ConvBlock"
 			num_channels: [1, 32, 32, 32]
-			kernel_sizes: 3
+			kernel_sizes: [3, 3]
 		},
 		{
 			"@type":      "torch.nn.Upsample"
@@ -94,7 +92,7 @@ trainer: {
 		{
 			"@type": "ConvBlock"
 			num_channels: [32, 32, 32, 1]
-			kernel_sizes: 3
+			kernel_sizes: [3, 3]
 		},
 	]
 }
@@ -126,7 +124,6 @@ trainer: {
 		chunk_size: [1024, 1024, 1]
 		stride: [512, 512, 1]
 		resolution: [128, 128, 40]
-		desired_resolution: [128, 128, 40]
 		bbox: {
 			"@type":     "BBox3D.from_coords"
 			start_coord: _

@@ -58,20 +58,18 @@ The next steps will get you up and running in no time:
 Day-to-Day Usage
 ================
 
+- `zetta_utils.log` provides a well formated disk backed logging system.
+
 - `zetta_utils.tensor` is a unified set of operations that support *both* ``np.ndarray`` and ``torch.Tensor`` tensor types.
   Use ``zetta_utils.tensor_ops.unsqueeze(t)`` without worrying which type ``t`` is.
 
-- `zetta_utils.layer` is flexible abstraction for data IO from diverse backends suitable for both training and inference.
+- `zetta_utils.layer` offers flexible abstraction for data IO.
 
-- `zetta_utils.training` includes tools such as CloudVolume based training datasets, Pytorch Lightning integration (WIP) and more.
-
-- `zetta_utils.log` provides a well formated disk backed logging system.
+- `zetta_utils.training` set of tools and integrations for neural net training.
 
 - `zetta_utils.viz` provides nifty visualization tools for `Jupyter <https://jupyter.org/>`_.
 
-- `zetta_utils.builder` is utility for building python objects and workflows from nested dictionaries. It is an
-  improved extension of `procspec <https://github.com/seunglab/procspec>`_ and
-  `artificery <https://github.com/seung-lab/artificery>`_ packages previously used by SeungLab.
+- `zetta_utils.builder` is utility for building python objects and workflows from nested dictionaries.
 
 
 .. include:: ../../README.rst

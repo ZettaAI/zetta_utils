@@ -118,7 +118,10 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                     sample_name,
                     data_in=data_in,
                     naive=tensor_ops.interpolate(
-                        data_in, size=(enc.shape[-2], enc.shape[-1]), mode="img"
+                        data_in,
+                        size=(enc.shape[-2], enc.shape[-1]),
+                        mode="img",
+                        unsqueeze_input_to=4,
                     ),
                     enc=enc,
                     recons=recons,
@@ -221,7 +224,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         data_in_diff = (data_in - data_in_rot) ** 2
         enc_diff = (enc - enc_rot) ** 2
         data_in_diff_downs = tensor_ops.interpolate(
-            data_in_diff, size=enc_diff.shape[-2:], mode="img"
+            data_in_diff, size=enc_diff.shape[-2:], mode="img", unsqueeze_input_to=4
         )
         loss_map_diffkeep = (data_in_diff_downs - enc_diff).abs()
 

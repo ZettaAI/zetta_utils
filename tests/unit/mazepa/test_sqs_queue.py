@@ -8,15 +8,16 @@ import pytest
 from moto import mock_sqs
 
 import docker
-
-# from zetta_utils import mazepa_layer_processing, common # pylint: disable=all
-from zetta_utils import builder, common, mazepa
+from zetta_utils import (  # pylint: disable=all
+    builder,
+    common,
+    mazepa,
+    mazepa_layer_processing,
+)
 from zetta_utils.mazepa import SQSExecutionQueue
 from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
 boto3.setup_default_session()
-
-builder.register("mazepa.SQSExecutionQueue")(SQSExecutionQueue)
 
 
 def success_fn():

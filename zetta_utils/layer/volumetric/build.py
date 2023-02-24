@@ -14,6 +14,7 @@ from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from . import (
     DataResolutionInterpolator,
     VolumetricBackend,
+    VolumetricFrontend,
     VolumetricIndex,
     VolumetricLayer,
 )
@@ -24,10 +25,10 @@ def build_volumetric_layer(
     backend: VolumetricBackend,
     default_desired_resolution: Vec3D | None = None,
     index_resolution: Vec3D | None = None,
+    allow_slice_rounding: bool = False,
     data_resolution: Vec3D | None = None,
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
-    allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
         DataProcessor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
@@ -71,14 +72,18 @@ def build_volumetric_layer(
         read_procs = [resolution_interpolator] + list(read_procs)
         write_procs = [resolution_interpolator] + list(write_procs)
 
+    frontend = VolumetricFrontend(
+        index_resolution=index_resolution,
+        default_desired_resolution=default_desired_resolution,
+        allow_slice_rounding=allow_slice_rounding,
+    )
+
     result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
         index_procs=tuple(index_procs_final),
         read_procs=tuple(read_procs),
         write_procs=tuple(write_procs),
-        index_resolution=index_resolution,
-        default_desired_resolution=default_desired_resolution,
-        allow_slice_rounding=allow_slice_rounding,
+        frontend=frontend,
     )
     return result

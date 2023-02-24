@@ -8,25 +8,24 @@ import torch
 
 from zetta_utils.geometry import Vec3D
 
-from ... import Backend
-from .. import VolumetricIndex, VolumetricLayer
+from .. import VolumetricBackend, VolumetricIndex, VolumetricLayer
 
 
 @attrs.frozen
-class VolumetricLayerSetBackend(
-    Backend[VolumetricIndex, dict[str, torch.Tensor]]
+class VolumetricSetBackend(
+    VolumetricBackend[dict[str, torch.Tensor]]
 ):  # pylint: disable=too-few-public-methods
     layers: dict[str, VolumetricLayer]
 
     @property
     def name(self) -> str:  # pragma: no cover
         children_names = {k: v.backend.name for k, v in self.layers.items()}
-        return f"VolumetricLayerSet[{children_names}]"
+        return f"VolumetricSet[{children_names}]"
 
     @name.setter
     def name(self, name: str) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `name` for VolumetricLayerSetBackend directly;"
+            "cannot set `name` for VolumetricSetBackend directly;"
             " use `backend.with_changes(name='name')` instead."
         )
 
@@ -74,7 +73,7 @@ class VolumetricLayerSetBackend(
     @enforce_chunk_aligned_writes.setter  # pragma: no cover
     def enforce_chunk_aligned_writes(self, value: bool) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `enforce_chunk_aligned_writes` for VolumetricLayerSetBackend directly;"
+            "cannot set `enforce_chunk_aligned_writes` for VolumetricSetBackend directly;"
             " use `backend.with_changes(non_aligned_writes=value:bool)` instead."
         )
 
@@ -91,7 +90,7 @@ class VolumetricLayerSetBackend(
     @allow_cache.setter
     def allow_cache(self, value: bool | str) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `allow_cache` for VolumetricLayerSetBackend directly;"
+            "cannot set `allow_cache` for VolumetricSetBackend directly;"
             " use `backend.with_changes(allow_cache=value:bool | str)` instead."
         )
 
@@ -108,7 +107,7 @@ class VolumetricLayerSetBackend(
     @use_compression.setter
     def use_compression(self, value: bool) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `use_compression` for VolumetricLayerSetBackend directly;"
+            "cannot set `use_compression` for VolumetricSetBackend directly;"
             " use `backend.with_changes(use_compression=value:bool)` instead."
         )
 
@@ -163,7 +162,7 @@ class VolumetricLayerSetBackend(
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
 
-    def with_changes(self, **kwargs) -> VolumetricLayerSetBackend:  # pragma: no cover
+    def with_changes(self, **kwargs) -> VolumetricSetBackend:  # pragma: no cover
         return attrs.evolve(
             self,
             layers={

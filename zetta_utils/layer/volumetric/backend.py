@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Literal
+from typing import Literal, TypeVar
 
 import torch
 
@@ -11,10 +11,10 @@ from zetta_utils.geometry import IntVec3D, Vec3D
 from .. import Backend
 from . import VolumetricIndex
 
+DataT = TypeVar("DataT")
 
-class VolumetricBackend(
-    Backend[VolumetricIndex, torch.Tensor]
-):  # pylint: disable=too-few-public-methods
+
+class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too-few-public-methods
     @property
     @abstractmethod
     def is_local(self) -> bool:

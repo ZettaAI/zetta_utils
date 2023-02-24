@@ -1,15 +1,18 @@
-from zetta_utils.layer.volumetric import build_volumetric_layer_set
+import torch
+
+from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.volumetric import VolumetricIndex, build_volumetric_layer_set
 
 
 def test_read(mocker):
     layer_a = mocker.MagicMock()
-    layer_a.read_with_procs = mocker.MagicMock(return_value="a")
+    layer_a.read_with_procs = mocker.MagicMock(return_value=torch.tensor([1]))
     layer_b = mocker.MagicMock()
-    layer_b.read_with_procs = mocker.MagicMock(return_value="b")
+    layer_b.read_with_procs = mocker.MagicMock(return_value=torch.tensor([2]))
     layer_set = build_volumetric_layer_set(layers={"a": layer_a, "b": layer_b})
-    idx = mocker.MagicMock()
+    idx = VolumetricIndex(bbox=BBox3D(bounds=((0, 1), (0, 1), (0, 1))), resolution=Vec3D(1, 1, 1))
     result = layer_set[idx]
-    assert result == {"a": "a", "b": "b"}
+    assert result == {"a": torch.Tensor([1]), "b": torch.Tensor([2])}
     layer_a.read_with_procs.called_with(idx=idx)
     layer_b.read_with_procs.called_with(idx=idx)
 
@@ -20,7 +23,7 @@ def test_write(mocker):
     layer_b = mocker.MagicMock()
     layer_b.write_with_procs = mocker.MagicMock()
     layer_set = build_volumetric_layer_set(layers={"a": layer_a, "b": layer_b})
-    idx = mocker.MagicMock()
+    idx = VolumetricIndex(bbox=BBox3D(bounds=((0, 1), (0, 1), (0, 1))), resolution=Vec3D(1, 1, 1))
     layer_set[idx] = {"a": 1, "b": 2}
     layer_a.write_with_procs.called_with(idx=idx, data=1)
     layer_b.write_with_procs.called_with(idx=idx, data=2)

@@ -1,9 +1,14 @@
 from .index import (
     VolumetricIndex,
 )
-from .backend import (
-    VolumetricBackend,
+from .backend import VolumetricBackend
+from .frontend import (
+    VolumetricFrontend,
+    UserVolumetricIndex,
+    UnconvertedUserVolumetricIndex,
+    SliceUserVolumetricIndex,
 )
+
 from .tools import (
     DataResolutionInterpolator,
     InvertProcessor,
@@ -11,10 +16,8 @@ from .tools import (
     VolumetricIndexChunker,
 )
 from .layer import (
-    UserVolumetricIndex,
-    UnconvertedUserVolumetricIndex,
-    SliceUserVolumetricIndex,
     VolumetricLayer,
 )
 from .build import build_volumetric_layer
 from .layer_set import VolumetricLayerSet, build_volumetric_layer_set
+from .protocols import VolumetricBasedLayerProtocol

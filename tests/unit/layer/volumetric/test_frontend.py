@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric import VolumetricFrontend, VolumetricIndex
 
 
 @pytest.mark.parametrize(
@@ -67,10 +67,9 @@ def test_volumetric_convert(
     kwargs: dict,
     idx,
     expected: VolumetricIndex,
-    mocker,
 ):
-    convert = VolumetricLayer(backend=mocker.MagicMock(), **kwargs)
-    result = convert._convert_idx(idx)
+    convert = VolumetricFrontend(**kwargs)
+    result = convert.convert_idx(idx)
     assert result == expected
 
 
@@ -103,8 +102,7 @@ def test_volumetric_indexer_exc(
     kwargs: dict,
     idx,
     expected_exc,
-    mocker,
 ):
-    convert = VolumetricLayer(backend=mocker.MagicMock(), **kwargs)
+    convert = VolumetricFrontend(**kwargs)
     with pytest.raises(expected_exc):
-        convert._convert_idx(idx)
+        convert.convert_idx(idx)

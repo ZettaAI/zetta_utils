@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from inspect import currentframe
 from types import FrameType
-from typing import Any, Type
+from typing import Any, Protocol, Type, TypeVar
 
 import typeguard
 
@@ -45,3 +45,14 @@ def check_type(obj: Any, cls: Any) -> bool:  # pragma: no cover
     except typeguard.TypeCheckError:
         result = False
     return result
+
+
+OtherTypeT = TypeVar("OtherTypeT")
+
+
+class ArithmeticOperand(Protocol[OtherTypeT]):
+    def __add__(self, other: OtherTypeT) -> ArithmeticOperand[OtherTypeT]:
+        ...
+
+    def __mul__(self, other: OtherTypeT) -> ArithmeticOperand[OtherTypeT]:
+        ...

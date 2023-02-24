@@ -1,22 +1,22 @@
 from copy import deepcopy
 from os import path
-from typing import Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
+from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
 
 import attrs
 import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import builder, log, mazepa, tensor_ops
+from zetta_utils import builder, log, mazepa
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
+    VolumetricBasedLayerProtocol,
     VolumetricIndex,
     VolumetricIndexChunker,
-    VolumetricLayer,
 )
 from zetta_utils.typing import check_type
 
-from ..operation_protocols import BlendableOpProtocol
+from ..operation_protocols import VolumetricOpProtocol
 
 logger = log.get_logger("zetta_utils")
 
@@ -45,10 +45,10 @@ class ReduceByWeightedSum:
     def __call__(
         self,
         src_idxs: List[VolumetricIndex],
-        src_layers: List[VolumetricLayer],
+        src_layers: List[VolumetricBasedLayerProtocol],
         red_idx: VolumetricIndex,
-        fov_idx: VolumetricIndex,
-        dst: VolumetricLayer,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
         processing_blend_pad: IntVec3D = IntVec3D(0, 0, 0),
         processing_blend_mode: Literal["linear", "quadratic"] = "linear",
     ) -> None:
@@ -61,40 +61,40 @@ class ReduceByWeightedSum:
             for src_idx, layer in zip(src_idxs, src_layers):
                 weight = get_blending_weights(
                     idx_subchunk=src_idx,
-                    idx_fov=fov_idx,
+                    idx_roi=roi_idx,
                     idx_red=red_idx,
                     processing_blend_pad=processing_blend_pad,
                     processing_blend_mode=processing_blend_mode,
                 )
                 intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
                 subidx.insert(0, slice(0, res.shape[0]))
-                res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn] * weight)
+                res[subidx] = res[subidx] + layer[intscn] * weight
         else:
             for src_idx, layer in zip(src_idxs, src_layers):
                 intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
                 subidx.insert(0, slice(0, res.shape[0]))
-                res[subidx] = tensor_ops.common.add(res[subidx], layer[intscn])
+                res[subidx] = res[subidx] + layer[intscn]
         dst[red_idx] = res
 
 
 def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     idx_subchunk: VolumetricIndex,
-    idx_fov: VolumetricIndex,
+    idx_roi: VolumetricIndex,
     idx_red: VolumetricIndex,
     processing_blend_pad: IntVec3D,
     processing_blend_mode: Literal["linear", "quadratic"] = "linear",
 ) -> torch.Tensor:
     """
-    Gets the correct blending weights for an `idx_subchunk` inside a `idx_fov` being
+    Gets the correct blending weights for an `idx_subchunk` inside a `idx_roi` being
     reduced inside the `idx_red` region, suppressing the weights for the dimension(s)
-    where `idx_subchunk` is aligned to the edge of `idx_fov`.
+    where `idx_subchunk` is aligned to the edge of `idx_roi`.
     """
     if processing_blend_pad == IntVec3D(0, 0, 0):
         raise ValueError("`processing_blend_pad` must be nonzero to need blending weights")
-    if not idx_subchunk.intersects(idx_fov):
+    if not idx_subchunk.intersects(idx_roi):
         raise ValueError(
-            "`idx_fov` must intersect `idx_subchunk`;"
-            " `idx_fov`: {idx_fov}, `idx_subchunk`: {idx_subchunk}"
+            "`idx_roi` must intersect `idx_subchunk`;"
+            " `idx_roi`: {idx_roi}, `idx_subchunk`: {idx_subchunk}"
         )
     if not idx_subchunk.intersects(idx_red):
         raise ValueError(
@@ -129,17 +129,17 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
     weights_z_t = torch.Tensor(weights_z).unsqueeze(0).unsqueeze(0)
 
-    if idx_subchunk.start[0] != idx_fov.start[0]:
+    if idx_subchunk.start[0] != idx_roi.start[0]:
         weight[0 : 2 * x_pad, :, :] *= weights_x_t
-    if idx_subchunk.stop[0] != idx_fov.stop[0]:
+    if idx_subchunk.stop[0] != idx_roi.stop[0]:
         weight[(-2 * x_pad) :, :, :] *= weights_x_t.flip(0)
-    if idx_subchunk.start[1] != idx_fov.start[1]:
+    if idx_subchunk.start[1] != idx_roi.start[1]:
         weight[:, 0 : 2 * y_pad, :] *= weights_y_t
-    if idx_subchunk.stop[1] != idx_fov.stop[1]:
+    if idx_subchunk.stop[1] != idx_roi.stop[1]:
         weight[:, (-2 * y_pad) :, :] *= weights_y_t.flip(1)
-    if idx_subchunk.start[2] != idx_fov.start[2]:
+    if idx_subchunk.start[2] != idx_roi.start[2]:
         weight[:, :, 0 : 2 * z_pad] *= weights_z_t
-    if idx_subchunk.stop[2] != idx_fov.stop[2]:
+    if idx_subchunk.stop[2] != idx_roi.stop[2]:
         weight[:, :, (-2 * z_pad) :] *= weights_z_t.flip(2)
 
     return weight[intscn_in_subchunk].unsqueeze(0)
@@ -149,14 +149,14 @@ def set_allow_cache(*args, **kwargs):
     newargs = []
     newkwargs = {}
     for arg in args:
-        if check_type(arg, VolumetricLayer):
+        if check_type(arg, VolumetricBasedLayerProtocol):
             if not arg.backend.is_local and not arg.backend.allow_cache:
                 newarg = attrs.evolve(arg, backend=arg.backend.with_changes(allow_cache=True))
             else:
                 newarg = arg
         newargs.append(newarg)
     for k, v in kwargs.items():
-        if check_type(v, VolumetricLayer):
+        if check_type(v, VolumetricBasedLayerProtocol):
             if not v.backend.is_local and not v.backend.allow_cache:
                 newv = attrs.evolve(v, backend=v.backend.with_changes(allow_cache=True))
             else:
@@ -168,25 +168,25 @@ def set_allow_cache(*args, **kwargs):
 
 def clear_cache(*args, **kwargs):
     for arg in args:
-        if check_type(arg, VolumetricLayer):
+        if check_type(arg, VolumetricBasedLayerProtocol):
             if not arg.backend.is_local and arg.backend.allow_cache:
                 arg.backend.clear_cache()
     for kwarg in kwargs.values():
-        if check_type(kwarg, VolumetricLayer):
+        if check_type(kwarg, VolumetricBasedLayerProtocol):
             if not kwarg.backend.is_local and kwarg.backend.allow_cache:
                 kwarg.backend.clear_cache()
 
 
-@builder.register("BlendableApplyFlowSchema")
+@builder.register("VolumetricApplyFlowSchema")
 @mazepa.flow_schema_cls
 @attrs.mutable
-class BlendableApplyFlowSchema(Generic[P, R_co]):
-    op: BlendableOpProtocol[P, R_co]
+class VolumetricApplyFlowSchema(Generic[P, R_co]):
+    op: VolumetricOpProtocol[P, Any, Any]
     processing_chunk_size: IntVec3D
     dst_resolution: Vec3D
     max_reduction_chunk_size: Optional[IntVec3D] = None
     max_reduction_chunk_size_final: IntVec3D = attrs.field(init=False)
-    fov_crop_pad: Optional[IntVec3D] = None
+    roi_crop_pad: Optional[IntVec3D] = None
     processing_blend_pad: Optional[IntVec3D] = None
     processing_blend_mode: Literal["linear", "quadratic"] = "linear"
     temp_layers_dir: Optional[str] = None
@@ -221,11 +221,11 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
         return backend_chunk_size
 
     def __attrs_post_init__(self):
-        if self.fov_crop_pad is None:
-            self.fov_crop_pad = IntVec3D(0, 0, 0)
+        if self.roi_crop_pad is None:
+            self.roi_crop_pad = IntVec3D(0, 0, 0)
         if self.processing_blend_pad is None:
             self.processing_blend_pad = IntVec3D(0, 0, 0)
-        if self.fov_crop_pad != IntVec3D(0, 0, 0) or self.processing_blend_pad != IntVec3D(
+        if self.roi_crop_pad != IntVec3D(0, 0, 0) or self.processing_blend_pad != IntVec3D(
             0, 0, 0
         ):
             self.use_checkerboarding = True
@@ -249,7 +249,10 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             self.max_reduction_chunk_size_final = self.max_reduction_chunk_size
 
     def make_tasks_without_checkerboarding(
-        self, idx_chunks: Iterable[VolumetricIndex], dst: VolumetricLayer, **kwargs: P.kwargs
+        self,
+        idx_chunks: Iterable[VolumetricIndex],
+        dst: VolumetricBasedLayerProtocol,
+        **kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
         tasks = [
             self.op.make_task(
@@ -266,13 +269,13 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         red_chunks: Iterable[VolumetricIndex],
-        dst: VolumetricLayer,
+        dst: VolumetricBasedLayerProtocol,
         **kwargs: P.kwargs,
     ) -> Tuple[
         List[mazepa.tasks.Task[R_co]],
         List[List[VolumetricIndex]],
-        List[List[VolumetricLayer]],
-        List[VolumetricLayer],
+        List[List[VolumetricBasedLayerProtocol]],
+        List[VolumetricBasedLayerProtocol],
     ]:
         assert self.temp_layers_dir is not None
         assert self.processing_blend_pad is not None
@@ -284,8 +287,8 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
         """
         tasks: List[mazepa.tasks.Task[R_co]] = []
         red_chunks_task_idxs: List[List[VolumetricIndex]] = [[] for _ in red_chunks]
-        red_chunks_temps: List[List[VolumetricLayer]] = [[] for _ in red_chunks]
-        dst_temps: List[VolumetricLayer] = []
+        red_chunks_temps: List[List[VolumetricBasedLayerProtocol]] = [[] for _ in red_chunks]
+        dst_temps: List[VolumetricBasedLayerProtocol] = []
         for chunker, chunker_idx in self.processing_chunker.split_into_nonoverlapping_chunkers(
             self.processing_blend_pad
         ):
@@ -338,14 +341,17 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
     def flow(  # pylint:disable=too-many-branches
         self,
         idx: VolumetricIndex,
-        dst: VolumetricLayer,
+        dst: VolumetricBasedLayerProtocol,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
-        assert self.fov_crop_pad is not None
+        assert len(args) == 0
+        assert self.roi_crop_pad is not None
         assert self.processing_blend_pad is not None
 
-        # set caching for all VolumetricLayers as desired
+        # dst: VolumetricBasedLayerProtocol,
+
+        # set caching for all VolumetricBasedLayerProtocols as desired
         if self.allow_cache:
             args, kwargs = set_allow_cache(*args, **kwargs)
 
@@ -353,23 +359,9 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
 
         # case without checkerboarding
         if not self.use_checkerboarding:
-            dst.backend.assert_idx_is_chunk_aligned(idx)
-            logger.info(
-                f"Breaking {idx} into chunks without checkerboarding"
-                f" with {self.processing_chunker}."
-            )
-            if self.processing_chunk_size % dst.backend.get_chunk_size(
-                self.dst_resolution
-            ) != IntVec3D(0, 0, 0):
-                raise ValueError(
-                    "`processing_chunk_size` must be evenly divisible by the `dst`"
-                    f" VolumetricLayer's chunk size; received {tuple(self.processing_chunk_size)},"
-                    f" which is not divisible by {dst.backend.get_chunk_size(self.dst_resolution)}"
-                )
             idx_chunks = self.processing_chunker(
                 idx,
                 mode="exact",
-                stride_start_offset=dst.backend.get_voxel_offset(self.dst_resolution),
             )
             tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, **kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
@@ -381,7 +373,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                     dst.backend.assert_idx_is_chunk_aligned(idx)
                 except Exception as e:
                     error_str = (
-                        "`dst` VolumetricLayer's backend has"
+                        "`dst` VolumetricBasedLayerProtocol's backend has"
                         " `enforce_chunk_aligned_writes`=True, but the provided `idx`"
                         " is not chunk aligned:\n"
                     )
@@ -392,7 +384,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             ):
                 raise ValueError(
                     "`max_reduction_chunk_size` (which defaults to `processing_chunk_size` when"
-                    " not specified)` must be at least as large as the `dst` VolumetricLayer's"
+                    " not specified)` must be at least as large as the `dst` layer's"
                     f" chunk size; received {self.max_reduction_chunk_size_final}, which is"
                     f" smaller than {dst.backend.get_chunk_size(self.dst_resolution)}"
                 )
@@ -404,7 +396,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
             logger.info(
                 f"Breaking {idx} into reduction chunks with checkerboarding"
                 f" with {reduction_chunker}. Processing chunks will use the padded index"
-                f" {idx.padded(self.fov_crop_pad)} and be chunked with {self.processing_chunker}."
+                f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."
             )
             red_chunks = reduction_chunker(
                 idx,
@@ -417,7 +409,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                 red_chunks_temps,
                 dst_temps,
             ) = self.make_tasks_with_checkerboarding(
-                idx.padded(self.fov_crop_pad), red_chunks, dst, **kwargs
+                idx.padded(self.roi_crop_pad), red_chunks, dst, **kwargs
             )
             logger.info(
                 "Writing to temporary destinations:\n"
@@ -430,7 +422,7 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                     src_idxs=red_chunk_task_idxs,
                     src_layers=red_chunk_temps,
                     red_idx=red_chunk,
-                    fov_idx=idx.padded(self.fov_crop_pad + self.processing_blend_pad),
+                    roi_idx=idx.padded(self.roi_crop_pad + self.processing_blend_pad),
                     dst=dst,
                     processing_blend_pad=self.processing_blend_pad,
                     processing_blend_mode=self.processing_blend_mode,
@@ -452,9 +444,9 @@ class BlendableApplyFlowSchema(Generic[P, R_co]):
                 clear_cache(*args, **kwargs)
 
 
-@builder.register("build_blendable_apply_flow")
-def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
-    op: BlendableOpProtocol[P, R_co],
+@builder.register("build_volumetric_apply_flow")
+def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
+    op: VolumetricOpProtocol[P, R_co, Any],
     start_coord: IntVec3D,
     end_coord: IntVec3D,
     coord_resolution: Vec3D,
@@ -462,7 +454,7 @@ def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     processing_chunk_size: IntVec3D,
     processing_crop_pad: IntVec3D = IntVec3D(0, 0, 0),
     max_reduction_chunk_size: Optional[IntVec3D] = None,
-    fov_crop_pad: Optional[IntVec3D] = None,
+    roi_crop_pad: Optional[IntVec3D] = None,
     processing_blend_pad: Optional[IntVec3D] = None,
     processing_blend_mode: Literal["linear", "quadratic"] = "linear",
     temp_layers_dir: Optional[str] = None,
@@ -475,12 +467,12 @@ def build_blendable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
     )
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
-    flow_schema: BlendableApplyFlowSchema[P, R_co] = BlendableApplyFlowSchema(
+    flow_schema: VolumetricApplyFlowSchema[P, R_co] = VolumetricApplyFlowSchema(
         op=op.with_added_crop_pad(processing_crop_pad),
         processing_chunk_size=processing_chunk_size,
         max_reduction_chunk_size=max_reduction_chunk_size,
         dst_resolution=dst_resolution,
-        fov_crop_pad=fov_crop_pad,
+        roi_crop_pad=roi_crop_pad,
         processing_blend_pad=processing_blend_pad,
         processing_blend_mode=processing_blend_mode,
         temp_layers_dir=temp_layers_dir,

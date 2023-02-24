@@ -6,7 +6,11 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import mazepa
 from zetta_utils.geometry import IntVec3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric import (
+    VolumetricBasedLayerProtocol,
+    VolumetricIndex,
+    VolumetricLayer,
+)
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -79,17 +83,25 @@ class ChunkableOpProtocol(Protocol[P, IndexT_contra, R_co]):
         ...
 
 
-class BlendableOpProtocol(Protocol[P, R_co]):
+DstLayerT_contra = TypeVar(
+    "DstLayerT_contra", bound=VolumetricBasedLayerProtocol, contravariant=True
+)
+
+
+@runtime_checkable
+class VolumetricOpProtocol(Protocol[P, R_co, DstLayerT_contra]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         ...
 
-    def with_added_crop_pad(self, crop_pad: IntVec3D) -> BlendableOpProtocol[P, R_co]:
+    def with_added_crop_pad(
+        self, crop_pad: IntVec3D
+    ) -> VolumetricOpProtocol[P, R_co, DstLayerT_contra]:
         ...
 
     def __call__(
         self,
         idx: VolumetricIndex,
-        dst: VolumetricLayer,
+        dst: DstLayerT_contra,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> R_co:
@@ -98,7 +110,7 @@ class BlendableOpProtocol(Protocol[P, R_co]):
     def make_task(
         self,
         idx: VolumetricIndex,
-        dst: VolumetricLayer,
+        dst: DstLayerT_contra,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> mazepa.Task[R_co]:

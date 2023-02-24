@@ -4,16 +4,16 @@ from .operation_protocols import (
     MultiresOpProtocol,
     ComputeFieldOpProtocol,
     ChunkableOpProtocol,
-    BlendableOpProtocol,
+    VolumetricOpProtocol,
 )
 from . import alignment
 from .common import (
     ChunkedApplyFlowSchema,
     CallableOperation,
-    BlendableApplyFlowSchema,
+    VolumetricApplyFlowSchema,
     build_chunked_callable_flow_schema,
     build_chunked_apply_flow,
-    build_blendable_apply_flow,
+    build_volumetric_apply_flow,
 )
 
 builder.register("mazepa.Executor")(mazepa.Executor)

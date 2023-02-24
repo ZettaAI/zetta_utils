@@ -84,6 +84,7 @@ class VolumetricCallableOperation(Generic[P]):
         dst[idx] = dst_data
 
 
+# TODO: cut
 @builder.register("build_chunked_volumetric_callable_flow_schema")
 def build_chunked_volumetric_callable_flow_schema(
     fn: Callable[P, torch.Tensor],

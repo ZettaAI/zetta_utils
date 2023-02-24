@@ -173,3 +173,8 @@ def test_lambda_exc(value, expected_exc):
 def test_autoconvert(set_autoconverters):
     result = builder.build(["a", 1e100, "42", 42])
     assert result == ["a", 1e100, 420, 42]
+
+
+def test_double_register_exc(register_dummy_a):
+    with pytest.raises(RuntimeError):
+        builder.register("dummy_a")(DummyA)

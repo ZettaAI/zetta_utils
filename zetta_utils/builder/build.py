@@ -51,6 +51,9 @@ def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
     :param allow_partial: Whether to allow `@mode: "partial"`.
     """
 
+    if name in REGISTRY:
+        raise RuntimeError(f"`builder` primitive with name '{name}' is already registered.")
+
     def decorator(fn: T) -> T:
         REGISTRY[name] = RegistryEntry(fn=fn, allow_partial=allow_partial)
         return fn

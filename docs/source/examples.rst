@@ -166,7 +166,7 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    ...    ),
    ...    # How big each chunk will be
    ...    chunk_size=Vec3D(128, 128, 1),
-   ...    # Which resolution we want 
+   ...    # Which resolution we want
    ...    resolution=Vec3D(64, 64, 40),
    ...    # How close together samples can be
    ...    stride=Vec3D(32, 32, 1),
@@ -205,8 +205,8 @@ To make objects of a class buildable with ``builder``:
 .. doctest::
 
    >>> from zetta_utils import builder
-   >>> @builder.register("MyClass")
-   ... class MyClass:
+   >>> @builder.register("SomeClass")
+   ... class SomeClass:
    ...    def __init__(self, a):
    ...       self.a = a
 
@@ -216,12 +216,12 @@ and providing the initialization parameters:
 .. doctest::
 
    >>> spec = {
-   ...    "@type": "MyClass",
+   ...    "@type": "SomeClass",
    ...    "a": 100
    ... }
    >>> obj = builder.build(spec)
    >>> print (type(obj))
-   <class 'MyClass'>
+   <class 'SomeClass'>
    >>> print (obj.a)
    100
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Callable, Optional
 
-from zetta_utils import builder, log
+from zetta_utils import log
 
 from . import ExecutionQueue, Task
 
@@ -15,7 +15,6 @@ class AcceptAllTasks:
         return True
 
 
-@builder.register("mazepa.run_worker")
 def run_worker(
     exec_queue: ExecutionQueue,
     sleep_sec: int = 4,

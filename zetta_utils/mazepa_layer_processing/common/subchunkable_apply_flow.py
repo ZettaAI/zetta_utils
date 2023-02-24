@@ -1,6 +1,6 @@
 from copy import deepcopy
 from os import path
-from typing import Callable, Generic, List, Literal, Optional, TypeVar, Union
+from typing import Any, Callable, Generic, List, Literal, Optional, TypeVar, Union
 
 import attrs
 from torch import Tensor
@@ -8,10 +8,10 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 
-from ..operation_protocols import BlendableOpProtocol
-from .blendable_apply_flow import BlendableApplyFlowSchema
+from ..operation_protocols import VolumetricOpProtocol
+from .volumetric_apply_flow import VolumetricApplyFlowSchema
 from .volumetric_callable_operation import VolumetricCallableOperation
 
 logger = log.get_logger("zetta_utils")
@@ -29,13 +29,17 @@ class DelegatedSubchunkedOperation(Generic[P]):
     An operation that delegates to a FlowSchema.
     """
 
-    flow_schema: BlendableApplyFlowSchema[P, None]
+    flow_schema: VolumetricApplyFlowSchema[P, None]
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
         return dst_resolution
 
     def __call__(
-        self, idx: VolumetricIndex, dst: VolumetricLayer, *args: P.args, **kwargs: P.kwargs
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        *args: P.args,
+        **kwargs: P.kwargs,
     ) -> None:
         mazepa.Executor(do_dryrun_estimation=False, show_progress=False)(
             self.flow_schema(idx, dst, *args, **kwargs)
@@ -53,7 +57,7 @@ def expand_if_singleton(arg: Union[T, List[T]], length: int) -> List[T]:
 
 @builder.register("build_subchunkable_apply_flow")
 def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches, too-many-statements
-    dst: VolumetricLayer,
+    dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
     temp_layers_dirs: Union[str, List[str]],
     processing_chunk_sizes: List[IntVec3D],
@@ -62,13 +66,13 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_blend_modes: Union[
         Literal["linear", "quadratic"], List[Literal["linear", "quadratic"]]
     ] = "linear",
-    fov_crop_pad: IntVec3D = IntVec3D(0, 0, 0),
+    roi_crop_pad: IntVec3D = IntVec3D(0, 0, 0),
     start_coord: Optional[IntVec3D] = None,
     end_coord: Optional[IntVec3D] = None,
     coord_resolution: Optional[Vec3D] = None,
     bbox: Optional[BBox3D] = None,
     fn: Optional[Callable[P, Tensor]] = None,
-    op: Optional[BlendableOpProtocol[P, None]] = None,
+    op: Optional[VolumetricOpProtocol[P, None, Any]] = None,
     max_reduction_chunk_sizes: Optional[Union[IntVec3D, List[IntVec3D]]] = None,
     allow_cache_up_to_level: int = 0,
     *args: P.args,
@@ -121,11 +125,13 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
     if fn is None and op is None:
         raise ValueError("Need exactly one of `fn` and `op`; received neither.")
-    # mypy seems to be confused by protocol
-    if fn is not None:
-        level0_op = VolumetricCallableOperation(fn, crop_pad=processing_crop_pads[-1])
-    elif op is not None:
-        level0_op = op.with_added_crop_pad(processing_crop_pads[-1])  # type:ignore
+
+    if op is not None:
+        assert fn is None
+        level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
+    else:
+        assert fn is not None
+        level0_op = VolumetricCallableOperation[P](fn, crop_pad=processing_crop_pads[-1])
 
     """
     Check that the sizes are correct. Note that the the order has to be reversed for indexing.
@@ -139,7 +145,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         if i == 0:
             processing_chunk_size_higher = idx.shape
             processing_blend_pad_higher = IntVec3D(0, 0, 0)
-            processing_crop_pad_higher = fov_crop_pad
+            processing_crop_pad_higher = roi_crop_pad
         else:
             processing_chunk_size_higher = processing_chunk_sizes[i - 1]
             processing_blend_pad_higher = processing_blend_pads[i - 1]
@@ -169,7 +175,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]` must be"
                 f" evenly divisible by the `processing_chunk_size[level]`.\n\nAt level {level}, received:\n"
                 f"`processing_chunk_size[level+1]`:\t\t\t\t{processing_chunk_size_higher}\n"
-                f"`processing_crop_pad[level+1]` (`fov_crop_pad` for the top level):\t{processing_crop_pad_higher}\n"
+                f"`processing_crop_pad[level+1]` (`roi_crop_pad` for the top level):\t{processing_crop_pad_higher}\n"
                 f"`processing_blend_pad[level+1]`:\t\t\t\t{processing_blend_pad_higher}\n"
                 f"Size of the region to be processed for the level: {processing_region}\n"
                 f"Which must be (but is not) divisible by: `processing_chunk_size[level]`: {processing_chunk_size}\n\n"
@@ -184,25 +190,25 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             )
 
     """
-    Append fov_crop pads into one list
+    Append roi_crop pads into one list
     """
-    fov_crop_pads = [fov_crop_pad] + processing_crop_pads[:-1]
+    roi_crop_pads = [roi_crop_pad] + processing_crop_pads[:-1]
     """
     Check for no checkerboarding
     """
     for i in range(0, num_levels - 1):
-        if fov_crop_pads[i] == IntVec3D(0, 0, 0) and processing_blend_pads[i] == IntVec3D(0, 0, 0):
+        if roi_crop_pads[i] == IntVec3D(0, 0, 0) and processing_blend_pads[i] == IntVec3D(0, 0, 0):
             logger.info(
                 f"Level {num_levels - i - 1}: Chunks will not be checkerboarded since `processing_crop_pad[level+1]`"
-                f" (`fov_crop_pad` for the top level) and `processing_blend_pad[level]` are both {IntVec3D(0, 0, 0)}."
+                f" (`roi_crop_pad` for the top level) and `processing_blend_pad[level]` are both {IntVec3D(0, 0, 0)}."
             )
     if processing_blend_pads[num_levels - 1] == IntVec3D(0, 0, 0):
         logger.info(
             f"Level 0: Chunks will not be checkerboarded since `processing_blend_pad[level]` is {IntVec3D(0, 0, 0)}."
         )
-    if fov_crop_pads[0] == IntVec3D(0, 0, 0) and processing_blend_pads[0] == IntVec3D(0, 0, 0):
+    if roi_crop_pads[0] == IntVec3D(0, 0, 0) and processing_blend_pads[0] == IntVec3D(0, 0, 0):
         logger.info(
-            "Since checkerboarding is skipped at the top level, the FOV is required to be chunk-aligned."
+            "Since checkerboarding is skipped at the top level, the roi is required to be chunk-aligned."
         )
         dst = attrs.evolve(
             deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
@@ -215,12 +221,12 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     """
     Basic building blocks where the work gets done, at the very bottom
     """
-    flow_schema: BlendableApplyFlowSchema = BlendableApplyFlowSchema(
+    flow_schema: VolumetricApplyFlowSchema = VolumetricApplyFlowSchema(
         op=level0_op,
         processing_chunk_size=processing_chunk_sizes[-1],
         max_reduction_chunk_size=max_reduction_chunk_sizes[-1],
         dst_resolution=dst_resolution,
-        fov_crop_pad=fov_crop_pads[-1],
+        roi_crop_pad=roi_crop_pads[-1],
         processing_blend_pad=processing_blend_pads[-1],
         processing_blend_mode=processing_blend_modes[-1],
         temp_layers_dir=path.join(temp_layers_dirs[-1], "chunks_level_0"),
@@ -232,14 +238,14 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     Iteratively build the hierarchy of schemas
     """
     for level in range(1, num_levels):
-        flow_schema = BlendableApplyFlowSchema(
+        flow_schema = VolumetricApplyFlowSchema(
             op=DelegatedSubchunkedOperation(  # type:ignore #readability over typing here
                 flow_schema,
             ),
             processing_chunk_size=processing_chunk_sizes[-level - 1],
             max_reduction_chunk_size=max_reduction_chunk_sizes[-level - 1],
             dst_resolution=dst_resolution,
-            fov_crop_pad=fov_crop_pads[-level - 1],
+            roi_crop_pad=roi_crop_pads[-level - 1],
             processing_blend_pad=processing_blend_pads[-level - 1],
             processing_blend_mode=processing_blend_modes[-level - 1],
             temp_layers_dir=path.join(temp_layers_dirs[-level - 1], f"chunks_level_{level}"),

@@ -6,10 +6,11 @@ from typing import Iterable
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.geometry import Vec3D
 
 from ... import IndexProcessor
-from .. import VolumetricIndex, VolumetricLayer
-from . import VolumetricLayerSet, VolumetricLayerSetBackend, VolumetricSetDataProcT
+from .. import VolumetricFrontend, VolumetricIndex, VolumetricLayer
+from . import VolumetricLayerSet, VolumetricSetBackend, VolumetricSetDataProcT
 
 
 @typechecked
@@ -17,6 +18,9 @@ from . import VolumetricLayerSet, VolumetricLayerSetBackend, VolumetricSetDataPr
 def build_volumetric_layer_set(
     layers: dict[str, VolumetricLayer],
     readonly: bool = False,
+    default_desired_resolution: Vec3D | None = None,
+    index_resolution: Vec3D | None = None,
+    allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[VolumetricSetDataProcT] = (),
     write_procs: Iterable[VolumetricSetDataProcT] = (),
@@ -32,9 +36,16 @@ def build_volumetric_layer_set(
         the user before writing it to the backend.
     :return: Layer built according to the spec.
     """
-    backend = VolumetricLayerSetBackend(layers)
+    backend = VolumetricSetBackend(layers)
+    frontend = VolumetricFrontend(
+        index_resolution=index_resolution,
+        default_desired_resolution=default_desired_resolution,
+        allow_slice_rounding=allow_slice_rounding,
+    )
+
     result = VolumetricLayerSet(
         backend=backend,
+        frontend=frontend,
         readonly=readonly,
         index_procs=tuple(index_procs),
         read_procs=tuple(read_procs),

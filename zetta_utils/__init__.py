@@ -40,6 +40,7 @@ def load_inference_modules():
         segmentation,
         tensor_ops,
         tensor_typing,
+        tensor_mapping,
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
@@ -54,6 +55,7 @@ def load_training_modules():
         tensor_ops,
         tensor_typing,
         training,
+        tensor_mapping,
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol

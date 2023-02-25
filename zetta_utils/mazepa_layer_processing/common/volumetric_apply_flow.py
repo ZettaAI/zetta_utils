@@ -326,7 +326,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             idx_expanded = idx.padded(self.processing_blend_pad)
 
             task_idxs = chunker(
-                idx_expanded, stride_start_offset=idx_expanded.start, mode="shrink"
+                idx_expanded, stride_start_offset_in_unit=idx_expanded.start, mode="shrink"
             )
             with suppress_type_checks():
                 for task_idx in task_idxs:
@@ -359,10 +359,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         # case without checkerboarding
         if not self.use_checkerboarding:
-            idx_chunks = self.processing_chunker(
-                idx,
-                mode="exact",
-            )
+            idx_chunks = self.processing_chunker(idx, mode="exact")
             tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, **kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
@@ -398,10 +395,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" with {reduction_chunker}. Processing chunks will use the padded index"
                 f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."
             )
+            stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
+            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
             red_chunks = reduction_chunker(
-                idx,
-                mode="exact",
-                stride_start_offset=dst.backend.get_voxel_offset(self.dst_resolution),
+                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
             )
             (
                 tasks,

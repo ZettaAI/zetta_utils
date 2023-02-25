@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Union
+from typing import Mapping, Union
 
 import attrs
 import torch
@@ -36,7 +36,7 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
         return self.read_with_procs(idx=idx_backend)
 
     def __setitem__(
-        self, idx: UserVolumetricIndex, data: dict[str, torch.Tensor | int | float | bool]
+        self, idx: UserVolumetricIndex, data: Mapping[str, torch.Tensor | int | float | bool]
     ):
         idx_backend: VolumetricIndex | None = None
         idx_last: VolumetricIndex | None = None

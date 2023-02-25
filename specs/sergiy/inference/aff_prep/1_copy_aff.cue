@@ -1,15 +1,17 @@
-#SRC_PATH: "gs://zetta_lee_mouse_spinal_cord_001_image/dorsal_sections/dorsal_sections_500/affinity/minnie_mye_v2"
-#DST_PATH: "gs://sergiy_exp/aff_dsets/x0/aff"
+// src affinites are gone
+//#SRC_PATH: "gs://zetta_lee_mouse_spinal_cord_001_image/dorsal_sections/dorsal_sections_500/affinity/minnie_mye_v2"
+#DST_PATH: "gs://sergiy_exp/aff_dsets/x0/aff_OLD"
 #INFO_CHUNK_SIZE: [128, 128, 1]
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:inference_x11"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x93"
 worker_resources: {
 	memory: "18560Mi"
 }
 worker_replicas:     15
-batch_gap_sleep_sec: 5
-local_test:          true
+batch_gap_sleep_sec: 0.2
+local_test:          false
+
 target: {
 	"@type": "build_write_flow"
 	chunk_size: [512, 512, 1]

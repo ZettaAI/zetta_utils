@@ -349,6 +349,7 @@ def deployment_ctx_mngr(
 
             # need to create a new client for the above to take effect
             k8s_apps_v1_api = k8s_client.AppsV1Api()
+            logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
             k8s_apps_v1_api.delete_namespaced_deployment(
                 name=deployment.metadata.name, namespace="default"
             )

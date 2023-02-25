@@ -77,11 +77,11 @@ def get_gcp_with_sqs_config(
     )
 
     ctx_managers.append(
-        resource_allocation.k8s.namespace_ctx_mngr(
+        resource_allocation.k8s.deployment_ctx_mngr(
             execution_id=execution_id,
             cluster_info=worker_cluster,
+            deployment=deployment,
             secrets=secrets,
-            deployments=[deployment],
         )
     )
     return exec_queue, ctx_managers

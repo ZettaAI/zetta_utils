@@ -72,6 +72,19 @@ def update_execution_heartbeat(execution_id: str) -> bool:  # pragma: no cover
     return True
 
 
+def read_execution_run(execution_id: str) -> None:  # pragma: no cover
+    """
+    Reads archived execution info.
+    """
+    zetta_user = os.environ["ZETTA_USER"]
+    info_path = os.environ.get("EXECUTION_INFO_PATH", EXECUTION_INFO_PATH)
+    info_path = os.path.join(info_path, zetta_user, f"{execution_id}.json")
+    logger.info(f"Recording execution info to {info_path}")
+
+    with fsspec.open(info_path, "r") as f:
+        return json.load(f)
+
+
 def record_execution_run(execution_id: str) -> None:  # pragma: no cover
     """
     Records execution data in a bucket for archiving.

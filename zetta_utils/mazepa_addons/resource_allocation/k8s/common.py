@@ -13,7 +13,7 @@ import attrs
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-from ..gcloud import iam as gcloud_iam
+from ..resource_tracker import ExecutionResource, register_execution_resource
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
 
@@ -277,40 +277,6 @@ def _get_provider_cluster_data(info: ClusterInfo) -> Tuple[ClusterAuth, str]:
     return ClusterAuth(cert, endpoint, token), workload_pool
 
 
-def add_workload_identity_role(
-    execution_id: str, info: ClusterInfo, workload_pool: str, principal: str
-) -> None:
-    if info.project is not None:
-        assert info.region is not None, "GKE cluster needs both `project` and `region`."
-
-        member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
-        gcloud_iam.add_role(
-            info.project,
-            principal,
-            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
-            member,
-        )
-    else:
-        NotImplementedError("Other provider clusters not supported at this time.")
-
-
-def rm_workload_identity_role(
-    execution_id: str, info: ClusterInfo, workload_pool: str, principal: str
-) -> None:
-    if info.project is not None:
-        assert info.region is not None, "GKE cluster needs both `project` and `region`."
-
-        member = f"serviceAccount:{workload_pool}[{execution_id}/default]"
-        gcloud_iam.remove_role(
-            info.project,
-            principal,
-            gcloud_iam.Role.WORKLOAD_IDENTITY_USER,
-            member,
-        )
-    else:
-        NotImplementedError("Other provider clusters not supported at this time.")
-
-
 def get_cluster_data(info: ClusterInfo) -> Tuple[k8s_client.Configuration, str]:
     cluster_auth, workload_pool = _get_provider_cluster_data(info)
 
@@ -323,85 +289,66 @@ def get_cluster_data(info: ClusterInfo) -> Tuple[k8s_client.Configuration, str]:
     return configuration, workload_pool
 
 
-def get_worker_sa(k8s_api: k8s_client.CoreV1Api) -> str:
-    """Extract pre-configured service account for workload identity access in default ns"""
-    try:
-        default_ksa = k8s_api.read_namespaced_service_account(name="default", namespace="default")
-        return default_ksa.metadata.annotations["iam.gke.io/gcp-service-account"]
-    except KeyError as err:
-        raise KeyError(f"Workload Identity not configured: {err}") from err
-
-
-def _copy_cv_secrets_from_default_ns(k8s_api: k8s_client.CoreV1Api, execution_id: str) -> None:
-    """Copy pre-configured cloudvolume secrets from default ns to current ns."""
-    namespaced_cv_secret = k8s_api.read_namespaced_secret(
-        name=CV_SECRETS_NAME, namespace="default"
-    )
-
-    old_metadata = namespaced_cv_secret.metadata
-    new_metadata = k8s_client.V1ObjectMeta(
-        name=CV_SECRETS_NAME,
-        namespace=execution_id,
-        annotations=old_metadata.annotations,
-        labels=old_metadata.labels,
-    )
-
-    namespaced_cv_secret.metadata = new_metadata
-    k8s_api.create_namespaced_secret(namespace=execution_id, body=namespaced_cv_secret)
-
-
-@builder.register("k8s_namespace_ctx_mngr")
 @contextmanager
-def namespace_ctx_mngr(
+def secrets_ctx_mngr(
     execution_id: str,
-    cluster_info: ClusterInfo,
     secrets: List[k8s_client.V1Secret],
-    deployments: List[k8s_client.V1Deployment],
+    cluster_info: ClusterInfo,
 ):
-    configuration, workload_pool = get_cluster_data(cluster_info)
+    configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_core_v1_api = k8s_client.CoreV1Api()
-    k8s_apps_v1_api = k8s_client.AppsV1Api()
-
-    namespace_config = k8s_client.V1Namespace(metadata=k8s_client.V1ObjectMeta(name=execution_id))
-
-    logger.info(f"Creating k8s namespace `{execution_id}`")
-    k8s_core_v1_api.create_namespace(namespace_config)
-
-    # Allow the Kubernetes service account to impersonate the IAM service account.
-    worker_sa = get_worker_sa(k8s_core_v1_api)
-    logger.debug(f"Adding ksa workload identity access via `{worker_sa}`")
-    add_workload_identity_role(execution_id, cluster_info, workload_pool, principal=worker_sa)
-
-    # Annotate the Kubernetes service account with the email address of the IAM service account.
-    ksa = k8s_core_v1_api.read_namespaced_service_account(name="default", namespace=execution_id)
-    if not ksa.metadata.annotations:
-        ksa.metadata.annotations = {}
-    ksa.metadata.annotations["iam.gke.io/gcp-service-account"] = worker_sa
-    k8s_core_v1_api.patch_namespaced_service_account(
-        name="default", namespace=execution_id, body=ksa
-    )
-
-    _copy_cv_secrets_from_default_ns(k8s_core_v1_api, execution_id)
     for secret in secrets:
-        logger.info(f"Creating namespaced k8s secret `{secret.metadata.name}`")
-        k8s_core_v1_api.create_namespaced_secret(namespace=execution_id, body=secret)
-
-    for deployment in deployments:
-        logger.info(f"Creating namespaced k8s deployment `{deployment.metadata.name}`")
-        k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=execution_id)
+        logger.info(f"Creating k8s secret `{secret.metadata.name}`")
+        k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
+        register_execution_resource(
+            ExecutionResource(execution_id, "k8s_secret", secret.metadata.name)
+        )
 
     try:
         yield
     finally:
         # new configuration to refresh expired tokens (long running executions)
-        configuration, workload_pool = get_cluster_data(cluster_info)
-
-        logger.debug(f"Removing ksa workload identity access via `{worker_sa}`")
-        rm_workload_identity_role(execution_id, cluster_info, workload_pool, principal=worker_sa)
-
+        configuration, _ = get_cluster_data(cluster_info)
         k8s_client.Configuration.set_default(configuration)
-        # need to create a new client for the above to take effect?
+
+        # need to create a new client for the above to take effect
         k8s_core_v1_api = k8s_client.CoreV1Api()
-        logger.info(f"Deleting k8s namespace `{execution_id}`")
-        k8s_core_v1_api.delete_namespace(name=execution_id)
+        for secret in secrets:
+            logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
+            k8s_core_v1_api.delete_namespaced_secret(
+                name=secret.metadata.name, namespace="default"
+            )
+
+
+@builder.register("k8s_deployment_ctx_mngr")
+@contextmanager
+def deployment_ctx_mngr(
+    execution_id: str,
+    cluster_info: ClusterInfo,
+    deployment: k8s_client.V1Deployment,
+    secrets: List[k8s_client.V1Secret],
+):
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    k8s_apps_v1_api = k8s_client.AppsV1Api()
+
+    with secrets_ctx_mngr(execution_id, secrets, cluster_info):
+        logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
+        k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace="default")
+        register_execution_resource(
+            ExecutionResource(execution_id, "k8s_deployment", deployment.metadata.name)
+        )
+
+        try:
+            yield
+        finally:
+            # new configuration to refresh expired tokens (long running executions)
+            configuration, _ = get_cluster_data(cluster_info)
+            k8s_client.Configuration.set_default(configuration)
+
+            # need to create a new client for the above to take effect
+            k8s_apps_v1_api = k8s_client.AppsV1Api()
+            k8s_apps_v1_api.delete_namespaced_deployment(
+                name=deployment.metadata.name, namespace="default"
+            )

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import copy
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import torch
 from typeguard import typechecked
@@ -23,10 +23,10 @@ from . import (
 @typechecked
 def build_volumetric_layer(
     backend: VolumetricBackend,
-    default_desired_resolution: Vec3D | None = None,
-    index_resolution: Vec3D | None = None,
+    default_desired_resolution: Sequence[float] | None = None,
+    index_resolution: Sequence[float] | None = None,
     allow_slice_rounding: bool = False,
-    data_resolution: Vec3D | None = None,
+    data_resolution: Sequence[float] | None = None,
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
@@ -73,8 +73,10 @@ def build_volumetric_layer(
         write_procs = [resolution_interpolator] + list(write_procs)
 
     frontend = VolumetricFrontend(
-        index_resolution=index_resolution,
-        default_desired_resolution=default_desired_resolution,
+        index_resolution=Vec3D(*index_resolution) if index_resolution else None,
+        default_desired_resolution=(
+            Vec3D(*default_desired_resolution) if default_desired_resolution else None
+        ),
         allow_slice_rounding=allow_slice_rounding,
     )
 

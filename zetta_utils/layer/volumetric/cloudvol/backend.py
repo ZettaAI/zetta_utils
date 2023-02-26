@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import os
 from copy import deepcopy
-from typing import Any, Dict, Literal, Optional, Tuple, Union
+from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
 
 import attrs
 import cachetools
@@ -16,10 +16,9 @@ import torch
 from cachetools.keys import hashkey
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Bbox
-from typeguard import typechecked
 
-from zetta_utils import builder, tensor_ops
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils import tensor_ops
+from zetta_utils.geometry import BBox3D, Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
 
@@ -46,20 +45,18 @@ def get_cv_cached(cloudpath, *args, **kwargs):
     return CloudVolume(cloudpath, info=_get_info(cloudpath), provenance={}, *args, **kwargs)
 
 
-@builder.register("PrecomputedInfoSpec")
-@typechecked
 @attrs.mutable
 class PrecomputedInfoSpec:
-    reference_path: Optional[str] = None
-    field_overrides: Optional[Dict[str, Any]] = None
-    default_chunk_size: Optional[IntVec3D] = None
-    default_voxel_offset: Optional[IntVec3D] = None
-    chunk_size_map: Optional[Dict[str, IntVec3D]] = None
-    voxel_offset_map: Optional[Dict[str, IntVec3D]] = None
-    data_type: Optional[str] = None
+    reference_path: str | None = None
+    field_overrides: dict[str, Any] | None = None
+    default_chunk_size: Sequence[int] | None = None
+    default_voxel_offset: Sequence[int] | None = None
+    chunk_size_map: dict[str, Sequence[int]] | None = None
+    voxel_offset_map: dict[str, Sequence[int]] | None = None
+    data_type: str | None = None
     # ensure_scales: Optional[Iterable[int]] = None
 
-    def set_voxel_offset(self, voxel_offset_and_res: Tuple[IntVec3D, Vec3D]) -> None:
+    def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
         voxel_offset, resolution = voxel_offset_and_res
         key = "_".join([_str(v) for v in resolution])
         if self.voxel_offset_map is None:
@@ -67,7 +64,7 @@ class PrecomputedInfoSpec:
 
         self.voxel_offset_map[key] = voxel_offset
 
-    def set_chunk_size(self, chunk_size_and_res: Tuple[IntVec3D, Vec3D]) -> None:
+    def set_chunk_size(self, chunk_size_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
         chunk_size, resolution = chunk_size_and_res
         key = "_".join([_str(v) for v in resolution])
         if self.chunk_size_map is None:
@@ -119,8 +116,6 @@ def _str(n: float) -> str:  # pragma: no cover
     return str(n)
 
 
-@builder.register("CVBackend")
-# @typechecked raises stop iteration, TOOD: make an issue
 @attrs.mutable
 class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
@@ -310,8 +305,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "allow_cache" = value: Union[bool, str]
         "use_compression" = value: str
         "enforce_chunk_aligned_writes" = value: bool
-        "voxel_offset_res" = (voxel_offset, resolution): Tuple[IntVec3D, Vec3D]
-        "chunk_size_res" = (chunk_size, resolution): Tuple[IntVec3D, Vec3D]
+        "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
+        "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         """
         assert self.info_spec is not None
 
@@ -358,13 +353,13 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             on_info_exists="overwrite",
         )
 
-    def get_voxel_offset(self, resolution: Vec3D) -> IntVec3D:
+    def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
         cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
-        return IntVec3D(*cvol.voxel_offset)
+        return Vec3D[int](*cvol.voxel_offset)
 
-    def get_chunk_size(self, resolution: Vec3D) -> IntVec3D:
+    def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
-        return IntVec3D(*cvol.chunk_size)
+        return Vec3D[int](*cvol.chunk_size)
 
     def get_chunk_aligned_index(  # pragma: no cover
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
@@ -384,7 +379,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return VolumetricIndex(
             resolution=idx.resolution,
             bbox=BBox3D.from_coords(
-                IntVec3D(*bbox_aligned.minpt), IntVec3D(*bbox_aligned.maxpt), idx.resolution
+                Vec3D[int](*bbox_aligned.minpt), Vec3D[int](*bbox_aligned.maxpt), idx.resolution
             ),
         )
 

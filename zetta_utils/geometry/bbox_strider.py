@@ -9,7 +9,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder, log
 
-from . import IntVec3D, Vec3D
+from . import Vec3D
 from .bbox import BBox3D
 
 logger = log.get_logger("zetta_utils")
@@ -41,10 +41,10 @@ class BBoxStrider:
 
     bbox: BBox3D
     resolution: Vec3D
-    chunk_size: IntVec3D
-    stride: IntVec3D
-    max_superchunk_size: Optional[IntVec3D] = None
-    stride_start_offset_in_unit: Optional[IntVec3D] = None
+    chunk_size: Vec3D[int]
+    stride: Vec3D[int]
+    max_superchunk_size: Optional[Vec3D[int]] = None
+    stride_start_offset_in_unit: Optional[Vec3D[int]] = None
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     stride_in_unit: Vec3D = attrs.field(init=False)
     bbox_snapped: BBox3D = attrs.field(init=False)
@@ -109,13 +109,13 @@ class BBoxStrider:
                 )
             )
         )
-        step_limits = IntVec3D(*(floor(e) for e in step_limits_snapped))
+        step_limits = Vec3D[int](*(floor(e) for e in step_limits_snapped))
         bbox_start_diff = bbox_snapped.start - self.bbox.start
         bbox_end_diff = self.bbox.end - bbox_snapped.end
         step_start_partial = tuple(e > 0 for e in bbox_start_diff)
         step_end_partial = tuple(e > 0 for e in bbox_end_diff)
-        step_limits += IntVec3D(*(int(e) for e in step_start_partial))
-        step_limits += IntVec3D(*(int(e) for e in step_end_partial))
+        step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
+        step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
         logger.info(
             f"Exact bbox requested; out of {self.bbox.bounds},"
             f" full cubes are in {bbox_snapped.bounds}, given offset"
@@ -175,7 +175,7 @@ class BBoxStrider:
             )
         )
         if self.mode == "shrink":
-            step_limits = IntVec3D(*(floor(e) for e in step_limits_snapped))
+            step_limits = Vec3D[int](*(floor(e) for e in step_limits_snapped))
             if step_limits_raw != step_limits:
                 rounded_bbox_bounds = tuple(
                     (
@@ -195,7 +195,7 @@ class BBoxStrider:
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         if self.mode == "expand":
-            step_limits = IntVec3D(*(ceil(e) for e in step_limits_snapped))
+            step_limits = Vec3D[int](*(ceil(e) for e in step_limits_snapped))
             if step_limits_raw != step_limits:
                 rounded_bbox_bounds = tuple(
                     (
@@ -240,7 +240,7 @@ class BBoxStrider:
             at ``self.index_resolution``.
 
         """
-        steps_along_dim = IntVec3D(
+        steps_along_dim = Vec3D[int](
             n % self.step_limits[0],
             (n // self.step_limits[0]) % self.step_limits[1],
             (n // (self.step_limits[0] * self.step_limits[1])) % self.step_limits[2],

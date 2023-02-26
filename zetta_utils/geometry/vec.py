@@ -17,6 +17,7 @@ BuiltinFloat = float
 T = TypeVar("T", bound=float)
 
 
+@builder.register("Vec3D")
 @typechecked
 @attrs.mutable(init=False)
 class Vec3D(abc.Sequence[T]):
@@ -207,19 +208,11 @@ class Vec3D(abc.Sequence[T]):
             return Vec3D[BuiltinFloat](*(other * e for e in self))
 
     @overload
-    def __floordiv__(
-        self: Vec3D[BuiltinInt], other: Union[Vec3D[BuiltinInt], BuiltinInt]
-    ) -> Vec3D[BuiltinInt]:
+    def __floordiv__(self, other: Union[Vec3D[BuiltinInt], BuiltinInt]) -> Vec3D[T]:
         ...
 
     @overload
     def __floordiv__(self, other: Union[Vec3D[BuiltinFloat], BuiltinFloat]) -> Vec3D[BuiltinFloat]:
-        ...
-
-    @overload
-    def __floordiv__(
-        self: Vec3D[BuiltinFloat], other: Union[Vec3D[BuiltinInt], BuiltinInt]
-    ) -> Vec3D[BuiltinFloat]:
         ...
 
     def __floordiv__(self, other):
@@ -282,16 +275,41 @@ def is_int_vec(vec: Vec3D) -> TypeGuard[Vec3D[int]]:
     return all(isinstance(v, int) for v in vec.vec)
 
 
-def convert_list3_to_vec3d(value: Any) -> Any:
-    if (
+"""
+def convert_list3_to_vec3d(value: Any, recursive=True) -> Any:
+    result: Any
+    if is_raw_vec3d(value):
+        result = Vec3D(*value)
+    elif not recursive:
+        result = value
+    else:
+        if isinstance(value, dict):
+            result = {
+                k: convert_list3_to_vec3d(v, recursive=True)
+                for k, v in value.items()
+            }
+        elif isinstance(value, list):
+            result = [convert_list3_to_vec3d(v, recursive=True) for v in value]
+        elif isinstance(value, list):
+            result = [convert_list3_to_vec3d(v, recursive=True) for v in value]
+        else:
+            result = value
+    return result
+"""
+
+
+def is_raw_vec3d(value: Any) -> TypeGuard[RawVec3D]:  # pragma: no cover
+    return isinstance(value, Vec3D) or (
         isinstance(value, Sequence)
         and len(value) == 3
         and all(isinstance(e, (int, float)) for e in value)
-    ):
-        return Vec3D(*value)
-    else:
-        return value
+    )
 
 
-builder.AUTOCONVERTERS.append(convert_list3_to_vec3d)
 IntVec3D = Vec3D[int]
+
+RawVec3D = Union[
+    Vec3D[T],
+    tuple[T, T, T],
+    list[T],
+]

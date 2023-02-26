@@ -19,9 +19,12 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DBDataT:
         col_keys = idx.col_keys[i]
         start = i * len(col_keys)
         end = start + len(col_keys)
+        _entities = {entity.key.id_or_name: entity for entity in entities[start:end]}
+
         row_data = {}
-        for j, ent in enumerate(entities[start:end]):
-            row_data[col_keys[j]] = ent[col_keys[j]]
+        for col_key in col_keys:
+            ent = _entities[col_key]
+            row_data[col_key] = ent[col_key]
         data.append(row_data)
     return data
 

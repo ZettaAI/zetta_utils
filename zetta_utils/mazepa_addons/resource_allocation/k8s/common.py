@@ -13,7 +13,11 @@ import attrs
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-from ..resource_tracker import ExecutionResource, register_execution_resource
+from ..resource_tracker import (
+    ExecutionResource,
+    ExecutionResourceTypes,
+    register_execution_resource,
+)
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
 
@@ -302,7 +306,11 @@ def secrets_ctx_mngr(
         logger.info(f"Creating k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
         register_execution_resource(
-            ExecutionResource(execution_id, "k8s_secret", secret.metadata.name)
+            ExecutionResource(
+                execution_id,
+                ExecutionResourceTypes.K8S_SECRET.value,
+                secret.metadata.name,
+            )
         )
 
     try:
@@ -337,7 +345,11 @@ def deployment_ctx_mngr(
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
         k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace="default")
         register_execution_resource(
-            ExecutionResource(execution_id, "k8s_deployment", deployment.metadata.name)
+            ExecutionResource(
+                execution_id,
+                ExecutionResourceTypes.K8S_DEPLOYMENT.value,
+                deployment.metadata.name,
+            )
         )
 
         try:

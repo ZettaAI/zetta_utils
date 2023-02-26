@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from typing import Optional
 
 import boto3
+from boto3.exceptions import Boto3Error
 
 from zetta_utils import builder, log
 
@@ -24,6 +25,23 @@ def sqs_queue_ctx_mngr(execution_id: str, name: str):
         logger.info(f"Deleting SQS queue '{name}'")
         logger.debug(f"Deleting SQS queue with URL={queue.url}")
         queue.delete()
+
+
+def get_queue_url(name: str) -> str:
+    """Get the url of an existing queue."""
+    sqs = boto3.client("sqs")
+    try:
+        queue_url = sqs.get_queue_url(QueueName=name)["QueueUrl"]
+        return queue_url
+    except sqs.exceptions.QueueDoesNotExist as exc:
+        raise Boto3Error() from exc
+
+
+def delete_queue(name: str):
+    """Delete queue with given url."""
+    sqs = boto3.client("sqs")
+    queue_url = get_queue_url(name)
+    sqs.delete_queue(QueueUrl=queue_url)
 
 
 def get_queues(prefix: Optional[str] = None):

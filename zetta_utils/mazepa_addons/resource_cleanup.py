@@ -6,6 +6,7 @@ import os
 import time
 from typing import Any, Dict, List
 
+import boto3
 from boto3.exceptions import Boto3Error
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
@@ -86,7 +87,7 @@ def _delete_k8s_resources(
 
         k8s_apps_v1_api = k8s_client.AppsV1Api()
         k8s_core_v1_api = k8s_client.CoreV1Api()
-        for _, resource in resources.items():
+        for resource_id, resource in resources.items():
             try:
                 if resource.type == ExecutionResourceTypes.K8S_DEPLOYMENT.value:
                     logger.info(f"Deleting k8s deployment `{resource.name}`")
@@ -99,22 +100,32 @@ def _delete_k8s_resources(
                         name=resource.name, namespace="default"
                     )
             except K8sApiException as exc:
-                success = False
-                logger.warning(f"Failed to delete k8s resource `{resource.name}`: {exc}")
+                if exc.status == 404:
+                    success = True
+                    logger.info(f"Resource does not exist: `{resource.name}`: {exc}")
+                    _delete_resource_entry(resource_id)
+                else:
+                    success = False
+                    logger.warning(f"Failed to delete k8s resource `{resource.name}`: {exc}")
+                    raise K8sApiException() from exc
     return success
 
 
 def _delete_sqs_queues(resources: Dict[str, ExecutionResource]) -> bool:  # pragma: no cover
     success = True
-    for _, resource in resources.items():
+    sqs = boto3.client("sqs")
+    for resource_id, resource in resources.items():
         if resource.type != ExecutionResourceTypes.SQS_QUEUE.value:
             continue
         try:
             logger.info(f"Deleting SQS queue `{resource.name}`")
             delete_queue(resource.name)
+        except sqs.exceptions.QueueDoesNotExist as exc:
+            logger.info(f"Queue does not exist: `{resource.name}`: {exc}")
+            _delete_resource_entry(resource_id)
         except Boto3Error as exc:
             success = False
-            logger.warning(f"Failed to delete SQS queue `{resource.name}`: {exc}")
+            logger.warning(f"Failed to delete queue `{resource.name}`: {exc}")
     return success
 
 
@@ -125,8 +136,6 @@ def cleanup_execution(execution_id: str):
     success &= _delete_sqs_queues(resources)
 
     if success is True:
-        for resource_id in resources.keys():
-            _delete_resource_entry(resource_id)
         _delete_execution_entry(execution_id)
         logger.info(f"`{exec_id}` execution cleanup complete.")
     else:

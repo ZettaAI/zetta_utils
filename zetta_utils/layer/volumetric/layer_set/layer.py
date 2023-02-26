@@ -6,8 +6,6 @@ import attrs
 import torch
 from typeguard import typechecked
 
-from zetta_utils import builder
-
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from .. import UserVolumetricIndex, VolumetricFrontend, VolumetricIndex
 from . import VolumetricSetBackend
@@ -18,7 +16,6 @@ VolumetricSetDataProcT = Union[
 ]
 
 
-@builder.register("VolumetricLayerSet")
 @typechecked
 @attrs.frozen
 class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):

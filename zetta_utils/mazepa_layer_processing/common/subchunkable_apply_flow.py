@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Sequence as AbcSequence
 from copy import deepcopy
 from os import path

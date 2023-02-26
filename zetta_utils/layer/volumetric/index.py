@@ -1,19 +1,14 @@
-# pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Sequence
 
 import attrs
 from typeguard import typechecked
 
-from zetta_utils import builder
-
-# from zetta_utils.common.partial import ComparablePartial
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 
 
 @typechecked
-@builder.register("VolumetricIndex")
 @attrs.mutable
 class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
@@ -21,60 +16,60 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     allow_slice_rounding: bool = False
 
     @property
-    def start(self) -> IntVec3D:
-        return IntVec3D(*(e.start for e in self.to_slices()))
+    def start(self) -> Vec3D[int]:
+        return Vec3D[int](*(e.start for e in self.to_slices()))
 
     @property
-    def stop(self) -> IntVec3D:
-        return IntVec3D(*(e.stop for e in self.to_slices()))
+    def stop(self) -> Vec3D[int]:
+        return Vec3D[int](*(e.stop for e in self.to_slices()))
 
     @property
-    def shape(self) -> IntVec3D:
+    def shape(self) -> Vec3D[int]:
         return self.stop - self.start
 
     def to_slices(self):
         return self.bbox.to_slices(self.resolution, self.allow_slice_rounding)
 
-    def padded(self, pad: IntVec3D) -> VolumetricIndex:
+    def padded(self, pad: Sequence[int]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.padded(pad=pad, resolution=self.resolution),
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def croppped(self, crop: IntVec3D) -> VolumetricIndex:
+    def croppped(self, crop: Sequence[int]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.cropped(crop=crop, resolution=self.resolution),
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def translated(self, offset: Vec3D) -> VolumetricIndex:
+    def translated(self, offset: Sequence[float]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.translated(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def translated_start(self, offset: Vec3D) -> VolumetricIndex:
+    def translated_start(self, offset: Sequence[float]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.translated_start(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def translated_stop(self, offset: Vec3D) -> VolumetricIndex:
+    def translated_stop(self, offset: Sequence[float]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.translated_end(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def pformat(self, resolution: Optional[Vec3D] = None) -> str:
-        if resolution is None:
-            resolution_ = self.resolution
-        else:
+    def pformat(self, resolution: Optional[Sequence[float]] = None) -> str:
+        if resolution is not None:
             resolution_ = resolution
+        else:
+            resolution_ = self.resolution
         return self.bbox.pformat(resolution_)
 
     def get_size(self):
@@ -91,12 +86,15 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         )
 
     def snapped(
-        self, grid_offset: IntVec3D, grid_size: IntVec3D, mode: Literal["shrink", "expand"]
+        self,
+        grid_offset: Sequence[int],
+        grid_size: Sequence[int],
+        mode: Literal["shrink", "expand"],
     ) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.snapped(
-                grid_offset=grid_offset * self.resolution,
-                grid_size=grid_size * self.resolution,
+                grid_offset=Vec3D(*grid_offset) * self.resolution,
+                grid_size=Vec3D(*grid_size) * self.resolution,
                 mode=mode,
             ),
             resolution=self.resolution,

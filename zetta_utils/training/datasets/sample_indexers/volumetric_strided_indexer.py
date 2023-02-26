@@ -1,10 +1,12 @@
-from typing import Literal
+from __future__ import annotations
+
+from typing import Literal, Sequence
 
 import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.geometry import BBox3D, BBoxStrider, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, BBoxStrider, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 
 from .base import SampleIndexer
@@ -25,9 +27,9 @@ class VolumetricStridedIndexer(SampleIndexer):
     """
 
     bbox: BBox3D
-    chunk_size: IntVec3D
-    stride: IntVec3D
-    resolution: Vec3D
+    chunk_size: Sequence[int]
+    stride: Sequence[int]
+    resolution: Sequence[float]
     bbox_strider: BBoxStrider = attrs.field(init=False)
     mode: Literal["expand", "shrink"] = "expand"
 
@@ -35,9 +37,9 @@ class VolumetricStridedIndexer(SampleIndexer):
         # Use `__setattr__` to keep the object frozen.
         bbox_strider = BBoxStrider(
             bbox=self.bbox,
-            resolution=self.resolution,
-            chunk_size=self.chunk_size,
-            stride=self.stride,
+            resolution=Vec3D(*self.resolution),
+            chunk_size=Vec3D[int](*self.chunk_size),
+            stride=Vec3D[int](*self.stride),
             mode=self.mode,
         )
         object.__setattr__(self, "bbox_strider", bbox_strider)
@@ -56,6 +58,6 @@ class VolumetricStridedIndexer(SampleIndexer):
 
         result = VolumetricIndex(
             bbox=sample_bbox,
-            resolution=self.resolution,
+            resolution=Vec3D(*self.resolution),
         )
         return result

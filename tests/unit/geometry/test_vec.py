@@ -412,9 +412,3 @@ def test_subtyping() -> None:
         some_float % intvec3d,
     ]:
         test_inference_return_vec3d(y)
-
-
-def test_builder_autoconvert():
-    built = builder.build({"a": [1, 2, 3], "b": [1.1, 2, 3], "c": [1, 2, 3, 4]})
-    expected = {"a": Vec3D[int](1, 2, 3), "b": Vec3D(1.1, 2, 3), "c": [1, 2, 3, 4]}
-    assert built == expected

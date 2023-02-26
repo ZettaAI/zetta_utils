@@ -5,7 +5,7 @@ from typing import Optional, Protocol, TypeVar, runtime_checkable
 from typing_extensions import ParamSpec
 
 from zetta_utils import mazepa
-from zetta_utils.geometry import IntVec3D, Vec3D
+from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
     VolumetricIndex,
@@ -94,7 +94,7 @@ class VolumetricOpProtocol(Protocol[P, R_co, DstLayerT_contra]):
         ...
 
     def with_added_crop_pad(
-        self, crop_pad: IntVec3D
+        self, crop_pad: Vec3D[int]
     ) -> VolumetricOpProtocol[P, R_co, DstLayerT_contra]:
         ...
 

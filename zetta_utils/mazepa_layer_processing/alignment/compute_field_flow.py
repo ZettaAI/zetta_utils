@@ -1,5 +1,5 @@
 import copy
-from typing import Optional, Protocol
+from typing import Optional, Protocol, Sequence
 
 import attrs
 import einops
@@ -7,7 +7,7 @@ import torch
 import torchfields  # pylint: disable=unused-import
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -37,9 +37,9 @@ class ComputeFieldFn(Protocol):
 @attrs.mutable
 class ComputeFieldOperation:
     fn: ComputeFieldFn
-    crop_pad: IntVec3D = IntVec3D(0, 0, 0)
+    crop_pad: Vec3D[int] = Vec3D[int](0, 0, 0)
     res_change_mult: Vec3D = Vec3D(1, 1, 1)
-    output_crop_px: IntVec3D = attrs.field(init=False)
+    output_crop_px: Vec3D[int] = attrs.field(init=False)
 
     def get_operation_name(self) -> str:
         if hasattr(self.fn, "__name__"):
@@ -62,7 +62,7 @@ class ComputeFieldOperation:
                     f"multiplier of {self.res_change_mult} results in non-integer "
                     f"output crop of {output_crop_px}."
                 )
-        self.output_crop_px = IntVec3D(*(int(e) for e in output_crop_px))
+        self.output_crop_px = Vec3D[int](*(int(e) for e in output_crop_px))
 
     def __call__(
         self,
@@ -120,7 +120,7 @@ class ComputeFieldOperation:
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldFlowSchema:
-    chunk_size: IntVec3D
+    chunk_size: Sequence[int]
     operation: ComputeFieldOperation
     chunker: VolumetricIndexChunker = attrs.field(init=False)
 
@@ -170,16 +170,16 @@ class ComputeFieldFlowSchema:
 
 @builder.register("build_compute_field_flow")
 def build_compute_field_flow(
-    chunk_size: IntVec3D,
+    chunk_size: Sequence[int],
     operation: ComputeFieldOperation,
     bbox: BBox3D,
-    dst_resolution: Vec3D,
+    dst_resolution: Sequence[float],
     dst: VolumetricLayer,
     src: VolumetricLayer,
     tgt: Optional[VolumetricLayer] = None,
     src_field: Optional[VolumetricLayer] = None,
-    tgt_offset: Vec3D = Vec3D(0, 0, 0),
-    src_offset: Vec3D = Vec3D(0, 0, 0),
+    tgt_offset: Sequence[float] = (0, 0, 0),
+    src_offset: Sequence[float] = (0, 0, 0),
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldFlowSchema(chunk_size=chunk_size, operation=operation)
     flow = flow_schema(

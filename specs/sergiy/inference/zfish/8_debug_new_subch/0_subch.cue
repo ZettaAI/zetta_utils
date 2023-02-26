@@ -305,7 +305,6 @@
 	fn: {"@type": "invert_field", "@mode": "partial"}
 	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[64, 64, 0]]
-	temp_layers_dirs: ["file://~/.zutils/cache/"]
 	dst_resolution: [32, 32, 30]
 	bbox: #BBOX
 	src: {
@@ -579,11 +578,11 @@
 			//#MATCH_OFFSETS_FLOW,
 			#INVERT_FLOW_TMPL & {
 				src: path: "\(#FIELDS_PATH)/-1"
-				dst: path: "\(#FIELDS_INV_PATH)/tmp/-1"
+				dst: path: "\(#FIELDS_INV_PATH)/tmp2/-1"
 			}
 
 			//#RELAX_FLOW,
-			//#JOINT_POST_ALIGN_FLOW,,,,,,
+			//#JOINT_POST_ALIGN_FLOW,,,,,,,,,
 		]
 	}
 }

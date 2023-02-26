@@ -16,8 +16,8 @@ logger = log.get_logger("zetta_utils")
 
 
 @builder.register("BBoxStrider")
-@typechecked
 @attrs.frozen
+@typechecked
 class BBoxStrider:
     """Strides over the bounding cube to produce a list of bounding cubes.
     Allows random indexing of the chunks without keeping the full chunk set in memory.

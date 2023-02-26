@@ -298,6 +298,7 @@ def test_rand_perlin_2d_failure(shape, res):
     with pytest.raises(ValueError):
         augmentations.tensor.rand_perlin_2d(shape, res)
 
+
 @pytest.mark.parametrize(
     "shape, res",
     [

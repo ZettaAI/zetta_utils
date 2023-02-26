@@ -42,7 +42,6 @@ def apply_autoconverters(thing: Any) -> Any:
     return result
 
 
-@typechecked
 def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
     """Decorator for registering classes to be buildable.
 

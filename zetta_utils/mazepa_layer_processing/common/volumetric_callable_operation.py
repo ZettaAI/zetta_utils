@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import copy
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Sequence, TypeVar
 
 import attrs
 import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.geometry import IntVec3D, Vec3D
+from zetta_utils.geometry import Vec3D
 from zetta_utils.layer import IndexChunker
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 
@@ -31,9 +31,9 @@ class VolumetricCallableOperation(Generic[P]):
     """
 
     fn: Callable[P, torch.Tensor]
-    crop_pad: IntVec3D = IntVec3D(0, 0, 0)
-    res_change_mult: Vec3D = Vec3D(1, 1, 1)
-    input_crop_pad: IntVec3D = attrs.field(init=False)
+    crop_pad: Sequence[int] = (0, 0, 0)
+    res_change_mult: Sequence[float] = (1, 1, 1)
+    input_crop_pad: Sequence[int] = attrs.field(init=False)
     operation_name: str | None = None
 
     def get_operation_name(self):
@@ -48,13 +48,13 @@ class VolumetricCallableOperation(Generic[P]):
         return result
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
-        return dst_resolution / self.res_change_mult
+        return dst_resolution / Vec3D(*self.res_change_mult)
 
-    def with_added_crop_pad(self, crop_pad: IntVec3D) -> VolumetricCallableOperation[P]:
-        return attrs.evolve(self, crop_pad=self.crop_pad + crop_pad)
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> VolumetricCallableOperation[P]:
+        return attrs.evolve(self, crop_pad=Vec3D[int](*self.crop_pad) + crop_pad)
 
     def __attrs_post_init__(self):
-        input_crop_pad_raw = self.crop_pad * self.res_change_mult
+        input_crop_pad_raw = Vec3D[int](*self.crop_pad) * Vec3D[float](*self.res_change_mult)
         for e in input_crop_pad_raw:
             if not isinstance(e, int) and not e.is_integer():
                 raise ValueError(
@@ -75,7 +75,7 @@ class VolumetricCallableOperation(Generic[P]):
 
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(self.crop_pad)
+        idx_input_padded = idx_input.padded(Vec3D[int](*self.crop_pad))
         task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
         result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the
@@ -84,12 +84,12 @@ class VolumetricCallableOperation(Generic[P]):
         dst[idx] = dst_data
 
 
-# TODO: cut
-@builder.register("build_chunked_volumetric_callable_flow_schema")
+# TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured
+# to use subchunkable
 def build_chunked_volumetric_callable_flow_schema(
     fn: Callable[P, torch.Tensor],
     chunker: IndexChunker[IndexT],
-    crop_pad: IntVec3D = IntVec3D(0, 0, 0),
+    crop_pad: Vec3D[int] = Vec3D[int](0, 0, 0),
     res_change_mult: Vec3D = Vec3D(1, 1, 1),
 ) -> ChunkedApplyFlowSchema[P, IndexT, None]:
     operation = VolumetricCallableOperation[P](

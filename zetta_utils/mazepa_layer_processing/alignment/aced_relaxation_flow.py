@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal, Optional, Sequence
 
 import attrs
 
 from zetta_utils import alignment, builder, mazepa, tensor_ops
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -18,9 +18,9 @@ from ..common import build_chunked_volumetric_callable_flow_schema
 
 @builder.register("build_get_match_offsets_naive_flow")
 def build_get_match_offsets_naive_flow(
-    chunk_size: IntVec3D,
+    chunk_size: Sequence[int],
     bbox: BBox3D,
-    dst_resolution: Vec3D,
+    dst_resolution: Sequence[float],
     non_tissue: VolumetricLayer,
     dst: VolumetricLayer,
     misalignment_mask_zm1: VolumetricLayer,
@@ -29,10 +29,10 @@ def build_get_match_offsets_naive_flow(
 ) -> mazepa.Flow:
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=alignment.aced_relaxation.get_aced_match_offsets_naive,
-        chunker=VolumetricIndexChunker(chunk_size=chunk_size),
+        chunker=VolumetricIndexChunker(chunk_size=Vec3D[int](*chunk_size)),
     )
     flow = flow_schema(
-        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=Vec3D[float](*dst_resolution)),
         non_tissue=non_tissue,
         dst=dst,
         misalignment_mask_zm1=misalignment_mask_zm1,
@@ -46,13 +46,15 @@ def build_get_match_offsets_naive_flow(
 @mazepa.taskable_operation_cls
 @attrs.frozen
 class AcedMatchOffsetOp:
-    crop_pad: IntVec3D = IntVec3D(0, 0, 0)
+    crop_pad: Sequence[int] = (0, 0, 0)
 
-    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+    def get_input_resolution(  # pylint: disable=no-self-use
+        self, dst_resolution: Vec3D[float]
+    ) -> Vec3D[float]:
         return dst_resolution
 
-    def with_added_crop_pad(self, crop_pad: IntVec3D) -> AcedMatchOffsetOp:
-        return attrs.evolve(self, crop_pad=self.crop_pad + crop_pad)
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> AcedMatchOffsetOp:
+        return attrs.evolve(self, crop_pad=Vec3D[int](*self.crop_pad) + crop_pad)
 
     def __call__(
         self,
@@ -78,13 +80,13 @@ class AcedMatchOffsetOp:
 
 @builder.register("build_aced_relaxation_flow")
 def build_aced_relaxation_flow(
-    chunk_size: IntVec3D,
+    chunk_size: Sequence[int],
     bbox: BBox3D,
-    dst_resolution: Vec3D,
+    dst_resolution: Sequence[float],
     dst: VolumetricLayer,
     match_offsets: VolumetricLayer,
     field_zm1: VolumetricLayer,
-    crop_pad: IntVec3D,
+    crop_pad: Sequence[int],
     rigidity_masks: Optional[VolumetricLayer] = None,
     field_zm2: Optional[VolumetricLayer] = None,
     field_zm3: Optional[VolumetricLayer] = None,
@@ -95,11 +97,11 @@ def build_aced_relaxation_flow(
 ) -> mazepa.Flow:
     flow_schema = build_chunked_volumetric_callable_flow_schema(
         fn=alignment.aced_relaxation.perform_aced_relaxation,
-        chunker=VolumetricIndexChunker(chunk_size=chunk_size),
-        crop_pad=crop_pad,
+        chunker=VolumetricIndexChunker(chunk_size=Vec3D[int](*chunk_size)),
+        crop_pad=Vec3D[int](*crop_pad),
     )
     flow = flow_schema(
-        idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
+        idx=VolumetricIndex(bbox=bbox, resolution=Vec3D[float](*dst_resolution)),
         dst=dst,
         match_offsets=match_offsets,
         rigidity_masks=rigidity_masks,

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Sequence as AbcSequence
 from typing import Literal, Sequence
 
 from zetta_utils import builder, mazepa, parsing
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricLayer
 
-from ..common import build_write_flow
+from ..common import build_subchunkable_apply_flow, write_fn
 
 
 @mazepa.flow_schema_cls
@@ -18,7 +19,7 @@ class AnnotatedSectionCopyFlowSchema:
         start_coord_xy: Sequence[float],
         end_coord_xy: Sequence[float],
         coord_resolution_xy: Sequence[float],
-        fill_resolutions: Vec3D | Sequence[Vec3D],
+        fill_resolutions: Sequence[float] | Sequence[Sequence[float]],
         chunk_size_xy: Sequence[int],
         annotation_path: str,
         order: Literal["low_to_high", "high_to_low", "as_given", "concurrent"] = "low_to_high",
@@ -37,10 +38,10 @@ class AnnotatedSectionCopyFlowSchema:
         else:
             ...
 
-        if not isinstance(fill_resolutions, Vec3D):
-            fill_resolutions_list = fill_resolutions
+        if isinstance(fill_resolutions, AbcSequence) and isinstance(fill_resolutions[0], float):
+            fill_resolutions_list: Sequence[Sequence[float]] = [fill_resolutions]  # type: ignore
         else:
-            fill_resolutions_list = [fill_resolutions]
+            fill_resolutions_list = fill_resolutions  # type: ignore
 
         for z in annotation_zs:
             for fill_res in fill_resolutions_list:
@@ -49,8 +50,9 @@ class AnnotatedSectionCopyFlowSchema:
                     end_coord=Vec3D(end_coord_xy[0], end_coord_xy[1], z + fill_res[-1]),
                     resolution=Vec3D(coord_resolution_xy[0], coord_resolution_xy[1], 1),
                 )
-                flow = build_write_flow(
-                    chunk_size=IntVec3D(chunk_size_xy[0], chunk_size_xy[1], 1),
+                flow = build_subchunkable_apply_flow(
+                    fn=write_fn,
+                    processing_chunk_sizes=[Vec3D[int](chunk_size_xy[0], chunk_size_xy[1], 1)],
                     bbox=bbox,
                     dst_resolution=fill_res,
                     src=src,
@@ -69,7 +71,7 @@ def build_annotated_section_copy_flow(
     start_coord_xy: Sequence[float],
     end_coord_xy: Sequence[float],
     coord_resolution_xy: Sequence[float],
-    fill_resolutions: Vec3D | Sequence[Vec3D],
+    fill_resolutions: Sequence[float] | Sequence[Sequence[float]],
     chunk_size_xy: Sequence[int],
     annotation_path: str,
     order: Literal["low_to_high", "high_to_low", "as_given", "concurrent"] = "low_to_high",

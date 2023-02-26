@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Literal, Optional, Tuple
+from typing import Iterable, List, Literal, Optional, Sequence, Tuple
 
 import attrs
 import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
-from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
+from zetta_utils.geometry import BBoxStrider, Vec3D
 
 from .. import IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
@@ -17,12 +17,12 @@ logger = log.get_logger("zetta_utils")
 
 @typechecked
 def translate_volumetric_index(
-    idx: VolumetricIndex, offset: Vec3D, resolution: Vec3D
+    idx: VolumetricIndex, offset: Sequence[float], resolution: Sequence[float]
 ):  # pragma: no cover # under 3 statements, no conditionals
     bbox = idx.bbox.translated(offset, resolution)
     result = VolumetricIndex(
         bbox=bbox,
-        resolution=idx.resolution,
+        resolution=Vec3D(*idx.resolution),
     )
     return result
 
@@ -31,8 +31,8 @@ def translate_volumetric_index(
 @typechecked
 @attrs.mutable
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
-    offset: Vec3D
-    resolution: Vec3D
+    offset: Sequence[float]
+    resolution: Sequence[float]
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
@@ -47,7 +47,7 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
 @typechecked
 @attrs.mutable
 class DataResolutionInterpolator(JointIndexDataProcessor):
-    data_resolution: Vec3D
+    data_resolution: Sequence[float]
     interpolation_mode: tensor_ops.InterpolationMode
     allow_slice_rounding: bool = False
     prepared_scale_factor: Vec3D | None = attrs.field(init=False, default=None)
@@ -56,14 +56,14 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
     ) -> VolumetricIndex:
         if mode == "read":
-            self.prepared_scale_factor = self.data_resolution / idx.resolution
+            self.prepared_scale_factor = Vec3D(*self.data_resolution) / idx.resolution
         else:
             assert mode == "write"
-            self.prepared_scale_factor = idx.resolution / self.data_resolution
+            self.prepared_scale_factor = idx.resolution / Vec3D(*self.data_resolution)
 
         result = VolumetricIndex(
             bbox=idx.bbox,
-            resolution=self.data_resolution,
+            resolution=Vec3D(*self.data_resolution),
             allow_slice_rounding=idx.allow_slice_rounding,
         )
         return result
@@ -103,21 +103,19 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
         return result
 
 
-@builder.register("VolumetricIndexChunker")
-# @typechecked # checks type of every item in iterable, too slow
 @attrs.mutable
 # TODO: Refacter the offset part into a separate subclass
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
-    chunk_size: IntVec3D
-    max_superchunk_size: Optional[IntVec3D] = None
-    stride: Optional[IntVec3D] = None
+    chunk_size: Vec3D[int]
+    max_superchunk_size: Optional[Vec3D[int]] = None
+    stride: Optional[Vec3D[int]] = None
     resolution: Optional[Vec3D] = None
-    offset: IntVec3D = IntVec3D(0, 0, 0)
+    offset: Vec3D[int] = Vec3D[int](0, 0, 0)
 
     def __call__(
         self,
         idx: VolumetricIndex,
-        stride_start_offset_in_unit: Optional[IntVec3D] = None,
+        stride_start_offset_in_unit: Optional[Vec3D[int]] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Iterable[VolumetricIndex]:  # pragma: no cover # delegation, no cond
         if self.resolution is None:
@@ -157,11 +155,11 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         return result
 
     def split_into_nonoverlapping_chunkers(
-        self, pad: IntVec3D = IntVec3D(0, 0, 0)
+        self, pad: Vec3D[int] = Vec3D[int](0, 0, 0)
     ) -> List[Tuple[VolumetricIndexChunker, Tuple[int, int, int]]]:  # pragma: no cover
         try:
             assert (self.stride is None) or (self.stride == self.chunk_size)
-            assert self.offset == IntVec3D(0, 0, 0)
+            assert self.offset == Vec3D[int](0, 0, 0)
         except Exception as e:
             raise NotImplementedError(
                 "can only split chunkers that have stride equal to chunk size and no offset"
@@ -171,9 +169,9 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
                 assert s >= 2 * p
         except Exception as e:
             raise ValueError("can only pad by less than half of the chunk size") from e
-        offset_x = IntVec3D(self.chunk_size[0], 0, 0)
-        offset_y = IntVec3D(0, self.chunk_size[1], 0)
-        offset_z = IntVec3D(0, 0, self.chunk_size[2])
+        offset_x = Vec3D[int](self.chunk_size[0], 0, 0)
+        offset_y = Vec3D[int](0, self.chunk_size[1], 0)
+        offset_z = Vec3D[int](0, 0, self.chunk_size[2])
         chunk_size = self.chunk_size + pad * 2
         stride = self.chunk_size * 2
 

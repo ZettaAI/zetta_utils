@@ -22,9 +22,9 @@ def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DBDataT:
         _entities = {entity.key.id_or_name: entity for entity in entities[start:end]}
 
         row_data = {}
-        for col_key in col_keys:
-            ent = _entities[col_key]
-            row_data[col_key] = ent[col_key]
+        for col_key, entity in _entities.items():
+            row_data[col_key] = entity[col_key]
+
         data.append(row_data)
     return data
 

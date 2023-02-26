@@ -39,7 +39,6 @@ def _delete_execution_entry(execution_id: str):  # pragma: no cover
 
 
 def _delete_resource_entry(resource_id: str):  # pragma: no cover
-    print(f"deleting {resource_id}")
     client = EXECUTION_RESOURCE_DB.backend.client  # type: ignore
     columns = [key.value for key in list(ExecutionResourceKeys)]
     _delete_db_entry(client, resource_id, columns)
@@ -135,11 +134,7 @@ def cleanup_execution(execution_id: str):
 
 
 if __name__ == "__main__":  # pragma: no cover
-    # execution_ids = _get_stale_execution_ids()
-    execution_ids = [
-        # "exec-agile-almond-shrimp-of-unity",
-        "exec-gorgeous-crafty-crane-of-eternity",
-    ]
+    execution_ids = _get_stale_execution_ids()
     for exec_id in execution_ids:
         logger.info(f"Cleaning up execution `{exec_id}`")
         cleanup_execution(exec_id)

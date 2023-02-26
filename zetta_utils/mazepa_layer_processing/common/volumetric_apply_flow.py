@@ -7,8 +7,8 @@ import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import builder, log, mazepa
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils import log, mazepa
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
     VolumetricIndex,
@@ -49,7 +49,7 @@ class ReduceByWeightedSum:
         red_idx: VolumetricIndex,
         roi_idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
-        processing_blend_pad: IntVec3D = IntVec3D(0, 0, 0),
+        processing_blend_pad: Vec3D[int],
         processing_blend_mode: Literal["linear", "quadratic"] = "linear",
     ) -> None:
         if len(src_layers) == 0:
@@ -57,7 +57,7 @@ class ReduceByWeightedSum:
         res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
 
         assert len(src_layers) > 0
-        if processing_blend_pad != IntVec3D(0, 0, 0):
+        if processing_blend_pad != Vec3D[int](0, 0, 0):
             for src_idx, layer in zip(src_idxs, src_layers):
                 weight = get_blending_weights(
                     idx_subchunk=src_idx,
@@ -81,7 +81,7 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     idx_subchunk: VolumetricIndex,
     idx_roi: VolumetricIndex,
     idx_red: VolumetricIndex,
-    processing_blend_pad: IntVec3D,
+    processing_blend_pad: Vec3D[int],
     processing_blend_mode: Literal["linear", "quadratic"] = "linear",
 ) -> torch.Tensor:
     """
@@ -89,7 +89,7 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     reduced inside the `idx_red` region, suppressing the weights for the dimension(s)
     where `idx_subchunk` is aligned to the edge of `idx_roi`.
     """
-    if processing_blend_pad == IntVec3D(0, 0, 0):
+    if processing_blend_pad == Vec3D[int](0, 0, 0):
         raise ValueError("`processing_blend_pad` must be nonzero to need blending weights")
     if not idx_subchunk.intersects(idx_roi):
         raise ValueError(
@@ -177,25 +177,24 @@ def clear_cache(*args, **kwargs):
                 kwarg.backend.clear_cache()
 
 
-@builder.register("VolumetricApplyFlowSchema")
 @mazepa.flow_schema_cls
 @attrs.mutable
 class VolumetricApplyFlowSchema(Generic[P, R_co]):
     op: VolumetricOpProtocol[P, Any, Any]
-    processing_chunk_size: IntVec3D
+    processing_chunk_size: Vec3D[int]
     dst_resolution: Vec3D
-    max_reduction_chunk_size: Optional[IntVec3D] = None
-    max_reduction_chunk_size_final: IntVec3D = attrs.field(init=False)
-    roi_crop_pad: Optional[IntVec3D] = None
-    processing_blend_pad: Optional[IntVec3D] = None
+    max_reduction_chunk_size: Optional[Vec3D[int]] = None
+    max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
+    roi_crop_pad: Optional[Vec3D[int]] = None
+    processing_blend_pad: Optional[Vec3D[int]] = None
     processing_blend_mode: Literal["linear", "quadratic"] = "linear"
-    temp_layers_dir: Optional[str] = None
+    intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
     clear_cache_on_return: bool = False
     use_checkerboarding: bool = attrs.field(init=False)
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
 
-    def _get_backend_chunk_size_to_use(self, dst) -> IntVec3D:
+    def _get_backend_chunk_size_to_use(self, dst) -> Vec3D[int]:
         backend_chunk_size = deepcopy(self.processing_chunk_size)
         dst_backend_chunk_size = dst.backend.get_chunk_size(self.dst_resolution)
         for i in range(3):
@@ -222,15 +221,16 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
     def __attrs_post_init__(self):
         if self.roi_crop_pad is None:
-            self.roi_crop_pad = IntVec3D(0, 0, 0)
+            self.roi_crop_pad = Vec3D[int](0, 0, 0)
         if self.processing_blend_pad is None:
-            self.processing_blend_pad = IntVec3D(0, 0, 0)
-        if self.roi_crop_pad != IntVec3D(0, 0, 0) or self.processing_blend_pad != IntVec3D(
+            self.processing_blend_pad = Vec3D[int](0, 0, 0)
+        if self.roi_crop_pad != Vec3D[int](0, 0, 0) or self.processing_blend_pad != Vec3D[int](
             0, 0, 0
         ):
             self.use_checkerboarding = True
         else:
             self.use_checkerboarding = False
+
         if self.use_checkerboarding:
             if not self.processing_blend_pad <= self.processing_chunk_size // 2:
                 raise ValueError(
@@ -238,8 +238,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     f" half of `processing_chunk_size`; received {self.processing_blend_pad}",
                     f" which is larger than {self.processing_size // 2}",
                 )
-            if self.temp_layers_dir is None:
-                raise ValueError("`temp_layers_dir` must be specified when using blending or crop")
+            if self.intermediaries_dir is None:
+                raise ValueError(
+                    "`intermediaries_dir` must be specified when using blending or crop"
+                )
         self.processing_chunker = VolumetricIndexChunker(
             chunk_size=self.processing_chunk_size, resolution=self.dst_resolution
         )
@@ -277,7 +279,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         List[List[VolumetricBasedLayerProtocol]],
         List[VolumetricBasedLayerProtocol],
     ]:
-        assert self.temp_layers_dir is not None
+        assert self.intermediaries_dir is not None
         assert self.processing_blend_pad is not None
         """
         Makes tasks that can be reduced to the final output, tasks that write weights for the
@@ -298,10 +300,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
-            allow_cache = self.allow_cache and not self.temp_layers_dir.startswith("file://")
+            allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
             backend_temp = dst.backend.with_changes(
                 name=path.join(
-                    self.temp_layers_dir,
+                    self.intermediaries_dir,
                     f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{chunker_idx}",
                 ),
                 voxel_offset_res=(idx.start, self.dst_resolution),
@@ -441,20 +443,19 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 clear_cache(*args, **kwargs)
 
 
-@builder.register("build_volumetric_apply_flow")
 def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op: VolumetricOpProtocol[P, R_co, Any],
-    start_coord: IntVec3D,
-    end_coord: IntVec3D,
+    start_coord: Vec3D[int],
+    end_coord: Vec3D[int],
     coord_resolution: Vec3D,
     dst_resolution: Vec3D,
-    processing_chunk_size: IntVec3D,
-    processing_crop_pad: IntVec3D = IntVec3D(0, 0, 0),
-    max_reduction_chunk_size: Optional[IntVec3D] = None,
-    roi_crop_pad: Optional[IntVec3D] = None,
-    processing_blend_pad: Optional[IntVec3D] = None,
+    processing_chunk_size: Vec3D[int],
+    processing_crop_pad: Vec3D[int],
+    max_reduction_chunk_size: Optional[Vec3D[int]] = None,
+    roi_crop_pad: Optional[Vec3D[int]] = None,
+    processing_blend_pad: Optional[Vec3D[int]] = None,
     processing_blend_mode: Literal["linear", "quadratic"] = "linear",
-    temp_layers_dir: Optional[str] = None,
+    intermediaries_dir: Optional[str] = None,
     allow_cache: bool = False,
     clear_cache_on_return: bool = False,
     *args: P.args,
@@ -472,7 +473,7 @@ def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         roi_crop_pad=roi_crop_pad,
         processing_blend_pad=processing_blend_pad,
         processing_blend_mode=processing_blend_mode,
-        temp_layers_dir=temp_layers_dir,
+        intermediaries_dir=intermediaries_dir,
         allow_cache=allow_cache,
         clear_cache_on_return=clear_cache_on_return,
     )

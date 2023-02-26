@@ -6,9 +6,10 @@ from typing import Optional
 import attrs
 import pytorch_lightning as pl
 import torch
-import wandb
 
-from zetta_utils import builder, distributions, tensor_ops, viz
+from zetta_utils import builder, distributions, tensor_ops
+
+from ..common import log_results
 
 
 @builder.register("BaseEncoderRegime")
@@ -39,19 +40,8 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
-    @staticmethod
-    def log_results(mode: str, title_suffix: str = "", **kwargs):
-        wandb.log(
-            {
-                f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)  # type: ignore
-                    for k, v in kwargs.items()
-                ]
-            }
-        )
-
     def validation_epoch_end(self, _):
-        self.log_results(
+        log_results(
             "val",
             "worst",
             **self.worst_val_sample,
@@ -151,7 +141,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         self.log(f"loss/{mode}_post", post_loss, on_step=True, on_epoch=True)
         self.log(f"loss/{mode}_equi", equi_loss, on_step=True, on_epoch=True)
         if log_row:
-            self.log_results(
+            log_results(
                 mode,
                 sample_name,
                 src=src,
@@ -223,7 +213,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         self.log(f"loss/{mode}_post", post_loss, on_step=True, on_epoch=True)
         self.log(f"loss/{mode}_zcons", zero_magns, on_step=True, on_epoch=True)
         if log_row:
-            self.log_results(
+            log_results(
                 mode,
                 sample_name,
                 src=src,

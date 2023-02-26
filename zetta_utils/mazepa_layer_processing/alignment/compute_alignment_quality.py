@@ -1,12 +1,12 @@
 import datetime
 from statistics import NormalDist
-from typing import Any, Dict, List, TypeVar
+from typing import Any, Dict, List, Sequence, TypeVar
 
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.geometry import IntVec3D, Vec3D
+from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
@@ -60,12 +60,12 @@ def lrpad(
 def compute_alignment_quality(
     src: VolumetricLayer,
     idx: VolumetricIndex,
-    chunk_size: IntVec3D,
-    resolution: Vec3D,
+    chunk_size: Sequence[int],
+    resolution: Sequence[float],
     misalignment_thresholds: List[float],
     num_worst_chunks: int,
 ):  # pylint: disable = too-many-locals, too-many-statements, too-many-branches, f-string-without-interpolation
-    chunker = VolumetricIndexChunker(chunk_size)
+    chunker = VolumetricIndexChunker(Vec3D[int](*chunk_size))
 
     logger.info(f"Breaking {idx} into chunks with {chunker}.")
     idx_chunks = list(chunker(idx))

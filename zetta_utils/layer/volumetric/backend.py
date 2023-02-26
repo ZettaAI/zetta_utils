@@ -6,7 +6,7 @@ from typing import Literal, TypeVar
 
 import torch
 
-from zetta_utils.geometry import IntVec3D, Vec3D
+from zetta_utils.geometry import Vec3D
 
 from .. import Backend
 from . import VolumetricIndex
@@ -50,11 +50,11 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
         ...
 
     @abstractmethod
-    def get_voxel_offset(self, resolution: Vec3D) -> IntVec3D:
+    def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
         ...
 
     @abstractmethod
-    def get_chunk_size(self, resolution: Vec3D) -> IntVec3D:
+    def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         ...
 
     @abstractmethod
@@ -70,8 +70,8 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     "allow_cache" = value: Union[bool, str]
     "use_compression" = value: str
     "enforce_chunk_aligned_writes" = value: bool
-    "voxel_offset_res" = (voxel_offset, resolution): Tuple[IntVec3D, Vec3D]
-    "chunk_size_res" = (chunk_size, resolution): Tuple[IntVec3D, Vec3D]
+    "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
+    "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
 
     @abstractmethod

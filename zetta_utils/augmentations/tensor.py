@@ -29,8 +29,8 @@ def _get_weights_mask(
 
 
 @builder.register("brightness_aug")
-@typechecked
 @prob_aug
+@typechecked
 def add_scalar_aug(
     data: TensorTypeVar,
     value_distr: Union[distributions.Distribution, float],
@@ -45,8 +45,8 @@ def add_scalar_aug(
 
 
 @builder.register("clamp_values_aug")
-@typechecked
 @prob_aug
+@typechecked
 def clamp_values_aug(
     data: TensorTypeVar,
     low_distr: Optional[Union[distributions.Distribution, float]] = None,
@@ -105,8 +105,8 @@ def _random_square_tile_pattern(
 
 
 @builder.register("square_tile_pattern_aug")
-@typechecked
 @prob_aug
+@typechecked
 def square_tile_pattern_aug(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
     tile_size: Union[distributions.Distribution, float],

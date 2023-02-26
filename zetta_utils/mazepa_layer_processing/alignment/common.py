@@ -5,7 +5,7 @@ from typing import overload
 import torch
 
 from zetta_utils import alignment
-from zetta_utils.geometry import IntVec3D
+from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 
 
@@ -40,7 +40,7 @@ def translation_adjusted_download(
         # TODO: big question mark. In zetta_utils everything is XYZ, so I don't understand
         # why the order is flipped here. It worked for a corgie field, so leaving it in.
         # Pls help:
-        src_idx = idx.translated(IntVec3D(xy_translation[1], xy_translation[0], 0))
+        src_idx = idx.translated(Vec3D[int](xy_translation[1], xy_translation[0], 0))
         src_data = src[src_idx]
     else:
         field_data = None

@@ -1,8 +1,7 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
-from collections.abc import Sequence as AbcSequence
-from typing import Callable, Literal, Sequence, Union, overload
+from typing import Callable, Literal, Sequence, Union
 
 import torch
 from torch import nn
@@ -10,34 +9,10 @@ from typeguard import typechecked
 from typing_extensions import TypeAlias
 
 from zetta_utils import builder
+from zetta_utils.typing import ensure_seq_of_seq
 
 Padding: TypeAlias = Union[Literal["same", "valid"], Sequence[int]]
 PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
-
-
-@overload
-def _ensure_seq_of_seq(
-    x: str | Sequence[int | float | bool], length: int
-) -> list[str | Sequence[int | float | bool]]:
-    ...
-
-
-@overload
-def _ensure_seq_of_seq(
-    x: Sequence[str | Sequence[int | float | bool]], length: int
-) -> list[str | Sequence[int | float | bool]]:
-    ...
-
-
-def _ensure_seq_of_seq(x, length):
-    if not isinstance(x, str) and isinstance(x, AbcSequence) and isinstance(x[0], AbcSequence):
-        if len(x) != length:
-            raise ValueError(f"Expected sequence of {length} entries, but got {len(x)}: {x}")
-        result = x
-    else:
-        result = [x] * length
-
-    return result
 
 
 @builder.register("ConvBlock")
@@ -111,14 +86,14 @@ class ConvBlock(nn.Module):
         self.layers = torch.nn.ModuleList()
 
         num_conv = len(num_channels) - 1
-        kernel_sizes_ = _ensure_seq_of_seq(kernel_sizes, num_conv)
+        kernel_sizes_ = ensure_seq_of_seq(kernel_sizes, num_conv)
         if strides is not None:
-            strides_ = _ensure_seq_of_seq(strides, num_conv)
+            strides_ = ensure_seq_of_seq(strides, num_conv)
         else:
             strides_ = [[1 for _ in range(len(kernel_sizes_[0]))] for __ in range(num_conv)]
 
-        padding_modes_ = _ensure_seq_of_seq(padding_modes, num_conv)
-        paddings_ = _ensure_seq_of_seq(paddings, num_conv)
+        padding_modes_ = ensure_seq_of_seq(padding_modes, num_conv)
+        paddings_ = ensure_seq_of_seq(paddings, num_conv)
 
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
             new_conv = conv(

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import copy
 import os
-from typing import Callable
+from typing import Callable, Sequence
 
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     DataResolutionInterpolator,
     VolumetricIndexTranslator,
@@ -26,8 +26,8 @@ from .compute_field_flow import (
 class ComputeFieldStage:
     fn: ComputeFieldFn
 
-    chunk_size: IntVec3D
-    dst_resolution: Vec3D
+    chunk_size: Sequence[int]
+    dst_resolution: Sequence[float]
 
     operation: ComputeFieldOperation = attrs.field(init=False)
 

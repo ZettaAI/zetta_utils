@@ -1,5 +1,8 @@
 # pylint: disable = useless-super-delegation, no-self-use, redefined-builtin
-from typing import Any, List
+from __future__ import annotations
+
+from collections.abc import Sequence as AbcSequence
+from typing import Any, List, Literal, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -9,17 +12,40 @@ from zetta_utils import builder
 
 NN_MANUAL = [
     "Sequential",
+    "Upsample",
 ]
 
 for k in dir(torch.nn):
     if k not in NN_MANUAL and k[0].isupper():
         builder.register(f"torch.nn.{k}")(getattr(torch.nn, k))
 
-# Wrapper for building a Sequential
+
 @builder.register("torch.nn.Sequential")
 @typechecked
 def sequential_builder(modules: List[Any]) -> torch.nn.Sequential:  # pragma: no cover
     return torch.nn.Sequential(*modules)
+
+
+@builder.register("torch.nn.Upsample")
+@typechecked
+def upsample_builder(
+    size: None | int | Sequence[int] = None,
+    scale_factor: None | float | Sequence[float] = None,
+    mode: Literal["nearest", "linear", "bilinear", "bicubic", "trilinear"] = "nearest",
+    align_corners: bool | None = False,
+    recompute_scale_factor: bool | None = None,
+) -> torch.nn.Upsample:  # pragma: no cover
+    if isinstance(scale_factor, AbcSequence):
+        scale_factor = tuple(scale_factor)
+    if isinstance(size, AbcSequence):
+        size = tuple(size)
+    return torch.nn.Upsample(
+        size=size,
+        scale_factor=scale_factor,
+        mode=mode,
+        align_corners=align_corners,
+        recompute_scale_factor=recompute_scale_factor,
+    )
 
 
 # need num_channels to go first to be compatible with batchnorm

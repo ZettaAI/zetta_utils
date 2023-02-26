@@ -18,8 +18,8 @@ DEFAULT_UNIT = "nm"
 Tuple2D = tuple[float, float]
 
 
-@typechecked
 @attrs.frozen()
+@typechecked
 class BBox3D:
     """
     3-Dimentional cuboid in space.

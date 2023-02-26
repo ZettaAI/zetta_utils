@@ -1,34 +1,34 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Any, Iterable, Sequence, Union
 
 import torch
-from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.geometry import IntVec3D, Vec3D
 from zetta_utils.tensor_ops import InterpolationMode
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
 from . import CVBackend, InfoExistsModes, PrecomputedInfoSpec
 
+# from typeguard import typechecked
 
-@typechecked
+
+# @typechecked # ypeError: isinstance() arg 2 must be a type or tuple of types on p3.9
 @builder.register("build_cv_layer")
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,
-    cv_kwargs: Optional[Dict] = None,
-    default_desired_resolution: Optional[Vec3D] = None,
-    index_resolution: Optional[Vec3D] = None,
-    data_resolution: Optional[Vec3D] = None,
-    interpolation_mode: Optional[InterpolationMode] = None,
+    cv_kwargs: dict | None = None,
+    default_desired_resolution: Sequence[float] | None = None,
+    index_resolution: Sequence[float] | None = None,
+    data_resolution: Sequence[float] | None = None,
+    interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
-    info_reference_path: Optional[str] = None,
-    info_field_overrides: Optional[Dict[str, Any]] = None,
-    info_chunk_size: Optional[IntVec3D] = None,
-    info_chunk_size_map: Optional[Dict[str, IntVec3D]] = None,
+    info_reference_path: str | None = None,
+    info_field_overrides: dict[str, Any] | None = None,
+    info_chunk_size: Sequence[int] | None = None,
+    info_chunk_size_map: dict[str, Sequence[int]] | None = None,
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),

@@ -1,14 +1,16 @@
-#EXP_NAME:      "aff_tests"
+#EXP_NAME:      "aff_demo"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 #LR:            1e-4
 #CLIP:          0e-5
 #K:             3
 #CHUNK_SIZE: [256, 256, 20]
 #MODEL_CKPT:  null
-#EXP_VERSION: "k\(#K)_lr\(#LR)_x6_return_none_x1"
+#EXP_VERSION: "k\(#K)_lr\(#LR)_x0"
 
-"@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x97"
+"@type":    "mazepa.execute_on_gcp_with_sqs"
+"@version": "0.0.1"
+
+worker_image: "TO_BE_FILLED_BY_USER"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"

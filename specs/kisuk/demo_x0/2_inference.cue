@@ -1,9 +1,10 @@
 #SRC_PATH: "gs://zetta_lee_mouse_spinal_cord_001_image/dorsal_sections/dorsal_sections_500"
 #DST_PATH: "gs://tmp_2w/aff_tests/inference_x0"
 
-#MODEL_PATH: "gs://sergiy_exp/training_artifacts/aff_tests/k3_lr0.0001_x6/last.ckpt.model.spec.json"
+#MODEL_PATH: "gs://sergiy_exp/training_artifacts/aff_demo/k3_lr0.0001_x0/last.ckpt.model.spec.json"
 
 "@type":    "mazepa.execute_on_gcp_with_sqs"
+"@version": "0.0.1"
 local_test: true
 
 target: {

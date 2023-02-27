@@ -198,3 +198,25 @@ def test_forward_skips(mocker):
     assert_array_equal(
         result.cpu().detach().numpy(), 12 * torch.ones([1, 1, 2, 2]).cpu().detach().numpy()
     )
+
+
+@pytest.mark.parametrize(
+    "unet_skip_mode, expected_result",
+    [
+        ["sum",    torch.tensor([[ [[ 2.,  2.], [ 2.,  2.]] ]])],
+        ["concat", torch.tensor([[ [[ 1.,  1.], [ 1.,  1.]] ]])],
+    ],
+)
+def test_skip_mode(unet_skip_mode, expected_result, mocker):
+    conv2d_forward = mocker.patch("torch.nn.Conv2d.forward")
+    conv2d_forward.side_effect = lambda x: torch.prod(x, dim=1, keepdims=True)
+    unet = convnet.architecture.UNet(
+        kernel_sizes=[3, 3],
+        list_num_channels=[[1, 1, 1], [1, 1, 1], [1, 1, 1]],
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
+        upsample=partial(torch.nn.Upsample, scale_factor=2),
+        unet_skip_mode=unet_skip_mode
+    )
+    result = unet.forward(torch.ones([1, 1, 2, 2]))
+
+    assert_array_equal(result.detach().cpu().numpy(), expected_result.detach().cpu().numpy())

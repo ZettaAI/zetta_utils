@@ -258,30 +258,32 @@ def test_square_tile_pattern_aug(
 
 
 @pytest.mark.parametrize(
-    "shape, device, expected_shape, expected_device",
+    "shape, res, device, expected_shape, expected_device",
     [
-        [(1, 16, 16, 3), "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
-        [[2, 16, 16, 2], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
-        [(3, 16, 16, 1), None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
+        [(1, 16, 16, 3), [4, 4], "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
+        [[2, 16, 16, 2], [4, 4], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
+        [(3, 16, 16, 1), [4, 4], None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
+        [(2, 16, 24, 1), [4, 6], None, torch.Size([2, 16, 24, 1]), torch.device("cpu")],
     ],
 )
-def test_rand_perlin_2d(shape, device, expected_shape, expected_device):
-    result = augmentations.tensor.rand_perlin_2d(shape, res=[4, 4], device=device)
+def test_rand_perlin_2d(shape, res, device, expected_shape, expected_device):
+    result = augmentations.tensor.rand_perlin_2d(shape, res, device=device)
     assert result.shape == expected_shape
     assert result.device == expected_device
 
 
 @pytest.mark.parametrize(
-    "shape, device, expected_shape, expected_device",
+    "shape, res, device, expected_shape, expected_device",
     [
-        [(1, 16, 16, 3), "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
-        [[2, 16, 16, 2], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
-        [(3, 16, 16, 1), None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
+        [(1, 16, 16, 3), [4, 4], "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
+        [[2, 16, 16, 2], [4, 4], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
+        [(3, 16, 16, 1), [4, 4], None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
+        [(2, 16, 24, 1), [4, 6], None, torch.Size([2, 16, 24, 1]), torch.device("cpu")],
     ],
 )
-def test_rand_perlin_2d_octaves(shape, device, expected_shape, expected_device):
+def test_rand_perlin_2d_octaves(shape, res, device, expected_shape, expected_device):
     result = augmentations.tensor.rand_perlin_2d_octaves(
-        shape, res=[4, 4], octaves=2, device=device
+        shape, res, octaves=2, device=device
     )
     assert result.shape == expected_shape
     assert result.device == expected_device

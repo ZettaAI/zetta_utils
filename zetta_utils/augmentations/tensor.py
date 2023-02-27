@@ -217,7 +217,7 @@ def rand_perlin_2d(
             ),
             dim=-1,
         )
-        * grad[..., : shape[1], : shape[2]]
+        * grad[..., : shape[1], : shape[2], :]
     ).sum(dim=-1)
 
     n00 = dot(tile_grads(slice(0, -1), slice(0, -1)), [0, 0])

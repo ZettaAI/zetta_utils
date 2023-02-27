@@ -45,19 +45,6 @@ def register_dummy_c():
     del builder.REGISTRY["dummy_c"]
 
 
-@pytest.fixture
-def set_autoconverters():
-    def autocaster(value):
-        if value == "42":
-            return 420
-        else:
-            return value
-
-    builder.AUTOCONVERTERS.append(autocaster)
-    yield
-    builder.AUTOCONVERTERS.pop()
-
-
 def test_build_from_path(mocker):
     spec = {"k": "v"}
     mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
@@ -168,11 +155,6 @@ def test_lambda(spec: dict, arg: Any, expected: Any):
 def test_lambda_exc(value, expected_exc):
     with pytest.raises(expected_exc):
         builder.build(value)
-
-
-def test_autoconvert(set_autoconverters):
-    result = builder.build(["a", 1e100, "42", 42])
-    assert result == ["a", 1e100, 420, 42]
 
 
 def test_double_register_exc(register_dummy_a):

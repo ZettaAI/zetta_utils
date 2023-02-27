@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import importlib.metadata
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -39,6 +40,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
                 spec = {
                     "@type": "load_weights_file",
+                    "@version": importlib.metadata.version("zetta_utils"),
                     "model": model_spec,
                     "ckpt_path": filepath,
                     "component_names": [k],

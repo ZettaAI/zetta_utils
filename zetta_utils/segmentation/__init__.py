@@ -1,1 +1,1 @@
-from .inference import run_affinities_inference
+from .inference import run_affinities_inference_onnx

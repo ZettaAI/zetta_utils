@@ -20,8 +20,8 @@ def _get_session(model_path: str):  # pragma: no cover
     )
 
 
-@builder.register("run_affinities_inference")
-def run_affinities_inference(
+@builder.register("run_affinities_inference_onnx")
+def run_affinities_inference_onnx(
     image: torch.Tensor,
     image_mask: torch.Tensor,
     output_mask: torch.Tensor,

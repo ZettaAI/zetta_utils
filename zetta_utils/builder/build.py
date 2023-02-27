@@ -19,8 +19,6 @@ class RegistryEntry:
     allow_partial: bool
 
 
-AUTOCONVERTERS: list[Callable[[Any], Any]] = []
-
 SPECIAL_KEYS: Final = {
     "mode": "@mode",
     "type": "@type",
@@ -33,13 +31,6 @@ T = TypeVar("T", bound=Callable)
 
 def get_callable_from_name(name: str):  # pragma: no cover
     return REGISTRY[name].fn
-
-
-def apply_autoconverters(thing: Any) -> Any:
-    result = thing
-    for e in AUTOCONVERTERS:
-        result = e(result)
-    return result
 
 
 def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
@@ -133,13 +124,7 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str) -> Any:
         else:
             result = spec
 
-    try:
-        result_final = apply_autoconverters(result)
-    except Exception as e:  # pragma: no cover
-        e.args = (f"Exception while applying autoconverters to {name_prefix}:\n{e}",)
-        raise e from None
-
-    return result_final
+    return result
 
 
 def _check_type_value(spec: dict[str, Any], name_prefix: str) -> Any:

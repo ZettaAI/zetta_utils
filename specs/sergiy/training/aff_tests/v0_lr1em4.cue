@@ -1,14 +1,14 @@
 #EXP_NAME:      "aff_tests"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
-#LR:            5e-5
+#LR:            1e-4
 #CLIP:          0e-5
 #K:             3
 #CHUNK_SIZE: [256, 256, 20]
 #MODEL_CKPT:  null
-#EXP_VERSION: "tmp_k\(#K)_x4"
+#EXP_VERSION: "k\(#K)_lr\(#LR)_x6_return_none_x1"
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x93"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x97"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -159,7 +159,7 @@ target: {
 }
 
 #train_dset: #dset_settings & {
-	sample_indexer: stride: [64, 64, 1]
+	sample_indexer: stride: [128, 128, 1]
 	//sample_indexer: stride: #CHUNK_SIZE
 	sample_indexer: bbox: {
 		start_coord: [1024 * 200, 1024 * 80, 200]

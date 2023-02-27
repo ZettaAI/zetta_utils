@@ -1,14 +1,13 @@
 #EXP_NAME:      "aff_tests"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
-#LR:            5e-5
+#LR:            1e-5
 #CLIP:          0e-5
 #K:             3
 #CHUNK_SIZE: [256, 256, 20]
 #MODEL_CKPT:  null
-#EXP_VERSION: "tmp_k\(#K)_x4"
-
+#EXP_VERSION: "k\(#K)_lr\(#LR)_x6_return_none"
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x93"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x98_return_none"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -16,7 +15,7 @@ worker_resources: {
 worker_replicas:     1
 batch_gap_sleep_sec: 5
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "lightning_train"
@@ -24,8 +23,8 @@ target: {
 
 	regime: {
 		"@type":                "NaiveSupervisedRegime"
-		val_log_row_interval:   100
-		train_log_row_interval: 200
+		val_log_row_interval:   1000000000
+		train_log_row_interval: 2000000000000
 		lr:                     #LR
 
 		model: {
@@ -159,7 +158,7 @@ target: {
 }
 
 #train_dset: #dset_settings & {
-	sample_indexer: stride: [64, 64, 1]
+	sample_indexer: stride: [128, 128, 1]
 	//sample_indexer: stride: #CHUNK_SIZE
 	sample_indexer: bbox: {
 		start_coord: [1024 * 200, 1024 * 80, 200]

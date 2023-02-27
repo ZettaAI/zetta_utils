@@ -103,7 +103,7 @@ class UNet(nn.Module):
                 self.layers.append(activation())
                 skips_out.append(len(self.layers))
 
-                # FIXME: Assumes skip connection input has the same number of channels
+                # TODO: Assumes skip connection input has the same number of channels
                 if self.unet_skip_mode == "concat":
                     num_channels = [2 * num_channels[0], *(num_channels[1:])]
 

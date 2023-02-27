@@ -5,9 +5,9 @@
 #K:             3
 #CHUNK_SIZE: [256, 256, 20]
 #MODEL_CKPT:  null
-#EXP_VERSION: "k\(#K)_lr\(#LR)_x6_log_loss_item"
+#EXP_VERSION: "k\(#K)_lr\(#LR)_x6_return_before_wandb"
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x98_log_loss_item"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x98_return_before_wandb"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"

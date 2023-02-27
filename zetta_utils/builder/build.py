@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Final, Optional, TypeVar, Union
+from typing import Any, Callable, Final, Optional, Union
 
 import attrs
 from typeguard import typechecked
@@ -10,63 +10,12 @@ from typeguard import typechecked
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 
-REGISTRY: dict[str, RegistryEntry] = {}
-
-
-@attrs.frozen
-class RegistryEntry:
-    fn: Callable
-    allow_partial: bool
-
+from .registry import REGISTRY
 
 SPECIAL_KEYS: Final = {
     "mode": "@mode",
     "type": "@type",
 }
-
-LAMBDA_STR_MAX_LENGTH: int = 80
-
-T = TypeVar("T", bound=Callable)
-
-
-def get_callable_from_name(name: str):  # pragma: no cover
-    return REGISTRY[name].fn
-
-
-def register(name: str, allow_partial: bool = True) -> Callable[[T], T]:
-    """Decorator for registering classes to be buildable.
-
-    :param name: Name which will be used for to indicate an object of the
-        decorated type.
-    :param allow_partial: Whether to allow `@mode: "partial"`.
-    """
-
-    if name in REGISTRY:
-        raise RuntimeError(f"`builder` primitive with name '{name}' is already registered.")
-
-    def decorator(fn: T) -> T:
-        REGISTRY[name] = RegistryEntry(fn=fn, allow_partial=allow_partial)
-        return fn
-
-    return decorator
-
-
-@register("invoke_lambda_str", False)
-def invoke_lambda_str(*args: list, lambda_str: str, **kwargs: dict) -> Any:
-    return eval(lambda_str)(*args, **kwargs)  # pylint: disable=eval-used
-
-
-@register("lambda", False)
-def efficient_parse_lambda_str(lambda_str: str) -> Callable:
-    """Parses strings that are lambda functions"""
-    if not isinstance(lambda_str, str):
-        raise TypeError("`lambda_str` must be a string.")
-    if not lambda_str.startswith("lambda"):
-        raise ValueError("`lambda_str` must start with 'lambda'.")
-    if len(lambda_str) > LAMBDA_STR_MAX_LENGTH:
-        raise ValueError(f"`lambda_str` must be at most {LAMBDA_STR_MAX_LENGTH} characters.")
-
-    return BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": lambda_str})
 
 
 @typechecked

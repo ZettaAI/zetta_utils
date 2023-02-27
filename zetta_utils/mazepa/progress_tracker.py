@@ -71,9 +71,12 @@ def progress_ctx_mngr(
             raise Exception("Custom debuggers are not allowed when `rich.progress is in use.`")
 
         progress_bar.stop()
-        import pdb  # pylint: disable=import-outside-toplevel
-
-        return pdb.Pdb().set_trace(sys._getframe().f_back)  # pylint: disable=protected-access
+        try:
+            import ipdb  # pylint: disable=import-outside-toplevel
+            return ipdb.set_trace(sys._getframe().f_back)  # pylint: disable=protected-access
+        except ImportError:
+            import pdb  # pylint: disable=import-outside-toplevel
+            return pdb.Pdb().set_trace(sys._getframe().f_back)  # pylint: disable=protected-access
 
     sys.breakpointhook = custom_debugger_hook
 

@@ -2,21 +2,18 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Callable, Literal, Sequence
+from typing import Callable, Sequence
 
 import torch
 from torch import nn
 from typeguard import typechecked
-from typing_extensions import TypeAlias
 
 from zetta_utils import builder
 
-from .convblock import ConvBlock, Padding, PaddingMode
-
-SkipConnectionMode: TypeAlias = Literal["sum", "concat"]
+from ..convblock import ConvBlock, Padding, PaddingMode
 
 
-@builder.register("UNet", versions=">=0.0.1")
+@builder.register("UNet", versions="==0.0.0")
 @typechecked
 class UNet(nn.Module):
     """
@@ -49,9 +46,6 @@ class UNet(nn.Module):
         is included by default within and at the end of the convblocks and cannot be turned off.
     :param padding_modes:
         Will be passed directly to ``zetta_utils.convnet.architecture.ConvBlock`` constructors.
-    :param unet_skip_mode:
-        Whether skip connections are realized as residual connections (`sum`, default) or
-        concatenated skip connections (`concat`).
     """
 
     def __init__(
@@ -69,7 +63,6 @@ class UNet(nn.Module):
         normalize_last: bool = False,
         activate_last: bool = False,
         padding_modes: PaddingMode | Sequence[PaddingMode] = "zeros",
-        unet_skip_mode: SkipConnectionMode = "sum",
     ):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
         super().__init__()
         assert len(list_num_channels) % 2 == 1
@@ -77,7 +70,6 @@ class UNet(nn.Module):
         assert upsample is not None
 
         self.layers = torch.nn.ModuleList()
-        self.unet_skip_mode = unet_skip_mode
 
         normalize_last_ = [(normalization is not None) for _ in range(len(list_num_channels))]
         normalize_last_[-1] = normalize_last
@@ -89,23 +81,16 @@ class UNet(nn.Module):
 
         for i, num_channels in enumerate(list_num_channels):
             if i >= len(list_num_channels) // 2 + 1:
+                skips_out.append(len(self.layers))
                 try:
                     self.layers.append(
-                        upsample(
-                            in_channels=list_num_channels[i - 1][-1],
-                            out_channels=list_num_channels[i][0],
-                        )
+                        upsample(list_num_channels[i - 1][-1], list_num_channels[i][0])
                     )
-                except TypeError:
+                except:  # pylint: disable=bare-except
                     self.layers.append(upsample())
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i][0]))
                 self.layers.append(activation())
-                skips_out.append(len(self.layers))
-
-                # TODO: Assumes skip connection input has the same number of channels
-                if self.unet_skip_mode == "concat":
-                    num_channels = [2 * num_channels[0], *(num_channels[1:])]
 
             self.layers.append(
                 ConvBlock(
@@ -124,19 +109,16 @@ class UNet(nn.Module):
             )
 
             if i < len(list_num_channels) // 2:
-                skips_in.append(len(self.layers) - 1)
                 try:
-                    self.layers.append(
-                        downsample(
-                            in_channels=list_num_channels[i][-1],
-                            out_channels=list_num_channels[i + 1][0],
-                        )
-                    )
-                except TypeError:
                     self.layers.append(downsample())
+                except:  # pylint: disable=bare-except
+                    self.layers.append(
+                        downsample(list_num_channels[i][-1], list_num_channels[i + 1][0])
+                    )
                 if normalization is not None:
                     self.layers.append(normalization(list_num_channels[i + 1][0]))
                 self.layers.append(activation())
+                skips_in.append(len(self.layers) - 1)
 
         self.skips = {}
         for skip_in, skip_out in zip(skips_in, skips_out[-1::-1]):
@@ -148,10 +130,7 @@ class UNet(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if i in skip_data_for:
-                if self.unet_skip_mode == "sum":
-                    result = result + skip_data_for[i]
-                elif self.unet_skip_mode == "concat":
-                    result = torch.hstack((skip_data_for[i], result))
+                result += skip_data_for[i]
             result = layer(result)
 
             if i in self.skips:

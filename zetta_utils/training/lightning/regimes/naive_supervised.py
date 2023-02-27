@@ -53,7 +53,6 @@ class NaiveSupervisedRegime(pl.LightningModule):
             loss = (loss_map * loss_weights).mean()
         else:
             loss = loss_map.sum()
-
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:

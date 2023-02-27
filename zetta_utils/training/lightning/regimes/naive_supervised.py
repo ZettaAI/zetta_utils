@@ -54,7 +54,7 @@ class NaiveSupervisedRegime(pl.LightningModule):
         else:
             loss = loss_map.sum()
 
-        self.log("loss/val", loss, on_step=True, on_epoch=True)
+        self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
             log_results(
@@ -69,7 +69,7 @@ class NaiveSupervisedRegime(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         log_row = batch_idx % self.train_log_row_interval == 0
-        sample_name = f"{batch_idx // self.train_log_row_interval}"
+        sample_name = ""
 
         loss = self.compute_loss(
             batch=batch, mode="train", log_row=log_row, sample_name=sample_name

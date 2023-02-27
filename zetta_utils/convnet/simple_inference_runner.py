@@ -10,7 +10,7 @@ from zetta_utils import builder, convnet, tensor_ops
 @builder.register("SimpleInferenceRunner")
 @attrs.mutable
 @typechecked
-class SimpleInferenceRunner:
+class SimpleInferenceRunner:  # pragma: no cover
     # Don't create the model during initialization for efficient serialization
     model_path: str
     unsqueeze_to: int | None = None

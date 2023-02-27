@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 from typing import Optional, Sequence, Union
 
@@ -6,9 +8,12 @@ import fsspec
 import torch
 from typeguard import typechecked
 
-from zetta_utils import builder
+from zetta_utils import builder, log
+
+logger = log.get_logger("zetta_utils")
 
 
+@builder.register("load_model")
 @typechecked
 def load_model(
     path: str, device: Union[str, torch.device] = "cpu", use_cache: bool = False
@@ -23,6 +28,7 @@ def load_model(
 def _load_model(
     path: str, device: Union[str, torch.device] = "cpu"
 ) -> torch.nn.Module:  # pragma: no cover
+    logger.debug(f"Loading model from '{path}'")
     if path.endswith(".json"):
         result = builder.build(path=path).to(device)
     elif path.endswith(".jit"):

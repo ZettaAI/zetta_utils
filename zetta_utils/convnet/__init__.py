@@ -1,1 +1,1 @@
-from . import architecture, artificery, utils
+from . import architecture, utils, simple_inference_runner

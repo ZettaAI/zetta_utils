@@ -330,6 +330,12 @@ def array_x1_avg_pool():
         [
             "array_1d_x0",
             "img",
+            {"scale_factor": 0.5},
+            "array_1d_x0_avg_pool",
+        ],
+        [
+            "array_1d_x0",
+            "img",
             {"scale_factor": 0.5, "unsqueeze_input_to": 3},
             "array_1d_x0_avg_pool",
         ],

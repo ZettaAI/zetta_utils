@@ -1,9 +1,4 @@
 """Building objects from specs"""
-from .build import (
-    REGISTRY,
-    SPECIAL_KEYS,
-    build,
-    get_callable_from_name,
-    register,
-    BuilderPartial,
-)
+from .registry import REGISTRY, register, get_callable_from_name
+from .build import SPECIAL_KEYS, build, BuilderPartial
+from . import built_in_registrations

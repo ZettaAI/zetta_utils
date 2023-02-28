@@ -24,21 +24,13 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
 
    $ git clone git@github.com:ZettaAI/zetta_utils.git
    $ cd zetta_utils
-   $ pip install '.[all]'
+   $ SETUPTOOLS_ENABLE_FEATURES=legacy-editable pip install -e '.[all]'
 
+The ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable`` is necessary due to a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535). 
 
 .. note::
   
   Please be sure to read all of the following points to avoid installation problems.
-  
-  
-The command above would install all of the optional ``zetta_utils`` modules.
-In order to get a more barebones installation, you can specify exact modules you require in comma separated format inside brackets.
-You can refer to ``pyproject.toml`` ``project.optional-dependencies`` section for the full list of the optional modules.
-
-
-If you are performing a local editable install(``pip install -e .[{modules}]``), you may want to set environment variable ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable``. 
-This is caused by a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535).
 
 
 If you are planning to interact with Google Cloud Storage (gcs) in any way, make sure to authenticate by running

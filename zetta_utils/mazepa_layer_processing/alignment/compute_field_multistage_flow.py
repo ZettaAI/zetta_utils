@@ -7,7 +7,7 @@ from typing import Callable, Sequence
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry import BBox3D
 from zetta_utils.layer.volumetric import (
     DataResolutionInterpolator,
     VolumetricIndexTranslator,
@@ -32,7 +32,7 @@ class ComputeFieldStage:
     operation: ComputeFieldOperation = attrs.field(init=False)
 
     crop_pad: int = 0
-    res_change_mult: Vec3D = Vec3D(1, 1, 1)
+    res_change_mult: Sequence[float] = (1, 1, 1)
 
     src: VolumetricLayer | None = None
     tgt: VolumetricLayer | None = None
@@ -55,9 +55,9 @@ def _set_up_offsets(
     tgt_field: VolumetricLayer | None = None,
     src: VolumetricLayer | None = None,
     tgt: VolumetricLayer | None = None,
-    tgt_offset: Vec3D = Vec3D(0, 0, 0),
-    src_offset: Vec3D = Vec3D(0, 0, 0),
-    offset_resolution: Vec3D | None = None,
+    tgt_offset: Sequence[float] = (0, 0, 0),
+    src_offset: Sequence[float] = (0, 0, 0),
+    offset_resolution: Sequence[float] | None = None,
 ) -> tuple[
     list[ComputeFieldStage],
     VolumetricLayer | None,
@@ -65,7 +65,7 @@ def _set_up_offsets(
     VolumetricLayer | None,
     VolumetricLayer | None,
 ]:
-    if tgt_offset != Vec3D(0, 0, 0) or src_offset != Vec3D(0, 0, 0):
+    if not all(e == 0 for e in tgt_offset) or not all(e == 0 for e in src_offset):
         stages = copy.deepcopy(stages)
         if offset_resolution is None:
             raise Exception(
@@ -115,9 +115,9 @@ class ComputeFieldMultistageFlowSchema:
         tgt_field: VolumetricLayer | None = None,
         src: VolumetricLayer | None = None,
         tgt: VolumetricLayer | None = None,
-        tgt_offset: Vec3D = Vec3D(0, 0, 0),
-        src_offset: Vec3D = Vec3D(0, 0, 0),
-        offset_resolution: Vec3D | None = None,
+        tgt_offset: Sequence[float] = (0, 0, 0),
+        src_offset: Sequence[float] = (0, 0, 0),
+        offset_resolution: Sequence[float] | None = None,
     ):
         stages, src, tgt, src_field, tgt_field = _set_up_offsets(
             self.stages,
@@ -196,9 +196,9 @@ def build_compute_field_multistage_flow(
     tgt_field: VolumetricLayer | None = None,
     src: VolumetricLayer | None = None,
     tgt: VolumetricLayer | None = None,
-    tgt_offset: Vec3D = Vec3D(0, 0, 0),
-    src_offset: Vec3D = Vec3D(0, 0, 0),
-    offset_resolution: Vec3D | None = None,
+    tgt_offset: Sequence[float] = (0, 0, 0),
+    src_offset: Sequence[float] = (0, 0, 0),
+    offset_resolution: Sequence[float] | None = None,
 ) -> mazepa.Flow:
     flow_schema = ComputeFieldMultistageFlowSchema(
         stages=stages,

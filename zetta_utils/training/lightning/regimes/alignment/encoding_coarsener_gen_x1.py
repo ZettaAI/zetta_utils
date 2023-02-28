@@ -145,7 +145,10 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
                 src_warped=src_warped,
                 src_warped_abs=src_warped.abs(),
                 enc_warped_naive=tensor_ops.interpolate(
-                    src_warped, size=(enc_warped.shape[-2], enc_warped.shape[-1]), mode="img"
+                    src_warped,
+                    size=(enc_warped.shape[-2], enc_warped.shape[-1]),
+                    mode="img",
+                    unsqueeze_input_to=4,
                 ),
                 enc_warped=enc_warped,
                 enc_warped_abs=enc_warped.abs().mean(1),

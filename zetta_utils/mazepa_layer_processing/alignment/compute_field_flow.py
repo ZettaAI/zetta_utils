@@ -10,14 +10,13 @@ from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
-    VolumetricIndexChunker,
     VolumetricIndexTranslator,
     VolumetricLayer,
 )
 from zetta_utils.mazepa_layer_processing.alignment.common import (
     translation_adjusted_download,
 )
-from zetta_utils.mazepa_layer_processing.common import build_chunked_apply_flow
+from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
 
 
 class ComputeFieldFn(Protocol):
@@ -122,28 +121,24 @@ class ComputeFieldOperation:
 class ComputeFieldFlowSchema:
     chunk_size: Sequence[int]
     operation: ComputeFieldOperation
-    chunker: VolumetricIndexChunker = attrs.field(init=False)
-
-    def __attrs_post_init__(self):
-        self.chunker = VolumetricIndexChunker(chunk_size=self.chunk_size)
 
     def flow(
         self,
         bbox: BBox3D,
-        dst_resolution: Vec3D,
+        dst_resolution: Sequence[float],
         dst: VolumetricLayer,
         src: VolumetricLayer,
         tgt: Optional[VolumetricLayer] = None,
         src_field: Optional[VolumetricLayer] = None,
         tgt_field: Optional[VolumetricLayer] = None,
-        tgt_offset: Vec3D = Vec3D(0, 0, 0),
-        src_offset: Vec3D = Vec3D(0, 0, 0),
+        tgt_offset: Sequence[float] = (0, 0, 0),
+        src_offset: Sequence[float] = (0, 0, 0),
     ):
         if tgt is None:
             tgt = src
 
         tgt = copy.deepcopy(tgt)
-        input_resolution = self.operation.get_input_resolution(dst_resolution)
+        input_resolution = self.operation.get_input_resolution(Vec3D(*dst_resolution))
         tgt_offsetter = VolumetricIndexTranslator(offset=tgt_offset, resolution=input_resolution)
         src_offsetter = VolumetricIndexTranslator(offset=src_offset, resolution=input_resolution)
         tgt = tgt.with_procs(index_procs=(tgt_offsetter,) + tgt.index_procs)
@@ -154,11 +149,12 @@ class ComputeFieldFlowSchema:
 
         if src_field is not None:
             src_field = src_field.with_procs(index_procs=(src_offsetter,) + src_field.index_procs)
-        cf_flow = build_chunked_apply_flow(
+        cf_flow = build_subchunkable_apply_flow(
             operation=self.operation,  # type: ignore
-            chunker=self.chunker,
-            idx=VolumetricIndex(bbox=bbox, resolution=dst_resolution),
-            dst=dst,  # type: ignore
+            processing_chunk_sizes=[self.chunk_size],
+            bbox=bbox,
+            dst_resolution=dst_resolution,
+            dst=dst,
             src=src,  # type: ignore
             tgt=tgt,  # type: ignore
             src_field=src_field,  # type: ignore

@@ -31,12 +31,23 @@ In order to get a more barebones installation, you can specify exact modules you
 You can refer to ``pyproject.toml`` ``project.optional-dependencies`` section for the full list of the optional modules.
 
 .. note::
+  
+  Please be sure to read all of the following points to avoid installation problems.
 
-   If you are performing a local editable install(``pip install -e .[{modules}]``), you may want to set environment variable ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable``.
-   This is caused by a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535).
+If you are performing a local editable install(``pip install -e .[{modules}]``), you may want to set environment variable ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable``. 
+This is caused by a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535).
+
+
+If you are planning to interact with Google Cloud Storage (gcs) in any way, make sure to authenticate by running
+
+.. code-block:: console
+
+    $ gcloud auth application-default login
+
 
 If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
 It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
+
 
 If you are planning to use `zetta_utils.viz` toolkit, you will need to install nodejs:
 

@@ -7,7 +7,7 @@ from typing import Callable, Sequence
 import attrs
 
 from zetta_utils import builder, mazepa
-from zetta_utils.geometry import BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     DataResolutionInterpolator,
     VolumetricIndexTranslator,
@@ -45,8 +45,8 @@ class ComputeFieldStage:
         )
 
     @property
-    def input_resolution(self):
-        return self.operation.get_input_resolution(self.dst_resolution)
+    def input_resolution(self) -> Vec3D[float]:
+        return self.operation.get_input_resolution(Vec3D(*self.dst_resolution))
 
 
 def _set_up_offsets(

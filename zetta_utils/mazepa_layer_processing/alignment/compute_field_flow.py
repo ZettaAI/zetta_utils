@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 from typing import Optional, Protocol, Sequence
 
@@ -36,9 +38,9 @@ class ComputeFieldFn(Protocol):
 @attrs.mutable
 class ComputeFieldOperation:
     fn: ComputeFieldFn
-    crop_pad: Vec3D[int] = Vec3D[int](0, 0, 0)
-    res_change_mult: Vec3D = Vec3D(1, 1, 1)
-    output_crop_px: Vec3D[int] = attrs.field(init=False)
+    crop_pad: Sequence[int] = (0, 0, 0)
+    res_change_mult: Sequence[float] = (1, 1, 1)
+    output_crop_px: Sequence[int] = attrs.field(init=False)
 
     def get_operation_name(self) -> str:
         if hasattr(self.fn, "__name__"):
@@ -48,11 +50,14 @@ class ComputeFieldOperation:
         else:
             return "ComputeField"
 
-    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
-        return dst_resolution / self.res_change_mult
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> ComputeFieldOperation:
+        return attrs.evolve(self, crop_pad=Vec3D(*self.crop_pad) + crop_pad)
+
+    def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
+        return dst_resolution / Vec3D(*self.res_change_mult)
 
     def __attrs_post_init__(self):
-        output_crop_px = self.crop_pad / self.res_change_mult
+        output_crop_px = Vec3D(*self.crop_pad) / Vec3D(*self.res_change_mult)
 
         for e in output_crop_px:
             if not e.is_integer():
@@ -150,7 +155,7 @@ class ComputeFieldFlowSchema:
         if src_field is not None:
             src_field = src_field.with_procs(index_procs=(src_offsetter,) + src_field.index_procs)
         cf_flow = build_subchunkable_apply_flow(
-            operation=self.operation,  # type: ignore
+            op=self.operation,  # type: ignore
             processing_chunk_sizes=[self.chunk_size],
             bbox=bbox,
             dst_resolution=dst_resolution,

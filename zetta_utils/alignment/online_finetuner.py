@@ -30,7 +30,9 @@ def align_with_online_finetuner(
         src_field = einops.rearrange(src_field, "C X Y 1 -> 1 C X Y")
         scales = [src.shape[i] / src_field.shape[i] for i in range(2, 4)]
         assert scales[0] == scales[1]
-        src_field = tensor_ops.interpolate(src_field, scale_factor=scales, mode="field")
+        src_field = tensor_ops.interpolate(
+            src_field, scale_factor=scales, mode="field", unsqueeze_input_to=4
+        )
 
     orig_device = src.device
 

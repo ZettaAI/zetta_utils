@@ -16,6 +16,7 @@ REQUIRED_ENV_VARS: list[str] = [
     "ZETTA_PROJECT",
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
+    "AWS_DEFAULT_REGION",
     "WANDB_API_KEY",
 ]
 
@@ -106,7 +107,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
 ):
-    _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
@@ -116,6 +116,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     if local_test:
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
+        _ensure_required_env_vars()
         if worker_cluster is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
             worker_cluster = DEFAULT_GCP_CLUSTER

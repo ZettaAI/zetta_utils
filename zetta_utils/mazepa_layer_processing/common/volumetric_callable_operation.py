@@ -75,7 +75,7 @@ class VolumetricCallableOperation(Generic[P]):
 
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(Vec3D[int](*self.crop_pad))
+        idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
         task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
         result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the

@@ -23,18 +23,19 @@ def _interpolate(
     mask_value_thr: float = 0,
 ) -> torch.Tensor:
     # This dummy function is necessary to rename `src` to `data` arg
-    return tensor_ops.interpolate(
+    result = tensor_ops.interpolate(
         data=src,
         scale_factor=scale_factor,
         mode=mode,
         mask_value_thr=mask_value_thr,
         unsqueeze_input_to=5,
     )
+    return result
 
 
 @builder.register("InterpolateOperation")
 def make_interpolate_operation(
-    scale_factor: Sequence[float],
+    res_change_mult: Sequence[float],
     mode: tensor_ops.InterpolationMode,
     mask_value_thr: float = 0,
 ):
@@ -42,10 +43,11 @@ def make_interpolate_operation(
         fn=functools.partial(
             _interpolate,
             mode=mode,
-            scale_factor=scale_factor,
+            scale_factor=1 / Vec3D(*res_change_mult),
             mask_value_thr=mask_value_thr,
         ),
-        res_change_mult=(1 / Vec3D(*scale_factor)),
+        res_change_mult=Vec3D(*res_change_mult),
+        operation_name=f"Interpolate<{mode}>",
     )
     return op
 
@@ -74,7 +76,6 @@ def build_interpolate_flow(
         res_change_mult=res_change_mult,
         chunker=VolumetricIndexChunker(chunk_size=Vec3D[int](*chunk_size)),
     )
-
     flow = flow_schema(
         idx=VolumetricIndex(bbox=bbox, resolution=Vec3D(*dst_resolution)),
         dst=dst,

@@ -24,7 +24,7 @@ class WarpOperation:
     use_translation_adjustment: bool = True
 
     def get_operation_name(self):
-        return f"WarpOperation[{self.mode}]"
+        return f"WarpOperation<{self.mode}>"
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
         return dst_resolution

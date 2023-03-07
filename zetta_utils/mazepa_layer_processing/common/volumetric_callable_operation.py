@@ -37,7 +37,9 @@ class VolumetricCallableOperation(Generic[P]):
     operation_name: str | None = None
 
     def get_operation_name(self):
-        if hasattr(self.fn, "get_display_name"):
+        if self.operation_name is not None:
+            result = self.operation_name
+        elif hasattr(self.fn, "get_display_name"):
             result = self.fn.get_display_name()
         elif hasattr(self.fn, "__name__"):
             result = self.fn.__name__

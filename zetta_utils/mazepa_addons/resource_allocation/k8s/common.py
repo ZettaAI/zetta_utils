@@ -134,15 +134,6 @@ def _get_worker_deployment_spec(
         volume_mounts=volume_mounts,
     )
 
-    # this isn't ideal, google specfic
-    metadata_init_container = k8s_client.V1Container(
-        command=["/bin/bash"],
-        args=["-c", _get_init_container_command()],
-        name="zutils-worker-init",
-        image="gcr.io/google.com/cloudsdktool/cloud-sdk:alpine",
-        image_pull_policy="IfNotPresent",
-    )
-
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
@@ -159,7 +150,6 @@ def _get_worker_deployment_spec(
     pod_spec = k8s_client.V1PodSpec(
         containers=[container],
         dns_policy="Default",
-        init_containers=[metadata_init_container],
         restart_policy="Always",
         scheduler_name="default-scheduler",
         security_context={},

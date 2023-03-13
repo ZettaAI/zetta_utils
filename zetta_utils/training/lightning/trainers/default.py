@@ -16,6 +16,7 @@ from pytorch_lightning.loggers import WandbLogger
 from zetta_utils import builder, log
 
 logger = log.get_logger("zetta_utils")
+ONNX_OPSET_VERSION = 17
 
 """
 Separate function to work around the jit.trace memory leak
@@ -27,6 +28,12 @@ def trace_and_save_model(_, model, trace_input, filepath, name):  # pragma: no c
     filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
     with fsspec.open(filepath_jit, "wb") as f:
         torch.jit.save(trace, f)
+    try:
+        filepath_onnx = f"{filepath}.static-{torch.__version__}-{name}.onnx"
+        with fsspec.open(filepath_onnx, "wb") as f:
+            torch.onnx.export(model, trace_input, f, opset_version=ONNX_OPSET_VERSION)
+    except torch.onnx.errors.UnsupportedOperatorError:
+        pass
 
 
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover

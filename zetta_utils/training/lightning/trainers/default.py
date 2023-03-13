@@ -17,6 +17,17 @@ from zetta_utils import builder, log
 
 logger = log.get_logger("zetta_utils")
 
+"""
+Separate function to work around the jit.trace memory leak
+"""
+
+
+def trace_and_save_model(_, model, trace_input, filepath, name):  # pragma: no cover
+    trace = torch.jit.trace(model, trace_input)
+    filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
+    with fsspec.open(filepath_jit, "wb") as f:
+        torch.jit.save(trace, f)
+
 
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def __init__(self, *args, **kwargs):
@@ -55,10 +66,9 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             for name in self.trace_configuration.keys():
                 model = self.trace_configuration[name]["model"]
                 trace_input = self.trace_configuration[name]["trace_input"]
-                trace = torch.jit.trace(model, trace_input)
-                filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
-                with fsspec.open(filepath_jit, "wb") as f:
-                    torch.jit.save(trace, f)
+                torch.multiprocessing.spawn(
+                    trace_and_save_model, args=(model, trace_input, filepath, name)
+                )
 
 
 @builder.register("ZettaDefaultTrainer")
@@ -186,8 +196,10 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
     @staticmethod
     def unwrap_forward(pl_module: pl.LightningModule, name: str) -> None:
         model = getattr(pl_module, name)
+        wrapped_forward = model.forward
         model.forward = model.__forward__
         delattr(model, "__forward__")
+        del wrapped_forward
 
     def on_validation_batch_start(
         self,

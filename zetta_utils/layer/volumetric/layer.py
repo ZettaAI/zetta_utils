@@ -35,3 +35,6 @@ class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
     def __setitem__(self, idx: UserVolumetricIndex, data: torch.Tensor | float | int | bool):
         idx_backend, data_backend = self.frontend.convert_write(idx, data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
+
+    def pformat(self) -> str:  # pragma: no cover
+        return self.backend.pformat()

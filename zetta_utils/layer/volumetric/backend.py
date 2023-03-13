@@ -77,3 +77,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     @abstractmethod
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:
         ...
+
+    @abstractmethod
+    def pformat(self) -> str:
+        ...

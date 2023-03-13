@@ -36,12 +36,13 @@ def make_ng_link(
     layout: Literal["xy", "4panel"] = "xy",
     title: str = "zutils",
     state_server_url: Optional[str] = "https://api.zetta.ai/json",
+    print_to_logger: bool = True,
 ) -> Optional[str]:  # pragma: no cover # visualization related code
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
         for layer_spec in layers:
             if len(layer_spec) != 3:
-                raise ValueError("Each layer spec must be a tripple of stirngs")
+                raise ValueError("Each layer spec must be a triple of stirngs")
 
             s.layers[layer_spec[0]] = neuroglancer.viewer_state.layer_types[layer_spec[1]](
                 source=layer_spec[2]
@@ -63,7 +64,7 @@ def make_ng_link(
             response = requests.post(
                 os.path.join(state_server_url, "post"),
                 json=json_state,
-                headers={"Authorization": f"token {token}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             if not response.ok:
                 logger.warning(
@@ -86,5 +87,6 @@ def make_ng_link(
                 s, prefix="https://neuroglancer-demo.appspot.com"
             )
 
-    logger.info(f"NG URL: \n{ng_url}")
+    if print_to_logger:
+        logger.info(f"NG URL: \n{ng_url}")
     return ng_url

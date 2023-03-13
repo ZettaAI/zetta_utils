@@ -16,3 +16,6 @@ class VolumetricBasedLayerProtocol(Protocol[DataT]):
 
     def __getitem__(self, idx: VolumetricIndex) -> DataT:
         ...
+
+    def pformat(self) -> str:
+        ...

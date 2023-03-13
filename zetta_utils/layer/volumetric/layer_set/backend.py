@@ -170,3 +170,6 @@ class VolumetricSetBackend(
                 for k, v in self.layers.items()
             },
         )
+
+    def pformat(self) -> str:  # pragma: no cover
+        return "\n".join([f"{k}: {v.pformat()}" for (k, v) in self.layers.items()])

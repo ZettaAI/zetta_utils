@@ -16,23 +16,25 @@
 	}
 
 	start_coord: [4096, 4096, 3003]
-	end_coord: [8192, 12288, 3005]
+	end_coord: [8192, 8192, 3005]
 	coord_resolution: [32, 32, 30]
 
 	dst_resolution: [32, 32, 30]
 
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
-	processing_chunk_sizes: [[4224, 4160, 1], [1056, 1056, 1]]
-	processing_crop_pads: [[0, 32, 0], [0, 0, 0]]
-	processing_blend_pads: [[0, 0, 0], [16, 16, 0]]
+	processing_chunk_sizes: [[4096, 7096, 1], [2048, 2048, 1]]
+	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
+	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_modes: "quadratic"
 
-	fov_crop_pad: [64, 64, 0]
+	roi_crop_pad: [0, 0, 0]
 
 	max_reduction_chunk_sizes: [4096, 4096, 1]
+	expand_bbox:             false
+	shrink_processing_chunk: true
 
-	temp_layers_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
 	allow_cache_up_to_level: 1
 
 	src: {

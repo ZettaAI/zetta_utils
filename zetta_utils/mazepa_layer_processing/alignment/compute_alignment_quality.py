@@ -1,4 +1,3 @@
-import datetime
 from statistics import NormalDist
 from typing import Any, Dict, List, Sequence, TypeVar
 
@@ -6,6 +5,7 @@ from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.common.pprint import lrpadprint, utcnow_ISO8601
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
@@ -36,21 +36,6 @@ def compute_misalignment_stats(
     for threshold in misalignment_thresholds:
         ret["misaligned_pixels"][threshold] = (data > threshold).sum()
     return ret
-
-
-def lrpad(
-    string: str = "", level: int = 1, length: int = 80, bounds: str = "|", filler: str = " "
-) -> str:
-    newstr = ""
-    newstr += bounds
-    while len(newstr) < level * 4:
-        newstr += filler
-    newstr += string
-    if len(newstr) >= length:
-        return newstr
-    while len(newstr) < length - 1:
-        newstr += filler
-    return newstr + bounds
 
 
 # f-string-without-interpolation should not be necessary, but pylint seems to have a bug
@@ -128,60 +113,58 @@ def compute_alignment_quality(
         ]
         misaligned[threshold]["worsts"] = sorted_inds[0:num_worst_chunks]
 
-    print(lrpad("  Alignment Quality Report  ", bounds="+", filler="="))
-    print(lrpad())
-    print(lrpad(f"Generated {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}", 1))
-    print(lrpad())
-    print(lrpad(" Dataset Information / Settings ", bounds="|", filler="="))
-    print(lrpad())
-    print(lrpad(f"Layer: {src.name}", 1))
-    print(lrpad(f"Bounds given at {resolution} nm: {idx.pformat(resolution)}", 1))
+    lrpadprint("  Alignment Quality Report  ", bounds="+", filler="=")
+    lrpadprint()
+    lrpadprint(f"Generated {utcnow_ISO8601()}", 1)
+    lrpadprint()
+    lrpadprint(" Dataset Information / Settings ", bounds="|", filler="=")
+    lrpadprint()
+    lrpadprint(f"Layer: {src.name}", 1)
+    lrpadprint(f"Bounds given at {resolution} nm: {idx.pformat(resolution)}", 1)
 
     vol = idx.get_size()
 
     if vol < 1e18:
-        print(lrpad(f"Volume of FOV: {vol*1e-9:10.3f} um^3", 1))
+        lrpadprint(f"Volume of FOV: {vol*1e-9:10.3f} um^3", 1)
     else:
-        print(lrpad(f"Volume of FOV: {vol*1e-18:10.3f} mm^3", 1))
-    print(lrpad(f"Misalignment detection resolution: {idx.resolution} nm", 1))
-    print(lrpad(f"Misalignment thresholds:", 1))
+        lrpadprint(f"Volume of FOV: {vol*1e-18:10.3f} mm^3", 1)
+    lrpadprint(f"Misalignment detection resolution: {idx.resolution} nm", 1)
+    lrpadprint(f"Misalignment thresholds:", 1)
     for threshold in misalignment_thresholds:
-        print(lrpad(f"{threshold:3.2f} px ({threshold * idx.resolution[0]:6.2f} nm)", 2))
-    print(lrpad(f"Number of worst chunks to show: {num_worst_chunks}", 1))
-    print(lrpad())
+        lrpadprint(f"{threshold:3.2f} px ({threshold * idx.resolution[0]:6.2f} nm)", 2)
+    lrpadprint(f"Number of worst chunks to show: {num_worst_chunks}", 1)
+    lrpadprint()
 
-    print(lrpad(" Basic Misalignment Statistics ", bounds="|", filler="="))
-    print(lrpad())
-    print(lrpad(f"RMS residuals:        {rms:7.4f} px ({rms * idx.resolution[0]:7.4f} nm)", 1))
-    print(lrpad(f"Mean residuals:       {mean:7.4f} px ({mean * idx.resolution[0]:7.4f} nm)", 1))
-    print(lrpad(f"Probability of misaligned pixel at ", 1))
+    lrpadprint(" Basic Misalignment Statistics ", bounds="|", filler="=")
+    lrpadprint()
+    lrpadprint(f"RMS residuals:        {rms:7.4f} px ({rms * idx.resolution[0]:7.4f} nm)", 1)
+    lrpadprint(f"Mean residuals:       {mean:7.4f} px ({mean * idx.resolution[0]:7.4f} nm)", 1)
+    lrpadprint(f"Probability of misaligned pixel at ", 1)
     for threshold in misalignment_thresholds:
         misaligned_prob = misaligned[threshold]["probability"]
         if misaligned_prob == 0.0:
             misaligned_sigma_str = "infty"
         else:
             misaligned_sigma_str = f"{abs(NormalDist().inv_cdf(misaligned_prob)):2.3f}"
-        print(
-            lrpad(
-                f"{threshold:3.2f} px: {(misaligned_prob * 1e6):10.3f}"
-                + " parts per million,      "
-                + f"{misaligned_sigma_str} sigmas",
-                2,
-            )
+        lrpadprint(
+            f"{threshold:3.2f} px: {(misaligned_prob * 1e6):10.3f}"
+            + " parts per million,      "
+            + f"{misaligned_sigma_str} sigmas",
+            2,
         )
-    print(lrpad())
+    lrpadprint()
 
-    print(lrpad(" Proofreading Helper ", bounds="|", filler="="))
-    print(lrpad())
-    print(lrpad(f"Worst chunk(s) overall (RMS):", 1))
+    lrpadprint(" Proofreading Helper ", bounds="|", filler="=")
+    lrpadprint()
+    lrpadprint(f"Worst chunk(s) overall (RMS):", 1)
     for i in range(num_worst_chunks):
         ind = worsts[i]
-        print(lrpad(f"{idx_chunks[ind].pformat(resolution)}       {rmses[ind]:7.4f} px", 2))
+        lrpadprint(f"{idx_chunks[ind].pformat(resolution)}       {rmses[ind]:7.4f} px", 2)
     for threshold in misalignment_thresholds:
-        print(lrpad(f"Worst chunk(s) at {threshold:3.2f} pixels:", 1))
+        lrpadprint(f"Worst chunk(s) at {threshold:3.2f} pixels:", 1)
         for i in range(num_worst_chunks):
             ind = misaligned[threshold]["worsts"][i]
             prob = misaligned_pixelss[threshold][ind] / sizes[ind]
-            print(lrpad(f"{idx_chunks[ind].pformat(resolution)}   {(prob * 1e6):10.3f} ppm", 2))
-    print(lrpad(""))
-    print(lrpad("", bounds="+", filler="="))
+            lrpadprint(f"{idx_chunks[ind].pformat(resolution)}   {(prob * 1e6):10.3f} ppm", 2)
+    lrpadprint("")
+    lrpadprint("", bounds="+", filler="=")

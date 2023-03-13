@@ -178,7 +178,10 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         bbox=bbox_,
         shrink_processing_chunk=shrink_processing_chunk,
         expand_bbox=expand_bbox,
+<<<<<<< HEAD
         print_summary=print_summary,
+=======
+>>>>>>> feat: expand_bbox, shrink_processing_chunk, summary message, ng link gen
         **kwargs,
     )
 
@@ -375,9 +378,14 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     allow_cache_up_to_level: int,
     bbox: BBox3D,
     op: VolumetricOpProtocol[P, None, Any],
+<<<<<<< HEAD
     shrink_processing_chunk: bool,
     expand_bbox: bool,
     print_summary: bool,
+=======
+    shrink_processing_chunk: bool = False,
+    expand_bbox: bool = False,
+>>>>>>> feat: expand_bbox, shrink_processing_chunk, summary message, ng link gen
     *args: P.args,
     **kwargs: P.kwargs,
 ) -> mazepa.Flow:
@@ -391,6 +399,54 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
 
     if expand_bbox:
         bbox = _expand_bbox(bbox, dst_resolution, processing_chunk_sizes)
+
+    idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
+    level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
+
+    """
+    Handle shrink_processing_chunk and expand_bbox
+    """
+    if shrink_processing_chunk:
+        bbox_shape_in_res = bbox.shape // dst_resolution
+        processing_chunk_sizes_old = deepcopy(processing_chunk_sizes)
+        processing_chunk_sizes = []
+        processing_chunk_sizes.append(
+            Vec3D[int](
+                *[min(b, e) for b, e in zip(bbox_shape_in_res, processing_chunk_sizes_old[0])]
+            )
+        )
+        for i in range(1, num_levels):
+            processing_chunk_sizes.append(
+                Vec3D[int](
+                    *[
+                        min(b, s)
+                        for b, s in zip(processing_chunk_sizes[i - 1], processing_chunk_sizes[i])
+                    ]
+                )
+            )
+        logger.info(
+            f"`shrink_processing_chunk` was set, so the `processing_chunk_sizes` have been shrunken to fit the bbox where applicable.\n"
+            f"Original `processing_chunk_sizes`:\t{', '.join([e.pformat() for e in processing_chunk_sizes_old])}\n"
+            f"Shrunken `processing_chunk_sizes`:\t{', '.join([e.pformat() for e in processing_chunk_sizes])}\n"
+            f"Please note that this may affect divisibility requirements."
+        )
+
+    if expand_bbox:
+        bbox_shape_in_res = bbox.shape // dst_resolution
+        bbox_shape_diff = processing_chunk_sizes[0] - bbox_shape_in_res
+        translation_end = Vec3D[int](*[max(e, 0) for e in bbox_shape_diff])
+        bbox_old = bbox
+        bbox = bbox.translated_end(translation_end, dst_resolution)
+        if translation_end != Vec3D[int](0, 0, 0):
+            logger.info(
+                f"`expand_bbox` was set and the `bbox` was smaller than the top level `processing_chunk_size` in at least one dimension, "
+                f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
+                f"Original bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
+                f"New bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox.shape // dst_resolution).int().pformat()} px\n"
+                f"Please note that this may affect chunk alignment requirements."
+            )
 
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
     level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
@@ -492,6 +548,76 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         dst = attrs.evolve(
             deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
         )
+    """
+    Print summary
+    """
+    summary = ""
+    summary += (
+        lrpad("  SubchunkableApplyFlow Parameter Summary  ", bounds="+", filler="=", length=120)
+        + "\n"
+    )
+    summary += lrpad(length=120) + "\n"
+    summary += lrpad(f"Generated {utcnow_ISO8601()}", 1, length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
+    summary += lrpad(" Dataset Information ", bounds="|", filler="=", length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
+    summary += lrpad(f"BBox bounds given at {dst_resolution.pformat()} nm:", 1, length=120) + "\n"
+    summary += lrpad(f"        {bbox.pformat(dst_resolution)} px", 1, length=120) + "\n"
+    summary += (
+        lrpad(f" shape: {(bbox.shape // dst_resolution).int().pformat()} px", 1, length=120) + "\n"
+    )
+    vol = bbox.get_size()
+    if vol < 1e18:
+        summary += lrpad(f"Volume of ROI: {vol*1e-9:10.3f} um^3", 1, length=120) + "\n"
+    else:
+        summary += lrpad(f"Volume of ROI: {vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
+    summary += lrpad("Output location(s):", 1, length=120) + "\n"
+    for string in dst.pformat().split("\n"):
+        summary += lrpad(f"{string}", 2, length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
+    summary += lrpad(" Subchunking Information ", bounds="|", filler="=", length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
+    summary += (
+        lrpad(
+            " Level  # of chunks   Processing chunk size  ROI crop pad    Blend pad       Checkerboard  Cached",
+            length=120,
+        )
+        + "\n"
+    )
+    for level in range(num_levels - 1, -1, -1):
+        i = num_levels - level - 1
+        summary += (
+            lrpad(
+                f" {level}      "
+                f"{lrpad(str(num_chunks[i]), level = 0, length = 10, bounds ='')}     "
+                f"{lrpad(processing_chunk_sizes[i].pformat(), level = 0, length = 22, bounds = '')}  "
+                f"{lrpad(roi_crop_pads[i].pformat(), level = 0, length = 15, bounds = '')}  "
+                f"{lrpad(processing_blend_pads[i].pformat(), level = 0, length = 15, bounds = '')}  "
+                f"{lrpad(str(use_checkerboard[i]), level = 0, length = 15, bounds = '')}"
+                f"{lrpad(str(level <= allow_cache_up_to_level), level = 0, length = 10, bounds = '')}",
+                length=120,
+            )
+            + "\n"
+        )
+    summary += lrpad("", length=120) + "\n"
+    summary += (
+        lrpad(" Level  Intermediary dir (only used if Checkerboard == True)", length=120) + "\n"
+    )
+    for level in range(num_levels - 1, -1, -1):
+        i = num_levels - level - 1
+        summary += lrpad(f" {level}      " f"{level_intermediaries_dirs[i]}", length=120) + "\n"
+    summary += lrpad("", length=120) + "\n"
+    summary += lrpad("", bounds="+", filler="=", length=120)
+    logger.info(summary)
+
+    """
+    Generate link
+    """
+    layers = [
+        [string.split(" ")[0], "image", "precomputed://" + string.split(" ")[-1]]
+        for string in dst.pformat().split("\n")
+    ]
+    make_ng_link(layers, bbox.start, state_server_url=None)
 
     if print_summary:
         _print_summary(

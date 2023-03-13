@@ -401,3 +401,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 + f" - rounded  : {idx_rounded.pformat()}\n"
                 + f" - shrunk   : {idx_shrunk.pformat()}"
             )
+
+    def pformat(self) -> str:  # pragma: no cover
+        return self.name

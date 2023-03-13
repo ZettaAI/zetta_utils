@@ -45,3 +45,6 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
             idx_last = idx_backend
         assert idx_backend is not None
         self.write_with_procs(idx=idx_backend, data=data_backend)
+
+    def pformat(self) -> str:  # pragma: no cover
+        return self.backend.pformat()

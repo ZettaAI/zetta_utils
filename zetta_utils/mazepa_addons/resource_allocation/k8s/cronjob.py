@@ -1,5 +1,5 @@
 """
-Kubernetes cronjob for garbage collection.
+Kubernetes cronjob.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ def _get_cronjob(
     pod_spec = k8s_client.V1PodSpec(
         containers=[container],
         dns_policy="Default",
-        restart_policy="Always",
+        restart_policy="OnFailure",
         scheduler_name="default-scheduler",
         security_context={},
         termination_grace_period_seconds=30,
@@ -91,7 +91,7 @@ class CronJobSpecConfig:
 
 
 @builder.register("mazepa.k8s.configure_cronjob")
-def configure_gc_cronjob(
+def configure_cronjob(
     cluster: ClusterInfo,
     name: str,
     namespace: str,
@@ -105,7 +105,7 @@ def configure_gc_cronjob(
     patch: Optional[bool] = False,
 ):
     """
-    Create a resource garbage collector cronjob or patch/update an existing one.
+    Create a cronjob or patch/update an existing one.
     """
     configuration, _ = get_cluster_data(cluster)
     k8s_client.Configuration.set_default(configuration)

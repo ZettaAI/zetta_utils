@@ -9,3 +9,5 @@ from .common import (
     get_secrets_and_mapping,
     deployment_ctx_mngr,
 )
+
+from .cronjob import configure_cronjob

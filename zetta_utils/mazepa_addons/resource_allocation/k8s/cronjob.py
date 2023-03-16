@@ -82,10 +82,10 @@ def _get_cronjob(
 @attrs.frozen
 class CronJobSpecConfig:
     concurrency_policy: Optional[str] = "Forbid"
-    failed_jobs_history_limit: Optional[int] = 0
+    failed_jobs_history_limit: Optional[int] = 1
     schedule: Optional[str] = "@hourly"
     starting_deadline_seconds: Optional[int] = None
-    successful_jobs_history_limit: Optional[int] = 0
+    successful_jobs_history_limit: Optional[int] = 1
     suspend: Optional[bool] = False
     time_zone: Optional[str] = None
 

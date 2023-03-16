@@ -19,4 +19,4 @@ env_vars: {
 resources: {
 	memory: "100Mi"
 }
-patch: True
+patch: true

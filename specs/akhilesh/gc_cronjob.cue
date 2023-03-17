@@ -7,16 +7,21 @@ cluster: {
 }
 name: "gc-cron"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x2"
+image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x1"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
 	"python -m zetta_utils.mazepa_addons.resource_cleanup"
 ]
 env_vars: {
-	"EXECUTION_HEARTBEAT_LOOKBACK": "3600",
+	"EXECUTION_HEARTBEAT_LOOKBACK": "172800",
 }
+preset_env_vars: [
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_DEFAULT_REGION"
+]
 resources: {
 	memory: "100Mi"
 }
-patch: true
+patch: false

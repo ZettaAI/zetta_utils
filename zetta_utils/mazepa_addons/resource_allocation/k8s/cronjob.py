@@ -4,6 +4,7 @@ Kubernetes cronjob.
 
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Optional
 
 import attrs
@@ -100,6 +101,7 @@ def configure_cronjob(
     command_args: List[str],
     env_vars: Dict[str, str],
     resources: Dict[str, int | float | str],
+    preset_env_vars: Optional[List[str]] = None,
     spec_config: CronJobSpecConfig = CronJobSpecConfig(),
     labels: Optional[Dict[str, str]] = None,
     patch: Optional[bool] = False,
@@ -114,6 +116,13 @@ def configure_cronjob(
     envs = []
     for key, val in env_vars.items():
         envs.append(k8s_client.V1EnvVar(name=key, value=val))
+
+    if preset_env_vars is None:
+        preset_env_vars = []
+
+    for env_var in preset_env_vars:
+        env = k8s_client.V1EnvVar(name=env_var, value=os.environ[env_var])
+        envs.append(env)
 
     cronjob = _get_cronjob(
         name=name,

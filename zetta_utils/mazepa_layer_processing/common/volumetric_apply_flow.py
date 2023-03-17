@@ -41,6 +41,18 @@ def get_intersection_and_subindex(small: VolumetricIndex, large: VolumetricIndex
 
 @mazepa.taskable_operation_cls
 @attrs.mutable
+class Copy:
+    def __call__(
+        self,
+        src: VolumetricBasedLayerProtocol,
+        dst: VolumetricBasedLayerProtocol,
+        idx: VolumetricIndex,
+    ) -> None:
+        dst[idx] = src[idx]
+
+
+@mazepa.taskable_operation_cls
+@attrs.mutable
 class ReduceByWeightedSum:
     def __call__(
         self,
@@ -191,6 +203,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
     clear_cache_on_return: bool = False
+    force_intermediaries: bool = False
     use_checkerboarding: bool = attrs.field(init=False)
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
 
@@ -240,8 +253,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 )
             if self.intermediaries_dir is None:
                 raise ValueError(
-                    "`intermediaries_dir` must be specified when using blending or crop"
+                    "`intermediaries_dir` must be specified when using blending or crop."
                 )
+        if self.force_intermediaries:
+            if self.intermediaries_dir is None:
+                raise ValueError(
+                    "`intermediaries_dir` must be specified when `force_intermediaries`==True."
+                )
+
         self.processing_chunker = VolumetricIndexChunker(
             chunk_size=self.processing_chunk_size, resolution=self.dst_resolution
         )
@@ -266,6 +285,31 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         ]
 
         return tasks
+
+    def make_tasks_with_intermediaries(  # pylint: disable=too-many-locals
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        **kwargs: P.kwargs,
+    ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
+        assert self.intermediaries_dir is not None
+        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
+        backend_temp = dst.backend.with_changes(
+            name=path.join(
+                self.intermediaries_dir,
+                f"_{self.op.__class__.__name__}_temp_{idx.pformat()}",
+            ),
+            voxel_offset_res=(idx.start, self.dst_resolution),
+            chunk_size_res=(self.processing_chunk_size, self.dst_resolution),
+            enforce_chunk_aligned_writes=True,
+            use_compression=False,
+            allow_cache=allow_cache,
+        )
+        dst_temp = attrs.evolve(deepcopy(dst), backend=backend_temp)
+        idx_chunks = self.processing_chunker(idx, mode="exact")
+        tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, **kwargs)
+
+        return tasks, dst_temp
 
     def make_tasks_with_checkerboarding(  # pylint: disable=too-many-locals
         self,
@@ -340,7 +384,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         return (tasks, red_chunks_task_idxs, red_chunks_temps, dst_temps)
 
-    def flow(  # pylint:disable=too-many-branches
+    def flow(  # pylint:disable=too-many-branches, too-many-statements
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
@@ -360,11 +404,39 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         logger.info(f"Breaking {idx} into chunks with {self.processing_chunker}.")
 
         # case without checkerboarding
-        if not self.use_checkerboarding:
+        if not self.use_checkerboarding and not self.force_intermediaries:
             idx_chunks = self.processing_chunker(idx, mode="exact")
             tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, **kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
+        elif not self.use_checkerboarding and self.force_intermediaries:
+            tasks, dst_temp = self.make_tasks_with_intermediaries(idx, dst, **kwargs)
+            logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
+            yield tasks
+            yield mazepa.Dependency()
+            reduction_chunker = VolumetricIndexChunker(
+                chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
+                resolution=self.dst_resolution,
+                max_superchunk_size=self.max_reduction_chunk_size_final,
+            )
+            logger.info(
+                f"Breaking {idx} into chunks to be copied from the intermediary layer"
+                f" with {reduction_chunker}."
+            )
+            stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
+            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
+            red_chunks = reduction_chunker(
+                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
+            )
+            tasks_reduce = [
+                Copy().make_task(src=dst_temp, dst=dst, idx=red_chunk) for red_chunk in red_chunks
+            ]
+            logger.info(
+                "Copying temporary destination CloudVolume into the final destination:"
+                f" Submitting {len(tasks_reduce)} tasks."
+            )
+            yield tasks_reduce
+            clear_cache(dst_temp)
         # case with checkerboarding
         else:
             if dst.backend.enforce_chunk_aligned_writes:
@@ -437,10 +509,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" Submitting {len(tasks_reduce)} tasks."
             )
             yield tasks_reduce
-
             clear_cache(*dst_temps)
-            if self.clear_cache_on_return:
-                clear_cache(*args, **kwargs)
+        if self.clear_cache_on_return:
+            clear_cache(*args, **kwargs)
 
 
 def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg

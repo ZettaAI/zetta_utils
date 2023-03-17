@@ -414,10 +414,16 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
             yield mazepa.Dependency()
+            if not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
+                self.dst_resolution
+            ):
+                copy_chunk_size = dst.backend.get_chunk_size(self.dst_resolution)
+            else:
+                copy_chunk_size = self.max_reduction_chunk_size_final
             reduction_chunker = VolumetricIndexChunker(
                 chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
                 resolution=self.dst_resolution,
-                max_superchunk_size=self.max_reduction_chunk_size_final,
+                max_superchunk_size=copy_chunk_size,
             )
             logger.info(
                 f"Breaking {idx} into chunks to be copied from the intermediary layer"

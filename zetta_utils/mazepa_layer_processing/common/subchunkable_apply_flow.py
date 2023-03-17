@@ -524,7 +524,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         intermediaries_dir=_path_join_if_not_none(level_intermediaries_dirs[-1], "chunks_level_0"),
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
-        force_intermediaries=True,
+        force_intermediaries=(num_levels != 1),
     )
 
     """

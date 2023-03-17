@@ -10,6 +10,7 @@ import torch
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import builder, log
+from zetta_utils.alignment.field import invert_field
 
 logger = log.get_logger("zetta_utils")
 
@@ -68,23 +69,24 @@ def _get_opt_range(fix: Literal["first", "last", "both"] | None, num_sections: i
 
 
 @builder.register("perform_aced_relaxation")
-def perform_aced_relaxation(
+def perform_aced_relaxation(  # pylint: disable=too-many-branches
     match_offsets: torch.Tensor,
-    field_zm1: torch.Tensor,
-    field_zm2: Optional[torch.Tensor] = None,
-    field_zm3: Optional[torch.Tensor] = None,
+    pfields: dict[str, torch.Tensor],
     rigidity_masks: torch.Tensor | None = None,
+    first_section_fix_field: torch.Tensor | None = None,
+    last_section_fix_field: torch.Tensor | None = None,
     num_iter=100,
     lr=0.3,
     rigidity_weight=10.0,
     fix: Optional[Literal["first", "last", "both"]] = "first",
 ) -> torch.Tensor:
-    max_displacement = 0.0
-    for field in [field_zm1, field_zm2, field_zm2]:
-        if field is not None:
-            max_displacement = max(max_displacement, field.abs().max().item())
+    assert "-1" in pfields
+
+    max_displacement = max([field.abs().max().item() for field in pfields.values()])
+
     if (match_offsets != 0).sum() == 0 or max_displacement < 0.01:
-        return torch.zeros_like(field_zm1)
+        return torch.zeros_like(pfields["-1"])
+
     match_offsets_zcxy = einops.rearrange(match_offsets, "C X Y Z -> Z C X Y").cuda()
 
     if rigidity_masks is not None:
@@ -94,18 +96,43 @@ def perform_aced_relaxation(
 
     num_sections = match_offsets_zcxy.shape[0]
     assert num_sections > 1, "Can't relax blocks with just one section"
-    field_map = {
-        1: field_zm1,
-        2: field_zm2,
-        3: field_zm3,
-    }
-    pfields: Dict[Tuple[int, int], torch.Tensor] = {}
-    for offset, field in field_map.items():
-        if field is not None:
-            field_zcxy = einops.rearrange(field, "C X Y Z -> Z C X Y").field()  # type: ignore
 
-            for i in range(num_sections):
-                pfields[(i, i - offset)] = field_zcxy[i : i + 1].cuda()
+    pfields_paired: Dict[Tuple[int, int], torch.Tensor] = {}
+    for offset, field in pfields.items():
+        field_zcxy = einops.rearrange(field, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
+
+        for i in range(num_sections):
+            pfields_paired[(i, i + int(offset))] = field_zcxy[i : i + 1]
+
+    if first_section_fix_field is not None:
+        assert fix in ["first", "both"]
+        first_section_fix_field_zcxy = (
+            einops.rearrange(first_section_fix_field, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .cuda()
+        )
+
+        for k, v in pfields_paired.items():
+            if k[1] == 0:  # aligned to first section
+                pfields_paired[k] = first_section_fix_field_zcxy.from_pixels()(
+                    v.from_pixels()  # type: ignore
+                ).pixels()
+
+    if last_section_fix_field is not None:
+        assert fix in ["last", "both"]
+
+        last_section_fix_field_inv = invert_field(last_section_fix_field.cuda())
+        last_section_fix_field_inv_zcxy = (
+            einops.rearrange(last_section_fix_field_inv, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .cuda()
+        )
+
+        for k, v in pfields_paired.items():
+            if k[0] == num_sections - 1:  # aligned from last section
+                pfields_paired[k] = last_section_fix_field_inv_zcxy.from_pixels()(
+                    v.from_pixels()  # type: ignore
+                ).pixels()
 
     afields = [
         torch.zeros((1, 2, match_offsets_zcxy.shape[2], match_offsets_zcxy.shape[3]))
@@ -125,7 +152,7 @@ def perform_aced_relaxation(
 
     for i in range(num_iter):
         loss = compute_aced_loss(
-            pfields=pfields,
+            pfields=pfields_paired,
             afields=afields,
             rigidity_masks=rigidity_masks_zcxy,
             match_offsets=[match_offsets_zcxy[i] for i in range(num_sections)],

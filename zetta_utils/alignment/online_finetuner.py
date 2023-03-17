@@ -20,7 +20,6 @@ def align_with_online_finetuner(
     assert src.shape == tgt.shape
     # assert len(src.shape) == 4 # (1, C, X, Y,)
     # assert src.shape[0] == 1
-
     src = einops.rearrange(src, "C X Y 1 -> 1 C X Y").float()
     tgt = einops.rearrange(tgt, "C X Y 1 -> 1 C X Y").float()
 

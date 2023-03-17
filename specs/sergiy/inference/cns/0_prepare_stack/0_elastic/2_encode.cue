@@ -2,11 +2,20 @@ import "math"
 
 import "list"
 
-#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
-#DST_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/encodings"
+#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0"
+#SRC_PATH:    "\(#BASE_FOLDER)/raw_img"
+#DST_PATH:    "\(#BASE_FOLDER)/encodings"
 
 #DST_INFO_CHUNK_SIZE: [2048, 2048, 1] // Will automatically get truncated if dataset becomes too small
 #TASK_SIZE: [2048, 2048, 1]
+
+#ROI_BOUNDS: {
+	"@type": "BBox3D.from_coords"
+	start_coord: [0, 0, 1000]
+	// end_coord: [32768, 32768, 3001]
+	end_coord: [int, int, int] | *[32768, 36864, 2000]
+	resolution: [32, 32, 45]
+}
 
 #DATASET_BOUNDS: {
 	"@type": "BBox3D.from_coords"
@@ -15,15 +24,6 @@ import "list"
 	end_coord: [32768, 36864, 8000]
 	resolution: [32, 32, 45]
 }
-
-#ROI_BOUNDS: {
-	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 0]
-	// end_coord: [32768, 32768, 3001]
-	end_coord: [int, int, int] | *[32768, 36864, 8000]
-	resolution: [32, 32, 45]
-}
-
 #SCALES: [
 	for i in list.Range(0, 10, 1) {
 		let ds_factor = [math.Pow(2, i), math.Pow(2, i), 1]
@@ -104,10 +104,11 @@ import "list"
 		crop_pad: [16, 16, 0]
 		res_change_mult: [int, int, int]
 	}
+	expand_bbox: true
 	dst_resolution: [int, int, int]
-	processing_chunk_sizes: [[int, int, int]]
-	processing_crop_pads: [[0, 0, 0]]
-	bbox: #ROI_BOUNDS
+	processing_chunk_sizes: _
+	processing_crop_pads:   _
+	bbox:                   #ROI_BOUNDS
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH
@@ -121,7 +122,7 @@ import "list"
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x111"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"

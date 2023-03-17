@@ -58,7 +58,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def translated_stop(self, offset: Sequence[float]) -> VolumetricIndex:
+    def translated_end(self, offset: Sequence[float]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.translated_end(offset=offset, resolution=self.resolution),
             resolution=self.resolution,

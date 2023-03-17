@@ -48,12 +48,12 @@ def _delete_resource_entry(resource_id: str):  # pragma: no cover
 
 def _get_stale_execution_ids() -> list[str]:  # pragma: no cover
     client = EXECUTION_DB.backend.client  # type: ignore
-    query = client.query(kind="Column")
 
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = time.time() - lookback
 
-    query = query.add_filter("heartbeat", "<", time_diff)
+    filters = [("heartbeat", "<", time_diff)]
+    query = client.query(kind="Column", filters=filters)
     query.keys_only()
 
     entities = list(query.fetch())

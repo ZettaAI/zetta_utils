@@ -130,6 +130,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:
+        execution_tracker.register_execution(execution_id, [])
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
         _ensure_required_env_vars()

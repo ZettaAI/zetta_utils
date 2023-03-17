@@ -282,9 +282,7 @@ def test_rand_perlin_2d(shape, res, device, expected_shape, expected_device):
     ],
 )
 def test_rand_perlin_2d_octaves(shape, res, device, expected_shape, expected_device):
-    result = augmentations.tensor.rand_perlin_2d_octaves(
-        shape, res, octaves=2, device=device
-    )
+    result = augmentations.tensor.rand_perlin_2d_octaves(shape, res, octaves=2, device=device)
     assert result.shape == expected_shape
     assert result.device == expected_device
 

@@ -3,8 +3,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1000]
-	end_coord: [2048, 2048, 2000]
+	start_coord: [0, 0, 1460]
+	end_coord: [2048, 2048, 1465]
 	resolution: [512, 512, 45]
 }
 

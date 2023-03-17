@@ -157,6 +157,7 @@ class ComputeFieldFlowSchema:
         cf_flow = build_subchunkable_apply_flow(
             op=self.operation,  # type: ignore
             processing_chunk_sizes=[self.chunk_size],
+            expand_bbox=True,
             bbox=bbox,
             dst_resolution=dst_resolution,
             dst=dst,

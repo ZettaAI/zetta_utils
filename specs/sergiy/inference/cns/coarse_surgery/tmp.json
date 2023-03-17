@@ -1,0 +1,301 @@
+[
+    {
+        "@type": "make_ng_link",
+        "title": "coarse_z3300_3500_x0",
+        "position": [
+            50000,
+            60000,
+            3301
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
+            ],
+            [
+                "+1 coarse_z3300_3500_x0",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/imgs_warped/+1"
+            ],
+            [
+                "aligned _fixfirst_iter200_rig20_z3300-3320",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_aligned_fixfirst_iter200_rig20_z3300-3320"
+            ],
+            [
+                "aligned masked _fixfirst_iter200_rig20_z3300-3320",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_aligned_masked_fixfirst_iter200_rig20_z3300-3320"
+            ]
+        ]
+    },
+    {
+        "@type": "mazepa.execute_on_gcp_with_sqs",
+        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112",
+        "worker_resources": {
+            "memory": "18560Mi",
+            "nvidia.com/gpu": "1"
+        },
+        "worker_replicas": 8,
+        "batch_gap_sleep_sec": 1,
+        "do_dryrun_estimation": true,
+        "local_test": false,
+        "target": {
+            "@type": "mazepa.seq_flow",
+            "stages": [
+                {
+                    "@type": "build_subchunkable_apply_flow",
+                    "op": {
+                        "@type": "AcedRelaxationOp"
+                    },
+                    "dst_resolution": [
+                        32,
+                        32,
+                        45
+                    ],
+                    "bbox": {
+                        "@type": "BBox3D.from_coords",
+                        "start_coord": [
+                            0,
+                            0,
+                            3300
+                        ],
+                        "end_coord": [
+                            2048,
+                            2048,
+                            3320
+                        ],
+                        "resolution": [
+                            512,
+                            512,
+                            45
+                        ]
+                    },
+                    "processing_chunk_sizes": [
+                        [
+                            1024,
+                            1024,
+                            20
+                        ],
+                        [
+                            256,
+                            256,
+                            20
+                        ]
+                    ],
+                    "processing_crop_pads": [
+                        [
+                            0,
+                            0,
+                            0
+                        ],
+                        [
+                            64,
+                            64,
+                            0
+                        ]
+                    ],
+                    "fix": "first",
+                    "num_iter": 200,
+                    "lr": 0.3,
+                    "rigidity_weight": 20,
+                    "rigidity_masks": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/defect_mask",
+                        "read_procs": [
+                            {
+                                "@type": "compare",
+                                "@mode": "partial",
+                                "mode": "==",
+                                "value": 0
+                            }
+                        ]
+                    },
+                    "match_offsets": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/match_offsets"
+                    },
+                    "field_zm1": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/pairwise_fields/-1"
+                    },
+                    "field_zm2": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/pairwise_fields/-2"
+                    },
+                    "dst": {
+                        "@type": "build_cv_layer",
+                        "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/afield_fixfirst_iter200_rig20_z3300-3320",
+                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                        "info_field_overrides": {
+                            "num_channels": 2,
+                            "data_type": "float32",
+                            "encoding": "zfpc"
+                        },
+                        "info_chunk_size": [
+                            512,
+                            512,
+                            1
+                        ],
+                        "on_info_exists": "overwrite"
+                    }
+                },
+                {
+                    "@type": "mazepa.seq_flow",
+                    "stages": [
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "op": {
+                                "@type": "WarpOperation",
+                                "mode": "img"
+                            },
+                            "processing_crop_pads": [
+                                [
+                                    256,
+                                    256,
+                                    0
+                                ]
+                            ],
+                            "processing_chunk_sizes": [
+                                [
+                                    2048,
+                                    2048,
+                                    1
+                                ]
+                            ],
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    3300
+                                ],
+                                "end_coord": [
+                                    2048,
+                                    2048,
+                                    3320
+                                ],
+                                "resolution": [
+                                    512,
+                                    512,
+                                    45
+                                ]
+                            },
+                            "dst_resolution": [
+                                512,
+                                512,
+                                45
+                            ],
+                            "src": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
+                            },
+                            "field": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/afield_fixfirst_iter200_rig20_z3300-3320"
+                            },
+                            "dst": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_aligned_fixfirst_iter200_rig20_z3300-3320",
+                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                "on_info_exists": "overwrite"
+                            }
+                        },
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "op": {
+                                "@type": "WarpOperation",
+                                "mode": "mask"
+                            },
+                            "processing_crop_pads": [
+                                [
+                                    256,
+                                    256,
+                                    0
+                                ]
+                            ],
+                            "processing_chunk_sizes": [
+                                [
+                                    2048,
+                                    2048,
+                                    1
+                                ]
+                            ],
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    3300
+                                ],
+                                "end_coord": [
+                                    2048,
+                                    2048,
+                                    3320
+                                ],
+                                "resolution": [
+                                    512,
+                                    512,
+                                    45
+                                ]
+                            },
+                            "dst_resolution": [
+                                512,
+                                512,
+                                45
+                            ],
+                            "src": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/match_offsets/img_mask"
+                            },
+                            "field": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/afield_fixfirst_iter200_rig20_z3300-3320"
+                            },
+                            "dst": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_mask_fixfirst_iter200_rig20_z3300-3320",
+                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                "on_info_exists": "overwrite"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "@type": "make_ng_link",
+        "title": "coarse_z3300_3500_x0",
+        "position": [
+            50000,
+            60000,
+            3301
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
+            ],
+            [
+                "+1 coarse_z3300_3500_x0",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/imgs_warped/+1"
+            ],
+            [
+                "aligned _fixfirst_iter200_rig20_z3300-3320",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_aligned_fixfirst_iter200_rig20_z3300-3320"
+            ],
+            [
+                "aligned masked _fixfirst_iter200_rig20_z3300-3320",
+                "image",
+                "precomputed://gs://sergiy_exp/aced/demo_x0/coarse_z3300_3500_x0/img_aligned_masked_fixfirst_iter200_rig20_z3300-3320"
+            ]
+        ]
+    }
+]

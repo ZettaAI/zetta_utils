@@ -248,7 +248,7 @@ def _make_ng_link(dst: VolumetricBasedLayerProtocol, bbox: BBox3D) -> Optional[s
         layer_path = layer_str.split(" ")[-1]
         try:
             build_cv_layer(layer_path)
-            link_layers.append([layer_name, "image", "precomputed://" + layer_path.strip('/')])
+            link_layers.append([layer_name, "image", "precomputed://" + layer_path.strip("/")])
         except FileNotFoundError:
             pass
     try:
@@ -341,7 +341,7 @@ def _print_summary(  # pylint: disable=line-too-long
     summary += lrpad("", length=120) + "\n"
     summary += (
         lrpad(
-            " Level  Max red. chunk size  Intermediary dir (both only used if Checkerboard == True)",
+            " Level  Max red. chunk size  Intermediary dir (top level only used if Checkerboard == True)",
             length=120,
         )
         + "\n"
@@ -524,6 +524,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         intermediaries_dir=_path_join_if_not_none(level_intermediaries_dirs[-1], "chunks_level_0"),
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
+        force_intermediaries=True,
     )
 
     """
@@ -545,6 +546,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             ),
             allow_cache=(allow_cache_up_to_level >= level + 1),
             clear_cache_on_return=(allow_cache_up_to_level == level + 1),
+            force_intermediaries=(level != num_levels - 1),
         )
 
     return flow_schema(idx, dst, *args, **kwargs)

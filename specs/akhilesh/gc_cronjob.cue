@@ -7,7 +7,7 @@ cluster: {
 }
 name: "gc-cron"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x1"
+image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x3"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
@@ -22,6 +22,6 @@ preset_env_vars: [
     "AWS_DEFAULT_REGION"
 ]
 resources: {
-	memory: "100Mi"
+	memory: "1Gi"
 }
 patch: false

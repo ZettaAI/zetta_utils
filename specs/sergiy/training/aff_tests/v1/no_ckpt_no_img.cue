@@ -1,16 +1,13 @@
-#EXP_NAME:      "aff_demo"
+#EXP_NAME:      "aff_tests"
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
-#LR:            1e-4
+#LR:            1e-5
 #CLIP:          0e-5
 #K:             3
 #CHUNK_SIZE: [256, 256, 20]
 #MODEL_CKPT:  null
-#EXP_VERSION: "k\(#K)_lr\(#LR)_x0_checkpoint_replicate"
-
-"@type":    "mazepa.execute_on_gcp_with_sqs"
-"@version": "0.0.1"
-
-worker_image: "TO_BE_FILLED_BY_USER"
+#EXP_VERSION: "k\(#K)_lr\(#LR)_x8_no_ckpt_no_img"
+"@type":      "mazepa.execute_on_gcp_with_sqs"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x100"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
@@ -18,7 +15,7 @@ worker_resources: {
 worker_replicas:     1
 batch_gap_sleep_sec: 5
 
-local_test: true
+local_test: false
 
 target: {
 	"@type": "lightning_train"
@@ -26,8 +23,8 @@ target: {
 
 	regime: {
 		"@type":                "NaiveSupervisedRegime"
-		val_log_row_interval:   100
-		train_log_row_interval: 200
+		val_log_row_interval:   1000000
+		train_log_row_interval: 2000000
 		lr:                     #LR
 
 		model: {
@@ -89,8 +86,8 @@ target: {
 		gradient_clip_algorithm: "norm"
 		gradient_clip_val:       #CLIP
 		checkpointing_kwargs: {
-			update_every_n_secs: 60
-			backup_every_n_secs: 900
+			update_every_n_secs: 60000
+			backup_every_n_secs: 900000
 		}
 	}
 

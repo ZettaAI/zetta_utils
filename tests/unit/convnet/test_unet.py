@@ -203,8 +203,8 @@ def test_forward_skips(mocker):
 @pytest.mark.parametrize(
     "unet_skip_mode, expected_result",
     [
-        ["sum",    torch.tensor([[ [[ 2.,  2.], [ 2.,  2.]] ]])],
-        ["concat", torch.tensor([[ [[ 1.,  1.], [ 1.,  1.]] ]])],
+        ["sum", torch.tensor([[[[2.0, 2.0], [2.0, 2.0]]]])],
+        ["concat", torch.tensor([[[[1.0, 1.0], [1.0, 1.0]]]])],
     ],
 )
 def test_skip_mode(unet_skip_mode, expected_result, mocker):
@@ -215,7 +215,7 @@ def test_skip_mode(unet_skip_mode, expected_result, mocker):
         list_num_channels=[[1, 1, 1], [1, 1, 1], [1, 1, 1]],
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
-        unet_skip_mode=unet_skip_mode
+        unet_skip_mode=unet_skip_mode,
     )
     result = unet.forward(torch.ones([1, 1, 2, 2]))
 

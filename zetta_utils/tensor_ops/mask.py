@@ -68,29 +68,28 @@ def filter_cc(
     :return: Tensor with the filtered clusters removed.
     """
     data_np = convert.to_np(data)
-    if len(data.shape) == 4:
-        # CXYZ
-        assert data.shape[0] == 1
-        assert data.shape[-1] == 1
-        data_np = data_np.squeeze(0).squeeze(-1)
 
-    cc_labels = cc3d.connected_components(data_np != 0)
-    segids, counts = np.unique(cc_labels, return_counts=True)
-    if mode == "keep_large":
-        segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
-    else:
-        segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
+    data_np = einops.rearrange(data_np, "C X Y Z -> Z C X Y")
+    assert data_np.shape[1] == 1
 
-    filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
+    result_raw = np.zeros_like(data_np)
 
-    result_raw = copy.copy(data_np)
-    result_raw[filtered_mask == 0] = 0
+    for z in range(data_np.shape[0]):
+        if (data_np[z] != 0).sum() > 0:
+            cc_labels = cc3d.connected_components(data_np[z] != 0)
+            segids, counts = np.unique(cc_labels, return_counts=True)
+            if mode == "keep_large":
+                segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
+            else:
+                segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
 
-    if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, -1))
+            filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
 
+            result_raw[z] = copy.copy(data_np[z])
+            result_raw[z][filtered_mask == 0] = 0
+
+    result_raw = einops.rearrange(result_raw, "Z C X Y -> C X Y Z")
     result = convert.astype(result_raw, data)
-
     return result
 
 

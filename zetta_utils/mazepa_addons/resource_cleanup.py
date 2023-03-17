@@ -2,6 +2,7 @@
 Garbage collection for execution resources.
 """
 
+import logging
 import os
 import time
 from typing import Any, Dict, List
@@ -47,12 +48,12 @@ def _delete_resource_entry(resource_id: str):  # pragma: no cover
 
 def _get_stale_execution_ids() -> list[str]:  # pragma: no cover
     client = EXECUTION_DB.backend.client  # type: ignore
-    query = client.query(kind="Column")
 
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = time.time() - lookback
 
-    query = query.add_filter("heartbeat", "<", time_diff)
+    filters = [("heartbeat", "<", time_diff)]
+    query = client.query(kind="Column", filters=filters)
     query.keys_only()
 
     entities = list(query.fetch())
@@ -144,6 +145,7 @@ def cleanup_execution(execution_id: str):
 
 if __name__ == "__main__":  # pragma: no cover
     execution_ids = _get_stale_execution_ids()
+    logger.setLevel(logging.INFO)
     for exec_id in execution_ids:
         logger.info(f"Cleaning up execution `{exec_id}`")
         cleanup_execution(exec_id)

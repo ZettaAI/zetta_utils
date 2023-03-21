@@ -467,3 +467,32 @@ def crop(
             slices.append(slice(0, None))
     result = data[tuple(slices)]
     return result
+
+
+@builder.register("crop_center")
+@typechecked
+def crop_center(
+    data: TensorTypeVar,
+    size: Sequence[int],  # pylint: disable=redefined-outer-name
+) -> TensorTypeVar:
+    """
+    Crop a multidimensional tensor at the center.
+
+    :param data: Input tensor.
+    :param size: Size of the crop box.
+        The last integer will correspond to the last dimension, and count
+        will go from there right to left.
+    """
+    ndim = len(size)
+    slices = [slice(0, None) for _ in range(data.ndim - ndim)]
+    for insz, outsz in zip(data.shape[-ndim:], size):
+        assert insz >= outsz
+        lcrop = (insz - outsz) // 2
+        rcrop = (insz - outsz) - lcrop
+        if rcrop != 0:
+            slices.append(slice(lcrop, -rcrop))
+        else:
+            assert lcrop == 0
+            slices.append(slice(0, None))
+    result = data[tuple(slices)]
+    return result

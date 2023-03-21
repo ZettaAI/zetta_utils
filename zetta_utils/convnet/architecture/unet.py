@@ -11,7 +11,7 @@ from typing_extensions import TypeAlias
 
 from zetta_utils import builder
 
-from .convblock import ConvBlock, Padding, PaddingMode
+from .convblock import ActivationMode, ConvBlock, Padding, PaddingMode
 
 SkipConnectionMode: TypeAlias = Literal["sum", "concat"]
 
@@ -70,6 +70,7 @@ class UNet(nn.Module):
         activate_last: bool = False,
         padding_modes: PaddingMode | Sequence[PaddingMode] = "zeros",
         unet_skip_mode: SkipConnectionMode = "sum",
+        activation_mode: ActivationMode = "post",
     ):  # pylint: disable=too-many-locals, too-many-statements, too-many-branches
         super().__init__()
         assert len(list_num_channels) % 2 == 1
@@ -79,9 +80,9 @@ class UNet(nn.Module):
         self.layers = torch.nn.ModuleList()
         self.unet_skip_mode = unet_skip_mode
 
-        normalize_last_ = [(normalization is not None) for _ in range(len(list_num_channels))]
+        normalize_last_ = [activation_mode == "post"] * len(list_num_channels)
         normalize_last_[-1] = normalize_last
-        activate_last_ = [True for _ in range(len(list_num_channels))]
+        activate_last_ = [activation_mode == "post"] * len(list_num_channels)
         activate_last_[-1] = activate_last
 
         skips_in = []
@@ -98,10 +99,14 @@ class UNet(nn.Module):
                     )
                 except TypeError:
                     self.layers.append(upsample())
-                if normalization is not None:
+
+                if (activation_mode == "post") and (normalization is not None):
                     self.layers.append(normalization(list_num_channels[i][0]))
-                self.layers.append(activation())
+
                 skips_out.append(len(self.layers))
+
+                if activation_mode == "post":
+                    self.layers.append(activation())
 
                 # TODO: Assumes skip connection input has the same number of channels
                 if self.unet_skip_mode == "concat":
@@ -120,6 +125,7 @@ class UNet(nn.Module):
                     normalize_last=normalize_last_[i],
                     activate_last=activate_last_[i],
                     padding_modes=padding_modes,
+                    activation_mode=activation_mode,
                 )
             )
 
@@ -134,9 +140,6 @@ class UNet(nn.Module):
                     )
                 except TypeError:
                     self.layers.append(downsample())
-                if normalization is not None:
-                    self.layers.append(normalization(list_num_channels[i + 1][0]))
-                self.layers.append(activation())
 
         self.skips = {}
         for skip_in, skip_out in zip(skips_in, skips_out[-1::-1]):

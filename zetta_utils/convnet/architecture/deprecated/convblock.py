@@ -13,17 +13,15 @@ from zetta_utils.typing import ensure_seq_of_seq
 
 Padding: TypeAlias = Union[Literal["same", "valid"], Sequence[int]]
 PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
-ActivationMode: TypeAlias = Literal["pre", "post"]
 
 
-@builder.register("ConvBlock", versions=">=0.0.1")
+@builder.register("ConvBlock", versions="==0.0.0")
 @typechecked
 # cant use attrs because torch Module + attrs combination makes pylint freak out
 class ConvBlock(nn.Module):
     """
     A block with sequential convolutions with activations, optional normalization and residual
     connections.
-
     :param num_channels: list of integers specifying the number of channels of each
         convolution. For example, specification [1, 2, 3] will correspond to a sequence of
         2 convolutions, where the first one has 1 input channel and 2 output channels and
@@ -37,35 +35,27 @@ class ConvBlock(nn.Module):
         When specified as a sequence of sequence of integers, each item in the outer sequence will
         be passed as ``k`` to the corresponding convolution in order, and the outer sequence
         length must match the number of convolutions.
-
     :param strides: Convolution strides. When specified as a sequence of integers
         it will be passed as the stride parameter to all convolution constructors.
         When specified as a sequence of sequences, each item in the outer sequence will be passed
         as stride to the corresponding convolution in order, and the outer sequence length must
         match the number of convolutions.
-
     :param paddings: Convolution padding sizes.  When specified as a single string, or a
         sequence of integers, it will be passed as the padding parameter to all convolution
         constructors. When specified as a sequence of strings or sequence of int sequences, each
         item in the outer sequence will be passed as padding to the corresponding convolution in
         order, and the outer sequence length must match the number of convolutions.
-
     :param skips: Specification for residual skip connection. For example,
         ``skips={"1": 3}`` specifies a single residual skip connection from the output of the
-        first convolution (index 1) to the output of third convolution (index 3).
+        first convolution (index 1) to the input of third convolution (index 3).
         0 specifies the input to the first layer.
     :param normalize_last: Whether to apply normalization after the last layer.
     :param activate_last: Whether to apply activation after the last layer.
-
     :param padding_modes: Convolution padding modes. When specified as a single string,
         it will be passed as the padding mode parameter to all convolution constructors.
         When specified as a sequence of strings, each item in the sequence will be passed as
         padding mode to the corresponding convolution in order. The list length must match
         the number of convolutions.
-
-    :param activation_mode: Whether to use ``pre-activation`` (norm. -> act. -> conv.) or
-        ``post-activation`` (conv. -> norm. -> act.) for residual skip connections
-        (He et al. 2016).
     """
 
     def __init__(
@@ -81,7 +71,6 @@ class ConvBlock(nn.Module):
         activate_last: bool = False,
         paddings: Padding | Sequence[Padding] = "same",
         padding_modes: PaddingMode | Sequence[PaddingMode] = "zeros",
-        activation_mode: ActivationMode = "post",
     ):  # pylint: disable=too-many-locals
         super().__init__()
         if skips is None:
@@ -96,28 +85,12 @@ class ConvBlock(nn.Module):
         if strides is not None:
             strides_ = ensure_seq_of_seq(strides, num_conv)
         else:
-            strides_ = [[1] * len(kernel_sizes_[0])] * num_conv
+            strides_ = [[1 for _ in range(len(kernel_sizes_[0]))] for __ in range(num_conv)]
 
         padding_modes_ = ensure_seq_of_seq(padding_modes, num_conv)
         paddings_ = ensure_seq_of_seq(paddings, num_conv)
 
-        # Manage skip connections for pre-activation mode
-        pre_skips_src = [0]
-        pre_skips_dst = []
-
-        # Manage skip connections for post-activation mode
-        post_skips_src = [0]
-        post_skips_dst = []
-
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
-            if (activation_mode == "pre") or (i >= 1):
-                if normalization is not None:
-                    self.layers.append(normalization(ch_in))  # pylint: disable=not-callable
-
-                post_skips_dst.append(len(self.layers))
-                self.layers.append(activation())
-                post_skips_src.append(len(self.layers))
-
             new_conv = conv(
                 ch_in,
                 ch_out,
@@ -127,40 +100,40 @@ class ConvBlock(nn.Module):
                 padding_mode=padding_modes_[i],
             )
             # TODO: make this step optional
-            if new_conv.bias is not None:
+            if not new_conv.bias is None:
                 new_conv.bias.data[:] = 0
             self.layers.append(new_conv)
 
-            pre_skips_src.append(len(self.layers))
-            pre_skips_dst.append(len(self.layers))
+            is_last_conv = i == len(num_channels) - 2
 
-        if normalize_last and (normalization is not None):
-            self.layers.append(normalization(num_channels[-1]))  # pylint: disable=not-callable
-        if activate_last:
-            self.layers.append(activation())
+            if (normalization is not None) and ((not is_last_conv) or normalize_last):
+                self.layers.append(normalization(ch_out))  # pylint: disable=not-callable
 
-        # Pre- or post-activation
-        self.skips_src = pre_skips_src if activation_mode == "pre" else post_skips_src
-        self.skips_dst = pre_skips_dst if activation_mode == "pre" else post_skips_dst
+            if (not is_last_conv) or activate_last:
+                self.layers.append(activation())
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
         skip_data_for = {}  # type: dict[int, torch.Tensor]
+        conv_count = 1
+        if "0" in self.skips:
+            skip_dest = self.skips["0"]
+            skip_data_for[skip_dest] = data
         result = data
-        conv_count = 0
-        for i, layer in enumerate(self.layers):
-            if (i in self.skips_dst) and (conv_count in skip_data_for):
-                result += skip_data_for[conv_count]
+        for this_layer, next_layer in zip(self.layers, self.layers[1:] + [None]):
+            if isinstance(this_layer, torch.nn.modules.conv._ConvNd):
+                if conv_count in skip_data_for:
+                    result += skip_data_for[conv_count]
 
-            if (i in self.skips_src) and (str(conv_count) in self.skips):
-                skip_dest = self.skips[str(conv_count)]
-                if skip_dest in skip_data_for:
-                    skip_data_for[skip_dest] += result
-                else:
-                    skip_data_for[skip_dest] = result
+            result = this_layer(result)
 
-            result = layer(result)
+            if isinstance(next_layer, torch.nn.modules.conv._ConvNd):
+                if str(conv_count) in self.skips:
+                    skip_dest = self.skips[str(conv_count)]
+                    if skip_dest in skip_data_for:
+                        skip_data_for[skip_dest] += result
+                    else:
+                        skip_data_for[skip_dest] = result
 
-            if isinstance(layer, torch.nn.modules.conv._ConvNd):
                 conv_count += 1
 
         return result

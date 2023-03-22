@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Sequence as AbcSequence
 from functools import partial
 from types import BuiltinMethodType
-from typing import Any, Callable, List, Literal, Sequence
+from typing import Any, Callable, List, Literal, Mapping, Sequence
 
 import torch
 import torch.nn.functional as F
@@ -203,3 +203,39 @@ class CenterCrop(torch.nn.Module):  # pragma: no cover
 
     def forward(self, x):
         return self.crop(x)
+
+
+@builder.register("MultiHeaded")
+@typechecked
+class MultiHeaded(torch.nn.Module):  # pragma: no cover
+    def __init__(
+        self,
+        heads: Mapping[str, torch.nn.Module],
+    ):
+        super().__init__()
+        self.heads = torch.nn.ModuleDict(heads)
+
+    def forward(self, x):
+        return {k: head(x) for k, head in self.heads.items()}
+
+
+@builder.register("MultiHeadedOutput")
+@typechecked
+class MultiHeadedOutput(MultiHeaded):  # pragma: no cover
+    def __init__(
+        self,
+        in_channels: int,
+        heads: Mapping[str, int],
+        conv: Callable[..., torch.nn.modules.conv._ConvNd],
+        preactivation: torch.nn.Module | None = None,
+        activation: Callable[[], torch.nn.Module] | None = None,
+    ):
+        heads_ = {}
+        for name, out_channels in heads.items():
+            layers: list[Any] = [conv(in_channels, out_channels)]
+            if preactivation is not None:
+                layers.append(preactivation)
+            if activation is not None:
+                layers.append(activation)
+            heads_[name] = torch.nn.Sequential(*layers)
+        super().__init__(heads_)

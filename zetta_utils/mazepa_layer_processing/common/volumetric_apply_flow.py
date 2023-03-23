@@ -372,7 +372,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             idx_expanded = idx.padded(self.processing_blend_pad)
 
             task_idxs = chunker(
-                idx_expanded, stride_start_offset_in_unit=idx_expanded.start, mode="shrink"
+                idx_expanded,
+                stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
+                mode="shrink",
             )
             with suppress_type_checks():
                 for task_idx in task_idxs:

@@ -219,7 +219,7 @@ def test_cv_get_chunk_size(clear_caches):
     )
     cvb = CVBackend(path=LAYER_X2_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
-    assert cvb.get_chunk_size(Vec3D(8, 8, 8)) == IntVec3D(1024, 1024, 1)
+    assert cvb.get_chunk_size(Vec3D(2, 2, 1)) == IntVec3D(1024, 1024, 1)
 
 
 def test_cv_get_voxel_offset(clear_caches):
@@ -230,7 +230,7 @@ def test_cv_get_voxel_offset(clear_caches):
     )
     cvb = CVBackend(path=LAYER_X3_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
-    assert cvb.get_voxel_offset(Vec3D(8, 8, 8)) == IntVec3D(1, 2, 3)
+    assert cvb.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(1, 2, 3)
 
 
 def test_cv_with_changes(clear_caches, mocker):
@@ -241,14 +241,14 @@ def test_cv_with_changes(clear_caches, mocker):
     cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     cvb_new = cvb.with_changes(
         name=LAYER_X5_PATH,
-        voxel_offset_res=(IntVec3D(3, 2, 1), Vec3D(8, 8, 8)),
-        chunk_size_res=(IntVec3D(512, 512, 1), Vec3D(8, 8, 8)),
+        voxel_offset_res=(IntVec3D(3, 2, 1), Vec3D(2, 2, 1)),
+        chunk_size_res=(IntVec3D(512, 512, 1), Vec3D(2, 2, 1)),
         use_compression=False,
         enforce_chunk_aligned_writes=False,
     )
     assert cvb_new.name == LAYER_X5_PATH
-    assert cvb_new.get_voxel_offset(Vec3D(8, 8, 8)) == IntVec3D(3, 2, 1)
-    assert cvb_new.get_chunk_size(Vec3D(8, 8, 8)) == IntVec3D(512, 512, 1)
+    assert cvb_new.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(3, 2, 1)
+    assert cvb_new.get_chunk_size(Vec3D(2, 2, 1)) == IntVec3D(512, 512, 1)
     assert not cvb_new.use_compression
     assert not cvb_new.enforce_chunk_aligned_writes
 
@@ -272,9 +272,9 @@ def test_cv_assert_idx_is_chunk_aligned(clear_caches):
     cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
-            (slice(1, 4), slice(-8, 12), slice(-18, -11)), resolution=Vec3D(8, 8, 8)
+            (slice(1, 4), slice(-8, 12), slice(-18, -11)), resolution=Vec3D(2, 2, 1)
         ),
-        resolution=Vec3D(8, 8, 8),
+        resolution=Vec3D(2, 2, 1),
     )
     cvb.assert_idx_is_chunk_aligned(index)
 
@@ -288,9 +288,9 @@ def test_cv_assert_idx_is_chunk_aligned_exc(clear_caches):
     cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
-            (slice(0, 13), slice(0, 13), slice(0, 13)), resolution=Vec3D(8, 8, 8)
+            (slice(0, 13), slice(0, 13), slice(0, 13)), resolution=Vec3D(2, 2, 1)
         ),
-        resolution=Vec3D(8, 8, 8),
+        resolution=Vec3D(2, 2, 1),
     )
 
     with pytest.raises(ValueError):

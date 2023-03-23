@@ -23,7 +23,7 @@
 
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
-	processing_chunk_sizes: [[4096, 7096, 1], [2048, 2048, 1]]
+	processing_chunk_sizes: [[4096, 7096, 1], [256, 256, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_modes: "quadratic"

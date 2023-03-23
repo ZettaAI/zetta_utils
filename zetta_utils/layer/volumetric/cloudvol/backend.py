@@ -106,6 +106,14 @@ class PrecomputedInfoSpec:
 
         return result
 
+    def write_info(
+        self, path: str
+    ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
+        if not path.endswith("/info"):
+            path = os.path.join(path, "info")
+        with fsspec.open(path, "w") as f:
+            json.dump(self.make_info(), f)
+
 
 InfoExistsModes = Literal["expect_same", "overwrite"]
 
@@ -167,7 +175,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                         "while `on_info_exists` is set to 'expect_same'"
                     )
                 if existing_info != new_info:
-
                     CloudVolume(  # pylint: disable=no-member
                         self.path, info=new_info
                     ).commit_info()
@@ -252,7 +259,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def use_compression(self) -> bool:  # pragma: no cover
-        return self.cv_kwargs["cache"]
+        return self.cv_kwargs["compress"]
 
     @use_compression.setter
     def use_compression(self, value: bool) -> None:  # pragma: no cover
@@ -299,6 +306,12 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         cvol[slices] = data_final
         cvol.autocrop = False
 
+    def as_type(self, backend_type) -> VolumetricBackend:  # pragma: no cover # type: ignore
+        type_args = [f.name for f in attrs.fields(backend_type)]
+        keys_to_use = set(dir(self)).intersection(type_args)
+        kwargs_to_use = {k: getattr(self, k) for k in keys_to_use}
+        return backend_type(**kwargs_to_use)
+
     def with_changes(self, **kwargs) -> CVBackend:
         """Currently untyped. Supports:
         "name" = value: str
@@ -335,7 +348,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         evolve_kwargs = {}
         for k, v in kwargs.items():
             if k not in implemented_keys:
-                raise KeyError(f"key {k} received, expected one of {implemented_keys}")
+                raise KeyError(f"key `{k}` received, expected one of `{implemented_keys}`")
             if k in keys_to_cv_kwargs:
                 if k in keys_to_reverse:
                     v = not v

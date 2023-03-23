@@ -12,6 +12,8 @@ from .. import Backend
 from . import VolumetricIndex
 
 DataT = TypeVar("DataT")
+# even with annotations, cannot be bound to VolumetricBackend
+BackendT = TypeVar("BackendT")
 
 
 class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too-few-public-methods
@@ -61,6 +63,10 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
+        ...
+
+    @abstractmethod
+    def as_type(self, backend_type: BackendT) -> VolumetricBackend:
         ...
 
     """

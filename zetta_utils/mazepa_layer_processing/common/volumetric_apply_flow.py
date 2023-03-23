@@ -14,6 +14,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
 )
+from zetta_utils.layer.volumetric.tensorstore import TSBackend
 from zetta_utils.typing import check_type
 
 from ..operation_protocols import VolumetricOpProtocol
@@ -23,6 +24,8 @@ logger = log.get_logger("zetta_utils")
 IndexT = TypeVar("IndexT")
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
+
+LocalBackend = TSBackend
 
 
 def get_intersection_and_subindex(small: VolumetricIndex, large: VolumetricIndex):
@@ -269,6 +272,34 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         else:
             self.max_reduction_chunk_size_final = self.max_reduction_chunk_size
 
+    def _get_temp_dst(
+        self,
+        dst: VolumetricBasedLayerProtocol,
+        idx: VolumetricIndex,
+        suffix: Optional[Any] = None,
+    ) -> VolumetricBasedLayerProtocol:
+        assert self.intermediaries_dir is not None
+        temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
+        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
+        if self.intermediaries_dir.startswith("file://"):
+            backend_temp = dst.backend.as_type(LocalBackend).with_changes(
+                name=path.join(self.intermediaries_dir, temp_name),
+                voxel_offset_res=(idx.start, self.dst_resolution),
+                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
+                enforce_chunk_aligned_writes=False,
+                allow_cache=allow_cache,
+            )
+        else:
+            backend_temp = dst.backend.with_changes(
+                name=path.join(self.intermediaries_dir, temp_name),
+                voxel_offset_res=(idx.start, self.dst_resolution),
+                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
+                enforce_chunk_aligned_writes=False,
+                use_compression=False,
+                allow_cache=allow_cache,
+            )
+        return attrs.evolve(deepcopy(dst), backend=backend_temp)
+
     def make_tasks_without_checkerboarding(
         self,
         idx_chunks: Iterable[VolumetricIndex],
@@ -292,20 +323,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol,
         **kwargs: P.kwargs,
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
-        assert self.intermediaries_dir is not None
-        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
-        backend_temp = dst.backend.with_changes(
-            name=path.join(
-                self.intermediaries_dir,
-                f"_{self.op.__class__.__name__}_temp_{idx.pformat()}",
-            ),
-            voxel_offset_res=(idx.start, self.dst_resolution),
-            chunk_size_res=(self.processing_chunk_size, self.dst_resolution),
-            enforce_chunk_aligned_writes=True,
-            use_compression=False,
-            allow_cache=allow_cache,
-        )
-        dst_temp = attrs.evolve(deepcopy(dst), backend=backend_temp)
+        dst_temp = self._get_temp_dst(dst, idx)
         idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, **kwargs)
 
@@ -344,19 +362,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
-            allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
-            backend_temp = dst.backend.with_changes(
-                name=path.join(
-                    self.intermediaries_dir,
-                    f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{chunker_idx}",
-                ),
-                voxel_offset_res=(idx.start, self.dst_resolution),
-                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
-                enforce_chunk_aligned_writes=False,
-                use_compression=False,
-                allow_cache=allow_cache,
-            )
-            dst_temp = attrs.evolve(deepcopy(dst), backend=backend_temp)
+            dst_temp = self._get_temp_dst(dst, idx, chunker_idx)
             dst_temps.append(dst_temp)
 
             # assert that the idx passed in is in fact exactly divisible by the chunk size
@@ -394,8 +400,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert len(args) == 0
         assert self.roi_crop_pad is not None
         assert self.processing_blend_pad is not None
-
-        # dst: VolumetricBasedLayerProtocol,
 
         # set caching for all VolumetricBasedLayerProtocols as desired
         if self.allow_cache:

@@ -162,6 +162,15 @@ class VolumetricSetBackend(
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
 
+    def as_type(self, backend_type) -> VolumetricSetBackend:  # pragma: no cover
+        return attrs.evolve(
+            self,
+            layers={
+                k: attrs.evolve(v, backend=v.backend.as_type(backend_type))
+                for k, v in self.layers.items()
+            },
+        )
+
     def with_changes(self, **kwargs) -> VolumetricSetBackend:  # pragma: no cover
         return attrs.evolve(
             self,

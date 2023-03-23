@@ -281,19 +281,20 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert self.intermediaries_dir is not None
         temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
         allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
+        backend_chunk_size = self._get_backend_chunk_size_to_use(dst)
         if self.intermediaries_dir.startswith("file://"):
             backend_temp = dst.backend.as_type(LocalBackend).with_changes(
                 name=path.join(self.intermediaries_dir, temp_name),
-                voxel_offset_res=(idx.start, self.dst_resolution),
-                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
+                voxel_offset_res=(idx.start - backend_chunk_size, self.dst_resolution),
+                chunk_size_res=(backend_chunk_size, self.dst_resolution),
                 enforce_chunk_aligned_writes=False,
                 allow_cache=allow_cache,
             )
         else:
             backend_temp = dst.backend.with_changes(
                 name=path.join(self.intermediaries_dir, temp_name),
-                voxel_offset_res=(idx.start, self.dst_resolution),
-                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
+                voxel_offset_res=(idx.start - backend_chunk_size, self.dst_resolution),
+                chunk_size_res=(backend_chunk_size, self.dst_resolution),
                 enforce_chunk_aligned_writes=False,
                 use_compression=False,
                 allow_cache=allow_cache,

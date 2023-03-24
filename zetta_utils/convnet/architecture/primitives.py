@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence as AbcSequence
 from functools import partial
+from types import BuiltinMethodType
 from typing import Any, Callable, List, Literal, Sequence
 
 import torch
@@ -19,6 +20,12 @@ NN_MANUAL = [
 for k in dir(torch.nn):
     if k not in NN_MANUAL and k[0].isupper():
         builder.register(f"torch.nn.{k}")(getattr(torch.nn, k))
+
+for module in [torch, torch.nn.functional, torch.linalg, torch.fft]:
+    for k in dir(module):
+        attr = getattr(module, k)
+        if isinstance(attr, BuiltinMethodType) and not k.startswith("_"):
+            builder.register(f"{module.__name__}.{k}")(attr)
 
 
 @builder.register("torch.nn.Sequential")

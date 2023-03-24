@@ -115,7 +115,7 @@ def square_tile_pattern_aug(  # pylint: disable=too-many-locals
     rotation_degree: Union[distributions.Distribution, float] = 0.0,
     preserve_data_val: Optional[float] = 0,
     repeats: int = 1,
-    device: torch.types.Device = "cpu",
+    device: torch.device | str | None = "cpu",
 ) -> TensorTypeVar:
     # C X Y (Z)
     assert data.shape[1] == data.shape[2]
@@ -180,7 +180,7 @@ def rand_perlin_2d(
     fade: Callable[[torch.Tensor], torch.Tensor] = lambda t: 6 * t ** 5
     - 15 * t ** 4
     + 10 * t ** 3,
-    device: torch.types.Device = None,
+    device: torch.device | str | None = None,
 ) -> torch.Tensor:
     if len(shape) != 4:
         raise ValueError(f"'shape' expected length 4 (CXYZ), got {len(shape)}")
@@ -252,7 +252,7 @@ def rand_perlin_2d_octaves(
     res: Sequence[int],
     octaves: int = 1,
     persistence: float = 0.5,
-    device: torch.types.Device = None,
+    device: torch.device | str | None = None,
 ) -> torch.Tensor:
     if len(shape) != 4:
         raise ValueError(f"'shape' expected length 4 (CXYZ), got {len(shape)}")

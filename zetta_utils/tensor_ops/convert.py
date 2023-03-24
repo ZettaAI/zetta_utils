@@ -58,20 +58,27 @@ def to_torch(data: Tensor, device: torch.device | str | None = "cpu") -> torch.T
 
 
 @typechecked
-def astype(data: Tensor, reference: TensorTypeVar) -> TensorTypeVar:
+def astype(
+    data: Tensor,
+    reference: TensorTypeVar,
+    cast: bool = False,
+) -> TensorTypeVar:
     """Convert the given tensor to `np.ndarray` or `torch.Tensor`
     depending on the type of reference tensor_ops.
 
     :param data: Input tensor_ops.
     :param reference: Reference type tensor_ops.
+    :param cast: If ``True``, cast `data` to the type of `reference`.
     :return: Input tensor converted to the reference type.
 
     """
     if isinstance(reference, torch.Tensor):
-        result = tensor_ops.convert.to_torch(data)  # type: TensorTypeVar
-    elif isinstance(reference, np.ndarray):
-        result = tensor_ops.convert.to_np(data)
-    return result
+        data_tc = tensor_ops.convert.to_torch(data)
+        return data_tc.to(reference.dtype) if cast else data_tc
+    else:
+        assert isinstance(reference, np.ndarray)
+        data_np = tensor_ops.convert.to_np(data)
+        return data_np.astype(reference.dtype) if cast else data_np
 
 
 @builder.register("to_float32")

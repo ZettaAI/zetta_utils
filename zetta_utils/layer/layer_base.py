@@ -47,7 +47,7 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
             if isinstance(e, JointIndexDataProcessor):
                 data_proced = e.process_data(data=data_proced, mode="read")
             else:
-                data_proced = e(data=data_proced)
+                data_proced = e(data_proced)
 
         return data_proced
 
@@ -72,7 +72,7 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
             if isinstance(e, JointIndexDataProcessor):
                 data_proced = e.process_data(data_proced, mode="write")
             else:
-                data_proced = e(data=data_proced)
+                data_proced = e(data_proced)
 
         self.backend.write(idx=idx_proced, data=data_proced)
 

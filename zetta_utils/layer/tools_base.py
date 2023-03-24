@@ -10,12 +10,12 @@ T = TypeVar("T")
 
 
 class DataProcessor(Protocol[T]):
-    def __call__(self, data: T) -> T:
+    def __call__(self, __data: T) -> T:
         ...
 
 
 class IndexProcessor(Protocol[T]):
-    def __call__(self, idx: T) -> T:
+    def __call__(self, __idx: T) -> T:
         ...
 
 

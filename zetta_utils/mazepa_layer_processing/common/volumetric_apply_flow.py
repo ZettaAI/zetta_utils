@@ -14,7 +14,6 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
 )
-from zetta_utils.typing import check_type
 
 from ..operation_protocols import VolumetricOpProtocol
 
@@ -161,18 +160,24 @@ def set_allow_cache(*args, **kwargs):
     newargs = []
     newkwargs = {}
     for arg in args:
-        if check_type(arg, VolumetricBasedLayerProtocol):
-            if not arg.backend.is_local and not arg.backend.allow_cache:
-                newarg = attrs.evolve(arg, backend=arg.backend.with_changes(allow_cache=True))
-            else:
-                newarg = arg
+        if (
+            isinstance(arg, VolumetricBasedLayerProtocol)
+            and not arg.backend.is_local
+            and not arg.backend.allow_cache
+        ):
+            newarg = attrs.evolve(arg, backend=arg.backend.with_changes(allow_cache=True))
+        else:
+            newarg = arg
         newargs.append(newarg)
     for k, v in kwargs.items():
-        if check_type(v, VolumetricBasedLayerProtocol):
-            if not v.backend.is_local and not v.backend.allow_cache:
-                newv = attrs.evolve(v, backend=v.backend.with_changes(allow_cache=True))
-            else:
-                newv = v
+        if (
+            isinstance(v, VolumetricBasedLayerProtocol)
+            and not v.backend.is_local
+            and not v.backend.allow_cache
+        ):
+            newv = attrs.evolve(v, backend=v.backend.with_changes(allow_cache=True))
+        else:
+            newv = v
         newkwargs[k] = newv
 
     return newargs, newkwargs
@@ -180,11 +185,11 @@ def set_allow_cache(*args, **kwargs):
 
 def clear_cache(*args, **kwargs):
     for arg in args:
-        if check_type(arg, VolumetricBasedLayerProtocol):
+        if isinstance(arg, VolumetricBasedLayerProtocol):
             if not arg.backend.is_local and arg.backend.allow_cache:
                 arg.backend.clear_cache()
     for kwarg in kwargs.values():
-        if check_type(kwarg, VolumetricBasedLayerProtocol):
+        if isinstance(kwarg, VolumetricBasedLayerProtocol):
             if not kwarg.backend.is_local and kwarg.backend.allow_cache:
                 kwarg.backend.clear_cache()
 

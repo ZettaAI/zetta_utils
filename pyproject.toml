@@ -63,6 +63,7 @@ viz = [
 cloudvol = [
     "cloud-files== 4.11.0",
     "cloud-volume @ git+https://github.com/ZettaAI/cloud-volume.git@bde11201610f7a1878f5304f01571928a76b8018",
+    "tensorstore== 0.1.33",
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [

@@ -3,6 +3,7 @@ from os import path
 from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
 
 import attrs
+import cachetools
 import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
@@ -14,8 +15,11 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
 )
+from zetta_utils.layer.volumetric.tensorstore import TSBackend
 
 from ..operation_protocols import VolumetricOpProtocol
+
+_weights_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 
 logger = log.get_logger("zetta_utils")
 
@@ -31,10 +35,7 @@ def get_intersection_and_subindex(small: VolumetricIndex, large: VolumetricIndex
     large VolumetricIndex.
     """
     intersection = large.intersection(small)
-    subindex = [
-        slice(start - offset, stop - offset)
-        for start, stop, offset in zip(intersection.start, intersection.stop, large.start)
-    ]
+    subindex = list(intersection.translated(-large.start).to_slices())
     return intersection, subindex
 
 
@@ -63,29 +64,82 @@ class ReduceByWeightedSum:
         processing_blend_pad: Vec3D[int],
         processing_blend_mode: Literal["linear", "quadratic"] = "linear",
     ) -> None:
-        if len(src_layers) == 0:
-            return
-        res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+        with suppress_type_checks():
+            if len(src_layers) == 0:
+                return
+            res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+            assert len(src_layers) > 0
+            if processing_blend_pad != Vec3D[int](0, 0, 0):
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    weight = get_blending_weights(
+                        idx_subchunk=src_idx,
+                        idx_roi=roi_idx,
+                        idx_red=red_idx,
+                        processing_blend_pad=processing_blend_pad,
+                        processing_blend_mode=processing_blend_mode,
+                    )
+                    intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
+                    subidx.insert(0, slice(0, res.shape[0]))
+                    res[subidx] = res[subidx] + layer[intscn] * weight
+            else:
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
+                    subidx.insert(0, slice(0, res.shape[0]))
+                    res[subidx] = layer[intscn]
+            dst[red_idx] = res
 
-        assert len(src_layers) > 0
-        if processing_blend_pad != Vec3D[int](0, 0, 0):
-            for src_idx, layer in zip(src_idxs, src_layers):
-                weight = get_blending_weights(
-                    idx_subchunk=src_idx,
-                    idx_roi=roi_idx,
-                    idx_red=red_idx,
-                    processing_blend_pad=processing_blend_pad,
-                    processing_blend_mode=processing_blend_mode,
-                )
-                intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-                subidx.insert(0, slice(0, res.shape[0]))
-                res[subidx] = res[subidx] + layer[intscn] * weight
-        else:
-            for src_idx, layer in zip(src_idxs, src_layers):
-                intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-                subidx.insert(0, slice(0, res.shape[0]))
-                res[subidx] = res[subidx] + layer[intscn]
-        dst[red_idx] = res
+
+@cachetools.cached(_weights_cache)
+def get_weight_template(
+    processing_blend_mode: Literal["linear", "quadratic"],
+    subchunk_shape: Tuple[int, ...],
+    x_pad: int,
+    y_pad: int,
+    z_pad: int,
+    x_start_aligned: bool,
+    x_stop_aligned: bool,
+    y_start_aligned: bool,
+    y_stop_aligned: bool,
+    z_start_aligned: bool,
+    z_stop_aligned: bool,
+) -> torch.Tensor:
+
+    weight = torch.ones(subchunk_shape, dtype=torch.float)
+    if processing_blend_mode == "linear":
+        weights_x = [x / (2 * x_pad) for x in range(2 * x_pad)]
+        weights_y = [y / (2 * y_pad) for y in range(2 * y_pad)]
+        weights_z = [z / (2 * z_pad) for z in range(2 * z_pad)]
+    elif processing_blend_mode == "quadratic":
+        weights_x = [
+            ((x / x_pad) ** 2) / 2 if x < x_pad else 1 - ((2 - (x / x_pad)) ** 2) / 2
+            for x in range(2 * x_pad)
+        ]
+        weights_y = [
+            ((y / y_pad) ** 2) / 2 if y < y_pad else 1 - ((2 - (y / y_pad)) ** 2) / 2
+            for y in range(2 * y_pad)
+        ]
+        weights_z = [
+            ((z / z_pad) ** 2) / 2 if z < z_pad else 1 - ((2 - (z / z_pad)) ** 2) / 2
+            for z in range(2 * z_pad)
+        ]
+
+    weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
+    weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
+    weights_z_t = torch.Tensor(weights_z).unsqueeze(0).unsqueeze(0)
+
+    if not x_start_aligned:
+        weight[0 : 2 * x_pad, :, :] *= weights_x_t
+    if not x_stop_aligned:
+        weight[(-2 * x_pad) :, :, :] *= weights_x_t.flip(0)
+    if not y_start_aligned:
+        weight[:, 0 : 2 * y_pad, :] *= weights_y_t
+    if not y_stop_aligned:
+        weight[:, (-2 * y_pad) :, :] *= weights_y_t.flip(1)
+    if not z_start_aligned:
+        weight[:, :, 0 : 2 * z_pad] *= weights_z_t
+    if not z_stop_aligned:
+        weight[:, :, (-2 * z_pad) :] *= weights_z_t.flip(2)
+    return weight
 
 
 def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
@@ -112,46 +166,18 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
             "`idx_red` must intersect `idx_subchunk`;"
             " `idx_red`: {idx_red}, `idx_subchunk`: {idx_subchunk}"
         )
-
     x_pad, y_pad, z_pad = processing_blend_pad
-    intscn, _ = get_intersection_and_subindex(idx_subchunk, idx_red)
+    weight = get_weight_template(
+        processing_blend_mode,
+        tuple(idx_subchunk.shape),
+        x_pad,
+        y_pad,
+        z_pad,
+        *idx_subchunk.aligned(idx_roi),
+    )
+
+    intscn = idx_red.intersection(idx_subchunk)
     _, intscn_in_subchunk = get_intersection_and_subindex(intscn, idx_subchunk)
-    weight = torch.ones(tuple(idx_subchunk.shape), dtype=torch.float)
-
-    if processing_blend_mode == "linear":
-        weights_x = [x / (2 * x_pad) for x in range(2 * x_pad)]
-        weights_y = [y / (2 * y_pad) for y in range(2 * y_pad)]
-        weights_z = [z / (2 * z_pad) for z in range(2 * z_pad)]
-    elif processing_blend_mode == "quadratic":
-        weights_x = [
-            ((x / x_pad) ** 2) / 2 if x < x_pad else 1 - ((2 - (x / x_pad)) ** 2) / 2
-            for x in range(2 * x_pad)
-        ]
-        weights_y = [
-            ((y / y_pad) ** 2) / 2 if y < y_pad else 1 - ((2 - (y / y_pad)) ** 2) / 2
-            for y in range(2 * y_pad)
-        ]
-        weights_z = [
-            ((z / z_pad) ** 2) / 2 if z < z_pad else 1 - ((2 - (z / z_pad)) ** 2) / 2
-            for z in range(2 * z_pad)
-        ]
-
-    weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
-    weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
-    weights_z_t = torch.Tensor(weights_z).unsqueeze(0).unsqueeze(0)
-
-    if idx_subchunk.start[0] != idx_roi.start[0]:
-        weight[0 : 2 * x_pad, :, :] *= weights_x_t
-    if idx_subchunk.stop[0] != idx_roi.stop[0]:
-        weight[(-2 * x_pad) :, :, :] *= weights_x_t.flip(0)
-    if idx_subchunk.start[1] != idx_roi.start[1]:
-        weight[:, 0 : 2 * y_pad, :] *= weights_y_t
-    if idx_subchunk.stop[1] != idx_roi.stop[1]:
-        weight[:, (-2 * y_pad) :, :] *= weights_y_t.flip(1)
-    if idx_subchunk.start[2] != idx_roi.start[2]:
-        weight[:, :, 0 : 2 * z_pad] *= weights_z_t
-    if idx_subchunk.stop[2] != idx_roi.stop[2]:
-        weight[:, :, (-2 * z_pad) :] *= weights_z_t.flip(2)
 
     return weight[intscn_in_subchunk].unsqueeze(0)
 
@@ -274,6 +300,35 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         else:
             self.max_reduction_chunk_size_final = self.max_reduction_chunk_size
 
+    def _get_temp_dst(
+        self,
+        dst: VolumetricBasedLayerProtocol,
+        idx: VolumetricIndex,
+        suffix: Optional[Any] = None,
+    ) -> VolumetricBasedLayerProtocol:
+        assert self.intermediaries_dir is not None
+        temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
+        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
+        backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
+        if self.intermediaries_dir.startswith("file://"):
+            backend_temp = TSBackend.from_precomputed(dst.backend).with_changes(
+                name=path.join(self.intermediaries_dir, temp_name),
+                voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
+                chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
+                enforce_chunk_aligned_writes=False,
+                allow_cache=allow_cache,
+            )
+        else:
+            backend_temp = dst.backend.with_changes(
+                name=path.join(self.intermediaries_dir, temp_name),
+                voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
+                chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
+                enforce_chunk_aligned_writes=False,
+                use_compression=False,
+                allow_cache=allow_cache,
+            )
+        return attrs.evolve(deepcopy(dst), backend=backend_temp)
+
     def make_tasks_without_checkerboarding(
         self,
         idx_chunks: Iterable[VolumetricIndex],
@@ -288,7 +343,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
             for idx_chunk in idx_chunks
         ]
-
         return tasks
 
     def make_tasks_with_intermediaries(  # pylint: disable=too-many-locals
@@ -297,20 +351,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol,
         **kwargs: P.kwargs,
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
-        assert self.intermediaries_dir is not None
-        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
-        backend_temp = dst.backend.with_changes(
-            name=path.join(
-                self.intermediaries_dir,
-                f"_{self.op.__class__.__name__}_temp_{idx.pformat()}",
-            ),
-            voxel_offset_res=(idx.start, self.dst_resolution),
-            chunk_size_res=(self.processing_chunk_size, self.dst_resolution),
-            enforce_chunk_aligned_writes=True,
-            use_compression=False,
-            allow_cache=allow_cache,
-        )
-        dst_temp = attrs.evolve(deepcopy(dst), backend=backend_temp)
+        dst_temp = self._get_temp_dst(dst, idx)
         idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, **kwargs)
 
@@ -349,19 +390,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
-            allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
-            backend_temp = dst.backend.with_changes(
-                name=path.join(
-                    self.intermediaries_dir,
-                    f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{chunker_idx}",
-                ),
-                voxel_offset_res=(idx.start, self.dst_resolution),
-                chunk_size_res=(self._get_backend_chunk_size_to_use(dst), self.dst_resolution),
-                enforce_chunk_aligned_writes=False,
-                use_compression=False,
-                allow_cache=allow_cache,
-            )
-            dst_temp = attrs.evolve(deepcopy(dst), backend=backend_temp)
+            dst_temp = self._get_temp_dst(dst, idx, chunker_idx)
             dst_temps.append(dst_temp)
 
             # assert that the idx passed in is in fact exactly divisible by the chunk size
@@ -401,8 +430,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert len(args) == 0
         assert self.roi_crop_pad is not None
         assert self.processing_blend_pad is not None
-
-        # dst: VolumetricBasedLayerProtocol,
 
         # set caching for all VolumetricBasedLayerProtocols as desired
         if self.allow_cache:

@@ -423,6 +423,12 @@ class BBox3D:
             size *= slc.stop - slc.start
         return size
 
+    def aligned(self, other: BBox3D) -> tuple[bool, ...]:  # pragma: no cover
+        assert self.unit == other.unit
+        """Returns whether two BoundingBoxNDs are aligned, in
+        x_start, x_stop, y_start, y_stop, z_start, z_stop order."""
+        return tuple(s[i] == o[i] for s, o in zip(self.bounds, other.bounds) for i in range(2))
+
     def intersects(self: BBox3D, other: BBox3D) -> bool:  # pragma: no cover
         assert self.unit == other.unit
         """Returns whether two BoundingBoxNDs intersect."""

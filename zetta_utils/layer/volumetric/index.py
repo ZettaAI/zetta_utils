@@ -75,6 +75,9 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     def get_size(self):
         return self.bbox.get_size()
 
+    def aligned(self, other: VolumetricIndex) -> tuple[bool, ...]:
+        return self.bbox.aligned(other.bbox)
+
     def intersects(self, other: VolumetricIndex) -> bool:
         return self.bbox.intersects(other.bbox)
 

@@ -7,23 +7,19 @@
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
-		"@type": "VolumetricCallableOperation"
-		fn: {
-			"@type":    "lambda"
-			lambda_str: "lambda src: src+1"
-		}
-
+		"@type": "WarpOperation"
+		mode:    "img"
 	}
 
 	start_coord: [4096, 4096, 3003]
-	end_coord: [8192, 8192, 3005]
+	end_coord: [12288, 12288, 3005]
 	coord_resolution: [32, 32, 30]
 
 	dst_resolution: [32, 32, 30]
 
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
-	processing_chunk_sizes: [[4096, 7096, 1], [2048, 2048, 1]]
+	processing_chunk_sizes: [[8192, 8192, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_modes: "quadratic"
@@ -35,11 +31,16 @@
 	shrink_processing_chunk: true
 
 	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
-	allow_cache_up_to_level: 1
 
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #SRC_PATH
+	}
+	field: {
+		"@type": "build_ts_layer"
+		path:    #FIELD_PATH
+		data_resolution: [32, 32, 30]
+		interpolation_mode: "field"
 	}
 	dst: {
 		"@type":             "build_cv_layer"

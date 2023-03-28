@@ -13,6 +13,7 @@ class TaskStatus(Enum):
     RUNNING = auto()
     SUCCEEDED = auto()
     FAILED = auto()
+    TRANSIENT_ERROR = auto()
 
 
 R_co = TypeVar("R_co", covariant=True)

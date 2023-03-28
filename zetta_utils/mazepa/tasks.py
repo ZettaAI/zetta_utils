@@ -9,9 +9,11 @@ from concurrent.futures import TimeoutError as PebbleTimeoutError
 from typing import (
     Any,
     Callable,
+    Final,
     Generic,
     Iterable,
     Protocol,
+    Sequence,
     Type,
     TypeVar,
     cast,
@@ -44,6 +46,22 @@ class TaskUpkeepSettings:
 
 
 @attrs.mutable
+class TransientErrorCondition:
+    exception_type: Type[BaseException]
+    text_signature: str = ""
+
+    def does_match(self, exc: BaseException):
+        return isinstance(exc, self.exception_type) and self.text_signature in str(exc)
+
+
+DEFAULT_TRANSIENT_ERROR_CONDITIONS: Final = (
+    TransientErrorCondition(
+        exception_type=RuntimeError, text_signature="Found no NVIDIA driver on your system"
+    ),
+)
+
+
+@attrs.mutable
 class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     """
     An executable task.
@@ -65,6 +83,11 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     status: TaskStatus = TaskStatus.NOT_SUBMITTED
     outcome: TaskOutcome[R_co] | None = None
     runtime_limit_sec: float | None = None
+    curr_retry: int = 0
+    transient_error_conditions: Sequence[
+        TransientErrorCondition
+    ] = DEFAULT_TRANSIENT_ERROR_CONDITIONS
+    max_transient_retry: int = 10
 
     # cache_expiration: datetime.timedelta = None
 
@@ -96,13 +119,22 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             run_completion_callbacks = True
             self.status = TaskStatus.SUCCEEDED
         else:
-            run_completion_callbacks = True
-            self.status = TaskStatus.FAILED
-            if isinstance(self.outcome.exception, PebbleTimeoutError):
-                logger.debug(f"Task {self.id_} execution timed out!")
-                # Abstract the pebble library from the user
+            if self.curr_retry < self.max_transient_retry and any(
+                e.does_match(self.outcome.exception) for e in self.transient_error_conditions
+            ):
+                # Transient Error
+                logger.debug(f"Task {self.id_} transient error: {self.outcome.exception}")
+                run_completion_callbacks = False
+                self.status = TaskStatus.TRANSIENT_ERROR
+            elif isinstance(self.outcome.exception, PebbleTimeoutError):
+                # Internal Pebble Error, no reporting
+                logger.debug(f"Task {self.id_} execution timed out")
                 self.outcome.exception = TimeoutError(str(self.outcome.exception))
                 run_completion_callbacks = False
+                self.status = TaskStatus.FAILED
+            else:
+                run_completion_callbacks = True
+                self.status = TaskStatus.FAILED
 
         if run_completion_callbacks:
             logger.debug("Running completion callbacks...")
@@ -228,6 +260,9 @@ class _TaskableOperation(Generic[P, R_co]):
     tags: list[str] = attrs.field(factory=list)
     runtime_limit_sec: float | None = None
     upkeep_interval_sec: float = constants.DEFAULT_UPKEEP_INTERVAL
+    transient_error_conditions: Sequence[
+        TransientErrorCondition
+    ] = DEFAULT_TRANSIENT_ERROR_CONDITIONS
 
     def __call__(
         self,
@@ -253,6 +288,7 @@ class _TaskableOperation(Generic[P, R_co]):
             tags=self.tags,
             upkeep_settings=upkeep_settings,
             runtime_limit_sec=self.runtime_limit_sec,
+            transient_error_conditions=self.transient_error_conditions,
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
@@ -264,25 +300,38 @@ def taskable_operation(
     *,
     runtime_limit_sec: float | None = ...,
     operation_name: str | None = ...,
+    transient_error_conditions: Sequence[TransientErrorCondition] = ...,
 ) -> TaskableOperation[P, R_co]:
     ...
 
 
 @overload
 def taskable_operation(
-    *, runtime_limit_sec: float | None = ..., operation_name: str | None = ...
+    *,
+    runtime_limit_sec: float | None = ...,
+    operation_name: str | None = ...,
+    transient_error_conditions: Sequence[TransientErrorCondition] = ...,
 ) -> Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]]:
     ...
 
 
 def taskable_operation(
-    fn=None, *, runtime_limit_sec: float | None = None, operation_name: str | None = None
+    fn=None,
+    *,
+    runtime_limit_sec: float | None = None,
+    operation_name: str | None = None,
+    transient_error_conditions: Sequence[TransientErrorCondition] = (
+        DEFAULT_TRANSIENT_ERROR_CONDITIONS
+    ),
 ):
     if fn is not None:
         if operation_name is None:
             operation_name = fn.__name__
         return _TaskableOperation(
-            fn=fn, runtime_limit_sec=runtime_limit_sec, operation_name=operation_name
+            fn=fn,
+            runtime_limit_sec=runtime_limit_sec,
+            operation_name=operation_name,
+            transient_error_conditions=transient_error_conditions,
         )
     else:
         return cast(
@@ -291,12 +340,18 @@ def taskable_operation(
                 _TaskableOperation,
                 runtime_limit_sec=runtime_limit_sec,
                 operation_name=operation_name,
+                transient_error_conditions=transient_error_conditions,
             ),
         )
 
 
 def taskable_operation_cls(
-    cls: Type[RawTaskableOperationCls] | None = None, *, operation_name: str | None = None
+    cls: Type[RawTaskableOperationCls] | None = None,
+    *,
+    operation_name: str | None = None,
+    transient_error_conditions: Sequence[TransientErrorCondition] = (
+        DEFAULT_TRANSIENT_ERROR_CONDITIONS
+    ),
 ):
     def _make_task(self, *args, **kwargs):
         if operation_name is None:
@@ -309,6 +364,7 @@ def taskable_operation_cls(
         task = _TaskableOperation(  # pylint: disable=protected-access
             self,
             operation_name=operation_name_final,
+            transient_error_conditions=transient_error_conditions,
             # TODO: Other params passed to decorator
         ).make_task(
             *args, **kwargs
@@ -328,5 +384,6 @@ def taskable_operation_cls(
             functools.partial(
                 taskable_operation_cls,
                 operation_name=operation_name,
+                transient_error_conditions=transient_error_conditions,
             ),
         )

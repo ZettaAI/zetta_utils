@@ -309,7 +309,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert self.intermediaries_dir is not None
         temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
         allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
-        backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
+        if self.use_checkerboarding:
+            backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
+        else:
+            backend_chunk_size_to_use = self.processing_chunk_size
         if self.intermediaries_dir.startswith("file://"):
             backend_temp = TSBackend.from_precomputed(dst.backend).with_changes(
                 name=path.join(self.intermediaries_dir, temp_name),

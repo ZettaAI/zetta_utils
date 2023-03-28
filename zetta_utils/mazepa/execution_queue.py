@@ -9,7 +9,7 @@ from typeguard import typechecked
 
 from zetta_utils import log
 
-from .task_outcome import TaskOutcome
+from .task_outcome import TaskOutcome, TaskStatus
 from .tasks import Task
 
 logger = log.get_logger("mazepa")
@@ -51,13 +51,20 @@ class LocalExecutionQueue:
         task_outcomes: Dict[str, TaskOutcome] = {}
 
         for task in self.tasks_todo[: self.execution_batch_len]:
-            task(debug=self.debug)
-            assert task.outcome is not None
-            task_outcomes[task.id_] = task.outcome
+            done = False
 
-            # raise immediatelly for local exec
-            if task.outcome.exception is not None:
-                raise task.outcome.exception  # pragma: no cover
+            while not done:
+                task(debug=self.debug)
+                assert task.outcome is not None
+                task_outcomes[task.id_] = task.outcome
+
+                if task.status != TaskStatus.TRANSIENT_ERROR:
+                    if task.outcome.exception is not None:
+                        # raise immediatelly for local exec
+                        raise task.outcome.exception  # pragma: no cover
+                    done = True
+                task.curr_retry += 1
+
         self.tasks_todo = self.tasks_todo[self.execution_batch_len :]
         return task_outcomes
 

@@ -139,10 +139,12 @@ class SQSExecutionQueue:
             max_time_sec=self.pull_wait_sec,
             visibility_timeout=self.pull_lease_sec,
         )
+
         for msg in msgs:
             # Deserialize task object
             tq_task = taskqueue.totask(json.loads(msg.body))
             task = serialization.deserialize(tq_task.task_ser)
+            task.curr_retry = msg.approx_receive_count - 1
 
             # Specify completion behavior through callbacks
             task.completion_callbacks.append(

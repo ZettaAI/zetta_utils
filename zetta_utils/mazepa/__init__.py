@@ -4,7 +4,13 @@ from . import exceptions
 
 from .task_outcome import TaskOutcome, TaskStatus
 
-from .tasks import Task, TaskableOperation, taskable_operation, taskable_operation_cls
+from .tasks import (
+    Task,
+    TaskableOperation,
+    taskable_operation,
+    taskable_operation_cls,
+    TransientErrorCondition,
+)
 from .flows import (
     Flow,
     FlowFnReturnType,

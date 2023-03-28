@@ -7,6 +7,8 @@ import attrs
 from zetta_utils.mazepa import (
     Task,
     TaskableOperation,
+    TaskStatus,
+    TransientErrorCondition,
     taskable_operation,
     taskable_operation_cls,
 )
@@ -61,3 +63,20 @@ def test_task_runtime_limit() -> None:
     assert isinstance(task, Task)
     outcome = task(debug=False)
     assert isinstance(outcome.exception, TimeoutError)
+
+
+def test_transient_error_condition() -> None:
+    @taskable_operation(
+        transient_error_conditions=(TransientErrorCondition(ValueError, "No More"),)
+    )
+    def dummy_task_fn(transient: bool):
+        if transient:
+            raise ValueError("No More")
+        raise ValueError("Yes More")
+
+    transient_task = dummy_task_fn.make_task(transient=True)
+    transient_task()
+    assert transient_task.status == TaskStatus.TRANSIENT_ERROR
+    nontransient_task = dummy_task_fn.make_task(transient=False)
+    nontransient_task()
+    assert nontransient_task.status == TaskStatus.FAILED

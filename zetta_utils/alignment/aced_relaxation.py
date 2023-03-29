@@ -149,21 +149,21 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
         [afields[i] for i in opt_range],
         lr=lr,
     )
-
-    for i in range(num_iter):
-        loss = compute_aced_loss(
-            pfields=pfields_paired,
-            afields=afields,
-            rigidity_masks=rigidity_masks_zcxy,
-            match_offsets=[match_offsets_zcxy[i] for i in range(num_sections)],
-            rigidity_weight=rigidity_weight,
-        )
-        if loss < 0.005:
-            break
-        print(loss)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    with torchfields.set_identity_mapping_cache(True, clear_cache=True):
+        for i in range(num_iter):
+            loss = compute_aced_loss(
+                pfields=pfields_paired,
+                afields=afields,
+                rigidity_masks=rigidity_masks_zcxy,
+                match_offsets=[match_offsets_zcxy[i] for i in range(num_sections)],
+                rigidity_weight=rigidity_weight,
+            )
+            if loss < 0.005:
+                break
+            print(loss)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
     result_xy = torch.cat(afields, 0)
     result = einops.rearrange(result_xy, "Z C X Y -> C X Y Z")
@@ -211,43 +211,44 @@ def get_aced_match_offsets(
     else:
         device = "cpu"
 
-    tissue_mask_zcxy = einops.rearrange(tissue_mask, "1 X Y Z -> Z 1 X Y").to(device)
-    misalignment_masks_zcxy = {
-        k: einops.rearrange(v, "1 X Y Z -> Z 1 X Y").to(device)
-        for k, v in misalignment_masks.items()
-    }
-    pairwise_fields_zcxy = {
-        k: einops.rearrange(v, "C X Y Z -> Z C X Y")
-        .field()  # type: ignore
-        .from_pixels()
-        .to(device)
-        for k, v in pairwise_fields.items()
-    }
-    pairwise_fields_inv_zcxy = {
-        k: einops.rearrange(v, "C X Y Z -> Z C X Y")
-        .field()  # type: ignore
-        .from_pixels()
-        .to(device)
-        for k, v in pairwise_fields_inv.items()
-    }
+    with torchfields.set_identity_mapping_cache(True, clear_cache=True):
+        tissue_mask_zcxy = einops.rearrange(tissue_mask, "1 X Y Z -> Z 1 X Y").to(device)
+        misalignment_masks_zcxy = {
+            k: einops.rearrange(v, "1 X Y Z -> Z 1 X Y").to(device)
+            for k, v in misalignment_masks.items()
+        }
+        pairwise_fields_zcxy = {
+            k: einops.rearrange(v, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .from_pixels()
+            .to(device)
+            for k, v in pairwise_fields.items()
+        }
+        pairwise_fields_inv_zcxy = {
+            k: einops.rearrange(v, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .from_pixels()
+            .to(device)
+            for k, v in pairwise_fields_inv.items()
+        }
 
-    fwd_outcome = _perform_match_fwd_pass(
-        tissue_mask_zcxy=tissue_mask_zcxy,
-        misalignment_masks_zcxy=misalignment_masks_zcxy,
-        pairwise_fields_zcxy=pairwise_fields_zcxy,
-        pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
-        max_dist=max_dist,
-    )
-    sector_length_after_zcxy = _perform_match_bwd_pass(
-        match_offsets_inv_zcxy=fwd_outcome.match_offsets_inv_zcxy,
-        pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
-        max_dist=max_dist,
-    )
-    img_mask_zcxy, aff_mask_zcxy = _get_masks(
-        sector_length_up_to_zcxy=fwd_outcome.sector_length_up_to_zcxy,
-        sector_length_after_zcxy=sector_length_after_zcxy,
-        max_dist=max_dist,
-    )
+        fwd_outcome = _perform_match_fwd_pass(
+            tissue_mask_zcxy=tissue_mask_zcxy,
+            misalignment_masks_zcxy=misalignment_masks_zcxy,
+            pairwise_fields_zcxy=pairwise_fields_zcxy,
+            pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
+            max_dist=max_dist,
+        )
+        sector_length_after_zcxy = _perform_match_bwd_pass(
+            match_offsets_inv_zcxy=fwd_outcome.match_offsets_inv_zcxy,
+            pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
+            max_dist=max_dist,
+        )
+        img_mask_zcxy, aff_mask_zcxy = _get_masks(
+            sector_length_up_to_zcxy=fwd_outcome.sector_length_up_to_zcxy,
+            sector_length_after_zcxy=sector_length_after_zcxy,
+            max_dist=max_dist,
+        )
     result = {
         "match_offsets": fwd_outcome.match_offsets_zcxy,
         "img_mask": img_mask_zcxy,

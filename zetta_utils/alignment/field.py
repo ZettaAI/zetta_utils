@@ -77,4 +77,4 @@ def invert_field_opti(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5) 
         loss.backward()
         optimizer.step()
 
-    return einops.rearrange(inverse_zcxy.pixels(), "Z C X Y -> C X Y Z")
+    return einops.rearrange(inverse_zcxy.pixels(), "Z C X Y -> C X Y Z").detach()

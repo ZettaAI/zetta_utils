@@ -3,8 +3,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3300]
-	end_coord: [2048, 2048, 3400]
+	start_coord: [0, 0, 3400]
+	end_coord: [2048, 2048, 3500]
 	resolution: [512, 512, 45]
 }
 #CROP_PAD: 512

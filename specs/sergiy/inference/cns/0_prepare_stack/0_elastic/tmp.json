@@ -1,0 +1,267 @@
+{
+    "@type": "mazepa.execute_on_gcp_with_sqs",
+    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112",
+    "worker_resources": {
+        "memory": "18560Mi"
+    },
+    "worker_replicas": 100,
+    "batch_gap_sleep_sec": 0.1,
+    "local_test": false,
+    "target": {
+        "@type": "mazepa.concurrent_flow",
+        "stages": [
+            {
+                "@type": "build_subchunkable_apply_flow",
+                "op": {
+                    "@type": "WarpOperation",
+                    "mode": "mask"
+                },
+                "processing_chunk_sizes": [
+                    [
+                        4096,
+                        4096,
+                        1
+                    ],
+                    [
+                        2048,
+                        2048,
+                        1
+                    ]
+                ],
+                "processing_crop_pads": [
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        512,
+                        512,
+                        0
+                    ]
+                ],
+                "expand_bbox": true,
+                "dst_resolution": [
+                    256,
+                    256,
+                    45
+                ],
+                "bbox": {
+                    "@type": "BBox3D.from_coords",
+                    "start_coord": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "end_coord": [
+                        2048,
+                        2048,
+                        10
+                    ],
+                    "resolution": [
+                        512,
+                        512,
+                        45
+                    ]
+                },
+                "src": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/resin/ResinNet20221115_29k",
+                    "read_procs": [
+                        {
+                            "@type": "compare",
+                            "@mode": "partial",
+                            "mode": "\u003e=",
+                            "value": 48
+                        }
+                    ]
+                },
+                "field": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field",
+                    "data_resolution": [
+                        256,
+                        256,
+                        45
+                    ],
+                    "interpolation_mode": "field"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0/resin_mask",
+                    "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask",
+                    "write_procs": [
+                        {
+                            "@type": "to_uint8",
+                            "@mode": "partial"
+                        }
+                    ]
+                }
+            },
+            {
+                "@type": "build_subchunkable_apply_flow",
+                "op": {
+                    "@type": "WarpOperation",
+                    "mode": "mask"
+                },
+                "processing_chunk_sizes": [
+                    [
+                        4096,
+                        4096,
+                        1
+                    ],
+                    [
+                        2048,
+                        2048,
+                        1
+                    ]
+                ],
+                "processing_crop_pads": [
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        512,
+                        512,
+                        0
+                    ]
+                ],
+                "expand_bbox": true,
+                "dst_resolution": [
+                    64,
+                    64,
+                    45
+                ],
+                "bbox": {
+                    "@type": "BBox3D.from_coords",
+                    "start_coord": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "end_coord": [
+                        2048,
+                        2048,
+                        10
+                    ],
+                    "resolution": [
+                        512,
+                        512,
+                        45
+                    ]
+                },
+                "src": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/defects/DefectNet20221114_50k",
+                    "read_procs": [
+                        {
+                            "@type": "compare",
+                            "@mode": "partial",
+                            "mode": "\u003e=",
+                            "value": 48
+                        }
+                    ]
+                },
+                "field": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field",
+                    "data_resolution": [
+                        256,
+                        256,
+                        45
+                    ],
+                    "interpolation_mode": "field"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0/defect_mask",
+                    "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/defect_mask",
+                    "write_procs": [
+                        {
+                            "@type": "to_uint8",
+                            "@mode": "partial"
+                        }
+                    ]
+                }
+            },
+            {
+                "@type": "build_subchunkable_apply_flow",
+                "op": {
+                    "@type": "WarpOperation",
+                    "mode": "img"
+                },
+                "processing_chunk_sizes": [
+                    [
+                        4096,
+                        4096,
+                        1
+                    ],
+                    [
+                        2048,
+                        2048,
+                        1
+                    ]
+                ],
+                "processing_crop_pads": [
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        512,
+                        512,
+                        0
+                    ]
+                ],
+                "expand_bbox": true,
+                "dst_resolution": [
+                    32,
+                    32,
+                    45
+                ],
+                "bbox": {
+                    "@type": "BBox3D.from_coords",
+                    "start_coord": [
+                        0,
+                        0,
+                        0
+                    ],
+                    "end_coord": [
+                        2048,
+                        2048,
+                        10
+                    ],
+                    "resolution": [
+                        512,
+                        512,
+                        45
+                    ]
+                },
+                "src": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid",
+                    "read_procs": []
+                },
+                "field": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field",
+                    "data_resolution": [
+                        256,
+                        256,
+                        45
+                    ],
+                    "interpolation_mode": "field"
+                },
+                "dst": {
+                    "@type": "build_cv_layer",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0/raw_img",
+                    "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img",
+                    "write_procs": []
+                }
+            }
+        ]
+    }
+}

@@ -16,17 +16,32 @@ from pytorch_lightning.loggers import WandbLogger
 from zetta_utils import builder, log
 
 logger = log.get_logger("zetta_utils")
+ONNX_OPSET_VERSION = 17
+os.environ["MKL_THREADING_LAYER"] = "GNU"
+
 
 """
 Separate function to work around the jit.trace memory leak
 """
 
 
-def trace_and_save_model(_, model, trace_input, filepath, name):  # pragma: no cover
+def trace_and_save_model(
+    args_packed,
+):  # pragma: no cover # pylint: disable=broad-except, used-before-assignment
+    model, trace_input, filepath, name = args_packed
     trace = torch.jit.trace(model, trace_input)
     filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
     with fsspec.open(filepath_jit, "wb") as f:
         torch.jit.save(trace, f)
+    try:
+        filepath_onnx = f"{filepath}.static-{torch.__version__}-{name}.onnx"
+        with fsspec.open(filepath_onnx, "wb") as f:
+            filesystem = f.fs
+            torch.onnx.export(model, trace_input, f, opset_version=ONNX_OPSET_VERSION)
+        return None
+    except Exception as e:
+        filesystem.delete(filepath_onnx)
+        return type(e).__name__, e.args[0]
 
 
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
@@ -66,9 +81,11 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             for name in self.trace_configuration.keys():
                 model = self.trace_configuration[name]["model"]
                 trace_input = self.trace_configuration[name]["trace_input"]
-                torch.multiprocessing.spawn(
-                    trace_and_save_model, args=(model, trace_input, filepath, name)
-                )
+                ctx = torch.multiprocessing.get_context("spawn")
+                with ctx.Pool(processes=1) as pool:
+                    res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
+                if res is not None:
+                    logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
 
 
 @builder.register("ZettaDefaultTrainer")

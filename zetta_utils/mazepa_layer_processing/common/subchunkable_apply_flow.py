@@ -38,9 +38,14 @@ class DelegatedSubchunkedOperation(Generic[P]):
     """
 
     flow_schema: VolumetricApplyFlowSchema[P, None]
+    operation_name: str
+    level: int
 
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
         return dst_resolution
+
+    def get_operation_name(self) -> str:
+        return f"Level {self.level} {self.operation_name}"
 
     def __call__(
         self,
@@ -260,13 +265,14 @@ def _make_ng_link(dst: VolumetricBasedLayerProtocol, bbox: BBox3D) -> Optional[s
     return ng_link
 
 
-def _print_summary(  # pylint: disable=line-too-long
+def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-statements
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
     level_intermediaries_dirs: Sequence[str | None],
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
     processing_blend_modes: Sequence[Literal["linear", "quadratic"]],
+    processing_crop_pad: Vec3D[int],
     roi_crop_pads: Sequence[Vec3D[int]],
     max_reduction_chunk_sizes: Sequence[Vec3D[int]],
     allow_cache_up_to_level: int,
@@ -274,6 +280,9 @@ def _print_summary(  # pylint: disable=line-too-long
     num_levels: int,
     num_chunks: Sequence[int],
     use_checkerboard: Sequence[bool],
+    op_name: str,
+    args: tuple,
+    kwargs: dict[str, Any],
 ) -> None:
 
     summary = ""
@@ -312,6 +321,26 @@ def _print_summary(  # pylint: disable=line-too-long
         summary += lrpad("Neuroglancer link:", length=120) + "\n"
         summary += lrpad(f"{ng_link}", 2, length=120) + "\n"
     summary += lrpad(length=120) + "\n"
+    summary += lrpad(" Operation Information ", bounds="|", filler="=", length=120) + "\n"
+    summary += lrpad("", length=120) + "\n"
+    summary += lrpad(f"Operation: {op_name}  ", length=120) + "\n"
+    summary += (
+        lrpad(f"Processing crop pad: {processing_crop_pad.pformat()}  ", level=2, length=120)
+        + "\n"
+    )
+    summary += lrpad(f"# of args supplied: {len(args)}", level=2, length=120) + "\n"
+    summary += lrpad("kwargs supplied:", level=2, length=120) + "\n"
+    for k, v in kwargs.items():
+        summary += (
+            lrpad(
+                f"{lrpad(f'{k}:', level=0, length = 15, bounds = '')}" f"{type(v).__name__}",
+                level=3,
+                length=120,
+            )
+            + "\n"
+        )
+
+    summary += lrpad(length=120) + "\n"
     summary += lrpad(" Subchunking Information ", bounds="|", filler="=", length=120) + "\n"
     summary += lrpad(length=120) + "\n"
     summary += (
@@ -338,7 +367,7 @@ def _print_summary(  # pylint: disable=line-too-long
             )
             + "\n"
         )
-    summary += lrpad("", length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
     summary += (
         lrpad(
             " Level  Max red. chunk size  Intermediary dir (top level only used if Checkerboard == True)",
@@ -394,6 +423,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
 
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
     level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
+    if hasattr(level0_op, "get_operation_name"):
+        op_name = level0_op.get_operation_name()
+    else:
+        op_name = type(level0_op).__name__
 
     """
     Check that the sizes are correct. Note that the the order has to be reversed for indexing.
@@ -501,6 +534,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             processing_chunk_sizes=processing_chunk_sizes,
             processing_blend_pads=processing_blend_pads,
             processing_blend_modes=processing_blend_modes,
+            processing_crop_pad=processing_crop_pads[-1],
             roi_crop_pads=roi_crop_pads,
             max_reduction_chunk_sizes=max_reduction_chunk_sizes,
             allow_cache_up_to_level=allow_cache_up_to_level,
@@ -508,6 +542,9 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             num_levels=num_levels,
             num_chunks=num_chunks,
             use_checkerboard=use_checkerboard,
+            op_name=op_name,
+            args=args,
+            kwargs=kwargs,
         )
 
     """
@@ -533,7 +570,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     for level in range(1, num_levels):
         flow_schema = VolumetricApplyFlowSchema(
             op=DelegatedSubchunkedOperation(  # type:ignore #readability over typing here
-                flow_schema,
+                flow_schema, op_name, level
             ),
             processing_chunk_size=processing_chunk_sizes[-level - 1],
             max_reduction_chunk_size=max_reduction_chunk_sizes[-level - 1],

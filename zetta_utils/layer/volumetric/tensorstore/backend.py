@@ -13,6 +13,7 @@ import torch
 from typeguard import suppress_type_checks
 
 from zetta_utils import tensor_ops
+from zetta_utils.common import abspath
 from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -36,7 +37,7 @@ def _get_ts_at_resolution(
         return _ts_cache[path, resolution]
     spec: Dict[str, Any] = {
         "driver": "neuroglancer_precomputed",
-        "kvstore": path,
+        "kvstore": abspath(path),
         "context": {"cache_pool": {"total_bytes_limit": cache_bytes_limit}},
         "recheck_cached_data": "open",
     }

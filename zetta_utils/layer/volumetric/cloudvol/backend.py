@@ -12,6 +12,7 @@ from cloudvolume import CloudVolume
 from cloudvolume.lib import Bbox
 
 from zetta_utils import tensor_ops
+from zetta_utils.common import abspath
 from zetta_utils.geometry import BBox3D, Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -21,7 +22,9 @@ from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 # To avoid reloading info file - note that an empty provenance is passed
 # since otherwise the CloudVolume's __new__ will download the provenance
 def get_cv_cached(cloudpath, *args, **kwargs):
-    return CloudVolume(cloudpath, info=get_info(cloudpath), provenance={}, *args, **kwargs)
+    return CloudVolume(
+        abspath(cloudpath), info=get_info(cloudpath), provenance={}, *args, **kwargs
+    )
 
 
 @attrs.mutable

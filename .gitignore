@@ -58,6 +58,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Temporary precomputed volumes and infofiles
+tests/unit/assets/infos/scratch/
+
 # Translations
 *.mo
 *.pot

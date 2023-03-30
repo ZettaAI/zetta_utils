@@ -18,9 +18,9 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
-LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x5")
-LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x6")
-LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x7")
+LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
+LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
+LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
 
 _write_info_notmock = precomputed._write_info
 

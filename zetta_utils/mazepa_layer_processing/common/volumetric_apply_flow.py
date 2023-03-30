@@ -4,6 +4,7 @@ from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeV
 
 import attrs
 import cachetools
+import fsspec
 import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
@@ -207,6 +208,18 @@ def clear_cache(*args, **kwargs):
         if isinstance(kwarg, VolumetricBasedLayerProtocol):
             if not kwarg.backend.is_local and kwarg.backend.allow_cache:
                 kwarg.backend.clear_cache()
+
+
+def delete_if_local(*args, **kwargs):
+    filesystem = fsspec.filesystem("file")
+    for arg in args:
+        if isinstance(arg, VolumetricBasedLayerProtocol):
+            if arg.backend.is_local:
+                filesystem.delete(arg.backend.name, recursive=True)
+    for kwarg in kwargs.values():
+        if isinstance(kwarg, VolumetricBasedLayerProtocol):
+            if kwarg.backend.is_local:
+                filesystem.delete(kwarg.backend.name, recursive=True)
 
 
 @mazepa.flow_schema_cls
@@ -469,6 +482,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
             yield tasks_reduce
             clear_cache(dst_temp)
+            delete_if_local(dst_temp)
         # case with checkerboarding
         else:
             if dst.backend.enforce_chunk_aligned_writes:
@@ -542,6 +556,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
             yield tasks_reduce
             clear_cache(*dst_temps)
+            delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
             clear_cache(*args, **kwargs)
 

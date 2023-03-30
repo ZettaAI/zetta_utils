@@ -28,17 +28,6 @@ P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
 
 
-def get_intersection_and_subindex(small: VolumetricIndex, large: VolumetricIndex):
-    """
-    Given a large VolumetricIndex and a small VolumetricIndex, returns the intersection
-    VolumetricIndex of the two as well as the slices for that intersection within the
-    large VolumetricIndex.
-    """
-    intersection = large.intersection(small)
-    subindex = list(intersection.translated(-large.start).to_slices())
-    return intersection, subindex
-
-
 @mazepa.taskable_operation_cls
 @attrs.mutable
 class Copy:
@@ -78,14 +67,14 @@ class ReduceByWeightedSum:
                         processing_blend_pad=processing_blend_pad,
                         processing_blend_mode=processing_blend_mode,
                     )
-                    intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-                    subidx.insert(0, slice(0, res.shape[0]))
-                    res[subidx] = res[subidx] + layer[intscn] * weight
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
-                    intscn, subidx = get_intersection_and_subindex(src_idx, red_idx)
-                    subidx.insert(0, slice(0, res.shape[0]))
-                    res[subidx] = layer[intscn]
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    res[subidx_channels] = layer[intscn]
             dst[red_idx] = res
 
 
@@ -177,7 +166,7 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     )
 
     intscn = idx_red.intersection(idx_subchunk)
-    _, intscn_in_subchunk = get_intersection_and_subindex(intscn, idx_subchunk)
+    _, intscn_in_subchunk = intscn.get_intersection_and_subindex(idx_subchunk)
 
     return weight[intscn_in_subchunk].unsqueeze(0)
 
@@ -239,17 +228,17 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
 
     def _get_backend_chunk_size_to_use(self, dst) -> Vec3D[int]:
+        assert self.processing_blend_pad is not None
         backend_chunk_size = deepcopy(self.processing_chunk_size)
         dst_backend_chunk_size = dst.backend.get_chunk_size(self.dst_resolution)
         for i in range(3):
-            if backend_chunk_size[i] == 1:
+            if backend_chunk_size[i] == 1 or self.processing_blend_pad[i] == 0:
                 continue
             if self.processing_chunk_size[i] % 2 != 0:
                 raise ValueError(
                     "`processing_chunk_size` must be divisible by 2 at least once in"
-                    " dimensions that are not 1;"
+                    " blended dimensions that are not 1;"
                     " received {self.processing_chunk_size[i]} against {dst_backend_chunk_size[i]}"
-                    # turn caching back off
                 )
             backend_chunk_size[i] //= 2
             while backend_chunk_size[i] > dst_backend_chunk_size[i]:

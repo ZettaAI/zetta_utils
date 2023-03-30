@@ -10,6 +10,7 @@ import cachetools
 import numpy as np
 import tensorstore
 import torch
+from typeguard import suppress_type_checks
 
 from zetta_utils import tensor_ops
 from zetta_utils.geometry import Vec3D
@@ -184,8 +185,22 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: bcxyz
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(idx.resolution)))
-        data_raw = np.array(ts[idx.to_slices()])
-        result_np = np.transpose(data_raw, (3, 0, 1, 2))
+
+        with suppress_type_checks():
+            bounds = self.get_bounds(idx.resolution)
+            idx_inbounds = bounds.intersection(idx)
+
+        data_raw = np.array(ts[idx_inbounds.to_slices()])
+
+        if idx_inbounds != idx:
+            with suppress_type_checks():
+                _, subindex = bounds.get_intersection_and_subindex(idx)
+            data_final = np.zeros_like(data_raw, shape=list(idx.shape) + [data_raw.shape[-1]])
+            data_final[subindex] = data_raw[:, :, :]
+        else:
+            data_final = data_raw
+
+        result_np = np.transpose(data_final, (3, 0, 1, 2))
         result = tensor_ops.to_torch(result_np)
         return result
 
@@ -266,6 +281,16 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
         return Vec3D[int](*ts.chunk_layout.read_chunk.shape[0:3])
+
+    # TODO: implement the following two methods for VolumetricBackendProtocol
+    def get_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
+        ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
+        return Vec3D[int](*ts.shape[0:3])
+
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
+        offset = self.get_voxel_offset(resolution)
+        size = self.get_size(resolution)
+        return VolumetricIndex.from_coords(offset, offset + size, resolution)
 
     def get_chunk_aligned_index(  # pragma: no cover
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]

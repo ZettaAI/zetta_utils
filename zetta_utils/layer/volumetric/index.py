@@ -6,6 +6,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry.bbox import Slices3D
 
 
 @typechecked
@@ -26,6 +27,20 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     @property
     def shape(self) -> Vec3D[int]:
         return self.stop - self.start
+
+    @classmethod
+    def from_coords(
+        cls,
+        start_coord: Sequence[int],
+        end_coord: Sequence[int],
+        resolution: Vec3D,
+        allow_slice_rounding: bool = False,
+    ) -> VolumetricIndex:
+        return VolumetricIndex(
+            bbox=BBox3D.from_coords(start_coord, end_coord, resolution),
+            resolution=resolution,
+            allow_slice_rounding=allow_slice_rounding,
+        )
 
     def to_slices(self):
         return self.bbox.to_slices(self.resolution, self.allow_slice_rounding)
@@ -87,6 +102,18 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             resolution=self.resolution,
             allow_slice_rounding=self.allow_slice_rounding,
         )
+
+    def get_intersection_and_subindex(
+        self, large: VolumetricIndex
+    ) -> tuple[VolumetricIndex, Slices3D]:
+        """
+        Given a 'larger' VolumetricIndex, returns the intersection VolumetricIndex of
+        VolumetricIndex of the two as well as the slices for that intersection within the
+        large VolumetricIndex.
+        """
+        intersection = self.intersection(large)
+        subindex = intersection.translated(-large.start).to_slices()
+        return intersection, subindex
 
     def snapped(
         self,

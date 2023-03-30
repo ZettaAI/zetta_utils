@@ -160,7 +160,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def allow_cache(self) -> bool:  # pragma: no cover
-        return False
+        return True
 
     @allow_cache.setter
     def allow_cache(self, value: Union[bool, str]) -> None:  # pragma: no cover

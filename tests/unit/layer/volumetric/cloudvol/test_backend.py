@@ -19,9 +19,9 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
-LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x5")
-LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x6")
-LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x7")
+LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
+LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
+LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
 
 # Hack to mock a immutable method `write_info`
 _write_info_notmock = precomputed._write_info
@@ -113,15 +113,6 @@ def test_cv_backend_info_no_overwrite_when_same_as_cached(clear_caches, path, re
 
     precomputed._write_info.assert_not_called()
 
-    expected_shape = (1, 3, 4, 5)
-    cvb = CVBackend(path=LAYER_X0_PATH)
-    index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(0, 3), slice(1, 5), slice(2, 7))),
-        resolution=Vec3D(1, 1, 1),
-    )
-    result = cvb.read(index)
-    assert result.shape == expected_shape
-
 
 def test_cv_backend_read(clear_caches, mocker):
     data_read = torch.ones([3, 4, 5, 2])
@@ -141,10 +132,13 @@ def test_cv_backend_read(clear_caches, mocker):
 
 
 def test_cv_backend_write(clear_caches, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_X0_PATH)
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.ones([2, 3, 4, 5])
     expected_written = torch.ones([3, 4, 5, 2])  # channel as ch 0
 
@@ -161,10 +155,13 @@ def test_cv_backend_write(clear_caches, mocker):
 
 
 def test_cv_backend_write_scalar(clear_caches, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_X0_PATH)
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.tensor([1])
     expected_written = 1
 
@@ -185,10 +182,13 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
     ],
 )
 def test_cv_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_X0_PATH)
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),

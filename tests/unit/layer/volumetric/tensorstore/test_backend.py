@@ -25,9 +25,9 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
-LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x5")
-LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x6")
-LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x7")
+LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
+LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
+LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
 
 # Hack to mock a immutable method `write_info`
 _write_info_notmock = precomputed._write_info
@@ -147,7 +147,10 @@ def test_ts_backend_read_partial(clear_caches, mocker):
 
 
 def test_ts_backend_write_idx(clear_caches, mocker):
-    tsb = TSBackend(path=LAYER_X0_PATH)
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
+    tsb = TSBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.ones([1, 3, 4, 5], dtype=torch.uint8)
 
     index = VolumetricIndex(
@@ -158,7 +161,10 @@ def test_ts_backend_write_idx(clear_caches, mocker):
 
 
 def test_ts_backend_write_scalar_idx(clear_caches, mocker):
-    tsb = TSBackend(path=LAYER_X0_PATH)
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
+    tsb = TSBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.tensor([1], dtype=torch.uint8)
 
     index = VolumetricIndex(
@@ -176,7 +182,10 @@ def test_ts_backend_write_scalar_idx(clear_caches, mocker):
     ],
 )
 def test_ts_backend_write_exc(data_in, expected_exc, clear_caches, mocker):
-    tsb = TSBackend(path=LAYER_X0_PATH)
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+    )
+    tsb = TSBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(1, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),

@@ -1,1 +1,0 @@
-{"data_type": "uint8", "num_channels": 1, "scales": [{"chunk_sizes": [[1023, 1023, 1]], "encoding": "raw", "key": "1_1_1", "resolution": [1, 1, 1], "size": [16384, 16384, 16384], "voxel_offset": [0, 0, 0]}, {"chunk_sizes": [[1023, 1023, 1]], "encoding": "raw", "key": "2_2_1", "resolution": [2, 2, 1], "size": [16384, 16384, 16384], "voxel_offset": [0, 0, 0]}], "type": "raw"}

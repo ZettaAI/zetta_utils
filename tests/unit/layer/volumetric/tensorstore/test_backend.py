@@ -2,7 +2,9 @@
 import os
 import pathlib
 
+import numpy as np
 import pytest
+import tensorstore
 import torch
 
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
@@ -29,6 +31,7 @@ LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x7")
 
 # Hack to mock a immutable method `write_info`
 _write_info_notmock = precomputed._write_info
+_getitem_notmock = tensorstore.TensorStore.__getitem__
 
 
 @pytest.fixture
@@ -127,6 +130,20 @@ def test_ts_backend_read_idx(clear_caches, mocker):
     )
     result = tsb.read(index)
     assert result.shape == expected_shape
+
+
+def test_ts_backend_read_partial(clear_caches, mocker):
+    tensorstore.TensorStore.__getitem__ = mocker.MagicMock(
+        return_value=np.ones(shape=(1, 1, 1, 1), dtype=np.uint8)
+    )
+    tsb = TSBackend(path=LAYER_X0_PATH)
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(-1, 1), slice(0, 1), slice(0, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    result = tsb.read(index)
+    assert result[:, 0:1, :, :] == torch.zeros((1, 1, 1, 1), dtype=torch.uint8)
+    assert result[:, 1:2, :, :] == torch.ones((1, 1, 1, 1), dtype=torch.uint8)
 
 
 def test_ts_backend_write_idx(clear_caches, mocker):

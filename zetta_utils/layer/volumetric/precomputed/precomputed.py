@@ -12,6 +12,7 @@ import fsspec
 import fsspec.asyn
 from cachetools.keys import hashkey
 
+from zetta_utils.common import abspath
 from zetta_utils.geometry import Vec3D
 
 InfoExistsModes = Literal["expect_same", "overwrite"]
@@ -22,6 +23,7 @@ _info_hash_key = hashkey
 
 @cachetools.cached(_info_cache, key=_info_hash_key)
 def get_info(path: str) -> Dict[str, Any]:
+    path = abspath(path)
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
     try:
@@ -36,6 +38,7 @@ def get_info(path: str) -> Dict[str, Any]:
 def _write_info(
     info: Dict[str, Any], path: str
 ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
+    path = abspath(path)
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
     fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379

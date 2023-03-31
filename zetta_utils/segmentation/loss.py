@@ -21,7 +21,7 @@ class LossWithMask(nn.Module):
         super().__init__()
         try:
             self.criterion = criterion(reduction="none")
-        except TypeError:
+        except (KeyError, TypeError):
             self.criterion = criterion()
         assert self.criterion.reduction == "none"
         self.reduction = reduction

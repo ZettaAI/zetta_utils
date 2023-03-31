@@ -71,3 +71,38 @@ def seg_to_aff(
         return aff, affmsk
 
     return aff
+
+
+@builder.register("seg_to_rgb")
+@typechecked
+def seg_to_rgb(
+    data: TensorTypeVar,
+) -> TensorTypeVar:
+    """
+    Transform a segmentation into an RGB map.
+
+    :param data: Input segmentation
+    """
+    assert 2 <= data.ndim <= 5
+    data_np = convert.to_np(data)
+    data_np = data_np[0, ...] if data_np.ndim > 4 else data_np
+    data_np = data_np[0, ...] if data_np.ndim > 3 else data_np
+    unq, unq_inv = np.unique(data_np, return_inverse=True)
+
+    # pylint: disable=invalid-name
+    # Random colormap
+    N = len(unq)
+    R = np.random.rand(N)
+    G = np.random.rand(N)
+    B = np.random.rand(N)
+
+    # Background
+    idx = unq == 0
+    R[idx] = G[idx] = B[idx] = 0
+
+    R = R[unq_inv].reshape(data_np.shape)
+    G = G[unq_inv].reshape(data_np.shape)
+    B = B[unq_inv].reshape(data_np.shape)
+    rgbmap = np.stack((R, G, B), axis=0).astype(np.float32)
+    result = convert.astype(rgbmap, data)
+    return result

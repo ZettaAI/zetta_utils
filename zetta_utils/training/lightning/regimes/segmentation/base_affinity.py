@@ -7,10 +7,10 @@ import attrs
 import pytorch_lightning as pl
 import torch
 
-from zetta_utils import builder
+from zetta_utils import builder, tensor_ops
 from zetta_utils.segmentation import AffinityLoss
 
-from ..common import log_results
+from ..common import log_3d_results
 
 
 @builder.register("BaseAffinityRegime")
@@ -64,9 +64,10 @@ class BaseAffinityRegime(pl.LightningModule):
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
-            log_results(
+            log_3d_results(
                 mode,
-                sample_name,
+                transforms={"target": tensor_ops.label.seg_to_rgb},
+                title_suffix=sample_name,
                 data_in=data_in,
                 target=target,
                 result=torch.sigmoid(result) if self.logits else result,

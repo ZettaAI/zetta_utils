@@ -50,7 +50,7 @@ class EdgeCRF(nn.Module):
         super().__init__()
         try:
             criterion_ = criterion(reduction="none")
-        except TypeError:
+        except (KeyError, TypeError):
             criterion_ = criterion()
         assert criterion_.reduction == "none"
         if isinstance(criterion_, LossWithMask):

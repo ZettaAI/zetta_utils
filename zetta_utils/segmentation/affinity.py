@@ -53,6 +53,7 @@ class EdgeCRF(nn.Module):
         self,
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"],
+        balancer: nn.Module | None,
     ) -> None:
         super().__init__()
         try:
@@ -65,6 +66,7 @@ class EdgeCRF(nn.Module):
         else:
             self.criterion = LossWithMask(criterion, reduction="none")
         self.reduction = reduction
+        self.balancer = balancer
 
     def forward(
         self,
@@ -81,7 +83,8 @@ class EdgeCRF(nn.Module):
         nmsk = torch.tensor(0, dtype=dtype, device=device)
 
         for pred, trgt, mask in zip(preds, trgts, masks):
-            # TODO: class rebalancing
+            if self.balancer is not None:
+                mask = self.balancer(trgt, mask)
             loss_ = self.criterion(pred, trgt, mask)
             if loss_ is not None:
                 losses.append(loss_)
@@ -146,13 +149,14 @@ class AffinityLoss(nn.Module):
         edges: Sequence[Sequence[int]],
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"] = "none",
+        balancer: nn.Module | None = None,
         pad_crop: bool = False,
     ) -> None:
         super().__init__()
         self.slices = _compute_slices(edges, pad_crop)
         self.sampler = EdgeSampler(edges)
         self.decoder = EdgeDecoder(edges, pad_crop)
-        self.criterion = EdgeCRF(criterion, reduction)
+        self.criterion = EdgeCRF(criterion, reduction, balancer)
 
     def forward(
         self,

@@ -40,7 +40,13 @@ def to_torch(data: Tensor, device: torch.device | str | None = "cpu") -> torch.T
         result = data
     else:
         assert isinstance(data, np.ndarray)
-        result = torch.from_numpy(data).to(device)  # type: ignore # pytorch bug
+        if data.dtype == np.uint64:
+            data = data.astype(np.int64, casting="same_kind")
+        if data.dtype == np.uint32:
+            data = data.astype(np.int64, casting="safe")
+        if data.dtype == np.uint16:
+            data = data.astype(np.int32, casting="safe")
+        result = torch.from_numpy(data).to(device)
 
     return result
 

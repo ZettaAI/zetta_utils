@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-from typing import Callable, Literal, Sequence
+from typing import Callable, Literal, Sequence, cast
 
+import numpy as np
 import torch
 from torch import nn
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
+from zetta_utils.geometry.bbox import Slices3D
 
 from .loss import LossWithMask
+
+NDIM = 3
 
 
 @typechecked
 class EdgeSampler:
     def __init__(self, edges: Sequence[Sequence[int]]) -> None:
         assert len(edges) > 0
-        assert all(len(edge) == 3 for edge in edges)
+        assert all(len(edge) == NDIM for edge in edges)
         self.edges = list(edges)
 
     def generate_edges(self) -> Sequence[Sequence[int]]:
@@ -24,20 +28,23 @@ class EdgeSampler:
 
 @typechecked
 class EdgeDecoder(nn.Module):
-    def __init__(self, edges: Sequence[Sequence[int]]) -> None:
+    def __init__(self, edges: Sequence[Sequence[int]], pad_crop: bool) -> None:
         super().__init__()
         assert len(edges) > 0
-        assert all(len(edge) == 3 for edge in edges)
+        assert all(len(edge) == NDIM for edge in edges)
         self.edges = list(edges)
+        self.pad_crop = pad_crop
 
     def forward(self, x: torch.Tensor, idx: int) -> torch.Tensor:
         assert x.ndim >= 4
-        num_channels = x.shape[-4]  # CZYX
+        num_channels = x.shape[-(NDIM + 1)]  # CZYX
         assert num_channels == len(self.edges)
         assert 0 <= idx < num_channels
         data = x[..., [idx], :, :, :]
-        edge = self.edges[idx]
-        return tensor_ops.get_disp_pair(data, edge)[1]
+        if not self.pad_crop:
+            edge = self.edges[idx]
+            data = tensor_ops.get_disp_pair(data, edge)[1]
+        return data
 
 
 @typechecked
@@ -98,6 +105,39 @@ class EdgeCRF(nn.Module):
         return loss
 
 
+@typechecked
+def _compute_slices(
+    edges: Sequence[Sequence[int]],
+    pad_crop: bool,
+) -> list[Slices3D]:
+    assert len(edges) > 0
+    assert all(len(edge) == NDIM for edge in edges)
+
+    if not pad_crop:
+        slices = cast(Slices3D, tuple([slice(0, None)] * NDIM))
+        return [slices] * len(edges)
+
+    # Padding in the negative & positive directions
+    pad_neg = -np.amin(np.array(edges), axis=0, initial=0)
+    pad_pos = np.amax(np.array(edges), axis=0, initial=0)
+
+    # Compute slices for each edge
+    result = []
+    for edge in edges:
+        slices_ = []
+        for lpad, rpad, disp in zip(pad_neg, pad_pos, edge):
+            start, end = lpad, -rpad
+            if disp > 0:
+                end += disp
+            else:
+                start += disp
+            slices_.append(slice(start, None) if end == 0 else slice(start, end))
+        slices = cast(Slices3D, tuple(slices_))
+        result.append(slices)
+
+    return result
+
+
 @builder.register("AffinityLoss")
 @typechecked
 class AffinityLoss(nn.Module):
@@ -106,10 +146,12 @@ class AffinityLoss(nn.Module):
         edges: Sequence[Sequence[int]],
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"] = "none",
+        pad_crop: bool = False,
     ) -> None:
         super().__init__()
+        self.slices = _compute_slices(edges, pad_crop)
         self.sampler = EdgeSampler(edges)
-        self.decoder = EdgeDecoder(edges)
+        self.decoder = EdgeDecoder(edges, pad_crop)
         self.criterion = EdgeCRF(criterion, reduction)
 
     def forward(
@@ -122,9 +164,9 @@ class AffinityLoss(nn.Module):
         trgts = []
         masks = []
         edges = self.sampler.generate_edges()
-        for idx, edge in enumerate(edges):
-            affmap, affmsk = tensor_ops.seg_to_aff(trgt, edge, mask=mask)
+        for idx, (edge, slices) in enumerate(zip(edges, self.slices)):
+            aff, msk = tensor_ops.seg_to_aff(trgt[slices], edge, mask=mask)
             preds.append(self.decoder(pred, idx))
-            trgts.append(affmap)
-            masks.append(affmsk)
+            trgts.append(aff)
+            masks.append(msk)
         return self.criterion(preds, trgts, masks)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from typing import Dict, Iterable, Optional, Union
+from typing import Dict, Final, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.common import RepeatTimer
@@ -11,7 +11,7 @@ from zetta_utils.mazepa_addons import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
 
-REQUIRED_ENV_VARS: list[str] = [
+REQUIRED_ENV_VARS: Final = [
     # "GRAFANA_CLOUD_ACCESS_KEY",
     "ZETTA_USER",
     "ZETTA_PROJECT",
@@ -22,11 +22,11 @@ REQUIRED_ENV_VARS: list[str] = [
 ]
 
 
-DEFAULT_GCP_CLUSTER_NAME = "zutils-x3"
-DEFAULT_GCP_CLUSTER_REGION = "us-east1"
-DEFAULT_GCP_CLUSTER_PROJECT = "zetta-research"
+DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
+DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
+DEFAULT_GCP_CLUSTER_PROJECT: Final = "zetta-research"
 
-DEFAULT_GCP_CLUSTER = resource_allocation.k8s.ClusterInfo(
+DEFAULT_GCP_CLUSTER: Final = resource_allocation.k8s.ClusterInfo(
     name=DEFAULT_GCP_CLUSTER_NAME,
     region=DEFAULT_GCP_CLUSTER_REGION,
     project=DEFAULT_GCP_CLUSTER_PROJECT,
@@ -115,7 +115,9 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]] = None,
-    worker_cluster: Optional[resource_allocation.k8s.ClusterInfo] = None,
+    worker_cluster_name: Optional[str] = None,
+    worker_cluster_region: Optional[str] = None,
+    worker_cluster_project: Optional[str] = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
@@ -123,6 +125,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
 ):
+
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
@@ -134,9 +137,20 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
         _ensure_required_env_vars()
-        if worker_cluster is None:
+        if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
             worker_cluster = DEFAULT_GCP_CLUSTER
+            if worker_cluster_region is not None or worker_cluster_project is not None:
+                raise ValueError(
+                    "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
+                    "when `worker_cluster_name` is `None`"
+                )
+        else:
+            worker_cluster = resource_allocation.k8s.ClusterInfo(
+                name=worker_cluster_name,
+                region=worker_cluster_region,
+                project=worker_cluster_project,
+            )
         execution_tracker.register_execution(execution_id, [worker_cluster])
         exec_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
@@ -152,6 +166,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         stack.enter_context(heartbeat_tracking_ctx_mngr(execution_id))
         for mngr in ctx_managers:
             stack.enter_context(mngr)
+
         mazepa.execute(
             target=target,
             exec_queue=exec_queue,

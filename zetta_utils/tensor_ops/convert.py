@@ -40,7 +40,7 @@ def to_torch(data: Tensor, device: torch.types.Device = "cpu") -> torch.Tensor:
         result = data
     else:
         assert isinstance(data, np.ndarray)
-        result = torch.from_numpy(data).to(device)
+        result = torch.from_numpy(data).to(device)  # type: ignore # pytorch bug
 
     return result
 

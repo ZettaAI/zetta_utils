@@ -43,7 +43,7 @@ gcs = [
     "gcsfs >= 2022.7.1"
 ]
 tensor-typing = [
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 2.0",
     "numpy >= 1.23.4",
 ]
 tensor-ops = [
@@ -70,12 +70,12 @@ augmentations = [
     "zetta_utils[tensor_ops]"
 ]
 convnet = [
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 2.0",
     "artificery >= 0.0.3.3"
 ]
 alignment = [
     "metroem >= 0.1.2",
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 2.0",
 ]
 mazepa = [
     "tenacity == 8.1.0", # 8.2 didn't type `retry` properly -- expects no args
@@ -98,7 +98,7 @@ segmentation = [
 ]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
-    "torch == 1.12.1", # mypy error on newer
+    "torch >= 2.0",
     "pytorch-lightning == 1.7.7", # mypy error on newer
     "wandb >= 0.13.1",
 ]

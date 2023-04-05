@@ -58,6 +58,10 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
         ...
 
     @abstractmethod
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
+        ...
+
+    @abstractmethod
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
@@ -72,6 +76,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     "enforce_chunk_aligned_writes" = value: bool
     "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
     "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
+    "dataest_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
 
     @abstractmethod

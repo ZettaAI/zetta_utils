@@ -137,6 +137,17 @@ class VolumetricSetBackend(
             )
         return list(chunk_sizes.values())[0]
 
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
+        dataset_sizes = {
+            k: v.backend.get_dataset_size(resolution=resolution) for k, v in self.layers.items()
+        }
+        if not len(set(dataset_sizes.values())) == 1:
+            raise ValueError(
+                "Cannot determine consistent `dataset_size` for the "
+                f"volumetric layer set backend. Got: {dataset_sizes}"
+            )
+        return list(dataset_sizes.values())[0]
+
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:  # pragma: no cover

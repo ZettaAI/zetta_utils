@@ -220,8 +220,18 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             )
 
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(idx.resolution)))
-        slices = idx.to_slices()
-        ts[slices] = data_final
+        with suppress_type_checks():
+            bounds = self.get_bounds(idx.resolution)
+            idx_inbounds = bounds.intersection(idx)
+
+        if idx_inbounds != idx:
+            with suppress_type_checks():
+                _, subindex = bounds.get_intersection_and_subindex(idx)
+            slices = idx_inbounds.to_slices()
+            ts[slices] = data_final[subindex]
+        else:
+            slices = idx.to_slices()
+            ts[slices] = data_final
 
     def with_changes(self, **kwargs) -> TSBackend:
         """Currently untyped. Supports:
@@ -230,6 +240,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "enforce_chunk_aligned_writes" = value: bool - must be False for TensorStoreBackend
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
+        "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
         """
         # TODO: implement proper allow_cache logic
         assert self.info_spec is not None
@@ -242,11 +253,13 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "enforce_chunk_aligned_writes",
             "voxel_offset_res",
             "chunk_size_res",
+            "dataset_size_res",
         ]
         keys_to_kwargs = {"name": "path"}
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,
+            "dataset_size_res": info_spec.set_dataset_size,
         }
         keys_to_assert = {"enforce_chunk_aligned_writes": False}
         evolve_kwargs = {}
@@ -283,14 +296,13 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
         return Vec3D[int](*ts.chunk_layout.read_chunk.shape[0:3])
 
-    # TODO: implement the following two methods for VolumetricBackendProtocol
-    def get_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
         return Vec3D[int](*ts.shape[0:3])
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
         offset = self.get_voxel_offset(resolution)
-        size = self.get_size(resolution)
+        size = self.get_dataset_size(resolution)
         return VolumetricIndex.from_coords(offset, offset + size, resolution)
 
     def get_chunk_aligned_index(  # pragma: no cover

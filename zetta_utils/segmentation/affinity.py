@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import Callable, Literal, Sequence, cast
 
+import attrs
 import numpy as np
 import torch
 from torch import nn
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
+from zetta_utils.geometry import Vec3D
 from zetta_utils.geometry.bbox import Slices3D
+from zetta_utils.layer import JointIndexDataProcessor
+from zetta_utils.layer.volumetric import VolumetricIndex
 
 from .loss import LossWithMask
 
@@ -141,6 +146,15 @@ def _compute_slices(
     return result
 
 
+@typechecked
+def _expand_slices_dim(slices: Slices3D, ndim: int) -> tuple[slice, ...]:
+    extra_dims = ndim - NDIM
+    assert extra_dims >= 0
+    extra_slc = [slice(0, None)] * extra_dims
+    result = tuple(extra_slc + list(slices))
+    return result
+
+
 @builder.register("AffinityLoss")
 @typechecked
 class AffinityLoss(nn.Module):
@@ -174,3 +188,72 @@ class AffinityLoss(nn.Module):
             trgts.append(aff)
             masks.append(msk)
         return self.criterion(preds, trgts, masks)
+
+
+@builder.register("AffinityProcessor")
+@typechecked
+@attrs.mutable
+class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
+    edges: Sequence[Sequence[int]]
+    target: str
+
+    pad_neg: Vec3D[int] = attrs.field(init=False)
+    pad_pos: Vec3D[int] = attrs.field(init=False)
+    slices: list[Slices3D] = attrs.field(init=False)
+    prepared_resolution: Vec3D | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        assert len(self.edges) > 0
+        assert all(len(edge) == NDIM for edge in self.edges)
+
+        # Padding in the negative & positive directions
+        self.pad_neg = Vec3D(*np.amin(np.array(edges_union), axis=0, initial=0))
+        self.pad_pos = Vec3D(*np.amax(np.array(edges_union), axis=0, initial=0))
+
+        # Slices for cropping
+        self.slices = _compute_slices(edges_union, pad_crop=True)
+
+    def _crop_data(self, data: torch.Tensor) -> torch.Tensor:
+        assert self.prepared_resolution is not None
+        idx = (
+            VolumetricIndex.from_coords(
+                start_coord=Vec3D(0, 0, 0),
+                end_coord=Vec3D(*data.shape[-3:]),
+                resolution=Vec3D(*self.prepared_resolution),
+            )
+            .translated_start(-self.pad_neg)
+            .translated_end(-self.pad_pos)
+        )
+        slc = _expand_slices_dim(idx.to_slices(), ndim=data.ndim)
+        return data[slc]
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        """Pad index to have sufficient context for computing affinities"""
+        self.prepared_resolution = idx.resolution
+        result = idx.translated_start(self.pad_neg).translated_end(self.pad_pos)
+        return result
+
+    def process_data(
+        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
+    ) -> dict[str, torch.Tensor]:
+        # Process affinity
+        seg = data[self.target]
+        mask = data[self.target + "_mask"]
+        slices = list(map(partial(_expand_slices_dim, ndim=seg.ndim), self.slices))
+        affs, msks = [], []
+        for edge, slc in zip(self.edges, slices):
+            aff, msk = tensor_ops.seg_to_aff(seg[slc], edge, mask=mask[slc])
+            affs.append(aff)
+            msks.append(msk)
+        data[self.target] = torch.cat(affs, dim=-4)
+        data[self.target + "_mask"] = torch.cat(msks, dim=-4)
+
+        # Process other data
+        for key, value in data.items():
+            if not key.startswith(self.target):
+                data[key] = self._crop_data(value)
+
+        self.prepared_resolution = None
+        return data

@@ -32,6 +32,7 @@ LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
 # Hack to mock a immutable method `write_info`
 _write_info_notmock = precomputed._write_info
 _getitem_notmock = tensorstore.TensorStore.__getitem__
+_setitem_notmock = tensorstore.TensorStore.__setitem__
 
 
 @pytest.fixture
@@ -160,6 +161,26 @@ def test_ts_backend_write_idx(clear_caches, mocker):
     tsb.write(index, value)
 
 
+def test_ts_backend_write_idx_partial(clear_caches, mocker):
+    tensorstore.TensorStore.__setitem__ = mocker.MagicMock()
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+        default_chunk_size=IntVec3D(4, 4, 1),
+        default_voxel_offset=IntVec3D(0, 0, 0),
+    )
+    tsb = TSBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    value = torch.ones([1, 3, 4, 5], dtype=torch.uint8)
+
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(-2, 1), slice(-3, 1), slice(-4, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    tsb.write(index, value)
+    tensorstore.TensorStore.__setitem__.assert_called_with(
+        (slice(0, 1), slice(0, 1), slice(0, 1)), np.array([[[[1]]]], dtype=np.uint8)
+    )
+
+
 def test_ts_backend_write_scalar_idx(clear_caches, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
@@ -217,6 +238,17 @@ def test_ts_get_voxel_offset(clear_caches):
     assert tsb.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(1, 2, 3)
 
 
+def test_ts_get_dataset_size(clear_caches):
+    precomputed._write_info = _write_info_notmock
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+        default_dataset_size=IntVec3D(4096, 4096, 1),
+    )
+    tsb = TSBackend(path=LAYER_X7_PATH, info_spec=info_spec, on_info_exists="overwrite")
+
+    assert tsb.get_dataset_size(Vec3D(2, 2, 1)) == IntVec3D(4096, 4096, 1)
+
+
 def test_ts_with_changes(clear_caches, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
@@ -228,11 +260,13 @@ def test_ts_with_changes(clear_caches, mocker):
         name=LAYER_X5_PATH,
         voxel_offset_res=(IntVec3D(3, 2, 1), Vec3D(2, 2, 1)),
         chunk_size_res=(IntVec3D(512, 512, 1), Vec3D(2, 2, 1)),
+        dataset_size_res=(IntVec3D(2048, 2048, 1), Vec3D(2, 2, 1)),
         enforce_chunk_aligned_writes=False,
     )
     assert tsb_new.name == LAYER_X5_PATH
     assert tsb_new.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(3, 2, 1)
     assert tsb_new.get_chunk_size(Vec3D(2, 2, 1)) == IntVec3D(512, 512, 1)
+    assert tsb_new.get_dataset_size(Vec3D(2, 2, 1)) == IntVec3D(2048, 2048, 1)
     assert not tsb_new.enforce_chunk_aligned_writes
 
 

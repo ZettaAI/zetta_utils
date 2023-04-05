@@ -220,6 +220,17 @@ def test_cv_get_voxel_offset(clear_caches):
     assert cvb.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(1, 2, 3)
 
 
+def test_cv_get_dataset_size(clear_caches):
+    precomputed._write_info = _write_info_notmock
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+        default_dataset_size=IntVec3D(4096, 4096, 1),
+    )
+    cvb = CVBackend(path=LAYER_X7_PATH, info_spec=info_spec, on_info_exists="overwrite")
+
+    assert cvb.get_dataset_size(Vec3D(2, 2, 1)) == IntVec3D(4096, 4096, 1)
+
+
 def test_cv_with_changes(clear_caches, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
@@ -231,11 +242,13 @@ def test_cv_with_changes(clear_caches, mocker):
         name=LAYER_X5_PATH,
         voxel_offset_res=(IntVec3D(3, 2, 1), Vec3D(2, 2, 1)),
         chunk_size_res=(IntVec3D(512, 512, 1), Vec3D(2, 2, 1)),
+        dataset_size_res=(IntVec3D(2048, 2048, 1), Vec3D(2, 2, 1)),
         enforce_chunk_aligned_writes=False,
     )
     assert cvb_new.name == LAYER_X5_PATH
     assert cvb_new.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(3, 2, 1)
     assert cvb_new.get_chunk_size(Vec3D(2, 2, 1)) == IntVec3D(512, 512, 1)
+    assert cvb_new.get_dataset_size(Vec3D(2, 2, 1)) == IntVec3D(2048, 2048, 1)
     assert not cvb_new.enforce_chunk_aligned_writes
 
 

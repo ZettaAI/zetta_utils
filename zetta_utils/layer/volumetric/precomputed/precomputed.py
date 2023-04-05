@@ -58,8 +58,10 @@ class PrecomputedInfoSpec:
     field_overrides: dict[str, Any] | None = None
     default_chunk_size: Sequence[int] | None = None
     default_voxel_offset: Sequence[int] | None = None
+    default_dataset_size: Sequence[int] | None = None
     chunk_size_map: dict[str, Sequence[int]] | None = None
     voxel_offset_map: dict[str, Sequence[int]] | None = None
+    dataset_size_map: dict[str, Sequence[int]] | None = None
     data_type: str | None = None
     # ensure_scales: Optional[Iterable[int]] = None
 
@@ -77,6 +79,13 @@ class PrecomputedInfoSpec:
         if self.chunk_size_map is None:
             self.chunk_size_map = {}
         self.chunk_size_map[key] = chunk_size
+
+    def set_dataset_size(self, dataset_size_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
+        dataset_size, resolution = dataset_size_and_res
+        key = "_".join([_str(v) for v in resolution])
+        if self.dataset_size_map is None:
+            self.dataset_size_map = {}
+        self.dataset_size_map[key] = dataset_size
 
     def make_info(  # pylint: disable=too-many-branches, consider-iterating-dictionary
         self,
@@ -105,6 +114,13 @@ class PrecomputedInfoSpec:
                 for e in result["scales"]:
                     if e["key"] in self.voxel_offset_map.keys():
                         e["voxel_offset"] = [*self.voxel_offset_map[e["key"]]]
+            if self.default_dataset_size is not None:
+                for e in result["scales"]:
+                    e["size"] = [*self.default_dataset_size]
+            if self.dataset_size_map is not None:
+                for e in result["scales"]:
+                    if e["key"] in self.dataset_size_map.keys():
+                        e["size"] = [*self.dataset_size_map[e["key"]]]
             if self.data_type is not None:
                 result["data_type"] = self.data_type
 

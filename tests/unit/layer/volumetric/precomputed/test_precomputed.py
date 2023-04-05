@@ -77,7 +77,7 @@ def test_infospec_overwrite(clear_caches, path, reference, mode, mocker):
     precomputed._write_info.assert_called_once()
 
 
-def test_ts_set_voxel_set_voxel_offset_and_chunk(clear_caches, mocker):
+def test_ts_set_voxel_set_voxel_offset_chunk_and_data(clear_caches, mocker):
     precomputed._write_info = _write_info_notmock
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
@@ -85,9 +85,11 @@ def test_ts_set_voxel_set_voxel_offset_and_chunk(clear_caches, mocker):
     )
     info_spec.set_chunk_size((IntVec3D(3, 2, 1), Vec3D(2, 2, 1)))
     info_spec.set_voxel_offset((IntVec3D(1, 2, 3), Vec3D(2, 2, 1)))
+    info_spec.set_dataset_size((IntVec3D(10, 20, 30), Vec3D(2, 2, 1)))
     info_spec.update_info(LAYER_X5_PATH, on_info_exists="overwrite")
     scales = get_info(LAYER_X5_PATH)["scales"]
     for scale in scales:
         if scale["resolution"] == [2, 2, 1]:
             assert scale["voxel_offset"] == [1, 2, 3]
             assert scale["chunk_sizes"][0] == [3, 2, 1]
+            assert scale["size"] == [10, 20, 30]

@@ -64,12 +64,19 @@ class BaseAffinityRegime(pl.LightningModule):
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
+            results = {
+                "data_in": data_in,
+                "target": target,
+                "result": torch.sigmoid(result) if self.logits else result,
+            }
+
+            if torch.count_nonzero(mask) < torch.numel(mask):
+                results["target_mask"] = mask
+
             log_3d_results(
                 mode,
                 transforms={"target": tensor_ops.label.seg_to_rgb},
                 title_suffix=sample_name,
-                data_in=data_in,
-                target=target,
-                result=torch.sigmoid(result) if self.logits else result,
+                **results,
             )
         return loss

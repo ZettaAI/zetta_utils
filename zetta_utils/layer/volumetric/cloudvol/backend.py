@@ -31,8 +31,8 @@ def get_cv_cached(cloudpath, *args, **kwargs):
 class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
-    Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
-    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``BCXYZ``
+    Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
+    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
     :param path: CloudVolume path.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
@@ -155,7 +155,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             self._get_cv_at_resolution(res).cache.flush()
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
-        # Data out: bcxyz
+        # Data out: cxyz
         cvol = self._get_cv_at_resolution(idx.resolution)
         data_raw = cvol[idx.to_slices()]
 
@@ -164,7 +164,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return result
 
     def write(self, idx: VolumetricIndex, data: torch.Tensor):
-        # Data in: bcxyz
+        # Data in: cxyz
         # Write format: xyzc (b == 1)
 
         data_np = tensor_ops.convert.to_np(data)

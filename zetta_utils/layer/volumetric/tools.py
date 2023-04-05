@@ -43,6 +43,17 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
+@builder.register("VolumetricIndexPadder")
+@typechecked
+@attrs.mutable
+class VolumetricIndexPadder:
+    pad: Sequence[int]
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        result = idx.padded(pad=self.pad)
+        return result
+
+
 @builder.register("DataResolutionInterpolator")
 @typechecked
 @attrs.mutable

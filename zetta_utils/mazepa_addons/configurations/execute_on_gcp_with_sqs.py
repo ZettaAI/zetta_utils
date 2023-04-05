@@ -113,11 +113,11 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],
     worker_image: str,
     worker_replicas: int,
-    worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]] = None,
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
+    worker_resources: Dict[str, int | float | str] | None = None,
     max_batch_len: int = 10000,
     batch_gap_sleep_sec: float = 4.0,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
@@ -158,7 +158,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_cluster=worker_cluster,
             worker_labels=worker_labels,
             worker_replicas=worker_replicas,
-            worker_resources=worker_resources,
+            worker_resources=worker_resources if worker_resources else {},
             ctx_managers=ctx_managers,
         )
 

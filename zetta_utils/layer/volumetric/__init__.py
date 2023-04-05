@@ -9,6 +9,7 @@ from .frontend import (
     SliceUserVolumetricIndex,
 )
 
+
 from .tools import (
     DataResolutionInterpolator,
     InvertProcessor,
@@ -19,5 +20,7 @@ from .layer import (
     VolumetricLayer,
 )
 from .build import build_volumetric_layer
+
+from .constant import ConstantVolumetricBackend, build_constant_volumetric_layer
 from .layer_set import VolumetricLayerSet, build_volumetric_layer_set
 from .protocols import VolumetricBasedLayerProtocol

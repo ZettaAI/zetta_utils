@@ -117,17 +117,17 @@ def get_weight_template(
     weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
     weights_z_t = torch.Tensor(weights_z).unsqueeze(0).unsqueeze(0)
 
-    if not x_start_aligned:
+    if not x_start_aligned and x_pad != 0:
         weight[0 : 2 * x_pad, :, :] *= weights_x_t
-    if not x_stop_aligned:
+    if not x_stop_aligned and x_pad != 0:
         weight[(-2 * x_pad) :, :, :] *= weights_x_t.flip(0)
-    if not y_start_aligned:
+    if not y_start_aligned and y_pad != 0:
         weight[:, 0 : 2 * y_pad, :] *= weights_y_t
-    if not y_stop_aligned:
+    if not y_stop_aligned and y_pad != 0:
         weight[:, (-2 * y_pad) :, :] *= weights_y_t.flip(1)
-    if not z_start_aligned:
+    if not z_start_aligned and z_pad != 0:
         weight[:, :, 0 : 2 * z_pad] *= weights_z_t
-    if not z_stop_aligned:
+    if not z_stop_aligned and z_pad != 0:
         weight[:, :, (-2 * z_pad) :] *= weights_z_t.flip(2)
     return weight
 
@@ -316,22 +316,20 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         else:
             backend_chunk_size_to_use = self.processing_chunk_size
         if self.intermediaries_dir.startswith("file://"):
-            backend_temp = TSBackend.from_precomputed(dst.backend).with_changes(
-                name=path.join(self.intermediaries_dir, temp_name),
-                voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
-                chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
-                enforce_chunk_aligned_writes=False,
-                allow_cache=allow_cache,
-            )
+            backend_temp_base = TSBackend.from_precomputed(dst.backend)
         else:
-            backend_temp = dst.backend.with_changes(
-                name=path.join(self.intermediaries_dir, temp_name),
-                voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
-                chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
-                enforce_chunk_aligned_writes=False,
-                use_compression=False,
-                allow_cache=allow_cache,
-            )
+            backend_temp_base = dst.backend
+        backend_temp = backend_temp_base.with_changes(
+            name=path.join(self.intermediaries_dir, temp_name),
+            voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
+            chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
+            dataset_size_res=(
+                dst.backend.get_dataset_size(self.dst_resolution) + 2 * backend_chunk_size_to_use,
+                self.dst_resolution,
+            ),
+            enforce_chunk_aligned_writes=False,
+            allow_cache=allow_cache,
+        )
         return attrs.evolve(deepcopy(dst), backend=backend_temp)
 
     def make_tasks_without_checkerboarding(

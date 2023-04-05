@@ -1,6 +1,6 @@
 #SRC_PATH:   "gs://zfish_unaligned/coarse_x0/raw_masked"
 #FIELD_PATH: "gs://sergiy_exp/aced/zfish/large_test_x8/afield_debug_x6"
-#DST_PATH:   "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/newblend44/"
+#DST_PATH:   "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/newblend50/"
 #TEMP_PATH1: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/dodam_exp/newblend1/temp/"
 #TEMP_PATH0: "file:///tmp/zetta_cvols/"
 
@@ -20,8 +20,8 @@
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
 	processing_chunk_sizes: [[8192, 8192, 1], [2048, 2048, 1]]
-	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
-	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
+	processing_crop_pads: [[0, 0, 1], [0, 0, 0]]
+	processing_blend_pads: [[0, 0, 0], [16, 16, 0]]
 	processing_blend_modes: "quadratic"
 
 	roi_crop_pad: [0, 0, 0]

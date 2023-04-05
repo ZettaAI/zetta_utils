@@ -194,6 +194,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "enforce_chunk_aligned_writes" = value: bool
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
+        "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
         """
         assert self.info_spec is not None
 
@@ -207,11 +208,13 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "enforce_chunk_aligned_writes",
             "voxel_offset_res",
             "chunk_size_res",
+            "dataset_size_res",
         ]
         keys_to_kwargs = {"name": "path"}
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,
+            "dataset_size_res": info_spec.set_dataset_size,
         }
         keys_to_cv_kwargs = {
             "allow_cache": "cache",
@@ -247,6 +250,15 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
         return Vec3D[int](*cvol.chunk_size)
+
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
+        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        return Vec3D[int](*cvol.volume_size)
+
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
+        offset = self.get_voxel_offset(resolution)
+        size = self.get_dataset_size(resolution)
+        return VolumetricIndex.from_coords(offset, offset + size, resolution)
 
     def get_chunk_aligned_index(  # pragma: no cover
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]

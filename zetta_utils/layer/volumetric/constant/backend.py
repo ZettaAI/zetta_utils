@@ -101,10 +101,13 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
         return Vec3D[int](1, 1, 1)
 
-    def get_chunk_aligned_index(  # pragma: no cover
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
+        return Vec3D[int](0, 0, 0)
+
+    def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
-        return idx
+        return idx  # pragma: no cover
 
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:  # pragma: no cover
         pass

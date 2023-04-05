@@ -17,7 +17,7 @@ from ..common import log_3d_results
 @attrs.mutable(eq=False)
 class BaseAffinityRegime(pl.LightningModule):
     model: torch.nn.Module
-    criterion: AffinityLoss
+    criterion: torch.nn.Module
     lr: float
     amsgrad: bool = True
     logits: bool = True
@@ -73,9 +73,14 @@ class BaseAffinityRegime(pl.LightningModule):
             if torch.count_nonzero(mask) < torch.numel(mask):
                 results["target_mask"] = mask
 
+            # RGB transform, if necessary
+            transforms = {}
+            if isinstance(self.criterion, AffinityLoss):
+                transforms["target"] = tensor_ops.label.seg_to_rgb
+
             log_3d_results(
                 mode,
-                transforms={"target": tensor_ops.label.seg_to_rgb},
+                transforms=transforms,
                 title_suffix=sample_name,
                 **results,
             )

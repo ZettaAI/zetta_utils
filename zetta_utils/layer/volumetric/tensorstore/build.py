@@ -28,6 +28,10 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     info_field_overrides: dict[str, Any] | None = None,
     info_chunk_size: Sequence[int] | None = None,
     info_chunk_size_map: dict[str, Sequence[int]] | None = None,
+    info_dataset_size: Sequence[int] | None = None,
+    info_dataset_size_map: dict[str, Sequence[int]] | None = None,
+    info_voxel_offset: Sequence[int] | None = None,
+    info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
     on_info_exists: InfoExistsModes = "expect_same",
     cache_bytes_limit: int | None = None,
     allow_slice_rounding: bool = False,
@@ -60,6 +64,11 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     :param info_reference_path: Path to a reference Precomputed volume for info.
     :param info_field_overrides: Manual info field specifications.
     :param info_chunk_size: Precomputed chunk size for all scales.
+    :param info_chunk_size_map: Precomputed chunk size for each resolution.
+    :param info_dataset_size: Precomputed dataset size for all scales.
+    :param info_dataset_size_map: Precomputed dataset size for each resolution.
+    :param info_voxel_offset: Precomputed voxel offset for all scales.
+    :param info_voxel_offset_map: Precomputed voxel offset for each resolution.
     :param on_info_exists: Behavior mode for when both new info specs aregiven
         and layer info already exists.
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
@@ -82,6 +91,10 @@ def build_ts_layer(  # pylint: disable=too-many-locals
             field_overrides=info_field_overrides,
             default_chunk_size=info_chunk_size,
             chunk_size_map=info_chunk_size_map,
+            default_dataset_size=info_dataset_size,
+            dataset_size_map=info_dataset_size_map,
+            default_voxel_offset=info_voxel_offset,
+            voxel_offset_map=info_voxel_offset_map,
         ),
         cache_bytes_limit=cache_bytes_limit,
     )

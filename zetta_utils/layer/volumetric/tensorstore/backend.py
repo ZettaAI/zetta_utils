@@ -62,8 +62,8 @@ def _clear_ts_cache(path: str) -> None:
 class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using TensorStore library.
-    Read data will be a ``torch.Tensor`` in ``BCXYZ`` dimension order.
-    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``BCXYZ``
+    Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
+    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
     :param path: Precomputed path.
     :param info_spec: Specification for the info file for the layer. If None, the
@@ -184,7 +184,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         _clear_ts_cache(self.path)
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
-        # Data out: bcxyz
+        # Data out: cxyz
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(idx.resolution)))
 
         with suppress_type_checks():
@@ -206,7 +206,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return result
 
     def write(self, idx: VolumetricIndex, data: torch.Tensor):
-        # Data in: bcxyz
+        # Data in: cxyz
         # Write format: xyzc (b == 1)
         data_np = tensor_ops.convert.to_np(data)
         if data_np.size == 1 and len(data_np.shape) == 1:
@@ -215,7 +215,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             data_final = np.transpose(data_np, (1, 2, 3, 0))
         else:
             raise ValueError(
-                "Data written to CloudVolume backend must be in `cxyz` dimension format, "
+                "Data written to CloudVolume backend must be in cxyz` dimension format, "
                 f"but got a tensor of with ndim == {data_np.ndim}"
             )
 

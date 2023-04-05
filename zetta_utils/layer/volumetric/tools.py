@@ -8,6 +8,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
 from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
+from zetta_utils.geometry.bbox import Slices3D
 
 from .. import IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
@@ -130,6 +131,53 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
         else:
             result = data
         return result
+
+
+@builder.register("ROIMaskProcessor")
+@typechecked
+@attrs.mutable
+class ROIMaskProcessor(JointIndexDataProcessor):  # pragma: no cover
+    start_coord: Sequence[int]
+    end_coord: Sequence[int]
+    resolution: Sequence[float]
+    targets: list[str]
+
+    roi: VolumetricIndex = attrs.field(init=False)
+    prepared_subidx: Slices3D | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        roi = VolumetricIndex.from_coords(
+            start_coord=self.start_coord,
+            end_coord=self.end_coord,
+            resolution=Vec3D(*self.resolution),
+        )
+        object.__setattr__(self, "roi", roi)
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        intersection = idx.intersection(self.roi)
+        self.prepared_subidx = intersection.translated(-idx.start).to_slices()
+        return idx
+
+    def process_data(
+        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
+    ) -> dict[str, torch.Tensor]:
+        assert self.prepared_subidx is not None
+
+        for target in self.targets:
+            assert target in data
+            if target + "_mask" in data:
+                continue
+            roi_mask = torch.zeros_like(data[target])
+            extra_dims = roi_mask.ndim - len(self.prepared_subidx)
+            slices = [slice(0, None) for _ in range(extra_dims)]
+            slices += list(self.prepared_subidx)
+            roi_mask[tuple(slices)] = 1
+            data[target + "_mask"] = roi_mask
+
+        self.prepared_subidx = None
+        return data
 
 
 @attrs.mutable

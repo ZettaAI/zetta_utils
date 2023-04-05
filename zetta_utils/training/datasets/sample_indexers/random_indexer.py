@@ -16,15 +16,19 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under
     """Indexer randomizes the order at which `inner_indexer` samples are pulled.
 
     :param indexer: SampleIndexer to be randomized.
-
+    :param replacement: Samples are drawn on-demand with replacement if ``True``.
     """
 
     inner_indexer: SampleIndexer
+    replacement: bool = False
     order: list[int] = attrs.field(init=False)
 
     def __attrs_post_init__(self):
-        self.order = list(range(0, len(self.inner_indexer)))
-        random.shuffle(self.order)
+        if self.replacement:
+            self.order = []
+        else:
+            self.order = list(range(0, len(self.inner_indexer)))
+            random.shuffle(self.order)
 
     def __len__(self):
         num_samples = len(self.inner_indexer)
@@ -36,7 +40,9 @@ class RandomIndexer(SampleIndexer):  # pragma: no cover # No conditionals, under
         :param idx: Integer sample index, kept for compatibility even
         though it is unused.
         :return: Index of the type used by the wrapped PieceIndexer.
-
         """
-        rand_idx = self.order[idx]
+        if self.replacement:
+            rand_idx = random.randint(0, len(self) - 1)
+        else:
+            rand_idx = self.order[idx]
         return self.inner_indexer(rand_idx)

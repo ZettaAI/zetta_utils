@@ -21,6 +21,7 @@ class BaseAffinityRegime(pl.LightningModule):
     lr: float
     amsgrad: bool = True
     logits: bool = True
+    group: int = 3
 
     train_log_row_interval: int = 200
     val_log_row_interval: int = 25
@@ -64,23 +65,31 @@ class BaseAffinityRegime(pl.LightningModule):
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
-            results = {
-                "data_in": data_in,
-                "target": target,
-                "result": torch.sigmoid(result) if self.logits else result,
-            }
+            results = {"data_in": data_in}
 
-            if torch.count_nonzero(mask) < torch.numel(mask):
-                results["target_mask"] = mask
+            target_ = target
+            result_ = torch.sigmoid(result) if self.logits else result
 
-            # RGB transform, if necessary
-            transforms = {}
+            # RGB transfrom, if necessary
             if isinstance(self.criterion, AffinityLoss):
-                transforms["target"] = tensor_ops.label.seg_to_rgb
+                target_ = tensor_ops.seg_to_rgb(target)
+
+            # Chop into groups for visualization purpose
+            num_channels = target.shape[-4]
+            group = self.group if self.group > 0 else num_channels
+            for i in range(0, num_channels, group):
+                start = i
+                end = min(i + group, num_channels)
+                results[f"target[{start}:{end}]"] = target_[..., start:end, :, :, :]
+                results[f"result[{start}:{end}]"] = result_[..., start:end, :, :, :]
+
+                # Optional mask
+                mask_ = mask[..., start:end, :, :, :]
+                if torch.count_nonzero(mask_) < torch.numel(mask_):
+                    results[f"target_mask[{start}:{end}]"] = mask_
 
             log_3d_results(
                 mode,
-                transforms=transforms,
                 title_suffix=sample_name,
                 **results,
             )

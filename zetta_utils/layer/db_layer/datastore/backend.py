@@ -6,6 +6,7 @@ from typing import List, Optional, Union
 
 import attrs
 from google.cloud.datastore import Client, Entity, Key
+from tenacity import retry, stop_after_attempt, wait_exponential
 from typeguard import typechecked
 
 from zetta_utils import builder
@@ -71,11 +72,13 @@ class DatastoreBackend(DBBackend):
             self._client = Client(project=self.project, namespace=self.namespace)
         return self._client
 
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=1, min=4, max=10))
     def read(self, idx: DBIndex) -> DBDataT:
         keys = self._get_keys_or_entities(idx)
         entities = self.client.get_multi(keys)
         return _get_data_from_entities(idx, entities)
 
+    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=1, min=4, max=10))
     def write(self, idx: DBIndex, data: DBDataT):
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)

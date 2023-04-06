@@ -4,6 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Callable, Optional
 
+import xxhash
 from coolname import generate_slug
 
 
@@ -34,8 +35,15 @@ def generate_invocation_id(
     kwargs: dict,
     prefix: Optional[str] = None,
 ):  # pragma: no cover
-    # TODO
-    return get_unique_id(prefix=prefix)
+    x = xxhash.xxh128()
+    x.update(fn.__repr__().encode())
+    x.update(args.__repr__().encode())
+    x.update(kwargs.__repr__().encode())
+
+    if prefix is not None:
+        return f"{prefix}-{x.hexdigest()}"
+    else:
+        return x.hexdigest()
 
 
 def get_literal_id_fn(  # pylint: disable=unused-argument

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from functools import reduce
-from typing import Callable
 
 import wandb
 from pytorch_lightning.loggers.logger import Logger
@@ -59,7 +58,6 @@ def render_3d_result(data: Tensor):
 
 def log_3d_results(
     mode: str,
-    transforms: dict[str, Callable],
     title_suffix: str = "",
     **kwargs,
 ) -> None:
@@ -69,7 +67,6 @@ def log_3d_results(
     row = []
     for k, v in kwargs.items():
         data = tensor_ops.crop_center(v, min_s)
-        data = transforms[k](data) if k in transforms else data
         rendered = render_3d_result(data)
         row.append(wandb.Image(rendered, caption=k))
 

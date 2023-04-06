@@ -12,11 +12,12 @@ from zetta_utils import builder
 
 @builder.register("LossWithMask")
 @typechecked
-class LossWithMask(nn.Module):
+class LossWithMask(nn.Module):  # pragma: no cover
     def __init__(
         self,
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"] = "sum",
+        balancer: nn.Module | None = None,
     ) -> None:
         super().__init__()
         try:
@@ -25,6 +26,8 @@ class LossWithMask(nn.Module):
             self.criterion = criterion()
         assert self.criterion.reduction == "none"
         self.reduction = reduction
+        self.balancer = balancer
+        self.balanced = False
 
     def forward(
         self,
@@ -35,6 +38,10 @@ class LossWithMask(nn.Module):
         nmsk = torch.count_nonzero(mask)
         if nmsk.item() == 0:
             return None
+
+        # Optional class balancing
+        if (not self.balanced) and (self.balancer is not None):
+            mask = self.balancer(trgt, mask)
 
         loss = mask * self.criterion(pred, trgt)
         if self.reduction == "none":
@@ -56,10 +63,11 @@ class BinaryLossWithMargin(LossWithMask):
         self,
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"] = "sum",
+        balancer: nn.Module | None = None,
         margin: float = 0,
         logits: bool = False,
     ) -> None:
-        super().__init__(criterion, reduction)
+        super().__init__(criterion, reduction, balancer)
         self.margin = np.clip(margin, 0, 1)
         self.logits = logits
 
@@ -69,6 +77,11 @@ class BinaryLossWithMargin(LossWithMask):
         trgt: torch.Tensor,
         mask: torch.Tensor,
     ) -> torch.Tensor | None:
+        # Optional class balancing
+        if self.balancer is not None:
+            mask = self.balancer(trgt, mask)
+            self.balanced = True
+
         high = 1 - self.margin
         low = self.margin
         activ = torch.sigmoid(pred) if self.logits else pred
@@ -85,9 +98,10 @@ class BinaryLossWithInverseMargin(LossWithMask):
         self,
         criterion: Callable[..., nn.Module],
         reduction: Literal["mean", "sum", "none"] = "sum",
+        balancer: nn.Module | None = None,
         margin: float = 0,
     ) -> None:
-        super().__init__(criterion, reduction)
+        super().__init__(criterion, reduction, balancer)
         self.margin = np.clip(margin, 0, 1)
 
     def forward(
@@ -96,6 +110,11 @@ class BinaryLossWithInverseMargin(LossWithMask):
         trgt: torch.Tensor,
         mask: torch.Tensor,
     ) -> torch.Tensor | None:
+        # Optional class balancing
+        if self.balancer is not None:
+            mask = self.balancer(trgt, mask)
+            self.balanced = True
+
         trgt[torch.eq(trgt, 1)] = 1 - self.margin
         trgt[torch.eq(trgt, 0)] = self.margin
         return super().forward(pred, trgt, mask)

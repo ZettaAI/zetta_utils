@@ -8,7 +8,6 @@ import pytorch_lightning as pl
 import torch
 
 from zetta_utils import builder, tensor_ops
-from zetta_utils.segmentation import AffinityLoss
 
 from ..common import log_3d_results
 
@@ -17,8 +16,9 @@ from ..common import log_3d_results
 @attrs.mutable(eq=False)
 class BaseAffinityRegime(pl.LightningModule):
     model: torch.nn.Module
-    criterion: torch.nn.Module
     lr: float
+    criteria: dict[str, torch.nn.Module]
+    loss_weights: dict[str, float]
     amsgrad: bool = True
     logits: bool = True
     group: int = 3
@@ -51,46 +51,57 @@ class BaseAffinityRegime(pl.LightningModule):
         self, batch: dict[str, torch.Tensor], mode: str, log_row: bool, sample_name: str = ""
     ):
         data_in = batch["data_in"]
-        target = batch["target"]
-        if "target_mask" in batch:
-            mask = batch["target_mask"]
-        else:
-            mask = torch.ones_like(target)
+        results = self.model(data_in)
 
-        result = self.model(data_in)
-        loss = self.criterion(result, target, mask)
-        if loss is None:
+        # Compute loss
+        losses = []
+        for key, criterion in self.criteria.items():
+            pred = results[key]
+            trgt = batch[key]
+            mask = batch[key + "_mask"]
+            loss = criterion(pred, trgt, mask)
+            if loss is None:
+                continue
+            loss_w = self.loss_weights[key]
+            losses += [loss_w * loss]
+            self.log(f"loss/{key}/{mode}", loss.item(), on_step=True, on_epoch=True)
+
+        if len(losses) == 0:
             return None
 
+        loss = sum(losses)
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
-            results = {"data_in": data_in}
+            log = {
+                "data_in": data_in,
+                "target": tensor_ops.seg_to_rgb(batch["target"]),
+            }
 
-            target_ = target
-            result_ = torch.sigmoid(result) if self.logits else result
+            for key in self.criteria.keys():
+                trgt = batch[key]
+                mask = batch[key + "_mask"]
+                pred = results[key]
+                pred = torch.sigmoid(pred) if self.logits else pred
 
-            # RGB transfrom, if necessary
-            if isinstance(self.criterion, AffinityLoss):
-                target_ = tensor_ops.seg_to_rgb(target)
+                # Chop into groups for visualization purpose
+                num_channels = trgt.shape[-4]
+                group = self.group if self.group > 0 else num_channels
+                for i in range(0, num_channels, group):
+                    start = i
+                    end = min(i + group, num_channels)
+                    idx = f"[{start}:{end}]"
+                    log[f"{key}_target{idx}"] = trgt[..., start:end, :, :, :]
+                    log[f"{key}{idx}"] = pred[..., start:end, :, :, :]
 
-            # Chop into groups for visualization purpose
-            num_channels = target.shape[-4]
-            group = self.group if self.group > 0 else num_channels
-            for i in range(0, num_channels, group):
-                start = i
-                end = min(i + group, num_channels)
-                results[f"target[{start}:{end}]"] = target_[..., start:end, :, :, :]
-                results[f"result[{start}:{end}]"] = result_[..., start:end, :, :, :]
-
-                # Optional mask
-                mask_ = mask[..., start:end, :, :, :]
-                if torch.count_nonzero(mask_) < torch.numel(mask_):
-                    results[f"target_mask[{start}:{end}]"] = mask_
+                    # Optional mask
+                    mask = mask[..., start:end, :, :, :]
+                    if torch.count_nonzero(mask) < torch.numel(mask):
+                        log[f"{key}_mask{idx}"] = mask
 
             log_3d_results(
                 mode,
                 title_suffix=sample_name,
-                **results,
+                **log,
             )
         return loss

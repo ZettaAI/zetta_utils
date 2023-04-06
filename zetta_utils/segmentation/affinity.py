@@ -194,8 +194,8 @@ class AffinityLoss(nn.Module):
 @typechecked
 @attrs.mutable
 class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
-    edges: Sequence[Sequence[int]]
-    target: str
+    source: str
+    spec: dict[str, Sequence[Sequence[int]]]
 
     pad_neg: Vec3D[int] = attrs.field(init=False)
     pad_pos: Vec3D[int] = attrs.field(init=False)
@@ -203,8 +203,11 @@ class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
     prepared_resolution: Vec3D | None = attrs.field(init=False, default=None)
 
     def __attrs_post_init__(self):
-        assert len(self.edges) > 0
-        assert all(len(edge) == NDIM for edge in self.edges)
+        edges_union = []
+        for edges in self.spec.values():
+            assert len(edges) > 0
+            assert all(len(edge) == NDIM for edge in edges)
+            edges_union += list(edges)
 
         # Padding in the negative & positive directions
         self.pad_neg = Vec3D(*np.amin(np.array(edges_union), axis=0, initial=0))
@@ -238,22 +241,32 @@ class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
     def process_data(
         self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
     ) -> dict[str, torch.Tensor]:
-        # Process affinity
-        seg = data[self.target]
-        mask = data[self.target + "_mask"]
-        slices = list(map(partial(_expand_slices_dim, ndim=seg.ndim), self.slices))
-        affs, msks = [], []
-        for edge, slc in zip(self.edges, slices):
-            aff, msk = tensor_ops.seg_to_aff(seg[slc], edge, mask=mask[slc])
-            affs.append(aff)
-            msks.append(msk)
-        data[self.target] = torch.cat(affs, dim=-4)
-        data[self.target + "_mask"] = torch.cat(msks, dim=-4)
-
-        # Process other data
+        # Process other data first
         for key, value in data.items():
-            if not key.startswith(self.target):
+            if not key.startswith(self.source):
                 data[key] = self._crop_data(value)
+
+        # Segmentation and mask
+        seg = data[self.source]
+        mask = data[self.source + "_mask"]
+
+        # Expand slices dim
+        slices = list(map(partial(_expand_slices_dim, ndim=seg.ndim), self.slices))
+
+        # Process affinity
+        for target, edges in self.spec.items():
+            affs, msks = [], []
+            for edge, slc in zip(edges, slices[: len(edges)]):
+                aff, msk = tensor_ops.seg_to_aff(seg[slc], edge, mask=mask[slc])
+                affs.append(aff)
+                msks.append(msk)
+            data[target] = torch.cat(affs, dim=-4)
+            data[target + "_mask"] = torch.cat(msks, dim=-4)
+            slices = slices[len(edges) :]
+
+        # Process segmentation and mask
+        data[self.source] = self._crop_data(seg)
+        data[self.source + "_mask"] = self._crop_data(mask)
 
         self.prepared_resolution = None
         return data

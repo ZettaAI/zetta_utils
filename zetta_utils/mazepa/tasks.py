@@ -56,7 +56,14 @@ class TransientErrorCondition:
 
 DEFAULT_TRANSIENT_ERROR_CONDITIONS: Final = (
     TransientErrorCondition(
-        exception_type=RuntimeError, text_signature="Found no NVIDIA driver on your system"
+        # If running on GPU spot instance: Graceful shutdown failed
+        exception_type=RuntimeError,
+        text_signature="Found no NVIDIA driver on your system",
+    ),
+    TransientErrorCondition(
+        # If running on GPU spot instance: Graceful shutdown failed
+        exception_type=RuntimeError,
+        text_signature="Attempting to deserialize object on a CUDA device",
     ),
 )
 

@@ -226,6 +226,11 @@ class BBoxStrider:
         result = self.step_limits[0] * self.step_limits[1] * self.step_limits[2]
         return result
 
+    @property
+    def shape(self) -> Vec3D[int]:  # pragma: no cover
+        """Shape of the chunks."""
+        return Vec3D[int](*self.step_limits)
+
     def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
         result = [self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)]  # TODO: generator?

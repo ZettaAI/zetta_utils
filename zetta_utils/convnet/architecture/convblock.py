@@ -9,6 +9,7 @@ from typeguard import typechecked
 from typing_extensions import TypeAlias
 
 from zetta_utils import builder
+from zetta_utils.tensor_ops import crop_center
 from zetta_utils.typing import ensure_seq_of_seq
 
 Padding: TypeAlias = Union[Literal["same", "valid"], Sequence[int]]
@@ -149,12 +150,22 @@ class ConvBlock(nn.Module):
         conv_count = 0
         for i, layer in enumerate(self.layers):
             if (i in self.skips_dst) and (conv_count in skip_data_for):
-                result += skip_data_for[conv_count]
+                # In tracing mode, shapes obtained from tensor.shape are traced as tensors
+                if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                    size = list(map(lambda x: x.item(), result.shape))  # type: ignore
+                else:
+                    size = result.shape
+                result += crop_center(skip_data_for[conv_count], size)
 
             if (i in self.skips_src) and (str(conv_count) in self.skips):
                 skip_dest = self.skips[str(conv_count)]
                 if skip_dest in skip_data_for:
-                    skip_data_for[skip_dest] += result
+                    # In tracing mode, shapes obtained from tensor.shape are traced as tensors
+                    if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                        size = list(map(lambda x: x.item(), result.shape))  # type: ignore
+                    else:
+                        size = result.shape
+                    skip_data_for[skip_dest] += crop_center(skip_data_for[skip_dest], size)
                 else:
                     skip_data_for[skip_dest] = result
 

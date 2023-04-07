@@ -10,6 +10,7 @@ from typeguard import typechecked
 from typing_extensions import TypeAlias
 
 from zetta_utils import builder
+from zetta_utils.tensor_ops import crop_center
 
 from .convblock import ActivationMode, ConvBlock, Padding, PaddingMode
 
@@ -151,10 +152,16 @@ class UNet(nn.Module):
 
         for i, layer in enumerate(self.layers):
             if i in skip_data_for:
+                # In tracing mode, shapes obtained from tensor.shape are traced as tensors
+                if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                    size = list(map(lambda x: x.item(), result.shape))  # type: ignore
+                else:
+                    size = result.shape
+                skip_data = crop_center(skip_data_for[i], size)
                 if self.unet_skip_mode == "sum":
-                    result = result + skip_data_for[i]
+                    result = result + skip_data
                 elif self.unet_skip_mode == "concat":
-                    result = torch.hstack((skip_data_for[i], result))
+                    result = torch.hstack((skip_data, result))
             result = layer(result)
 
             if i in self.skips:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from contextlib import ExitStack
+from datetime import datetime
 from typing import Callable, Optional, Union
 
 import attrs
@@ -11,6 +12,7 @@ from zetta_utils import log
 from zetta_utils.common import ComparablePartial
 
 from . import Flow, Task, dryrun, seq_flow
+from .execution_checkpoint import record_execution_checkpoint
 from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
@@ -30,6 +32,9 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     raise_on_failed_task: bool = True
     do_dryrun_estimation: bool = True
     show_progress: bool = True
+    checkpoint: Optional[str] = None
+    checkpoint_interval_sec: float = 900.0  # 15 minutes
+    raise_on_failed_checkpoint: bool = True
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         return execute(
@@ -41,6 +46,9 @@ class Executor:  # pragma: no cover # single statement, pure delegation
             raise_on_failed_task=self.raise_on_failed_task,
             show_progress=self.show_progress,
             do_dryrun_estimation=self.do_dryrun_estimation,
+            checkpoint=self.checkpoint,
+            checkpoint_interval_sec=self.checkpoint_interval_sec,
+            raise_on_failed_checkpoint=self.raise_on_failed_checkpoint,
         )
 
 
@@ -54,6 +62,9 @@ def execute(
     raise_on_failed_task: bool = True,
     do_dryrun_estimation: bool = True,
     show_progress: bool = True,
+    checkpoint: Optional[str] = None,
+    checkpoint_interval_sec: float = 900.0,  # 15 minutes
+    raise_on_failed_checkpoint: bool = True,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -85,7 +96,9 @@ def execute(
                 flows = [seq_flow([task])]
 
             state = state_constructor(
-                ongoing_flows=flows, raise_on_failed_task=raise_on_failed_task
+                ongoing_flows=flows,
+                raise_on_failed_task=raise_on_failed_task,
+                checkpoint=checkpoint,
             )
             logger.debug(f"Built initial execution state {state}.")
 
@@ -105,6 +118,8 @@ def execute(
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             do_dryrun_estimation=do_dryrun_estimation,
             show_progress=show_progress,
+            checkpoint_interval_sec=checkpoint_interval_sec,
+            raise_on_failed_checkpoint=raise_on_failed_checkpoint,
         )
 
         end_time = time.time()
@@ -120,11 +135,15 @@ def _execute_from_state(
     batch_gap_sleep_sec: float,
     do_dryrun_estimation: bool,
     show_progress: bool,
+    checkpoint_interval_sec: float,
+    raise_on_failed_checkpoint: bool,
 ):
     if do_dryrun_estimation:
         expected_operation_counts = dryrun.get_expected_operation_counts(state.get_ongoing_flows())
     else:
         expected_operation_counts = {}
+
+    last_backup_ts = time.time()
 
     with ExitStack() as stack:
         if show_progress:
@@ -144,6 +163,21 @@ def _execute_from_state(
                 logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
                 time.sleep(batch_gap_sleep_sec)
                 logger.debug("Awake.")
+
+            if time.time() > last_backup_ts + checkpoint_interval_sec:
+                backup_completed_tasks(
+                    state, execution_id, raise_on_error=raise_on_failed_checkpoint
+                )
+                last_backup_ts = time.time()
+
+
+def backup_completed_tasks(state: ExecutionState, execution_id: str, raise_on_error: bool = False):
+    completed_ids = list(state.get_completed_ids())
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    ckpt_name = f"{timestamp}_{len(completed_ids)}"
+    record_execution_checkpoint(
+        execution_id, ckpt_name, completed_ids, raise_on_error=raise_on_error
+    )
 
 
 def process_ready_tasks(

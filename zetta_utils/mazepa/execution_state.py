@@ -10,6 +10,7 @@ from typeguard import typechecked
 from zetta_utils import log
 
 from .exceptions import MazepaExecutionFailure
+from .execution_checkpoint import read_execution_checkpoint
 from .flows import Dependency, Flow
 from .task_outcome import TaskOutcome, TaskStatus
 from .tasks import Task
@@ -50,6 +51,10 @@ class ExecutionState(ABC):  # pragma: no cover
     def get_progress_reports(self) -> dict[str, ProgressReport]:
         ...
 
+    @abstractmethod
+    def get_completed_ids(self) -> set[str]:
+        ...
+
 
 @typechecked
 @attrs.mutable
@@ -78,9 +83,12 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
     submitted_counts: dict[str, int] = attrs.field(init=False, factory=lambda: defaultdict(int))
     completed_counts: dict[str, int] = attrs.field(init=False, factory=lambda: defaultdict(int))
     leftover_ready_tasks: list[Task] = attrs.field(init=False, factory=list)
+    checkpoint: Optional[str] = None
 
     def __attrs_post_init__(self):
         self.ongoing_flows_dict = {e.id_: e for e in self.ongoing_flows}
+        if self.checkpoint is not None:
+            self._load_completed_ids_from_file(self.checkpoint)
 
     def get_ongoing_flows(self) -> list[Flow]:  # pragma: no cover
         return self.ongoing_flows
@@ -171,6 +179,9 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
 
         return result_final
 
+    def get_completed_ids(self) -> set[str]:
+        return self.completed_ids
+
     def _add_dependency(self, flow_id: str, dep: Dependency):
         if dep.ids is None:  # depend on all ongoing children
             self.dependency_map[flow_id].update(self.ongoing_children_map[flow_id])
@@ -229,4 +240,14 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
                     self.ongoing_children_map[flow.id_].add(e.id_)
                     self.ongoing_parent_map[e.id_] = flow.id_
                     result.append(e)
+                elif isinstance(e, Task):
+                    # Task loaded from checkpoint - adjust the counter
+                    self.submitted_counts[e.operation_name] += 1
+                    self.completed_counts[e.operation_name] += 1
         return result
+
+    def _load_completed_ids_from_file(self, filepath: str):
+        completed_ids = read_execution_checkpoint(filepath, ignore_prefix="flow-")
+
+        logger.info(f"Updating {len(completed_ids)} completed tasks from {self.checkpoint}")
+        self.completed_ids.update(completed_ids)

@@ -124,6 +124,9 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     show_progress: bool = True,
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
+    checkpoint: Optional[str] = None,
+    checkpoint_interval_sec: float = 900.0,
+    raise_on_failed_checkpoint: bool = True,
 ):
 
     execution_id = mazepa.id_generation.get_unique_id(
@@ -175,4 +178,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             show_progress=show_progress,
             do_dryrun_estimation=do_dryrun_estimation,
+            checkpoint=checkpoint,
+            checkpoint_interval_sec=checkpoint_interval_sec,
+            raise_on_failed_checkpoint=raise_on_failed_checkpoint,
         )

@@ -370,6 +370,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         red_chunks: Iterable[VolumetricIndex],
+        red_shape: Vec3D[int],
         dst: VolumetricBasedLayerProtocol,
         **kwargs: P.kwargs,
     ) -> Tuple[
@@ -386,10 +387,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         output layers, and the list of temporary layers with weights for all tasks that intersect
         the reduction chunk that need to be reduced for the output.
         """
+        red_chunks = list(red_chunks)
         tasks: List[mazepa.tasks.Task[R_co]] = []
         red_chunks_task_idxs: List[List[VolumetricIndex]] = [[] for _ in red_chunks]
         red_chunks_temps: List[List[VolumetricBasedLayerProtocol]] = [[] for _ in red_chunks]
         dst_temps: List[VolumetricBasedLayerProtocol] = []
+
         for chunker, chunker_idx in self.processing_chunker.split_into_nonoverlapping_chunkers(
             self.processing_blend_pad
         ):
@@ -419,11 +422,40 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
                 mode="shrink",
             )
+            red_ind = 0
             with suppress_type_checks():
                 for task_idx in task_idxs:
                     tasks.append(self.op.make_task(task_idx, dst_temp, **kwargs))
-                    for i, red_chunk in enumerate(red_chunks):
-                        if task_idx.intersects(red_chunk):
+                    try:
+                        while not task_idx.intersects(red_chunks[red_ind]):
+                            red_ind += 1
+                    # This case catches the case where the chunk is entirely outside any reduction
+                    # chunk; this can happen if, for instance, roi_crop_pad is set to [0, 0, 1]
+                    # and the processing_chunk_size is [X, X, 1]
+                    except IndexError as e:
+                        raise ValueError(
+                            f"The processing chunk `{task_idx.pformat()}` does not correspond to "
+                            "any reduction chunk; please check the `roi_crop_pad` and the "
+                            "`processing_chunk_size`."
+                        ) from e
+                    offsets = [
+                        (0, 0, 0),
+                        (0, 0, 1),
+                        (0, 1, 0),
+                        (0, 1, 1),
+                        (1, 0, 0),
+                        (1, 0, 1),
+                        (1, 1, 1),
+                    ]
+                    inds = [
+                        red_ind
+                        + offset[0] * red_shape[1] * red_shape[2]
+                        + offset[1] * red_shape[2]
+                        + offset[2]
+                        for offset in offsets
+                    ]
+                    for i in inds:
+                        if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
                             red_chunks_task_idxs[i].append(task_idx)
                             red_chunks_temps[i].append(dst_temp)
 
@@ -524,13 +556,16 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             red_chunks = reduction_chunker(
                 idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
             )
+            red_shape = reduction_chunker.get_shape(
+                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
+            )
             (
                 tasks,
                 red_chunks_task_idxs,
                 red_chunks_temps,
                 dst_temps,
             ) = self.make_tasks_with_checkerboarding(
-                idx.padded(self.roi_crop_pad), red_chunks, dst, **kwargs
+                idx.padded(self.roi_crop_pad), red_chunks, red_shape, dst, **kwargs
             )
             logger.info(
                 "Writing to temporary destinations:\n"

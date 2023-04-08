@@ -96,21 +96,27 @@ def get_weight_template(
 
     weight = torch.ones(subchunk_shape, dtype=torch.float)
     if processing_blend_mode == "linear":
-        weights_x = [x / (2 * x_pad) for x in range(2 * x_pad)]
-        weights_y = [y / (2 * y_pad) for y in range(2 * y_pad)]
-        weights_z = [z / (2 * z_pad) for z in range(2 * z_pad)]
+        weights_x = [x / (2 * x_pad + 1) for x in range(1, 2 * x_pad + 1)]
+        weights_y = [y / (2 * y_pad + 1) for y in range(1, 2 * y_pad + 1)]
+        weights_z = [z / (2 * z_pad + 1) for z in range(1, 2 * z_pad + 1)]
     elif processing_blend_mode == "quadratic":
         weights_x = [
-            ((x / x_pad) ** 2) / 2 if x < x_pad else 1 - ((2 - (x / x_pad)) ** 2) / 2
-            for x in range(2 * x_pad)
+            ((x / (x_pad + 0.5)) ** 2) / 2
+            if x <= x_pad
+            else 1 - ((2 - (x / (x_pad + 0.5))) ** 2) / 2
+            for x in range(1, 2 * x_pad + 1)
         ]
         weights_y = [
-            ((y / y_pad) ** 2) / 2 if y < y_pad else 1 - ((2 - (y / y_pad)) ** 2) / 2
-            for y in range(2 * y_pad)
+            ((y / (y_pad + 0.5)) ** 2) / 2
+            if y <= y_pad
+            else 1 - ((2 - (y / (y_pad + 0.5))) ** 2) / 2
+            for y in range(1, 2 * y_pad + 1)
         ]
         weights_z = [
-            ((z / z_pad) ** 2) / 2 if z < z_pad else 1 - ((2 - (z / z_pad)) ** 2) / 2
-            for z in range(2 * z_pad)
+            ((z / (z_pad + 0.5)) ** 2) / 2
+            if z <= z_pad
+            else 1 - ((2 - (z / (z_pad + 0.5))) ** 2) / 2
+            for z in range(1, 2 * z_pad + 1)
         ]
 
     weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
@@ -199,7 +205,7 @@ def set_allow_cache(*args, **kwargs):
     return newargs, newkwargs
 
 
-def clear_cache(*args, **kwargs):
+def clear_cache(*args, **kwargs):  #
     for arg in args:
         if isinstance(arg, VolumetricBasedLayerProtocol):
             if not arg.backend.is_local and arg.backend.allow_cache:

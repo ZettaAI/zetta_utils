@@ -314,7 +314,7 @@ def _perform_match_fwd_pass(
     sector_length_up_to_zcxy = torch.zeros_like(tissue_mask_zcxy).int()
     match_offsets_zcxy = torch.zeros_like(tissue_mask_zcxy).int()
     match_offsets_inv_zcxy = torch.zeros_like(tissue_mask_zcxy).int()
-
+    # breakpoint()
     for i in range(1, num_sections):
         offset_scores = torch.zeros(
             (max_dist, 1, tissue_mask_zcxy.shape[-2], tissue_mask_zcxy.shape[-1]),
@@ -333,13 +333,14 @@ def _perform_match_fwd_pass(
             if j < 0:
                 break
 
+            this_tissue_mask = tissue_mask_zcxy[i]
             this_misalignment_mask = misalignment_masks_zcxy[str(-offset)][i]
-            this_tissue_mask = tissue_mask_zcxy[j]
             this_pairwise_field = pairwise_fields_zcxy[str(-offset)][i : i + 1]
 
             offset_sector_lengths[offset - 1] = (
                 this_pairwise_field.sample(  # type: ignore
-                    sector_length_up_to_zcxy[j].float(), mode="nearest"
+                    sector_length_up_to_zcxy[j].float(),
+                    mode="nearest",
                 ).int()
                 + 1
             )
@@ -351,7 +352,7 @@ def _perform_match_fwd_pass(
             )
             assert offset_sector_length_scores.max() <= 1.0
 
-            offset_scores[offset - 1] = tissue_mask_zcxy[j] * 100
+            offset_scores[offset - 1] = tissue_mask_zcxy[i] * 100
             offset_scores[offset - 1] += (misalignment_masks_zcxy[str(-offset)][i] == 0) * 10
             offset_scores[offset - 1] += offset_sector_length_scores
             offset_scores[offset - 1] += (max_dist - offset) / 100
@@ -359,6 +360,7 @@ def _perform_match_fwd_pass(
         chosen_offset_scores, chosen_offsets = offset_scores.max(0)
         passable_choices = chosen_offset_scores >= 100
         match_offsets_zcxy[i][passable_choices] = chosen_offsets[passable_choices].int() + 1
+        # match_offsets_zcxy[i] = this_tissue_mask
 
         # sector_length_up_to_zcxy[i] = offset_sector_lengths[chosen_offsets]
         # TODO: how do vectorize this?

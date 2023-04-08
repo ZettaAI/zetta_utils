@@ -228,13 +228,12 @@ def _expand_bbox(  # pylint: disable=line-too-long
 ) -> BBox3D:
 
     bbox_shape_in_res = bbox.shape // dst_resolution
-    bbox_shape_diff = processing_chunk_sizes[0] - bbox_shape_in_res
-    translation_end = Vec3D[int](*[max(e, 0) for e in bbox_shape_diff])
+    translation_end = (processing_chunk_sizes[0] - bbox_shape_in_res) % processing_chunk_sizes[0]
     bbox_old = bbox
     bbox = bbox.translated_end(translation_end, dst_resolution)
     if translation_end != Vec3D[int](0, 0, 0):
         logger.info(
-            f"`expand_bbox` was set and the `bbox` was smaller than the top level `processing_chunk_size` in at least one dimension, "
+            f"`expand_bbox` was set and the `bbox` was not aligned to the top level `processing_chunk_size` in at least one dimension, "
             f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
             f"Original bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
             f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"

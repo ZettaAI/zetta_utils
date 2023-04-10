@@ -68,7 +68,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_blend_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
     processing_blend_modes: Union[
         Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
-    ] = "linear",
+    ] = "quadratic",
     roi_crop_pad: Sequence[int] = (0, 0, 0),
     level_intermediaries_dirs: Sequence[str | None] | None = None,
     start_coord: Sequence[int] | None = None,

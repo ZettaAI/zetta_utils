@@ -40,18 +40,18 @@
 #RELAXATION_ITER: 400
 #RELAXATION_LR:   0.3
 
-#RELAXATION_RIG: 500
+#RELAXATION_RIG: 2000
 
 //BLOCK 0
 #Z_START: 429
 
-#Z_END: 445
+#Z_END: 600
 
 //#Z_START: 599
 //#Z_END:   746
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
-#RELAXATION_SUFFIX: "_try_x0_crop"
+#RELAXATION_SUFFIX: "_try_x1_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -97,7 +97,6 @@
 			num_iter: 1000
 			lr:       0.015
 		}
-		chunk_size: [512, 512, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -106,7 +105,6 @@
 			num_iter: 1000
 			lr:       0.015
 		}
-		chunk_size: [512, 512, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -116,7 +114,6 @@
 			num_iter: 700
 			lr:       0.015
 		}
-		chunk_size: [1024, 1024, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [256, 256, 45]
@@ -126,7 +123,6 @@
 			num_iter: 700
 			lr:       0.03
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 45]
@@ -136,7 +132,6 @@
 			num_iter: 500
 			lr:       0.05
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -145,7 +140,6 @@
 			num_iter: 1000
 			lr:       0.015
 		}
-		chunk_size: [512, 512, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -155,7 +149,6 @@
 			num_iter: 700
 			lr:       0.015
 		}
-		chunk_size: [1024, 1024, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [256, 256, 45]
@@ -165,7 +158,6 @@
 			num_iter: 700
 			lr:       0.03
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 45]
@@ -175,7 +167,6 @@
 			num_iter: 500
 			lr:       0.05
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [64, 64, 45]
@@ -185,7 +176,6 @@
 			num_iter: 300
 			lr:       0.1
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 
 	#STAGE_TMPL & {
@@ -196,14 +186,19 @@
 			num_iter: 200
 			lr:       0.1
 		}
-		chunk_size: [2048, 2048, 1]
 	},
 ]
 
 #STAGE_TMPL: {
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
-	chunk_size:     _
+
+	expand_bbox: true
+	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
+	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [2048, 2048, 1]]
+	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
+	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
+
 	fn: {
 		"@type":  "align_with_online_finetuner"
 		"@mode":  "partial"
@@ -211,7 +206,6 @@
 		num_iter: _
 		lr?:      _
 	}
-	crop_pad: [64, 64, 0]
 }
 
 #CF_FLOW_TMPL: {
@@ -258,10 +252,12 @@
 		"@type": "naive_misd"
 		"@mode": "partial"
 	}
-	processing_chunk_sizes: [[2048, 2048, 1]]
+	processing_chunk_sizes: [[1024 * 6, 1024 * 6, 1], [2048, 2048, 1]]
+	max_reduction_chunk_sizes: [1024 * 6, 1024 * 6, 1]
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           #BBOX
-	_z_offset:      _
+	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
+	bbox:      #BBOX
+	_z_offset: _
 	src: {
 		"@type": "build_ts_layer"
 		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
@@ -311,8 +307,10 @@
 		mode:    _
 	}
 	expand_bbox: true
-	processing_crop_pads: [[256, 256, 0]]
-	processing_chunk_sizes: [[2048, 2048, 1]]
+	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
+	processing_chunk_sizes: [[1024 * 6, 1024 * 6, 1], [2048, 2048, 1]]
+	max_reduction_chunk_sizes: [1024 * 6, 1024 * 6, 1]
+	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 	//chunk_size: [512, 512, 1]
 	bbox:           #BBOX
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
@@ -405,8 +403,10 @@
 #INVERT_FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "invert_field", "@mode": "partial"}
-	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1]]
-	processing_crop_pads: [[64, 64, 0]]
+	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
+	processing_chunk_sizes: [[1024 * 6, 1024 * 6, 1], [2048, 2048, 1]]
+	max_reduction_chunk_sizes: [1024 * 6, 1024 * 6, 1]
+	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 	dst_resolution: [32, 32, 45]
 	bbox: #BBOX
 	src: {
@@ -471,6 +471,7 @@
 	}
 	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START]]
 	processing_crop_pads: [[128 + 64, 128 + 64, 0]]
+	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 	dst_resolution: [32, 32, 45]
 	max_dist: 2
 
@@ -559,10 +560,10 @@
 	bbox: #BBOX
 	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START], [288, 288, #Z_END - #Z_START]]
 	max_reduction_chunk_sizes: [512, 512, #Z_END - #Z_START]
-	processing_crop_pads: [[32, 32, 0], [96, 96, 0]]
-	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
-	//processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
-	//processing_blend_pads: [[32, 32, 0], [32, 32, 0]]
+	//processing_crop_pads: [[32, 32, 0], [96, 96, 0]]
+	//processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
+	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
+	processing_blend_pads: [[32, 32, 0], [32, 32, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	fix:             #RELAXATION_FIX
@@ -624,13 +625,13 @@
 		//  src: path:   "\(#MATCH_OFFSETS_PATH)/img_mask"
 		//  field: path: #AFIELD_PATH
 		//  dst: path:   #IMG_MASK_PATH
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 	]
 }
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x132"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x134"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
@@ -645,7 +646,7 @@
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,
-			#RELAX_FLOW,
+			//#RELAX_FLOW,
 			#POST_ALIGN_FLOW,
 		]
 	}

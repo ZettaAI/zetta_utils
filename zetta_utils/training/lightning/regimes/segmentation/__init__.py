@@ -1,1 +1,1 @@
-from . import base_affinity
+from . import base_affinity, base_embedding

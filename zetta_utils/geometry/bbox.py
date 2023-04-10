@@ -437,8 +437,10 @@ class BBox3D:
             for self_b, other_b in zip(self.bounds, other.bounds)
         )
 
-    def intersection(self: BBox3D, other: BBox3D) -> BBox3D:  # pragma: no cover
+    def intersection(self: BBox3D, other: BBox3D) -> BBox3D:
         assert self.unit == other.unit
+        if not self.intersects(other):
+            return BBox3D(((0, 0), (0, 0), (0, 0)), unit=self.unit)
         """Returns the intersection of two BoundingBoxNDs."""
         bounds = cast(
             tuple[Tuple2D, Tuple2D, Tuple2D],

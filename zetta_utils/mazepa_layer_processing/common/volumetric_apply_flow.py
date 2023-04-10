@@ -52,7 +52,7 @@ class ReduceByWeightedSum:
         roi_idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
         processing_blend_pad: Vec3D[int],
-        processing_blend_mode: Literal["linear", "quadratic"] = "linear",
+        processing_blend_mode: Literal["linear", "quadratic"],
     ) -> None:
         with suppress_type_checks():
             if len(src_layers) == 0:
@@ -143,7 +143,7 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     idx_roi: VolumetricIndex,
     idx_red: VolumetricIndex,
     processing_blend_pad: Vec3D[int],
-    processing_blend_mode: Literal["linear", "quadratic"] = "linear",
+    processing_blend_mode: Literal["linear", "quadratic"],
 ) -> torch.Tensor:
     """
     Gets the correct blending weights for an `idx_subchunk` inside a `idx_roi` being
@@ -205,7 +205,7 @@ def set_allow_cache(*args, **kwargs):
     return newargs, newkwargs
 
 
-def clear_cache(*args, **kwargs):  #
+def clear_cache(*args, **kwargs):
     for arg in args:
         if isinstance(arg, VolumetricBasedLayerProtocol):
             if not arg.backend.is_local and arg.backend.allow_cache:
@@ -238,7 +238,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
-    processing_blend_mode: Literal["linear", "quadratic"] = "linear"
+    processing_blend_mode: Literal["linear", "quadratic"] = "quadratic"
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
     clear_cache_on_return: bool = False
@@ -447,6 +447,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                         (1, 0, 1),
                         (1, 1, 1),
                     ]
+
                     inds = [
                         red_ind
                         + offset[0] * red_shape[1] * red_shape[2]
@@ -454,7 +455,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                         + offset[2]
                         for offset in offsets
                     ]
-                    for i in inds:
+                    # `set` to handle cases where the shape is 1 in some dimensions
+                    for i in set(inds):
                         if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
                             red_chunks_task_idxs[i].append(task_idx)
                             red_chunks_temps[i].append(dst_temp)
@@ -611,7 +613,7 @@ def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     max_reduction_chunk_size: Optional[Vec3D[int]] = None,
     roi_crop_pad: Optional[Vec3D[int]] = None,
     processing_blend_pad: Optional[Vec3D[int]] = None,
-    processing_blend_mode: Literal["linear", "quadratic"] = "linear",
+    processing_blend_mode: Literal["linear", "quadratic"] = "quadratic",
     intermediaries_dir: Optional[str] = None,
     allow_cache: bool = False,
     clear_cache_on_return: bool = False,

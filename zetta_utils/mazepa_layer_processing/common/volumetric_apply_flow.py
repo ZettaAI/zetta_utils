@@ -152,11 +152,6 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     """
     if processing_blend_pad == Vec3D[int](0, 0, 0):
         raise ValueError("`processing_blend_pad` must be nonzero to need blending weights")
-    if not idx_subchunk.intersects(idx_roi):
-        raise ValueError(
-            "`idx_roi` must intersect `idx_subchunk`;"
-            " `idx_roi`: {idx_roi}, `idx_subchunk`: {idx_subchunk}"
-        )
     if not idx_subchunk.intersects(idx_red):
         raise ValueError(
             "`idx_red` must intersect `idx_subchunk`;"

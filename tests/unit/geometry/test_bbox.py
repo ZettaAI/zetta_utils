@@ -398,3 +398,22 @@ def test_snapped(bbox: BBox3D, grid_offset, grid_size, mode, expected: BBox3D):
 def test_snapped_exc(bbox: BBox3D, grid_offset, grid_size, mode):
     with pytest.raises(Exception):
         bbox.snapped(grid_offset=grid_offset, grid_size=grid_size, mode=mode)
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            BBox3D(bounds=((0, 1), (3, 5), (7, 25))),
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+        ],
+    ],
+)
+def test_intersection(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.intersection(bbox2) == expected

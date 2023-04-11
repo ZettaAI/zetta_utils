@@ -36,13 +36,14 @@ def dummy_task(argument: str) -> Any:
 
 
 @flow_schema
-def dummy_flow():
-    task1 = dummy_task.make_task(argument="x1")
+def dummy_flow(argument: str):
+    task1 = dummy_task.make_task(argument=f"{argument}-x1")
     yield task1
     yield Dependency(task1)
     assert task1.status == TaskStatus.SUCCEEDED
-    assert task1.outcome.return_value == "return-for-x1"
-    task2 = dummy_task.make_task(argument="x2")
+    assert task1.outcome is not None
+    assert task1.outcome.return_value == f"return-for-{argument}-x1"
+    task2 = dummy_task.make_task(argument=f"{argument}-x2")
     yield task2
 
 
@@ -64,9 +65,9 @@ def test_local_execution_defaults(reset_task_count):
     execute(
         concurrent_flow(
             [
-                dummy_flow(),
-                dummy_flow(),
-                dummy_flow(),
+                dummy_flow("f1"),
+                dummy_flow("f2"),
+                dummy_flow("f3"),
             ]
         ),
         batch_gap_sleep_sec=0,
@@ -78,7 +79,7 @@ def test_local_execution_defaults(reset_task_count):
 
 def test_local_execution_one_flow(reset_task_count):
     execute(
-        dummy_flow(),
+        dummy_flow("f1"),
         batch_gap_sleep_sec=0,
         max_batch_len=1,
         do_dryrun_estimation=False,
@@ -122,9 +123,9 @@ def test_local_execution_state(reset_task_count):
     execute(
         InMemoryExecutionState(
             [
-                dummy_flow(),
-                dummy_flow(),
-                dummy_flow(),
+                dummy_flow("f1"),
+                dummy_flow("f2"),
+                dummy_flow("f3"),
             ]
         ),
         execution_id="yo",
@@ -139,9 +140,9 @@ def test_local_execution_state_queue(reset_task_count):
     execute(
         InMemoryExecutionState(
             [
-                dummy_flow(),
-                dummy_flow(),
-                dummy_flow(),
+                dummy_flow("f1"),
+                dummy_flow("f2"),
+                dummy_flow("f3"),
             ]
         ),
         exec_queue=LocalExecutionQueue(debug=True),

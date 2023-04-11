@@ -4,6 +4,7 @@ import datetime
 import importlib.metadata
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import fsspec
@@ -144,6 +145,7 @@ def build_default_trainer(
     )
 
     trainer.callbacks.append(ConfigureTraceCallback(trainer))
+    trainer.callbacks.append(WallClockTimeCallback())
 
     # Due to a bug in PL we're unable to use normal methods
     # to resume training with ckpt_path='last' when storing
@@ -249,3 +251,31 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
             for name in models_to_trace:
                 ConfigureTraceCallback.unwrap_forward(pl_module, name)
             self.trainer.trace_configuration = trace_configuration
+
+
+@typeguard.typechecked
+class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
+    def __init__(self) -> None:
+        super().__init__()
+        self.start_time = 0.0
+
+    def on_train_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        self.start_time = time.perf_counter()
+
+    def on_train_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: torch.Tensor | dict[str, Any],
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        end_time = time.perf_counter()
+        elapsed_time = end_time - self.start_time
+        pl_module.log("elapsed/train", elapsed_time, on_step=True, on_epoch=True)

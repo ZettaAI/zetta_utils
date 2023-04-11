@@ -48,6 +48,15 @@ def dummy_flow(argument: str):
 
 
 @flow_schema
+def dummy_flow_without_outcome(argument: str):
+    task1 = dummy_task.make_task(argument=f"{argument}-x1")
+    yield task1
+    yield Dependency(task1)
+    task2 = dummy_task.make_task(argument=f"{argument}-x2")
+    yield task2
+
+
+@flow_schema
 def dummy_flow2():
     task1 = dummy_task.make_task(argument="x1")
     yield task1
@@ -175,3 +184,40 @@ def test_non_local_sleep(mocker):
         exec_queue=queue_m,
     )
     sleep_m.assert_called_once()
+
+
+def test_local_execution_backup_write(reset_task_count, mocker):
+    record_execution_checkpoint_m = mocker.patch(
+        "zetta_utils.mazepa.execution.record_execution_checkpoint"
+    )
+
+    execute(
+        concurrent_flow(
+            [
+                dummy_flow("f1"),
+                dummy_flow("f2"),
+                dummy_flow("f3"),
+            ]
+        ),
+        batch_gap_sleep_sec=0,
+        max_batch_len=2,
+        do_dryrun_estimation=False,
+        checkpoint_interval_sec=0.0,
+    )
+    record_execution_checkpoint_m.assert_called()
+
+
+def test_local_execution_backup_read(reset_task_count):
+    execute(
+        concurrent_flow(
+            [
+                dummy_flow_without_outcome("f1"),
+                dummy_flow_without_outcome("f2"),
+                dummy_flow_without_outcome("f3"),
+            ]
+        ),
+        batch_gap_sleep_sec=0,
+        max_batch_len=2,
+        do_dryrun_estimation=False,
+        checkpoint="tests/assets/reference/task_checkpoint.zstd",
+    )

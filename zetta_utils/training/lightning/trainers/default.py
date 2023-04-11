@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import importlib.metadata
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import fsspec
@@ -92,6 +93,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         self.callbacks.append(  # type: ignore
             ConfigureLogging(experiment_name, experiment_version)
         )
+        self.callbacks.append(WallClockTimeCallback())  # type: ignore
 
         # Due to a bug in PL we're unable to use normal methods
         # to resume training with ckpt_path='last' when storing
@@ -257,3 +259,31 @@ class ConfigureLogging(pl.callbacks.Callback):
                 logger.info("Saved training configuration.")
 
         trainer.log_config = log_config  # type: ignore
+
+
+@typeguard.typechecked
+class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
+    def __init__(self) -> None:
+        super().__init__()
+        self.start_time = 0.0
+
+    def on_train_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        self.start_time = time.perf_counter()
+
+    def on_train_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: torch.Tensor | dict[str, Any],
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        end_time = time.perf_counter()
+        elapsed_time = end_time - self.start_time
+        pl_module.log("elapsed/train", elapsed_time, on_step=True, on_epoch=True)

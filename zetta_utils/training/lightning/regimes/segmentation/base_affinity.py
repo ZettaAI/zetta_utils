@@ -53,6 +53,12 @@ class BaseAffinityRegime(pl.LightningModule):
         data_in = batch["data_in"]
         results = self.model(data_in)
 
+        # Create mask if not exist
+        for key, criterion in self.criteria.items():
+            if key + "_mask" in batch:
+                continue
+            batch[key + "_mask"] = torch.ones_like(batch[key])
+
         # Compute loss
         losses = []
         for key, criterion in self.criteria.items():
@@ -73,35 +79,57 @@ class BaseAffinityRegime(pl.LightningModule):
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
         if log_row:
-            log = {
-                "data_in": data_in,
-                "target": tensor_ops.seg_to_rgb(batch["target"]),
-            }
-
-            for key in self.criteria.keys():
-                trgt = batch[key]
-                mask = batch[key + "_mask"]
-                pred = results[key]
-                pred = torch.sigmoid(pred) if self.logits else pred
-
-                # Chop into groups for visualization purpose
-                num_channels = trgt.shape[-4]
-                group = self.group if self.group > 0 else num_channels
-                for i in range(0, num_channels, group):
-                    start = i
-                    end = min(i + group, num_channels)
-                    idx = f"[{start}:{end}]"
-                    log[f"{key}_target{idx}"] = trgt[..., start:end, :, :, :]
-                    log[f"{key}{idx}"] = pred[..., start:end, :, :, :]
-
-                    # Optional mask
-                    mask = mask[..., start:end, :, :, :]
-                    if torch.count_nonzero(mask) < torch.numel(mask):
-                        log[f"{key}_mask{idx}"] = mask
-
             log_3d_results(
                 mode,
                 title_suffix=sample_name,
-                **log,
+                **self.create_row(batch, results),
             )
+
         return loss
+
+    def create_row(
+        self, batch: dict[str, torch.Tensor], results: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        row = {
+            "data_in": batch["data_in"],
+            "target": tensor_ops.seg_to_rgb(batch["target"]),
+        }
+
+        for key in self.criteria.keys():
+            trgt = batch[key]
+            mask = batch[key + "_mask"]
+            pred = results[key]
+            pred = torch.sigmoid(pred) if self.logits else pred
+
+            # Chop prediction into groups for visualization purpose
+            num_channels = pred.shape[-4]
+            group = self.group if self.group > 0 else num_channels
+            if num_channels > group:
+                for i in range(0, num_channels, group):
+                    start, end = i, min(i + group, num_channels)
+                    idx = f"[{start}:{end}]"
+                    row[f"{key}{idx}"] = pred[..., start:end, :, :, :]
+            else:
+                row[f"{key}"] = pred
+
+            # Chop target into groups for visualization purpose
+            num_channels = trgt.shape[-4]
+            group = self.group if self.group > 0 else num_channels
+            if num_channels > group:
+                for i in range(0, num_channels, group):
+                    start, end = i, min(i + group, num_channels)
+                    idx = f"[{start}:{end}]"
+                    row[f"{key}_target{idx}"] = trgt[..., start:end, :, :, :]
+
+                    # Optional mask
+                    mask_ = mask[..., start:end, :, :, :]
+                    if torch.count_nonzero(mask_) < torch.numel(mask_):
+                        row[f"{key}_mask{idx}"] = mask_
+            else:
+                row[f"{key}_target"] = trgt
+
+                # Optional mask
+                if torch.count_nonzero(mask) < torch.numel(mask):
+                    row[f"{key}_mask"] = mask
+
+        return row

@@ -141,7 +141,7 @@ target: {
 							kernel_size: [5, 5, 5]
 							padding: [2, 2, 2]
 							bias: true
-						},
+						}
 						preactivation: {
 							"@type": "Crop"
 							crop: #PAD_SIZE

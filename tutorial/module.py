@@ -1,6 +1,6 @@
-# pylint: disable=missing-docstring, invalid-name, arguments-differ, unused-argument, unused-variable # type: ignore
+# pylint: disable=missing-docstring, invalid-name, arguments-differ, unused-argument, unused-variable, too-many-ancestors # type: ignore
 
-import lightning.pytorch as pl
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -38,6 +38,24 @@ class LitAutoEncoder(pl.LightningModule):
         x_hat = self.decoder(z)
         loss = F.mse_loss(x_hat, x)
         return loss
+
+    def validation_step(self, batch, batch_idx):
+        # this is the validation loop
+        x, y = batch
+        x = x.view(x.size(0), -1)
+        z = self.encoder(x)
+        x_hat = self.decoder(z)
+        val_loss = F.mse_loss(x_hat, x)
+        self.log("val_loss", val_loss, sync_dist=True, rank_zero_only=True)
+
+    def test_step(self, batch, batch_idx):
+        # this is the test loop
+        x, y = batch
+        x = x.view(x.size(0), -1)
+        z = self.encoder(x)
+        x_hat = self.decoder(z)
+        test_loss = F.mse_loss(x_hat, x)
+        self.log("test_loss", test_loss, sync_dist=True, rank_zero_only=True)
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)

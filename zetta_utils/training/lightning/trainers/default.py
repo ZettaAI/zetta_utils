@@ -100,6 +100,7 @@ def build_default_trainer(
     if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
         api_key = os.environ.get("WANDB_API_KEY", None)
         wandb.login(key=api_key)
+        wandb.init(group=f"{experiment_name}.{experiment_version}")
 
     wandb_logger = WandbLogger(
         project=experiment_name,
@@ -144,16 +145,16 @@ def build_default_trainer(
     # checkpoints on GCP.
     trainer._ckpt_path = os.path.join(log_dir, "last.ckpt")  # pylint: disable=protected-access
 
-    def log_config(config):
-        if experiment_version.startswith("tmp"):
-            logger.info(
-                f"Not saving configuration for a temproary experiment {experiment_version}."
-            )
-        else:
-            wandb_logger.experiment.config["training_configuration"] = config
-            logger.info("Saved training configuration.")
+    # def log_config(config):
+    #     if experiment_version.startswith("tmp"):
+    #         logger.info(
+    #             f"Not saving configuration for a temproary experiment {experiment_version}."
+    #         )
+    #     else:
+    #         wandb_logger.experiment.config["training_configuration"] = config
+    #         logger.info("Saved training configuration.")
 
-    trainer.log_config = log_config  # type: ignore # pylint: disable=attribute-defined-outside-init
+    # trainer.log_config = log_config  # type: ignore # pylint: disable=attribute-defined-outside-init
 
     return trainer
 

@@ -5,6 +5,7 @@ import torch
 import torchfields  # pylint: disable=unused-import
 
 from zetta_utils import builder
+from zetta_utils.augmentations.tensor import rand_perlin_2d_octaves
 
 
 def profile_field2d_percentile(
@@ -78,3 +79,37 @@ def invert_field_opti(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5) 
         optimizer.step()
 
     return einops.rearrange(inverse_zcxy.pixels(), "Z C X Y -> C X Y Z").detach()
+
+
+@builder.register("gen_biased_perlin_noise_field")
+def gen_biased_perlin_noise_field(
+    shape,
+    *,
+    res,
+    octaves=1,
+    persistence=0.5,
+    field_magn_thr_px=1.0,
+    max_displacement_px=None,
+    device="cuda",
+):
+    """Generates a perlin noise vector field with the provided median and maximum vector length."""
+    eps = 1e-7
+    perlin = rand_perlin_2d_octaves(shape, res, octaves, persistence, device=device)
+    warp_field = einops.rearrange(perlin, "C X Y Z -> Z C X Y").field_()
+
+    vec_length = warp_field.norm(dim=1, keepdim=True).tensor_()
+    vec_length_median = torch.median(vec_length)
+    vec_length_centered = vec_length - vec_length_median
+
+    vec_length_target = torch.where(
+        vec_length_centered < 0,
+        vec_length_centered * field_magn_thr_px / abs(vec_length_centered.min())
+        + field_magn_thr_px,
+        vec_length_centered
+        * (max_displacement_px - field_magn_thr_px)
+        / abs(vec_length_centered.max())
+        + field_magn_thr_px,
+    )
+
+    warp_field *= vec_length_target / (vec_length + eps)
+    return einops.rearrange(warp_field, "Z C X Y -> C X Y Z").tensor_()

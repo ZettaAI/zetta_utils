@@ -1,25 +1,38 @@
 # pylint: disable=too-many-locals
-from typing import Optional
+from typing import Literal, Optional
 
 import attrs
+import cc3d
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import wandb
+from PIL import Image as PILImage
 from pytorch_lightning import seed_everything
 
-from zetta_utils import builder, viz
+from zetta_utils import builder, convnet, distributions, viz
 
 
 @builder.register("MisalignmentDetectorAcedRegime")
 @attrs.mutable(eq=False)
-class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
+class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module
     lr: float
     train_log_row_interval: int = 200
     val_log_row_interval: int = 25
     field_magn_thr: float = 1
+
+    max_shared_displacement_px: float = 8.0
+    max_src_displacement_px: distributions.Distribution = distributions.uniform_distr(8.0, 32.0)
+    equivar_rot_deg_distr: distributions.Distribution = distributions.uniform_distr(0, 360)
+    equivar_trans_px_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
+
+    tgt_val_translation: int = 4
     zero_value: float = 0
-    tolerance: float = 0.1
+    output_mode: Literal["binary", "displacement"] = "binary"
+
+    encoder_path: Optional[str] = None
+    encoder: torch.nn.Module = attrs.field(init=False, default=torch.nn.Identity())
 
     worst_val_loss: float = attrs.field(init=False, default=0)
     worst_val_sample: dict = attrs.field(init=False, factory=dict)
@@ -28,20 +41,72 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
     def __attrs_pre_init__(self):
         super().__init__()
 
+    def __attrs_post_init__(self):
+        if self.encoder_path is not None:
+            self.encoder = convnet.utils.load_model(self.encoder_path, use_cache=True).eval()
+
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         return optimizer
 
     @staticmethod
     def log_results(mode: str, title_suffix: str = "", **kwargs):
-        wandb.log(
-            {
-                f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)  # type: ignore
-                    for k, v in kwargs.items()
-                ]
-            }
-        )
+        images = []
+        for k, v in kwargs.items():
+            for b in range(1):
+                if v.dtype in (np.uint8, torch.uint8):
+                    img = v[b].squeeze()
+                    img[-1, -1] = 255
+                    img[-2, -2] = 255
+                    img[-1, -2] = 0
+                    img[-2, -1] = 0
+                    images.append(
+                        wandb.Image(
+                            PILImage.fromarray(
+                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
+                            ),
+                            caption=f"{k}_b{b}",
+                        )
+                    )
+                elif v.dtype in (torch.int8, np.int8):
+                    img = v[b].squeeze().byte() + 127
+                    img[-1, -1] = 255
+                    img[-2, -2] = 255
+                    img[-1, -2] = 0
+                    img[-2, -1] = 0
+                    images.append(
+                        wandb.Image(
+                            PILImage.fromarray(
+                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
+                            ),
+                            caption=f"{k}_b{b}",
+                        )
+                    )
+                elif v.dtype in (torch.bool, bool):
+                    img = v[b].squeeze().byte() * 255
+                    img[-1, -1] = 255
+                    img[-2, -2] = 255
+                    img[-1, -2] = 0
+                    img[-2, -1] = 0
+                    images.append(
+                        wandb.Image(
+                            PILImage.fromarray(
+                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
+                            ),
+                            caption=f"{k}_b{b}",
+                        )
+                    )
+                else:
+                    v_min = v[b].min().round(decimals=4)
+                    v_max = v[b].max().round(decimals=4)
+                    images.append(
+                        wandb.Image(
+                            viz.rendering.Renderer()(v[b].squeeze()),  # type: ignore
+                            caption=f"{k}_b{b} | min: {v_min} | max: {v_max}",
+                        )
+                    )
+
+        wandb.log({f"results/{mode}_{title_suffix}_slider": images})
 
     def validation_epoch_start(self, _):  # pylint: disable=no-self-use
         seed_everything(42)
@@ -57,19 +122,83 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         self.worst_val_sample_idx = None
         seed_everything(None)
 
+    def _get_warped(self, img, field=None):
+        img_padded = torch.nn.functional.pad(img, (1, 1, 1, 1), value=self.zero_value)
+        if field is not None:
+            img_warped = field.from_pixels()(img)
+        else:
+            img_warped = img
+
+        zeros_padded = img_padded == self.zero_value
+        zeros_padded_cc = np.array(
+            [
+                cc3d.connected_components(
+                    x.detach().squeeze().cpu().numpy(), connectivity=4
+                ).reshape(zeros_padded[0].shape)
+                for x in zeros_padded
+            ]
+        )
+
+        non_tissue_zeros_padded = zeros_padded.clone()
+        non_tissue_zeros_padded[
+            torch.tensor(zeros_padded_cc != zeros_padded_cc.ravel()[0], device=zeros_padded.device)
+        ] = False  # keep masking resin, restore somas in center
+
+        if field is not None:
+            zeros_warped = (
+                torch.nn.functional.pad(field, (1, 1, 1, 1), mode="replicate")
+                .from_pixels()
+                .sample((~zeros_padded).float(), padding_mode="border")
+                <= 0.1
+            )
+            non_tissue_zeros_warped = (
+                torch.nn.functional.pad(field, (1, 1, 1, 1), mode="replicate")
+                .from_pixels()
+                .sample((~non_tissue_zeros_padded).float(), padding_mode="border")
+                <= 0.1
+            )
+        else:
+            zeros_warped = zeros_padded
+            non_tissue_zeros_warped = non_tissue_zeros_padded
+
+        zeros_warped = torch.nn.functional.pad(zeros_warped, (-1, -1, -1, -1))
+        non_tissue_zeros_warped = torch.nn.functional.pad(
+            non_tissue_zeros_warped, (-1, -1, -1, -1)
+        )
+
+        img_warped[zeros_warped] = self.zero_value
+        return img_warped, ~zeros_warped, ~non_tissue_zeros_warped
+
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
         log_row = batch_idx % self.train_log_row_interval == 0
-        loss = self.compute_misd_loss(batch=batch, mode="train", log_row=log_row)
+        losses = [
+            self.compute_misd_loss(
+                batch=batch,
+                mode="train",
+                log_row=log_row,
+            )
+        ]
+        losses_clean = [l for l in losses if l is not None]
+        if len(losses_clean) == 0:
+            return None
+        loss = sum(losses_clean)
         return loss
 
     def validation_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
-        log_row = batch_idx % self.val_log_row_interval == 0
-        sample_name = f"{batch_idx // self.val_log_row_interval}"
+        with torch.no_grad():
+            log_row = batch_idx % self.val_log_row_interval == 0
+            sample_name = f"{batch_idx // self.val_log_row_interval}"
 
-        loss = self.compute_misd_loss(
-            batch=batch, mode="val", log_row=log_row, sample_name=sample_name
-        )
-        return loss
+            losses = [
+                self.compute_misd_loss(
+                    batch=batch, mode="val", log_row=log_row, sample_name=sample_name
+                )
+            ]
+            losses_clean = [l for l in losses if l is not None]
+            if len(losses_clean) == 0:
+                return None
+            loss = sum(losses_clean)
+            return loss
 
     def compute_misd_loss(self, batch: dict, mode: str, log_row: bool, sample_name: str = ""):
         src = batch["images"]["src"]
@@ -78,37 +207,44 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         if ((src == self.zero_value) + (tgt == self.zero_value)).bool().sum() / src.numel() > 0.7:
             return None
 
-        src_field = (
-            batch["field"]
-            * self.field_magn_thr
-            / torch.quantile(batch["field"].abs().max(1)[0], 0.5)
-        )
-        tgt_field = torch.zeros_like(src_field)
-        """torch.tensor(
-            src_field.field()
-            .from_pixels()(src_field.field().from_pixels())
-            .pixels()
-        )
-        """
-        gt_labels = src_field.abs().max(1)[0] > self.field_magn_thr
+        gt_displacement = batch["images"]["displacement"]
+        gt_labels = gt_displacement.clone()
 
-        src_warped = src_field.field().from_pixels()(src)
-        src_warped_tissue = src_field.field().from_pixels()((src != 0).float()) > 0.0
-        tgt_warped = tgt_field.field().from_pixels()(tgt)  # type: ignore
-        tgt_warped_tissue = (
-            tgt_field.field().from_pixels()((tgt != 0).float()) > 0.0  # type: ignore
+        if self.output_mode == "binary":
+            gt_labels = gt_labels > self.field_magn_thr
+
+        src_warped, src_warped_tissue_wo_soma, src_warped_tissue_w_soma = self._get_warped(
+            src, field=None
         )
-        joint_tissue = tgt_warped_tissue * src_warped_tissue
-        prediction = self.model(torch.cat((src_warped, tgt_warped), 1))
-        loss_map = (prediction - gt_labels.unsqueeze(1).float()).abs()
-        tolerance_region = (src_field.abs().max(1)[0] > self.field_magn_thr - self.tolerance) * (
-            src_field.abs().max(1)[0] < self.field_magn_thr + self.tolerance
+        tgt_warped, tgt_warped_tissue_wo_soma, tgt_warped_tissue_w_soma = self._get_warped(
+            tgt, field=None
         )
 
-        loss = loss_map[joint_tissue * (tolerance_region == 0)].sum()
-        loss_map_masked = loss_map.clone()
-        loss_map_masked[..., joint_tissue == 0] = 0
-        loss_map_masked[..., tolerance_region] = 0
+        # Create mask that excludes soma interior from loss, but keep thin tissue in between
+        # from either section
+        joint_tissue = tgt_warped_tissue_wo_soma + src_warped_tissue_wo_soma
+        # Previous mask also added partial tissue at boundary - don't want to penalize there
+        intersect_tissue = joint_tissue & src_warped_tissue_w_soma & tgt_warped_tissue_w_soma
+        if intersect_tissue.sum() == 0:
+            return None
+
+        with torch.no_grad():
+            src_encoded = self.encoder(src_warped)
+            tgt_encoded = self.encoder(tgt_warped)
+        prediction = self.model(torch.cat((src_encoded, tgt_encoded), 1))
+
+        fg_ratio = (gt_labels & intersect_tissue).sum() / intersect_tissue.sum()
+        if 0.0 < fg_ratio < 1.0:
+            weight = (1.0 - fg_ratio) * gt_labels + fg_ratio * ~gt_labels
+        else:
+            weight = torch.ones_like(gt_labels, dtype=torch.float32)
+        weight[intersect_tissue == 0] = 0.0
+
+        loss_map = torch.nn.functional.binary_cross_entropy(
+            prediction, gt_labels.float(), weight=weight, reduction="none"
+        )
+
+        loss = loss_map[intersect_tissue].sum() / loss_map.size(0)
 
         self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
 
@@ -118,15 +254,11 @@ class MisalignmnetDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                 sample_name,
                 src=src,
                 tgt=tgt,
-                src_warped=src_warped,
-                tgt_warped=tgt_warped,
-                src_warped_tissue=src_warped_tissue,
-                tgt_warped_tissue=tgt_warped_tissue,
-                joint_tissue=joint_tissue,
-                tolerance_region=tolerance_region,
+                final_tissue=intersect_tissue,
+                gt_displacement=gt_displacement,
                 gt_labels=gt_labels,
+                weight=weight,
                 prediction=prediction,
                 loss_map=loss_map,
-                loss_map_masked=loss_map_masked,
             )
         return loss

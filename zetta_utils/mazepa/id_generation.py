@@ -38,7 +38,6 @@ def get_unique_id(
 def _get_code_hash(
     fn: Callable, _hash: Optional[xxhash.xxh128] = None, _prefix=""
 ) -> xxhash.xxh128:
-    logger.setLevel("DEBUG")
     if _hash is None:
         _hash = xxhash.xxh128()
 

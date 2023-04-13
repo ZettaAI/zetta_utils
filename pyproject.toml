@@ -89,7 +89,11 @@ mazepa-addons = [
     "google-api-python-client",
     "google-cloud-compute",
 ]
-segmentation = ["onnx >= 1.13.0", "onnxruntime-gpu >= 1.13.1"]
+segmentation = [
+    "onnx >= 1.13.0",
+    "onnxruntime-gpu >= 1.13.1",
+    "scikit-learn >= 1.2.2",
+]
 training = [
     "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
     "torch >= 2.0",

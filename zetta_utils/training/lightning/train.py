@@ -6,6 +6,7 @@ import os
 import pytorch_lightning as pl
 import torch
 import typeguard
+from pytorch_lightning.strategies import ddp
 from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from zetta_utils import builder, log
@@ -14,6 +15,7 @@ logger = log.get_logger("zetta_utils")
 
 builder.register("pl.Trainer")(pl.Trainer)
 builder.register("pl.callbacks.ModelCheckpoint")(pl.callbacks.ModelCheckpoint)
+builder.register("pl.DDPStrategy")(ddp.DDPStrategy)
 
 
 @builder.register("lightning_train")

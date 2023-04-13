@@ -9,6 +9,7 @@ import torch
 import torchvision
 import wandb
 from PIL import Image
+from pytorch_lightning.utilities.distributed import distributed_available
 
 from zetta_utils import builder, tensor_ops
 
@@ -71,7 +72,9 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
             loss = None
         else:
             loss = sum(losses_clean)
-            self.log("loss/train", loss, on_step=True, on_epoch=True)
+            self.log(
+                "loss/train", loss, on_step=True, on_epoch=True, sync_dist=distributed_available()
+            )
         return loss
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
@@ -86,7 +89,9 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
             loss = None
         else:
             loss = sum(losses_clean)
-            self.log("loss/train", loss, on_step=True, on_epoch=True)
+            self.log(
+                "loss/train", loss, on_step=True, on_epoch=True, sync_dist=distributed_available()
+            )
         return loss
 
     def compute_loss(
@@ -128,20 +133,36 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                     loss_map_recons=loss_map_recons,
                 )
 
-            self.log(f"loss/{setting_name}_recons", loss_recons, on_step=True, on_epoch=True)
+            self.log(
+                f"loss/{setting_name}_recons",
+                loss_recons,
+                on_step=True,
+                on_epoch=True,
+                sync_dist=distributed_available(),
+            )
 
             if self.invar_mse_weight > 0:
                 loss_inv = self.compute_invar_loss(
                     data_in, enc, apply_count, log_row, setting_name, sample_name
                 )
-                self.log(f"loss/{setting_name}_inv", loss_inv, on_step=True, on_epoch=True)
+                self.log(
+                    f"loss/{setting_name}_inv",
+                    loss_inv,
+                    on_step=True,
+                    on_epoch=True,
+                    sync_dist=distributed_available(),
+                )
             else:
                 loss_inv = 0
 
             if self.diffkeep_weight > 0:
                 loss_diffkeep = self.compute_diffkeep_loss(data_in, enc, log_row, sample_name)
                 self.log(
-                    f"loss/{setting_name}_diffkeep", loss_diffkeep, on_step=True, on_epoch=True
+                    f"loss/{setting_name}_diffkeep",
+                    loss_diffkeep,
+                    on_step=True,
+                    on_epoch=True,
+                    sync_dist=distributed_available(),
                 )
             else:
                 loss_diffkeep = 0
@@ -152,7 +173,13 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                 + self.diffkeep_weight * loss_diffkeep
             )
 
-            self.log(f"loss/{setting_name}", loss, on_step=True, on_epoch=True)
+            self.log(
+                f"loss/{setting_name}",
+                loss,
+                on_step=True,
+                on_epoch=True,
+                sync_dist=distributed_available(),
+            )
 
             if mode == "val":
                 if loss > self.worst_val_loss:

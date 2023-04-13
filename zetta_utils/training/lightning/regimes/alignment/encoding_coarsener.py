@@ -61,7 +61,9 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         log_row = batch_idx % interval == 0
         sample_name = f"{batch_idx // interval}"
 
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         data_in = batch["data_in"]
+        data_in = data_in.to(device)
 
         losses = [
             self.compute_loss(data_in, count, "val", log_row, sample_name=sample_name)
@@ -73,7 +75,12 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         else:
             loss = sum(losses_clean)
             self.log(
-                "loss/train", loss, on_step=True, on_epoch=True, sync_dist=distributed_available()
+                "loss/train",
+                loss,
+                on_step=True,
+                on_epoch=True,
+                sync_dist=distributed_available(),
+                rank_zero_only=True,
             )
         return loss
 
@@ -90,7 +97,12 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         else:
             loss = sum(losses_clean)
             self.log(
-                "loss/train", loss, on_step=True, on_epoch=True, sync_dist=distributed_available()
+                "loss/train",
+                loss,
+                on_step=True,
+                on_epoch=True,
+                sync_dist=distributed_available(),
+                rank_zero_only=True,
             )
         return loss
 
@@ -139,6 +151,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                 on_step=True,
                 on_epoch=True,
                 sync_dist=distributed_available(),
+                rank_zero_only=True,
             )
 
             if self.invar_mse_weight > 0:
@@ -151,6 +164,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                     on_step=True,
                     on_epoch=True,
                     sync_dist=distributed_available(),
+                    rank_zero_only=True,
                 )
             else:
                 loss_inv = 0
@@ -163,6 +177,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                     on_step=True,
                     on_epoch=True,
                     sync_dist=distributed_available(),
+                    rank_zero_only=True,
                 )
             else:
                 loss_diffkeep = 0
@@ -179,6 +194,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
                 on_step=True,
                 on_epoch=True,
                 sync_dist=distributed_available(),
+                rank_zero_only=True,
             )
 
             if mode == "val":

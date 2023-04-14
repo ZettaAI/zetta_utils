@@ -4,8 +4,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3400]
-	end_coord: [2048, 2048, 3500]
+	start_coord: [0, 0, 400]
+	end_coord: [2048, 2048, 1000]
 	resolution: [512, 512, 45]
 }
 #CROP_PAD: 512
@@ -46,18 +46,18 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x129"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     10
+worker_replicas:     200
 batch_gap_sleep_sec: 0.05
 local_test:          false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		for offset in [-1, -2] {
+		for offset in [-3] {
 			#FLOW_TMPL & {_z_offset: offset}
 		},
 	]

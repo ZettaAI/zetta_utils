@@ -13,7 +13,7 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "coarse_z3300_3500_x0"
+#PAIRWISE_SUFFIX: "coarse_x1"
 
 #FOLDER:          "gs://sergiy_exp/aced/demo_x0/\(#PAIRWISE_SUFFIX)"
 #FIELDS_PATH:     "\(#FOLDER)/pairwise_fields"
@@ -37,9 +37,10 @@
 #RELAXATION_LR:   0.3
 #RELAXATION_RIG:  20
 
-#Z_START:           3300
-#Z_END:             3500
-#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)_r2e_surgery_x0"
+#Z_START: 429
+#Z_END:   500
+
+#RELAXATION_SUFFIX: "_try_x0"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -128,15 +129,15 @@
 	tgt_offset: [0, 0, _z_offset]
 	offset_resolution: [4, 4, 45]
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #ENC_PATH
 	}
 	tgt: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #ENC_PATH
 	}
 	src_field: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    "\(#INITIAL_FIELDS_DIR)/\(_z_offset)"
 		data_resolution: [256, 256, 45]
 		interpolation_mode: "field"
@@ -148,7 +149,6 @@
 		info_field_overrides: {
 			num_channels: 2
 			data_type:    "float32"
-			encoding:     "zfpc"
 		}
 		on_info_exists: "overwrite"
 	}
@@ -160,7 +160,6 @@
 		info_field_overrides: {
 			num_channels: 2
 			data_type:    "float32"
-			encoding:     "zfpc"
 		}
 		on_info_exists: "overwrite"
 	}
@@ -174,7 +173,7 @@
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    _
 	}
 	dst: {
@@ -197,13 +196,13 @@
 	bbox:           #BBOX
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	src: {
-		"@type":      "build_cv_layer"
+		"@type":      "build_ts_layer"
 		path:         _
 		read_procs?:  _
 		index_procs?: _ | *[]
 	}
 	field: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    _
 	}
 	dst: {
@@ -228,11 +227,11 @@
 	dst_resolution: [32, 32, 45]
 
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #BASE_ENC_PATH
 	}
 	tgt: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    _
 	}
 	dst: {
@@ -328,14 +327,14 @@
 	rigidity_weight: #RELAXATION_RIG
 
 	first_section_fix_field: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #R2E_FIELD_PATH
 		data_resolution: [256, 256, 45]
 		interpolation_mode: "field"
 	}
 	last_section_fix_field: first_section_fix_field
 	rigidity_masks: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #DEFECTS_PATH
 		read_procs: [
 			{
@@ -348,7 +347,7 @@
 		]
 	}
 	match_offsets: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #MATCH_OFFSETS_PATH
 		//info_reference_path: #IMG_PATH
 		//on_info_exists: "expect_same"
@@ -356,7 +355,7 @@
 	pfields: {
 		for offset in #Z_OFFSETS {
 			"\(offset)": {
-				"@type": "build_cv_layer"
+				"@type": "build_ts_layer"
 				path:    "\(#FIELDS_PATH)/\(offset)"
 			}
 		}
@@ -368,7 +367,6 @@
 		info_field_overrides: {
 			num_channels: 2
 			data_type:    "float32"
-			encoding:     "zfpc"
 		}
 		info_chunk_size: #AFIELD_INFO_CHUNK
 		on_info_exists:  "overwrite"
@@ -385,11 +383,11 @@
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    "\(#IMGS_WARPED_PATH)/-1"
 	}
 	tgt: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #IMG_PATH
 	}
 	dst: {
@@ -440,7 +438,7 @@
 		//  src: path:   "\(#MATCH_OFFSETS_PATH)/img_mask"
 		//  field: path: #AFIELD_PATH
 		//  dst: path:   #IMG_MASK_PATH
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 	]
 }
 

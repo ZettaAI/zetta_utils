@@ -1,12 +1,13 @@
-#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0"
-#MASKS_PATH:  "\(#BASE_FOLDER)/defect_mask"
-#SRC_PATH:    "\(#BASE_FOLDER)/encodings"
-#DST_PATH:    "\(#BASE_FOLDER)/encodings_masked"
+#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x0/production/v1"
+
+#MASKS_PATH: "\(#BASE_FOLDER)/defect_mask"
+#SRC_PATH:   "\(#BASE_FOLDER)/encodings"
+#DST_PATH:   "\(#BASE_FOLDER)/encodings_masked"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1460]
-	end_coord: [2048, 2048, 1465]
+	start_coord: [0, 0, 429]
+	end_coord: [2048, 2048, 975]
 	resolution: [512, 512, 45]
 }
 
@@ -21,13 +22,13 @@
 	}
 	bbox: #BBOX
 	src: {
-		"@type":    "build_cv_layer"
+		"@type":    "build_ts_layer"
 		path:       _
 		read_procs: _ | *[]
 	}
 	masks: [
 		{
-			"@type":    "build_cv_layer"
+			"@type":    "build_ts_layer"
 			path:       #MASKS_PATH
 			read_procs: _ | *[]
 		},
@@ -42,7 +43,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x132"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"

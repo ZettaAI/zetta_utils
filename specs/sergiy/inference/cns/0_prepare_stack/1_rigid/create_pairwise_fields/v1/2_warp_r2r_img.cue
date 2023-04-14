@@ -2,8 +2,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3370]
-	end_coord: [2048, 2048, 3380]
+	start_coord: [0, 0, 0]
+	end_coord: [2048, 2048, 1000]
 	resolution: [512, 512, 45]
 }
 #CROP_PAD: 512
@@ -41,18 +41,18 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x55"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x129"
 worker_resources: {
 	memory: "18560Mi"
 }
-worker_replicas:     100
+worker_replicas:     200
 batch_gap_sleep_sec: 0.05
 local_test:          true
 
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		for z_offset in [-1, -2] {
+		for z_offset in [-3] {
 			#FLOW_TMPL & {
 				src: path:   "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
 				dst: path:   "gs://sergiy_exp/aced/tmp/r2r/img_x0/\(z_offset)"

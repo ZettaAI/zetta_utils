@@ -3,8 +3,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1460]
-	end_coord: [2048, 2048, 1465]
+	start_coord: [0, 0, 6150]
+	end_coord: [2048, 2048, 6170]
 	resolution: [512, 512, 45]
 }
 
@@ -21,15 +21,19 @@
 	}
 	bbox: #BBOX
 	src: {
-		"@type":    "build_cv_layer"
+		"@type":    "build_ts_layer"
 		path:       _
 		read_procs: _ | *[]
 	}
-	dst: src
+	dst: {
+		"@type": "build_cv_layer"
+		path:    src.path
+	}
+
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x127"
 worker_resources: {
 	memory: "18560Mi"
 }

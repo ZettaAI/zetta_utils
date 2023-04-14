@@ -3,12 +3,13 @@
 import argparse
 import subprocess
 
-BUILD_COMMAND_TMPL = "docker build -t us.gcr.io/zetta-research/zetta_utils:{TAG} -f docker/Dockerfile.{MODE}.{PYTHON_VERSION} ."
-PUSH_COMMAND_TMPL = "docker push us.gcr.io/zetta-research/zetta_utils:{TAG}"
+BUILD_COMMAND_TMPL = "docker build -t us.gcr.io/{PROJECT}/zetta_utils:{TAG} -f docker/Dockerfile.{MODE}.{PYTHON_VERSION} ."
+PUSH_COMMAND_TMPL = "docker push us.gcr.io/{PROJECT}/zetta_utils:{TAG}"
 
 
 def main():
     parser = argparse.ArgumentParser(description="Build and push docker image.")
+    parser.add_argument("--project", type=str, required=True, help="GCR project.")
     parser.add_argument("--tag", "-t", type=str, required=True, help="Image tag name/version.")
     parser.add_argument(
         "--mode",
@@ -33,11 +34,13 @@ def main():
     build_command = build_command.replace("{TAG}", args.tag)
     build_command = build_command.replace("{MODE}", args.mode)
     build_command = build_command.replace("{PYTHON_VERSION}", f"p{args.python.replace('.', '')}")
+    build_command = build_command.replace("{PROJECT}", args.project)
     print(f"Running: \n{build_command}")
     subprocess.call(build_command, shell=True)
 
     push_command = PUSH_COMMAND_TMPL
     push_command = push_command.replace("{TAG}", args.tag)
+    push_command = push_command.replace("{PROJECT}", args.project)
     print(f"Running: \n{push_command}")
     subprocess.call(push_command, shell=True)
 

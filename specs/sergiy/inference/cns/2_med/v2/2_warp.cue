@@ -1,26 +1,36 @@
+#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x0/production/v1"
+
 #BBOX: {
 	"@type": "BBox3D.from_coords"
 	start_coord: [0, 0, 429]
-	end_coord: [2048, 2048, 1000]
+	end_coord: [2048, 2048, 975]
 	resolution: [512, 512, 45]
 }
+#CROP_PAD: 512
+#CHUNK:    1024 * 2
 
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
-	fn: {
-		"@type":    "lambda"
-		lambda_str: "lambda src: src"
+	op: {
+		"@type": "WarpOperation"
+		mode:    _
 	}
 	expand_bbox: true
-	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
-	max_reduction_chunk_size: [1024 * 4, 1024 * 4, 1]
-	level_intermediaries_dirs: ['~/.zutils/', '~/.zutils/']
+	processing_chunk_sizes: [[#CHUNK, #CHUNK, 1]]
+	processing_crop_pads: [[#CROP_PAD, #CROP_PAD, 0]]
+	//level_intermediaries_dirs: ["file://~/.zutils/tmp", "file://~/.zutils/tmp"]
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {
-		"@type":    "build_cv_layer"
+		"@type":    "build_ts_layer"
 		path:       _
 		read_procs: _ | *[]
+	}
+	field: {
+		"@type": "build_cv_layer"
+		path:    "\(#BASE_FOLDER)/field"
+		data_resolution: [256, 256, 45]
+		interpolation_mode: "field"
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -32,7 +42,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x128"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x131"
 worker_resources: {
 	memory: "18560Mi"
 }
@@ -47,30 +57,33 @@ target: {
 			src: read_procs: [
 				{"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
 			]
-			dst: path: "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/resin_mask"
+			dst: path:                "\(#BASE_FOLDER)/resin_mask"
+			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
 			dst: write_procs: [
 				{"@type": "to_uint8", "@mode": "partial"},
 			]
 			dst_resolution: [256, 256, 45]
-			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
+			op: mode: "mask"
 		},
 		#FLOW_TMPL & {
 			src: path: "gs://zetta_lee_fly_cns_001_alignment_temp/defects/DefectNet20221114_50k"
 			src: read_procs: [
 				{"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
 			]
-			dst: path: "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/defect_mask"
+			dst: path: "\(#BASE_FOLDER)/defect_mask"
 			dst_resolution: [64, 64, 45]
+			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/defect_mask"
 			dst: write_procs: [
 				{"@type": "to_uint8", "@mode": "partial"},
 			]
-			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/defect_mask"
+			op: mode: "mask"
 		},
 		#FLOW_TMPL & {
-			src: path: "gs://zetta_lee_fly_cns_001_alignment_temp/rigid"
-			dst: path: "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
-			dst_resolution: [32, 32, 45]
+			src: path:                "gs://zetta_lee_fly_cns_001_alignment_temp/rigid"
+			dst: path:                "\(#BASE_FOLDER)/raw_img"
 			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img"
+			dst_resolution: [32, 32, 45]
+			op: mode: "img"
 		},
 
 	]

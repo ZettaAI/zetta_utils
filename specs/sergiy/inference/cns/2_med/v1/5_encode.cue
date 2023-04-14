@@ -2,7 +2,7 @@ import "math"
 
 import "list"
 
-#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x0"
+#BASE_FOLDER: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x0/production/v1"
 #SRC_PATH:    "\(#BASE_FOLDER)/raw_img"
 #DST_PATH:    "\(#BASE_FOLDER)/encodings"
 
@@ -11,9 +11,9 @@ import "list"
 
 #ROI_BOUNDS: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1460]
+	start_coord: [0, 0, 429]
 	// end_coord: [32768, 32768, 3001]
-	end_coord: [int, int, int] | *[32768, 36864, 1465]
+	end_coord: [int, int, int] | *[32768, 36864, 975]
 	resolution: [32, 32, 45]
 }
 
@@ -110,7 +110,7 @@ import "list"
 	processing_crop_pads: [0, 0, 0]
 	bbox: #ROI_BOUNDS
 	src: {
-		"@type": "build_cv_layer"
+		"@type": "build_ts_layer"
 		path:    #SRC_PATH
 	}
 	dst: {
@@ -122,7 +122,7 @@ import "list"
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x132"
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"

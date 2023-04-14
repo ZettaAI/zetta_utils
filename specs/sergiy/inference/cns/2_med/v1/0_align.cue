@@ -4,11 +4,11 @@
 
 #BASE_ENC_PATH: "TODO"
 
-#IMG_PATH:     "\(#BASE_FOLDER)/med_x0/production/v1/raw_img"
-#DEFECTS_PATH: "\(#BASE_FOLDER)/med_x0/production/v1/defect_mask"
+#IMG_PATH:     "\(#BASE_FOLDER)/coarse_x0/raw_img"
+#DEFECTS_PATH: "\(#BASE_FOLDER)/coarse_x0/defect_mask"
 
 //#ENC_PATH:      "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img_masked"
-#ENC_PATH: "\(#BASE_FOLDER)/med_x0/production/v1/encodings_masked"
+#ENC_PATH: "\(#BASE_FOLDER)/coarse_x0/encodings_masked"
 #TMP_PATH: "gs://tmp_2w/temporary_layers"
 
 // MODELS
@@ -16,9 +16,9 @@
 #MISD_MODEL_PATH:     "gs://sergiy_exp/training_artifacts/aced_misd/zm1_zm2_thr1.0_scratch_large_custom_dset_x2/checkpoints/epoch=2-step=1524.ckpt.static-1.12.1+cu102-model.jit"
 
 //OUTPUTS
-#PAIRWISE_SUFFIX: "from_med_x0"
+#PAIRWISE_SUFFIX: "try_x1"
 
-#FOLDER:          "\(#BASE_FOLDER)/fine_x0/\(#PAIRWISE_SUFFIX)"
+#FOLDER:          "\(#BASE_FOLDER)/med_x0/\(#PAIRWISE_SUFFIX)"
 #FIELDS_PATH:     "\(#FOLDER)/fields_fwd"
 #FIELDS_INV_PATH: "\(#FOLDER)/fields_inv"
 
@@ -34,24 +34,23 @@
 #MATCH_OFFSETS_PATH: "\(#FOLDER)/match_offsets_z\(#Z_START)_\(#Z_END)"
 //#MATCH_OFFSETS_PATH: "\(#FOLDER)/match_offsets_x0"
 
-#CF_INFO_CHUNK: [512, 512, 1]
-#AFIELD_INFO_CHUNK: [512, 512, 1]
+#BASE_INFO_CHUNK: [128, 128, 1]
 #RELAXATION_FIX:  "both"
-#RELAXATION_ITER: 400
+#RELAXATION_ITER: 500
 #RELAXATION_LR:   0.3
 
-#RELAXATION_RIG: 2000
+#RELAXATION_RIG: 20
 
 //BLOCK 0
 #Z_START: 429
 
-#Z_END: 600
+#Z_END: 975
 
 //#Z_START: 599
 //#Z_END:   746
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
-#RELAXATION_SUFFIX: "_try_x1_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)"
+#RELAXATION_SUFFIX: "_try_x4_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -97,6 +96,7 @@
 			num_iter: 1000
 			lr:       0.015
 		}
+		chunk_size: [512, 512, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -105,6 +105,7 @@
 			num_iter: 1000
 			lr:       0.015
 		}
+		chunk_size: [512, 512, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -114,6 +115,7 @@
 			num_iter: 700
 			lr:       0.015
 		}
+		chunk_size: [1024, 1024, 1]
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [256, 256, 45]
@@ -123,82 +125,14 @@
 			num_iter: 700
 			lr:       0.03
 		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [128, 128, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 500
-			lr:       0.05
-		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [1024, 1024, 45]
-		fn: {
-			sm:       10
-			num_iter: 1000
-			lr:       0.015
-		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [512, 512, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 700
-			lr:       0.015
-		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [256, 256, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 700
-			lr:       0.03
-		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [128, 128, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 500
-			lr:       0.05
-		}
-	},
-	#STAGE_TMPL & {
-		dst_resolution: [64, 64, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 300
-			lr:       0.1
-		}
-	},
-
-	#STAGE_TMPL & {
-		dst_resolution: [32, 32, 45]
-
-		fn: {
-			sm:       10
-			num_iter: 200
-			lr:       0.1
-		}
+		chunk_size: [2048, 2048, 1]
 	},
 ]
 
 #STAGE_TMPL: {
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
-
-	expand_bbox: true
-	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
-	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [2048, 2048, 1]]
-	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
-	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-
+	chunk_size:     _
 	fn: {
 		"@type":  "align_with_online_finetuner"
 		"@mode":  "partial"
@@ -206,6 +140,7 @@
 		num_iter: _
 		lr?:      _
 	}
+	crop_pad: [64, 64, 0]
 }
 
 #CF_FLOW_TMPL: {
@@ -231,7 +166,8 @@
 			num_channels: 2
 			data_type:    "float32"
 		}
-		on_info_exists: "overwrite"
+		info_chunk_size: #BASE_INFO_CHUNK
+		on_info_exists:  "overwrite"
 	}
 	tmp_layer_dir: _
 	tmp_layer_factory: {
@@ -242,7 +178,8 @@
 			num_channels: 2
 			data_type:    "float32"
 		}
-		on_info_exists: "overwrite"
+		info_chunk_size: #BASE_INFO_CHUNK
+		on_info_exists:  "overwrite"
 	}
 }
 
@@ -252,12 +189,10 @@
 		"@type": "naive_misd"
 		"@mode": "partial"
 	}
-	processing_chunk_sizes: [[1024 * 6, 1024 * 6, 1], [2048, 2048, 1]]
-	max_reduction_chunk_sizes: [1024 * 6, 1024 * 6, 1]
+	processing_chunk_sizes: [[2048, 2048, 1]]
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	bbox:      #BBOX
-	_z_offset: _
+	bbox:           #BBOX
+	_z_offset:      _
 	src: {
 		"@type": "build_ts_layer"
 		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
@@ -271,6 +206,7 @@
 		path:    "\(#MISALIGNMENTS_PATH)/\(_z_offset)"
 		//path:                #MATCH_OFFSETS_PATH
 		info_reference_path: #IMG_PATH
+		info_chunk_size:     #BASE_INFO_CHUNK
 		on_info_exists:      "overwrite"
 		write_procs: [
 			// {
@@ -306,11 +242,9 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	//expand_bbox: true
-	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
-	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [2048, 2048, 1]]
-	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
-	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
+	expand_bbox: true
+	processing_crop_pads: [[256, 256, 0]]
+	processing_chunk_sizes: [[2048, 2048, 1]]
 	//chunk_size: [512, 512, 1]
 	bbox:           #BBOX
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
@@ -334,37 +268,6 @@
 	}
 }
 
-#ENCODE_FLOW_TMPL: {
-	"@type": "build_chunked_apply_flow"
-	operation: {
-		"@type": "VolumetricCallableOperation"
-		fn: {
-			"@type":    "BaseEncoder"
-			model_path: #BASE_ENC_MODEL_PATH
-		}
-		crop_pad: [32, 32, 0]
-	}
-	chunker: {
-		"@type": "VolumetricIndexChunker"
-		chunk_size: [2048, 2048, 1]
-	}
-	idx: {
-		"@type": "VolumetricIndex"
-		bbox:    #BBOX
-		resolution: [32, 32, 45]
-	}
-	src: {
-		"@type": "build_ts_layer"
-		path:    _
-	}
-	dst: {
-		"@type":             "build_cv_layer"
-		path:                _
-		info_reference_path: #IMG_PATH
-		on_info_exists:      "overwrite"
-	}
-}
-
 #MISD_FLOW_TMPL: {
 	"@type": "build_chunked_apply_flow"
 	operation: {
@@ -380,9 +283,9 @@
 		chunk_size: [2048, 2048, 1]
 	}
 	idx: {
-		"@type": "VolumetricIndex"
-		bbox:    #BBOX
-		resolution: [32, 32, 45]
+		"@type":    "VolumetricIndex"
+		bbox:       #BBOX
+		resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	}
 	src: {
 		"@type": "build_ts_layer"
@@ -396,6 +299,7 @@
 		"@type":             "build_cv_layer"
 		path:                _
 		info_reference_path: #IMG_PATH
+		info_chunk_size:     #BASE_INFO_CHUNK
 		on_info_exists:      "overwrite"
 	}
 }
@@ -403,12 +307,10 @@
 #INVERT_FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "invert_field", "@mode": "partial"}
-	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
-	processing_chunk_sizes: [[1024 * 6, 1024 * 6, 1], [2048, 2048, 1]]
-	max_reduction_chunk_sizes: [1024 * 6, 1024 * 6, 1]
-	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	dst_resolution: [32, 32, 45]
-	bbox: #BBOX
+	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1]]
+	processing_crop_pads: [[64, 64, 0]]
+	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
+	bbox:           #BBOX
 	src: {
 		"@type": "build_ts_layer"
 		path:    _
@@ -417,6 +319,7 @@
 		"@type":             "build_cv_layer"
 		path:                _
 		info_reference_path: src.path
+		info_chunk_size:     #BASE_INFO_CHUNK
 		on_info_exists:      "overwrite"
 	}
 }
@@ -469,11 +372,10 @@
 	op: {
 		"@type": "AcedMatchOffsetOp"
 	}
-	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START]]
-	processing_crop_pads: [[128 + 64, 128 + 64, 0]]
-	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	dst_resolution: [32, 32, 45]
-	max_dist: 2
+	processing_chunk_sizes: [[256, 256, #Z_END - #Z_START]]
+	processing_crop_pads: [[32, 32, 0]]
+	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
+	max_dist:       2
 
 	tissue_mask: {
 		"@type": "build_ts_layer"
@@ -491,9 +393,8 @@
 	misalignment_masks: {
 		for offset in #Z_OFFSETS {
 			"\(offset)": {
-				"@type":             "build_ts_layer"
-				path:                "\(#MISALIGNMENTS_PATH)/\(offset)"
-				info_reference_path: #DEFECTS_PATH
+				"@type": "build_ts_layer"
+				path:    "\(#MISALIGNMENTS_PATH)/\(offset)"
 			}
 		}
 	}
@@ -520,8 +421,8 @@
 				"@type":             "build_cv_layer"
 				path:                #MATCH_OFFSETS_PATH
 				info_reference_path: #IMG_PATH
-				info_chunk_size: [512, 512, 1]
-				on_info_exists: "overwrite"
+				info_chunk_size:     #BASE_INFO_CHUNK
+				on_info_exists:      "overwrite"
 				write_procs: [
 					{"@type": "to_uint8", "@mode": "partial"},
 				]
@@ -530,8 +431,8 @@
 				"@type":             "build_cv_layer"
 				path:                "\(#MATCH_OFFSETS_PATH)/img_mask"
 				info_reference_path: #IMG_PATH
-				info_chunk_size: [512, 512, 1]
-				on_info_exists: "overwrite"
+				info_chunk_size:     #BASE_INFO_CHUNK
+				on_info_exists:      "overwrite"
 				write_procs: [
 					{"@type": "to_uint8", "@mode": "partial"},
 				]
@@ -540,8 +441,8 @@
 				"@type":             "build_cv_layer"
 				path:                "\(#MATCH_OFFSETS_PATH)/aff_mask"
 				info_reference_path: #IMG_PATH
-				info_chunk_size: [512, 512, 1]
-				on_info_exists: "overwrite"
+				info_chunk_size:     #BASE_INFO_CHUNK
+				on_info_exists:      "overwrite"
 				write_procs: [
 					{"@type": "to_uint8", "@mode": "partial"},
 				]
@@ -555,15 +456,13 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox: true
-	dst_resolution: [32, 32, 45]
-	bbox: #BBOX
-	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START], [288, 288, #Z_END - #Z_START]]
-	max_reduction_chunk_sizes: [512, 512, #Z_END - #Z_START]
-	//processing_crop_pads: [[32, 32, 0], [96, 96, 0]]
-	//processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
-	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
-	processing_blend_pads: [[32, 32, 0], [32, 32, 0]]
+	expand_bbox:    true
+	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
+	bbox:           #BBOX
+	processing_chunk_sizes: [[128, 128, #Z_END - #Z_START], [72, 72, #Z_END - #Z_START]]
+	max_reduction_chunk_sizes: [128, 128, #Z_END - #Z_START]
+	processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
+	processing_blend_pads: [[8, 8, 0], [8, 8, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	fix:             #RELAXATION_FIX
@@ -606,7 +505,7 @@
 			num_channels: 2
 			data_type:    "float32"
 		}
-		info_chunk_size: #AFIELD_INFO_CHUNK
+		info_chunk_size: #BASE_INFO_CHUNK
 		on_info_exists:  "overwrite"
 	}
 }
@@ -625,18 +524,18 @@
 		//  src: path:   "\(#MATCH_OFFSETS_PATH)/img_mask"
 		//  field: path: #AFIELD_PATH
 		//  dst: path:   #IMG_MASK_PATH
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 	]
 }
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x134"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x131"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:      150
+	worker_replicas:      50
 	batch_gap_sleep_sec:  1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -646,7 +545,7 @@
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,
-			//#RELAX_FLOW,
+			#RELAX_FLOW,
 			#POST_ALIGN_FLOW,
 		]
 	}

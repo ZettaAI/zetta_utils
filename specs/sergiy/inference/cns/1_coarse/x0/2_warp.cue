@@ -2,8 +2,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 0]
-	end_coord: [2048, 2048, 10]
+	start_coord: [0, 0, 6150]
+	end_coord: [2048, 2048, 6170]
 	resolution: [512, 512, 45]
 }
 #CROP_PAD: 512
@@ -16,13 +16,13 @@
 		mode:    _
 	}
 	expand_bbox: true
-	processing_chunk_sizes: [[2 * #CHUNK, 2 * #CHUNK, 1], [#CHUNK, #CHUNK, 1]]
-	processing_crop_pads: [[0, 0, 0], [#CROP_PAD, #CROP_PAD, 0]]
-	level_intermediaries_dirs: ["file://~/.zutils/tmp", "file://~/.zutils/tmp"]
+	processing_chunk_sizes: [[#CHUNK, #CHUNK, 1]]
+	processing_crop_pads: [[#CROP_PAD, #CROP_PAD, 0]]
+	//level_intermediaries_dirs: ["file://~/.zutils/tmp", "file://~/.zutils/tmp"]
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {
-		"@type":    "build_cv_layer"
+		"@type":    "build_ts_layer"
 		path:       _
 		read_procs: _ | *[]
 	}
@@ -42,7 +42,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x127"
 worker_resources: {
 	memory: "18560Mi"
 }

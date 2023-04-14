@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import os
-from typing import Callable, Sequence
+from typing import Callable, Literal, Sequence, Union
 
 import attrs
 
@@ -26,12 +26,21 @@ from .compute_field_flow import (
 class ComputeFieldStage:
     fn: ComputeFieldFn
 
-    chunk_size: Sequence[int]
     dst_resolution: Sequence[float]
+
+    processing_chunk_sizes: Sequence[Sequence[int]]
+    processing_crop_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0)
+    processing_blend_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0)
+    processing_blend_modes: Union[
+        Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
+    ] = "linear"
+    level_intermediaries_dirs: Sequence[str | None] | None = None
+    max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None
+    expand_bbox: bool = False
+    shrink_processing_chunk: bool = False
 
     operation: ComputeFieldOperation = attrs.field(init=False)
 
-    crop_pad: int = 0
     res_change_mult: Sequence[float] = (1, 1, 1)
 
     src: VolumetricLayer | None = None
@@ -40,7 +49,6 @@ class ComputeFieldStage:
     def __attrs_post_init__(self):
         self.operation = ComputeFieldOperation(
             fn=self.fn,
-            crop_pad=self.crop_pad,
             res_change_mult=self.res_change_mult,
         )
 
@@ -168,8 +176,15 @@ class ComputeFieldMultistageFlowSchema:
                 stage_src_field = prev_dst
 
             stage_cf_flow_schema = ComputeFieldFlowSchema(
-                chunk_size=stage.chunk_size,
                 operation=stage.operation,
+                processing_chunk_sizes=stage.processing_chunk_sizes,
+                processing_crop_pads=stage.processing_crop_pads,
+                processing_blend_pads=stage.processing_blend_pads,
+                processing_blend_modes=stage.processing_blend_modes,
+                expand_bbox=stage.expand_bbox,
+                shrink_processing_chunk=stage.shrink_processing_chunk,
+                max_reduction_chunk_sizes=stage.max_reduction_chunk_sizes,
+                level_intermediaries_dirs=stage.level_intermediaries_dirs,
             )
             yield stage_cf_flow_schema(
                 bbox=bbox,

@@ -34,7 +34,6 @@ def read_execution_checkpoint(
     with fsspec.open(filepath, "r", compression=CHECKPOINT_COMPRESSION) as f:
         completed_ids = json.load(f)
     assert isinstance(completed_ids, list)
-
     return set(
         id_ for id_ in completed_ids if not any(id_.startswith(prefix) for prefix in ignore_prefix)
     )

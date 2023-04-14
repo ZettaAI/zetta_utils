@@ -94,7 +94,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     transient_error_conditions: Sequence[
         TransientErrorCondition
     ] = DEFAULT_TRANSIENT_ERROR_CONDITIONS
-    max_transient_retry: int = 10
+    max_transient_retry: int = 20
 
     # cache_expiration: datetime.timedelta = None
 

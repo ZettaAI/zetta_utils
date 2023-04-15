@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_single_gpu1_x0"
+#EXP_VERSION: "ddp_single_gpu1_x19"
 
 #TRAINING_ROOT: "gs://tmp_2w/akhilesh/training_artifacts"
 
@@ -8,7 +8,11 @@
 #ENCODER_CKPT: null
 #DECODER_CKPT: null
 
-#ENC_CV: "gs://fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m5_x0"
+
+#ENC_CV: "file:///ssd/zetta_utils/test"
+//#ENC_CV: "gs://fafb_v15_aligned/v0/img/img"
+//#ENC_CV: "gs://tmp_2w/testvol/"
+
 
 ///////////////////////////////////////////////////////////////////
 //////////////////////// Training Spec ////////////////////////////
@@ -39,7 +43,7 @@ regime: {
 trainer: {
 	"@type":            "ZettaDefaultTrainer"
 	accelerator:        "cuda"
-	devices:            1
+	devices:            2
 	strategy:           {
 		"@type":					"pl.DDPStrategy"
 		"find_unused_parameters":	false
@@ -48,8 +52,8 @@ trainer: {
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME
 	experiment_version: #EXP_VERSION
-	log_every_n_steps:  100
-	val_check_interval: 100
+	log_every_n_steps:  75
+	val_check_interval: 75
 	checkpointing_kwargs: {
 		//update_every_n_secs: 20
 		// backup_every_n_secs: 900
@@ -119,6 +123,10 @@ trainer: {
 						"@mode": "partial"
 						pattern: "c x y 1 -> c x y"
 					},
+					{
+						"@type": "to_float32"
+						"@mode": "partial"
+					}
 				]
 			}
 		}
@@ -141,8 +149,8 @@ trainer: {
 	sample_indexer: {
 		bbox: {
 			"@type": "BBox3D.from_coords"
-			start_coord: [80 * 1024, 30 * 1024, 2000]
-			end_coord: [230000, 80000, 2099]
+			start_coord: [64 * 1024, 32 * 1024, 2000]
+			end_coord: [128 * 1024, 64 * 1024, 2099]
 			resolution: [4, 4, 40]
 		}
 	}
@@ -162,13 +170,14 @@ train_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     true
-	num_workers: 4
+	num_workers: 1
 	dataset:     #train_dset
 }
+
 val_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     false
-	num_workers: 4
+	num_workers: 1
 	dataset:     #val_dset
 }

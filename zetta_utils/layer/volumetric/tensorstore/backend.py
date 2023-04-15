@@ -12,7 +12,7 @@ import tensorstore
 import torch
 from typeguard import suppress_type_checks
 
-from zetta_utils import tensor_ops
+from zetta_utils import log, tensor_ops
 from zetta_utils.common import abspath
 from zetta_utils.geometry import Vec3D
 
@@ -20,6 +20,8 @@ from .. import VolumetricBackend, VolumetricIndex
 from ..cloudvol import CVBackend
 from ..layer_set import VolumetricSetBackend
 from ..precomputed import InfoExistsModes, PrecomputedInfoSpec
+
+logger = log.get_logger("zetta_utils")
 
 _ts_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _ts_cached: Dict[str, set] = {}
@@ -38,7 +40,10 @@ def _get_ts_at_resolution(
     spec: Dict[str, Any] = {
         "driver": "neuroglancer_precomputed",
         "kvstore": abspath(path),
-        "context": {"cache_pool": {"total_bytes_limit": cache_bytes_limit}},
+        "context": {
+            "cache_pool": {"total_bytes_limit": cache_bytes_limit},
+            "data_copy_concurrency": {"limit": 1},
+        },
         "recheck_cached_data": "open",
     }
     if resolution is not None:
@@ -203,6 +208,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         result_np = np.transpose(data_final, (3, 0, 1, 2))
         result = tensor_ops.to_torch(result_np)
+        if result.sum() != 0:
+            logger.info(result.sum())
         return result
 
     def write(self, idx: VolumetricIndex, data: torch.Tensor):

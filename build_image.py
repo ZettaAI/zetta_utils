@@ -9,7 +9,9 @@ PUSH_COMMAND_TMPL = "docker push us.gcr.io/{PROJECT}/zetta_utils:{TAG}"
 
 def main():
     parser = argparse.ArgumentParser(description="Build and push docker image.")
-    parser.add_argument("--project", type=str, help="GCR project.", default="zetta-research")
+    parser.add_argument(
+        "--project", type=str, required=True, help="GCR project.", default="zetta-research"
+    )
     parser.add_argument("--tag", "-t", type=str, required=True, help="Image tag name/version.")
     parser.add_argument(
         "--mode",

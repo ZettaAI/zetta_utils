@@ -72,7 +72,9 @@ def _get_code_hash(
         _hash = _get_code_hash(fn.func, _hash=_hash, _prefix=_prefix + "  ")
         return _hash
 
-    if isinstance(fn, zetta_utils.mazepa.tasks.TaskableOperation):
+    if isinstance(
+        fn, (zetta_utils.mazepa.tasks.TaskableOperation, zetta_utils.builder.BuilderPartial)
+    ):
         _hash.update(fn.__repr__())
         logger.debug(f"{_prefix}Add hash: {fn.__repr__()}")
 

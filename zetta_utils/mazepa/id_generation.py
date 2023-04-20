@@ -43,7 +43,6 @@ def _get_code_hash(
 
     try:
         _hash.update(fn.__qualname__)
-        logger.debug(f"{_prefix}Add hash: {fn.__qualname__}")
 
         try:
             # Mypy wants to see (BuiltinFunctionType, MethodType, MethodWrapperType),
@@ -51,12 +50,10 @@ def _get_code_hash(
             method_kwargs = fn.__self__.__dict__  # type: ignore
             if isinstance(method_kwargs, dict):
                 _hash.update(method_kwargs.__repr__())
-                logger.debug(f"{_prefix}Add hash: {method_kwargs}")
         except AttributeError:
             pass
 
         _hash.update(fn.__code__.co_code)
-        logger.debug(f"{_prefix}Add hash code --> {_hash.hexdigest()}")
 
         return _hash
     except AttributeError:
@@ -64,10 +61,8 @@ def _get_code_hash(
 
     if isinstance(fn, functools.partial):
         _hash.update(fn.args.__repr__().encode())
-        logger.debug(f"{_prefix}Add hash: {fn.args.__repr__()}")
 
         _hash.update(fn.keywords.__repr__().encode())
-        logger.debug(f"{_prefix}Add hash: {fn.keywords.__repr__()}")
 
         _hash = _get_code_hash(fn.func, _hash=_hash, _prefix=_prefix + "  ")
         return _hash
@@ -76,7 +71,6 @@ def _get_code_hash(
         fn, (zetta_utils.mazepa.tasks.TaskableOperation, zetta_utils.builder.BuilderPartial)
     ):
         _hash.update(fn.__repr__())
-        logger.debug(f"{_prefix}Add hash: {fn.__repr__()}")
 
         _hash = _get_code_hash(fn.__call__, _hash=_hash, _prefix=_prefix + "  ")
         return _hash

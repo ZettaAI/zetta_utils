@@ -14,7 +14,7 @@ command_args: [
 	"python -m zetta_utils.mazepa_addons.resource_cleanup"
 ]
 env_vars: {
-	"EXECUTION_HEARTBEAT_LOOKBACK": "172800",
+	"EXECUTION_HEARTBEAT_LOOKBACK": "300",
 }
 preset_env_vars: [
     "AWS_ACCESS_KEY_ID",
@@ -24,4 +24,8 @@ preset_env_vars: [
 resources: {
 	memory: "1Gi"
 }
-patch: false
+spec_config: {
+	"@type": "mazepa.k8s.CronJobSpec"
+	schedule: "*/15 * * * *"
+}
+patch: true

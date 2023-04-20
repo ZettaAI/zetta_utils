@@ -32,6 +32,7 @@ def run_worker(
             time.sleep(sleep_sec)
         else:
             logger.info("STARTING: taks batch execution.")
+            time_start = time.time()
             for task in tasks:
                 if task_filter_fn(task):
                     with log.logging_tag_ctx("task_id", task.id_):
@@ -40,7 +41,8 @@ def run_worker(
                 else:
                     task.cancel_without_starting()
 
-            logger.info("DONE: taks batch execution.")
+            time_end = time.time()
+            logger.info(f"DONE: taks batch execution ({time_end - time_start:.2f}sec).")
 
         if max_runtime is not None and time.time() - start_time > max_runtime:
             break

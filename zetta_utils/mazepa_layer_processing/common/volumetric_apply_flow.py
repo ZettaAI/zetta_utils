@@ -1,3 +1,4 @@
+import itertools
 from copy import deepcopy
 from os import path
 from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
@@ -433,16 +434,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                             "any reduction chunk; please check the `roi_crop_pad` and the "
                             "`processing_chunk_size`."
                         ) from e
-                    offsets = [
-                        (0, 0, 0),
-                        (0, 0, 1),
-                        (0, 1, 0),
-                        (0, 1, 1),
-                        (1, 0, 0),
-                        (1, 0, 1),
-                        (1, 1, 1),
-                    ]
-
+                    # check for up to 3 chunks in each dimension
+                    offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
                     inds = [
                         red_ind
                         + offset[0] * red_shape[1] * red_shape[2]

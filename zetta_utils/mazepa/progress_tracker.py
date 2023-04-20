@@ -55,8 +55,8 @@ def progress_ctx_mngr(
         progress.TextColumn("[progress.description] {task.completed}/{task.total}"),
         progress.TimeElapsedColumn(),
         progress.TimeRemainingColumn(),
-        transient=True,
         speed_estimate_period=90,
+        # transient=True,
         # refresh_per_second=1,
     )
 

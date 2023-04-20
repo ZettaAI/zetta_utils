@@ -76,8 +76,17 @@ class AcedMatchOffsetOp:
                 pairwise_fields_inv={k: v[idx_padded] for k, v in pairwise_fields_inv.items()},
                 max_dist=max_dist,
             )
-            result = {k: tensor_ops.crop(v, self.crop_pad) for k, v in result.items()}
+            """
+            result = {
+                k: tensor_ops.crop(v, self.crop_pad)
+                for k, v in result.items()
+            }
             dst[idx] = result
+
+            """
+
+            result = {k: tensor_ops.crop(v, self.crop_pad)[..., 1:] for k, v in result.items()}
+            dst[idx.translated_start((0, 0, 1))] = result
 
 
 @builder.register("AcedRelaxationOp")

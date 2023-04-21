@@ -48,7 +48,9 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.trace_configuration = None
-
+    
+    # TODO: For PL>=1,8.0, the line should be @pl.utilities.rank_zero.rank_zero_only
+    @pl.utilities.distributed.rank_zero_only
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
     ):  # pylint: disable=too-many-locals

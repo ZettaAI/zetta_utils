@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import functools
 from typing import Optional, Sequence, Union
 
 import torch
 
 from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils.common import ComparablePartial
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
@@ -40,7 +40,7 @@ def make_interpolate_operation(
     mask_value_thr: float = 0,
 ):
     op = VolumetricCallableOperation(
-        fn=functools.partial(
+        fn=ComparablePartial(
             _interpolate,
             mode=mode,
             scale_factor=1 / Vec3D(*res_change_mult),

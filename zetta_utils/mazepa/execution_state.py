@@ -174,8 +174,10 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
         self.leftover_ready_tasks = result[max_batch_len:]
 
         for e in result_final:
-            self.ongoing_tasks_dict[e.id_] = e
-            self.submitted_counts[e.operation_name] += 1
+            if e.id_ not in self.ongoing_tasks_dict:
+                # Duplicate tasks don't count
+                self.ongoing_tasks_dict[e.id_] = e
+                self.submitted_counts[e.operation_name] += 1
 
         return result_final
 

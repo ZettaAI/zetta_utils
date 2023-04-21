@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: master
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: master
+  template:
+    metadata:
+      labels:
+        app: master
+    spec:
+      hostname: master
+      hostNetwork: true
+      tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Equal"
+        value: "present"
+        effect: "NoSchedule"
+      nodeSelector:
+        cloud.google.com/gke-nodepool: master
+      volumes: []
+      containers:
+      - name: master
+        image: us.gcr.io/zetta-research/zetta_utils:ddp_v6
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 29400
+        volumeMounts: []
+        env:
+        - name: LOGLEVEL
+          value: DEBUG
+        - name: NCCL_SOCKET_IFNAME
+          value: eth0
+        - name: NCCL_DEBUG
+          value: INFO
+        resources:
+          requests:
+            memory: 5Gi
+            nvidia.com/gpu: "1"
+          limits:
+            memory: 5Gi
+            nvidia.com/gpu: "1"
+        command:
+        - "torchrun"
+        - "--nnodes=5"
+        - "--nproc_per_node=1"
+        - "--max-restarts=3"
+        - "--rdzv_id=test-x0"
+        - "--rdzv_backend=c10d"
+        - "--rdzv_endpoint=localhost:29400"
+        - "-m"
+        - "mnist.train"

@@ -4,7 +4,10 @@ from timeit import default_timer as timer
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.strategies import ddp, dp
+from pytorch_lightning.plugins.environments.torchelastic_environment import (
+    TorchElasticEnvironment,
+)
+from pytorch_lightning.strategies import ddp
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 from torchvision.datasets import MNIST
@@ -28,15 +31,16 @@ valid_loader = DataLoader(valid_set, num_workers=4)
 
 autoencoder = LitAutoEncoder(Encoder(), Decoder())
 
-strategy_dp = dp.DataParallelStrategy()
-strategy_ddp = ddp.DDPStrategy(find_unused_parameters=False)
+print("start training")
 
 trainer = pl.Trainer(
     accelerator="cuda",
-    devices=4,
     max_epochs=1,
-    strategy=strategy_dp,
-    # strategy=strategy_ddp,
+    num_nodes=5,
+    strategy=ddp.DDPStrategy(
+        find_unused_parameters=False,
+        cluster_environment=TorchElasticEnvironment(),
+    ),
 )
 
 start = timer()

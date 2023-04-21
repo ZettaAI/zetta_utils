@@ -67,8 +67,8 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
     ongoing_flows: list[Flow]
     ongoing_flows_dict: dict[str, Flow] = attrs.field(init=False)
     ongoing_exhausted_flow_ids: Set[str] = attrs.field(init=False, factory=set)
-    ongoing_parent_map: dict[str, Optional[str]] = attrs.field(
-        init=False, default=defaultdict(lambda: None)
+    ongoing_parent_map: dict[str, Set[str]] = attrs.field(
+        init=False, factory=lambda: defaultdict(set)
     )
     ongoing_children_map: dict[str, Set[str]] = attrs.field(
         init=False, factory=lambda: defaultdict(set)
@@ -205,8 +205,8 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
             self.completed_counts[self.ongoing_tasks_dict[id_].operation_name] += 1
             del self.ongoing_tasks_dict[id_]
 
-        parent_id = self.ongoing_parent_map[id_]
-        if parent_id is not None:
+        parent_ids = self.ongoing_parent_map[id_]
+        for parent_id in parent_ids:
             self.ongoing_children_map[parent_id].discard(id_)
             self.dependency_map[parent_id].discard(id_)
             if (
@@ -238,7 +238,7 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
             for e in flow_yield:
                 if e.id_ not in self.completed_ids:
                     self.ongoing_children_map[flow.id_].add(e.id_)
-                    self.ongoing_parent_map[e.id_] = flow.id_
+                    self.ongoing_parent_map[e.id_].add(flow.id_)
                     result.append(e)
                 elif isinstance(e, Task):
                     # Task loaded from checkpoint - adjust the counter

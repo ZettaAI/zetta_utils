@@ -24,24 +24,26 @@ spec:
       volumes: []
       containers:
       - name: master
-        image: us.gcr.io/zetta-research/zetta_utils:ddp_v6
+        image: us.gcr.io/zetta-research/zetta_utils:ddp_v10
         imagePullPolicy: Always
         ports:
         - containerPort: 29400
         volumeMounts: []
         env:
+        - name: NUM_NODES
+          value: "5"
+        - name: NUM_DEVICES
+          value: "1"
         - name: LOGLEVEL
-          value: DEBUG
+          value: INFO
         - name: NCCL_SOCKET_IFNAME
           value: eth0
-        - name: NCCL_DEBUG
-          value: INFO
         resources:
           requests:
-            memory: 5Gi
+            memory: 10Gi
             nvidia.com/gpu: "1"
           limits:
-            memory: 5Gi
+            memory: 10Gi
             nvidia.com/gpu: "1"
         command:
         - "torchrun"

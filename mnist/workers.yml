@@ -14,10 +14,10 @@ spec:
     spec:
       hostNetwork: true
       hostAliases:
-      - ip: 10.0.0.8
+      - ip: 10.0.0.56
         hostnames:
         - master
-      - ip: fd20:481:ca76:1000:0:5:0:0
+      - ip: fd20:481:ca76:1000:0:35:0:0
         hostnames:
         - master
       tolerations:
@@ -30,24 +30,26 @@ spec:
       volumes: []
       containers:
       - name: worker
-        image: us.gcr.io/zetta-research/zetta_utils:ddp_v6
+        image: us.gcr.io/zetta-research/zetta_utils:ddp_v10
         imagePullPolicy: Always
         ports:
         - containerPort: 29400
         volumeMounts: []
         env:
+        - name: NUM_NODES
+          value: "5"
+        - name: NUM_DEVICES
+          value: "1"
         - name: LOGLEVEL
-          value: DEBUG
+          value: INFO
         - name: NCCL_SOCKET_IFNAME
           value: eth0
-        - name: NCCL_DEBUG
-          value: INFO
         resources:
           requests:
-            memory: 5Gi
+            memory: 10Gi
             nvidia.com/gpu: "1"
           limits:
-            memory: 5Gi
+            memory: 10Gi
             nvidia.com/gpu: "1"
         command:
         - "torchrun"

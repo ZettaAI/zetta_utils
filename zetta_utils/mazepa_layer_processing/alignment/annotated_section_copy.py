@@ -55,7 +55,7 @@ class AnnotatedSectionCopyFlowSchema:
                     processing_chunk_sizes=[Vec3D[int](chunk_size_xy[0], chunk_size_xy[1], 1)],
                     bbox=bbox,
                     dst_resolution=fill_res,
-                    src=src,
+                    op_kwargs={"src": src},
                     dst=dst,
                 )
                 yield flow

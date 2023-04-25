@@ -178,10 +178,12 @@ class ComputeFieldFlowSchema:
             bbox=bbox,
             dst_resolution=dst_resolution,
             dst=dst,
-            src=src,  # type: ignore
-            tgt=tgt,  # type: ignore
-            src_field=src_field,  # type: ignore
-            tgt_field=tgt_field,  # type: ignore
+            op_kwargs={
+                "src": src,
+                "tgt": tgt,
+                "src_field": src_field,
+                "tgt_field": tgt_field,
+            },
         )
 
         yield cf_flow

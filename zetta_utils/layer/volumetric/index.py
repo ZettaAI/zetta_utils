@@ -80,6 +80,13 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
+    def transposed(self, dim0: int, dim1: int, local: bool = False) -> VolumetricIndex:
+        return VolumetricIndex(
+            bbox=self.bbox.transposed(dim0, dim1, local),
+            resolution=self.resolution,
+            allow_slice_rounding=self.allow_slice_rounding,
+        )
+
     def pformat(self, resolution: Optional[Sequence[float]] = None) -> str:
         if resolution is not None:
             resolution_ = resolution

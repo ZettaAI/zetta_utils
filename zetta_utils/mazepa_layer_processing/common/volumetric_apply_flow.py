@@ -1,7 +1,18 @@
 import itertools
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
+from types import MappingProxyType
+from typing import (
+    Any,
+    Generic,
+    Iterable,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Tuple,
+    TypeVar,
+)
 
 import attrs
 import cachetools
@@ -338,13 +349,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx_chunks: Iterable[VolumetricIndex],
         dst: VolumetricBasedLayerProtocol,
-        **kwargs: P.kwargs,
+        op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
         tasks = [
             self.op.make_task(
                 idx=idx_chunk,
                 dst=dst,
-                **kwargs,
+                **op_kwargs,
             )
             for idx_chunk in idx_chunks
         ]
@@ -354,11 +365,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
-        **kwargs: P.kwargs,
+        op_kwargs: P.kwargs,
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
         dst_temp = self._get_temp_dst(dst, idx)
         idx_chunks = self.processing_chunker(idx, mode="exact")
-        tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, **kwargs)
+        tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
 
         return tasks, dst_temp
 
@@ -368,7 +379,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         red_chunks: Iterable[VolumetricIndex],
         red_shape: Vec3D[int],
         dst: VolumetricBasedLayerProtocol,
-        **kwargs: P.kwargs,
+        op_kwargs: P.kwargs,
     ) -> Tuple[
         List[mazepa.tasks.Task[R_co]],
         List[List[VolumetricIndex]],
@@ -421,7 +432,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             red_ind = 0
             with suppress_type_checks():
                 for task_idx in task_idxs:
-                    tasks.append(self.op.make_task(task_idx, dst_temp, **kwargs))
+                    tasks.append(self.op.make_task(task_idx, dst_temp, **op_kwargs))
                     try:
                         while not task_idx.intersects(red_chunks[red_ind]):
                             red_ind += 1
@@ -455,27 +466,27 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        op_args: P.args,
+        op_kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
-        assert len(args) == 0
+        assert len(op_args) == 0
         assert self.roi_crop_pad is not None
         assert self.processing_blend_pad is not None
 
         # set caching for all VolumetricBasedLayerProtocols as desired
         if self.allow_cache:
-            args, kwargs = set_allow_cache(*args, **kwargs)
+            op_args, op_kwargs = set_allow_cache(*op_args, **op_kwargs)
 
         logger.info(f"Breaking {idx} into chunks with {self.processing_chunker}.")
 
         # case without checkerboarding
         if not self.use_checkerboarding and not self.force_intermediaries:
             idx_chunks = self.processing_chunker(idx, mode="exact")
-            tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, **kwargs)
+            tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, op_kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
         elif not self.use_checkerboarding and self.force_intermediaries:
-            tasks, dst_temp = self.make_tasks_with_intermediaries(idx, dst, **kwargs)
+            tasks, dst_temp = self.make_tasks_with_intermediaries(idx, dst, op_kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
             yield mazepa.Dependency()
@@ -555,7 +566,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 red_chunks_temps,
                 dst_temps,
             ) = self.make_tasks_with_checkerboarding(
-                idx.padded(self.roi_crop_pad), red_chunks, red_shape, dst, **kwargs
+                idx.padded(self.roi_crop_pad), red_chunks, red_shape, dst, op_kwargs
             )
             logger.info(
                 "Writing to temporary destinations:\n"
@@ -587,7 +598,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             clear_cache(*dst_temps)
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
-            clear_cache(*args, **kwargs)
+            clear_cache(*op_args, **op_kwargs)
 
 
 def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
@@ -596,6 +607,7 @@ def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     end_coord: Vec3D[int],
     coord_resolution: Vec3D,
     dst_resolution: Vec3D,
+    dst: VolumetricBasedLayerProtocol,
     processing_chunk_size: Vec3D[int],
     processing_crop_pad: Vec3D[int],
     max_reduction_chunk_size: Optional[Vec3D[int]] = None,
@@ -605,8 +617,8 @@ def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     intermediaries_dir: Optional[str] = None,
     allow_cache: bool = False,
     clear_cache_on_return: bool = False,
-    *args: P.args,
-    **kwargs: P.kwargs,
+    op_args: Iterable = (),
+    op_kwargs: Mapping[str, Any] = MappingProxyType({}),
 ) -> mazepa.Flow:
     bbox: BBox3D = BBox3D.from_coords(
         start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
@@ -624,6 +636,6 @@ def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         allow_cache=allow_cache,
         clear_cache_on_return=clear_cache_on_return,
     )
-    flow = flow_schema(idx, *args, **kwargs)
+    flow = flow_schema(idx, dst, op_args, op_kwargs)
 
     return flow

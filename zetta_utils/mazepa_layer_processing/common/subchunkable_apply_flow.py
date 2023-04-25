@@ -4,7 +4,19 @@ import math
 from collections.abc import Sequence as AbcSequence
 from copy import deepcopy
 from os import path
-from typing import Any, Callable, Generic, Literal, Optional, Sequence, TypeVar, Union
+from types import MappingProxyType
+from typing import (
+    Any,
+    Callable,
+    Generic,
+    Iterable,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeVar,
+    Union,
+)
 
 import attrs
 from torch import Tensor
@@ -51,11 +63,11 @@ class DelegatedSubchunkedOperation(Generic[P]):
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        *op_args: P.args,
+        **op_kwargs: P.kwargs,
     ) -> None:
         mazepa.Executor(do_dryrun_estimation=False, show_progress=False)(
-            self.flow_schema(idx, dst, *args, **kwargs)
+            self.flow_schema(idx, dst, op_args, op_kwargs)
         )
 
 
@@ -82,8 +94,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     allow_cache_up_to_level: int = 0,
     print_summary: bool = True,
-    *args: P.args,
-    **kwargs: P.kwargs,
+    op_args: Iterable = (),
+    op_kwargs: Mapping[str, Any] = MappingProxyType({}),
 ) -> mazepa.Flow:
     """
     Performs basic argument error checking, expands singletons to lists, converts to Vec3D,
@@ -167,7 +179,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             "Please choose at most one.",
         )
 
-    assert len(args) == 0
+    assert len(list(op_args)) == 0
     return _build_subchunkable_apply_flow(
         dst=dst,
         dst_resolution=Vec3D(*dst_resolution),
@@ -184,7 +196,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         shrink_processing_chunk=shrink_processing_chunk,
         expand_bbox=expand_bbox,
         print_summary=print_summary,
-        **kwargs,
+        op_args=op_args,
+        op_kwargs=op_kwargs,
     )
 
 
@@ -280,8 +293,8 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     num_chunks: Sequence[int],
     use_checkerboard: Sequence[bool],
     op_name: str,
-    args: tuple,
-    kwargs: dict[str, Any],
+    op_args: Iterable,
+    op_kwargs: Mapping[str, Any],
 ) -> None:
 
     summary = ""
@@ -327,9 +340,9 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         lrpad(f"Processing crop pad: {processing_crop_pad.pformat()}  ", level=2, length=120)
         + "\n"
     )
-    summary += lrpad(f"# of args supplied: {len(args)}", level=2, length=120) + "\n"
-    summary += lrpad("kwargs supplied:", level=2, length=120) + "\n"
-    for k, v in kwargs.items():
+    summary += lrpad(f"# of op_args supplied: {len(list(op_args))}", level=2, length=120) + "\n"
+    summary += lrpad("op_kwargs supplied:", level=2, length=120) + "\n"
+    for k, v in op_kwargs.items():
         summary += (
             lrpad(
                 f"{lrpad(f'{k}:', level=0, length = 15, bounds = '')}" f"{type(v).__name__}",
@@ -402,12 +415,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     max_reduction_chunk_sizes: Sequence[Vec3D[int]],
     allow_cache_up_to_level: int,
     bbox: BBox3D,
-    op: VolumetricOpProtocol[P, None, Any],
     shrink_processing_chunk: bool,
     expand_bbox: bool,
     print_summary: bool,
-    *args: P.args,
-    **kwargs: P.kwargs,
+    op: VolumetricOpProtocol[P, None, Any],
+    op_args: P.args,
+    op_kwargs: P.kwargs,
 ) -> mazepa.Flow:
 
     num_levels = len(processing_chunk_sizes)
@@ -542,8 +555,8 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             num_chunks=num_chunks,
             use_checkerboard=use_checkerboard,
             op_name=op_name,
-            args=args,
-            kwargs=kwargs,
+            op_args=op_args,
+            op_kwargs=op_kwargs,
         )
 
     """
@@ -585,4 +598,4 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             force_intermediaries=(level != num_levels - 1),
         )
 
-    return flow_schema(idx, dst, *args, **kwargs)
+    return flow_schema(idx, dst, op_args, op_kwargs)

@@ -154,7 +154,10 @@ def square_tile_pattern_aug(  # pylint: disable=too-many-locals
             ]
 
         # Limit accumulated brightness change
-        combined_pattern = combined_pattern / combined_pattern.abs().max() * max_brightness_change
+        if combined_pattern.abs().max() > 1e-6:
+            combined_pattern = (
+                combined_pattern / combined_pattern.abs().max() * max_brightness_change
+            )
 
         # No tiling pattern in empty region
         if preserve_data_val is not None:

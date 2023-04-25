@@ -228,6 +228,16 @@ def test_clamp_values(
                 ]
             ),
         ],
+        [
+            np.ones((1, 4, 4)),
+            1,
+            2,
+            0,
+            0,
+            None,
+            0,
+            np.ones((1, 4, 4)),
+        ],
     ],
 )
 def test_square_tile_pattern_aug(

@@ -370,6 +370,54 @@ class BBox3D:
 
         return result
 
+    def transposed(
+        self,
+        dim0: int,
+        dim1: int,
+        local: bool = False,
+    ) -> BBox3D:
+        """Transpose the bounding box.
+
+        :param dim0: The first dimension to be transposed
+        :param dim1: The second dimension to be transposed
+        :param local: Whether to transpose with respect to the local/global
+        coordinate system.
+        :return: Transposed bounding box.
+
+        """
+        assert -3 <= dim0 < 3
+        assert -3 <= dim1 < 3
+
+        # Make sure dims are in [0, 1, 2]
+        dim0 = dim0 + 3 if dim0 < 0 else dim0
+        dim1 = dim1 + 3 if dim1 < 0 else dim1
+
+        # Mapping for transposing dims
+        mapping = {i: i for i in range(self.ndim)}
+        mapping[dim0] = dim1
+        mapping[dim1] = dim0
+
+        # Translate the bbox to the origin if local
+        offset = -self.start if local else Vec3D(0, 0, 0)
+        bbox = self.translated(offset, resolution=Vec3D(1, 1, 1))
+
+        # Transposed slices
+        slices = cast(
+            Slices3D,
+            tuple(bbox.get_slice(mapping[i], resolution=1) for i in range(self.ndim)),
+        )
+
+        # Create a transposed bbox
+        transposed = BBox3D.from_slices(
+            slices=slices,
+            unit=self.unit,
+        )
+
+        # Translate back if local
+        offset = self.start if local else Vec3D(0, 0, 0)
+        result = transposed.translated(offset, resolution=Vec3D(1, 1, 1))
+        return result
+
     def snapped(
         self,
         grid_offset: Sequence[float],

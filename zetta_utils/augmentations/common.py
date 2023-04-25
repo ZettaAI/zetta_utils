@@ -1,8 +1,14 @@
 # pylint: disable=missing-docstring
 import random
-from typing import Callable, TypeVar
+from typing import Callable, Literal, Sequence, TypeVar
 
+import attrs
+import torch
 from typeguard import typechecked
+
+from zetta_utils import builder
+from zetta_utils.layer import JointIndexDataProcessor
+from zetta_utils.layer.volumetric import VolumetricIndex
 
 R = TypeVar("R")
 
@@ -29,3 +35,26 @@ def prob_aug(aug: Callable[..., R]) -> Callable[..., R]:
         return result
 
     return wrapper
+
+
+@builder.register("ComposedAugment")
+@typechecked
+@attrs.frozen
+class ComposedAugment(JointIndexDataProcessor):
+    augments: Sequence[JointIndexDataProcessor]
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        result = idx
+        for augment in reversed(self.augments):
+            result = augment.process_index(result, mode)
+        return result
+
+    def process_data(
+        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
+    ) -> dict[str, torch.Tensor]:
+        result = data
+        for augment in self.augments:
+            result = augment.process_data(result, mode)
+        return result

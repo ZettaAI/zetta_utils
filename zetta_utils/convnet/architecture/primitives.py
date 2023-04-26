@@ -1,6 +1,7 @@
 # pylint: disable = useless-super-delegation, no-self-use, redefined-builtin
 from __future__ import annotations
 
+from collections import namedtuple
 from collections.abc import Sequence as AbcSequence
 from functools import partial
 from types import BuiltinMethodType
@@ -216,7 +217,9 @@ class MultiHeaded(torch.nn.Module):  # pragma: no cover
         self.heads = torch.nn.ModuleDict(heads)
 
     def forward(self, x):
-        return {k: head(x) for k, head in self.heads.items()}
+        result_dict = {k: head(x) for k, head in self.heads.items()}
+        result = namedtuple("Output", result_dict)(**result_dict)
+        return result
 
 
 @builder.register("MultiHeadedOutput")

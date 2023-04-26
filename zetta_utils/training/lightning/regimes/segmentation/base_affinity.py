@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import attrs
 import pytorch_lightning as pl
 import torch
@@ -62,7 +64,7 @@ class BaseAffinityRegime(pl.LightningModule):
         # Compute loss
         losses = []
         for key, criterion in self.criteria.items():
-            pred = results[key]
+            pred = getattr(results, key)
             trgt = batch[key]
             mask = batch[key + "_mask"]
             loss = criterion(pred, trgt, mask)
@@ -88,7 +90,7 @@ class BaseAffinityRegime(pl.LightningModule):
         return loss
 
     def create_row(
-        self, batch: dict[str, torch.Tensor], results: dict[str, torch.Tensor]
+        self, batch: dict[str, torch.Tensor], results: NamedTuple
     ) -> dict[str, torch.Tensor]:
         row = {
             "data_in": batch["data_in"],
@@ -98,7 +100,7 @@ class BaseAffinityRegime(pl.LightningModule):
         for key in self.criteria.keys():
             trgt = batch[key]
             mask = batch[key + "_mask"]
-            pred = results[key]
+            pred = getattr(results, key)
             pred = torch.sigmoid(pred) if self.logits else pred
 
             # Chop prediction into groups for visualization purpose

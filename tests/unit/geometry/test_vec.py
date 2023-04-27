@@ -99,6 +99,19 @@ def test_eq_types(arg1, arg2, is_equal):
 
 
 @pytest.mark.parametrize(
+    "arg1, arg2, is_equal",
+    [
+        [vec3d, intvec3d, True],
+        [vec3d, vec3d_from_int, True],
+        [intvec3d, intvec3d_from_float, True],
+        [intvec3d, vec3d_diff, False],
+    ],
+)
+def test_hash(arg1, arg2, is_equal):
+    assert (arg1[0].__hash__() == arg2[0].__hash__()) == is_equal
+
+
+@pytest.mark.parametrize(
     "arg1, arg2, is_lt",
     [
         [vec3d, vec3d_lg, True],
@@ -264,30 +277,6 @@ def test_exc(constructor, args, expected_exc):
 def test_exc_tuple(constructor, args, expected_exc):
     with pytest.raises(expected_exc):
         constructor(args)
-
-
-@pytest.mark.parametrize(
-    "vec, idx, val",
-    [
-        [vec3d, 1, 4.5],
-        [intvec3d, 0, 2],
-    ],
-)
-def test_setitem(vec, idx, val):
-    vec[idx] = val
-    assert vec[idx] == val
-
-
-@pytest.mark.parametrize(
-    "vec, idx, val, expected_exc",
-    [
-        [intvec3d, 10, 1.0, IndexError],
-        # [intvec3d, 0, 1.5, TypeError], # Will be fixed by: https://github.com/agronholm/typeguard/issues/21
-    ],
-)
-def test_exc_setitem(vec, idx, val, expected_exc):
-    with pytest.raises(expected_exc):
-        vec[idx] = val
 
 
 """

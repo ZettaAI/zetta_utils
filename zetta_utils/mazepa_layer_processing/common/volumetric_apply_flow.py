@@ -266,7 +266,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     " blended dimensions that are not 1;"
                     " received {self.processing_chunk_size[i]} against {dst_backend_chunk_size[i]}"
                 )
-            backend_chunk_size[i] //= 2
+            # The following line is the non-mutable version of backend_chunk_size[i] //= 2
+            backend_chunk_size = Vec3D[int](
+                *itertools.chain(
+                    backend_chunk_size[0:i],
+                    (backend_chunk_size[i] // 2,),
+                    backend_chunk_size[i + 1 :],
+                )
+            )
             while backend_chunk_size[i] > dst_backend_chunk_size[i]:
                 if backend_chunk_size[i] % 2 != 0:
                     raise ValueError(
@@ -274,7 +281,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                         " it is smaller than the `dst` backend's chunk size, or be 1, in"
                         f" dims that are blended; received {self.processing_chunk_size[i]}"
                     )
-                backend_chunk_size[i] //= 2
+                backend_chunk_size = Vec3D[int](
+                    *itertools.chain(
+                        backend_chunk_size[0:i],
+                        (backend_chunk_size[i] // 2,),
+                        backend_chunk_size[i + 1 :],
+                    )
+                )
 
         return backend_chunk_size
 

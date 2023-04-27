@@ -15,7 +15,7 @@ BuiltinFloat = float
 T = TypeVar("T", bound=float)
 
 
-@attrs.mutable(init=False)
+@attrs.frozen(init=False)
 @typechecked
 class Vec3D(abc.Sequence[T]):
     """
@@ -28,19 +28,19 @@ class Vec3D(abc.Sequence[T]):
 
     def __init__(self, x: T | np.generic, y: T | np.generic, z: T | np.generic):
         if isinstance(x, np.generic):
-            self.x = x.item()
+            object.__setattr__(self, "x", x.item())
         else:
-            self.x = x
+            object.__setattr__(self, "x", x)
 
         if isinstance(y, np.generic):
-            self.y = y.item()
+            object.__setattr__(self, "y", y.item())
         else:
-            self.y = y
+            object.__setattr__(self, "y", y)
 
         if isinstance(z, np.generic):
-            self.z = z.item()
+            object.__setattr__(self, "z", z.item())
         else:
-            self.z = z
+            object.__setattr__(self, "z", z)
 
     @property
     def vec(self) -> tuple[T, T, T]:
@@ -57,29 +57,11 @@ class Vec3D(abc.Sequence[T]):
     def __getitem__(self, key):
         return self.vec[key]
 
-    @overload
-    def __setitem__(self, key: BuiltinInt, val: T) -> None:
-        ...
-
-    @overload
-    def __setitem__(self, key: slice, val: Sequence[T]) -> None:
-        ...
-
-    def __setitem__(self, key, val):
-        newvec = list(self.vec)
-        newvec.__setitem__(key, val)
-        self.__init__(*newvec)  # pylint: disable=no-value-for-parameter
-
     def __iter__(self):
         return self.vec.__iter__()
 
     def __len__(self) -> BuiltinInt:
         return 3
-
-    def __eq__(self, other) -> bool:
-        if not hasattr(other, "vec"):
-            return False
-        return self.vec == other.vec
 
     def __lt__(self, other) -> bool:
         return all(s < o for (s, o) in zip(self.vec, other.vec))

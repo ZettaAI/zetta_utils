@@ -1,7 +1,7 @@
 # pylint: disable=too-many-locals
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Dict, List, Literal, Optional
 
 import attrs
 import einops
@@ -12,165 +12,9 @@ import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import builder, log
 
+from .field import get_rigidity_map_zcxy
+
 logger = log.get_logger("zetta_utils")
-
-
-def field_dx(f, forward=False):
-    if forward:
-        delta = f[:, 1:-1, :, :] - f[:, 2:, :, :]
-    else:
-        delta = f[:, 1:-1, :, :] - f[:, :-2, :, :]
-    result = delta
-    result = torch.nn.functional.pad(delta, pad=(0, 0, 0, 0, 1, 1, 0, 0))
-    return result
-
-
-def field_dy(f, forward=False):
-    if forward:
-        delta = f[:, :, 1:-1, :] - f[:, :, 2:, :]
-    else:
-        delta = f[:, :, 1:-1, :] - f[:, :, :-2, :]
-    result = delta
-    result = torch.nn.functional.pad(delta, pad=(0, 0, 1, 1, 0, 0, 0, 0))
-    return result
-
-
-def field_dxy(f, forward=False):
-    if forward:
-        delta = f[:, 1:-1, 1:-1, :] - f[:, 2:, 2:, :]
-    else:
-        delta = f[:, 1:-1, 1:-1, :] - f[:, :-2, :-2, :]
-
-    result = delta
-    result = torch.nn.functional.pad(delta, pad=(0, 0, 1, 1, 1, 1, 0, 0))
-    return result
-
-
-def field_dxy2(f, forward=False):
-    if forward:
-        delta = f[:, 1:-1, 1:-1, :] - f[:, 2:, :-2, :]
-    else:
-        delta = f[:, 1:-1, 1:-1, :] - f[:, :-2, 2:, :]
-
-    result = delta
-    result = torch.nn.functional.pad(delta, pad=(0, 0, 1, 1, 1, 1, 0, 0))
-    return result
-
-
-def rigidity_score(field_delta, tgt_length, power=2):
-    spring_lengths = torch.sqrt(field_delta[..., 0] ** 2 + field_delta[..., 1] ** 2 + 1e-8)
-    spring_deformations = (spring_lengths - tgt_length).abs() ** power
-    return spring_deformations
-
-
-def pix_identity(size, batch=1, device="cuda"):
-    result = torch.zeros((batch, size, size, 2), device=device)
-    x = torch.arange(size, device=device)
-    result[:, :, :, 0] = x
-    result = torch.transpose(result, 1, 2)
-    result[:, :, :, 1] = x
-    result = torch.transpose(result, 1, 2)
-    return result
-
-
-def rigidity(field, power=2, diagonal_mult=1.0):
-    # Kernel on Displacement field yields change of displacement
-    batch = field.shape[0]
-    diff_ker = torch.tensor(
-        [
-            [
-                [[0, 0, 0], [-1, 1, 0], [0, 0, 0]],
-                [[0, -1, 0], [0, 1, 0], [0, 0, 0]],
-                [[-1, 0, 0], [0, 1, 0], [0, 0, 0]],
-                [[0, 0, -1], [0, 1, 0], [0, 0, 0]],
-            ]
-        ],
-        dtype=field.dtype,
-        device=field.device,
-    )
-
-    diff_ker = diff_ker.permute(1, 0, 2, 3).repeat(2, 1, 1, 1)
-
-    # Add distance between pixel to get absolute displacement
-    diff_bias = torch.tensor(
-        [1.0, 0.0, 1.0, -1.0, 0.0, 1.0, 1.0, 1.0],
-        dtype=field.dtype,
-        device=field.device,
-    )
-    delta = torch.conv2d(field, diff_ker, diff_bias, groups=2, padding=[2, 2])
-    # delta1 = delta.reshape(2, 4, *delta.shape[-2:]).permute(1, 2, 3, 0) # original
-    delta = delta.reshape(batch, 2, 4, *delta.shape[-2:]).permute(0, 2, 3, 4, 1)
-
-    # spring_lengths1 = torch.norm(delta1, dim=3)
-    spring_lengths = torch.norm(delta, dim=-1)
-
-    spring_defs = torch.stack(
-        [
-            spring_lengths[:, 0, 1:-1, 1:-1] - 1,
-            spring_lengths[:, 0, 1:-1, 2:] - 1,
-            spring_lengths[:, 1, 1:-1, 1:-1] - 1,
-            spring_lengths[:, 1, 2:, 1:-1] - 1,
-            (spring_lengths[:, 2, 1:-1, 1:-1] - 2 ** (1 / 2)) * (diagonal_mult) ** (1 / power),
-            (spring_lengths[:, 2, 2:, 2:] - 2 ** (1 / 2)) * (diagonal_mult) ** (1 / power),
-            (spring_lengths[:, 3, 1:-1, 1:-1] - 2 ** (1 / 2)) * (diagonal_mult) ** (1 / power),
-            (spring_lengths[:, 3, 2:, 0:-2] - 2 ** (1 / 2)) * (diagonal_mult) ** (1 / power),
-        ]
-    )
-    # Slightly faster than sum() + pow(), and no need for abs() if power is odd
-    result = torch.norm(spring_defs, p=power, dim=0).pow(power)
-
-    total = 4 + 4 * diagonal_mult
-
-    result /= total
-
-    # Remove incorrect smoothness values caused by 2px zero padding
-    result[..., 0:2, :] = 0
-    result[..., -2:, :] = 0
-    result[..., :, 0:2] = 0
-    result[..., :, -2:] = 0
-
-    return result.squeeze()
-
-
-def compute_aced_loss(
-    pfields: Dict[Tuple[int, int], torch.Tensor],
-    afields: List[torch.Tensor],
-    match_offsets: List[torch.Tensor],
-    rigidity_weight: float,
-    rigidity_masks: torch.Tensor,
-) -> torch.Tensor:
-    intra_loss = 0
-    inter_loss = 0
-
-    for i in range(1, len(afields)):
-        offset = 1
-        while (i, i - offset) in pfields:
-            inter_loss_map = (
-                pfields[(i, i - offset)]
-                .from_pixels()(  # type: ignore
-                    afields[i - offset].from_pixels()  # type: ignore
-                )
-                .pixels()
-                - afields[i]
-            )
-            inter_loss_map_mask = (
-                afields[i]
-                .from_pixels()((match_offsets[i] == offset).float())  # type: ignore
-                .squeeze()
-                > 0.0
-            )
-            this_inter_loss = (inter_loss_map[..., inter_loss_map_mask] ** 2).sum()
-            inter_loss += this_inter_loss
-            offset += 1
-
-        # intra_loss_map = metroem.loss.rigidity(afields[i])
-        intra_loss_map = rigidity(afields[i])
-        this_intra_loss = intra_loss_map[rigidity_masks[i].squeeze()].sum()
-        intra_loss += this_intra_loss
-
-    loss = inter_loss + rigidity_weight * intra_loss
-    # print(inter_loss, rigidity_weight * intra_loss, loss)
-    return loss  # type: ignore
 
 
 def compute_aced_loss_new(
@@ -180,6 +24,7 @@ def compute_aced_loss_new(
     rigidity_weight: float,
     rigidity_masks: torch.Tensor,
     max_dist: int,
+    min_rigidity_multiplier: float,
 ) -> torch.Tensor:
     intra_loss = 0
     inter_loss = 0
@@ -187,21 +32,28 @@ def compute_aced_loss_new(
     match_offsets_cat = torch.stack(match_offsets)
 
     match_offsets_warped = {
-        offset: afields_cat((match_offsets_cat == offset).float()) > 0  # type: ignore
+        offset: afields_cat((match_offsets_cat == offset).float()) > 0.7  # type: ignore
         for offset in range(1, max_dist + 1)
     }
     inter_loss = 0
     for offset in range(1, max_dist + 1):
-        inter_expectation = pfields_raw[offset][offset:](afields_cat[:-offset])  # type: ignore
-
+        # inter_expectation = pfields_raw[offset][offset:](afields_cat[:-offset])  # type: ignore
+        # inter_loss_map = inter_expectation - afields_cat[offset:]
+        inter_expectation = afields_cat[:-offset](pfields_raw[offset][offset:])  # type: ignore
         inter_loss_map = inter_expectation - afields_cat[offset:]
 
         inter_loss_map_mask = match_offsets_warped[offset].squeeze()[offset:]
         this_inter_loss = (inter_loss_map ** 2).sum(1)[..., inter_loss_map_mask].sum()
         inter_loss += this_inter_loss
 
-    intra_loss_map = rigidity(afields_cat.pixels())  # type: ignore
-    intra_loss = intra_loss_map[rigidity_masks.squeeze()].sum()
+    intra_loss_map = get_rigidity_map_zcxy(afields_cat.pixels())  # type: ignore
+    with torch.no_grad():
+        rigidity_masks_warped = afields_cat(rigidity_masks.float())  # type: ignore
+        rigidity_masks_warped[
+            rigidity_masks_warped < min_rigidity_multiplier
+        ] = min_rigidity_multiplier
+    intra_loss = (intra_loss_map * rigidity_masks_warped.squeeze()).sum()
+    # intra_loss = intra_loss_map.sum()
     loss = inter_loss + rigidity_weight * intra_loss / (
         afields[0].shape[-1] * afields[0].shape[-1] / 4
     )
@@ -229,11 +81,13 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
     rigidity_masks: torch.Tensor | None = None,
     first_section_fix_field: torch.Tensor | None = None,
     last_section_fix_field: torch.Tensor | None = None,
+    min_rigidity_multiplier: float = 0.0,
     num_iter=100,
     lr=0.3,
     rigidity_weight=10.0,
     fix: Optional[Literal["first", "last", "both"]] = "first",
     max_dist: int = 2,
+    grad_clip: float | None = None,
 ) -> torch.Tensor:
     assert "-1" in pfields
 
@@ -314,6 +168,7 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
                 match_offsets=[match_offsets_zcxy[i] for i in range(num_sections)],
                 rigidity_weight=rigidity_weight,
                 max_dist=max_dist,
+                min_rigidity_multiplier=min_rigidity_multiplier,
             )
             # logger.info(f"New: {loss_new.item()} {e - s:0.3f}sec")
             # if (loss_new - loss_old).abs() / loss_new > 0.02:
@@ -325,6 +180,8 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
                 logger.info(f"Iter {i} loss: {loss}")
             optimizer.zero_grad()
             loss.backward()
+            if grad_clip is not None:
+                torch.nn.utils.clip_grad_norm_(afields, max_norm=grad_clip)
             optimizer.step()
 
     result_xy = torch.cat(afields, 0).pixels()  # type: ignore
@@ -492,7 +349,7 @@ def _perform_match_fwd_pass(
             offset_scores[offset - 1] += (max_dist - offset) / 100
 
         chosen_offset_scores, chosen_offsets = offset_scores.max(0)
-        passable_choices = chosen_offset_scores >= 100
+        passable_choices = chosen_offset_scores >= 110
         match_offsets_zcxy[i][passable_choices] = chosen_offsets[passable_choices].int() + 1
         # match_offsets_zcxy[i] = this_tissue_mask
 

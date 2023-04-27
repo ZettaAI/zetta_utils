@@ -44,7 +44,10 @@ worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x131"
 worker_resources: {
 	memory: "18560Mi"
 }
-worker_replicas:     100
-batch_gap_sleep_sec: 0.1
-local_test:          false
-target:              #FLOW
+worker_cluster_name:    "zutils-cns"
+worker_cluster_region:  "us-east1"
+worker_cluster_project: "zetta-lee-fly-vnc-001"
+worker_replicas:        100
+batch_gap_sleep_sec:    0.1
+local_test:             false
+target:                 #FLOW

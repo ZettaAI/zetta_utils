@@ -65,6 +65,16 @@ DEFAULT_TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=RuntimeError,
         text_signature="Attempting to deserialize object on a CUDA device",
     ),
+    TransientErrorCondition(
+        # Transient GCS error
+        exception_type=Exception,
+        text_signature="You have exceeded your bucket's allowed rate",
+    ),
+    TransientErrorCondition(
+        # Transient GCS error
+        exception_type=Exception,
+        text_signature="We encountered an internal error. Please try again",
+    ),
 )
 
 
@@ -94,7 +104,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     transient_error_conditions: Sequence[
         TransientErrorCondition
     ] = DEFAULT_TRANSIENT_ERROR_CONDITIONS
-    max_transient_retry: int = 30
+    max_transient_retry: int = 100
 
     # cache_expiration: datetime.timedelta = None
 

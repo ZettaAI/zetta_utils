@@ -115,6 +115,8 @@ class AcedRelaxationOp:
         num_iter: int = 100,
         lr: float = 0.3,
         rigidity_weight: float = 10.0,
+        grad_clip: float | None = None,
+        min_rigidity_multiplier: float = 0,
         fix: Literal["first", "last", "both"] | None = "first",
     ):
         idx_padded = idx.padded(self.crop_pad)
@@ -142,6 +144,8 @@ class AcedRelaxationOp:
                 lr=lr,
                 rigidity_weight=rigidity_weight,
                 fix=fix,
+                grad_clip=grad_clip,
+                min_rigidity_multiplier=min_rigidity_multiplier,
             )
             result_cropped = tensor_ops.crop(result, self.crop_pad)
             dst[idx] = result_cropped

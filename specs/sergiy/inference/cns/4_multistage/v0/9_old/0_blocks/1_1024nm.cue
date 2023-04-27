@@ -48,32 +48,28 @@
 //#Z_END: 452
 
 //BLOCK 1
-//#Z_START: 451
-//#Z_END: 901
+#Z_START: 451
 
-//BLOCK 2
-#Z_START: 900
+#Z_END: 901
 
-#Z_END: 1350
+//#Z_END: 975
+//#Z_START: 2000
+
+//#Z_END: 2050
+//#Z_START: 1500
+//#Z_END: 2000
+
+//#Z_START: 599
 //#Z_END:   746
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 #RELAXATION_SUFFIX: "_1024nm_try_x6_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)"
 #RELAXATION_RESOLUTION: [1024, 1024, 45]
-#BLOCKS: [
-	//{_z_start: 0, _z_end:    452},
-	//{_z_start: 451, _z_end:  901},
-	//{_z_start: 900, _z_end:  1350},
-	{_z_start: 1349, _z_end: 1803},
-	//{_z_start: 1802, _z_end: 2251},
-]
 
-#BBOX_TMPL: {
-	"@type":  "BBox3D.from_coords"
-	_z_start: int
-	_z_end:   int
-	start_coord: [0, 0, _z_start]
-	end_coord: [2048, 2048, _z_end]
+#BBOX: {
+	"@type": "BBox3D.from_coords"
+	start_coord: [0, 0, #Z_START]
+	end_coord: [2048, 2048, #Z_END]
 	resolution: [512, 512, 45]
 }
 
@@ -90,6 +86,20 @@
 		["aligned \(#RELAXATION_SUFFIX)", "image", "precomputed://\(#IMG_ALIGNED_PATH)"],
 		["aligned \(#RELAXATION_SUFFIX) -2", "image", "precomputed://\(#IMG_ALIGNED_PATH)"],
 	]
+}
+
+#NOT_FIRST_SECTION_BBOX: {
+	"@type": "BBox3D.from_coords"
+	start_coord: [0, 0, #Z_START + 1]
+	end_coord: [ 2048, 2048, #Z_END]
+	resolution: [512, 512, 45]
+}
+
+#FIRST_SECTION_BBOX: {
+	"@type": "BBox3D.from_coords"
+	start_coord: [0, 0, #Z_START]
+	end_coord: [2048, 2048, #Z_START + 1]
+	resolution: [512, 512, 45]
 }
 
 #STAGES: [
@@ -232,7 +242,7 @@
 
 #CF_FLOW_TMPL: {
 	"@type":     "build_compute_field_multistage_flow"
-	bbox:        _
+	bbox:        #NOT_FIRST_SECTION_BBOX
 	stages:      #STAGES
 	src_offset?: _
 	tgt_offset?: _
@@ -279,7 +289,7 @@
 	}
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           _
+	bbox:           #BBOX
 	_z_offset:      _
 	src: {
 		"@type": "build_ts_layer"
@@ -313,7 +323,7 @@
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	//chunk_size: [512, 512, 1]
-	bbox:           _
+	bbox:           #BBOX
 	dst_resolution: _ | *#STAGES[len(#STAGES)-1].dst_resolution
 	src: {
 		"@type":      "build_ts_layer"
@@ -347,7 +357,7 @@
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           _
+	bbox:           #BBOX
 	src: {
 		"@type": "build_ts_layer"
 		path:    _
@@ -375,7 +385,7 @@
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           _
+	bbox:           #BBOX
 	_z_offset:      _
 	src: {
 		"@type": "build_ts_layer"
@@ -407,7 +417,7 @@
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           _
+	bbox:           #BBOX
 	_z_offset:      _
 	src: {
 		"@type": "build_ts_layer"
@@ -469,7 +479,7 @@
 						}
 						// #NAIVE_MISD_FLOW & {
 						//  _z_offset: z_offset
-						// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+						// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 					]
 				},
 			]
@@ -479,7 +489,7 @@
 
 #CREATE_TISSUE_MASK: {
 	"@type": "build_subchunkable_apply_flow"
-	bbox:    _
+	bbox:    #BBOX
 	fn: {
 		"@type":    "lambda"
 		lambda_str: "lambda src: (src != 0).byte()"
@@ -504,12 +514,11 @@
 
 #MATCH_OFFSETS_FLOW: {
 	"@type": "build_subchunkable_apply_flow"
+	bbox:    #BBOX
 	op: {
 		"@type": "AcedMatchOffsetOp"
 	}
-	bbox: _
-
-	processing_chunk_sizes: [[64, 64, bbox._z_end - bbox._z_start]]
+	processing_chunk_sizes: [[64, 64, #Z_END - #Z_START]]
 	processing_crop_pads: [[32, 32, 0]]
 	dst_resolution: #RELAXATION_RESOLUTION
 	max_dist:       2
@@ -618,7 +627,7 @@
 	}
 	expand_bbox:    true
 	dst_resolution: #RELAXATION_RESOLUTION
-	bbox:           _
+	bbox:           #BBOX
 
 	processing_chunk_sizes: [[32, 32, #Z_END - #Z_START]]
 	max_reduction_chunk_sizes: [32, 32, #Z_END - #Z_START]
@@ -688,7 +697,7 @@
 		mode:    _
 		res_change_mult: [2, 2, 1]
 	}
-	bbox: _
+	bbox: #BBOX
 	src: {
 		"@type":    "build_ts_layer"
 		path:       _
@@ -701,7 +710,6 @@
 }
 
 #DOWNSAMPLE_FLOW: {
-	_bbox:   _
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		for z_offset in #Z_OFFSETS {
@@ -712,7 +720,6 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								bbox: _bbox
 								op: mode:  "img" // not thresholded due to subhcunkable bug
 								src: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
 								// src: read_procs: [
@@ -728,7 +735,6 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								bbox: _bbox
 								op: mode:  "mask"
 								src: path: #TISSUE_MASK_PATH
 								dst_resolution: [res, res, 45]
@@ -741,7 +747,6 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								bbox: _bbox
 								op: mode:  "field"
 								src: path: "\(#FIELDS_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 45]
@@ -754,7 +759,6 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								bbox: _bbox
 								op: mode:  "field"
 								src: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 45]
@@ -768,11 +772,9 @@
 }
 
 #POST_ALIGN_FLOW: {
-	_bbox:   _
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		#WARP_FLOW_TMPL & {
-			bbox: _bbox
 			op: mode:    "img"
 			src: path:   #IMG_PATH
 			field: path: #AFIELD_PATH
@@ -795,7 +797,7 @@
 		//  dst: path:   #AFF_MASK_PATH
 		//  dst_resolution: [32, 32, 45]
 		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 	]
 }
@@ -808,7 +810,6 @@
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	//checkpoint:             "gs://zetta_utils_runs/sergiy/exec-snobbish-eager-coua-of-persistence/2023-04-20_151928_77449.zstd"
 	worker_replicas:        200
 	batch_gap_sleep_sec:    1
 	do_dryrun_estimation:   true
@@ -818,30 +819,14 @@
 	worker_cluster_project: "zetta-lee-fly-vnc-001"
 
 	target: {
-		"@type": "mazepa.concurrent_flow"
+		"@type": "mazepa.seq_flow"
 		stages: [
-			for block in #BLOCKS {
-				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-				"@type": "mazepa.seq_flow"
-				stages: [
-					//#JOINT_OFFSET_FLOW,
-					// #CREATE_TISSUE_MASK & {
-					//  'bbox': bbox
-					// },
-					// #DOWNSAMPLE_FLOW & {
-					//  _bbox: bbox
-					// },
-					#MATCH_OFFSETS_FLOW & {
-						'bbox': bbox
-					},
-					#RELAX_FLOW & {
-						'bbox': bbox
-					},
-					#POST_ALIGN_FLOW & {
-						_bbox: bbox
-					},
-				]
-			},
+			//#JOINT_OFFSET_FLOW,
+			//#CREATE_TISSUE_MASK,
+			//#DOWNSAMPLE_FLOW,
+			//#MATCH_OFFSETS_FLOW,
+			#RELAX_FLOW,
+			#POST_ALIGN_FLOW,
 		]
 	}
 }

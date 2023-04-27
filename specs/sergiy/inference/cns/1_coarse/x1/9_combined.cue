@@ -9,8 +9,8 @@ import "list"
 
 #ROI_BOUNDS: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 425]
-	end_coord: [int, int, int] | *[32768, 36864, 435]
+	start_coord: [0, 0, 2700]
+	end_coord: [int, int, int] | *[32768, 36864, 3200]
 	// end_coord: [32768, 32768, 3001]
 	resolution: [32, 32, 45]
 }
@@ -432,9 +432,9 @@ import "list"
 //////////////////////////////////////////  ORCHESTRATE /////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 [
-	//#COPY_INITIAL_FIELD,
-	//#WARP,
-	//#DOWNSAMPLE,
+	#COPY_INITIAL_FIELD,
+	#WARP,
+	#DOWNSAMPLE,
 	#ENCODE,
 	#MASK_ENCODINGS,
 ]

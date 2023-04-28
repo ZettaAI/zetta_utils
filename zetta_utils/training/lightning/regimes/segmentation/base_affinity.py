@@ -82,6 +82,7 @@ class BaseAffinityRegime(pl.LightningModule):
 
         if log_row:
             log_3d_results(
+                self.logger,
                 mode,
                 title_suffix=sample_name,
                 **self.create_row(batch, results),

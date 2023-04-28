@@ -4,6 +4,7 @@ from functools import reduce
 
 import wandb
 from pytorch_lightning.loggers.logger import Logger
+from pytorch_lightning.loggers.wandb import WandbLogger
 from torchvision.utils import make_grid
 
 from zetta_utils import tensor_ops, viz
@@ -57,6 +58,7 @@ def render_3d_result(data: Tensor):
 
 
 def log_3d_results(
+    logger: Logger | None,
     mode: str,
     title_suffix: str = "",
     **kwargs,
@@ -70,4 +72,8 @@ def log_3d_results(
         rendered = render_3d_result(data)
         row.append(wandb.Image(rendered, caption=k))
 
-    wandb.log({f"results/{mode}_{title_suffix}_slider": row})
+    if logger is None:
+        wandb.log({f"results/{mode}_{title_suffix}_slider": row})
+    else:
+        assert isinstance(logger, WandbLogger)
+        logger.experiment.log({f"results/{mode}_{title_suffix}_slider": row})

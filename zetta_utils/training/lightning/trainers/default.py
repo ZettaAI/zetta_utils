@@ -89,7 +89,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         self.trace_configuration: Dict = {}
 
         # self.callbacks will exist at runtime
-        self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
+        # self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
         self.callbacks.append(WallClockTimeCallback())  # type: ignore
         self.callbacks.append(  # type: ignore
             ConfigureLogging(experiment_name, experiment_version)

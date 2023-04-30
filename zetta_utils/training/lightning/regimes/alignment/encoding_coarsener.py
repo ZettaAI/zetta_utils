@@ -70,18 +70,15 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
             for count in self.apply_counts
         ]
         losses_clean = [l for l in losses if l is not None]
-        if len(losses_clean) == 0:
-            loss = None
-        else:
-            loss = sum(losses_clean)
-            self.log(
-                "loss/train",
-                loss,
-                on_step=True,
-                on_epoch=True,
-                sync_dist=distributed_available(),
-                rank_zero_only=True,
-            )
+        loss = sum(losses_clean)
+        self.log(
+            "loss/train",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            sync_dist=distributed_available(),
+            rank_zero_only=True,
+        )
         return loss
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
@@ -92,18 +89,15 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
             self.compute_loss(data_in, count, "train", log_row) for count in self.apply_counts
         ]
         losses_clean = [l for l in losses if l is not None]
-        if len(losses_clean) == 0:
-            loss = None
-        else:
-            loss = sum(losses_clean)
-            self.log(
-                "loss/train",
-                loss,
-                on_step=True,
-                on_epoch=True,
-                sync_dist=distributed_available(),
-                rank_zero_only=True,
-            )
+        loss = sum(losses_clean)
+        self.log(
+            "loss/train",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            sync_dist=distributed_available(),
+            rank_zero_only=True,
+        )
         return loss
 
     def compute_loss(
@@ -115,97 +109,93 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         sample_name: str = "",
     ):
         setting_name = f"{mode}_apply{apply_count}"
-        if (data_in != 0).sum() / data_in.numel() < self.min_nonz_frac:
-            loss = None
+
+        enc = data_in
+        for _ in range(apply_count):
+            enc = self.encoder(enc)
+
+        recons = enc
+        for _ in range(apply_count):
+            recons = self.decoder(recons)
+
+        loss_map_recons = (data_in - recons) ** 2
+
+        loss_recons = loss_map_recons.mean()
+        if log_row:
+            self.log_results(
+                f"{setting_name}_recons",
+                sample_name,
+                data_in=data_in,
+                naive=tensor_ops.interpolate(
+                    data_in,
+                    size=(enc.shape[-2], enc.shape[-1]),
+                    mode="img",
+                    unsqueeze_input_to=4,
+                ),
+                enc=enc,
+                recons=recons,
+                loss_map_recons=loss_map_recons,
+            )
+
+        self.log(
+            f"loss/{setting_name}_recons",
+            loss_recons,
+            on_step=True,
+            on_epoch=True,
+            sync_dist=distributed_available(),
+            rank_zero_only=True,
+        )
+
+        if self.invar_mse_weight > 0:
+            loss_inv = self.compute_invar_loss(
+                data_in, enc, apply_count, log_row, setting_name, sample_name
+            )
+            self.log(
+                f"loss/{setting_name}_inv",
+                loss_inv,
+                on_step=True,
+                on_epoch=True,
+                sync_dist=distributed_available(),
+                rank_zero_only=True,
+            )
         else:
-            enc = data_in
-            for _ in range(apply_count):
-                enc = self.encoder(enc)
+            loss_inv = 0
 
-            recons = enc
-            for _ in range(apply_count):
-                recons = self.decoder(recons)
-
-            loss_map_recons = (data_in - recons) ** 2
-
-            loss_recons = loss_map_recons.mean()
-            if log_row:
-                self.log_results(
-                    f"{setting_name}_recons",
-                    sample_name,
-                    data_in=data_in,
-                    naive=tensor_ops.interpolate(
-                        data_in,
-                        size=(enc.shape[-2], enc.shape[-1]),
-                        mode="img",
-                        unsqueeze_input_to=4,
-                    ),
-                    enc=enc,
-                    recons=recons,
-                    loss_map_recons=loss_map_recons,
-                )
-
+        if self.diffkeep_weight > 0:
+            loss_diffkeep = self.compute_diffkeep_loss(data_in, enc, log_row, sample_name)
             self.log(
-                f"loss/{setting_name}_recons",
-                loss_recons,
+                f"loss/{setting_name}_diffkeep",
+                loss_diffkeep,
                 on_step=True,
                 on_epoch=True,
                 sync_dist=distributed_available(),
                 rank_zero_only=True,
             )
+        else:
+            loss_diffkeep = 0
 
-            if self.invar_mse_weight > 0:
-                loss_inv = self.compute_invar_loss(
-                    data_in, enc, apply_count, log_row, setting_name, sample_name
-                )
-                self.log(
-                    f"loss/{setting_name}_inv",
-                    loss_inv,
-                    on_step=True,
-                    on_epoch=True,
-                    sync_dist=distributed_available(),
-                    rank_zero_only=True,
-                )
-            else:
-                loss_inv = 0
+        loss = (
+            loss_recons + self.invar_mse_weight * loss_inv + self.diffkeep_weight * loss_diffkeep
+        )
 
-            if self.diffkeep_weight > 0:
-                loss_diffkeep = self.compute_diffkeep_loss(data_in, enc, log_row, sample_name)
-                self.log(
-                    f"loss/{setting_name}_diffkeep",
-                    loss_diffkeep,
-                    on_step=True,
-                    on_epoch=True,
-                    sync_dist=distributed_available(),
-                    rank_zero_only=True,
-                )
-            else:
-                loss_diffkeep = 0
+        self.log(
+            f"loss/{setting_name}",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            sync_dist=distributed_available(),
+            rank_zero_only=True,
+        )
 
-            loss = (
-                loss_recons
-                + self.invar_mse_weight * loss_inv
-                + self.diffkeep_weight * loss_diffkeep
-            )
-
-            self.log(
-                f"loss/{setting_name}",
-                loss,
-                on_step=True,
-                on_epoch=True,
-                sync_dist=distributed_available(),
-                rank_zero_only=True,
-            )
-
-            if mode == "val":
-                if loss > self.worst_val_loss:
-                    self.worst_val_loss = loss
-                    self.worst_val_sample = {
-                        "data_in": data_in,
-                        "enc": enc,
-                        "recons": recons,
-                        "loss_map": loss_map_recons,
-                    }
+        if mode == "val":
+            if loss > self.worst_val_loss:
+                self.worst_val_loss = loss
+                self.worst_val_sample = {
+                    "data_in": data_in,
+                    "enc": enc,
+                    "recons": recons,
+                    "loss_map": loss_map_recons,
+                }
 
         return loss
 

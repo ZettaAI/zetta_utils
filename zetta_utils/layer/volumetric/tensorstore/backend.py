@@ -208,8 +208,6 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         result_np = np.transpose(data_final, (3, 0, 1, 2))
         result = tensor_ops.to_torch(result_np)
-        if result.sum() != 0:
-            logger.info(result.sum())
         return result
 
     def write(self, idx: VolumetricIndex, data: torch.Tensor):

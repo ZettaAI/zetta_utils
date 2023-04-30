@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_single_gpu1_x19"
+#EXP_VERSION: "ddp_single_gpu4_x1"
 
 #TRAINING_ROOT: "gs://tmp_2w/akhilesh/training_artifacts"
 
@@ -9,9 +9,10 @@
 #DECODER_CKPT: null
 
 
-#ENC_CV: "file:///ssd/zetta_utils/test"
-//#ENC_CV: "gs://fafb_v15_aligned/v0/img/img"
+//#ENC_CV: "file:///ssd/zetta_utils/test"
+#ENC_CV: "gs://fafb_v15_aligned/v0/img/img"
 //#ENC_CV: "gs://tmp_2w/testvol/"
+//#ENC_CV: "gs://fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m5_x0"
 
 
 ///////////////////////////////////////////////////////////////////
@@ -43,7 +44,7 @@ regime: {
 trainer: {
 	"@type":            "ZettaDefaultTrainer"
 	accelerator:        "cuda"
-	devices:            2
+	devices:            4
 	strategy:           {
 		"@type":					"pl.DDPStrategy"
 		"find_unused_parameters":	false
@@ -114,7 +115,7 @@ trainer: {
 		"@type": "build_layer_set"
 		layers: {
 			data_in: {
-				"@type": "build_cv_layer"
+				"@type": "build_ts_layer"
 				path:    #ENC_CV
 				//cv_kwargs: {cache: true}
 				read_procs: [
@@ -170,7 +171,7 @@ train_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     true
-	num_workers: 1
+	num_workers: 0
 	dataset:     #train_dset
 }
 
@@ -178,6 +179,6 @@ val_dataloader: {
 	"@type":     "TorchDataLoader"
 	batch_size:  1
 	shuffle:     false
-	num_workers: 1
+	num_workers: 0
 	dataset:     #val_dset
 }

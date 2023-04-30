@@ -144,7 +144,8 @@ def build_default_trainer(
         **checkpointing_kwargs,
     )
 
-    trainer.callbacks.append(ConfigureTraceCallback(trainer))
+    # TODO: Temporarily disable tracing
+    # trainer.callbacks.append(ConfigureTraceCallback(trainer))
     trainer.callbacks.append(WallClockTimeCallback())
 
     # Due to a bug in PL we're unable to use normal methods

@@ -230,35 +230,6 @@
 	}
 }
 
-#NAIVE_MISD_FLOW: {
-	"@type": "build_subchunkable_apply_flow"
-	fn: {
-		"@type": "naive_misd"
-		"@mode": "partial"
-	}
-	processing_chunk_sizes: [[2048, 2048, 1]]
-	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
-	bbox:           #BBOX
-	_z_offset:      _
-	src: {
-		"@type": "build_ts_layer"
-		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
-	}
-	tgt: {
-		"@type": "build_ts_layer"
-		path:    #IMG_PATH
-	}
-	dst: {
-		"@type":             "build_cv_layer"
-		path:                "\(#MISALIGNMENTS_PATH)/\(_z_offset)"
-		info_reference_path: #IMG_PATH
-		info_chunk_size:     #BASE_INFO_CHUNK
-		on_info_exists:      "overwrite"
-		write_procs: [
-		]
-	}
-}
-
 #WARP_FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
@@ -274,17 +245,20 @@
 	//chunk_size: [512, 512, 1]
 	bbox:           #BBOX
 	dst_resolution: _ | *#STAGES[len(#STAGES)-1].dst_resolution
-	src: {
-		"@type":      "build_ts_layer"
-		path:         _
-		read_procs?:  _
-		index_procs?: _ | *[]
-	}
-	field: {
-		"@type":            "build_ts_layer"
-		path:               _
-		data_resolution:    _ | *null
-		interpolation_mode: "field"
+	op_kwargs: {
+		src: {
+			"@type":      "build_ts_layer"
+			path:         _
+			read_procs?:  _
+			index_procs?: _ | *[]
+		}
+		field: {
+			"@type":            "build_ts_layer"
+			path:               _
+			data_resolution:    _ | *null
+			interpolation_mode: "field"
+		}
+
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -307,14 +281,16 @@
 
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
-	src: {
-		"@type": "build_ts_layer"
-		path:    _
+	op_kwargs: {
+		src: {
+			"@type": "build_ts_layer"
+			path:    _
+		}
 	}
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                _
-		info_reference_path: src.path
+		info_reference_path: op_kwargs.src.path
 		info_chunk_size:     #BASE_INFO_CHUNK
 		on_info_exists:      "overwrite"
 	}
@@ -336,9 +312,12 @@
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	_z_offset:      _
-	src: {
-		"@type": "build_ts_layer"
-		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
+	op_kwargs: {
+		src: {
+			"@type": "build_ts_layer"
+			path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
+		}
+
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -367,13 +346,16 @@
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	_z_offset:      _
-	src: {
-		"@type": "build_ts_layer"
-		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)_enc"
-	}
-	tgt: {
-		"@type": "build_ts_layer"
-		path:    #ENC_PATH
+	op_kwargs: {
+		src: {
+			"@type": "build_ts_layer"
+			path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)_enc"
+		}
+		tgt: {
+			"@type": "build_ts_layer"
+			path:    #ENC_PATH
+		}
+
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -402,21 +384,23 @@
 							tgt_offset: [0, 0, z_offset]
 						},
 						#INVERT_FLOW_TMPL & {
-							src: path: "\(#FIELDS_PATH)/\(z_offset)"
+							op_kwargs: src: path: "\(#FIELDS_PATH)/\(z_offset)"
 							dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
 						},
 						#WARP_FLOW_TMPL & {
 							op: mode:  "img"
 							dst: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
-							src: path: #IMG_PATH
-							src: index_procs: [
-								{
-									"@type": "VolumetricIndexTranslator"
-									offset: [0, 0, z_offset]
-									resolution: [4, 4, 45]
-								},
-							]
-							field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+							op_kwargs: {
+								src: path: #IMG_PATH
+								src: index_procs: [
+									{
+										"@type": "VolumetricIndexTranslator"
+										offset: [0, 0, z_offset]
+										resolution: [4, 4, 45]
+									},
+								]
+								field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+							}
 						},
 						#ENCODE_FLOW_TMPL & {
 							_z_offset: z_offset
@@ -444,14 +428,16 @@
 		res_change_mult: [2, 2, 1]
 	}
 	bbox: #BBOX
-	src: {
-		"@type":    "build_ts_layer"
-		path:       _
-		read_procs: _ | *[]
+	op_kwargs: {
+		src: {
+			"@type":    "build_ts_layer"
+			path:       _
+			read_procs: _ | *[]
+		}
 	}
 	dst: {
 		"@type": "build_cv_layer"
-		path:    src.path
+		path:    op_kwargs.src.path
 	}
 }
 
@@ -466,8 +452,8 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								op: mode:  "img" // not thresholded due to subhcunkable bug
-								src: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
+								op: mode: "img" // not thresholded due to subhcunkable bug
+								op_kwargs: src: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
 								// src: read_procs: [
 								//  {"@type": "filter_cc", "@mode": "partial", mode: "keep_large", thr: 20},
 								// ]
@@ -481,8 +467,8 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								op: mode:  "mask"
-								src: path: #TISSUE_MASK_PATH
+								op: mode: "mask"
+								op_kwargs: src: path: #TISSUE_MASK_PATH
 								dst_resolution: [res, res, 45]
 							}
 						},
@@ -493,8 +479,8 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								op: mode:  "field"
-								src: path: "\(#FIELDS_PATH)/\(z_offset)"
+								op: mode: "field"
+								op_kwargs: src: path: "\(#FIELDS_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 45]
 							}
 						},
@@ -505,8 +491,8 @@
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
-								op: mode:  "field"
-								src: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+								op: mode: "field"
+								op_kwargs: src: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 45]
 							}
 						},

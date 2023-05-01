@@ -16,8 +16,8 @@ import "math"
 
 #ROI_BOUNDS: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 429]
-	end_coord: [2048, 2048, 1000]
+	start_coord: [0, 0, 3300]
+	end_coord: [2048, 2048, 3500]
 	resolution: [512, 512, 45]
 	// end_coord: [32768, 32768, 3001]
 	// end_coord: [32768, 32768, 7010]
@@ -124,15 +124,18 @@ import "math"
 	}
 }
 
-"@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x129"
+"@type":                "mazepa.execute_on_gcp_with_sqs"
+worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+worker_cluster_name:    "zutils-cns"
+worker_cluster_region:  "us-east1"
+worker_cluster_project: "zetta-lee-fly-vnc-001"
+
 worker_resources: {
 	memory:           "18560Mi"
 	"nvidia.com/gpu": "1"
 }
-worker_replicas:     80
-batch_gap_sleep_sec: 0.05
-local_test:          false
+worker_replicas: 100
+local_test:      false
 
 target: {
 	"@type": "mazepa.concurrent_flow"
@@ -150,7 +153,7 @@ target: {
 		//   data_type:    "int8"
 		//   scales:       #SCALES
 		//  }
-		// },
+		// }
 		for i in list.Range(1, 10, 1) {
 			let res_mult = [math.Pow(2, i), math.Pow(2, i), 1]
 			let dst_res = [ for j in [0, 1, 2] {#DATASET_BOUNDS.resolution[j] * res_mult[j]}]

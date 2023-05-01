@@ -1,3 +1,4 @@
+# pylint: disable=unused-argument
 from __future__ import annotations
 
 from functools import partial
@@ -117,6 +118,7 @@ class EdgeCRF(nn.Module):
 def _compute_slices(
     edges: Sequence[Sequence[int]],
     pad_crop: bool,
+    symmetric: bool = False,
 ) -> list[Slices3D]:
     assert len(edges) > 0
     assert all(len(edge) == NDIM for edge in edges)
@@ -126,8 +128,12 @@ def _compute_slices(
         return [slices] * len(edges)
 
     # Padding in the negative & positive directions
-    pad_neg = -np.amin(np.array(edges), axis=0, initial=0)
-    pad_pos = np.amax(np.array(edges), axis=0, initial=0)
+    if symmetric:
+        pad_max = max(abs(np.concatenate(edges)))
+        pad_neg = pad_pos = np.array([pad_max] * 3)
+    else:
+        pad_neg = -np.amin(np.array(edges), axis=0, initial=0)
+        pad_pos = np.amax(np.array(edges), axis=0, initial=0)
 
     # Compute slices for each edge
     result = []
@@ -196,6 +202,7 @@ class AffinityLoss(nn.Module):
 class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
     source: str
     spec: dict[str, Sequence[Sequence[int]]]
+    symmetric: bool = False
 
     pad_neg: Vec3D[int] = attrs.field(init=False)
     pad_pos: Vec3D[int] = attrs.field(init=False)
@@ -210,11 +217,16 @@ class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
             edges_union += list(edges)
 
         # Padding in the negative & positive directions
-        self.pad_neg = Vec3D(*np.amin(np.array(edges_union), axis=0, initial=0))
-        self.pad_pos = Vec3D(*np.amax(np.array(edges_union), axis=0, initial=0))
+        if self.symmetric:
+            pad_max = max(abs(np.concatenate(edges_union)))
+            self.pad_neg = -Vec3D(pad_max, pad_max, pad_max)
+            self.pad_pos = Vec3D(pad_max, pad_max, pad_max)
+        else:
+            self.pad_neg = Vec3D(*np.amin(np.array(edges_union), axis=0, initial=0))
+            self.pad_pos = Vec3D(*np.amax(np.array(edges_union), axis=0, initial=0))
 
         # Slices for cropping
-        self.slices = _compute_slices(edges_union, pad_crop=True)
+        self.slices = _compute_slices(edges_union, pad_crop=True, symmetric=self.symmetric)
 
     def _crop_data(self, data: torch.Tensor) -> torch.Tensor:
         assert self.prepared_resolution is not None

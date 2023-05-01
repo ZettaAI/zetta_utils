@@ -33,8 +33,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2250]
-	end_coord: [2048, 2048, 3155]
+	start_coord: [0, 0, 0]
+	end_coord: [2048, 2048, 2250]
 	resolution: [512, 512, 45]
 }
 
@@ -150,7 +150,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x155"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
 worker_resources: {
 	memory: "18560Mi"
 }

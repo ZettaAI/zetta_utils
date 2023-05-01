@@ -39,9 +39,13 @@
 #RELAXATION_SUFFIX: "_64nm_try_x1_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)\(#DEBUG_SUFFIX)"
 #RELAXATION_RESOLUTION: [64, 64, 45]
 #BLOCKS: [
-	{_z_start: 2701, _z_end: 2851},
-	{_z_start: 2850, _z_end: 3003},
-	{_z_start: 3002, _z_end: 3155},
+	{_z_start: 2250, _z_end: 2401},
+	{_z_start: 2400, _z_end: 2551},
+	{_z_start: 2550, _z_end: 2702},
+	/////////////////////////// DONE:
+	//{_z_start: 2701, _z_end: 2851},
+	//{_z_start: 2850, _z_end: 3003},
+	//{_z_start: 3002, _z_end: 3155},
 ]
 
 #BBOX_TMPL: {

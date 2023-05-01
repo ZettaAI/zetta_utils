@@ -129,7 +129,8 @@ class BaseAffinityRegime(pl.LightningModule):
                     if torch.count_nonzero(mask_) < torch.numel(mask_):
                         row[f"{key}_mask{idx}"] = mask_
             else:
-                row[f"{key}_target"] = trgt
+                if not torch.equal(trgt, batch["target"]):
+                    row[f"{key}_target"] = trgt
 
                 # Optional mask
                 if torch.count_nonzero(mask) < torch.numel(mask):

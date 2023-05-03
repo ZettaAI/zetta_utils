@@ -60,6 +60,8 @@ coverage.xml
 
 # Temporary precomputed volumes and infofiles
 tests/unit/assets/infos/scratch/
+tests/integration/assets/outputs/
+tests/integration/assets/temp/
 
 # Translations
 *.mo

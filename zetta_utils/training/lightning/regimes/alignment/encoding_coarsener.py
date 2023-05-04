@@ -60,10 +60,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         interval = 25
         log_row = batch_idx % interval == 0
         sample_name = f"{batch_idx // interval}"
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         data_in = batch["data_in"]
-        data_in = data_in.to(device)
 
         losses = [
             self.compute_loss(data_in, count, "val", log_row, sample_name=sample_name)
@@ -82,9 +79,7 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
         return loss
 
     def training_step(self, batch, batch_idx):  # pylint: disable=arguments-differ
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         data_in = batch["data_in"]
-        data_in = data_in.to(device)
         log_row = batch_idx % 100 == 0
 
         losses = [

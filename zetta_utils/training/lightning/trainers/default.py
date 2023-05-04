@@ -12,6 +12,7 @@ import torch
 import typeguard
 import wandb
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.strategies import ddp
 
 from zetta_utils import builder, log
 
@@ -48,7 +49,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.trace_configuration = None
-    
+
     # TODO: For PL>=1,8.0, the line should be @pl.utilities.rank_zero.rank_zero_only
     @pl.utilities.distributed.rank_zero_only
     def save_checkpoint(
@@ -123,6 +124,9 @@ def build_default_trainer(
         **progress_bar_kwargs,
     )
     assert "callbacks" not in kwargs
+
+    if "strategy" not in kwargs:
+        kwargs["strategy"] = ddp.DDPStrategy(find_unused_parameters=False)
     trainer = ZettaDefaultTrainer(callbacks=prog_bar_callbacks, logger=wandb_logger, **kwargs)
 
     # Checkpoint callbacks need `default_root_dir`, so they're created

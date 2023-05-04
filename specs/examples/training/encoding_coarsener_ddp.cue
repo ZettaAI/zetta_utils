@@ -1,7 +1,7 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_single_gpu4_x3"
+#EXP_VERSION: "ddp_gpu4_x0"
 
-#TRAINING_ROOT: "gs://tmp_2w/akhilesh/training_artifacts"
+#TRAINING_ROOT: "gs://tmp_2w/examples/training_artifacts"
 
 //#ENCODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
 //#DECODER_CKPT:    "\(#TRAINING_ROOT)/\(#EXP_NAME)/inver_diffkeep_apply2x_x3/last.ckpt"
@@ -9,10 +9,7 @@
 #DECODER_CKPT: null
 
 
-//#ENC_CV: "file:///ssd/zetta_utils/test"
 #ENC_CV: "gs://fafb_v15_aligned/v0/img/img"
-//#ENC_CV: "gs://tmp_2w/testvol/"
-//#ENC_CV: "gs://fafb_v15_aligned/v0/experiments/emb_fp32/baseline_downs_emb_m2_m5_x0"
 
 
 ///////////////////////////////////////////////////////////////////
@@ -45,10 +42,6 @@ trainer: {
 	"@type":            "ZettaDefaultTrainer"
 	accelerator:        "cuda"
 	devices:            4
-	strategy:           {
-		"@type":					"pl.DDPStrategy"
-		"find_unused_parameters":	false
-	}
 	max_epochs:         100
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME

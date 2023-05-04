@@ -38,10 +38,6 @@ def _get_ts_at_resolution(
     spec: Dict[str, Any] = {
         "driver": "neuroglancer_precomputed",
         "kvstore": abspath(path),
-        "context": {
-            "cache_pool": {"total_bytes_limit": cache_bytes_limit},
-            "data_copy_concurrency": {"limit": 1},
-        },
         "recheck_cached_data": "open",
     }
     if resolution is not None:

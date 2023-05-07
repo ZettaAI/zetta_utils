@@ -75,7 +75,7 @@ def get_gcp_with_sqs_config(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    deployment = resource_allocation.k8s.get_deployment(
+    deployment = resource_allocation.k8s.get_zutils_worker_deployment(
         execution_id=execution_id,
         image=worker_image,
         queue=exec_queue_spec,

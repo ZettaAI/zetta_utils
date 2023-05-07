@@ -45,14 +45,13 @@ def _get_worker_deployment_spec(
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
-        metadata=k8s_client.V1ObjectMeta(labels=labels, creation_timestamp=None),
+        metadata=k8s_client.V1ObjectMeta(labels=labels),
         spec=pod_spec,
     )
 
     deployment_spec = k8s_client.V1DeploymentSpec(
         progress_deadline_seconds=600,
         replicas=replicas,
-        revision_history_limit=10,
         selector=k8s_client.V1LabelSelector(match_labels=labels),
         strategy=k8s_client.V1DeploymentStrategy(
             type="RollingUpdate",
@@ -64,8 +63,6 @@ def _get_worker_deployment_spec(
     )
 
     deployment = k8s_client.V1Deployment(
-        api_version="apps/v1",
-        kind="Deployment",
         metadata=k8s_client.V1ObjectMeta(name=name, labels=labels),
         spec=deployment_spec,
     )
@@ -73,7 +70,7 @@ def _get_worker_deployment_spec(
     return deployment
 
 
-def get_deployment(  # pylint: disable=too-many-locals
+def get_zutils_worker_deployment(  # pylint: disable=too-many-locals
     execution_id: str,
     image: str,
     queue: Union[mazepa.ExecutionQueue, Dict[str, Any]],
@@ -108,6 +105,34 @@ def get_deployment(  # pylint: disable=too-many-locals
     )
 
 
+def get_deployment(
+    name: str,
+    labels: Dict[str, str],
+    pod_spec: k8s_client.V1PodSpec,
+    replicas: int,
+    revision_history_limit: Optional[int] = 10,
+) -> k8s_client.V1Deployment:
+
+    pod_template = k8s_client.V1PodTemplateSpec(
+        metadata=k8s_client.V1ObjectMeta(labels=labels),
+        spec=pod_spec,
+    )
+
+    deployment_spec = k8s_client.V1DeploymentSpec(
+        replicas=replicas,
+        revision_history_limit=revision_history_limit,
+        selector=k8s_client.V1LabelSelector(match_labels=labels),
+        template=pod_template,
+    )
+
+    deployment = k8s_client.V1Deployment(
+        metadata=k8s_client.V1ObjectMeta(name=name, labels=labels),
+        spec=deployment_spec,
+    )
+
+    return deployment
+
+
 @builder.register("k8s_deployment_ctx_mngr")
 @contextmanager
 def deployment_ctx_mngr(
@@ -115,6 +140,7 @@ def deployment_ctx_mngr(
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
     secrets: List[k8s_client.V1Secret],
+    namespace: Optional[str] = "default",
 ):
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
@@ -122,7 +148,7 @@ def deployment_ctx_mngr(
 
     with secrets_ctx_mngr(execution_id, secrets, cluster_info):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
-        k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace="default")
+        k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=namespace)
         register_execution_resource(
             ExecutionResource(
                 execution_id,
@@ -142,5 +168,5 @@ def deployment_ctx_mngr(
             k8s_apps_v1_api = k8s_client.AppsV1Api()
             logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
             k8s_apps_v1_api.delete_namespaced_deployment(
-                name=deployment.metadata.name, namespace="default"
+                name=deployment.metadata.name, namespace=namespace
             )

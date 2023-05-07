@@ -88,13 +88,14 @@ def secrets_ctx_mngr(
     execution_id: str,
     secrets: List[k8s_client.V1Secret],
     cluster_info: ClusterInfo,
+    namespace: Optional[str] = "default",
 ):
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_core_v1_api = k8s_client.CoreV1Api()
     for secret in secrets:
         logger.info(f"Creating k8s secret `{secret.metadata.name}`")
-        k8s_core_v1_api.create_namespaced_secret(namespace="default", body=secret)
+        k8s_core_v1_api.create_namespaced_secret(namespace=namespace, body=secret)
         register_execution_resource(
             ExecutionResource(
                 execution_id,
@@ -115,5 +116,5 @@ def secrets_ctx_mngr(
         for secret in secrets:
             logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
             k8s_core_v1_api.delete_namespaced_secret(
-                name=secret.metadata.name, namespace="default"
+                name=secret.metadata.name, namespace=namespace
             )

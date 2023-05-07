@@ -4,7 +4,7 @@ Helpers for k8s secrets.
 
 import os
 from contextlib import contextmanager
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import log
@@ -21,7 +21,9 @@ logger = log.get_logger("zetta_utils")
 CV_SECRETS_NAME = "cloudvolume-secrets"
 
 
-def get_worker_env_vars(env_secret_mapping: Dict[str, str]) -> list:
+def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> list:
+    if env_secret_mapping is None:
+        env_secret_mapping = {}
     name_path_map = {
         "MY_NODE_NAME": "spec.nodeName",
         "MY_POD_NAME": "metadata.name",

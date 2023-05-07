@@ -14,7 +14,8 @@ from ..resource_tracker import (
     register_execution_resource,
 )
 from .common import ClusterInfo, get_cluster_data, get_worker_command
-from .secrets import CV_SECRETS_NAME, get_worker_env_vars, secrets_ctx_mngr
+from .pod import get_pod_spec
+from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
 
@@ -28,55 +29,22 @@ def _get_worker_deployment_spec(
     labels: Dict[str, str],
     env_secret_mapping: Dict[str, str],
 ) -> k8s_client.V1Deployment:
-    volume_mounts = [
-        k8s_client.V1VolumeMount(
-            mount_path="/root/.cloudvolume/secrets", name=CV_SECRETS_NAME, read_only=True
-        ),
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
-
-    container = k8s_client.V1Container(
-        command=["/bin/sh"],
-        args=["-c", worker_command],
-        env=get_worker_env_vars(env_secret_mapping),
-        name="zutils-worker",
-        image=image,
-        image_pull_policy="IfNotPresent",
-        resources=k8s_client.V1ResourceRequirements(
-            requests=resources,
-            limits=resources,
-        ),
-        termination_message_path="/dev/termination-log",
-        termination_message_policy="File",
-        volume_mounts=volume_mounts,
-    )
 
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
 
-    secret = k8s_client.V1SecretVolumeSource(default_mode=420, secret_name=CV_SECRETS_NAME)
-    volume0 = k8s_client.V1Volume(name=CV_SECRETS_NAME, secret=secret)
-    volume1 = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    volume2 = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-
-    pod_spec = k8s_client.V1PodSpec(
-        containers=[container],
-        dns_policy="Default",
-        restart_policy="Always",
-        scheduler_name="default-scheduler",
-        security_context={},
-        termination_grace_period_seconds=30,
+    pod_spec = get_pod_spec(
+        name="zutils-worker",
+        image=image,
+        command=["/bin/sh"],
+        command_args=["-c", worker_command],
+        resources=resources,
+        env_secret_mapping=env_secret_mapping,
         tolerations=[schedule_toleration],
-        volumes=[volume0, volume1, volume2],
     )
 
-    deployment_template = k8s_client.V1PodTemplateSpec(
+    pod_template = k8s_client.V1PodTemplateSpec(
         metadata=k8s_client.V1ObjectMeta(labels=labels, creation_timestamp=None),
         spec=pod_spec,
     )
@@ -92,7 +60,7 @@ def _get_worker_deployment_spec(
                 max_surge="25%", max_unavailable="25%"
             ),
         ),
-        template=deployment_template,
+        template=pod_template,
     )
 
     deployment = k8s_client.V1Deployment(

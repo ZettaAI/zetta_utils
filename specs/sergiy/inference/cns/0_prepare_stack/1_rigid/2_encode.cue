@@ -16,8 +16,8 @@ import "math"
 
 #ROI_BOUNDS: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3300]
-	end_coord: [2048, 2048, 3500]
+	start_coord: [0, 0, 3500]
+	end_coord: [2048, 2048, 3510]
 	resolution: [512, 512, 45]
 	// end_coord: [32768, 32768, 3001]
 	// end_coord: [32768, 32768, 7010]
@@ -140,20 +140,20 @@ local_test:      false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		// #FLOW_TEMPLATE & {
-		//  op: fn: {
-		//   "@type":    "BaseEncoder"
-		//   model_path: #MODELS[0].path
-		//  }
-		//  op: res_change_mult: #MODELS[0].res_change_mult
-		//  dst_resolution: #DATASET_BOUNDS.resolution
-		//  dst: info_field_overrides: {
-		//   type:         "image"
-		//   num_channels: 1
-		//   data_type:    "int8"
-		//   scales:       #SCALES
-		//  }
-		// }
+		#FLOW_TEMPLATE & {
+			op: fn: {
+				"@type":    "BaseEncoder"
+				model_path: #MODELS[0].path
+			}
+			op: res_change_mult: #MODELS[0].res_change_mult
+			dst_resolution: #DATASET_BOUNDS.resolution
+			dst: info_field_overrides: {
+				type:         "image"
+				num_channels: 1
+				data_type:    "int8"
+				scales:       #SCALES
+			}
+		},
 		for i in list.Range(1, 10, 1) {
 			let res_mult = [math.Pow(2, i), math.Pow(2, i), 1]
 			let dst_res = [ for j in [0, 1, 2] {#DATASET_BOUNDS.resolution[j] * res_mult[j]}]

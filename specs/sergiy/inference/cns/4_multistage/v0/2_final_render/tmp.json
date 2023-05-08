@@ -1,13 +1,13 @@
 {
     "@type": "mazepa.execute_on_gcp_with_sqs",
-    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x134",
+    "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187",
     "worker_resources": {
         "memory": "18560Mi"
     },
     "worker_cluster_name": "zutils-cns",
     "worker_cluster_region": "us-east1",
     "worker_cluster_project": "zetta-lee-fly-vnc-001",
-    "worker_replicas": 250,
+    "worker_replicas": 500,
     "local_test": false,
     "target": {
         "@type": "mazepa.concurrent_flow",
@@ -16,13 +16,14 @@
                 "@type": "build_subchunkable_apply_flow",
                 "op": {
                     "@type": "WarpOperation",
-                    "mode": "img"
+                    "mode": "img",
+                    "translation_granularity": 16
                 },
                 "expand_bbox": true,
                 "processing_chunk_sizes": [
                     [
-                        8192,
-                        8192,
+                        12288,
+                        12288,
                         1
                     ],
                     [
@@ -44,8 +45,8 @@
                     ]
                 ],
                 "max_reduction_chunk_sizes": [
-                    8192,
-                    8192,
+                    12288,
+                    12288,
                     1
                 ],
                 "level_intermediaries_dirs": [
@@ -62,12 +63,12 @@
                     "start_coord": [
                         0,
                         0,
-                        2701
+                        0
                     ],
                     "end_coord": [
                         2048,
                         2048,
-                        2705
+                        4000
                     ],
                     "resolution": [
                         512,
@@ -82,7 +83,7 @@
                 },
                 "field": {
                     "@type": "build_cv_layer",
-                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/afield_fine_combined_x0_debug",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/afield_fine_combined_x0",
                     "data_resolution": [
                         64,
                         64,
@@ -92,7 +93,7 @@
                 },
                 "dst": {
                     "@type": "build_cv_layer",
-                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_final_x0_debug",
+                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_final_x0",
                     "info_reference_path": "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img",
                     "write_procs": []
                 }

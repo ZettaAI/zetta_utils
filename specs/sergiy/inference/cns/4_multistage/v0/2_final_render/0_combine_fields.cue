@@ -15,18 +15,19 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2701]
-	end_coord: [2048, 2048, 3155]
-	resolution: [512, 512, 45]
+	start_coord: [0, 0, 0]
+	end_coord: [36864, 36864, 7015]
+	resolution: [32, 32, 45]
 }
 
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
-		"@type": "WarpOperation"
-		mode:    "field"
+		"@type":                 "WarpOperation"
+		mode:                    "field"
+		translation_granularity: 16
 	}
-	shrink_processing_chunk: true
+	expand_bbox: true
 	processing_chunk_sizes: [[8 * 1024, 8 * 1024, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	level_intermediaries_dirs: ["~/.zutils/tmp", "~/.zutils/tmp"]
@@ -55,7 +56,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"
@@ -63,8 +64,9 @@ worker_resources: {
 worker_cluster_name:    "zutils-cns"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-lee-fly-vnc-001"
-worker_replicas:        250
+worker_replicas:        500
 local_test:             false
+checkpoint:             "gs://zetta_utils_runs/sergiy/exec-fresh-illegal-lion-of-prestige/2023-05-06_185358_44216.zstd"
 target: {
 	"@type": "mazepa.seq_flow"
 	stages: [

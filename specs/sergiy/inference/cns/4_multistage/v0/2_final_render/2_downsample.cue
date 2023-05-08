@@ -4,17 +4,16 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2701]
-	end_coord: [2048, 2048, 3155]
-	resolution: [512, 512, 45]
+	start_coord: [0, 0, 0]
+	end_coord: [36864, 36864, 4000]
+	resolution: [32, 32, 45]
 }
 
 #FLOW_TMPL: {
-	"@type": "build_subchunkable_apply_flow"
-	//expand_bbox: true
-	shrink_processing_chunk: true
-	processing_chunk_sizes:  _
-	dst_resolution:          _
+	"@type":                "build_subchunkable_apply_flow"
+	expand_bbox:            true
+	processing_chunk_sizes: _
+	dst_resolution:         _
 	op: {
 		"@type":         "InterpolateOperation"
 		mode:            _
@@ -34,7 +33,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x134"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"
@@ -42,7 +41,7 @@ worker_resources: {
 worker_cluster_name:    "zutils-cns"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-lee-fly-vnc-001"
-worker_replicas:        250
+worker_replicas:        500
 local_test:             false
 target: {
 	"@type": "mazepa.seq_flow"
@@ -50,7 +49,7 @@ target: {
 		for res in [32, 64, 128, 256, 512, 1024] {
 			#FLOW_TMPL & {
 				src: path: #IMG_PATH
-				processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1]]
+				processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1]]
 
 				op: mode: "img"
 				dst_resolution: [res, res, 45]

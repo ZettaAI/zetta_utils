@@ -4,13 +4,13 @@ import "list"
 
 #TMP_PATH: "gs://tmp_2w/prepare_cns"
 
-#INITIAL_FIELD_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field"
+#INITIAL_FIELD_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/afield_1024nm_try_x17_iter1000_rig0.5_lr0.001_clip0.01"
 #BASE_FOLDER:        "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1"
 
 #ROI_BOUNDS: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3498]
-	end_coord: [int, int, int] | *[32768, 36864, 3501]
+	start_coord: [0, 0, 3303]
+	end_coord: [int, int, int] | *[32768, 36864, 3498]
 	// end_coord: [32768, 32768, 3001]
 	resolution: [32, 32, 45]
 }
@@ -84,11 +84,13 @@ import "list"
 	src: {
 		"@type": "build_cv_layer"
 		path:    #INITIAL_FIELD_PATH
+		data_resolution: [1024, 1024, 45]
+		interpolation_mode: "field"
 	}
 	dst: {
-		"@type":             "build_cv_layer"
-		path:                "\(#BASE_FOLDER)/field"
-		info_reference_path: #INITIAL_FIELD_PATH
+		"@type": "build_cv_layer"
+		path:    "\(#BASE_FOLDER)/field"
+		//info_reference_path: #INITIAL_FIELD_PATH
 		//on_info_exists:      "overwrite"
 	}
 }
@@ -383,20 +385,21 @@ import "list"
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 #EXECUTE_TMPL: {
 	"@type":                "mazepa.execute_on_gcp_with_sqs"
-	worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+	worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x186"
+	worker_resources:       _
 	worker_cluster_name:    "zutils-cns"
 	worker_cluster_region:  "us-east1"
 	worker_cluster_project: "zetta-lee-fly-vnc-001"
 	worker_replicas:        int
-	worker_resources:       _
-	local_test:             true
+	local_test:             false
 	target:                 _
 }
 #EXECUTE_ON_CPU: #EXECUTE_TMPL & {
 	worker_resources: {
 		memory: "18560Mi"
+		//"nvidia.com/gpu": "1"
 	}
-	worker_replicas: 50
+	worker_replicas: 200
 }
 
 #EXECUTE_ON_GPU: #EXECUTE_TMPL & {
@@ -404,7 +407,7 @@ import "list"
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas: 100
+	worker_replicas: 50
 }
 
 #COPY_INITIAL_FIELD: #EXECUTE_ON_CPU & {

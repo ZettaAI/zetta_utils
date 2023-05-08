@@ -1,11 +1,11 @@
 [
     {
         "@type": "make_ng_link",
-        "title": "coarse_z3300_3500_x0_debug_x2",
+        "title": "coarse_z3300_3500_x0",
         "position": [
             50000,
             60000,
-            3302
+            1000
         ],
         "scale_bar_nm": 30000,
         "layers": [
@@ -15,9 +15,19 @@
                 "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
             ],
             [
-                "-1 coarse_z3300_3500_x0_debug_x2",
+                "-1 coarse_z3300_3500_x0",
                 "image",
-                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/imgs_warped/-1"
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/imgs_warped/-1"
+            ],
+            [
+                "aligned _1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/img_aligned_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01"
+            ],
+            [
+                "aligned _1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01 -2",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/img_aligned_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01"
             ]
         ]
     },
@@ -31,952 +41,432 @@
             "memory": "18560Mi",
             "nvidia.com/gpu": "1"
         },
-        "worker_replicas": 100,
+        "worker_replicas": 200,
         "do_dryrun_estimation": true,
         "local_test": false,
         "target": {
-            "@type": "mazepa.seq_flow",
+            "@type": "mazepa.concurrent_flow",
             "stages": [
                 {
-                    "@type": "mazepa.concurrent_flow",
+                    "@type": "mazepa.seq_flow",
                     "stages": [
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "op": {
+                                "@type": "AcedMatchOffsetOp"
+                            },
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    3300
+                                ],
+                                "end_coord": [
+                                    2048,
+                                    2048,
+                                    3499
+                                ],
+                                "resolution": [
+                                    512,
+                                    512,
+                                    45
+                                ]
+                            },
+                            "processing_chunk_sizes": [
+                                [
+                                    64,
+                                    64,
+                                    199
+                                ]
+                            ],
+                            "processing_crop_pads": [
+                                [
+                                    32,
+                                    32,
+                                    0
+                                ]
+                            ],
+                            "dst_resolution": [
+                                1024,
+                                1024,
+                                45
+                            ],
+                            "max_dist": 2,
+                            "tissue_mask": {
+                                "@type": "build_ts_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/tissue_mask"
+                            },
+                            "misalignment_masks": {
+                                "-1": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/misalignments/-1",
+                                    "read_procs": [
+                                        {
+                                            "@type": "compare",
+                                            "@mode": "partial",
+                                            "mode": "\u003e=",
+                                            "value": 80
+                                        },
+                                        {
+                                            "@type": "to_uint8",
+                                            "@mode": "partial"
+                                        }
+                                    ]
+                                },
+                                "-2": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/misalignments/-2",
+                                    "read_procs": [
+                                        {
+                                            "@type": "compare",
+                                            "@mode": "partial",
+                                            "mode": "\u003e=",
+                                            "value": 80
+                                        },
+                                        {
+                                            "@type": "to_uint8",
+                                            "@mode": "partial"
+                                        }
+                                    ]
+                                }
+                            },
+                            "pairwise_fields": {
+                                "-1": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields/-1"
+                                },
+                                "-2": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields/-2"
+                                }
+                            },
+                            "pairwise_fields_inv": {
+                                "-1": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields_inv/-1"
+                                },
+                                "-2": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields_inv/-2"
+                                }
+                            },
+                            "dst": {
+                                "@type": "build_volumetric_layer_set",
+                                "layers": {
+                                    "match_offsets": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "info_chunk_size": [
+                                            32,
+                                            32,
+                                            1
+                                        ],
+                                        "on_info_exists": "overwrite",
+                                        "write_procs": [
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    },
+                                    "img_mask": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499/img_mask",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "info_chunk_size": [
+                                            32,
+                                            32,
+                                            1
+                                        ],
+                                        "on_info_exists": "overwrite",
+                                        "write_procs": [
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    },
+                                    "aff_mask": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499/aff_mask",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "info_chunk_size": [
+                                            32,
+                                            32,
+                                            1
+                                        ],
+                                        "on_info_exists": "overwrite",
+                                        "write_procs": [
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    },
+                                    "sector_length_before": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499/sl_before",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "info_chunk_size": [
+                                            32,
+                                            32,
+                                            1
+                                        ],
+                                        "on_info_exists": "overwrite",
+                                        "write_procs": [
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    },
+                                    "sector_length_after": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499/sl_after",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "info_chunk_size": [
+                                            32,
+                                            32,
+                                            1
+                                        ],
+                                        "on_info_exists": "overwrite",
+                                        "write_procs": [
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "op": {
+                                "@type": "AcedRelaxationOp"
+                            },
+                            "expand_bbox": true,
+                            "dst_resolution": [
+                                1024,
+                                1024,
+                                45
+                            ],
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    3300
+                                ],
+                                "end_coord": [
+                                    2048,
+                                    2048,
+                                    3499
+                                ],
+                                "resolution": [
+                                    512,
+                                    512,
+                                    45
+                                ]
+                            },
+                            "processing_chunk_sizes": [
+                                [
+                                    32,
+                                    32,
+                                    199
+                                ]
+                            ],
+                            "max_reduction_chunk_sizes": [
+                                32,
+                                32,
+                                199
+                            ],
+                            "processing_crop_pads": [
+                                [
+                                    32,
+                                    32,
+                                    0
+                                ]
+                            ],
+                            "processing_blend_pads": [
+                                [
+                                    8,
+                                    8,
+                                    0
+                                ]
+                            ],
+                            "level_intermediaries_dirs": [
+                                "gs://tmp_2w/yo/"
+                            ],
+                            "fix": "both",
+                            "num_iter": 8000,
+                            "lr": 0.001,
+                            "grad_clip": 0.01,
+                            "rigidity_weight": 0.5,
+                            "min_rigidity_multiplier": 0.001,
+                            "first_section_fix_field": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field",
+                                "data_resolution": [
+                                    256,
+                                    256,
+                                    45
+                                ],
+                                "interpolation_mode": "field"
+                            },
+                            "last_section_fix_field": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_elastic/v1/field",
+                                "data_resolution": [
+                                    256,
+                                    256,
+                                    45
+                                ],
+                                "interpolation_mode": "field"
+                            },
+                            "rigidity_masks": {
+                                "@type": "build_ts_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/defect_mask",
+                                "read_procs": [
+                                    {
+                                        "@type": "compare",
+                                        "@mode": "partial",
+                                        "mode": "!=",
+                                        "value": 0
+                                    },
+                                    {
+                                        "@type": "filter_cc",
+                                        "@mode": "partial",
+                                        "mode": "keep_large",
+                                        "thr": 200
+                                    },
+                                    {
+                                        "@type": "compare",
+                                        "@mode": "partial",
+                                        "mode": "==",
+                                        "value": 0
+                                    }
+                                ]
+                            },
+                            "match_offsets": {
+                                "@type": "build_ts_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/match_offsets_v1_z3300_3499",
+                                "on_info_exists": "overwrite"
+                            },
+                            "pfields": {
+                                "-1": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields/-1"
+                                },
+                                "-2": {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/pairwise_fields/-2"
+                                }
+                            },
+                            "dst": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/afield_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01",
+                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                "info_field_overrides": {
+                                    "num_channels": 2,
+                                    "data_type": "float32"
+                                },
+                                "info_chunk_size": [
+                                    32,
+                                    32,
+                                    1
+                                ],
+                                "on_info_exists": "overwrite"
+                            }
+                        },
                         {
                             "@type": "mazepa.concurrent_flow",
                             "stages": [
                                 {
-                                    "@type": "mazepa.seq_flow",
-                                    "stages": [
-                                        {
-                                            "@type": "build_compute_field_multistage_flow",
-                                            "bbox": {
-                                                "@type": "BBox3D.from_coords",
-                                                "start_coord": [
-                                                    0,
-                                                    0,
-                                                    3301
-                                                ],
-                                                "end_coord": [
-                                                    2048,
-                                                    2048,
-                                                    3305
-                                                ],
-                                                "resolution": [
-                                                    512,
-                                                    512,
-                                                    45
-                                                ]
-                                            },
-                                            "stages": [
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        2048,
-                                                        2048,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": false,
-                                                    "shrink_processing_chunk": true,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 300,
-                                                        "num_iter": 1000,
-                                                        "lr": 0.015
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        1024,
-                                                        1024,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": false,
-                                                    "shrink_processing_chunk": true,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 300,
-                                                        "num_iter": 1000,
-                                                        "lr": 0.015
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        512,
-                                                        512,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": false,
-                                                    "shrink_processing_chunk": true,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 300,
-                                                        "num_iter": 700,
-                                                        "lr": 0.015
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        256,
-                                                        256,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 50,
-                                                        "num_iter": 700,
-                                                        "lr": 0.03
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        128,
-                                                        128,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 500,
-                                                        "lr": 0.05
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        1024,
-                                                        1024,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 1000,
-                                                        "lr": 0.015
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        512,
-                                                        512,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 700,
-                                                        "lr": 0.015
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        256,
-                                                        256,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 700,
-                                                        "lr": 0.03
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        128,
-                                                        128,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 500,
-                                                        "lr": 0.05
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        64,
-                                                        64,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 300,
-                                                        "lr": 0.1
-                                                    }
-                                                },
-                                                {
-                                                    "@type": "ComputeFieldStage",
-                                                    "dst_resolution": [
-                                                        32,
-                                                        32,
-                                                        45
-                                                    ],
-                                                    "processing_chunk_sizes": [
-                                                        [
-                                                            8192,
-                                                            8192,
-                                                            1
-                                                        ],
-                                                        [
-                                                            2048,
-                                                            2048,
-                                                            1
-                                                        ]
-                                                    ],
-                                                    "max_reduction_chunk_sizes": [
-                                                        8192,
-                                                        8192,
-                                                        1
-                                                    ],
-                                                    "processing_crop_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            64,
-                                                            64,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "level_intermediaries_dirs": [
-                                                        "gs://tmp_2s/yo/",
-                                                        "~/.zutils/tmp"
-                                                    ],
-                                                    "processing_blend_pads": [
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ],
-                                                        [
-                                                            0,
-                                                            0,
-                                                            0
-                                                        ]
-                                                    ],
-                                                    "expand_bbox": true,
-                                                    "shrink_processing_chunk": false,
-                                                    "fn": {
-                                                        "@type": "align_with_online_finetuner",
-                                                        "@mode": "partial",
-                                                        "sm": 10,
-                                                        "num_iter": 200,
-                                                        "lr": 0.1
-                                                    }
-                                                }
-                                            ],
-                                            "tgt_offset": [
-                                                0,
-                                                0,
-                                                -1
-                                            ],
-                                            "offset_resolution": [
-                                                4,
-                                                4,
-                                                45
-                                            ],
-                                            "src": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/encodings_masked"
-                                            },
-                                            "tgt": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/encodings_masked"
-                                            },
-                                            "src_field": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/rigid_to_rigid/v1/fields/-1",
-                                                "data_resolution": [
-                                                    256,
-                                                    256,
-                                                    45
-                                                ],
-                                                "interpolation_mode": "field"
-                                            },
-                                            "dst": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields/-1",
-                                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
-                                                "info_field_overrides": {
-                                                    "num_channels": 2,
-                                                    "data_type": "float32",
-                                                    "encoding": "zfpc"
-                                                },
-                                                "on_info_exists": "overwrite"
-                                            },
-                                            "tmp_layer_dir": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields/-1/tmp",
-                                            "tmp_layer_factory": {
-                                                "@type": "build_cv_layer",
-                                                "@mode": "partial",
-                                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
-                                                "info_field_overrides": {
-                                                    "num_channels": 2,
-                                                    "data_type": "float32",
-                                                    "encoding": "zfpc"
-                                                },
-                                                "on_info_exists": "overwrite"
-                                            }
-                                        },
-                                        {
-                                            "@type": "build_subchunkable_apply_flow",
-                                            "fn": {
-                                                "@type": "invert_field",
-                                                "@mode": "partial"
-                                            },
-                                            "expand_bbox": true,
-                                            "processing_chunk_sizes": [
-                                                [
-                                                    8192,
-                                                    8192,
-                                                    1
-                                                ],
-                                                [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            ],
-                                            "max_reduction_chunk_sizes": [
-                                                8192,
-                                                8192,
-                                                1
-                                            ],
-                                            "processing_crop_pads": [
-                                                [
-                                                    0,
-                                                    0,
-                                                    0
-                                                ],
-                                                [
-                                                    64,
-                                                    64,
-                                                    0
-                                                ]
-                                            ],
-                                            "level_intermediaries_dirs": [
-                                                "gs://tmp_2s/yo/",
-                                                "~/.zutils/tmp"
-                                            ],
-                                            "dst_resolution": [
-                                                32,
-                                                32,
-                                                45
-                                            ],
-                                            "bbox": {
-                                                "@type": "BBox3D.from_coords",
-                                                "start_coord": [
-                                                    0,
-                                                    0,
-                                                    3301
-                                                ],
-                                                "end_coord": [
-                                                    2048,
-                                                    2048,
-                                                    3305
-                                                ],
-                                                "resolution": [
-                                                    512,
-                                                    512,
-                                                    45
-                                                ]
-                                            },
-                                            "src": {
-                                                "@type": "build_ts_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields/-1"
-                                            },
-                                            "dst": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields_inv/-1",
-                                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields/-1",
-                                                "info_chunk_size": [
-                                                    512,
-                                                    512,
-                                                    1
-                                                ],
-                                                "on_info_exists": "overwrite"
-                                            }
-                                        },
-                                        {
-                                            "@type": "build_subchunkable_apply_flow",
-                                            "op": {
-                                                "@type": "WarpOperation",
-                                                "mode": "img"
-                                            },
-                                            "expand_bbox": true,
-                                            "processing_chunk_sizes": [
-                                                [
-                                                    8192,
-                                                    8192,
-                                                    1
-                                                ],
-                                                [
-                                                    2048,
-                                                    2048,
-                                                    1
-                                                ]
-                                            ],
-                                            "max_reduction_chunk_sizes": [
-                                                8192,
-                                                8192,
-                                                1
-                                            ],
-                                            "processing_crop_pads": [
-                                                [
-                                                    0,
-                                                    0,
-                                                    0
-                                                ],
-                                                [
-                                                    256,
-                                                    256,
-                                                    0
-                                                ]
-                                            ],
-                                            "level_intermediaries_dirs": [
-                                                "gs://tmp_2s/yo/",
-                                                "~/.zutils/tmp"
-                                            ],
-                                            "bbox": {
-                                                "@type": "BBox3D.from_coords",
-                                                "start_coord": [
-                                                    0,
-                                                    0,
-                                                    3301
-                                                ],
-                                                "end_coord": [
-                                                    2048,
-                                                    2048,
-                                                    3305
-                                                ],
-                                                "resolution": [
-                                                    512,
-                                                    512,
-                                                    45
-                                                ]
-                                            },
-                                            "dst_resolution": [
-                                                32,
-                                                32,
-                                                45
-                                            ],
-                                            "src": {
-                                                "@type": "build_ts_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
-                                                "index_procs": [
-                                                    {
-                                                        "@type": "VolumetricIndexTranslator",
-                                                        "offset": [
-                                                            0,
-                                                            0,
-                                                            -1
-                                                        ],
-                                                        "resolution": [
-                                                            4,
-                                                            4,
-                                                            45
-                                                        ]
-                                                    }
-                                                ]
-                                            },
-                                            "field": {
-                                                "@type": "build_ts_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/pairwise_fields_inv/-1",
-                                                "data_resolution": null,
-                                                "interpolation_mode": "field"
-                                            },
-                                            "dst": {
-                                                "@type": "build_cv_layer",
-                                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/imgs_warped/-1",
-                                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
-                                                "on_info_exists": "overwrite"
-                                            }
-                                        }
-                                    ]
+                                    "@type": "build_subchunkable_apply_flow",
+                                    "op": {
+                                        "@type": "WarpOperation",
+                                        "mode": "img"
+                                    },
+                                    "expand_bbox": true,
+                                    "processing_chunk_sizes": [
+                                        [
+                                            8192,
+                                            8192,
+                                            1
+                                        ],
+                                        [
+                                            2048,
+                                            2048,
+                                            1
+                                        ]
+                                    ],
+                                    "max_reduction_chunk_sizes": [
+                                        8192,
+                                        8192,
+                                        1
+                                    ],
+                                    "processing_crop_pads": [
+                                        [
+                                            0,
+                                            0,
+                                            0
+                                        ],
+                                        [
+                                            256,
+                                            256,
+                                            0
+                                        ]
+                                    ],
+                                    "level_intermediaries_dirs": [
+                                        "gs://tmp_2w/yo/",
+                                        "~/.zutils/tmp"
+                                    ],
+                                    "bbox": {
+                                        "@type": "BBox3D.from_coords",
+                                        "start_coord": [
+                                            0,
+                                            0,
+                                            3300
+                                        ],
+                                        "end_coord": [
+                                            2048,
+                                            2048,
+                                            3499
+                                        ],
+                                        "resolution": [
+                                            512,
+                                            512,
+                                            45
+                                        ]
+                                    },
+                                    "dst_resolution": [
+                                        128,
+                                        128,
+                                        45
+                                    ],
+                                    "src": {
+                                        "@type": "build_ts_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
+                                    },
+                                    "field": {
+                                        "@type": "build_ts_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/afield_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01",
+                                        "data_resolution": [
+                                            1024,
+                                            1024,
+                                            45
+                                        ],
+                                        "interpolation_mode": "field"
+                                    },
+                                    "dst": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/img_aligned_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01",
+                                        "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img",
+                                        "on_info_exists": "overwrite"
+                                    }
                                 }
                             ]
                         }
@@ -987,11 +477,11 @@
     },
     {
         "@type": "make_ng_link",
-        "title": "coarse_z3300_3500_x0_debug_x2",
+        "title": "coarse_z3300_3500_x0",
         "position": [
             50000,
             60000,
-            3302
+            1000
         ],
         "scale_bar_nm": 30000,
         "layers": [
@@ -1001,9 +491,19 @@
                 "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/cns/rigid_x0/raw_img"
             ],
             [
-                "-1 coarse_z3300_3500_x0_debug_x2",
+                "-1 coarse_z3300_3500_x0",
                 "image",
-                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/tmp/coarse_z3300_3500_x0_debug_x2/imgs_warped/-1"
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/imgs_warped/-1"
+            ],
+            [
+                "aligned _1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/img_aligned_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01"
+            ],
+            [
+                "aligned _1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01 -2",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_surgery/coarse_z3300_3500_x0/img_aligned_1024nm_try_x15_iter8000_rig0.5_lr0.001_clip0.01"
             ]
         ]
     }

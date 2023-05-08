@@ -23,7 +23,7 @@
 #FIELDS_INV_PATH: "\(#FOLDER)/afield\(#STAGE0_RELAXATION_SUFFIX)_M2M_field_inv"
 
 #AFIELD_PATH:      "\(#FOLDER)/afield_stage1\(#RELAXATION_SUFFIX)"
-#IMG_ALIGNED_PATH: "\(#FOLDER)/img_aligned_stage1\(#RELAXATION_SUFFIX)"
+#IMG_ALIGNED_PATH: "\(#FOLDER)/img_aligned_stage1\(#RELAXATION_SUFFIX)_x0"
 #IMG_MASK_PATH:    "\(#FOLDER)/img_mask_stage1\(#RELAXATION_SUFFIX)"
 #AFF_MASK_PATH:    "\(#FOLDER)/aff_mask_stage1\(#RELAXATION_SUFFIX)"
 
@@ -39,13 +39,55 @@
 #RELAXATION_SUFFIX: "_64nm_try_x1_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)\(#DEBUG_SUFFIX)"
 #RELAXATION_RESOLUTION: [64, 64, 45]
 #BLOCKS: [
-	{_z_start: 2250, _z_end: 2401},
-	{_z_start: 2400, _z_end: 2551},
-	{_z_start: 2550, _z_end: 2702},
-	/////////////////////////// DONE:
+	//{_z_start: 0, _z_end: 151},
+	// {_z_start: 150, _z_end:  301},
+	// {_z_start: 300, _z_end:  452},
+	// {_z_start: 451, _z_end:  600},
+	// {_z_start: 599, _z_end:  755},
+	// {_z_start: 754, _z_end:  901},
+	// {_z_start: 900, _z_end:  1053},
+	// {_z_start: 1052, _z_end: 1207},
+	// {_z_start: 1206, _z_end: 1350},
+	// {_z_start: 1349, _z_end: 1502},
+	// {_z_start: 1501, _z_end: 1653},
+	// {_z_start: 1652, _z_end: 1803},
+	// {_z_start: 1802, _z_end: 1951},
+	// {_z_start: 1950, _z_end: 2104},
+	// {_z_start: 2103, _z_end: 2251},
+	//{_z_start: 2250, _z_end: 2401},
+	//{_z_start: 2400, _z_end: 2551},
+	//{_z_start: 2550, _z_end: 2702},
 	//{_z_start: 2701, _z_end: 2851},
 	//{_z_start: 2850, _z_end: 3003},
 	//{_z_start: 3002, _z_end: 3155},
+	// ^^^ Proofread
+	//{_z_start: 3154, _z_end: 3302},
+	{_z_start: 3301, _z_end: 3450},
+	{_z_start: 3449, _z_end: 3600},
+	//         {_z_start: 3599, _z_end: 3751},
+	//         {_z_start: 3750, _z_end: 3895},
+	//         {_z_start: 3894, _z_end: 4051},
+	//         {_z_start: 4050, _z_end: 4196},
+	//         {_z_start: 4195, _z_end: 4348},
+	//         {_z_start: 4347, _z_end: 4501},
+	//         {_z_start: 4500, _z_end: 4652},
+	//         {_z_start: 4651, _z_end: 4805},
+	//         {_z_start: 4804, _z_end: 4953},
+	//         {_z_start: 4952, _z_end: 5103},
+	//         {_z_start: 5102, _z_end: 5254},
+	//         {_z_start: 5253, _z_end: 5403},
+	//         {_z_start: 5402, _z_end: 5555},
+	//         {_z_start: 5554, _z_end: 5701},
+	//         {_z_start: 5700, _z_end: 5853},
+	//         {_z_start: 5852, _z_end: 6002},
+	//         {_z_start: 6001, _z_end: 6152},
+	//         {_z_start: 6151, _z_end: 6301},
+	//         {_z_start: 6300, _z_end: 6451},
+	//         {_z_start: 6450, _z_end: 6601},
+	//         {_z_start: 6600, _z_end: 6751},
+	//         {_z_start: 6750, _z_end: 6901},
+	//         {_z_start: 6900, _z_end: 7050},
+
 ]
 
 #BBOX_TMPL: {
@@ -53,8 +95,8 @@
 	_z_start: int
 	_z_end:   int
 	start_coord: [0, 0, _z_start]
-	end_coord: [2 * 1024, 2 * 1024, _z_end]
-	resolution: [512, 512, 45]
+	end_coord: [36864, 36864, _z_end]
+	resolution: [32, 32, 45]
 }
 
 #TITLE: #PAIRWISE_SUFFIX
@@ -334,13 +376,13 @@
 #RUN_INFERENCE: {
 	"@type": "mazepa.execute_on_gcp_with_sqs"
 	//worker_image: "us.gcr.io/zetta-lee-fly-vnc-001/zetta_utils:sergiy_all_p39_x140"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x186"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	//checkpoint:             "gs://zetta_utils_runs/sergiy/exec-snobbish-eager-coua-of-persistence/2023-04-20_151928_77449.zstd"
-	worker_replicas:        200
+	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-fat-tapir-of-exotic-defiance/2023-05-05_040524_255226.zstd"
+	worker_replicas:        10
 	batch_gap_sleep_sec:    1
 	do_dryrun_estimation:   true
 	local_test:             false

@@ -14,13 +14,13 @@ from zetta_utils import builder, log
 
 from .common import ClusterInfo, get_cluster_data
 from .job import get_job_template
+from .pod import get_pod_spec
 
 logger = log.get_logger("zetta_utils")
 
 
 def _get_cronjob(
     name: str,
-    namespace: str,
     image: str,
     command: List[str],
     command_args: List[str],
@@ -30,14 +30,18 @@ def _get_cronjob(
     labels: Optional[Dict[str, str]] = None,
 ) -> k8s_client.V1CronJob:
 
-    job_template = get_job_template(
+    pod_spec = get_pod_spec(
         name=name,
-        namespace=namespace,
         image=image,
         command=command,
         command_args=command_args,
-        envs=envs,
         resources=resources,
+        envs=envs,
+    )
+
+    job_template = get_job_template(
+        name=name,
+        pod_spec=pod_spec,
         labels=labels,
     )
 
@@ -102,7 +106,6 @@ def configure_cronjob(
 
     cronjob = _get_cronjob(
         name=name,
-        namespace=namespace,
         image=image,
         command=command,
         command_args=command_args,

@@ -12,7 +12,7 @@ import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import builder, log
 
-from .field import get_rigidity_map_zcxy
+from .field import get_rigidity_map_zcxy, invert_field
 
 logger = log.get_logger("zetta_utils")
 
@@ -119,25 +119,31 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
 
     if first_section_fix_field is not None:
         assert fix in ["first", "both"]
-        # first_section_fix_field_zcxy = (
-        #    einops.rearrange(first_section_fix_field, "C X Y Z -> Z C X Y")
-        #    .field()  # type: ignore
-        #    .cuda()
-        # )
-        # for k, v in pfields_paired.items():
-        #    if k[1] == 0:  # aligned to first section
-        #        pfields_paired[k] = first_section_fix_field_zcxy.from_pixels()(v)
+
+        first_section_fix_field_zcxy = (
+            einops.rearrange(first_section_fix_field, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .cuda()
+            .from_pixels()
+        )
+        for offset in range(1, max_dist + 1):
+            pfields_raw[offset][offset] = first_section_fix_field_zcxy(pfields_raw[offset][offset])
 
     if last_section_fix_field is not None:
         assert fix in ["last", "both"]
 
-        # last_section_fix_field_inv = invert_field(last_section_fix_field.cuda())
-        # last_section_fix_field_inv_zcxy = (
-        #    einops.rearrange(last_section_fix_field_inv, "C X Y Z -> Z C X Y")
-        #    .field()  # type: ignore
-        #    .cuda()
-        # )
+        last_section_fix_field_inv = invert_field(last_section_fix_field.cuda())
+        last_section_fix_field_inv_zcxy = (
+            einops.rearrange(last_section_fix_field_inv, "C X Y Z -> Z C X Y")
+            .field()  # type: ignore
+            .cuda()
+            .from_pixels()
+        )
 
+        for offset in range(1, max_dist + 1):
+            pfields_raw[offset][-1] = pfields_raw[offset][-1](
+                last_section_fix_field_inv_zcxy  # type: ignore
+            )
         # for k, v in pfields_paired.items():
         #    if k[0] == num_sections - 1:  # aligned from last section
         #        pfields_paired[k] = last_section_fix_field_inv_zcxy.from_pixels()(v)

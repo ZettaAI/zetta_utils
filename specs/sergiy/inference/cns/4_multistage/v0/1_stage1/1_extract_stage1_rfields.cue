@@ -26,13 +26,14 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 0]
-	end_coord: [2048, 2048, 2250]
-	resolution: [512, 512, 45]
+	start_coord: [0, 0, 3143]
+	end_coord: [36864, 36864, 7050]
+	resolution: [32, 32, 45]
 }
 
 #WARP_FLOW_TMPL: {
 	"@type":                   "build_subchunkable_apply_flow"
+	expand_bbox:               true
 	processing_crop_pads:      _ | *null
 	processing_chunk_sizes:    _
 	level_intermediaries_dirs: _ | *null
@@ -244,7 +245,7 @@ worker_resources: {
 worker_cluster_name:    "zutils-cns"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-lee-fly-vnc-001"
-worker_replicas:        500
+worker_replicas:        100
 batch_gap_sleep_sec:    1
 local_test:             false
 #Z_OFFSETS: [-1, -2]

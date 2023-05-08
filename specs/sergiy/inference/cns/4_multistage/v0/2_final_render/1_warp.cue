@@ -4,23 +4,24 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2701]
-	end_coord: [2048, 2048, 3155]
+	start_coord: [0, 0, 2810]
+	end_coord: [2048, 2048, 2820]
 	resolution: [512, 512, 45]
 }
 
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
-		"@type": "WarpOperation"
-		mode:    _
+		"@type":                 "WarpOperation"
+		mode:                    _
+		translation_granularity: 16
 	}
 	expand_bbox: true
-	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
+	processing_chunk_sizes: [[1024 * 12, 1024 * 12, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
-	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
+	max_reduction_chunk_sizes: [1024 * 12, 1024 * 12, 1]
 
-	level_intermediaries_dirs: ["file://~/.zutils/tmp", "file://~/.zutils/tmp"]
+	level_intermediaries_dirs: ["file://~/.zutils/tmp2", "file://~/.zutils/tmp"]
 
 	dst_resolution: _
 	bbox:           #BBOX
@@ -45,7 +46,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x134"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"
@@ -53,7 +54,7 @@ worker_resources: {
 worker_cluster_name:    "zutils-cns"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-lee-fly-vnc-001"
-worker_replicas:        250
+worker_replicas:        500
 local_test:             false
 target: {
 	"@type": "mazepa.concurrent_flow"
@@ -67,6 +68,7 @@ target: {
 		//  dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
 		//  dst: write_procs: [
 		//   {"@type": "to_uint8", "@mode": "partial"},
+
 		//  ]
 		//  dst_resolution: [256, 256, 45]
 		//  op: mode: "mask"

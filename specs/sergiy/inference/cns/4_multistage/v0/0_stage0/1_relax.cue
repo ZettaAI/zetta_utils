@@ -22,7 +22,7 @@
 
 #IMGS_WARPED_PATH:      "\(#FOLDER)/imgs_warped"
 #WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped"
-#MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments_net_raw"
+#MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments"
 
 #TISSUE_MASK_PATH: "\(#BASE_FOLDER)/tissue_mask"
 
@@ -34,37 +34,34 @@
 #IMG_ALIGNED_MASKED_PATH: "\(#FOLDER)/img_aligned_masked\(#RELAXATION_SUFFIX)"
 
 //#MATCH_OFFSETS_BASE: "\(#FOLDER)/match_offsets_z\(#Z_START)_\(#Z_END)"
-#MATCH_OFFSET_BASE: "\(#FOLDER)/match_offsets_v0_z"
+#MATCH_OFFSET_BASE: "\(#FOLDER)/match_offsets_v1_z"
 
 //#BASE_INFO_CHUNK: [128, 128, 1]
 #BASE_INFO_CHUNK: [512, 512, 1]
 #RELAX_OUTCOME_CHUNK: [32, 32, 1]
-#RELAXATION_FIX:  "both"
-#RELAXATION_ITER: 8000
-#RELAXATION_LR:   5e-3
+#RELAXATION_FIX:       "both"
+#RELAXATION_ITER:      8000
+#RELAXATION_LR:        1e-3
+#RELAXATION_GRAD_CLIP: 0.01
 
 #RELAXATION_RIG: 0.5
 
 //#Z_END:   746
+#DEBUG_SUFFIX: ""
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
-#RELAXATION_SUFFIX: "_1024nm_try_x7_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)"
+#RELAXATION_SUFFIX: "_1024nm_try_x14_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
 #RELAXATION_RESOLUTION: [1024, 1024, 45]
 #BLOCKS: [
 	//{_z_start: 0, _z_end:    452},
-	//{_z_start: 451, _z_end: 901},
-	//{_z_start: 900, _z_end:  1350},
-	//{_z_start: 1349, _z_end: 1803},
-	//{_z_start: 1802, _z_end: 2251},
-	//{_z_start: 2250, _z_end: 2702},
-	//{_z_start: 3155, _z_end: 3300},
-	// TODO
-	// {_z_start: 3599, _z_end: 4500},
-	// {_z_start: 4500, _z_end: 5500},
-	// {_z_start: 5500, _z_end: 6500},
-	// {_z_start: 6500, _z_end: 7010},
-
-	{_z_start: 0, _z_end: 7050},
+	//{_z_start: 451, _z_end:  1350},
+	//{_z_start: 1349, _z_end: 2251},
+	//{_z_start: 2250, _z_end: 3155},
+	{_z_start: 3154, _z_end: 4051},
+	{_z_start: 4050, _z_end: 4953},
+	{_z_start: 4952, _z_end: 5853},
+	{_z_start: 5852, _z_end: 6751},
+	{_z_start: 6750, _z_end: 7051},
 ]
 
 #BBOX_TMPL: {
@@ -99,7 +96,8 @@
 			num_iter: 1000
 			lr:       0.015
 		}
-		processing_chunk_sizes: [[2 * 1024, 1024 * 2, 1], [1024 * 2, 1024 * 2, 1]]
+		shrink_processing_chunk: true
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -108,7 +106,8 @@
 			num_iter: 1000
 			lr:       0.015
 		}
-		processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024 * 2, 1024 * 2, 1]]
+		shrink_processing_chunk: true
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -118,6 +117,8 @@
 			num_iter: 700
 			lr:       0.015
 		}
+		shrink_processing_chunk: true
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [256, 256, 45]
@@ -127,6 +128,8 @@
 			num_iter: 700
 			lr:       0.03
 		}
+		shrink_processing_chunk: true
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 45]
@@ -204,7 +207,7 @@
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
 
-	processing_chunk_sizes: _ | *[[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
+	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
@@ -264,13 +267,42 @@
 	}
 }
 
+#NAIVE_MISD_FLOW: {
+	"@type": "build_subchunkable_apply_flow"
+	fn: {
+		"@type": "naive_misd"
+		"@mode": "partial"
+	}
+	processing_chunk_sizes: [[2048, 2048, 1]]
+	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
+	bbox:           _
+	_z_offset:      _
+	src: {
+		"@type": "build_ts_layer"
+		path:    "\(#IMGS_WARPED_PATH)/\(_z_offset)"
+	}
+	tgt: {
+		"@type": "build_ts_layer"
+		path:    #IMG_PATH
+	}
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                "\(#MISALIGNMENTS_PATH)/\(_z_offset)"
+		info_reference_path: #IMG_PATH
+		info_chunk_size:     #BASE_INFO_CHUNK
+		on_info_exists:      "overwrite"
+		write_procs: [
+		]
+	}
+}
+
 #WARP_FLOW_TMPL: {
-	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	"@type": "build_subchunkable_apply_flow"
 	op: {
 		"@type": "WarpOperation"
 		mode:    _
 	}
+	expand_bbox: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
@@ -302,9 +334,9 @@
 }
 
 #INVERT_FLOW_TMPL: {
-	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "invert_field", "@mode": "partial"}
+	expand_bbox: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
@@ -326,12 +358,12 @@
 }
 
 #ENCODE_FLOW_TMPL: {
-	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	"@type": "build_subchunkable_apply_flow"
 	fn: {
 		"@type":    "BaseEncoder"
 		model_path: #BASE_ENCODER_PATH
 	}
+	expand_bbox: true
 
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 1, 1024 * 1, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
@@ -357,12 +389,12 @@
 }
 
 #MISD_FLOW_TMPL: {
-	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	"@type": "build_subchunkable_apply_flow"
 	fn: {
 		"@type":    "MisalignmentDetector"
 		model_path: #MISD_MODEL_PATH
 	}
+	expand_bbox: true
 
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
@@ -402,42 +434,42 @@
 				{
 					"@type": "mazepa.seq_flow"
 					stages: [
-						// #CF_FLOW_TMPL & {
-						//  dst: path: "\(#FIELDS_PATH)/\(z_offset)"
-						//  tmp_layer_dir: "\(#FIELDS_PATH)/\(z_offset)/tmp"
-						//  tgt_offset: [0, 0, z_offset]
-						//  bbox: _bbox
-						// },
-						// #INVERT_FLOW_TMPL & {
-						//  src: path: "\(#FIELDS_PATH)/\(z_offset)"
-						//  dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
-						//  bbox: _bbox
-						// },
-						// #WARP_FLOW_TMPL & {
-						//  bbox: _bbox
-						//  op: mode:  "img"
-						//  dst: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
-						//  src: path: #IMG_PATH
-						//  src: index_procs: [
-						//   {
-						//    "@type": "VolumetricIndexTranslator"
-						//    offset: [0, 0, z_offset]
-						//    resolution: [4, 4, 45]
-						//   },
-						//  ]
-						//  field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
-						// },
-						// #ENCODE_FLOW_TMPL & {
-						//  bbox:      _bbox
-						//  _z_offset: z_offset
-						// },
+						#CF_FLOW_TMPL & {
+							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
+							tmp_layer_dir: "\(#FIELDS_PATH)/\(z_offset)/tmp"
+							tgt_offset: [0, 0, z_offset]
+							bbox: _bbox
+						},
+						#INVERT_FLOW_TMPL & {
+							src: path: "\(#FIELDS_PATH)/\(z_offset)"
+							dst: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+							bbox: _bbox
+						},
+						#WARP_FLOW_TMPL & {
+							bbox: _bbox
+							op: mode:  "img"
+							dst: path: "\(#IMGS_WARPED_PATH)/\(z_offset)"
+							src: path: #IMG_PATH
+							src: index_procs: [
+								{
+									"@type": "VolumetricIndexTranslator"
+									offset: [0, 0, z_offset]
+									resolution: [4, 4, 45]
+								},
+							]
+							field: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+						},
+						#ENCODE_FLOW_TMPL & {
+							bbox:      _bbox
+							_z_offset: z_offset
+						},
 						#MISD_FLOW_TMPL & {
 							bbox:      _bbox
 							_z_offset: z_offset
 						}
 						// #NAIVE_MISD_FLOW & {
 						//  _z_offset: z_offset
-						// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+						// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 					]
 				},
 			]
@@ -446,9 +478,8 @@
 }
 
 #CREATE_TISSUE_MASK: {
-	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
-	bbox:        _
+	"@type": "build_subchunkable_apply_flow"
+	bbox:    _
 	fn: {
 		"@type":    "lambda"
 		lambda_str: "lambda src: (src != 0).byte()"
@@ -468,6 +499,196 @@
 			data_type: "uint8"
 		}
 		on_info_exists: "overwrite"
+	}
+}
+
+#MATCH_OFFSETS_FLOW: {
+	"@type": "build_subchunkable_apply_flow"
+	op: {
+		"@type": "AcedMatchOffsetOp"
+	}
+	bbox: _
+
+	processing_chunk_sizes: [[64, 64, bbox._z_end - bbox._z_start]]
+	processing_crop_pads: [[32, 32, 0]]
+	dst_resolution: #RELAXATION_RESOLUTION
+	max_dist:       2
+
+	tissue_mask: {
+		"@type": "build_ts_layer"
+		path:    #TISSUE_MASK_PATH
+	}
+	misalignment_masks: {
+		for offset in #Z_OFFSETS {
+			"\(offset)": {
+				"@type": "build_ts_layer"
+				path:    "\(#MISALIGNMENTS_PATH)/\(offset)"
+				read_procs: [
+					{
+						"@type": "compare"
+						"@mode": "partial"
+						mode:    ">="
+						value:   80
+					},
+					{
+						"@type": "to_uint8"
+						"@mode": "partial"
+					},
+				]
+			}
+		}
+	}
+	pairwise_fields: {
+		for offset in #Z_OFFSETS {
+			"\(offset)": {
+				"@type": "build_ts_layer"
+				path:    "\(#FIELDS_PATH)/\(offset)"
+			}
+		}
+	}
+	pairwise_fields_inv: {
+		for offset in #Z_OFFSETS {
+			"\(offset)": {
+				"@type": "build_ts_layer"
+				path:    "\(#FIELDS_INV_PATH)/\(offset)"
+			}
+		}
+	}
+	let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(bbox._z_start)_\(bbox._z_end)"
+	dst: {
+		"@type": "build_volumetric_layer_set"
+		layers: {
+			match_offsets: {
+				"@type":             "build_cv_layer"
+				path:                match_offsets_path
+				info_reference_path: #IMG_PATH
+				info_chunk_size:     #RELAX_OUTCOME_CHUNK
+				on_info_exists:      "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			img_mask: {
+				"@type":             "build_cv_layer"
+				path:                "\(match_offsets_path)/img_mask"
+				info_reference_path: #IMG_PATH
+				info_chunk_size:     #RELAX_OUTCOME_CHUNK
+				on_info_exists:      "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			aff_mask: {
+				"@type":             "build_cv_layer"
+				path:                "\(match_offsets_path)/aff_mask"
+				info_reference_path: #IMG_PATH
+				info_chunk_size:     #RELAX_OUTCOME_CHUNK
+				on_info_exists:      "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			sector_length_before: {
+				"@type":             "build_cv_layer"
+				path:                "\(match_offsets_path)/sl_before"
+				info_reference_path: #IMG_PATH
+				info_chunk_size:     #RELAX_OUTCOME_CHUNK
+				on_info_exists:      "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+			sector_length_after: {
+				"@type":             "build_cv_layer"
+				path:                "\(match_offsets_path)/sl_after"
+				info_reference_path: #IMG_PATH
+				info_chunk_size:     #RELAX_OUTCOME_CHUNK
+				on_info_exists:      "overwrite"
+				write_procs: [
+					{"@type": "to_uint8", "@mode": "partial"},
+				]
+			}
+		}
+	}
+}
+
+#RELAX_FLOW: {
+	"@type": "build_subchunkable_apply_flow"
+	op: {
+		"@type": "AcedRelaxationOp"
+	}
+	expand_bbox:    true
+	dst_resolution: #RELAXATION_RESOLUTION
+	bbox:           _
+
+	processing_chunk_sizes: [[32, 32, bbox._z_end - bbox._z_start]]
+	max_reduction_chunk_sizes: [32, 32, bbox._z_end - bbox._z_start]
+	processing_crop_pads: [[32, 32, 0]]
+	processing_blend_pads: [[8, 8, 0]]
+	level_intermediaries_dirs: [#TMP_PATH]
+	//              processing_chunk_sizes: [[32, 32, #Z_END - #Z_START], [28, 28, #Z_END - #Z_START]]
+	//              max_reduction_chunk_sizes: [128, 128, #Z_END - #Z_START]
+	//              processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
+	//              processing_blend_pads: [[12, 12, 0], [12, 12, 0]]
+	//level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
+
+	fix:                     #RELAXATION_FIX
+	num_iter:                #RELAXATION_ITER
+	lr:                      #RELAXATION_LR
+	grad_clip:               #RELAXATION_GRAD_CLIP
+	rigidity_weight:         #RELAXATION_RIG
+	min_rigidity_multiplier: 0.001
+
+	rigidity_masks: {
+		"@type": "build_ts_layer"
+		path:    #DEFECTS_PATH
+		read_procs: [
+			{
+				"@type": "compare"
+				"@mode": "partial"
+				mode:    "!="
+				value:   0
+			},
+			{
+				"@type": "filter_cc"
+				"@mode": "partial"
+				mode:    "keep_large"
+				thr:     200
+			},
+			{
+				"@type": "compare"
+				"@mode": "partial"
+				mode:    "=="
+				value:   0
+			},
+		]
+	}
+	let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(bbox._z_start)_\(bbox._z_end)"
+	match_offsets: {
+		"@type": "build_ts_layer"
+		path:    match_offsets_path
+
+		//info_reference_path: #IMG_PATH
+		on_info_exists: "overwrite"
+	}
+	pfields: {
+		for offset in #Z_OFFSETS {
+			"\(offset)": {
+				"@type": "build_ts_layer"
+				path:    "\(#FIELDS_PATH)/\(offset)"
+			}
+		}
+	}
+	dst: {
+		"@type":             "build_cv_layer"
+		path:                #AFIELD_PATH
+		info_reference_path: #IMG_PATH
+		info_field_overrides: {
+			num_channels: 2
+			data_type:    "float32"
+		}
+		info_chunk_size: #RELAX_OUTCOME_CHUNK
+		on_info_exists:  "overwrite"
 	}
 }
 
@@ -590,23 +811,25 @@
 		//  dst: path:   #AFF_MASK_PATH
 		//  dst_resolution: [32, 32, 45]
 		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 	]
 }
 
 #RUN_INFERENCE: {
-	"@type": "mazepa.execute_on_gcp_with_sqs"
-	//worker_image: "us.gcr.io/zetta-lee-fly-vnc-001/zetta_utils:sergiy_all_p39_x140"
-	worker_image:         "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187"
-	do_dryrun_estimation: true
+	"@type":                "mazepa.execute_on_gcp_with_sqs"
+	worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+	worker_cluster_name:    "zutils-cns"
+	worker_cluster_region:  "us-east1"
+	worker_cluster_project: "zetta-lee-fly-vnc-001"
+	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-radiant-steady-inchworm-from-valhalla/2023-05-04_042534_12147.zstd"
 	worker_resources: {
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-smart-crouching-turtle-of-chaos/2023-04-22_172435_972.zstd"
-	worker_replicas:        10
+	worker_replicas:        300
 	batch_gap_sleep_sec:    1
+	do_dryrun_estimation:   true
 	local_test:             false
 	worker_cluster_name:    "zutils-cns"
 	worker_cluster_region:  "us-east1"
@@ -619,24 +842,18 @@
 				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
 				"@type": "mazepa.seq_flow"
 				stages: [
-					#JOINT_OFFSET_FLOW & {
-						_bbox: bbox
-					}
+					// #JOINT_OFFSET_FLOW & {
+					//  _bbox: bbox
+					// },
 					// #CREATE_TISSUE_MASK & {
 					//  'bbox': bbox
 					// },
 					// #DOWNSAMPLE_FLOW & {
 					//  _bbox: bbox
 					// }
-					// #MATCH_OFFSETS_FLOW & {
-					//  'bbox': bbox
-					// },
-					// #RELAX_FLOW & {
-					//  'bbox': bbox
-					// },
-					// #POST_ALIGN_FLOW & {
-					//  _bbox: bbox
-					// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+					#MATCH_OFFSETS_FLOW & {'bbox': bbox},
+					#RELAX_FLOW & {'bbox':         bbox},
+					#POST_ALIGN_FLOW & {_bbox:     bbox},
 				]
 			},
 		]

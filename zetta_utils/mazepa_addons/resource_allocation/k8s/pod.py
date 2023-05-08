@@ -18,9 +18,11 @@ def get_pod_spec(
     command: List[str],
     command_args: List[str],
     resources: Dict[str, int | float | str],
+    dns_policy: Optional[str] = "Default",
     image_pull_policy: Optional[str] = "IfNotPresent",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
+    restart_policy: Optional[str] = "Always",
     tolerations: Optional[List[k8s_client.V1Toleration]] = None,
 ) -> k8s_client.V1PodSpec:
     if envs is None:
@@ -59,8 +61,8 @@ def get_pod_spec(
 
     return k8s_client.V1PodSpec(
         containers=[container],
-        dns_policy="Default",
-        restart_policy="Always",
+        dns_policy=dns_policy,
+        restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
         termination_grace_period_seconds=30,

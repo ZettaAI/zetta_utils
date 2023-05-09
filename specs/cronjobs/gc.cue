@@ -11,7 +11,7 @@ image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x4"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
-	"python -m zetta_utils.mazepa_addons.resource_cleanup"
+	"python -m zetta_utils.cloud.resource_cleanup"
 ]
 env_vars: {
 	"EXECUTION_HEARTBEAT_LOOKBACK": "300",

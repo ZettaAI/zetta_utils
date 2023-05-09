@@ -6,8 +6,8 @@ from contextlib import AbstractContextManager, ExitStack, contextmanager
 from typing import Dict, Final, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.cloud import execution_tracker, resource_allocation
 from zetta_utils.common import RepeatTimer
-from zetta_utils.mazepa_addons import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
 

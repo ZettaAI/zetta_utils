@@ -3,6 +3,7 @@ from typing import Literal, Tuple
 import einops
 import torch
 import torchfields  # pylint: disable=unused-import
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from zetta_utils import builder
 from zetta_utils.augmentations.tensor import rand_perlin_2d_octaves
@@ -57,28 +58,35 @@ def invert_field(src: torch.Tensor, mode: Literal["opti", "torchfields"] = "opti
     if mode == "opti":
         result = invert_field_opti(src)
     else:
-        src_zcxy = einops.rearrange(src, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
-        result_zcxy = (~(src_zcxy.from_pixels())).pixels()
+        src_zcxy = einops.rearrange(src, "C X Y Z -> Z C X Y").cuda().field_()  # type: ignore
+        with torchfields.set_identity_mapping_cache(True):
+            result_zcxy = (~(src_zcxy.from_pixels())).pixels()
         result = einops.rearrange(result_zcxy, "Z C X Y -> C X Y Z")
     return result
 
 
-def invert_field_opti(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-5) -> torch.Tensor:
+def invert_field_opti(src: torch.Tensor, num_iter: int = 200, lr: float = 1e-3) -> torch.Tensor:
     if src.abs().sum() == 0:
         return src
 
-    src_zcxy = einops.rearrange(src, "C X Y Z -> Z C X Y").field().cuda()  # type: ignore
-    inverse_zcxy = (-src_zcxy).clone().field().from_pixels()
-    inverse_zcxy.requires_grad = True
+    src_zcxy = (
+        einops.rearrange(src, "C X Y Z -> Z C X Y").cuda().field_().from_pixels()  # type: ignore
+    )
 
-    optimizer = torch.optim.Adam([inverse_zcxy], lr=lr)
-    for _ in range(num_iter):
-        loss = inverse_zcxy(src_zcxy.from_pixels()).pixels().abs().sum()
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    with torchfields.set_identity_mapping_cache(True):
+        inverse_zcxy = (-src_zcxy).clone()
+        inverse_zcxy.requires_grad = True
 
-    return einops.rearrange(inverse_zcxy.pixels(), "Z C X Y -> C X Y Z").detach()
+        optimizer = torch.optim.Adam([inverse_zcxy], lr=lr)
+        scheduler = ReduceLROnPlateau(optimizer, "min", patience=5, min_lr=1e-5)
+        for _ in range(num_iter):
+            loss = inverse_zcxy(src_zcxy).pixels().abs().sum()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step(loss)
+
+        return einops.rearrange(inverse_zcxy.detach().pixels(), "Z C X Y -> C X Y Z")
 
 
 @builder.register("gen_biased_perlin_noise_field")

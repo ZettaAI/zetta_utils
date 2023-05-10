@@ -107,9 +107,9 @@ def get_zutils_worker_deployment(  # pylint: disable=too-many-locals
 
 def get_deployment(
     name: str,
-    labels: Dict[str, str],
     pod_spec: k8s_client.V1PodSpec,
     replicas: int,
+    labels: Optional[Dict[str, str]] = None,
     revision_history_limit: Optional[int] = 10,
 ) -> k8s_client.V1Deployment:
 

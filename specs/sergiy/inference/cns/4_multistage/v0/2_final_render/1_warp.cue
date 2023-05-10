@@ -4,9 +4,9 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2810]
-	end_coord: [2048, 2048, 2820]
-	resolution: [512, 512, 45]
+	start_coord: [0, 0, 2300]
+	end_coord: [36864, 36864, 7015]
+	resolution: [32, 32, 45]
 }
 
 #FLOW_TMPL: {
@@ -17,9 +17,9 @@
 		translation_granularity: 16
 	}
 	expand_bbox: true
-	processing_chunk_sizes: [[1024 * 12, 1024 * 12, 1], [2048, 2048, 1]]
+	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
-	max_reduction_chunk_sizes: [1024 * 12, 1024 * 12, 1]
+	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 
 	level_intermediaries_dirs: ["file://~/.zutils/tmp2", "file://~/.zutils/tmp"]
 
@@ -64,7 +64,7 @@ target: {
 		//  src: read_procs: [
 		//   {"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
 		//  ]
-		//  dst: path:                "\(#BASE_FOLDER)/resin_mask"
+		//  dst: path:                "\(#FOLDER)/resin_mask_final"
 		//  dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
 		//  dst: write_procs: [
 		//   {"@type": "to_uint8", "@mode": "partial"},
@@ -78,7 +78,7 @@ target: {
 		//  src: read_procs: [
 		//   {"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
 		//  ]
-		//  dst: path: "\(#BASE_FOLDER)/defect_mask"
+		//  dst: path: "\(#FOLDER)/defect_mask_final"
 		//  dst_resolution: [64, 64, 45]
 		//  dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/defect_mask"
 		//  dst: write_procs: [

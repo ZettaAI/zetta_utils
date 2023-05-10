@@ -1,3 +1,5 @@
+# pylint: disable=unused-argument
+
 """
 Helpers for k8s secrets.
 """
@@ -9,11 +11,11 @@ from typing import Dict, Iterable, List, Optional, Tuple
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import log
 
-from ..resource_tracker import (
-    ExecutionResource,
-    ExecutionResourceTypes,
-    register_execution_resource,
-)
+# from ..resource_tracker import (
+#     ExecutionResource,
+#     ExecutionResourceTypes,
+#     register_execution_resource,
+# )
 from .common import ClusterInfo, get_cluster_data
 
 logger = log.get_logger("zetta_utils")
@@ -96,13 +98,13 @@ def secrets_ctx_mngr(
     for secret in secrets:
         logger.info(f"Creating k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=namespace, body=secret)
-        register_execution_resource(
-            ExecutionResource(
-                execution_id,
-                ExecutionResourceTypes.K8S_SECRET.value,
-                secret.metadata.name,
-            )
-        )
+        # register_execution_resource(
+        #     ExecutionResource(
+        #         execution_id,
+        #         ExecutionResourceTypes.K8S_SECRET.value,
+        #         secret.metadata.name,
+        #     )
+        # )
 
     try:
         yield

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 import json
 import os
 from contextlib import ExitStack
@@ -12,7 +11,6 @@ import pytorch_lightning as pl
 import torch
 import typeguard
 from pytorch_lightning.strategies import ddp
-from pytorch_lightning.utilities.cloud_io import get_filesystem
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -44,7 +42,6 @@ def lightning_train(
     trainer: pl.Trainer,
     train_dataloader: torch.utils.data.DataLoader,
     val_dataloader: torch.utils.data.DataLoader | None = None,
-    full_state_ckpt_path: str = "last",
 ):
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -71,35 +68,39 @@ def lightning_train(
     else:
         logger.warning("Invoked without builder: Unable to save configuration.")
 
-    if full_state_ckpt_path == "last":
-        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):  # type: ignore
-            ckpt_path = trainer.ckpt_path
-        else:
-            ckpt_path = None
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,
         val_dataloaders=val_dataloader,
-        ckpt_path=ckpt_path,
+        ckpt_path=None,
     )
 
 
 @builder.register("multinode_train_launch")
 @typeguard.typechecked
 def multinode_train_launch(
-    launch_config: torch_launcher_api.LaunchConfig,
+    num_nodes: int,
+    rdzv_endpoint: str,
     regime: pl.LightningModule,
     trainer: pl.Trainer,
     train_dataloader: torch.utils.data.DataLoader,
     val_dataloader: torch.utils.data.DataLoader | None = None,
-    full_state_ckpt_path: str = "last",
+    nproc_per_node: int = 1,
+    rdzv_backend: str = "c10d",
 ):
-    torch_launcher_api.elastic_launch(launch_config, lightning_train)(
+    config = torch_launcher_api.LaunchConfig(
+        run_id="test",
+        min_nodes=num_nodes,
+        max_nodes=num_nodes,
+        nproc_per_node=nproc_per_node,
+        rdzv_backend=rdzv_backend,
+        rdzv_endpoint=rdzv_endpoint,
+    )
+    torch_launcher_api.elastic_launch(config, lightning_train)(
         regime,
         trainer,
         train_dataloader,
         val_dataloader,
-        full_state_ckpt_path,
     )
 
 
@@ -110,32 +111,12 @@ def multinode_train(
     image: str,
     resources: Dict[str, int | float | str],
     master_node_ip: str,
-    launch_config: torch_launcher_api.LaunchConfig,
-    regime: pl.LightningModule,
-    trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
-    full_state_ckpt_path: Optional[str] = "last",
+    num_nodes: int,
     env_vars: Optional[Dict[str, str]] = None,
 ):
-
     env_vars = env_vars or {}
-    launch_config.rdzv_backend = "c10d"
-    master_config = copy.copy(launch_config)
-    master_config.rdzv_endpoint = "localhost:29400"
-
-    master_spec = {
-        "@type": "multinode_train_launch",
-        "launch_config": master_config,
-        "regime": regime,
-        "trainer": trainer,
-        "train_dataloader": train_dataloader,
-        "val_dataloader": val_dataloader,
-        "full_state_ckpt_path": full_state_ckpt_path,
-    }
-
     command = ["zetta"]
-    command_args = ["run", "-s", json.dumps(master_spec)]
+    command_args = ["run", "ddp_master.cue"]
     resources["memory"] = "10240Mi"
     resources["nvidia.com/gpu"] = "1"
 
@@ -150,50 +131,38 @@ def multinode_train(
     node_selector = {"cloud.google.com/gke-nodepool": "master"}
 
     master_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=f"{execution_id}-master",
+        name="master",
         image=image,
         command=command,
         command_args=command_args,
+        envs=envs,
         hostname="master",
         host_network=True,
         node_selector=node_selector,
         resources=resources,
+        restart_policy="Never",
         tolerations=[schedule_toleration],
     )
 
     master_selector = {"app": "master"}
-    selector = k8s_client.V1LabelSelector(match_labels=master_selector)
-
-    ports = [k8s_client.V1ServicePort(port=29400, protocol="tcp", target_port=29400)]
+    ports = [k8s_client.V1ServicePort(port=29400, protocol="TCP", target_port=29400)]
     c10d_service = resource_allocation.k8s.get_service(
         "c10d", ports=ports, selector=master_selector, service_type="NodePort"
     )
 
-    master_job = resource_allocation.k8s.get_job(
-        execution_id, pod_spec=master_pod_spec, selector=selector
-    )
+    master_job = resource_allocation.k8s.get_job("master", pod_spec=master_pod_spec)
 
-    launch_config.rdzv_endpoint = f"{master_node_ip}:29400"
-    worker_spec = {
-        "@type": "multinode_train_launch",
-        "launch_config": launch_config,
-        "regime": regime,
-        "trainer": trainer,
-        "train_dataloader": train_dataloader,
-        "val_dataloader": val_dataloader,
-        "full_state_ckpt_path": full_state_ckpt_path,
-    }
-
-    command_args = ["run", "-s", json.dumps(worker_spec)]
+    command_args = ["run", "ddp_workers.cue"]
     node_selector = {"cloud.google.com/gke-nodepool": "workers"}
 
     host_aliases = [k8s_client.V1HostAlias(hostnames=["master"], ip=master_node_ip)]
 
     worker_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=f"{execution_id}-worker",
+        name="workers",
         image=image,
         command=command,
         command_args=command_args,
+        envs=envs,
         host_network=True,
         host_aliases=host_aliases,
         node_selector=node_selector,
@@ -202,9 +171,9 @@ def multinode_train(
     )
 
     worker_deployment = resource_allocation.k8s.get_deployment(
-        name=f"{execution_id}-worker",
+        name="workers",
         pod_spec=worker_pod_spec,
-        replicas=launch_config.max_nodes - 1,
+        replicas=num_nodes - 1,
     )
 
     cluster_info = resource_allocation.k8s.ClusterInfo(

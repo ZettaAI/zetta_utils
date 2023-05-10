@@ -4,8 +4,9 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 0]
-	end_coord: [36864, 36864, 4000]
+	//start_coord: [0, 0, 2300]
+	start_coord: [32768, 32768, 2300]
+	end_coord: [36864, 36864, 7015]
 	resolution: [32, 32, 45]
 }
 

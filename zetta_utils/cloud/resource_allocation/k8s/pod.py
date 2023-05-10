@@ -19,30 +19,36 @@ def get_pod_spec(
     command_args: List[str],
     resources: Dict[str, int | float | str],
     dns_policy: Optional[str] = "Default",
-    image_pull_policy: Optional[str] = "IfNotPresent",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
+    hostname: Optional[str] = None,
+    host_network: Optional[bool] = False,
+    host_aliases: Optional[List[k8s_client.V1HostAlias]] = None,
+    image_pull_policy: Optional[str] = "IfNotPresent",
+    node_selector: Optional[Dict[str, str]] = None,
     restart_policy: Optional[str] = "Always",
     tolerations: Optional[List[k8s_client.V1Toleration]] = None,
 ) -> k8s_client.V1PodSpec:
-    if envs is None:
-        envs = []
 
-    if tolerations is None:
-        tolerations = []
+    envs = envs or []
+    host_aliases = host_aliases or []
+    tolerations = tolerations or []
 
     volume_mounts = [
         k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
         k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
     ]
 
+    ports = [k8s_client.V1ContainerPort(container_port=29400)]
+
     container = k8s_client.V1Container(
         command=command,
         args=command_args,
-        env=get_worker_env_vars(env_secret_mapping),
+        env=envs + get_worker_env_vars(env_secret_mapping),
         name=name,
         image=image,
         image_pull_policy=image_pull_policy,
+        ports=ports,
         resources=k8s_client.V1ResourceRequirements(
             requests=resources,
             limits=resources,
@@ -62,6 +68,10 @@ def get_pod_spec(
     return k8s_client.V1PodSpec(
         containers=[container],
         dns_policy=dns_policy,
+        hostname=hostname,
+        host_network=host_network,
+        host_aliases=host_aliases,
+        node_selector=node_selector,
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},

@@ -2,10 +2,13 @@
 Helpers for k8s job.
 """
 
+import time
 from contextlib import contextmanager
 from typing import Dict, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
+
+# from kubernetes import watch
 from zetta_utils import log
 
 from ..resource_tracker import (
@@ -23,12 +26,14 @@ def _get_job_spec(
     meta: k8s_client.V1ObjectMeta,
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
+    selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ):
     pod_template = k8s_client.V1PodTemplateSpec(metadata=meta, spec=pod_spec)
     return k8s_client.V1JobSpec(
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        selector=selector,
         suspend=suspend,
         template=pod_template,
     )
@@ -40,6 +45,7 @@ def get_job_template(
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
     labels: Optional[Dict[str, str]] = None,
+    selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ) -> k8s_client.V1JobTemplateSpec:
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
@@ -48,6 +54,7 @@ def get_job_template(
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        selector=selector,
         suspend=suspend,
     )
     return k8s_client.V1JobTemplateSpec(metadata=meta, spec=job_spec)
@@ -59,6 +66,7 @@ def get_job(
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
     labels: Optional[Dict[str, str]] = None,
+    selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ) -> k8s_client.V1Job:
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
@@ -67,6 +75,7 @@ def get_job(
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        selector=selector,
         suspend=suspend,
     )
     return k8s_client.V1Job(metadata=meta, spec=job_spec)
@@ -94,7 +103,16 @@ def job_ctx_manager(
     )
 
     try:
+        time.sleep(600)
         yield
+        # core_api = k8s_client.CoreV1Api()
+        # log_stream = watch.Watch().stream(
+        #     core_api.read_namespaced_pod_log,
+        #     name=f"job/{job.metadata.name}",
+        #     namespace=job.metadata.namespace,
+        # )
+        # for output in log_stream:
+        #     logger.info(output)
     finally:
         # new configuration to refresh expired tokens (long running executions)
         configuration, _ = get_cluster_data(cluster_info)

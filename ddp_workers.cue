@@ -45,6 +45,10 @@ trainer: {
 	accelerator:        "cuda"
 	devices:            1
 	num_nodes:          4
+	strategy:           {
+		"@type":					"pl.DDPStrategy"
+		"find_unused_parameters":	false
+	}
 	max_epochs:         100
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME

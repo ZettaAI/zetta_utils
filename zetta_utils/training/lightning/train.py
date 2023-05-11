@@ -8,16 +8,16 @@ from contextlib import ExitStack
 from typing import Dict, Final, Optional
 
 import pytorch_lightning as pl
-import torch
 import typeguard
 from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log
+from zetta_utils import builder, load_all_modules, log
 from zetta_utils.cloud import resource_allocation
 
 logger = log.get_logger("zetta_utils")
+load_all_modules()
 
 builder.register("pl.Trainer")(pl.Trainer)
 builder.register("pl.callbacks.ModelCheckpoint")(pl.callbacks.ModelCheckpoint)
@@ -37,12 +37,7 @@ REQUIRED_ENV_VARS: Final = [
 
 @builder.register("lightning_train")
 @typeguard.typechecked
-def lightning_train(
-    regime: pl.LightningModule,
-    trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
-):
+def lightning_train():
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
 
@@ -60,6 +55,14 @@ def lightning_train(
         checkpoint for the given experiment will be identified and loaded.
     """
     logger.info("Starting training...")
+
+    regime = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["regime"])
+    trainer = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["trainer"])
+    train_dataloader = builder.build(
+        spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["train_dataloader"]
+    )
+    val_dataloader = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["val_dataloader"])
+
     if "CURRENT_BUILD_SPEC" in os.environ:
         if hasattr(trainer, "log_config"):
             trainer.log_config(json.loads(os.environ["CURRENT_BUILD_SPEC"]))
@@ -81,10 +84,6 @@ def lightning_train(
 def multinode_train_launch(
     num_nodes: int,
     rdzv_endpoint: str,
-    regime: pl.LightningModule,
-    trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
     nproc_per_node: int = 1,
     rdzv_backend: str = "c10d",
 ):
@@ -96,12 +95,7 @@ def multinode_train_launch(
         rdzv_backend=rdzv_backend,
         rdzv_endpoint=rdzv_endpoint,
     )
-    torch_launcher_api.elastic_launch(config, lightning_train)(
-        regime,
-        trainer,
-        train_dataloader,
-        val_dataloader,
-    )
+    torch_launcher_api.elastic_launch(config, lightning_train)()
 
 
 @builder.register("multinode_train")

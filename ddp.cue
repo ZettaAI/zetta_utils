@@ -1,12 +1,11 @@
 "@type":      "multinode_train"
 execution_id: "test"
-image: "us.gcr.io/zetta-research/zetta_utils:ddp_multinode_v16"
+image: "us.gcr.io/zetta-research/zetta_utils:ddp_multinode_v27"
 resources: {}
 env_vars: {
     "LOGLEVEL": "INFO"
     "NCCL_SOCKET_IFNAME": "eth0"
-    "NCCL_DEBUG": "INFO"
-    "WANDB_MODE": "offline"
+    "WANDB_MODE": "disabled"
 }
 
 master_node_ip: "10.0.0.213"

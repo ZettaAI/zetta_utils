@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_single_gpu4_x3"
+#EXP_VERSION: "ddp_single_gpu4_x10"
 
 #TRAINING_ROOT: "gs://tmp_2w/akhilesh/training_artifacts"
 

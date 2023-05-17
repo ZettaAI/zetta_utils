@@ -256,6 +256,39 @@ def squeeze_to(
     return data
 
 
+def interpolate_segmentation(
+    data_torch: torch.Tensor,
+    size: Optional[Sequence[int]] = None,
+    scale_factor_tuple: Optional[Sequence[float]] = None,
+):
+    result_raw = data_torch
+    if scale_factor_tuple is None:
+        raise NotImplementedError(  # pragma: no cover
+            "`size`-based segmentation interpolation is not currently supported."
+        )
+    if any(x != int(x) or x < 1 for x in scale_factor_tuple):
+        raise NotImplementedError(  # pragma: no cover
+            "Segmentation interpolation scale_factors must be positive integers."
+        )
+    # TODO: implement downsampling, maybe seung-lab/tinybrain
+    # TODO: consider unifying functions with scipy.interpolate.interpn
+    spatial_shape = data_torch.shape[2:]
+    # add a new dummy dimension for every existing spatial dimension
+    result_raw = data_torch.reshape(*[dim for size in spatial_shape for dim in (size, 1)])
+    # stride tricks to repeat values along the new dummy dimensions
+    result_raw = result_raw.expand(*[dim for size in spatial_shape for dim in (size, 2)])
+    # expand result is non-contiguous, so reshape will have to copy the data
+    result_raw = result_raw.reshape(
+        *[
+            size * int(scale_factor_tuple)
+            for (size, scale_factor_tuple) in zip(spatial_shape, scale_factor_tuple)
+        ]
+    )
+    while result_raw.ndim != data_torch.ndim:
+        result_raw = result_raw.unsqueeze(0)
+    return result_raw
+
+
 @builder.register("interpolate")
 @typechecked
 def interpolate(  # pylint: disable=too-many-locals
@@ -307,13 +340,22 @@ def interpolate(  # pylint: disable=too-many-locals
         mode=mode,
     )
     data_torch = tensor_ops.convert.to_torch(data)
-    data_in = data_torch.float()
-    result_raw = torch.nn.functional.interpolate(
-        data_in,
-        size=size,
-        scale_factor=scale_factor_tuple,
-        mode=torch_interp_mode,
-    )
+    result_raw: torch.Tensor
+    if mode == "segmentation":
+        result_raw = interpolate_segmentation(
+            data_torch,
+            size=size,
+            scale_factor_tuple=scale_factor_tuple,
+        )
+    else:
+        data_in = data_torch.float()
+        result_raw = torch.nn.functional.interpolate(
+            data_in,
+            size=size,
+            scale_factor=scale_factor_tuple,
+            mode=torch_interp_mode,
+        )
+
     if mode == "field":
         if scale_factor_tuple is None:
             raise NotImplementedError(  # pragma: no cover
@@ -342,14 +384,12 @@ def interpolate(  # pylint: disable=too-many-locals
         result_raw *= multiplier
     elif mode == "mask":
         result_raw = result_raw > mask_value_thr
-    elif mode == "segmentation":
-        result_raw = result_raw.int()
 
     result = result_raw.to(data_torch.dtype)
-    result = tensor_ops.convert.astype(result, data)
-    result = squeeze_to(result, original_ndim)
+    result_final = tensor_ops.convert.astype(result, data)
+    result_final = squeeze_to(result_final, original_ndim)
 
-    return result
+    return result_final
 
 
 CompareMode = Literal[

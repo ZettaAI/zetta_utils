@@ -84,6 +84,7 @@ Layers
 Layers for CloudVolume IO:
 
 .. doctest::
+
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> # Vanilla CloudVolume Analog
    >>> # Differences with Vanilla CV:
@@ -92,9 +93,9 @@ Layers for CloudVolume IO:
    >>> cvl = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
-   >>> data = cvl[(64, 64, 40), 1000:1100, 1000:1100, 2000:2001]
+   >>> data = cvl[(64, 64, 40), 7500:7564, 2250:2314, 2000:2001]
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 100, 100, 1])
+   torch.Size([1, 64, 64, 1])
 
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
@@ -108,9 +109,9 @@ Layers for CloudVolume IO:
    ...    data_resolution=Vec3D(128, 128, 40),
    ...    interpolation_mode="img",
    ... )
-   >>> data = cvl[16000:17600, 16000:17600, 2000:2001] # (4, 4, 40) indexing
+   >>> data = cvl[120000:121024, 36000:37024, 2000:2001] # (4, 4, 40) indexing
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 100, 100, 1])
+   torch.Size([1, 64, 64, 1])
 
 Layer sets for grouping layers together:
 

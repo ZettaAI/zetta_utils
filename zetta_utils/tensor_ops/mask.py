@@ -93,10 +93,10 @@ def filter_cc(
     return result
 
 
-@builder.register("coarsen_mask")  # type: ignore # TODO: pyright
+@builder.register("coarsen")  # type: ignore
 @skip_on_empty_data
 @typechecked
-def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
+def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 3) -> TensorTypeVar:
     """
     Coarsen the given mask.
 
@@ -127,15 +127,30 @@ def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
     return result
 
 
+@builder.register("erode")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def erode(data: TensorTypeVar, width: int = 1, thr: int = 3) -> TensorTypeVar:
+    """
+    Erode the given mask.
+
+    :param data: Input mask tensor (CXYZ).
+    :param width: Amount of pixels by which to erode.
+    :return: Eroded mask tensor.
+    """
+    result = coarsen(data == 0, thr=thr, width=width) == 0
+    return result
+
+
 @builder.register("binary_closing")  # type: ignore
 @skip_on_empty_data
 @typechecked
-def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
+def binary_closing(data: TensorTypeVar, width: int = 1) -> TensorTypeVar:
     """
     Run binary closing on the mask.
 
     :param data: Input mask tensor (CXYZ).
-    :param iterations: Number of closing iterations.
+    :param width: Number of closing iterations.
     :return: Closed mask tensor.
     """
     data_np = convert.to_np(data)
@@ -146,12 +161,12 @@ def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
         assert data.shape[-1] == 1
         data_np = data_np.squeeze(0).squeeze(-1)
 
-    result_raw = scipy.ndimage.binary_closing(data_np, iterations=iterations)
+    result_raw = scipy.ndimage.binary_closing(data_np, iterations=width)
     # Prevent boundary erosion
-    result_raw[..., :iterations, :] |= data_np[..., :iterations, :].astype(np.bool_)
-    result_raw[..., -iterations:, :] |= data_np[..., -iterations:, :].astype(np.bool_)
-    result_raw[..., :, :iterations] |= data_np[..., :, :iterations].astype(np.bool_)
-    result_raw[..., :, -iterations:] |= data_np[..., :, -iterations:].astype(np.bool_)
+    result_raw[..., :width, :] |= data_np[..., :width, :].astype(np.bool_)
+    result_raw[..., -width:, :] |= data_np[..., -width:, :].astype(np.bool_)
+    result_raw[..., :, :width] |= data_np[..., :, :width].astype(np.bool_)
+    result_raw[..., :, -width:] |= data_np[..., :, -width:].astype(np.bool_)
     result_raw = result_raw.astype(data_np.dtype)
 
     if len(data.shape) == 4:

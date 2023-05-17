@@ -40,7 +40,10 @@ def _ensure_required_env_vars():
             missing_vars.add(e)
 
     if len(missing_vars) != 0:
-        raise RuntimeError(f"Missing the following required environment variables: {missing_vars}")
+        raise RuntimeError(
+            f"Missing the following required environment variables: {missing_vars}. "
+            f"It is recommended to put these variables into your `~/.bashrc`/`~/.zshrc`"
+        )
 
 
 def get_gcp_with_sqs_config(
@@ -128,10 +131,11 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     checkpoint_interval_sec: float = 900.0,
     raise_on_failed_checkpoint: bool = True,
 ):
-
+    _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
+
     execution_tracker.record_execution_run(execution_id)
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
@@ -139,7 +143,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         execution_tracker.register_execution(execution_id, [])
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
-        _ensure_required_env_vars()
         if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
             worker_cluster = DEFAULT_GCP_CLUSTER

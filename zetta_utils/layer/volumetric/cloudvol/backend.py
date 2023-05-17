@@ -183,6 +183,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         # Enable autocrop for writes only
         cvol.autocrop = True
 
+        if (cvol.dtype == "uint64") and (data_final.dtype == np.int64):
+            data_final = data_final.astype(np.uint64)
         cvol[slices] = data_final
         cvol.autocrop = False
 

@@ -24,3 +24,11 @@ def efficient_parse_lambda_str(lambda_str: str) -> Callable:
 @register("invoke_lambda_str", False)
 def invoke_lambda_str(*args: list, lambda_str: str, **kwargs: dict) -> Any:
     return eval(lambda_str)(*args, **kwargs)  # pylint: disable=eval-used
+
+
+@register("chain")
+def chain(data: Any, callables: list[Callable], chain_arg_name: str):
+    result = data
+    for e in callables:
+        result = e(**{chain_arg_name: result})
+    return result

@@ -41,7 +41,7 @@ If you are planning to interact with Google Cloud Storage (gcs) in any way, make
 
 
 If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
-It is a simple two-step process which is described in detail int their `Documentation <https://cuelang.org/docs/install/>`_.
+It is a simple two-step process which is described in detail in their `Documentation <https://cuelang.org/docs/install/>`_.
 
 
 If you are planning to use `zetta_utils.viz` toolkit, you will need to install nodejs:

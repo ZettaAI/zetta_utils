@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring
-from typing import Literal, Optional, Sequence, SupportsIndex, Union
+from typing import Callable, Literal, Optional, Sequence, SupportsIndex, Union
 
 import einops
 import numpy as np
@@ -447,4 +447,26 @@ def crop(
         else:
             slices.append(slice(0, None))
     result = data[tuple(slices)]
+    return result
+
+
+@builder.register("split_reduce")
+@typechecked
+def split_reduce(
+    data: TensorTypeVar,
+    paths: list[Callable[[TensorTypeVar], TensorTypeVar]],
+    reduce_mode: Literal["maximum"] = "maximum",
+) -> TensorTypeVar:
+    """
+    :param data: the input tensor.
+    :param dim:  if given, the input will be squeezed only in these dimensions.
+    :return: tensor with squeezed dimensions.
+    """
+    path_outcomes = [e(data) for e in paths]
+    assert reduce_mode == "maximum"
+    result_torch = tensor_ops.convert.to_torch(path_outcomes[0])
+    for e in path_outcomes[1:]:
+        result_torch = torch.maximum(result_torch, tensor_ops.convert.to_torch(e))
+    result = tensor_ops.convert.astype(result_torch, data)
+
     return result

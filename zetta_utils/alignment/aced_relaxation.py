@@ -275,6 +275,7 @@ def get_aced_match_offsets(
             match_offsets_zcxy=fwd_outcome.match_offsets_zcxy,
             pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
             max_dist=max_dist,
+            tissue_mask_zcxy=tissue_mask_zcxy,
         )
     result = {
         "match_offsets": fwd_outcome.match_offsets_zcxy,
@@ -391,6 +392,7 @@ def _get_masks(
     sector_length_after_zcxy: torch.Tensor,
     pairwise_fields_inv_zcxy: dict[str, torch.Tensor],
     match_offsets_zcxy: torch.Tensor,
+    tissue_mask_zcxy: torch.Tensor,
     max_dist: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     num_sections = sector_length_before_zcxy.shape[0]
@@ -437,6 +439,8 @@ def _get_masks(
     img_mask_zcxy[0] = False
     aff_mask_zcxy[0] = False
     aff_mask_zcxy[-1][img_mask_zcxy[-1] != 0] = 1
+    img_mask_zcxy[-1] = 0
+    img_mask_zcxy[tissue_mask_zcxy == 0] = 1
     return img_mask_zcxy, aff_mask_zcxy
 
 

@@ -3,7 +3,7 @@ import einops
 import torch
 from typeguard import typechecked
 
-from zetta_utils import builder, convnet, tensor_ops
+from zetta_utils import builder, convnet
 
 
 @builder.register("naive_misd")
@@ -44,18 +44,6 @@ class MisalignmentDetector:
             result = model(data_in.to(device))
 
         result = einops.rearrange(result, "Z C X Y -> C X Y Z")
-        src_mask = tensor_ops.mask.filter_cc(
-            (src == 127) + (src == 0),
-            mode="keep_large",
-            thr=1000,
-        )
-        tgt_mask = tensor_ops.mask.filter_cc(
-            (tgt == 127) + (tgt == 0),
-            mode="keep_large",
-            thr=1000,
-        )
-        result[src_mask] = 1
-        result[tgt_mask] = 1
 
         assert result.shape[0] == 1
 

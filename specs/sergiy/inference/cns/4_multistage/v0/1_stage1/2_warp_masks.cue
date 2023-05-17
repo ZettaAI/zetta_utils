@@ -10,14 +10,13 @@
 #FOLDER: "\(#BASE_FOLDER)/med_x1/\(#PAIRWISE_SUFFIX)"
 
 #STAGE0_DEFECTS_PATH:       "\(#BASE_FOLDER)/coarse_x1/defect_mask"
-#STAGE0_MISALIGNMENTS_PATH: "\(#FOLDER)/misalignments"
-#STAGE0_TISSUE_MASK_PATH:   "\(#BASE_FOLDER)/tissue_mask"
+#STAGE0_MISALIGNMENTS_PATH: "\(#FOLDER)/misalignments_net_raw_v1"
+#STAGE0_TISSUE_MASK_PATH:   "\(#BASE_FOLDER)/tissue_mask_v2"
 
 #STAGE1_DEFECTS_PATH:       "\(#FOLDER)/defect_mask_stage1\(#STAGE0_RELAXATION_SUFFIX)"
-#STAGE1_MISALIGNMENTS_PATH: "\(#FOLDER)/misalignments_stage1\(#STAGE0_RELAXATION_SUFFIX)"
+#STAGE1_MISALIGNMENTS_PATH: "\(#FOLDER)/misalignments_net_raw_v1_stage1\(#STAGE0_RELAXATION_SUFFIX)"
 
 #STAGE1_TISSUE_MASK_PATH: "\(#FOLDER)/tissue_mask_stage1\(#STAGE0_RELAXATION_SUFFIX)"
-
 //#FIELDS_PATH:     "\(#FOLDER)/fields_fwd"
 //#FIELDS_INV_PATH: "\(#FOLDER)/fields_inv"
 
@@ -33,7 +32,7 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 3143]
+	start_coord: [0, 0, 1000]
 	end_coord: [36864, 36864, 7050]
 	resolution: [32, 32, 45]
 }
@@ -69,7 +68,7 @@
 		"@type":             "build_cv_layer"
 		path:                _
 		index_procs:         _ | *[]
-		info_reference_path: _ | *src.path
+		info_reference_path: _ | *null
 		write_procs:         _ | *[]
 	}
 }
@@ -81,8 +80,9 @@
 
 	dst_resolution: [64, 64, 45]
 	op: mode: "img"
-
-	src: path: "\(#STAGE0_MISALIGNMENTS_PATH)/\(_z_offset)"
+	src: data_resolution: [32, 32, 45]
+	src: interpolation_mode: "img"
+	src: path:               "\(#STAGE0_MISALIGNMENTS_PATH)/\(_z_offset)"
 
 	field: path:            #AFIELD_PATH
 	field: data_resolution: #AFIELD_RESOLUTION
@@ -105,8 +105,8 @@
 	field: path:            #AFIELD_PATH
 	field: data_resolution: #AFIELD_RESOLUTION
 
-	dst: path:                #STAGE1_TISSUE_MASK_PATH
-	dst: info_reference_path: src.path
+	dst: path: #STAGE1_TISSUE_MASK_PATH
+	//dst: info_reference_path: src.path
 	dst: write_procs: [
 		{
 			"@type": "compare"
@@ -151,7 +151,7 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x189"
 worker_resources: {
 	memory: "18560Mi"
 	//"nvidia.com/gpu": "1"
@@ -159,7 +159,7 @@ worker_resources: {
 worker_cluster_name:    "zutils-cns"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-lee-fly-vnc-001"
-worker_replicas:        1000
+worker_replicas:        1400
 batch_gap_sleep_sec:    1
 local_test:             false
 #Z_OFFSETS: [-1, -2]
@@ -167,7 +167,7 @@ local_test:             false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		#WARP_DEFECT_MASK_FLOW,
+		//#WARP_DEFECT_MASK_FLOW,
 		#WARP_TISSUE_MASK_FLOW,
 
 		for offset in #Z_OFFSETS {

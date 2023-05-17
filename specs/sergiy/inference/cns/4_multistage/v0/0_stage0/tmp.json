@@ -1,0 +1,176 @@
+[
+    {
+        "@type": "make_ng_link",
+        "title": "try_x0",
+        "position": [
+            50000,
+            60000,
+            1000
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/raw_img"
+            ],
+            [
+                "-1 try_x0",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/imgs_warped/-1"
+            ],
+            [
+                "aligned _1024nm_try_x7_iter8000_rig0.5_lr0.005",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_1024nm_try_x7_iter8000_rig0.5_lr0.005"
+            ],
+            [
+                "aligned _1024nm_try_x7_iter8000_rig0.5_lr0.005 -2",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_1024nm_try_x7_iter8000_rig0.5_lr0.005"
+            ]
+        ]
+    },
+    {
+        "@type": "mazepa.execute_on_gcp_with_sqs",
+        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x187",
+        "do_dryrun_estimation": true,
+        "worker_resources": {
+            "memory": "18560Mi"
+        },
+        "checkpoint": "gs://zetta_utils_runs/sergiy/exec-watchful-aquamarine-leopard-of-resistance/2023-05-12_164446_45602.zstd",
+        "worker_replicas": 500,
+        "batch_gap_sleep_sec": 1,
+        "local_test": false,
+        "worker_cluster_name": "zutils-cns",
+        "worker_cluster_region": "us-east1",
+        "worker_cluster_project": "zetta-lee-fly-vnc-001",
+        "target": {
+            "@type": "mazepa.concurrent_flow",
+            "stages": [
+                {
+                    "@type": "mazepa.seq_flow",
+                    "stages": [
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "expand_bbox": true,
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    100
+                                ],
+                                "end_coord": [
+                                    36864,
+                                    36864,
+                                    101
+                                ],
+                                "resolution": [
+                                    32,
+                                    32,
+                                    45
+                                ]
+                            },
+                            "fn": {
+                                "@type": "apply_mask_fn",
+                                "@mode": "partial"
+                            },
+                            "processing_chunk_sizes": [
+                                [
+                                    8192,
+                                    8192,
+                                    1
+                                ]
+                            ],
+                            "dst_resolution": [
+                                32,
+                                32,
+                                45
+                            ],
+                            "src": {
+                                "@type": "build_ts_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/raw_img",
+                                "data_resolution": [
+                                    32,
+                                    32,
+                                    45
+                                ],
+                                "interpolation_mode": "img",
+                                "read_procs": [
+                                    {
+                                        "@type": "compare",
+                                        "@mode": "partial",
+                                        "mode": "!=",
+                                        "value": 0
+                                    },
+                                    {
+                                        "@type": "to_uint8",
+                                        "@mode": "partial"
+                                    }
+                                ]
+                            },
+                            "masks": [
+                                {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/defect_mask"
+                                },
+                                {
+                                    "@type": "build_ts_layer",
+                                    "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/resin_mask",
+                                    "data_resolution": [
+                                        256,
+                                        256,
+                                        45
+                                    ],
+                                    "interpolation_mode": "mask"
+                                }
+                            ],
+                            "dst": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/tissue_mask_v2",
+                                "info_reference_path": "gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/raw_img",
+                                "info_field_overrides": {
+                                    "data_type": "uint8"
+                                },
+                                "on_info_exists": "overwrite"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "@type": "make_ng_link",
+        "title": "try_x0",
+        "position": [
+            50000,
+            60000,
+            1000
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/coarse_x1/raw_img"
+            ],
+            [
+                "-1 try_x0",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/imgs_warped/-1"
+            ],
+            [
+                "aligned _1024nm_try_x7_iter8000_rig0.5_lr0.005",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_1024nm_try_x7_iter8000_rig0.5_lr0.005"
+            ],
+            [
+                "aligned _1024nm_try_x7_iter8000_rig0.5_lr0.005 -2",
+                "image",
+                "precomputed://gs://zetta_lee_fly_cns_001_alignment_temp/aced/med_x1/try_x0/img_aligned_1024nm_try_x7_iter8000_rig0.5_lr0.005"
+            ]
+        ]
+    }
+]

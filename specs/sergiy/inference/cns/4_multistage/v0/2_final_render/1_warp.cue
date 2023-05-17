@@ -4,8 +4,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 2300]
-	end_coord: [36864, 36864, 7015]
+	start_coord: [0, 0, 0]
+	end_coord: [36864, 36864, 7050]
 	resolution: [32, 32, 45]
 }
 
@@ -59,20 +59,20 @@ local_test:             false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		// #FLOW_TMPL & {
-		//  src: path: "gs://zetta_lee_fly_cns_001_alignment_temp/resin/ResinNet20221115_29k"
-		//  src: read_procs: [
-		//   {"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
-		//  ]
-		//  dst: path:                "\(#FOLDER)/resin_mask_final"
-		//  dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
-		//  dst: write_procs: [
-		//   {"@type": "to_uint8", "@mode": "partial"},
+		#FLOW_TMPL & {
+			src: path: "gs://zetta_lee_fly_cns_001_alignment_temp/resin/ResinNet20221115_29k"
+			src: read_procs: [
+				{"@type": "compare", "@mode": "partial", mode: ">=", value: 48},
+			]
+			dst: path:                "\(#FOLDER)/resin_mask_final"
+			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/resin_mask"
+			dst: write_procs: [
+				{"@type": "to_uint8", "@mode": "partial"},
 
-		//  ]
-		//  dst_resolution: [256, 256, 45]
-		//  op: mode: "mask"
-		// },
+			]
+			dst_resolution: [256, 256, 45]
+			op: mode: "mask"
+		}
 		// #FLOW_TMPL & {
 		//  src: path: "gs://zetta_lee_fly_cns_001_alignment_temp/defects/DefectNet20221114_50k"
 		//  src: read_procs: [
@@ -86,13 +86,13 @@ target: {
 		//  ]
 		//  op: mode: "mask"
 		// },
-		#FLOW_TMPL & {
-			src: path:                "gs://zetta_lee_fly_cns_001_alignment_temp/rigid"
-			dst: path:                "\(#FOLDER)/img_aligned_final\(#SUFFIX)"
-			dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img"
-			dst_resolution: [16, 16, 45]
-			op: mode: "img"
-		},
+		// #FLOW_TMPL & {
+		//  src: path:                "gs://zetta_lee_fly_cns_001_alignment_temp/rigid"
+		//  dst: path:                "\(#FOLDER)/img_aligned_final\(#SUFFIX)"
+		//  dst: info_reference_path: "gs://sergiy_exp/aced/demo_x0/rigid_to_elastic/raw_img"
+		//  dst_resolution: [16, 16, 45]
+		//  op: mode: "img"
+		// },,,,
 
 	]
 }

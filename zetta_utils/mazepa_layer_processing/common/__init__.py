@@ -4,7 +4,6 @@ from .write_fn import write_fn
 from .chunked_apply_flow import ChunkedApplyFlowSchema, build_chunked_apply_flow
 from .volumetric_apply_flow import (
     VolumetricApplyFlowSchema,
-    build_volumetric_apply_flow,
 )
 from .subchunkable_apply_flow import (
     build_subchunkable_apply_flow,

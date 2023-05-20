@@ -13,7 +13,6 @@ from .common import (
     VolumetricApplyFlowSchema,
     build_chunked_callable_flow_schema,
     build_chunked_apply_flow,
-    build_volumetric_apply_flow,
 )
 
 builder.register("mazepa.Executor")(mazepa.Executor)

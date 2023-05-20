@@ -1,10 +1,10 @@
-#SRC_PATH: "tests/integration/assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_float32"
-#DST_PATH: "tests/integration/assets/outputs/test_float32_copy"
+#SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_float32"
+#DST_PATH: "assets/outputs/test_float32_copy"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
 	start_coord: [64 * 1024, 64 * 1024, 2000]
-	end_coord: [96 * 1024, 96 * 1024, 2050]
+	end_coord: [96 * 1024, 96 * 1024, 2005]
 	resolution: [4, 4, 40]
 }
 

@@ -1,6 +1,7 @@
-# pylint: disable=line-too-long, unused-import, too-many-return-statements
+# pylint: disable=line-too-long, unused-import, too-many-return-statements, unused-argument, redefined-outer-name
 import filecmp
 import os
+import shutil
 
 import pytest
 
@@ -9,6 +10,15 @@ from zetta_utils import builder, parsing
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
+
+zetta_utils.load_all_modules()
+
+
+@pytest.fixture
+def clear_temp_dir():
+    temp_dir = "./assets/temp/"
+    if os.path.isdir(temp_dir):
+        shutil.rmtree(temp_dir)
 
 
 # from https://stackoverflow.com/questions/4187564/recursively-compare-two-directories-to-ensure-they-have-the-same-files-and-subdi
@@ -57,24 +67,61 @@ def are_dir_trees_equal(dir1, dir2):
 @pytest.mark.parametrize(
     "cue_name",
     [
-        "test_uint8_copy",
-        "test_uint8_copy_multilevel",
+        "test_uint8_copy_bbox",
+        "test_uint8_copy_coords",
+        "test_uint8_copy_expand_bbox",
+        "test_uint8_copy_shrink_processing_chunk",
+        "test_uint8_copy_op",
+        "test_uint8_copy_multilevel_no_checkerboard",
+        "test_uint8_copy_multilevel_checkerboard",
         "test_uint8_copy_blend",
         "test_uint8_copy_crop",
+        "test_uint8_copy_top_level_checkerboard",
         "test_uint8_copy_writeproc",
-        "test_uint8_copy_writeproc_multilevel",
+        "test_uint8_copy_writeproc_multilevel_no_checkerboard",
+        "test_uint8_copy_writeproc_multilevel_checkerboard",
         "test_float32_copy",
-        "test_float32_copy_multilevel",
+        "test_float32_copy_multilevel_no_checkerboard",
+        "test_float32_copy_multilevel_checkerboard",
         "test_float32_copy_blend",
         "test_float32_copy_crop",
-        "test_float32_copy_writeproc",
-        "test_float32_copy_writeproc_multilevel",
+        "test_float32_copy_writeproc_multilevel_no_checkerboard",
+        "test_float32_copy_writeproc_multilevel_checkerboard",
     ],
 )
-def test_subchunkable(cue_name):
-    cue_path = f"./tests/integration/subchunkable/specs/{cue_name}.cue"
-    ref_path = f"./tests/integration/assets/outputs_ref/{cue_name}"
-    out_path = f"./tests/integration/assets/outputs/{cue_name}"
+def test_subchunkable(cue_name, clear_temp_dir):
+    cue_path = f"./subchunkable/specs/{cue_name}.cue"
+    ref_path = f"./assets/outputs_ref/{cue_name}"
+    out_path = f"./assets/outputs/{cue_name}"
     spec = zetta_utils.parsing.cue.load(cue_path)
     zetta_utils.builder.build(spec)
     assert are_dir_trees_equal(ref_path, out_path)
+    del spec
+
+
+@pytest.mark.skipif(
+    "not config.getoption('--run-integration')",
+    reason="Only run when `--run-integration` is given",
+)
+@pytest.mark.parametrize(
+    "cue_name",
+    [
+        "test_uint8_exc_no_bbox_or_coords",
+        "test_uint8_exc_both_bbox_and_coords",
+        "test_uint8_exc_no_fn_or_op",
+        "test_uint8_exc_both_fn_and_op",
+        "test_uint8_exc_seq_of_seq_not_equal",
+        "test_uint8_exc_generate_ng_link_but_not_print_summary",
+        "test_uint8_exc_level_intermediaries_dirs_not_equal",
+        "test_uint8_exc_shrink_processing_and_expand_bbox",
+        "test_uint8_exc_blend_too_large",
+        "test_uint8_exc_nondivisible_but_recommendable",
+        "test_uint8_exc_nondivisible_and_not_recommendable",
+    ],
+)
+def test_subchunkable_val_exc(cue_name, clear_temp_dir):
+    cue_path = f"./subchunkable/specs/exc/{cue_name}.cue"
+    spec = zetta_utils.parsing.cue.load(cue_path)
+    with pytest.raises(ValueError):
+        zetta_utils.builder.build(spec)
+    del spec

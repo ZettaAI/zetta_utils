@@ -52,7 +52,7 @@ jobs:
         run: go install cuelang.org/go/cmd/cue@latest
       - name: Run pytest
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: coverage run -m pytest --run-integration .
+        run: cd tests/integration && coverage run -m pytest --run-integration .
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         if: ${{ steps.filter.outputs.py_modified == 'true' }}

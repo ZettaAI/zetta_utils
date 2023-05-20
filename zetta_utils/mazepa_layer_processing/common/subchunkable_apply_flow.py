@@ -53,7 +53,9 @@ class DelegatedSubchunkedOperation(Generic[P]):
     operation_name: str
     level: int
 
-    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+    def get_input_resolution(  # pylint: disable=no-self-use
+        self, dst_resolution: Vec3D
+    ) -> Vec3D:  # pragma: no cover
         return dst_resolution
 
     def get_operation_name(self) -> str:
@@ -94,6 +96,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     allow_cache_up_to_level: int = 0,
     print_summary: bool = True,
+    generate_ng_link: bool = False,
     op_args: Iterable = (),
     op_kwargs: Mapping[str, Any] = MappingProxyType({}),
 ) -> mazepa.Flow:
@@ -129,6 +132,9 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     else:
         assert fn is not None
         op_ = VolumetricCallableOperation[P](fn)
+
+    if generate_ng_link and not print_summary:
+        raise ValueError("Cannot use `generate_ng_link` when `print_summary=False`.")
 
     num_levels = len(processing_chunk_sizes)
 
@@ -196,6 +202,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         shrink_processing_chunk=shrink_processing_chunk,
         expand_bbox=expand_bbox,
         print_summary=print_summary,
+        generate_ng_link=generate_ng_link,
         op_args=op_args,
         op_kwargs=op_kwargs,
     )
@@ -257,7 +264,9 @@ def _expand_bbox(  # pylint: disable=line-too-long
     return bbox
 
 
-def _make_ng_link(dst: VolumetricBasedLayerProtocol, bbox: BBox3D) -> Optional[str]:
+def _make_ng_link(
+    dst: VolumetricBasedLayerProtocol, bbox: BBox3D
+) -> Optional[str]:  # pragma: no cover
     link_layers = []
     layer_strs = dst.pformat().split("\n")
     for layer_str in layer_strs:
@@ -293,9 +302,10 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     num_chunks: Sequence[int],
     use_checkerboard: Sequence[bool],
     op_name: str,
+    generate_ng_link: bool,
     op_args: Iterable,
     op_kwargs: Mapping[str, Any],
-) -> None:
+) -> None:  # pragma: no cover
 
     summary = ""
     summary += (
@@ -327,11 +337,12 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     layer_strs = dst.pformat().split("\n")
     for layer_str in layer_strs:
         summary += lrpad(layer_str, 2, length=120) + "\n"
-    ng_link = _make_ng_link(dst, bbox)
-    if ng_link is not None:
-        summary += lrpad(length=120) + "\n"
-        summary += lrpad("Neuroglancer link:", length=120) + "\n"
-        summary += lrpad(f"{ng_link}", 2, length=120) + "\n"
+    if generate_ng_link:
+        ng_link = _make_ng_link(dst, bbox)
+        if ng_link is not None:
+            summary += lrpad(length=120) + "\n"
+            summary += lrpad("Neuroglancer link:", length=120) + "\n"
+            summary += lrpad(f"{ng_link}", 2, length=120) + "\n"
     summary += lrpad(length=120) + "\n"
     summary += lrpad(" Operation Information ", bounds="|", filler="=", length=120) + "\n"
     summary += lrpad("", length=120) + "\n"
@@ -418,6 +429,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     shrink_processing_chunk: bool,
     expand_bbox: bool,
     print_summary: bool,
+    generate_ng_link: bool,
     op: VolumetricOpProtocol[P, None, Any],
     op_args: P.args,
     op_kwargs: P.kwargs,
@@ -437,7 +449,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
     if hasattr(level0_op, "get_operation_name"):
         op_name = level0_op.get_operation_name()
-    else:
+    else:  # pragma: no cover # TODO: make @property def name part of the protocol
         op_name = type(level0_op).__name__
 
     """
@@ -554,6 +566,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             num_levels=num_levels,
             num_chunks=num_chunks,
             use_checkerboard=use_checkerboard,
+            generate_ng_link=generate_ng_link,
             op_name=op_name,
             op_args=op_args,
             op_kwargs=op_kwargs,

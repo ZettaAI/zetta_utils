@@ -1,10 +1,10 @@
-#SRC_PATH: "tests/integration/assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050"
-#DST_PATH: "tests/integration/assets/outputs/test_uint8_copy_crop"
+#SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
+#DST_PATH: "assets/outputs/test_uint8_copy_crop"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
 	start_coord: [64 * 1024, 64 * 1024, 2000]
-	end_coord: [96 * 1024, 96 * 1024, 2050]
+	end_coord: [96 * 1024, 96 * 1024, 2005]
 	resolution: [4, 4, 40]
 }
 
@@ -18,7 +18,7 @@
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	max_reduction_chunk_sizes: [[1024, 1024, 1], [1024, 1024, 1]]
-	level_intermediaries_dirs: ["tests/integration/assets/temp/", "tests/integration/assets/temp/"]
+	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
 	expand_bbox: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX

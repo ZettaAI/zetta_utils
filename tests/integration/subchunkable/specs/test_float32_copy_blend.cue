@@ -1,10 +1,10 @@
-#SRC_PATH: "tests/integration/assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_float32"
-#DST_PATH: "tests/integration/assets/outputs/test_float32_copy_blend"
+#SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_float32"
+#DST_PATH: "assets/outputs/test_float32_copy_blend"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
 	start_coord: [64 * 1024, 64 * 1024, 2000]
-	end_coord: [96 * 1024, 96 * 1024, 2050]
+	end_coord: [96 * 1024, 96 * 1024, 2005]
 	resolution: [4, 4, 40]
 }
 
@@ -14,11 +14,11 @@
 		"@type":    "lambda"
 		lambda_str: "lambda src: src"
 	}
-	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
-	processing_blend_pads: [[0, 0, 0], [64, 64, 0]]
-	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
-	max_reduction_chunk_sizes: [[1024, 1024, 1], [1024, 1024, 1]]
-	level_intermediaries_dirs: ["tests/integration/assets/temp/", "tests/integration/assets/temp/"]
+	processing_chunk_sizes: [[1024, 1024, 1]]
+	processing_blend_pads: [[64, 64, 0]]
+	processing_crop_pads: [[0, 0, 0]]
+	max_reduction_chunk_sizes: [[1024, 1024, 1]]
+	level_intermediaries_dirs: ["assets/temp/"]
 	expand_bbox: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX

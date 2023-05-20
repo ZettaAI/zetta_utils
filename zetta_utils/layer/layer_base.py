@@ -11,6 +11,7 @@ from . import Backend, DataProcessor, IndexProcessor, JointIndexDataProcessor
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
 BackendT = TypeVar("BackendT", bound=Backend)
+LayerT = TypeVar("LayerT", bound="Layer")
 
 
 @attrs.frozen
@@ -81,7 +82,7 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
         return self.backend.name
 
     def with_procs(
-        self,
+        self: LayerT,
         index_procs: Iterable[IndexProcessor[BackendIndexT]] | None = None,
         read_procs: Iterable[
             Union[
@@ -95,7 +96,7 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
             ]
         ]
         | None = None,
-    ):
+    ) -> LayerT:
         proc_mods = {}  # type: dict[str, Any]
         if index_procs is not None:
             proc_mods["index_procs"] = tuple(index_procs)

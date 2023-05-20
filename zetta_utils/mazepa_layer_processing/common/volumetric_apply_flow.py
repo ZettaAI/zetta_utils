@@ -1,18 +1,7 @@
 import itertools
 from copy import deepcopy
 from os import path
-from types import MappingProxyType
-from typing import (
-    Any,
-    Generic,
-    Iterable,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    Tuple,
-    TypeVar,
-)
+from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
 
 import attrs
 import cachetools
@@ -22,7 +11,7 @@ from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
 from zetta_utils import log, mazepa
-from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
     VolumetricIndex,
@@ -356,7 +345,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             enforce_chunk_aligned_writes=False,
             allow_cache=allow_cache,
         )
-        return attrs.evolve(deepcopy(dst), backend=backend_temp)
+        return attrs.evolve(dst.with_procs(read_procs=()), backend=backend_temp)
 
     def make_tasks_without_checkerboarding(
         self,
@@ -402,10 +391,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert self.intermediaries_dir is not None
         assert self.processing_blend_pad is not None
         """
-        Makes tasks that can be reduced to the final output, tasks that write weights for the
-        reduction, and for each reduction chunk, the list of task indices, the list of temporary
-        output layers, and the list of temporary layers with weights for all tasks that intersect
-        the reduction chunk that need to be reduced for the output.
+        Makes tasks that can be reduced to the final output, and for each reduction chunk,
+        the list of VolumetricIndices and the VolumetricBasedLayerProtocols that can be
+        reduced to the final output, as well as the temporary destination layers.
         """
         red_chunks = list(red_chunks)
         tasks: List[mazepa.tasks.Task[R_co]] = []
@@ -524,10 +512,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
             )
             tasks_reduce = [
-                Copy().make_task(src=dst_temp, dst=dst, idx=red_chunk) for red_chunk in red_chunks
+                Copy().make_task(
+                    src=dst_temp, dst=dst.with_procs(read_procs=(), write_procs=()), idx=red_chunk
+                )
+                for red_chunk in red_chunks
             ]
             logger.info(
-                "Copying temporary destination CloudVolume into the final destination:"
+                "Copying temporary destination backend into the final destination:"
                 f" Submitting {len(tasks_reduce)} tasks."
             )
             yield tasks_reduce
@@ -593,7 +584,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     src_layers=red_chunk_temps,
                     red_idx=red_chunk,
                     roi_idx=idx.padded(self.roi_crop_pad + self.processing_blend_pad),
-                    dst=dst,
+                    dst=dst.with_procs(read_procs=(), write_procs=()),
                     processing_blend_pad=self.processing_blend_pad,
                     processing_blend_mode=self.processing_blend_mode,
                 )
@@ -604,7 +595,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 ) in zip(red_chunks_task_idxs, red_chunks_temps, red_chunks)
             ]
             logger.info(
-                "Collating temporary destination CloudVolumes into the final destination:"
+                "Collating temporary destination backends into the final destination:"
                 f" Submitting {len(tasks_reduce)} tasks."
             )
             yield tasks_reduce
@@ -612,43 +603,3 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
             clear_cache(*op_args, **op_kwargs)
-
-
-def build_volumetric_apply_flow(  # pylint: disable=keyword-arg-before-vararg
-    op: VolumetricOpProtocol[P, R_co, Any],
-    start_coord: Vec3D[int],
-    end_coord: Vec3D[int],
-    coord_resolution: Vec3D,
-    dst_resolution: Vec3D,
-    dst: VolumetricBasedLayerProtocol,
-    processing_chunk_size: Vec3D[int],
-    processing_crop_pad: Vec3D[int],
-    max_reduction_chunk_size: Optional[Vec3D[int]] = None,
-    roi_crop_pad: Optional[Vec3D[int]] = None,
-    processing_blend_pad: Optional[Vec3D[int]] = None,
-    processing_blend_mode: Literal["linear", "quadratic"] = "quadratic",
-    intermediaries_dir: Optional[str] = None,
-    allow_cache: bool = False,
-    clear_cache_on_return: bool = False,
-    op_args: Iterable = (),
-    op_kwargs: Mapping[str, Any] = MappingProxyType({}),
-) -> mazepa.Flow:
-    bbox: BBox3D = BBox3D.from_coords(
-        start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
-    )
-    idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
-    flow_schema: VolumetricApplyFlowSchema[P, R_co] = VolumetricApplyFlowSchema(
-        op=op.with_added_crop_pad(processing_crop_pad),
-        processing_chunk_size=processing_chunk_size,
-        max_reduction_chunk_size=max_reduction_chunk_size,
-        dst_resolution=dst_resolution,
-        roi_crop_pad=roi_crop_pad,
-        processing_blend_pad=processing_blend_pad,
-        processing_blend_mode=processing_blend_mode,
-        intermediaries_dir=intermediaries_dir,
-        allow_cache=allow_cache,
-        clear_cache_on_return=clear_cache_on_return,
-    )
-    flow = flow_schema(idx, dst, op_args, op_kwargs)
-
-    return flow

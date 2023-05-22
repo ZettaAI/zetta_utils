@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 from typeguard import typechecked
 
-from zetta_utils import builder
+from zetta_utils import builder, tensor_ops
 
 NN_MANUAL = [
     "Sequential",
@@ -177,3 +177,29 @@ class UpConv(torch.nn.Module):  # pragma: no cover
     def forward(self, x):
         x = self.upsampler(x)
         return self.conv(x)
+
+
+@builder.register("Crop")
+class Crop(torch.nn.Module):  # pragma: no cover
+    def __init__(
+        self,
+        crop: Sequence[int],
+    ):
+        super().__init__()
+        self.crop = partial(tensor_ops.crop, crop=crop)
+
+    def forward(self, x):
+        return self.crop(x)
+
+
+@builder.register("CenterCrop")
+class CenterCrop(torch.nn.Module):  # pragma: no cover
+    def __init__(
+        self,
+        size: Sequence[int],
+    ):
+        super().__init__()
+        self.crop = partial(tensor_ops.crop_center, size=size)
+
+    def forward(self, x):
+        return self.crop(x)

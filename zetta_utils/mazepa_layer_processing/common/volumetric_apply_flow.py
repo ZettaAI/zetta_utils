@@ -462,8 +462,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
                     inds = [
                         red_ind
-                        + offset[0] * red_shape[1] * red_shape[2]
-                        + offset[1] * red_shape[2]
+                        + offset[0] * red_shape[0] * red_shape[1]
+                        + offset[1] * red_shape[0]
                         + offset[2]
                         for offset in offsets
                     ]

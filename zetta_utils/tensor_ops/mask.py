@@ -154,23 +154,23 @@ def binary_closing(data: TensorTypeVar, width: int = 1) -> TensorTypeVar:
     :return: Closed mask tensor.
     """
     data_np = convert.to_np(data)
+    result_np = np.ones_like(data_np)
 
-    if len(data.shape) == 4:
-        # CXYZ
-        assert data.shape[0] == 1
-        assert data.shape[-1] == 1
-        data_np = data_np.squeeze(0).squeeze(-1)
+    # CXYZ
+    assert len(data.shape) == 4
+    assert data.shape[0] == 1
 
-    result_raw = scipy.ndimage.binary_closing(data_np, iterations=width)
-    # Prevent boundary erosion
-    result_raw[..., :width, :] |= data_np[..., :width, :].astype(np.bool_)
-    result_raw[..., -width:, :] |= data_np[..., -width:, :].astype(np.bool_)
-    result_raw[..., :, :width] |= data_np[..., :, :width].astype(np.bool_)
-    result_raw[..., :, -width:] |= data_np[..., :, -width:].astype(np.bool_)
-    result_raw = result_raw.astype(data_np.dtype)
+    for i in range(data_np.shape[-1]):
+        slice_data = data_np[0, :, :, i]
+        slice_result = scipy.ndimage.binary_closing(slice_data, iterations=width)
+        # Prevent boundary erosion
+        slice_result[:width, :] |= slice_data[:width, :].astype(np.bool_)
+        slice_result[-width:, :] |= slice_data[-width:, :].astype(np.bool_)
+        slice_result[:, :width] |= slice_data[:, :width].astype(np.bool_)
+        slice_result[:, -width:] |= slice_data[:, -width:].astype(np.bool_)
+        slice_result = slice_result.astype(data_np.dtype)
 
-    if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, -1))
+        result_np[0, :, :, i] = slice_result
 
-    result = convert.astype(result_raw, data) > 0
+    result = convert.astype(result_np, data) > 0
     return result

@@ -1,0 +1,155 @@
+[
+    {
+        "@type": "make_ng_link",
+        "title": "final_x0",
+        "position": [
+            52189,
+            67314,
+            1025
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
+            ]
+        ]
+    },
+    {
+        "@type": "mazepa.execute_on_gcp_with_sqs",
+        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x194",
+        "worker_resources": {
+            "memory": "18560Mi"
+        },
+        "worker_replicas": 40,
+        "do_dryrun_estimation": true,
+        "local_test": false,
+        "worker_cluster_name": "zutils-zfish",
+        "worker_cluster_region": "us-east1",
+        "worker_cluster_project": "zetta-jlichtman-zebrafish-001",
+        "target": {
+            "@type": "mazepa.concurrent_flow",
+            "stages": [
+                {
+                    "@type": "mazepa.seq_flow",
+                    "stages": [
+                        {
+                            "@type": "build_subchunkable_apply_flow",
+                            "fn": {
+                                "@type": "lambda",
+                                "lambda_str": "lambda src: src"
+                            },
+                            "expand_bbox": true,
+                            "dst_resolution": [
+                                512,
+                                512,
+                                30
+                            ],
+                            "bbox": {
+                                "@type": "BBox3D.from_coords",
+                                "start_coord": [
+                                    0,
+                                    0,
+                                    1142
+                                ],
+                                "end_coord": [
+                                    382,
+                                    512,
+                                    1148
+                                ],
+                                "resolution": [
+                                    1024,
+                                    1024,
+                                    30
+                                ]
+                            },
+                            "processing_chunk_sizes": [
+                                [
+                                    32,
+                                    32,
+                                    1
+                                ]
+                            ],
+                            "max_reduction_chunk_sizes": [
+                                32,
+                                32,
+                                1
+                            ],
+                            "processing_crop_pads": [
+                                [
+                                    40,
+                                    40,
+                                    0
+                                ]
+                            ],
+                            "level_intermediaries_dirs": [
+                                "gs://tmp_2w/temporary_layers"
+                            ],
+                            "src": {
+                                "@type": "build_ts_layer",
+                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments/-1",
+                                "read_procs": [
+                                    {
+                                        "@type": "compare",
+                                        "@mode": "partial",
+                                        "mode": "\u003e=",
+                                        "value": 70
+                                    },
+                                    {
+                                        "@type": "filter_cc",
+                                        "@mode": "partial",
+                                        "thr": 20,
+                                        "mode": "keep_large"
+                                    },
+                                    {
+                                        "@type": "binary_closing",
+                                        "@mode": "partial",
+                                        "width": 12
+                                    },
+                                    {
+                                        "@type": "coarsen",
+                                        "@mode": "partial",
+                                        "width": 2
+                                    },
+                                    {
+                                        "@type": "to_uint8",
+                                        "@mode": "partial"
+                                    }
+                                ]
+                            },
+                            "dst": {
+                                "@type": "build_cv_layer",
+                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments/-1_debug_filtered",
+                                "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments/-1",
+                                "info_chunk_size": [
+                                    32,
+                                    32,
+                                    1
+                                ],
+                                "on_info_exists": "overwrite"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    },
+    {
+        "@type": "make_ng_link",
+        "title": "final_x0",
+        "position": [
+            52189,
+            67314,
+            1025
+        ],
+        "scale_bar_nm": 30000,
+        "layers": [
+            [
+                "precoarse_img",
+                "image",
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
+            ]
+        ]
+    }
+]

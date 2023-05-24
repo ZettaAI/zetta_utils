@@ -1,11 +1,12 @@
-#IMG_MASKED_PATH:  "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
+#IMG_PATH:         "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip2_img"
+#DEFECTS_PATH:     "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/defects_binarized"
 #TISSUE_MASK_PATH: "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/tissue_mask"
 #TMP_PATH:         "gs://tmp_2w/temporary_layers"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1000]
-	end_coord: [384, 512, 2000]
+	start_coord: [0, 0, 0]
+	end_coord: [384, 512, 4020]
 	resolution: [1024, 1024, 30]
 
 }
@@ -15,15 +16,15 @@
 	expand_bbox: true
 	bbox:        #BBOX
 	fn: {
-		"@type":      "lambda"
-		"lambda_str": "lambda src: src"
+		"@type": "apply_mask_fn"
+		"@mode": "partial"
 	}
 	processing_chunk_sizes: [[8 * 1024, 1024 * 8, 1]]
 	dst_resolution: [32, 32, 30]
 
 	src: {
 		"@type": "build_ts_layer"
-		path:    #IMG_MASKED_PATH
+		path:    #IMG_PATH
 		read_procs: [
 			{
 				"@type": "compare"
@@ -37,6 +38,12 @@
 			},
 		]
 	}
+	masks: [
+		{
+			"@type": "build_ts_layer"
+			path:    #DEFECTS_PATH
+		},
+	]
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                #TISSUE_MASK_PATH
@@ -101,7 +108,7 @@
 		memory: "18560Mi"
 		//"nvidia.com/gpu": "1"
 	}
-	worker_replicas:        100
+	worker_replicas:        200
 	local_test:             false
 	worker_cluster_name:    "zutils-zfish"
 	worker_cluster_region:  "us-east1"

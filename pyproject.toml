@@ -73,7 +73,8 @@ cloudvol = [
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [
-    "zetta_utils[tensor_ops]"
+    "zetta_utils[tensor_ops]",
+    "scikit-image >= 0.20.0"
 ]
 convnet = [
     "torch >= 2.0",

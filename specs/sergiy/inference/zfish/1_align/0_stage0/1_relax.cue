@@ -32,7 +32,7 @@
 //#BASE_INFO_CHUNK: [128, 128, 1]
 #BASE_INFO_CHUNK: [512, 512, 1]
 #RELAX_OUTCOME_CHUNK: [32, 32, 1]
-#RELAXATION_ITER:      3000
+#RELAXATION_ITER:      2000
 #RELAXATION_LR:        1e-3
 #RELAXATION_GRAD_CLIP: 0.01
 
@@ -43,7 +43,7 @@
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 #RELAXATION_RESOLUTION: [512, 512, 30]
-#RELAXATION_SUFFIX: "try_x4_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
+#RELAXATION_SUFFIX: "try_x5_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
 #BLOCKS: [
 	{_z_start: 2958, _z_end: 3092, _fix: "first"}, // cutout G
 
@@ -95,17 +95,19 @@
 	//chunk_size: [512, 512, 1]
 	bbox:           _
 	dst_resolution: _ | *[32, 32, 30]
-	src: {
-		"@type":      "build_ts_layer"
-		path:         _
-		read_procs?:  _
-		index_procs?: _ | *[]
-	}
-	field: {
-		"@type":            "build_cv_layer"
-		path:               _
-		data_resolution:    _ | *null
-		interpolation_mode: "field"
+	op_kwargs: {
+		src: {
+			"@type":      "build_ts_layer"
+			path:         _
+			read_procs?:  _
+			index_procs?: _ | *[]
+		}
+		field: {
+			"@type":            "build_cv_layer"
+			path:               _
+			data_resolution:    _ | *null
+			interpolation_mode: "field"
+		}
 	}
 	dst: {
 		"@type":             "build_cv_layer"
@@ -129,63 +131,65 @@
 	processing_chunk_sizes: [[32, 32, bbox._z_end - bbox._z_start]]
 	processing_crop_pads: [[32, 32, 0]]
 	dst_resolution: #RELAXATION_RESOLUTION
-	max_dist:       2
+	op_kwargs: {
+		max_dist: 2
+		tissue_mask: {
+			"@type": "build_ts_layer"
+			path:    #TISSUE_MASK_PATH
+		}
+		misalignment_masks: {
+			for offset in #Z_OFFSETS {
+				"\(offset)": {
+					"@type": "build_ts_layer"
+					path:    "\(#MISALIGNMENTS_PATH)/\(offset)"
+					read_procs: [
+						{
+							"@type": "compare"
+							"@mode": "partial"
+							mode:    ">="
+							value:   128
+						},
+						{
+							"@type": "filter_cc"
+							"@mode": "partial"
+							thr:     10
+							mode:    "keep_large"
+						},
+						{
+							"@type": "binary_closing"
+							"@mode": "partial"
+							width:   4
+						},
+						{
+							"@type": "coarsen"
+							"@mode": "partial"
+							width:   1
+						},
+						{
+							"@type": "to_uint8"
+							"@mode": "partial"
+						},
+					]
+				}
+			}
+		}
+		pairwise_fields: {
+			for offset in #Z_OFFSETS {
+				"\(offset)": {
+					"@type": "build_cv_layer"
+					path:    "\(#FIELDS_PATH)/\(offset)"
+				}
+			}
+		}
+		pairwise_fields_inv: {
+			for offset in #Z_OFFSETS {
+				"\(offset)": {
+					"@type": "build_cv_layer"
+					path:    "\(#FIELDS_INV_PATH)/\(offset)"
+				}
+			}
+		}
 
-	tissue_mask: {
-		"@type": "build_ts_layer"
-		path:    #TISSUE_MASK_PATH
-	}
-	misalignment_masks: {
-		for offset in #Z_OFFSETS {
-			"\(offset)": {
-				"@type": "build_ts_layer"
-				path:    "\(#MISALIGNMENTS_PATH)/\(offset)"
-				read_procs: [
-					{
-						"@type": "compare"
-						"@mode": "partial"
-						mode:    ">="
-						value:   128
-					},
-					{
-						"@type": "filter_cc"
-						"@mode": "partial"
-						thr:     10
-						mode:    "keep_large"
-					},
-					{
-						"@type": "binary_closing"
-						"@mode": "partial"
-						width:   4
-					},
-					{
-						"@type": "coarsen"
-						"@mode": "partial"
-						width:   1
-					},
-					{
-						"@type": "to_uint8"
-						"@mode": "partial"
-					},
-				]
-			}
-		}
-	}
-	pairwise_fields: {
-		for offset in #Z_OFFSETS {
-			"\(offset)": {
-				"@type": "build_cv_layer"
-				path:    "\(#FIELDS_PATH)/\(offset)"
-			}
-		}
-	}
-	pairwise_fields_inv: {
-		for offset in #Z_OFFSETS {
-			"\(offset)": {
-				"@type": "build_cv_layer"
-				path:    "\(#FIELDS_INV_PATH)/\(offset)"
-			}
-		}
 	}
 	let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(bbox._z_start)_\(bbox._z_end)"
 	dst: {
@@ -256,59 +260,60 @@
 
 	processing_chunk_sizes: [[32, 32, bbox._z_end - bbox._z_start]]
 	max_reduction_chunk_sizes: [32, 32, bbox._z_end - bbox._z_start]
-	processing_crop_pads: [[24, 24, 0]]
-	processing_blend_pads: [[16, 16, 0]]
+	processing_crop_pads: [[32, 32, 0]]
+	//processing_blend_pads: [[16, 16, 0]]
 	level_intermediaries_dirs: [#TMP_PATH]
 	//              processing_chunk_sizes: [[32, 32, #Z_END - #Z_START], [28, 28, #Z_END - #Z_START]]
 	//              max_reduction_chunk_sizes: [128, 128, #Z_END - #Z_START]
 	//              processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
 	//              processing_blend_pads: [[12, 12, 0], [12, 12, 0]]
 	//level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
+	op_kwargs: {
+		fix:                     _
+		num_iter:                #RELAXATION_ITER
+		lr:                      #RELAXATION_LR
+		grad_clip:               #RELAXATION_GRAD_CLIP
+		rigidity_weight:         #RELAXATION_RIG
+		min_rigidity_multiplier: 0.001
 
-	fix:                     _
-	num_iter:                #RELAXATION_ITER
-	lr:                      #RELAXATION_LR
-	grad_clip:               #RELAXATION_GRAD_CLIP
-	rigidity_weight:         #RELAXATION_RIG
-	min_rigidity_multiplier: 0.001
+		rigidity_masks: {
+			"@type": "build_ts_layer"
+			path:    #DEFECTS_PATH
+			read_procs: [
+				{
+					"@type": "compare"
+					"@mode": "partial"
+					mode:    "!="
+					value:   0
+				},
+				{
+					"@type": "filter_cc"
+					"@mode": "partial"
+					mode:    "keep_large"
+					thr:     20
+				},
+				{
+					"@type": "compare"
+					"@mode": "partial"
+					mode:    "=="
+					value:   0
+				},
+			]
+		}
+		let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(bbox._z_start)_\(bbox._z_end)"
+		match_offsets: {
+			"@type": "build_ts_layer"
+			path:    match_offsets_path
 
-	rigidity_masks: {
-		"@type": "build_ts_layer"
-		path:    #DEFECTS_PATH
-		read_procs: [
-			{
-				"@type": "compare"
-				"@mode": "partial"
-				mode:    "!="
-				value:   0
-			},
-			{
-				"@type": "filter_cc"
-				"@mode": "partial"
-				mode:    "keep_large"
-				thr:     20
-			},
-			{
-				"@type": "compare"
-				"@mode": "partial"
-				mode:    "=="
-				value:   0
-			},
-		]
-	}
-	let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(bbox._z_start)_\(bbox._z_end)"
-	match_offsets: {
-		"@type": "build_ts_layer"
-		path:    match_offsets_path
-
-		//info_reference_path: #IMG_PATH
-		on_info_exists: "overwrite"
-	}
-	pfields: {
-		for offset in #Z_OFFSETS {
-			"\(offset)": {
-				"@type": "build_cv_layer"
-				path:    "\(#FIELDS_PATH)/\(offset)"
+			//info_reference_path: #IMG_PATH
+			on_info_exists: "overwrite"
+		}
+		pfields: {
+			for offset in #Z_OFFSETS {
+				"\(offset)": {
+					"@type": "build_cv_layer"
+					path:    "\(#FIELDS_PATH)/\(offset)"
+				}
 			}
 		}
 	}
@@ -338,14 +343,16 @@
 		res_change_mult: [2, 2, 1]
 	}
 	bbox: _
-	src: {
-		"@type":    "build_ts_layer"
-		path:       _
-		read_procs: _ | *[]
+	op_kwargs: {
+		src: {
+			"@type":    "build_ts_layer"
+			path:       _
+			read_procs: _ | *[]
+		}
 	}
 	dst: {
 		"@type": "build_cv_layer"
-		path:    src.path
+		path:    op_kwargs.src.path
 	}
 }
 
@@ -362,8 +369,8 @@
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
 								bbox: _bbox
-								op: mode:  "img" // not thresholded due to subhcunkable bug
-								src: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
+								op: mode: "img" // not thresholded due to subhcunkable bug
+								op_kwargs: src: path: "\(#MISALIGNMENTS_PATH)/\(z_offset)"
 								// src: read_procs: [
 								//  {"@type": "filter_cc", "@mode": "partial", mode: "keep_large", thr: 20},
 								// ]
@@ -378,8 +385,8 @@
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
 								bbox: _bbox
-								op: mode:  "mask"
-								src: path: #TISSUE_MASK_PATH
+								op: mode: "mask"
+								op_kwargs: src: path: #TISSUE_MASK_PATH
 								dst_resolution: [res, res, 30]
 							}
 						},
@@ -391,8 +398,8 @@
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
 								bbox: _bbox
-								op: mode:  "field"
-								src: path: "\(#FIELDS_PATH)/\(z_offset)"
+								op: mode: "field"
+								op_kwargs: src: path: "\(#FIELDS_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 30]
 							}
 						},
@@ -404,8 +411,8 @@
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
 								bbox: _bbox
-								op: mode:  "field"
-								src: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
+								op: mode: "field"
+								op_kwargs: src: path: "\(#FIELDS_INV_PATH)/\(z_offset)"
 								dst_resolution: [res, res, 30]
 							}
 						},
@@ -422,12 +429,12 @@
 	stages: [
 		#WARP_FLOW_TMPL & {
 			bbox: _bbox
-			op: mode:    "img"
-			src: path:   #IMG_PATH
-			field: path: #AFIELD_PATH
-			dst: path:   #IMG_ALIGNED_PATH
+			op: mode: "img"
+			op_kwargs: src: path:              #IMG_PATH
+			op_kwargs: field: path:            #AFIELD_PATH
+			op_kwargs: field: data_resolution: #RELAXATION_RESOLUTION
+			dst: path: #IMG_ALIGNED_PATH
 			dst_resolution: [32, 32, 30]
-			field: data_resolution: #RELAXATION_RESOLUTION
 		}
 		// #WARP_FLOW_TMPL & {
 		//  op: mode:    "mask"
@@ -444,14 +451,14 @@
 		//  dst: path:   #AFF_MASK_PATH
 		//  dst_resolution: [32, 32, 303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030]
 		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 	]
 }
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x195"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x196"
 
 	worker_resources: {
 		memory:           "18560Mi"
@@ -480,9 +487,9 @@
 					// #DOWNSAMPLE_FLOW & {
 					//  _bbox: bbox
 					// }
-					#MATCH_OFFSETS_FLOW & {'bbox': bbox},
-					#RELAX_FLOW & {'bbox':         bbox, fix: block._fix},
-					#POST_ALIGN_FLOW & {_bbox:     bbox},
+					//#MATCH_OFFSETS_FLOW & {'bbox': bbox},
+					#RELAX_FLOW & {'bbox':     bbox, op_kwargs: fix: block._fix},
+					#POST_ALIGN_FLOW & {_bbox: bbox},
 				]
 			},
 		]

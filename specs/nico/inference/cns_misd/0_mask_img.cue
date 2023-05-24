@@ -29,7 +29,7 @@
 	processing_chunk_sizes: _
 	processing_crop_pads: [[0, 0, 0]]
 	dst_resolution: _
-    expand_bbox: true
+    expand_bbox_processing: true
 	src: {
 		"@type": "build_cv_layer"
 		path:    _

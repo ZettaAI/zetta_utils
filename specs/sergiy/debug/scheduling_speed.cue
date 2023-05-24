@@ -97,7 +97,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -107,7 +107,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -203,7 +203,7 @@
 
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	expand_bbox:             bool | *true
+	expand_bbox_processing:             bool | *true
 	shrink_processing_chunk: bool | *false
 
 	fn: {
@@ -290,7 +290,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 1, 1]
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
@@ -349,7 +349,7 @@
 		"@type":    "BaseEncoder"
 		model_path: #BASE_ENCODER_PATH
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 1, 1]
@@ -381,7 +381,7 @@
 		"@type":    "MisalignmentDetector"
 		model_path: #MISD_MODEL_PATH
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 1, 1]
@@ -531,7 +531,7 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox:    true
+	expand_bbox_processing:    true
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	processing_chunk_sizes: [[128, 128, #Z_END - #Z_START], [72, 72, #Z_END - #Z_START]]

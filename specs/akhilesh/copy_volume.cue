@@ -16,7 +16,7 @@
 	}
 	processing_chunk_sizes: [[2 * 1024, 2 * 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	src: {

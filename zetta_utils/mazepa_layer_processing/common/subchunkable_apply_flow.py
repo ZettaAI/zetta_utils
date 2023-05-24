@@ -83,7 +83,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_blend_modes: Union[
         Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
     ] = "quadratic",
-    roi_crop_pad: Sequence[int] = (0, 0, 0),
     level_intermediaries_dirs: Sequence[str | None] | None = None,
     start_coord: Sequence[int] | None = None,
     end_coord: Sequence[int] | None = None,
@@ -91,8 +90,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     bbox: BBox3D | None = None,
     fn: Callable[P, Tensor] | None = None,
     op: VolumetricOpProtocol[P, None, Any] | None = None,
+    expand_bbox_resolution: bool = False,
+    expand_bbox_backend: bool = False,
+    expand_bbox_processing: bool = True,
     shrink_processing_chunk: bool = False,
-    expand_bbox: bool = False,
+    auto_divisibility: bool = False,
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     allow_cache_up_to_level: int = 0,
     print_summary: bool = True,
@@ -179,9 +181,21 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_crop_pads_ = ensure_seq_of_seq(processing_crop_pads, num_levels)
     processing_blend_modes_ = ensure_seq_of_seq(processing_blend_modes, num_levels)
 
-    if shrink_processing_chunk and expand_bbox:
+    if auto_divisibility is True and shrink_processing_chunk is True:
         raise ValueError(
-            f"`shrink_processing_chunk` and `expand_bbox` cannot both be {True}; "
+            "`auto_divisibility` cannot be used with `shrink_processing_chunk`; "
+            "Please choose at most one.",
+        )
+    if auto_divisibility is True and expand_bbox_processing is False:
+        raise ValueError("`auto_divisibility` requires `expand_bbox_processing` to be `True`.")
+    if auto_divisibility is True and expand_bbox_backend is True:
+        raise ValueError(
+            "`auto_divisibility` requires `expand_bbox_backend` to be `False`. "
+            "This is because divisibility should take precedence over backend alignment."
+        )
+    if shrink_processing_chunk and expand_bbox_processing:
+        raise ValueError(
+            "`shrink_processing_chunk` and `expand_bbox_processing` cannot both be `True`; "
             "Please choose at most one.",
         )
 
@@ -194,13 +208,15 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         processing_crop_pads=[Vec3D(*v) for v in processing_crop_pads_],
         processing_blend_pads=[Vec3D(*v) for v in processing_blend_pads_],
         processing_blend_modes=processing_blend_modes_,  # type: ignore # Literal gets lost
-        roi_crop_pad=Vec3D(*roi_crop_pad),
         allow_cache_up_to_level=allow_cache_up_to_level,
         max_reduction_chunk_sizes=[Vec3D(*v) for v in max_reduction_chunk_sizes_],
         op=op_,
         bbox=bbox_,
+        expand_bbox_resolution=expand_bbox_resolution,
+        expand_bbox_backend=expand_bbox_backend,
+        expand_bbox_processing=expand_bbox_processing,
         shrink_processing_chunk=shrink_processing_chunk,
-        expand_bbox=expand_bbox,
+        auto_divisibility=auto_divisibility,
         print_summary=print_summary,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
@@ -215,6 +231,141 @@ def _path_join_if_not_none(base: str | None, suffix: str) -> str | None:
         return path.join(base, suffix)  # f"chunks_level_{level}"
 
 
+def _expand_bbox_resolution(  # pylint: disable=line-too-long
+    bbox: BBox3D,
+    dst_resolution: Vec3D,
+) -> BBox3D:
+
+    bbox_new = bbox.snapped(Vec3D[float](0, 0, 0), dst_resolution, "expand")
+    if bbox_new != bbox:
+        logger.info(
+            f"`expand_bbox_resolution` was set and the `bbox` was not integral in `dst_resolution`, "
+            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox.unit} pixels))\n"
+            f"Received bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox.shape / dst_resolution).pformat()} px\n"
+            f"New bbox:\t{bbox_new.pformat()} {bbox_new.unit}\n\t\t{bbox_new.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox_new.shape // dst_resolution).int().pformat()} px\n"
+            f"Please note that this may affect chunk alignment requirements."
+        )
+    else:
+        logger.info(
+            "`expand_bbox_resolution` was set, but the `bbox` was already integral in `dst_resolution`, "
+            "so no action has been taken."
+        )
+
+    return bbox_new
+
+
+def _auto_divisibility(  # pylint: disable=line-too-long
+    processing_chunk_sizes: Sequence[Vec3D[int]],
+    processing_crop_pads: Sequence[Vec3D[int]],
+    processing_blend_pads: Sequence[Vec3D[int]],
+) -> Sequence[Vec3D[int]]:
+
+    num_levels = len(processing_chunk_sizes)
+    processing_chunk_sizes_new = list(deepcopy(processing_chunk_sizes))
+    for level in range(0, num_levels - 1):
+        i = num_levels - level - 1
+        processing_chunk_size = processing_chunk_sizes_new[i]
+        processing_chunk_size_higher = processing_chunk_sizes[i - 1]
+        processing_blend_pad_higher = processing_blend_pads[i - 1]
+        processing_crop_pad_higher = processing_crop_pads[i - 1]
+
+        processing_region = (
+            processing_chunk_size_higher
+            + 2 * processing_crop_pad_higher
+            + 2 * processing_blend_pad_higher
+        )
+
+        processing_chunk_sizes_new[i - 1] = Vec3D[int](
+            *(
+                processing_region // processing_chunk_size * processing_chunk_size
+                - 2 * processing_crop_pad_higher
+                - 2 * processing_blend_pad_higher
+            )
+        )
+
+    if processing_chunk_sizes_new != processing_chunk_sizes:
+        logger.info(
+            f"`auto_divisibility` was set and the divisibility requirements were not satisfied, "
+            "so `processing_chunk_sizes` has been modified:\n"
+            f"original:\t{processing_chunk_sizes}\n"
+            f"modified:\t{processing_chunk_sizes_new}\n"
+            f"Please note that this may affect the expected performance."
+        )
+    return processing_chunk_sizes_new
+
+
+def _expand_bbox_backend(  # pylint: disable=line-too-long
+    bbox: BBox3D,
+    dst: VolumetricBasedLayerProtocol,
+    dst_resolution: Vec3D,
+) -> BBox3D:
+
+    dst_backend_voxel_offset = dst.backend.get_voxel_offset(dst_resolution)
+    dst_backend_chunk_size = dst.backend.get_chunk_size(dst_resolution)
+    bbox_new = bbox.snapped(
+        dst_backend_voxel_offset * dst_resolution,
+        dst_backend_chunk_size * dst_resolution,
+        "expand",
+    )
+    if bbox_new != bbox:
+        logger.info(
+            f"`expand_bbox_backend` was set and the `bbox` was not aligned to the `dst` layer's backend chunks, "
+            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox.unit} pixels))\n"
+            f"`dst` voxel_offset:\t{dst_backend_voxel_offset.pformat()}\t chunk_size:\t"
+            f"\t{dst_backend_chunk_size.pformat()}\n"
+            f"Received bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox.shape / dst_resolution).pformat()} px\n"
+            f"New bbox:\t{bbox_new.pformat()} {bbox_new.unit}\n\t\t{bbox_new.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox_new.shape // dst_resolution).int().pformat()} px\n"
+            f"Please note that this may affect chunk alignment requirements."
+        )
+    else:
+        logger.info(
+            "`expand_bbox_backend` was set, but the `bbox` was already aligned to `dst` layer's backend chunks,  "
+            "so no action has been taken."
+        )
+    return bbox_new
+
+
+def _expand_bbox_processing(  # pylint: disable=line-too-long
+    bbox: BBox3D,
+    dst_resolution: Vec3D,
+    processing_chunk_sizes: Sequence[Vec3D[int]],
+) -> BBox3D:
+
+    bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res_raw = bbox.shape / dst_resolution
+    if bbox_shape_in_res != bbox_shape_in_res_raw:
+        raise ValueError(
+            "To use `expand_bbox_processing`, the `bbox` must be integral in the "
+            f"`dst_resolution`. Received {bbox.pformat()}, which is "
+            f"{bbox.pformat(dst_resolution)} at the `dst_resolution` of "
+            f"{dst_resolution.pformat()}. You may set `expand_bbox_resolution = True` to "
+            "automatically expand the bbox to the nearest integral pixel."
+        )
+    translation_end = (processing_chunk_sizes[0] - bbox_shape_in_res) % processing_chunk_sizes[0]
+    bbox_old = bbox
+    bbox = bbox.translated_end(translation_end, dst_resolution)
+    if translation_end != Vec3D[int](0, 0, 0):
+        logger.info(
+            f"`expand_bbox_processing` was set and the `bbox` was not aligned to the top level `processing_chunk_size` in at least one dimension, "
+            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
+            f"Received bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
+            f"New bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+            f"\tshape:\t{(bbox.shape // dst_resolution).int().pformat()} px\n"
+            f"Please note that this may affect chunk alignment requirements."
+        )
+    else:
+        logger.info(
+            "`expand_bbox_processing` was set, but the `bbox` was already aligned to processing chunks,  "
+            "so no action has been taken."
+        )
+    return bbox
+
+
 def _shrink_processing_chunk(  # pylint: disable=line-too-long
     bbox: BBox3D,
     dst_resolution: Vec3D,
@@ -222,16 +373,27 @@ def _shrink_processing_chunk(  # pylint: disable=line-too-long
 ) -> Sequence[Vec3D[int]]:
 
     bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res_raw = bbox.shape / dst_resolution
+    if bbox_shape_in_res != bbox_shape_in_res_raw:
+        raise ValueError(
+            "To use `shrink_processing_chunk`, the `bbox` must be integral in the "
+            f"`dst_resolution`. Received {bbox.pformat()}, which is "
+            f"{bbox.pformat(dst_resolution)} at the `dst_resolution` of "
+            f"{dst_resolution.pformat()}. You may set `expand_bbox_resolution = True` to "
+            "automatically expand the bbox to the nearest integral pixel."
+        )
     processing_chunk_sizes_old = deepcopy(processing_chunk_sizes)
     processing_chunk_sizes = list(processing_chunk_sizes)
     processing_chunk_sizes[0] = Vec3D[int](
-        *[min(b, e) for b, e in zip(bbox_shape_in_res, processing_chunk_sizes_old[0])]
+        *[int(min(b, e)) for b, e in zip(bbox_shape_in_res, processing_chunk_sizes_old[0])]
     )
     for i in range(1, len(processing_chunk_sizes)):
         processing_chunk_sizes[i] = Vec3D[int](
-            *[min(b, s) for b, s in zip(processing_chunk_sizes[i - 1], processing_chunk_sizes[i])]
+            *[
+                int(min(b, s))
+                for b, s in zip(processing_chunk_sizes[i - 1], processing_chunk_sizes[i])
+            ]
         )
-
     logger.info(
         f"`shrink_processing_chunk` was set, so the `processing_chunk_sizes` have been shrunken to fit the bbox where applicable.\n"
         f"Original `processing_chunk_sizes`:\t{', '.join([e.pformat() for e in processing_chunk_sizes_old])}\n"
@@ -239,29 +401,6 @@ def _shrink_processing_chunk(  # pylint: disable=line-too-long
         f"Please note that this may affect divisibility requirements."
     )
     return processing_chunk_sizes
-
-
-def _expand_bbox(  # pylint: disable=line-too-long
-    bbox: BBox3D,
-    dst_resolution: Vec3D,
-    processing_chunk_sizes: Sequence[Vec3D[int]],
-) -> BBox3D:
-
-    bbox_shape_in_res = bbox.shape // dst_resolution
-    translation_end = (processing_chunk_sizes[0] - bbox_shape_in_res) % processing_chunk_sizes[0]
-    bbox_old = bbox
-    bbox = bbox.translated_end(translation_end, dst_resolution)
-    if translation_end != Vec3D[int](0, 0, 0):
-        logger.info(
-            f"`expand_bbox` was set and the `bbox` was not aligned to the top level `processing_chunk_size` in at least one dimension, "
-            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
-            f"Original bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
-            f"New bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox.shape // dst_resolution).int().pformat()} px\n"
-            f"Please note that this may affect chunk alignment requirements."
-        )
-    return bbox
 
 
 def _make_ng_link(
@@ -393,7 +532,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     summary += lrpad(length=120) + "\n"
     summary += (
         lrpad(
-            " Level  Max red. chunk size  Intermediary dir (top level only used if Checkerboard == True)",
+            " Level  Max red. chunk size  Intermediary dir",
             length=120,
         )
         + "\n"
@@ -422,12 +561,14 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     processing_crop_pads: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
     processing_blend_modes: Sequence[Literal["linear", "quadratic"]],
-    roi_crop_pad: Vec3D[int],
     max_reduction_chunk_sizes: Sequence[Vec3D[int]],
     allow_cache_up_to_level: int,
     bbox: BBox3D,
+    expand_bbox_resolution: bool,
+    expand_bbox_backend: bool,
+    expand_bbox_processing: bool,
     shrink_processing_chunk: bool,
-    expand_bbox: bool,
+    auto_divisibility: bool,
     print_summary: bool,
     generate_ng_link: bool,
     op: VolumetricOpProtocol[P, None, Any],
@@ -437,13 +578,23 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
 
     num_levels = len(processing_chunk_sizes)
 
+    if auto_divisibility:
+        processing_chunk_sizes = _auto_divisibility(
+            processing_chunk_sizes, processing_crop_pads, processing_blend_pads
+        )
+
+    if expand_bbox_resolution:
+        bbox = _expand_bbox_resolution(bbox, dst_resolution)
+
+    if expand_bbox_backend:
+        bbox = _expand_bbox_backend(bbox, dst, dst_resolution)
+
     if shrink_processing_chunk:
         processing_chunk_sizes = _shrink_processing_chunk(
             bbox, dst_resolution, processing_chunk_sizes
         )
-
-    if expand_bbox:
-        bbox = _expand_bbox(bbox, dst_resolution, processing_chunk_sizes)
+    elif expand_bbox_processing:
+        bbox = _expand_bbox_processing(bbox, dst_resolution, processing_chunk_sizes)
 
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
     level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
@@ -465,7 +616,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         if i == 0:
             processing_chunk_size_higher = idx.shape
             processing_blend_pad_higher = Vec3D[int](0, 0, 0)
-            processing_crop_pad_higher = roi_crop_pad
+            processing_crop_pad_higher = Vec3D[int](0, 0, 0)
         else:
             processing_chunk_size_higher = processing_chunk_sizes[i - 1]
             processing_blend_pad_higher = processing_blend_pads[i - 1]
@@ -496,7 +647,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]` must be"
                 f" evenly divisible by the `processing_chunk_size[level]`.\n\nAt level {level}, received:\n"
                 f"`processing_chunk_size[level+1]`:\t\t\t\t\t\t{processing_chunk_size_higher}\n"
-                f"`processing_crop_pad[level+1]` (`roi_crop_pad` for the top level):\t\t{processing_crop_pad_higher}\n"
+                f"`processing_crop_pad[level+1]` ((0, 0, 0) for the top level):\t\t\t{processing_crop_pad_higher}\n"
                 f"`processing_blend_pad[level+1]`:\t\t\t\t\t\t{processing_blend_pad_higher}\n"
                 f"Size of the region to be processed for the level:\t\t\t\t{processing_region}\n"
                 f"Which must be (but is not) divisible by: `processing_chunk_size[level]`:\t{processing_chunk_size}\n\n"
@@ -513,9 +664,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         num_chunks[i] *= num_chunks[i - 1]
 
     """
-    Append roi_crop pads into one list
+    Append the zero roi_crop pad for the top level, and remove the bottom level baked into the operation
     """
-    roi_crop_pads = [roi_crop_pad] + list(processing_crop_pads[:-1])
+    roi_crop_pads = [Vec3D[int](0, 0, 0)] + list(processing_crop_pads[:-1])
+
     """
     Check for no checkerboarding
     """
@@ -526,7 +678,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         ):
             logger.info(
                 f"Level {num_levels - i - 1}: Chunks will not be checkerboarded since `processing_crop_pad[level+1]`"
-                f" (`roi_crop_pad` for the top level) and `processing_blend_pad[level]` are both {Vec3D[int](0, 0, 0)}."
+                f" (always {Vec3D[int](0, 0, 0)} for the top level) and `processing_blend_pad[level]` are both {Vec3D[int](0, 0, 0)}."
             )
             use_checkerboard.append(False)
         else:
@@ -538,7 +690,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         use_checkerboard.append(False)
     else:
         use_checkerboard.append(True)
-    if roi_crop_pads[0] == Vec3D[int](0, 0, 0) and processing_blend_pads[0] == Vec3D[int](0, 0, 0):
+    if processing_blend_pads[0] == Vec3D[int](0, 0, 0):
         logger.info(
             "Since checkerboarding is skipped at the top level, the ROI is required to be chunk-aligned."
         )

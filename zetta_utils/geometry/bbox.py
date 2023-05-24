@@ -112,6 +112,7 @@ class BBox3D:
         dim: int,
         resolution: int | float | Sequence[float],
         allow_slice_rounding: bool = False,
+        round_to_int: bool = True,
     ) -> slice:
         """Represent the bounding box as a slice along the given dimension.
 
@@ -119,6 +120,9 @@ class BBox3D:
         :param resolution: Resolution at which the slice will be taken.
         :param allow_slice_rounding: Whether to allow representing bounding box
             with non-integer slice start/end at the given resolution.
+        :param round_to_int: Whether the slices should be returned as an int
+            or whether they should be returned as raw. If set to `False`, takes
+            precedence over `allow_slice_rounding`.
         :return: Slice representing the bounding box.
 
         """
@@ -129,6 +133,9 @@ class BBox3D:
 
         dim_range_start_raw = self.bounds[dim][0] / dim_res
         dim_range_end_raw = self.bounds[dim][1] / dim_res
+
+        if not round_to_int:
+            return slice(dim_range_start_raw, dim_range_end_raw)
 
         if not allow_slice_rounding:
             if dim_range_start_raw != round(dim_range_start_raw):
@@ -153,13 +160,19 @@ class BBox3D:
         return result
 
     def to_slices(
-        self, resolution: Sequence[float], allow_slice_rounding: bool = False
+        self,
+        resolution: Sequence[float],
+        allow_slice_rounding: bool = False,
+        round_to_int: bool = True,
     ) -> Slices3D:
         """Represent the bounding box as a tuple of slices.
 
         :param resolution: Resolution at which the slices will be taken.
         :param allow_slice_rounding: Whether to allow representing bounding box
             with non-integer slice start/end at the given resolution.
+        :param round_to_int: Whether the slices should be returned as an int
+            or whether they should be returned as raw. If set to `False`, takes
+            precedence over `allow_slice_rounding`.
         :return: Slices representing the bounding box.
 
         """
@@ -169,7 +182,8 @@ class BBox3D:
         result = cast(
             Slices3D,
             tuple(
-                self.get_slice(i, resolution[i], allow_slice_rounding) for i in range(self.ndim)
+                self.get_slice(i, resolution[i], allow_slice_rounding, round_to_int)
+                for i in range(self.ndim)
             ),
         )
         return result
@@ -406,7 +420,7 @@ class BBox3D:
         else:
             resolution_final = self.pprint_px_resolution
 
-        slices = self.to_slices(resolution_final)
+        slices = self.to_slices(resolution_final, round_to_int=False)
         s = ", "
 
         return (

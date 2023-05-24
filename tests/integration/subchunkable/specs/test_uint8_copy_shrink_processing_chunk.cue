@@ -16,7 +16,7 @@
 	}
 	processing_chunk_sizes: [[8096, 8024, 1], [5230, 4120, 1]]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
-	expand_bbox:             false
+	expand_bbox_processing:  false
 	shrink_processing_chunk: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX

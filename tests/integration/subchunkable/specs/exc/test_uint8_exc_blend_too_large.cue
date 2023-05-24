@@ -18,7 +18,7 @@
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0], [512, 512, 0]]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	op_kwargs: {

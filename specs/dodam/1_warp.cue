@@ -16,7 +16,7 @@
 		mode:                    _
 		translation_granularity: 16
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 12, 1024 * 12, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	max_reduction_chunk_sizes: [1024 * 12, 1024 * 12, 1]

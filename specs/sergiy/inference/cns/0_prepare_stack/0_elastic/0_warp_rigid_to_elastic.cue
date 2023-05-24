@@ -18,7 +18,7 @@
 	}
 	processing_chunk_sizes: [[2 * #CHUNK, 2 * #CHUNK, 1], [#CHUNK, #CHUNK, 1]]
 	processing_crop_pads: [[0, 0, 0], [#CROP_PAD, #CROP_PAD, 0]]
-	expand_bbox:    true
+	expand_bbox_processing:    true
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {

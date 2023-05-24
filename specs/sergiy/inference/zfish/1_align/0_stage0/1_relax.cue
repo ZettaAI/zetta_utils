@@ -17,7 +17,7 @@
 
 #IMGS_WARPED_PATH:      "\(#FOLDER)/imgs_warped"
 #WARPED_BASE_ENCS_PATH: "\(#FOLDER)/base_encs_warped"
-#MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments"
+#MISALIGNMENTS_PATH:    "\(#FOLDER)/misalignments2"
 
 #AFIELD_PATH:      "\(#FOLDER)/afield\(#RELAXATION_SUFFIX)"
 #IMG_ALIGNED_PATH: "\(#FOLDER)/img_aligned\(#RELAXATION_SUFFIX)"
@@ -32,31 +32,26 @@
 //#BASE_INFO_CHUNK: [128, 128, 1]
 #BASE_INFO_CHUNK: [512, 512, 1]
 #RELAX_OUTCOME_CHUNK: [32, 32, 1]
-#RELAXATION_FIX:       "both"
-#RELAXATION_ITER:      100
+#RELAXATION_ITER:      3000
 #RELAXATION_LR:        1e-3
 #RELAXATION_GRAD_CLIP: 0.01
 
 #RELAXATION_RIG: 0.5
 
 //#Z_END:   746
-#DEBUG_SUFFIX: "_debug_x4_cache4x"
+#DEBUG_SUFFIX: "cutout_g"
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 #RELAXATION_RESOLUTION: [512, 512, 30]
-#RELAXATION_SUFFIX: "try_x1_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
+#RELAXATION_SUFFIX: "try_x4_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
 #BLOCKS: [
-	{_z_start: 1025, _z_end: 1030},
-	//{_z_start: 1025, _z_end: 1905},
-	//{_z_start: 0, _z_end:    452},
-	//{_z_start: 451, _z_end:  1350},
-	//{_z_start: 1349, _z_end: 2251},
-	//{_z_start: 2250, _z_end: 3155},
-	// {_z_start: 3154, _z_end: 4051},
-	// {_z_start: 4050, _z_end: 4953},
-	// {_z_start: 4952, _z_end: 5853},
-	// {_z_start: 5852, _z_end: 6751},
-	// {_z_start: 6750, _z_end: 7051},
+	{_z_start: 2958, _z_end: 3092, _fix: "first"}, // cutout G
+
+	//{_z_start: 0, _z_end:   893, _fix:  "last"},
+	//{_z_start: 892, _z_end: 1806, _fix: "both"},
+	//{_z_start: 1805, _z_end: 2702, _fix: "both"},
+	//{_z_start: 2701, _z_end: 3598, _fix: "both"},
+	//{_z_start: 3597, _z_end: 4014, _fix: "first"},
 ]
 
 #BBOX_TMPL: {
@@ -64,9 +59,9 @@
 	_z_start: int
 	_z_end:   int
 	start_coord: [0, 0, _z_start]
-	end_coord: [192 + 32, 256 + 32, _z_end]
+	//end_coord: [192 + 32, 256 + 32, _z_end]
 	//start_coord: [0, 0, _z_start]
-	//end_coord: [384, 512, _z_end]
+	end_coord: [384, 512, _z_end]
 	resolution: [1024, 1024, 30]
 }
 
@@ -150,23 +145,23 @@
 						"@type": "compare"
 						"@mode": "partial"
 						mode:    ">="
-						value:   70
+						value:   128
 					},
 					{
 						"@type": "filter_cc"
 						"@mode": "partial"
-						thr:     20
+						thr:     10
 						mode:    "keep_large"
 					},
 					{
 						"@type": "binary_closing"
 						"@mode": "partial"
-						width:   12
+						width:   4
 					},
 					{
 						"@type": "coarsen"
 						"@mode": "partial"
-						width:   2
+						width:   1
 					},
 					{
 						"@type": "to_uint8"
@@ -261,8 +256,8 @@
 
 	processing_chunk_sizes: [[32, 32, bbox._z_end - bbox._z_start]]
 	max_reduction_chunk_sizes: [32, 32, bbox._z_end - bbox._z_start]
-	processing_crop_pads: [[32, 32, 0]]
-	processing_blend_pads: [[8, 8, 0]]
+	processing_crop_pads: [[24, 24, 0]]
+	processing_blend_pads: [[16, 16, 0]]
 	level_intermediaries_dirs: [#TMP_PATH]
 	//              processing_chunk_sizes: [[32, 32, #Z_END - #Z_START], [28, 28, #Z_END - #Z_START]]
 	//              max_reduction_chunk_sizes: [128, 128, #Z_END - #Z_START]
@@ -270,7 +265,7 @@
 	//              processing_blend_pads: [[12, 12, 0], [12, 12, 0]]
 	//level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
 
-	fix:                     #RELAXATION_FIX
+	fix:                     _
 	num_iter:                #RELAXATION_ITER
 	lr:                      #RELAXATION_LR
 	grad_clip:               #RELAXATION_GRAD_CLIP
@@ -449,7 +444,7 @@
 		//  dst: path:   #AFF_MASK_PATH
 		//  dst_resolution: [32, 32, 303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030]
 		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 	]
 }
@@ -462,9 +457,9 @@
 		memory:           "18560Mi"
 		"nvidia.com/gpu": "1"
 	}
-	worker_replicas:        20
+	worker_replicas:        300
 	do_dryrun_estimation:   true
-	local_test:             true
+	local_test:             false
 	worker_cluster_name:    "zutils-zfish"
 	worker_cluster_region:  "us-east1"
 	worker_cluster_project: "zetta-jlichtman-zebrafish-001"
@@ -485,9 +480,9 @@
 					// #DOWNSAMPLE_FLOW & {
 					//  _bbox: bbox
 					// }
-					//#MATCH_OFFSETS_FLOW & {'bbox': bbox},
-					#RELAX_FLOW & {'bbox':     bbox},
-					#POST_ALIGN_FLOW & {_bbox: bbox},
+					#MATCH_OFFSETS_FLOW & {'bbox': bbox},
+					#RELAX_FLOW & {'bbox':         bbox, fix: block._fix},
+					#POST_ALIGN_FLOW & {_bbox:     bbox},
 				]
 			},
 		]

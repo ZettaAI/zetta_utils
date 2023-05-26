@@ -178,19 +178,19 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         # Data in: cxyz
         # Write format: xyzc (b == 1)
 
-        data_np = tensor_ops.convert.to_np(data)
-        if data_np.size == 1 and len(data_np.shape) == 1:
-            data_final = data_np[0]
-        elif len(data_np.shape) == 4:
-            data_final = np.transpose(data_np, (1, 2, 3, 0))
-        else:
-            raise ValueError(
-                "Data written to CloudVolume backend must be in `cxyz` dimension format, "
-                f"but got a tensor of with ndim == {data_np.ndim}"
-            )
+        if not self.skip_black_uploads or (data.sum() > 0):
+            data_np = tensor_ops.convert.to_np(data)
+            if data_np.size == 1 and len(data_np.shape) == 1:
+                data_final = data_np[0]
+            elif len(data_np.shape) == 4:
+                data_final = np.transpose(data_np, (1, 2, 3, 0))
+            else:
+                raise ValueError(
+                    "Data written to CloudVolume backend must be in `cxyz` dimension format, "
+                    f"but got a tensor of with ndim == {data_np.ndim}"
+                )
 
-        cvol = self._get_cv_at_resolution(idx.resolution)
-        if not self.skip_black_uploads or (data_final.sum() > 0):
+            cvol = self._get_cv_at_resolution(idx.resolution)
             slices = idx.to_slices()
             # Enable autocrop for writes only
             cvol.autocrop = True

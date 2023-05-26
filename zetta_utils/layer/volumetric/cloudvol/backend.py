@@ -39,6 +39,16 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                     print(new_info == get_info(self.path))
         ``mip`` keyword must not be present in ``cv_kwargs``, as the read resolution
         is passed in as a part of index to the backend.
+    :param skip_black_uploads: Do not issue a write to CloudVolume if the data from
+        a processing chunk is all zeros. Note that this needs to be properly set with
+        CloudVolume.delete_black_uploads to have the desired behavior for the user.
+        With CloudVolume.delete_black_uploads=True, if any of the underlying chunks
+        of the CloudVolume are zeros, then it will issue a DELETE to the storage
+        backend, and remove data. For example, if the desired behavior is to sparsely
+        overwrite existing contiguous data, then the user should set
+        `skip_black_uploads=True` and `delete_black_uploads=False` so that
+        processing chunks which are NOT skipped by zetta_utils do not have black
+        underlying chunks deleted.
     :param info_spec: Specification for the info file for the layer. If None, the
         info is assumed to exist.
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
@@ -48,6 +58,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     path: str
     cv_kwargs: Dict[str, Any] = attrs.field(factory=dict)
+    skip_black_uploads: bool = True
     info_spec: Optional[PrecomputedInfoSpec] = None
     on_info_exists: InfoExistsModes = "expect_same"
 
@@ -179,12 +190,13 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             )
 
         cvol = self._get_cv_at_resolution(idx.resolution)
-        slices = idx.to_slices()
-        # Enable autocrop for writes only
-        cvol.autocrop = True
+        if not self.skip_black_uploads or (data_final.sum() > 0):
+            slices = idx.to_slices()
+            # Enable autocrop for writes only
+            cvol.autocrop = True
 
-        cvol[slices] = data_final
-        cvol.autocrop = False
+            cvol[slices] = data_final
+            cvol.autocrop = False
 
     def with_changes(self, **kwargs) -> CVBackend:
         """Currently untyped. Supports:

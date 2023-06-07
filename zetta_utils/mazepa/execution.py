@@ -33,7 +33,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     do_dryrun_estimation: bool = True
     show_progress: bool = True
     checkpoint: Optional[str] = None
-    checkpoint_interval_sec: float = 900.0  # 15 minutes
+    checkpoint_interval_sec: Optional[float] = None
     raise_on_failed_checkpoint: bool = True
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
@@ -63,7 +63,7 @@ def execute(
     do_dryrun_estimation: bool = True,
     show_progress: bool = True,
     checkpoint: Optional[str] = None,
-    checkpoint_interval_sec: float = 900.0,  # 15 minutes
+    checkpoint_interval_sec: Optional[float] = None,
     raise_on_failed_checkpoint: bool = True,
 ):
     """
@@ -135,7 +135,7 @@ def _execute_from_state(
     batch_gap_sleep_sec: float,
     do_dryrun_estimation: bool,
     show_progress: bool,
-    checkpoint_interval_sec: float,
+    checkpoint_interval_sec: Optional[float],
     raise_on_failed_checkpoint: bool,
 ):
     if do_dryrun_estimation:
@@ -164,7 +164,10 @@ def _execute_from_state(
                 time.sleep(batch_gap_sleep_sec)
                 logger.debug("Awake.")
 
-            if time.time() > last_backup_ts + checkpoint_interval_sec:
+            if (
+                checkpoint_interval_sec is not None
+                and time.time() > last_backup_ts + checkpoint_interval_sec
+            ):
                 backup_completed_tasks(
                     state, execution_id, raise_on_error=raise_on_failed_checkpoint
                 )

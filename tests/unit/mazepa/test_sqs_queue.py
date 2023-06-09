@@ -1,6 +1,6 @@
 # pylint: disable=redefined-outer-name,exec-used
 import time
-from multiprocessing import Process
+from functools import partial
 
 import boto3
 import coolname
@@ -8,12 +8,7 @@ import pytest
 from moto import mock_sqs
 
 import docker
-from zetta_utils import (  # pylint: disable=all
-    builder,
-    common,
-    mazepa,
-    mazepa_layer_processing,
-)
+from zetta_utils import builder, common, mazepa  # pylint: disable=all
 from zetta_utils.mazepa import SQSExecutionQueue
 from zetta_utils.mazepa.tasks import Task, _TaskableOperation
 
@@ -112,48 +107,29 @@ def outcome_queue(sqs_endpoint):
 
 
 @pytest.fixture
-def queue_with_worker(work_queue, outcome_queue):
+def execution_queue(work_queue, outcome_queue):
     work_queue_name, _, _ = work_queue
     outcome_queue_name, region_name, endpoint_url = outcome_queue
-
-    # Cannot start another process by passing a queue object here,
-    # As queue object contains a TaskQueue which contains boto objects,
-    # which are not safe to pass to other processes. Using builder instead
-    # queue = SQSExecutionQueue(
-    #    name=work_queue_name,
-    #    region_name=region_name,
-    #    endpoint_url=endpoint_url,
-    #    outcome_queue_name=outcome_queue_name,
-    #    pull_lease_sec=2,
-    # )
-    # worker_p = Process(
-    #    target=mazepa.run_worker,
-    #    kwargs={"exec_queue": queue, "sleep_sec": 0.05, "max_runtime": 5.0},
-    # )
-    # from zetta_utils import mazepa_layer_processing  # pylint: disable=all
-
-    worker_p = Process(
-        target=builder.build,
-        args=(
-            {
-                "@type": "mazepa.run_worker",
-                "exec_queue": {
-                    "@type": "mazepa.SQSExecutionQueue",
-                    "name": work_queue_name,
-                    "outcome_queue_name": outcome_queue_name,
-                    "endpoint_url": endpoint_url,
-                    "pull_lease_sec": 1,
-                },
-                "sleep_sec": 0.2,
-                "debug": True,
-                "max_runtime": 5.0,
-            },
-        ),
+    queue = SQSExecutionQueue(
+        name=work_queue_name,
+        region_name=region_name,
+        endpoint_url=endpoint_url,
+        outcome_queue_name=outcome_queue_name,
+        pull_lease_sec=1,
     )
-    worker_p.start()
-    yield work_queue_name, outcome_queue_name, region_name, endpoint_url
-    worker_p.join()
-    time.sleep(0.2)
+    yield queue
+
+
+@pytest.fixture
+def queue_with_worker(execution_queue):
+    worker = partial(
+        mazepa.run_worker,
+        exec_queue=execution_queue,
+        sleep_sec=0.2,
+        max_runtime=5.0,
+        debug=True,
+    )
+    yield execution_queue, worker
 
 
 @builder.register("return_false_fn")
@@ -162,52 +138,30 @@ def return_false_fn(*args, **kwargs):
 
 
 @pytest.fixture
-def queue_with_cancelling_worker(work_queue, outcome_queue):
-    work_queue_name, _, _ = work_queue
-    outcome_queue_name, region_name, endpoint_url = outcome_queue
-
-    worker_p = Process(
-        target=builder.build,
-        args=(
-            {
-                "@type": "mazepa.run_worker",
-                "exec_queue": {
-                    "@type": "mazepa.SQSExecutionQueue",
-                    "name": work_queue_name,
-                    "outcome_queue_name": outcome_queue_name,
-                    "endpoint_url": endpoint_url,
-                },
-                "sleep_sec": 0.2,
-                "max_runtime": 5.0,
-                "task_filter_fn": {"@type": "return_false_fn", "@mode": "partial"},
-            },
-        ),
+def queue_with_cancelling_worker(execution_queue):
+    worker = partial(
+        mazepa.run_worker,
+        exec_queue=execution_queue,
+        sleep_sec=0.2,
+        max_runtime=5.0,
+        debug=True,
+        task_filter_fn=return_false_fn,
     )
-    worker_p.start()
-    yield work_queue_name, outcome_queue_name, region_name, endpoint_url
-    worker_p.join()
-    time.sleep(0.2)
+    yield execution_queue, worker
 
 
 def test_task_upkeep(queue_with_worker) -> None:
-    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-    )
-    task = _TaskableOperation(
-        sleep_1p5_fn,
-        upkeep_interval_sec=0.1,
-    ).make_task()
+    queue, worker = queue_with_worker
+    task = _TaskableOperation(sleep_1p5_fn, upkeep_interval_sec=0.1).make_task()
     queue.push_tasks([task])
-    time.sleep(1.0)
+    worker()
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
     time.sleep(2.0)
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
+    outcomes = queue.pull_task_outcomes()
+    assert len(outcomes) == 1
 
 
 def test_execution(work_queue, outcome_queue):
@@ -237,17 +191,11 @@ def test_execution(work_queue, outcome_queue):
 
 
 def test_task_upkeep_finish(queue_with_worker) -> None:
-    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_worker
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=2,
-    )
+    queue, worker = queue_with_worker
     task = _TaskableOperation(sleep_0p1_fn).make_task()
     task.upkeep_settings.interval_sec = 0.5
     queue.push_tasks([task])
+    worker()
     time.sleep(3.0)
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
@@ -256,16 +204,10 @@ def test_task_upkeep_finish(queue_with_worker) -> None:
 
 
 def test_cancelling_worker(queue_with_cancelling_worker) -> None:
-    work_queue_name, outcome_queue_name, region_name, endpoint_url = queue_with_cancelling_worker
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=2,
-    )
-    task: mazepa.Task = _TaskableOperation(sleep_5_fn).make_task()
+    queue, worker = queue_with_cancelling_worker
+    task = _TaskableOperation(sleep_5_fn).make_task()
     queue.push_tasks([task])
+    worker()
     time.sleep(1.0)
     rdy_tasks = queue.pull_tasks()
     assert len(rdy_tasks) == 0
@@ -274,16 +216,8 @@ def test_cancelling_worker(queue_with_cancelling_worker) -> None:
     assert isinstance(outcomes[task.id_].exception, mazepa.exceptions.MazepaCancel)
 
 
-def test_polling_not_done(work_queue, outcome_queue):
-    work_queue_name, _, _ = work_queue
-    outcome_queue_name, region_name, endpoint_url = outcome_queue
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=1,
-    )
+def test_polling_not_done(execution_queue):
+    queue = execution_queue
     queue.push_tasks([_TaskableOperation(success_fn).make_task()])
     pulled_tasks = queue.pull_tasks()
     time.sleep(1.5)
@@ -291,16 +225,8 @@ def test_polling_not_done(work_queue, outcome_queue):
     assert len(pulled_tasks) == 1
 
 
-def test_polling_done(work_queue, outcome_queue):
-    work_queue_name, _, _ = work_queue
-    outcome_queue_name, region_name, endpoint_url = outcome_queue
-    queue = SQSExecutionQueue(
-        name=work_queue_name,
-        region_name=region_name,
-        endpoint_url=endpoint_url,
-        outcome_queue_name=outcome_queue_name,
-        pull_lease_sec=1,
-    )
+def test_polling_done(execution_queue):
+    queue = execution_queue
     queue.push_tasks([_TaskableOperation(success_fn).make_task()])
     pulled_tasks = queue.pull_tasks()
     pulled_tasks[0]()

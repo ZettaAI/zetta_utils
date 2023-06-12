@@ -86,6 +86,7 @@ Layers for CloudVolume IO:
 .. doctest::
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
+   >>> from zetta_utils.geometry import Vec3D
    >>> # Vanilla CloudVolume Analog
    >>> # Differences with Vanilla CV:
    >>> #   1. Read data type: ``torch.Tensor``.
@@ -93,7 +94,7 @@ Layers for CloudVolume IO:
    >>> cvl = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    ... )
-   >>> data = cvl[(64, 64, 40), 7500:7564, 2250:2314, 2000:2001]
+   >>> data = cvl[Vec3D(64, 64, 40), 7500:7564, 2250:2314, 2000:2001]
    >>> data.shape # channel, x, y, z
    torch.Size([1, 64, 64, 1])
 

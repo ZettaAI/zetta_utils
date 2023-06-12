@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional, Sequence
 
 import attrs
 import taskqueue
@@ -87,7 +87,7 @@ class SQSExecutionQueue:
             )
         return self._queue
 
-    def push_tasks(self, tasks: List[Task]):
+    def push_tasks(self, tasks: Sequence[Task]):
         if len(tasks) == 0:
             return  # pragma: no cover
         if self.outcome_queue_name is None:

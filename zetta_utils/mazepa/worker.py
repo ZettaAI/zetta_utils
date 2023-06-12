@@ -17,7 +17,7 @@ class AcceptAllTasks:
 
 def run_worker(
     exec_queue: ExecutionQueue,
-    sleep_sec: int = 4,
+    sleep_sec: float = 4.0,
     max_pull_num: int = 1,
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),

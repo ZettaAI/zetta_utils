@@ -41,6 +41,8 @@ API reference
 
 .. autofunction:: zetta_utils.builder.register
 
-.. autofunction:: zetta_utils.builder.build
+.. autofunction:: zetta_utils.builder.get_matching_entry
 
-.. autofunction:: zetta_utils.builder.get_callable_from_name
+.. autofunction:: zetta_utils.builder.unregister
+
+.. autofunction:: zetta_utils.builder.build

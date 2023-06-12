@@ -259,6 +259,53 @@ def seg_x0_ups():
 
 
 @pytest.fixture
+def seg_uint63():
+    return np.array(
+        [
+            [
+                [
+                    [2 ** 63 - 1, 2 ** 63 - 2],
+                    [2 ** 63 - 3, 2 ** 63 - 4],
+                ]
+            ]
+        ],
+        dtype=np.uint64,
+    )
+
+
+@pytest.fixture
+def seg_uint63_ups():
+    return np.array(
+        [
+            [
+                [
+                    [2 ** 63 - 1, 2 ** 63 - 1, 2 ** 63 - 2, 2 ** 63 - 2],
+                    [2 ** 63 - 1, 2 ** 63 - 1, 2 ** 63 - 2, 2 ** 63 - 2],
+                    [2 ** 63 - 3, 2 ** 63 - 3, 2 ** 63 - 4, 2 ** 63 - 4],
+                    [2 ** 63 - 3, 2 ** 63 - 3, 2 ** 63 - 4, 2 ** 63 - 4],
+                ]
+            ]
+        ],
+        dtype=np.uint64,
+    )
+
+
+@pytest.fixture
+def seg_uint64():
+    return np.array(
+        [
+            [
+                [
+                    [2 ** 63 + 1, 2 ** 63 + 2],
+                    [2 ** 63 + 3, 2 ** 63 + 4],
+                ]
+            ]
+        ],
+        dtype=np.uint64,
+    )
+
+
+@pytest.fixture
 def torch_seg_x0():
     return torch.tensor(
         [
@@ -282,6 +329,36 @@ def torch_seg_x0_ups():
                     [0, 0, 1, 1],
                     [2, 2, 0, 0],
                     [2, 2, 0, 0],
+                ]
+            ]
+        ]
+    ).int()
+
+
+@pytest.fixture
+def torch_seg_uint63():
+    return torch.tensor(
+        [
+            [
+                [
+                    [2 ** 63 - 1, 2 ** 63 - 2],
+                    [2 ** 63 - 3, 2 ** 63 - 4],
+                ]
+            ]
+        ]
+    ).int()
+
+
+@pytest.fixture
+def torch_seg_uint63_ups():
+    return torch.tensor(
+        [
+            [
+                [
+                    [2 ** 63 - 1, 2 ** 63 - 1, 2 ** 63 - 2, 2 ** 63 - 2],
+                    [2 ** 63 - 1, 2 ** 63 - 1, 2 ** 63 - 2, 2 ** 63 - 2],
+                    [2 ** 63 - 3, 2 ** 63 - 3, 2 ** 63 - 4, 2 ** 63 - 4],
+                    [2 ** 63 - 3, 2 ** 63 - 3, 2 ** 63 - 4, 2 ** 63 - 4],
                 ]
             ]
         ]
@@ -397,6 +474,18 @@ def array_x1_avg_pool():
             {"scale_factor": 2.0, "unsqueeze_input_to": 4},
             "torch_seg_x0_ups",
         ],
+        [
+            "seg_uint63",
+            "segmentation",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            "seg_uint63_ups",
+        ],
+        [
+            "torch_seg_uint63",
+            "segmentation",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            "torch_seg_uint63_ups",
+        ],
     ],
 )
 def test_interpolate(data_name, mode, kwargs, expected_name, request):
@@ -440,6 +529,19 @@ def array_6d():
             "img",
             {"scale_factor": [1.0, 0.5, 0.5], "unsqueeze_input_to": 4},
             ValueError,
+        ],
+        ["seg_uint64", "segmentation", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, ValueError],
+        [
+            "torch_seg_uint63",
+            "segmentation",
+            {"scale_factor": 1.5, "unsqueeze_input_to": 4},
+            NotImplementedError,
+        ],
+        [
+            "torch_seg_uint63",
+            "segmentation",
+            {"size": [8, 8], "unsqueeze_input_to": 4},
+            NotImplementedError,
         ],
     ],
 )

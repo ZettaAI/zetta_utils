@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+import torch  # pylint: disable=unused-import
+
 from .build import BuilderPartial
 from .registry import register
 

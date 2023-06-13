@@ -2,6 +2,7 @@
 import os
 import pathlib
 
+import numpy as np
 import pytest
 import torch
 
@@ -19,6 +20,7 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
+LAYER_UINT63_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63")
 LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
 LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
 LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
@@ -172,6 +174,78 @@ def test_cv_backend_write_scalar(clear_caches, mocker):
     cvb.write(index, value)
     assert cv_m.__setitem__.call_args[0][0] == index.bbox.to_slices(index.resolution)
     assert cv_m.__setitem__.call_args[0][1] == expected_written
+
+
+def test_cv_backend_read_uint63(clear_caches, mocker):
+    data_read = np.array([[[[2 ** 63 - 1]]]], dtype=np.uint64)
+    expected = torch.tensor([[[[2 ** 63 - 1]]]], dtype=torch.int64)
+    cv_m = mocker.MagicMock()
+    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path=LAYER_UINT63_PATH)
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    result = cvb.read(index)
+    assert_array_equal(result, expected)
+    cv_m.__getitem__.assert_called_with(index.bbox.to_slices(index.resolution))
+
+
+def test_cv_backend_read_uint64_exc(clear_caches, mocker):
+    data_read = np.array([[[[2 ** 63 + 1]]]], dtype=np.uint64)
+    # expected = torch.tensor([[[[2 ** 63 + 1]]]], dtype=torch.uint64)
+    cv_m = mocker.MagicMock()
+    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path=LAYER_UINT63_PATH)
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    with pytest.raises(ValueError):
+        cvb.read(index)
+
+
+def test_cv_backend_write_scalar_uint63(clear_caches, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_UINT63_PATH,
+    )
+    cv_m = mocker.MagicMock()
+    cv_m.__setitem__ = mocker.MagicMock()
+    cv_m.dtype = "uint64"
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    value = torch.tensor([2 ** 63 - 1], dtype=torch.int64)
+    expected_written = np.uint64(2 ** 63 - 1)
+
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    cvb.write(index, value)
+    assert cv_m.__setitem__.call_args[0][0] == index.bbox.to_slices(index.resolution)
+    assert cv_m.__setitem__.call_args[0][1] == expected_written
+    assert cv_m.__setitem__.call_args[0][1].dtype == expected_written.dtype
+
+
+def test_cv_backend_write_scalar_uint63_exc(clear_caches, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_UINT63_PATH,
+    )
+    cv_m = mocker.MagicMock()
+    cv_m.__setitem__ = mocker.MagicMock()
+    cv_m.dtype = "uint64"
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
+    cvb = CVBackend(path=LAYER_X5_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    value = torch.tensor([-1], dtype=torch.int64)
+
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
+        resolution=Vec3D(1, 1, 1),
+    )
+    with pytest.raises(ValueError):
+        cvb.write(index, value)
 
 
 @pytest.mark.parametrize(

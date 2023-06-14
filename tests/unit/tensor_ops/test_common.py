@@ -117,6 +117,21 @@ def array_2d_x0_avg_pool():
 
 
 @pytest.fixture
+def array_2d_x0_nearest_exact():
+    return np.array(
+        [
+            [
+                [
+                    [0, 2],
+                    [2, 4],
+                ]
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+
+@pytest.fixture
 def mask_x0():
     return np.array(
         [
@@ -345,8 +360,9 @@ def torch_seg_uint63():
                     [2 ** 63 - 3, 2 ** 63 - 4],
                 ]
             ]
-        ]
-    ).int()
+        ],
+        dtype=torch.int64,
+    )
 
 
 @pytest.fixture
@@ -361,8 +377,9 @@ def torch_seg_uint63_ups():
                     [2 ** 63 - 3, 2 ** 63 - 3, 2 ** 63 - 4, 2 ** 63 - 4],
                 ]
             ]
-        ]
-    ).int()
+        ],
+        dtype=torch.int64,
+    )
 
 
 @pytest.fixture
@@ -439,6 +456,12 @@ def array_x1_avg_pool():
             "img",
             {"scale_factor": None, "size": [2, 2], "unsqueeze_input_to": 4},
             "array_2d_x0_avg_pool",
+        ],
+        [
+            "array_2d_x0",
+            "nearest-exact",
+            {"scale_factor": 0.5, "unsqueeze_input_to": 4},
+            "array_2d_x0_nearest_exact",
         ],
         [
             "array_2d_x0",
@@ -531,18 +554,6 @@ def array_6d():
             ValueError,
         ],
         ["seg_uint64", "segmentation", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, ValueError],
-        [
-            "torch_seg_uint63",
-            "segmentation",
-            {"scale_factor": 1.5, "unsqueeze_input_to": 4},
-            NotImplementedError,
-        ],
-        [
-            "torch_seg_uint63",
-            "segmentation",
-            {"size": [8, 8], "unsqueeze_input_to": 4},
-            NotImplementedError,
-        ],
     ],
 )
 def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):

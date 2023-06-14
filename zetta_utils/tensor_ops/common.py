@@ -137,7 +137,6 @@ def _standardize_scale_factor(
 
 
 def _get_torch_interp_mode(
-    scale_factor_tuple: Optional[Sequence[float]],
     spatial_ndim: int,
     mode: InterpolationMode,
 ) -> TorchInterpolationMode:
@@ -154,15 +153,27 @@ def _get_torch_interp_mode(
         torch_interp_mode = "area"
     elif mode == "segmentation":
         torch_interp_mode = "nearest-exact"
-
-        if scale_factor_tuple is None:
-            raise NotImplementedError()
-        if sum([i < 1.0 for i in scale_factor_tuple]):
-            raise NotImplementedError()
     else:
         torch_interp_mode = mode  # type: ignore # has to fit at this point
 
     return torch_interp_mode
+
+
+def _get_nearest_interp_compatible_view(data: torch.Tensor):
+    # Bypass F.interpolate dtype restrictions for Nearest-Neighbor interpolation.
+    # This works because NN interpolation is only index magic, values are not used.
+    # See https://github.com/pytorch/pytorch/issues/5580
+    mapping = {
+        torch.bool: torch.uint8,
+        torch.int8: torch.uint8,
+        torch.int16: torch.float16,
+        torch.int32: torch.float32,
+        torch.int64: torch.float64,
+    }
+
+    if data.dtype in mapping:
+        return data.view(dtype=mapping[data.dtype])
+    return data
 
 
 def _validate_interpolation_setting(
@@ -256,39 +267,6 @@ def squeeze_to(
     return data
 
 
-def interpolate_segmentation(
-    data_torch: torch.Tensor,
-    size: Optional[Sequence[int]] = None,
-    scale_factor_tuple: Optional[Sequence[float]] = None,
-):
-    result_raw = data_torch
-    if scale_factor_tuple is None:
-        raise NotImplementedError(  # pragma: no cover
-            "`size`-based segmentation interpolation is not currently supported."
-        )
-    if any(x != int(x) or x < 1 for x in scale_factor_tuple):
-        raise NotImplementedError(  # pragma: no cover
-            "Segmentation interpolation scale_factors must be positive integers."
-        )
-    # TODO: implement downsampling, maybe seung-lab/tinybrain
-    # TODO: consider unifying functions with scipy.interpolate.interpn
-    spatial_shape = data_torch.shape[2:]
-    # add a new dummy dimension for every existing spatial dimension
-    result_raw = data_torch.reshape(*[dim for size in spatial_shape for dim in (size, 1)])
-    # stride tricks to repeat values along the new dummy dimensions
-    result_raw = result_raw.expand(*[dim for size in spatial_shape for dim in (size, 2)])
-    # expand result is non-contiguous, so reshape will have to copy the data
-    result_raw = result_raw.reshape(
-        *[
-            size * int(scale_factor_tuple)
-            for (size, scale_factor_tuple) in zip(spatial_shape, scale_factor_tuple)
-        ]
-    )
-    while result_raw.ndim != data_torch.ndim:
-        result_raw = result_raw.unsqueeze(0)
-    return result_raw
-
-
 @builder.register("interpolate")
 @typechecked
 def interpolate(  # pylint: disable=too-many-locals
@@ -335,18 +313,19 @@ def interpolate(  # pylint: disable=too-many-locals
     )
 
     torch_interp_mode = _get_torch_interp_mode(
-        scale_factor_tuple=scale_factor_tuple,
         spatial_ndim=data.ndim - 2,
         mode=mode,
     )
     data_torch = tensor_ops.convert.to_torch(data)
     result_raw: torch.Tensor
-    if mode == "segmentation":
-        result_raw = interpolate_segmentation(
-            data_torch,
+    if torch_interp_mode in ("nearest", "nearest-exact"):
+        data_in = _get_nearest_interp_compatible_view(data_torch)
+        result_raw = torch.nn.functional.interpolate(
+            data_in,
             size=size,
-            scale_factor_tuple=scale_factor_tuple,
-        )
+            scale_factor=scale_factor_tuple,
+            mode=torch_interp_mode,
+        ).view(dtype=data_torch.dtype)
     else:
         data_in = data_torch.float()
         result_raw = torch.nn.functional.interpolate(

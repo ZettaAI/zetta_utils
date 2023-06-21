@@ -22,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           lfs: 'false'
           submodules: 'recursive'
@@ -38,14 +38,14 @@ jobs:
               - added|modified: "./**/*.py"
       - name: Setup Python
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Setup Go
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
       - name: Install Python dependencies
@@ -76,7 +76,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           lfs: 'false'
           submodules: 'recursive'
@@ -92,7 +92,7 @@ jobs:
               - added|modified: "./**/*.py"
       - name: Setup Python
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
@@ -117,7 +117,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           lfs: 'false'
           submodules: 'recursive'
@@ -133,7 +133,7 @@ jobs:
               - added|modified: "./**/*.py"
       - name: Setup Python
         if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
@@ -156,7 +156,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           lfs: 'false'
           submodules: 'recursive'
@@ -174,7 +174,7 @@ jobs:
               - added|modified: "./**/*.py"
       - name: Setup Python
         if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64

@@ -152,6 +152,11 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                     "when `worker_cluster_name` is `None`"
                 )
         else:
+            if worker_cluster_region is None or worker_cluster_project is None:
+                raise ValueError(
+                    "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
+                    "when `worker_cluster_name` is specified."
+                )
             worker_cluster = resource_allocation.k8s.ClusterInfo(
                 name=worker_cluster_name,
                 region=worker_cluster_region,

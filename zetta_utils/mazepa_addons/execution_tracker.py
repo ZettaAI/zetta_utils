@@ -51,7 +51,10 @@ def register_execution(execution_id: str, clusters: list[ClusterInfo]) -> None: 
 def read_execution_clusters(execution_id: str) -> list[ClusterInfo]:  # pragma: no cover
     row_key = execution_id
     col_keys = ("clusters",)
-    clusters_str = EXECUTION_DB[(row_key, col_keys)][col_keys[0]]
+    try:
+        clusters_str = EXECUTION_DB[(row_key, col_keys)][col_keys[0]]
+    except KeyError:
+        return []
     clusters: list[Mapping] = json.loads(clusters_str)
     return [ClusterInfo(**cluster) for cluster in clusters]
 

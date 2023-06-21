@@ -9,6 +9,7 @@ from typing import Any, Dict, List
 
 import boto3
 from boto3.exceptions import Boto3Error
+from google.api_core.exceptions import GoogleAPICallError
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -83,7 +84,15 @@ def _delete_k8s_resources(
     logger.info(f"Deleting k8s resources from execution {execution_id}")
     clusters = read_execution_clusters(execution_id)
     for cluster in clusters:
-        configuration, _ = get_cluster_data(cluster)
+        try:
+            configuration, _ = get_cluster_data(cluster)
+        except GoogleAPICallError as exc:
+            # cluster does not exit, discard resource entries
+            if exc.code == 404:
+                for resource_id in resources.keys():
+                    _delete_resource_entry(resource_id)
+            continue
+
         k8s_client.Configuration.set_default(configuration)
 
         k8s_apps_v1_api = k8s_client.AppsV1Api()

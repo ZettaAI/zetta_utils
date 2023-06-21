@@ -8,8 +8,19 @@ from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.distributions import Distribution, to_distribution
 from zetta_utils.tensor_ops import convert
+from zetta_utils.tensor_typing import TensorTypeVar
 
 from .section import QuadrantWiseAugmentMixin, SectionWiseAugment
+
+
+@typechecked
+def apply_gaussian_filter(
+    data: TensorTypeVar, sigma: float | tuple[float, float, float]
+) -> TensorTypeVar:
+    data_np = convert.to_np(data)
+    blurred = gaussian_filter(data_np, sigma=sigma)
+    result = convert.astype(blurred, data, cast=True)
+    return result
 
 
 @builder.register("BlurrySectionAugment")
@@ -37,14 +48,7 @@ class BlurrySectionAugment(SectionWiseAugment):
         else:
             assert self.prepared_sigma is not None
             sigma = self.prepared_sigma
-        result = self.apply_gaussian_filter(data, sigma)
-        return result
-
-    @staticmethod
-    def apply_gaussian_filter(data: torch.Tensor, sigma: float) -> torch.Tensor:
-        data_np = convert.to_np(data)
-        blurred = gaussian_filter(data_np, sigma=sigma)
-        result = convert.astype(blurred, data, cast=True)
+        result = apply_gaussian_filter(data, sigma)
         return result
 
 
@@ -70,5 +74,5 @@ class PartialBlurrySectionAugment(QuadrantWiseAugmentMixin, BlurrySectionAugment
         else:
             assert self.prepared_sigma is not None
             sigma = self.prepared_sigma
-        result = self.apply_gaussian_filter(data, sigma)
+        result = apply_gaussian_filter(data, sigma)
         return result

@@ -91,15 +91,20 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
 ) -> torch.Tensor:
     assert "-1" in pfields
 
+    if torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+
     max_displacement = max([field.abs().max().item() for field in pfields.values()])
 
     if (match_offsets != 0).sum() == 0 or max_displacement < 0.01:
         return torch.zeros_like(pfields["-1"])
 
-    match_offsets_zcxy = einops.rearrange(match_offsets, "C X Y Z -> Z C X Y").cuda()
+    match_offsets_zcxy = einops.rearrange(match_offsets, "C X Y Z -> Z C X Y").to(device)
 
     if rigidity_masks is not None:
-        rigidity_masks_zcxy = einops.rearrange(rigidity_masks, "C X Y Z -> Z C X Y").cuda()
+        rigidity_masks_zcxy = einops.rearrange(rigidity_masks, "C X Y Z -> Z C X Y").to(device)
     else:
         rigidity_masks_zcxy = torch.ones_like(match_offsets_zcxy)
 
@@ -113,7 +118,7 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
         pfields_raw[offset] = (
             einops.rearrange(field, "C X Y Z -> Z C X Y")
             .field()  # type: ignore
-            .cuda()
+            .to(device)
             .from_pixels()
         )
 
@@ -123,7 +128,7 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
         first_section_fix_field_zcxy = (
             einops.rearrange(first_section_fix_field, "C X Y Z -> Z C X Y")
             .field()  # type: ignore
-            .cuda()
+            .to(device)
             .from_pixels()
         )
         for offset in range(1, max_dist + 1):
@@ -132,11 +137,11 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
     if last_section_fix_field is not None:
         assert fix in ["last", "both"]
 
-        last_section_fix_field_inv = invert_field(last_section_fix_field.cuda())
+        last_section_fix_field_inv = invert_field(last_section_fix_field.to(device))
         last_section_fix_field_inv_zcxy = (
             einops.rearrange(last_section_fix_field_inv, "C X Y Z -> Z C X Y")
             .field()  # type: ignore
-            .cuda()
+            .to(device)
             .from_pixels()
         )
 
@@ -150,7 +155,7 @@ def perform_aced_relaxation(  # pylint: disable=too-many-branches
 
     afields = [
         torch.zeros((1, 2, match_offsets_zcxy.shape[2], match_offsets_zcxy.shape[3]))
-        .cuda()
+        .to(device)
         .field()  # type: ignore
         .from_pixels()
         for _ in range(num_sections)
@@ -272,8 +277,8 @@ def get_aced_match_offsets(
         img_mask_zcxy, aff_mask_zcxy = _get_masks(
             sector_length_before_zcxy=fwd_outcome.sector_length_before_zcxy,
             sector_length_after_zcxy=sector_length_after_zcxy,
-            match_offsets_zcxy=fwd_outcome.match_offsets_zcxy,
-            pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
+            # match_offsets_zcxy=fwd_outcome.match_offsets_zcxy,
+            # pairwise_fields_inv_zcxy=pairwise_fields_inv_zcxy,
             max_dist=max_dist,
             tissue_mask_zcxy=tissue_mask_zcxy,
         )
@@ -344,16 +349,17 @@ def _perform_match_fwd_pass(
                 + 1
             )
 
+            # Offset lengths score prioritizes longer match chain
+            # misalignmened and non-tissue correspondences are not prioritized by it
             offset_sector_lengths[offset - 1][this_tissue_mask == 0] = 0
-            offset_sector_lengths[offset - 1][this_misalignment_mask] = 0
-            offset_sector_length_scores = offset_sector_lengths[offset - 1] / (
-                offset_sector_lengths[offset - 1].max(0)[0] + 1e-4
-            )
+            offset_sector_lengths[offset - 1][this_misalignment_mask != 0] = 0
+            offset_sector_length_scores = offset_sector_lengths[offset - 1] / 1e5
             assert offset_sector_length_scores.max() <= 1.0
+
             offset_scores[offset - 1] = this_tissue_mask * 100
             offset_scores[offset - 1] += (misalignment_masks_zcxy[str(-offset)][i] == 0) * 10
             offset_scores[offset - 1] += offset_sector_length_scores
-            offset_scores[offset - 1] += (max_dist - offset) / 100
+            offset_scores[offset - 1] += (max_dist - offset) / 1e7
 
         chosen_offset_scores, chosen_offsets = offset_scores.max(0)
         passable_choices = chosen_offset_scores >= 110
@@ -371,6 +377,7 @@ def _perform_match_fwd_pass(
         for offset in range(1, max_dist + 1):
             j = i - offset
             this_offset_matches = match_offsets_zcxy[i] == offset
+
             # Discard non-aligned matches for bwd pass
             this_offset_matches[chosen_offset_scores < 110] = 0
             if this_offset_matches.sum() > 0:
@@ -380,6 +387,7 @@ def _perform_match_fwd_pass(
                 ).int()
                 this_offset_matches_inv[tissue_mask_zcxy[j] == 0] = 0
                 match_offsets_inv_zcxy[j][this_offset_matches_inv != 0] = offset
+
     return _FwdPassOutcome(
         sector_length_before_zcxy=sector_length_before_zcxy,
         match_offsets_zcxy=match_offsets_zcxy,
@@ -390,12 +398,12 @@ def _perform_match_fwd_pass(
 def _get_masks(
     sector_length_before_zcxy: torch.Tensor,
     sector_length_after_zcxy: torch.Tensor,
-    pairwise_fields_inv_zcxy: dict[str, torch.Tensor],
-    match_offsets_zcxy: torch.Tensor,
+    # pairwise_fields_inv_zcxy: dict[str, torch.Tensor],
+    # match_offsets_zcxy: torch.Tensor,
     tissue_mask_zcxy: torch.Tensor,
     max_dist: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    num_sections = sector_length_before_zcxy.shape[0]
+    # num_sections = sector_length_before_zcxy.shape[0]
 
     # img_mask_zcxy = (sector_length_before_zcxy + sector_length_after_zcxy) < max_dist
     # aff_mask_zcxy = (sector_length_before_zcxy == 0) * (img_mask_zcxy == 0)
@@ -403,38 +411,41 @@ def _get_masks(
     img_mask_zcxy = (sector_length_before_zcxy + sector_length_after_zcxy) < max_dist
 
     aff_mask_zcxy = (sector_length_before_zcxy == 0) * (sector_length_after_zcxy >= max_dist)
-    aff_mask_zcxy[1:] += (sector_length_after_zcxy[:-1] == 0) * (
-        sector_length_before_zcxy[:-1] >= max_dist
-    )
+    # TODO: fix
+    # aff_mask_zcxy[1:] += (sector_length_after_zcxy[:-1] == 0) * (
+    #    sector_length_before_zcxy[:-1] >= max_dist
+    # )
+    # TODO: Decide whether we want this
+    # for i in range(1, num_sections):
+    #    for offset in range(1, max_dist + 1):
 
-    for i in range(1, num_sections):
-        for offset in range(1, max_dist + 1):
+    #        j = i - offset
+    #        this_offset_matches = match_offsets_zcxy[i] == offset
 
-            j = i - offset
-            this_offset_matches = match_offsets_zcxy[i] == offset
+    #        if this_offset_matches.sum() > 0:
+    #            this_inv_field = pairwise_fields_inv_zcxy[str(-offset)][i : i + 1]
+    #            this_sector_length_after_from_j = this_inv_field.sample(  # type: ignore
+    #                sector_length_after_zcxy[j].float(), mode="nearest"
+    #            ).int()
+    #            this_sector_length_before_from_j = this_inv_field.sample(  # type: ignore
+    #                sector_length_before_zcxy[j].float(), mode="nearest"
+    #            ).int()
 
-            if this_offset_matches.sum() > 0:
-                this_inv_field = pairwise_fields_inv_zcxy[str(-offset)][i : i + 1]
-                this_sector_length_after_from_j = this_inv_field.sample(  # type: ignore
-                    sector_length_after_zcxy[j].float(), mode="nearest"
-                ).int()
-                this_sector_length_before_from_j = this_inv_field.sample(  # type: ignore
-                    sector_length_before_zcxy[j].float(), mode="nearest"
-                ).int()
+    #            back_connected_locations = sector_length_before_zcxy[i] == (
+    #                this_sector_length_before_from_j + 1
+    #            )
+    #            mid_connected_locations = sector_length_after_zcxy[i] == (
+    #                this_sector_length_after_from_j - 1
+    #            )
+    #            dangling_tail_locations = (
+    #                back_connected_locations * (mid_connected_locations == 0) *
+    #                this_offset_matches
+    #            )
 
-                back_connected_locations = sector_length_before_zcxy[i] == (
-                    this_sector_length_before_from_j + 1
-                )
-                mid_connected_locations = sector_length_after_zcxy[i] == (
-                    this_sector_length_after_from_j - 1
-                )
-                dangling_tail_locations = (
-                    back_connected_locations * (mid_connected_locations == 0) * this_offset_matches
-                )
-
-                img_mask_zcxy[i][dangling_tail_locations] = True
-                if i + i < num_sections:
-                    aff_mask_zcxy[i + 1][dangling_tail_locations] = False
+    #            img_mask_zcxy[i][dangling_tail_locations] = True
+    #            aff_mask_zcxy[i][dangling_tail_locations] = False
+    #            if i + i < num_sections:
+    #               aff_mask_zcxy[i + 1][dangling_tail_locations] = False
 
     img_mask_zcxy[0] = False
     aff_mask_zcxy[0] = False

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import random
-from typing import Literal, Sequence
+from functools import partial
+from typing import Sequence
 
 import attrs
 import torch
@@ -11,79 +11,61 @@ from zetta_utils import builder
 from zetta_utils.layer import JointIndexDataProcessor
 from zetta_utils.layer.volumetric import VolumetricIndex
 
-from .common import ComposedAugment
+from .common import ComposedAugment, DataAugment, JointIndexDataAugment
 
 
-@builder.register("FlipAugment")
+@builder.register("RandomFlip")
 @typechecked
 @attrs.frozen
-class FlipAugment(JointIndexDataProcessor):
+class RandomFlip(DataAugment):
     dims: Sequence[int]
-    prob: float = 0.5
 
-    def process_index(
-        self, idx: VolumetricIndex, mode: Literal["read", "write"]
-    ) -> VolumetricIndex:
-        return idx
-
-    def process_data(
-        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
-    ) -> dict[str, torch.Tensor]:
-        coin = random.uniform(0, 1)
-        if coin < self.prob:
-            for key, val in data.items():
-                data[key] = torch.flip(val, tuple(self.dims))
+    def augment(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        for key, val in data.items():
+            data[key] = torch.flip(val, tuple(self.dims))
         return data
 
 
-@builder.register("TransposeAugment")
+@builder.register("RandomTranspose")
 @typechecked
 @attrs.mutable
-class TransposeAugment(JointIndexDataProcessor):
+class RandomTranspose(JointIndexDataAugment):
     dim0: int
     dim1: int
+
     local: bool = True
-    prob: float = 0.5
 
-    prepared_coin: bool | None = attrs.field(init=False, default=None)
+    def augment_index(self, idx: VolumetricIndex) -> VolumetricIndex:
+        return idx.transposed(self.dim0, self.dim1, self.local)
 
-    def process_index(
-        self, idx: VolumetricIndex, mode: Literal["read", "write"]
-    ) -> VolumetricIndex:
-        coin = random.uniform(0, 1)  # Coin flip
-        self.prepared_coin = coin < self.prob
-        if self.prepared_coin:
-            idx = idx.transposed(self.dim0, self.dim1, self.local)
-        return idx
-
-    def process_data(
-        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
-    ) -> dict[str, torch.Tensor]:
-        assert self.prepared_coin is not None
-
-        if self.prepared_coin:
-            for key, val in data.items():
-                data[key] = torch.transpose(val, self.dim0, self.dim1)
-
-        self.prepared_coin = None
+    def augment_data(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        for key, val in data.items():
+            data[key] = torch.transpose(val, self.dim0, self.dim1)
         return data
 
 
 @builder.register("SimpleAugment")
 @typechecked
-def build_simple_augment(isotropic: bool = False) -> JointIndexDataProcessor:
-    augments = [
-        FlipAugment(dims=(-3,)),
-        FlipAugment(dims=(-2,)),
-        FlipAugment(dims=(-1,)),
-        TransposeAugment(dim0=-3, dim1=-2),  # xy
+def build_simple_augment(prob: float = 0.5, isotropic: bool = False) -> JointIndexDataProcessor:
+    """Flip & rotate by 90 degree."""
+
+    # Pre-configure RandomFlip and RandomTranspose with prob
+    flip = partial(RandomFlip, prob=prob)
+    transpose = partial(RandomTranspose, prob=prob)
+
+    # Anisotropic simple augment
+    augments: list[DataAugment | JointIndexDataAugment] = [
+        flip(dims=(-3,)),
+        flip(dims=(-2,)),
+        flip(dims=(-1,)),
+        transpose(dim0=-3, dim1=-2),  # xy
     ]
 
+    # Isotropic simple augment
     if isotropic:
         augments += [
-            TransposeAugment(dim0=-2, dim1=-1),  # yz
-            TransposeAugment(dim0=-1, dim1=-3),  # zx
+            transpose(dim0=-2, dim1=-1),  # yz
+            transpose(dim0=-1, dim1=-3),  # zx
         ]
 
-    result = ComposedAugment(augments)
-    return result
+    return ComposedAugment(augments)

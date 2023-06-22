@@ -1,13 +1,14 @@
 # pylint: disable=missing-docstring
 import random
-from typing import Callable, Literal, Sequence, TypeVar
+from abc import abstractmethod
+from typing import Any, Callable, Literal, Sequence, TypeVar
 
 import attrs
 import torch
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.layer import JointIndexDataProcessor
+from zetta_utils.layer import DataProcessor, JointIndexDataProcessor
 from zetta_utils.layer.volumetric import VolumetricIndex
 
 R = TypeVar("R")
@@ -37,24 +38,76 @@ def prob_aug(aug: Callable[..., R]) -> Callable[..., R]:
     return wrapper
 
 
-@builder.register("ComposedAugment")
 @typechecked
 @attrs.frozen
-class ComposedAugment(JointIndexDataProcessor):
-    augments: Sequence[JointIndexDataProcessor]
+class DataAugment(DataProcessor):
+    prob: float
+
+    def __call__(self, data: Any) -> Any:
+        if random.uniform(0, 1) < self.prob:
+            data = self.augment(data)
+        return data
+
+    @abstractmethod
+    def augment(self, data: Any) -> Any:
+        ...
+
+
+@typechecked
+@attrs.mutable
+class JointIndexDataAugment(JointIndexDataProcessor):
+    prob: float
+
+    prepared_coin: bool | None = attrs.field(init=False, default=None)
 
     def process_index(
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
     ) -> VolumetricIndex:
-        result = idx
-        for augment in reversed(self.augments):
-            result = augment.process_index(result, mode)
-        return result
+        self.prepared_coin = random.uniform(0, 1) < self.prob
+        if self.prepared_coin:
+            idx = self.augment_index(idx)
+        return idx
 
     def process_data(
         self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
     ) -> dict[str, torch.Tensor]:
-        result = data
+        assert self.prepared_coin is not None
+        if self.prepared_coin:
+            data = self.augment_data(data)
+        self.prepared_coin = None
+        return data
+
+    @abstractmethod
+    def augment_index(self, idx: VolumetricIndex) -> VolumetricIndex:
+        ...
+
+    @abstractmethod
+    def augment_data(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        ...
+
+
+@builder.register("ComposedAugment")
+@typechecked
+@attrs.frozen
+class ComposedAugment(JointIndexDataProcessor):
+    augments: Sequence[DataAugment | JointIndexDataAugment]
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        idx_proced = idx
+        for augment in reversed(self.augments):
+            if isinstance(augment, JointIndexDataAugment):
+                idx_proced = augment.process_index(idx=idx_proced, mode=mode)
+        return idx_proced
+
+    def process_data(
+        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
+    ) -> dict[str, torch.Tensor]:
+        data_proced = data
         for augment in self.augments:
-            result = augment.process_data(result, mode)
-        return result
+            if isinstance(augment, JointIndexDataAugment):
+                data_proced = augment.process_data(data=data_proced, mode=mode)
+            else:
+                data_proced = augment(data_proced)
+        return data_proced

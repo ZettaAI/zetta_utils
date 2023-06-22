@@ -18,17 +18,19 @@ class GetAcedOffsetsConfig:
     expected_aff_mask: torch.Tensor
 
     @staticmethod
-    def get_standard(max_dist=1, xy=8, z=12):
-        tissue_mask = torch.ones(1, xy, xy, z).bool()
+    def get_standard(max_dist=1, x_y=8, z=12):
+        tissue_mask = torch.ones(1, x_y, x_y, z).bool()
         misalignment_masks = {
-            str(-k): torch.zeros(1, xy, xy, z).bool() for k in range(1, max_dist + 1)
+            str(-k): torch.zeros(1, x_y, x_y, z).bool() for k in range(1, max_dist + 1)
         }
-        pairwise_fields = {str(-k): torch.zeros(2, xy, xy, z) for k in range(1, max_dist + 1)}
-        pairwise_fields_inv = {str(-k): torch.zeros(2, xy, xy, z) for k in range(1, max_dist + 1)}
-        expected_match_offsets = torch.ones(1, xy, xy, z)
+        pairwise_fields = {str(-k): torch.zeros(2, x_y, x_y, z) for k in range(1, max_dist + 1)}
+        pairwise_fields_inv = {
+            str(-k): torch.zeros(2, x_y, x_y, z) for k in range(1, max_dist + 1)
+        }
+        expected_match_offsets = torch.ones(1, x_y, x_y, z)
         expected_match_offsets[:, :, :, 0] = 0
-        expected_img_mask = torch.zeros(1, xy, xy, z)
-        expected_aff_mask = torch.zeros(1, xy, xy, z)
+        expected_img_mask = torch.zeros(1, x_y, x_y, z)
+        expected_aff_mask = torch.zeros(1, x_y, x_y, z)
 
         return GetAcedOffsetsConfig(
             max_dist=max_dist,
@@ -60,6 +62,7 @@ def test_get_aced_match_offsets_trivial() -> None:
 def test_get_aced_match_offsets_single_misalign() -> None:
     config = GetAcedOffsetsConfig.get_standard()
     config.misalignment_masks["-1"][0, 4:8, 4:8, 4] = True
+    config.expected_match_offsets[0, 4:8, 4:8, 4] = 0
     config.expected_aff_mask[0, 4:8, 4:8, 4] = True
 
     result = aced_relaxation.get_aced_match_offsets(
@@ -175,6 +178,7 @@ def test_get_aced_match_offsets_nontissue_misalign_maxdist2_misalign() -> None:
 
     config.expected_match_offsets[0, 4:8, 4:8, 4] = 0
     config.expected_match_offsets[0, 4:8, 4:8, 5] = 2
+    config.expected_match_offsets[0, 6:8, 6:8, 5] = 0
 
     config.expected_img_mask[0, 4:8, 4:8, 4] = True
 
@@ -202,8 +206,12 @@ def test_get_aced_match_offsets_double_nontissue_maxdist2_field() -> None:
     config.pairwise_fields_inv["-2"][:, :, :, 5] = -1
 
     config.expected_match_offsets[0, :, :, 4] = 0
+
     config.expected_match_offsets[0, :, :, 5] = 2
     config.expected_match_offsets[0, 4:8, 4:8, 5] = 0
+    config.expected_match_offsets[0, :1, :, 5] = 0
+    config.expected_match_offsets[0, :, :1, 5] = 0
+
     config.expected_match_offsets[0, 4:8, 4:8, 6] = 0
 
     config.expected_img_mask[0, :, :, 4] = True

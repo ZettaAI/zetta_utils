@@ -27,31 +27,34 @@
 #IMG_ALIGNED_MASKED_PATH: "\(#FOLDER)/img_aligned_masked\(#RELAXATION_SUFFIX)"
 
 //#MATCH_OFFSETS_BASE: "\(#FOLDER)/match_offsets_z\(#Z_START)_\(#Z_END)"
-#MATCH_OFFSET_BASE: "\(#FOLDER)/match_offsets_\(#RELAXATION_RESOLUTION[0])nm_v1_z"
+#MATCH_OFFSET_BASE: "\(#FOLDER)/match_offsets_\(#RELAXATION_RESOLUTION[0])nm_v4_z"
 
 //#BASE_INFO_CHUNK: [128, 128, 1]
 #BASE_INFO_CHUNK: [512, 512, 1]
 #RELAX_OUTCOME_CHUNK: [32, 32, 1]
-#RELAXATION_ITER:      2000
+#RELAXATION_ITER:      8000
 #RELAXATION_LR:        1e-3
 #RELAXATION_GRAD_CLIP: 0.01
 
 #RELAXATION_RIG: 0.5
 
 //#Z_END:   746
-#DEBUG_SUFFIX: "cutout_g"
+#DEBUG_SUFFIX: ""
 
 //#RELAXATION_SUFFIX: "_fix\(#RELAXATION_FIX)_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_z\(#Z_START)-\(#Z_END)"
 #RELAXATION_RESOLUTION: [512, 512, 30]
-#RELAXATION_SUFFIX: "try_x5_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
+#RELAXATION_SUFFIX: "try_x8_\(#RELAXATION_RESOLUTION[0])nm_iter\(#RELAXATION_ITER)_rig\(#RELAXATION_RIG)_lr\(#RELAXATION_LR)_clip\(#RELAXATION_GRAD_CLIP)\(#DEBUG_SUFFIX)"
 #BLOCKS: [
-	{_z_start: 2958, _z_end: 3092, _fix: "first"}, // cutout G
+	//{_z_start: 2958, _z_end: 3092, _fix: "first"}, // cutout G
+	//{_z_start: 2958, _z_end: 2965, _fix: "first"}, // debug masks
+	//{_z_start: 3910, _z_end: 3920, _fix: "first"}, // debug masks
 
-	//{_z_start: 0, _z_end:   893, _fix:  "last"},
-	//{_z_start: 892, _z_end: 1806, _fix: "both"},
-	//{_z_start: 1805, _z_end: 2702, _fix: "both"},
-	//{_z_start: 2701, _z_end: 3598, _fix: "both"},
-	//{_z_start: 3597, _z_end: 4014, _fix: "first"},
+	{_z_start: 3597, _z_end: 4014, _fix: "first"},
+	{_z_start: 3597, _z_end: 4014, _fix: "first"},
+	{_z_start: 2701, _z_end: 3598, _fix: "both"},
+	{_z_start: 1805, _z_end: 2702, _fix: "both"},
+	{_z_start: 892, _z_end:  1806, _fix: "both"},
+	{_z_start: 0, _z_end:    893, _fix:  "last"},
 ]
 
 #BBOX_TMPL: {
@@ -212,7 +215,8 @@
 				info_chunk_size:     #RELAX_OUTCOME_CHUNK
 				on_info_exists:      "overwrite"
 				write_procs: [
-					{"@type": "to_uint8", "@mode": "partial"},
+					{"@type": "filter_cc", "@mode": "partial", thr: 3, mode: "keep_large"},
+					{"@type": "to_uint8", "@mode":  "partial"},
 				]
 			}
 			aff_mask: {
@@ -222,7 +226,8 @@
 				info_chunk_size:     #RELAX_OUTCOME_CHUNK
 				on_info_exists:      "overwrite"
 				write_procs: [
-					{"@type": "to_uint8", "@mode": "partial"},
+					{"@type": "filter_cc", "@mode": "partial", thr: 3, mode: "keep_large"},
+					{"@type": "to_uint8", "@mode":  "partial"},
 				]
 			}
 			sector_length_before: {
@@ -260,8 +265,8 @@
 
 	processing_chunk_sizes: [[32, 32, bbox._z_end - bbox._z_start]]
 	max_reduction_chunk_sizes: [32, 32, bbox._z_end - bbox._z_start]
-	processing_crop_pads: [[32, 32, 0]]
-	//processing_blend_pads: [[16, 16, 0]]
+	processing_crop_pads: [[24, 24, 0]]
+	processing_blend_pads: [[16, 16, 0]]
 	level_intermediaries_dirs: [#TMP_PATH]
 	//              processing_chunk_sizes: [[32, 32, #Z_END - #Z_START], [28, 28, #Z_END - #Z_START]]
 	//              max_reduction_chunk_sizes: [128, 128, #Z_END - #Z_START]
@@ -426,53 +431,61 @@
 #POST_ALIGN_FLOW: {
 	_bbox:   _
 	"@type": "mazepa.concurrent_flow"
+	let match_offsets_path = "\(#MATCH_OFFSET_BASE)\(_bbox._z_start)_\(_bbox._z_end)"
 	stages: [
-		#WARP_FLOW_TMPL & {
-			bbox: _bbox
-			op: mode: "img"
-			op_kwargs: src: path:              #IMG_PATH
-			op_kwargs: field: path:            #AFIELD_PATH
-			op_kwargs: field: data_resolution: #RELAXATION_RESOLUTION
-			dst: path: #IMG_ALIGNED_PATH
-			dst_resolution: [32, 32, 30]
-		}
 		// #WARP_FLOW_TMPL & {
-		//  op: mode:    "mask"
-		//  src: path:   "\(#MATCH_OFFSETS_PATH)/img_mask"
-		//  field: path: #AFIELD_PATH
-		//  dst: path:   #IMG_MASK_PATH
+		//  bbox: _bbox
+		//  op: mode: "img"
+		//  op_kwargs: src: path:              #IMG_PATH
+		//  op_kwargs: field: path:            #AFIELD_PATH
+		//  op_kwargs: field: data_resolution: #RELAXATION_RESOLUTION
+		//  dst: path: #IMG_ALIGNED_PATH
 		//  dst_resolution: [32, 32, 30]
-		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },
-		// #WARP_FLOW_TMPL & {
-		//  op: mode:    "mask"
-		//  src: path:   "\(#MATCH_OFFSETS_PATH)/aff_mask"
-		//  field: path: #AFIELD_PATH
-		//  dst: path:   #AFF_MASK_PATH
-		//  dst_resolution: [32, 32, 303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030]
-		//  field: data_resolution: #RELAXATION_RESOLUTION
-		// },,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+		// }
+		#WARP_FLOW_TMPL & {
+			op: mode: "mask"
+			op_kwargs: {
+				src: path:              "\(match_offsets_path)/img_mask"
+				field: data_resolution: #RELAXATION_RESOLUTION
+				field: path:            #AFIELD_PATH
+			}
+			dst: path: #IMG_MASK_PATH
+			dst_resolution: [512, 512, 30]
+			bbox: _bbox
+		},
+		#WARP_FLOW_TMPL & {
+			op: mode: "mask"
+			bbox: _bbox
+			op_kwargs: {
+				src: path:              "\(match_offsets_path)/aff_mask"
+				field: data_resolution: #RELAXATION_RESOLUTION
+				field: path:            #AFIELD_PATH
+			}
+			dst: path: #AFF_MASK_PATH
+			dst_resolution: [512, 512, 30]
+		},
 
 	]
 }
 
 #RUN_INFERENCE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x196"
+	worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x207"
 
 	worker_resources: {
-		memory:           "18560Mi"
-		"nvidia.com/gpu": "1"
+		memory: "18560Mi"
+		//"nvidia.com/gpu": "1"
 	}
-	worker_replicas:        300
+	worker_replicas:        400
 	do_dryrun_estimation:   true
 	local_test:             false
 	worker_cluster_name:    "zutils-zfish"
 	worker_cluster_region:  "us-east1"
 	worker_cluster_project: "zetta-jlichtman-zebrafish-001"
-
+	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-beryl-chachalaca-of-immortal-courage/2023-05-25_044359_601.zstd"
 	target: {
-		"@type": "mazepa.concurrent_flow"
+		//"@type": "mazepa.concurrent_flow"
+		"@type": "mazepa.seq_flow"
 		stages: [
 			for block in #BLOCKS {
 				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
@@ -487,8 +500,8 @@
 					// #DOWNSAMPLE_FLOW & {
 					//  _bbox: bbox
 					// }
-					//#MATCH_OFFSETS_FLOW & {'bbox': bbox},
-					#RELAX_FLOW & {'bbox':     bbox, op_kwargs: fix: block._fix},
+					//#MATCH_OFFSETS_FLOW & {'bbox': bbox}
+					//#RELAX_FLOW & {'bbox':         bbox, op_kwargs: fix: block._fix},
 					#POST_ALIGN_FLOW & {_bbox: bbox},
 				]
 			},

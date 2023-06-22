@@ -15,23 +15,22 @@
                 "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
             ],
             [
-                "aligned try_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
+                "aligned try_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01",
                 "image",
-                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01"
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01"
             ],
             [
-                "afield try_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
+                "afield try_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01",
                 "image",
-                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01"
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01"
             ]
         ]
     },
     {
         "@type": "mazepa.execute_on_gcp_with_sqs",
-        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x195",
+        "worker_image": "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x204",
         "worker_resources": {
-            "memory": "18560Mi",
-            "nvidia.com/gpu": "1"
+            "memory": "18560Mi"
         },
         "worker_replicas": 100,
         "do_dryrun_estimation": true,
@@ -39,6 +38,7 @@
         "worker_cluster_name": "zutils-zfish",
         "worker_cluster_region": "us-east1",
         "worker_cluster_project": "zetta-jlichtman-zebrafish-001",
+        "checkpoint": "gs://zetta_utils_runs/sergiy/exec-beryl-chachalaca-of-immortal-courage/2023-05-25_044359_601.zstd",
         "target": {
             "@type": "mazepa.concurrent_flow",
             "stages": [
@@ -55,12 +55,12 @@
                                 "start_coord": [
                                     0,
                                     0,
-                                    0
+                                    3910
                                 ],
                                 "end_coord": [
                                     384,
                                     512,
-                                    893
+                                    3920
                                 ],
                                 "resolution": [
                                     1024,
@@ -72,7 +72,7 @@
                                 [
                                     32,
                                     32,
-                                    893
+                                    10
                                 ]
                             ],
                             "processing_crop_pads": [
@@ -87,95 +87,97 @@
                                 512,
                                 30
                             ],
-                            "max_dist": 2,
-                            "tissue_mask": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/tissue_mask"
-                            },
-                            "misalignment_masks": {
-                                "-2": {
+                            "op_kwargs": {
+                                "max_dist": 2,
+                                "tissue_mask": {
                                     "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-2",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
+                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/tissue_mask"
                                 },
-                                "-1": {
-                                    "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-1",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
-                                }
-                            },
-                            "pairwise_fields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
+                                "misalignment_masks": {
+                                    "-2": {
+                                        "@type": "build_ts_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-2",
+                                        "read_procs": [
+                                            {
+                                                "@type": "compare",
+                                                "@mode": "partial",
+                                                "mode": "\u003e=",
+                                                "value": 128
+                                            },
+                                            {
+                                                "@type": "filter_cc",
+                                                "@mode": "partial",
+                                                "thr": 10,
+                                                "mode": "keep_large"
+                                            },
+                                            {
+                                                "@type": "binary_closing",
+                                                "@mode": "partial",
+                                                "width": 4
+                                            },
+                                            {
+                                                "@type": "coarsen",
+                                                "@mode": "partial",
+                                                "width": 1
+                                            },
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    },
+                                    "-1": {
+                                        "@type": "build_ts_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-1",
+                                        "read_procs": [
+                                            {
+                                                "@type": "compare",
+                                                "@mode": "partial",
+                                                "mode": "\u003e=",
+                                                "value": 128
+                                            },
+                                            {
+                                                "@type": "filter_cc",
+                                                "@mode": "partial",
+                                                "thr": 10,
+                                                "mode": "keep_large"
+                                            },
+                                            {
+                                                "@type": "binary_closing",
+                                                "@mode": "partial",
+                                                "width": 4
+                                            },
+                                            {
+                                                "@type": "coarsen",
+                                                "@mode": "partial",
+                                                "width": 1
+                                            },
+                                            {
+                                                "@type": "to_uint8",
+                                                "@mode": "partial"
+                                            }
+                                        ]
+                                    }
                                 },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "pairwise_fields_inv": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-2"
+                                "pairwise_fields": {
+                                    "-2": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
+                                    },
+                                    "-1": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
+                                    }
                                 },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-1"
+                                "pairwise_fields_inv": {
+                                    "-2": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-2"
+                                    },
+                                    "-1": {
+                                        "@type": "build_cv_layer",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-1"
+                                    }
                                 }
                             },
                             "dst": {
@@ -183,7 +185,7 @@
                                 "layers": {
                                     "match_offsets": {
                                         "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v3_debug_x0_notail_z3910_3920",
                                         "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
                                         "info_chunk_size": [
                                             32,
@@ -200,7 +202,7 @@
                                     },
                                     "img_mask": {
                                         "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893/img_mask",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v3_debug_x0_notail_z3910_3920/img_mask",
                                         "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
                                         "info_chunk_size": [
                                             32,
@@ -209,6 +211,12 @@
                                         ],
                                         "on_info_exists": "overwrite",
                                         "write_procs": [
+                                            {
+                                                "@type": "filter_cc",
+                                                "@mode": "partial",
+                                                "thr": 3,
+                                                "mode": "keep_large"
+                                            },
                                             {
                                                 "@type": "to_uint8",
                                                 "@mode": "partial"
@@ -217,7 +225,7 @@
                                     },
                                     "aff_mask": {
                                         "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893/aff_mask",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v3_debug_x0_notail_z3910_3920/aff_mask",
                                         "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
                                         "info_chunk_size": [
                                             32,
@@ -227,6 +235,12 @@
                                         "on_info_exists": "overwrite",
                                         "write_procs": [
                                             {
+                                                "@type": "filter_cc",
+                                                "@mode": "partial",
+                                                "thr": 3,
+                                                "mode": "keep_large"
+                                            },
+                                            {
                                                 "@type": "to_uint8",
                                                 "@mode": "partial"
                                             }
@@ -234,7 +248,7 @@
                                     },
                                     "sector_length_before": {
                                         "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893/sl_before",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v3_debug_x0_notail_z3910_3920/sl_before",
                                         "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
                                         "info_chunk_size": [
                                             32,
@@ -251,7 +265,7 @@
                                     },
                                     "sector_length_after": {
                                         "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893/sl_after",
+                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v3_debug_x0_notail_z3910_3920/sl_after",
                                         "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
                                         "info_chunk_size": [
                                             32,
@@ -268,1088 +282,6 @@
                                     }
                                 }
                             }
-                        },
-                        {
-                            "@type": "build_subchunkable_apply_flow",
-                            "op": {
-                                "@type": "AcedRelaxationOp"
-                            },
-                            "expand_bbox": true,
-                            "dst_resolution": [
-                                512,
-                                512,
-                                30
-                            ],
-                            "bbox": {
-                                "@type": "BBox3D.from_coords",
-                                "start_coord": [
-                                    0,
-                                    0,
-                                    0
-                                ],
-                                "end_coord": [
-                                    384,
-                                    512,
-                                    893
-                                ],
-                                "resolution": [
-                                    1024,
-                                    1024,
-                                    30
-                                ]
-                            },
-                            "processing_chunk_sizes": [
-                                [
-                                    32,
-                                    32,
-                                    893
-                                ]
-                            ],
-                            "max_reduction_chunk_sizes": [
-                                32,
-                                32,
-                                893
-                            ],
-                            "processing_crop_pads": [
-                                [
-                                    24,
-                                    24,
-                                    0
-                                ]
-                            ],
-                            "processing_blend_pads": [
-                                [
-                                    16,
-                                    16,
-                                    0
-                                ]
-                            ],
-                            "level_intermediaries_dirs": [
-                                "gs://tmp_2w/temporary_layers"
-                            ],
-                            "fix": "last",
-                            "num_iter": 8000,
-                            "lr": 0.001,
-                            "grad_clip": 0.01,
-                            "rigidity_weight": 0.5,
-                            "min_rigidity_multiplier": 0.001,
-                            "rigidity_masks": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/defects_binarized",
-                                "read_procs": [
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "!=",
-                                        "value": 0
-                                    },
-                                    {
-                                        "@type": "filter_cc",
-                                        "@mode": "partial",
-                                        "mode": "keep_large",
-                                        "thr": 20
-                                    },
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "==",
-                                        "value": 0
-                                    }
-                                ]
-                            },
-                            "match_offsets": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z0_893",
-                                "on_info_exists": "overwrite"
-                            },
-                            "pfields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "dst": {
-                                "@type": "build_cv_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                "info_field_overrides": {
-                                    "num_channels": 2,
-                                    "data_type": "float32"
-                                },
-                                "info_chunk_size": [
-                                    32,
-                                    32,
-                                    1
-                                ],
-                                "on_info_exists": "overwrite"
-                            }
-                        },
-                        {
-                            "@type": "mazepa.concurrent_flow",
-                            "stages": [
-                                {
-                                    "@type": "build_subchunkable_apply_flow",
-                                    "op": {
-                                        "@type": "WarpOperation",
-                                        "mode": "img"
-                                    },
-                                    "expand_bbox": true,
-                                    "processing_chunk_sizes": [
-                                        [
-                                            8192,
-                                            8192,
-                                            1
-                                        ],
-                                        [
-                                            2048,
-                                            2048,
-                                            1
-                                        ]
-                                    ],
-                                    "max_reduction_chunk_sizes": [
-                                        8192,
-                                        8192,
-                                        1
-                                    ],
-                                    "processing_crop_pads": [
-                                        [
-                                            0,
-                                            0,
-                                            0
-                                        ],
-                                        [
-                                            256,
-                                            256,
-                                            0
-                                        ]
-                                    ],
-                                    "level_intermediaries_dirs": [
-                                        "gs://tmp_2w/temporary_layers",
-                                        "~/.zutils/tmp"
-                                    ],
-                                    "bbox": {
-                                        "@type": "BBox3D.from_coords",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            0
-                                        ],
-                                        "end_coord": [
-                                            384,
-                                            512,
-                                            893
-                                        ],
-                                        "resolution": [
-                                            1024,
-                                            1024,
-                                            30
-                                        ]
-                                    },
-                                    "dst_resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ],
-                                    "src": {
-                                        "@type": "build_ts_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
-                                    },
-                                    "field": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "data_resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ],
-                                        "interpolation_mode": "field"
-                                    },
-                                    "dst": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "on_info_exists": "overwrite"
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "@type": "mazepa.seq_flow",
-                    "stages": [
-                        {
-                            "@type": "build_subchunkable_apply_flow",
-                            "op": {
-                                "@type": "AcedMatchOffsetOp"
-                            },
-                            "bbox": {
-                                "@type": "BBox3D.from_coords",
-                                "start_coord": [
-                                    0,
-                                    0,
-                                    892
-                                ],
-                                "end_coord": [
-                                    384,
-                                    512,
-                                    1806
-                                ],
-                                "resolution": [
-                                    1024,
-                                    1024,
-                                    30
-                                ]
-                            },
-                            "processing_chunk_sizes": [
-                                [
-                                    32,
-                                    32,
-                                    914
-                                ]
-                            ],
-                            "processing_crop_pads": [
-                                [
-                                    32,
-                                    32,
-                                    0
-                                ]
-                            ],
-                            "dst_resolution": [
-                                512,
-                                512,
-                                30
-                            ],
-                            "max_dist": 2,
-                            "tissue_mask": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/tissue_mask"
-                            },
-                            "misalignment_masks": {
-                                "-2": {
-                                    "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-2",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
-                                },
-                                "-1": {
-                                    "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-1",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
-                                }
-                            },
-                            "pairwise_fields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "pairwise_fields_inv": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-1"
-                                }
-                            },
-                            "dst": {
-                                "@type": "build_volumetric_layer_set",
-                                "layers": {
-                                    "match_offsets": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "img_mask": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806/img_mask",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "aff_mask": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806/aff_mask",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "sector_length_before": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806/sl_before",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "sector_length_after": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806/sl_after",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "@type": "build_subchunkable_apply_flow",
-                            "op": {
-                                "@type": "AcedRelaxationOp"
-                            },
-                            "expand_bbox": true,
-                            "dst_resolution": [
-                                512,
-                                512,
-                                30
-                            ],
-                            "bbox": {
-                                "@type": "BBox3D.from_coords",
-                                "start_coord": [
-                                    0,
-                                    0,
-                                    892
-                                ],
-                                "end_coord": [
-                                    384,
-                                    512,
-                                    1806
-                                ],
-                                "resolution": [
-                                    1024,
-                                    1024,
-                                    30
-                                ]
-                            },
-                            "processing_chunk_sizes": [
-                                [
-                                    32,
-                                    32,
-                                    914
-                                ]
-                            ],
-                            "max_reduction_chunk_sizes": [
-                                32,
-                                32,
-                                914
-                            ],
-                            "processing_crop_pads": [
-                                [
-                                    24,
-                                    24,
-                                    0
-                                ]
-                            ],
-                            "processing_blend_pads": [
-                                [
-                                    16,
-                                    16,
-                                    0
-                                ]
-                            ],
-                            "level_intermediaries_dirs": [
-                                "gs://tmp_2w/temporary_layers"
-                            ],
-                            "fix": "both",
-                            "num_iter": 8000,
-                            "lr": 0.001,
-                            "grad_clip": 0.01,
-                            "rigidity_weight": 0.5,
-                            "min_rigidity_multiplier": 0.001,
-                            "rigidity_masks": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/defects_binarized",
-                                "read_procs": [
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "!=",
-                                        "value": 0
-                                    },
-                                    {
-                                        "@type": "filter_cc",
-                                        "@mode": "partial",
-                                        "mode": "keep_large",
-                                        "thr": 20
-                                    },
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "==",
-                                        "value": 0
-                                    }
-                                ]
-                            },
-                            "match_offsets": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z892_1806",
-                                "on_info_exists": "overwrite"
-                            },
-                            "pfields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "dst": {
-                                "@type": "build_cv_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                "info_field_overrides": {
-                                    "num_channels": 2,
-                                    "data_type": "float32"
-                                },
-                                "info_chunk_size": [
-                                    32,
-                                    32,
-                                    1
-                                ],
-                                "on_info_exists": "overwrite"
-                            }
-                        },
-                        {
-                            "@type": "mazepa.concurrent_flow",
-                            "stages": [
-                                {
-                                    "@type": "build_subchunkable_apply_flow",
-                                    "op": {
-                                        "@type": "WarpOperation",
-                                        "mode": "img"
-                                    },
-                                    "expand_bbox": true,
-                                    "processing_chunk_sizes": [
-                                        [
-                                            8192,
-                                            8192,
-                                            1
-                                        ],
-                                        [
-                                            2048,
-                                            2048,
-                                            1
-                                        ]
-                                    ],
-                                    "max_reduction_chunk_sizes": [
-                                        8192,
-                                        8192,
-                                        1
-                                    ],
-                                    "processing_crop_pads": [
-                                        [
-                                            0,
-                                            0,
-                                            0
-                                        ],
-                                        [
-                                            256,
-                                            256,
-                                            0
-                                        ]
-                                    ],
-                                    "level_intermediaries_dirs": [
-                                        "gs://tmp_2w/temporary_layers",
-                                        "~/.zutils/tmp"
-                                    ],
-                                    "bbox": {
-                                        "@type": "BBox3D.from_coords",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            892
-                                        ],
-                                        "end_coord": [
-                                            384,
-                                            512,
-                                            1806
-                                        ],
-                                        "resolution": [
-                                            1024,
-                                            1024,
-                                            30
-                                        ]
-                                    },
-                                    "dst_resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ],
-                                    "src": {
-                                        "@type": "build_ts_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
-                                    },
-                                    "field": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "data_resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ],
-                                        "interpolation_mode": "field"
-                                    },
-                                    "dst": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "on_info_exists": "overwrite"
-                                    }
-                                }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    "@type": "mazepa.seq_flow",
-                    "stages": [
-                        {
-                            "@type": "build_subchunkable_apply_flow",
-                            "op": {
-                                "@type": "AcedMatchOffsetOp"
-                            },
-                            "bbox": {
-                                "@type": "BBox3D.from_coords",
-                                "start_coord": [
-                                    0,
-                                    0,
-                                    3597
-                                ],
-                                "end_coord": [
-                                    384,
-                                    512,
-                                    4014
-                                ],
-                                "resolution": [
-                                    1024,
-                                    1024,
-                                    30
-                                ]
-                            },
-                            "processing_chunk_sizes": [
-                                [
-                                    32,
-                                    32,
-                                    417
-                                ]
-                            ],
-                            "processing_crop_pads": [
-                                [
-                                    32,
-                                    32,
-                                    0
-                                ]
-                            ],
-                            "dst_resolution": [
-                                512,
-                                512,
-                                30
-                            ],
-                            "max_dist": 2,
-                            "tissue_mask": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/tissue_mask"
-                            },
-                            "misalignment_masks": {
-                                "-2": {
-                                    "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-2",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
-                                },
-                                "-1": {
-                                    "@type": "build_ts_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/misalignments2/-1",
-                                    "read_procs": [
-                                        {
-                                            "@type": "compare",
-                                            "@mode": "partial",
-                                            "mode": "\u003e=",
-                                            "value": 128
-                                        },
-                                        {
-                                            "@type": "filter_cc",
-                                            "@mode": "partial",
-                                            "thr": 10,
-                                            "mode": "keep_large"
-                                        },
-                                        {
-                                            "@type": "binary_closing",
-                                            "@mode": "partial",
-                                            "width": 4
-                                        },
-                                        {
-                                            "@type": "coarsen",
-                                            "@mode": "partial",
-                                            "width": 1
-                                        },
-                                        {
-                                            "@type": "to_uint8",
-                                            "@mode": "partial"
-                                        }
-                                    ]
-                                }
-                            },
-                            "pairwise_fields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "pairwise_fields_inv": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_inv/-1"
-                                }
-                            },
-                            "dst": {
-                                "@type": "build_volumetric_layer_set",
-                                "layers": {
-                                    "match_offsets": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "img_mask": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014/img_mask",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "aff_mask": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014/aff_mask",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "sector_length_before": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014/sl_before",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    },
-                                    "sector_length_after": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014/sl_after",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "info_chunk_size": [
-                                            32,
-                                            32,
-                                            1
-                                        ],
-                                        "on_info_exists": "overwrite",
-                                        "write_procs": [
-                                            {
-                                                "@type": "to_uint8",
-                                                "@mode": "partial"
-                                            }
-                                        ]
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "@type": "build_subchunkable_apply_flow",
-                            "op": {
-                                "@type": "AcedRelaxationOp"
-                            },
-                            "expand_bbox": true,
-                            "dst_resolution": [
-                                512,
-                                512,
-                                30
-                            ],
-                            "bbox": {
-                                "@type": "BBox3D.from_coords",
-                                "start_coord": [
-                                    0,
-                                    0,
-                                    3597
-                                ],
-                                "end_coord": [
-                                    384,
-                                    512,
-                                    4014
-                                ],
-                                "resolution": [
-                                    1024,
-                                    1024,
-                                    30
-                                ]
-                            },
-                            "processing_chunk_sizes": [
-                                [
-                                    32,
-                                    32,
-                                    417
-                                ]
-                            ],
-                            "max_reduction_chunk_sizes": [
-                                32,
-                                32,
-                                417
-                            ],
-                            "processing_crop_pads": [
-                                [
-                                    24,
-                                    24,
-                                    0
-                                ]
-                            ],
-                            "processing_blend_pads": [
-                                [
-                                    16,
-                                    16,
-                                    0
-                                ]
-                            ],
-                            "level_intermediaries_dirs": [
-                                "gs://tmp_2w/temporary_layers"
-                            ],
-                            "fix": "first",
-                            "num_iter": 8000,
-                            "lr": 0.001,
-                            "grad_clip": 0.01,
-                            "rigidity_weight": 0.5,
-                            "min_rigidity_multiplier": 0.001,
-                            "rigidity_masks": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/defects_binarized",
-                                "read_procs": [
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "!=",
-                                        "value": 0
-                                    },
-                                    {
-                                        "@type": "filter_cc",
-                                        "@mode": "partial",
-                                        "mode": "keep_large",
-                                        "thr": 20
-                                    },
-                                    {
-                                        "@type": "compare",
-                                        "@mode": "partial",
-                                        "mode": "==",
-                                        "value": 0
-                                    }
-                                ]
-                            },
-                            "match_offsets": {
-                                "@type": "build_ts_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/match_offsets_512nm_v1_z3597_4014",
-                                "on_info_exists": "overwrite"
-                            },
-                            "pfields": {
-                                "-2": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-2"
-                                },
-                                "-1": {
-                                    "@type": "build_cv_layer",
-                                    "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/fields_fwd/-1"
-                                }
-                            },
-                            "dst": {
-                                "@type": "build_cv_layer",
-                                "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                "info_field_overrides": {
-                                    "num_channels": 2,
-                                    "data_type": "float32"
-                                },
-                                "info_chunk_size": [
-                                    32,
-                                    32,
-                                    1
-                                ],
-                                "on_info_exists": "overwrite"
-                            }
-                        },
-                        {
-                            "@type": "mazepa.concurrent_flow",
-                            "stages": [
-                                {
-                                    "@type": "build_subchunkable_apply_flow",
-                                    "op": {
-                                        "@type": "WarpOperation",
-                                        "mode": "img"
-                                    },
-                                    "expand_bbox": true,
-                                    "processing_chunk_sizes": [
-                                        [
-                                            8192,
-                                            8192,
-                                            1
-                                        ],
-                                        [
-                                            2048,
-                                            2048,
-                                            1
-                                        ]
-                                    ],
-                                    "max_reduction_chunk_sizes": [
-                                        8192,
-                                        8192,
-                                        1
-                                    ],
-                                    "processing_crop_pads": [
-                                        [
-                                            0,
-                                            0,
-                                            0
-                                        ],
-                                        [
-                                            256,
-                                            256,
-                                            0
-                                        ]
-                                    ],
-                                    "level_intermediaries_dirs": [
-                                        "gs://tmp_2w/temporary_layers",
-                                        "~/.zutils/tmp"
-                                    ],
-                                    "bbox": {
-                                        "@type": "BBox3D.from_coords",
-                                        "start_coord": [
-                                            0,
-                                            0,
-                                            3597
-                                        ],
-                                        "end_coord": [
-                                            384,
-                                            512,
-                                            4014
-                                        ],
-                                        "resolution": [
-                                            1024,
-                                            1024,
-                                            30
-                                        ]
-                                    },
-                                    "dst_resolution": [
-                                        32,
-                                        32,
-                                        30
-                                    ],
-                                    "src": {
-                                        "@type": "build_ts_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
-                                    },
-                                    "field": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "data_resolution": [
-                                            512,
-                                            512,
-                                            30
-                                        ],
-                                        "interpolation_mode": "field"
-                                    },
-                                    "dst": {
-                                        "@type": "build_cv_layer",
-                                        "path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
-                                        "info_reference_path": "gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked",
-                                        "on_info_exists": "overwrite"
-                                    }
-                                }
-                            ]
                         }
                     ]
                 }
@@ -1372,14 +304,14 @@
                 "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/affine/v3_phase2/mip3_img_defects_masked"
             ],
             [
-                "aligned try_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
+                "aligned try_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01",
                 "image",
-                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01"
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/img_alignedtry_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01"
             ],
             [
-                "afield try_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01",
+                "afield try_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01",
                 "image",
-                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x3_512nm_iter8000_rig0.5_lr0.001_clip0.01"
+                "precomputed://gs://zetta_jlichtman_zebrafish_001_alignment_temp/aced/med_x1/final_x0/afieldtry_x8_512nm_iter8000_rig0.5_lr0.001_clip0.01"
             ]
         ]
     }

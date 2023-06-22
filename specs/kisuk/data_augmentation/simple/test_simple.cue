@@ -5,16 +5,10 @@
 #CHUNK_SIZE:  	[96, 96, 96]
 #PAD_SIZE:		[16, 16, 16]
 #MODEL_CKPT:  	null
-#EXP_VERSION: 	"simple_iso_symmetric_t0"
+#EXP_VERSION: 	"simple_prob[0.5]_iso_t0"
 
 #NN_EDGES: [
 	[-1, 0, 0], [0, -1, 0], [0, 0, -1],
-]
-
-#LR_EDGES: [
-	[ -5, 0, 0], [0,  -5, 0], [0, 0,  -5],
-	[-10, 0, 0], [0, -10, 0], [0, 0, -10],
-	[-15, 0, 0], [0, -15, 0], [0, 0, -15],
 ]
 
 #LOSS: {
@@ -29,20 +23,6 @@
 		group: 1
 	}
 	// margin: 0.1
-}
-
-#AFFINITY_LOSS: {
-    "@type": "AffinityLoss"
-    edges: _
-    criterion: {
-		"@type": "torch.nn.BCEWithLogitsLoss"
-		"@mode": "partial"
-	}
-    reduction: "mean"
-    balancer: {
-		"@type": "BinaryClassBalancer"
-		group: 1
-	}
 }
 
 "@type":    "mazepa.execute_on_gcp_with_sqs"
@@ -145,7 +125,6 @@ target: {
 						in_channels: 16
 						heads: {
 							"affinity": 3
-							"long_range": 9
 						}
 						conv: {
 							"@type": "torch.nn.Conv3d"
@@ -169,16 +148,10 @@ target: {
 
 		criteria: {
 			"affinity": #LOSS
-			"long_range": #LOSS
 		}
-        // criteria: {
-		// 	"affinity": #AFFINITY_LOSS & {edges: #NN_EDGES}
-		// 	"long_range": #AFFINITY_LOSS & {edges: #LR_EDGES}
-		// }
 
 		loss_weights: {
 			"affinity": 1.0
-			"long_range": 1.0
 		}
 	}
 	trainer: {
@@ -269,6 +242,7 @@ target: {
 		},
 		{
 			"@type": "SimpleAugment"
+			prob: 0.5
 			isotropic: true
 		},
 		{
@@ -276,19 +250,9 @@ target: {
 			source: "target"
 			spec: {
 				"affinity":   #NN_EDGES
-				"long_range": #LR_EDGES
 			}
 			symmetric: true
 		},
-        // {
-        //     "@type": "MultiHeadedProcessor"
-        //     spec: {
-        //         "target": [
-        //             "affinity",
-        //             "long_range",
-        //         ]
-        //     }
-        // },
 	]
 
 	// Sample indexer
@@ -312,13 +276,13 @@ target: {
 }
 
 #val_dset: #dset_settings & {
-	layer: layers: data_in: path: "gs://zetta_research_datasets/zettasets/hemibrain/lobula/image"
-	layer: layers: target: path: "gs://zetta_research_datasets/zettasets/hemibrain/lobula/seg/000"
+	layer: layers: data_in: path: "gs://zetta_research_datasets/zettasets/hemibrain/eb-inner/image"
+	layer: layers: target: path: "gs://zetta_research_datasets/zettasets/hemibrain/eb-inner/seg/000"
 	layer: read_procs: [
 		{
 			"@type": "ROIMaskProcessor"
 			start_coord: [128, 128, 128]
-			end_coord: 	 [384, 384, 384]
+			end_coord: 	 [648, 648, 648]
 			resolution:  [8, 8, 8]
 			targets: 	 ["target"]
 		},
@@ -327,33 +291,27 @@ target: {
 			source: "target"
 			spec: {
 				"affinity":   #NN_EDGES
-				"long_range": #LR_EDGES
 			}
 			symmetric: true
 		},
-        // {
-        //     "@type": "MultiHeadedProcessor"
-        //     spec: {
-        //         "target": [
-        //             "affinity",
-        //             "long_range",
-        //         ]
-        //     }
-        // },
 	]
 
 	// Sample indexer
 	sample_indexer: {
-		"@type": "VolumetricStridedIndexer"
-		resolution: [8, 8, 8]
-		chunk_size: #CHUNK_SIZE
-		stride:     [16, 16, 16]
-		bbox: {
-			"@type":     "BBox3D.from_coords"
-			start_coord: [128, 128, 128]
-			end_coord:   [384, 384, 384]
+		"@type": "RandomIndexer"
+		inner_indexer: {
+			"@type": "VolumetricStridedIndexer"
 			resolution: [8, 8, 8]
+			chunk_size: #CHUNK_SIZE
+			stride:     [1, 1, 1]
+			bbox: {
+				"@type":     "BBox3D.from_coords"
+				start_coord: [128, 128, 128]
+				end_coord:   [224, 224, 224]
+				resolution: [8, 8, 8]
+			}
+			mode: "shrink"
 		}
-		mode: "shrink"
+		replacement: true
 	}
 }

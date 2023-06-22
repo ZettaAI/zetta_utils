@@ -5,16 +5,10 @@
 #CHUNK_SIZE:  	[96, 96, 96]
 #PAD_SIZE:		[16, 16, 16]
 #MODEL_CKPT:  	null
-#EXP_VERSION: 	"flip_x_0.5_t2"
+#EXP_VERSION: 	"flip_prob[0.5]_dims[xy]_t0"
 
 #NN_EDGES: [
 	[-1, 0, 0], [0, -1, 0], [0, 0, -1],
-]
-
-#LR_EDGES: [
-	[ -5, 0, 0], [0,  -5, 0], [0, 0,  -5],
-	[-10, 0, 0], [0, -10, 0], [0, 0, -10],
-	[-15, 0, 0], [0, -15, 0], [0, 0, -15],
 ]
 
 #LOSS: {
@@ -131,7 +125,6 @@ target: {
 						in_channels: 16
 						heads: {
 							"affinity": 3
-							"long_range": 9
 						}
 						conv: {
 							"@type": "torch.nn.Conv3d"
@@ -155,12 +148,10 @@ target: {
 
 		criteria: {
 			"affinity": #LOSS
-			"long_range": #LOSS
 		}
 
 		loss_weights: {
 			"affinity": 1.0
-			"long_range": 1.0
 		}
 	}
 	trainer: {
@@ -250,8 +241,8 @@ target: {
 			targets: 	 ["target"]
 		},
 		{
-			"@type": "FlipAugment"
-			dims: [-3]  // x
+			"@type": "RandomFlip"
+			dims: [-3, -2]  // x, y
 			prob: 0.5
 		},
 		{
@@ -259,8 +250,8 @@ target: {
 			source: "target"
 			spec: {
 				"affinity":   #NN_EDGES
-				"long_range": #LR_EDGES
 			}
+			symmetric: true
 		},
 	]
 
@@ -285,13 +276,13 @@ target: {
 }
 
 #val_dset: #dset_settings & {
-	layer: layers: data_in: path: "gs://zetta_research_datasets/zettasets/hemibrain/lobula/image"
-	layer: layers: target: path: "gs://zetta_research_datasets/zettasets/hemibrain/lobula/seg/000"
+	layer: layers: data_in: path: "gs://zetta_research_datasets/zettasets/hemibrain/eb-inner/image"
+	layer: layers: target: path: "gs://zetta_research_datasets/zettasets/hemibrain/eb-inner/seg/000"
 	layer: read_procs: [
 		{
 			"@type": "ROIMaskProcessor"
 			start_coord: [128, 128, 128]
-			end_coord: 	 [384, 384, 384]
+			end_coord: 	 [648, 648, 648]
 			resolution:  [8, 8, 8]
 			targets: 	 ["target"]
 		},
@@ -300,23 +291,27 @@ target: {
 			source: "target"
 			spec: {
 				"affinity":   #NN_EDGES
-				"long_range": #LR_EDGES
 			}
+			symmetric: true
 		},
 	]
 
 	// Sample indexer
 	sample_indexer: {
-		"@type": "VolumetricStridedIndexer"
-		resolution: [8, 8, 8]
-		chunk_size: #CHUNK_SIZE
-		stride:     [16, 16, 16]
-		bbox: {
-			"@type":     "BBox3D.from_coords"
-			start_coord: [128, 128, 128]
-			end_coord:   [384, 384, 384]
+		"@type": "RandomIndexer"
+		inner_indexer: {
+			"@type": "VolumetricStridedIndexer"
 			resolution: [8, 8, 8]
+			chunk_size: #CHUNK_SIZE
+			stride:     [1, 1, 1]
+			bbox: {
+				"@type":     "BBox3D.from_coords"
+				start_coord: [128, 128, 128]
+				end_coord:   [224, 224, 224]
+				resolution: [8, 8, 8]
+			}
+			mode: "shrink"
 		}
-		mode: "shrink"
+		replacement: true
 	}
 }

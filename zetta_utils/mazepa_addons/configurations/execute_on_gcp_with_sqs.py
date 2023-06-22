@@ -128,7 +128,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
     checkpoint: Optional[str] = None,
-    checkpoint_interval_sec: float = 900.0,
+    checkpoint_interval_sec: float = 300.0,
     raise_on_failed_checkpoint: bool = True,
 ):
     _ensure_required_env_vars()

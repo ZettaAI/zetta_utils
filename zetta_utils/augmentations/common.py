@@ -39,7 +39,7 @@ def prob_aug(aug: Callable[..., R]) -> Callable[..., R]:
 
 
 @typechecked
-@attrs.frozen
+@attrs.mutable
 class DataAugment(DataProcessor):
     prob: float
 

@@ -1,5 +1,5 @@
 from . import tensor
-from .blur import BlurrySectionAugment
+from .blur import build_blurry_section, build_partial_blurry_section
 from .box import FillBoxAugment, BlurBoxAugment, NoiseBoxAugment
 from .common import prob_aug, ComposedAugment
 from .grayscale import GrayscaleJitter3D, GrayscaleJitter2D, PartialGrayscaleJitter2D

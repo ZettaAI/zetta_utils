@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import math
 import random
-from abc import abstractmethod
-from typing import Literal
 
 import attrs
 import numpy as np
@@ -13,19 +11,20 @@ from typeguard import typechecked
 from zetta_utils import builder
 from zetta_utils.distributions import Distribution, to_distribution
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer import JointIndexDataProcessor
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.tensor_ops import convert
 
-from .blur import apply_gaussian_filter
+from .common import JointIndexDataAugment
+from .transform import DataTransform, GaussianBlur, RandomFill, apply_gaussian_filter
 
 
 @typechecked
 @attrs.mutable
-class RandomBoxAugment(JointIndexDataProcessor):
+class RandomBox(JointIndexDataAugment):
     key: str
     side: int | Distribution
     density: float | Distribution
+    transform: DataTransform
 
     per_box: bool = False
     is_cube: bool = False
@@ -51,15 +50,11 @@ class RandomBoxAugment(JointIndexDataProcessor):
     def random_location(roi: BBox3D) -> Vec3D:
         return Vec3D(*[random.randint(0, dim - 1) for dim in roi.shape])
 
-    def process_index(
-        self, idx: VolumetricIndex, mode: Literal["read", "write"]
-    ) -> VolumetricIndex:
+    def augment_index(self, idx: VolumetricIndex) -> VolumetricIndex:
         self.prepared_resolution = idx.resolution
         return idx
 
-    def process_data(
-        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
-    ) -> dict[str, torch.Tensor]:
+    def augment_data(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         assert self.key in data
         raw = data[self.key]
 
@@ -122,7 +117,7 @@ class RandomBoxAugment(JointIndexDataProcessor):
             slices += list(idx)
 
             # Process the box
-            raw[tuple(slices)] = self.process_box(raw[tuple(slices)])
+            raw[tuple(slices)] = self.transform(raw[tuple(slices)])
 
             # Stop condition
             occluded += intersect.get_size()
@@ -134,74 +129,58 @@ class RandomBoxAugment(JointIndexDataProcessor):
 
     def prepare(self) -> None:
         self.prepared_shape = self.random_shape()
-
-    @abstractmethod
-    def process_box(self, data: torch.Tensor) -> torch.Tensor:
-        ...
+        self.transform.prepare()
 
 
-@builder.register("FillBoxAugment")
+@builder.register("BoxFill")
 @typechecked
-@attrs.mutable
-class FillBoxAugment(RandomBoxAugment):
-    fill: float | Distribution = 0
-    fill_per_box: bool = False
-
-    fill_distr: Distribution = attrs.field(init=False)
-
-    prepared_fill: float | None = attrs.field(init=False, default=None)
-
-    def __attrs_post_init__(self):
-        super().__attrs_post_init__()
-        self.fill_distr = to_distribution(self.fill)
-
-    def prepare(self) -> None:
-        super().prepare()
-        self.prepared_fill = self.fill_distr()
-
-    def process_box(self, data: torch.Tensor) -> torch.Tensor:
-        if self.fill_per_box:
-            value = self.fill_distr()  # type: float
-        else:
-            assert self.prepared_fill is not None
-            value = self.prepared_fill
-        result = data.fill_(value)
-        return result
+def build_random_box_fill(
+    prob: float,
+    key: str,
+    side: int | Distribution,
+    density: float | Distribution,
+    per_box: bool = False,
+    is_cube: bool = False,
+    fill: float | Distribution = 0,
+    fill_per_box: bool = False,
+) -> RandomBox:
+    return RandomBox(
+        prob=prob,
+        key=key,
+        side=side,
+        density=density,
+        per_box=per_box,
+        is_cube=is_cube,
+        transform=RandomFill(fill=fill, frozen=not fill_per_box),
+    )
 
 
-@builder.register("BlurBoxAugment")
+@builder.register("BoxBlur")
 @typechecked
-@attrs.mutable
-class BlurBoxAugment(RandomBoxAugment):
-    sigma: float | Distribution = 5.0
-    sigma_per_box: bool = False
-
-    sigma_distr: Distribution = attrs.field(init=False)
-
-    prepared_sigma: float | None = attrs.field(init=False, default=None)
-
-    def __attrs_post_init__(self):
-        super().__attrs_post_init__()
-        self.sigma_distr = to_distribution(self.sigma)
-
-    def prepare(self) -> None:
-        super().prepare()
-        self.prepared_sigma = self.sigma_distr()
-
-    def process_box(self, data: torch.Tensor) -> torch.Tensor:
-        if self.sigma_per_box:
-            sigma = self.sigma_distr()  # type: float
-        else:
-            assert self.prepared_sigma is not None
-            sigma = self.prepared_sigma
-        result = apply_gaussian_filter(data, sigma)
-        return result
+def build_random_box_blur(
+    prob: float,
+    key: str,
+    side: int | Distribution,
+    density: float | Distribution,
+    per_box: bool = False,
+    is_cube: bool = False,
+    sigma: float | Distribution = 5.0,
+    sigma_per_box: bool = False,
+) -> RandomBox:
+    return RandomBox(
+        prob=prob,
+        key=key,
+        side=side,
+        density=density,
+        per_box=per_box,
+        is_cube=is_cube,
+        transform=GaussianBlur(sigma=sigma, frozen=not sigma_per_box),
+    )
 
 
-@builder.register("NoiseBoxAugment")
 @typechecked
-@attrs.mutable
-class NoiseBoxAugment(RandomBoxAugment):
+@attrs.frozen
+class _Noise(DataTransform):
     """
     Noise = uniform noise + Gaussian blurring
     """
@@ -209,7 +188,7 @@ class NoiseBoxAugment(RandomBoxAugment):
     sigma0: float = 2.0
     sigma1: float = 5.0
 
-    def process_box(self, data: torch.Tensor) -> torch.Tensor:
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
         dtype = convert.to_np(data).dtype
         shape = data.shape[-3:]
 
@@ -225,3 +204,29 @@ class NoiseBoxAugment(RandomBoxAugment):
         data[..., :, :, :] = convert.astype(patch, data, cast=True)
 
         return data
+
+    def prepare(self) -> None:
+        pass
+
+
+@builder.register("BoxNoise")
+@typechecked
+def build_random_box_noise(
+    prob: float,
+    key: str,
+    side: int | Distribution,
+    density: float | Distribution,
+    per_box: bool = False,
+    is_cube: bool = False,
+    sigma0: float = 2.0,
+    sigma1: float = 5.0,
+) -> RandomBox:
+    return RandomBox(
+        prob=prob,
+        key=key,
+        side=side,
+        density=density,
+        per_box=per_box,
+        is_cube=is_cube,
+        transform=_Noise(sigma0=sigma0, sigma1=sigma1),
+    )

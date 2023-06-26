@@ -6,11 +6,14 @@ from typing import Protocol, Sequence, TypeVar
 
 import attrs
 import numpy as np
+import scipy
 import torch
 from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.distributions import Distribution, to_distribution, uniform_distr
+from zetta_utils.tensor_ops import convert
+from zetta_utils.tensor_typing import TensorTypeVar
 
 T = TypeVar("T")
 
@@ -109,3 +112,39 @@ class PartialSection(DataTransform):
                 data[..., quad[0], quad[1]] = result
 
         return data
+
+
+@typechecked
+def apply_gaussian_filter(
+    data: TensorTypeVar, sigma: float | tuple[float, float, float]
+) -> TensorTypeVar:
+    data_np = convert.to_np(data)
+    result = scipy.ndimage.gaussian_filter(data_np, sigma=sigma)
+    return convert.astype(result, data, cast=True)
+
+
+@builder.register("GaussianBlur")
+@typechecked
+@attrs.mutable
+class GaussianBlur(DataTransform):
+    sigma: float | Distribution
+
+    frozen: bool = False
+
+    sigma_distr: Distribution = attrs.field(init=False)
+
+    prepared_sigma: float | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        self.sigma_distr = to_distribution(self.sigma)
+
+    def prepare(self) -> None:
+        self.prepared_sigma = self.sigma_distr()
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        if self.frozen:
+            assert self.prepared_sigma is not None
+            sigma = self.prepared_sigma
+        else:
+            sigma = self.sigma_distr()
+        return apply_gaussian_filter(data, sigma)

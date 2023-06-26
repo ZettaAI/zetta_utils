@@ -84,27 +84,102 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
     ] = "quadratic",
     level_intermediaries_dirs: Sequence[str | None] | None = None,
-    start_coord: Sequence[int] | None = None,
-    end_coord: Sequence[int] | None = None,
-    coord_resolution: Sequence | None = None,
-    bbox: BBox3D | None = None,
-    fn: Callable[P, Tensor] | None = None,
-    op: VolumetricOpProtocol[P, None, Any] | None = None,
+    max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     expand_bbox_resolution: bool = False,
     expand_bbox_backend: bool = False,
     expand_bbox_processing: bool = True,
     shrink_processing_chunk: bool = False,
     auto_divisibility: bool = False,
-    max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     allow_cache_up_to_level: int = 0,
     print_summary: bool = True,
     generate_ng_link: bool = False,
+    fn: Callable[P, Tensor] | None = None,
+    op: VolumetricOpProtocol[P, None, Any] | None = None,
     op_args: Iterable = (),
     op_kwargs: Mapping[str, Any] = MappingProxyType({}),
+    bbox: BBox3D | None = None,
+    start_coord: Sequence[int] | None = None,
+    end_coord: Sequence[int] | None = None,
+    coord_resolution: Sequence | None = None,
 ) -> mazepa.Flow:
     """
-    Performs basic argument error checking, expands singletons to lists, converts to Vec3D,
-    and delegates to the business logic function `_build_subchankable_apply_flow`
+    The helper constructor for a flow that applies any function or operation with a `Tensor`
+    valued output in a chunkwise fashion, allowing for arbitrary subchunking with cropping and
+    blending. Chunks are processed, written to an intermediary location temporarily, and then
+    combined (``reduced``) with weights if necessary to produce the output.
+
+    :param dst: The destination VolumetricBasedLayerProtocol.
+    :param dst_resolution: The resolution of the destination VolumetricBasedLayerProtocol.
+    :param processing_chunk_sizes: The base chunk size at each subchunking level in X, Y, Z,
+        from the largest to the smallest. Subject to divisibility requirements (see bottom). When
+        ``auto_divisibility`` is used, the chunk sizes other than the bottom level chunk size will
+        be treated as an upper bound, and rounded down to satisfy divisibility. Must be even.
+    :param processing_crop_pads: Pixels to crop per processing chunk at each subchunking
+        level in X, Y, Z, from the largest to the smallest. Affects divisibility requirements
+        (see bottom). Given as a padding: ``(10, 10, 0)`` ``crop_pad`` with a ``(1024, 1024, 1)``
+        ``processing_chunk_size`` means that ``(1044, 1044, 1)`` area will be processed and then
+        cropped by ``(10, 10, 0)`` to output a ``(1024, 1024, 1)`` chunk.
+    :param processing_blend_pads: Pixels to blend per processing chunk at each subchunking
+        level in X, Y, Z, from the largest to the smallest. Affects divisibility requirements
+        (see bottom).Given as a padding: ``(10, 10, 0)`` ``blend_pad`` with a ``(1024, 1024, 1)``
+        ``processing_chunk_size`` means that ``(1044, 1044, 1)`` area will be processed and then
+        be overlapped by ``(20, 20, 0)`` between each ``(1024, 1024, 1)`` chunk. Must be less
+        than or equal to half of the ``processing_chunk_size`` in each dimension.
+    :param processing_blend_modes: Which blend mode to use at each subchunking level. ``linear``
+        sums the blended areas weighted linearly by the position. ``quadaratic`` sums the
+        blended areas weighted quadratically by the position.
+    :param max_reduction_chunk_sizes: The upper bounds of the sizes chunks to be used for the
+        reduction step. During the reduction step, backend chunks in the area to be reduced will
+        be reduced in larger chunks that have been combined up to this limit. Reduction chunks
+        are only used to combine already computed outputs, so larger is better to cut down on
+        the number of tasks. Must be larger than the `processing_chunk_size` for the given level.
+    :param level_intermediaries_dirs: Intermediary directories for temporary layers at each
+        subchunking level, used for handling blending, cropping, and rechunking for backends.
+        If running remotely, the top level ``must`` be also remote, as the worker performing the
+        reduction step may be different from the worker that wrote the processing. The other
+        levels are recommended to be local.
+    :param expand_bbox_resolution: Expands ``bbox`` (whether given as a ``bbox`` or
+        ``start_coord``, ``end_coord``, and ``coord_resolution``) to be integral in the
+        ``dst_resolution``.
+    :param expand_bbox_backend: Expands ``bbox`` (whether given as a ``bbox`` or ``start_coord``,
+        ``end_coord``, and ``coord_resolution``) to be aligned to the ``dst`` layer's backend
+        chunk size and offset at ``dst_resolution``.  Requires ``bbox`` to be integral in
+        ``dst_resolution``. Cannot be used with ``expand_bbox_processing`` or
+        ``auto_divisibility``.
+    :param expand_bbox_processing: Expands ``bbox`` (whether given as a ``bbox`` or
+        ``start_coord``, ``end_coord``, and ``coord_resolution``) to be an integer multiple of
+        the top level ``processing_chunk_size``, holding the top left corner fixed.  Requires
+        ``bbox`` to be integral in ``dst_resolution``. Cannot be used with
+        ``expand_bbox_backend`` or ``shrink_processing_chunk``.
+    :param shrink_processing_chunk: Shrinks the top level ``processing_chunk_size`` to fit the
+        ``bbox``. Does not affect other levels, so divisibility requirements may be affected.
+        Requires ``bbox`` to be integral in ``dst_resolution``. Cannot be used with
+        ``expand_bbox_processing``, or ``auto_divisiblity``.
+    :param auto_divisibility: Automatically chooses ``processing_chunk_sizes`` that are divisible,
+        while respecting the bottom level ``processing_chunk_size`` as well as every level's
+        ``processing_corp_pads`` and ``processing_blend_pads``. The user-provided
+        ``processing_chunk_sizes`` are treated as an upper bound.  Requires ``bbox`` to be
+        integral in ``dst_resolution``. Requires ``expand_bbox_prosessing``. Cannot be used with
+        ``expand_bbox_backend`` and ``shrink_processing_chunk``.
+    :param allow_cache_up_to_level: The subchunking level (smallest is 0) where the cache for
+        different remote layers should be cleared after the processing is done. Recommended to
+        keep this at the number of levels of subchunking.
+    :param print_summary: Whether a summary should be printed.
+    :param generate_ng_link: Whether a neuroglancer link should be generated in the summary.
+        Requires ``print_summary``.
+    :param fn: The function to be run on each chunk. Cannot be used with ``op``.
+    :param op: The operation to be run on each chunk. Cannot be used with ``fn``.
+    :param op_args: Only used for typing. Do not use: will raise an exception if nonempty.
+    :param op_kwargs: Any kwarguments taken by the ``fn`` or the ``op``.
+    :param bbox: The bounding box for the operation. Cannot be used with ``start_coord``,
+        ``end_coord``, and ``coord_resolution``.
+    :param start_coord: The start coordinate for the bounding box. Must be used with
+        ``end_coord`` and ``coord_resolution``; cannot be used with ``bbox``.
+    :param end_coord: The end coordinate for the bounding box. Must be used with ``start_coord``
+        and ``coord_resolution``; cannot be used with ``bbox``.
+    :param coord_resolution: The resolution in which the coordinates are given for the bounding
+        box. Must be used with ``start_coord`` and ``end_coord``; cannot be used with ``bbox``.
+
     """
     if bbox is None:
         if start_coord is None or end_coord is None or coord_resolution is None:

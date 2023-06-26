@@ -7,9 +7,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zetta_utils"
-description = "Zetta AI Connectomics toolkit"
+description = "Zetta AI Connectomics Toolkit"
 readme = "README.md"
-authors = [{name = "Zetta AI team", email = "sergiy@zetta.ai"}]
+authors = [{name = "Zetta AI Team", email = "sergiy@zetta.ai"}]
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
@@ -67,9 +67,9 @@ viz = [
     "opencv-python-headless >= 4.5.5"
 ]
 cloudvol = [
-    "cloud-files== 4.11.0",
-    "cloud-volume @ git+https://github.com/ZettaAI/cloud-volume.git@bde11201610f7a1878f5304f01571928a76b8018",
-    "tensorstore== 0.1.33",
+    "cloud-files == 4.17.2",
+    "cloud-volume == 8.24.2",
+    "tensorstore == 0.1.33",
     "zetta_utils[tensor_ops]"
 ]
 augmentations = [
@@ -96,7 +96,7 @@ mazepa = [
 mazepa-addons = [
     "zetta_utils[mazepa]",
     "kubernetes >= 25.3.0",
-    "awscli >= 1.27.71",
+    "awscli == 1.27.165",
     "google-cloud-container",
     "google-api-python-client",
 ]
@@ -115,9 +115,12 @@ datastore = [
 ]
 docs = [
     "piccolo_theme >= 0.11.1",
-    "sphinx-autodoc-typehints >= 1.19.0",
-    "sphinx-notfound-page >= 0.8.3",
-    "sphinx_copybutton >= 0.5.0",
+    "sphinx-autodoc-typehints == 1.14.1",
+    "sphinx-notfound-page == 0.8.3",
+    "sphinx_copybutton == 0.5.2",
+    "sphinx_tabs == 3.2.0",
+    "sphinx-prompt == 1.5.0",
+    "sphinx_toolbox == 3.4.0"
 ]
 types = [
     "types-Pillow == 9.3.0.1",

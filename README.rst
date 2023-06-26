@@ -1,11 +1,13 @@
-Zetta Utils
+zetta_utils
 ===========
 
 |CI Badge| |Codecov Badge| |Docs Badge| |Python Badge|
 
 .. teaser-begin
 
-``zetta_utils`` is a colleciton of core components used in Zetta AI's connectomics pipeline. It includes tools for data IO, visualization, logging, training utilities and more.
+**zetta_utils** is a collection of core components used in Zetta AI's connectomics pipeline.
+
+It includes tools for data I/O, visualization, logging, training utilities, distributed inference, and more.
 
 Its main goal is to provide clean, powerful abstractions and accelerate connectomics research.
 

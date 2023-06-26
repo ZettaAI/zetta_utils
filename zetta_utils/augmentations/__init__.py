@@ -2,7 +2,11 @@ from . import tensor
 from .blur import build_blurry_section, build_partial_blurry_section
 from .box import FillBoxAugment, BlurBoxAugment, NoiseBoxAugment
 from .common import prob_aug, ComposedAugment
-from .grayscale import GrayscaleJitter3D, GrayscaleJitter2D, PartialGrayscaleJitter2D
+from .grayscale import (
+    GrayscaleJitter3D,
+    build_grayscale_jitter_2d,
+    build_partial_grayscale_jitter_2d,
+)
 from .missing import build_missing_section, build_partial_missing_section
 from .noise import RandomGaussianNoise
 from .simple import build_simple_augment

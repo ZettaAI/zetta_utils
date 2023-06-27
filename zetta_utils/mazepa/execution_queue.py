@@ -16,7 +16,7 @@ logger = log.get_logger("mazepa")
 
 
 @runtime_checkable
-class ExecutionQueue(Protocol):  # pragma: no cover
+class ExecutionQueue(Protocol):
     name: str
 
     def push_tasks(self, tasks: Iterable[Task]):

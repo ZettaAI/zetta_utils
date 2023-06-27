@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Callable, Optional, Union
 
 import attrs
+from typeguard import typechecked
 
 from zetta_utils import log
 from zetta_utils.common import ComparablePartial
@@ -52,6 +53,7 @@ class Executor:  # pragma: no cover # single statement, pure delegation
         )
 
 
+@typechecked
 def execute(
     target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
     exec_queue: Optional[ExecutionQueue] = None,

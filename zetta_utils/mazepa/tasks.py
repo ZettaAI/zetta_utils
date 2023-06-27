@@ -79,9 +79,8 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     tags: list[str] = attrs.field(factory=list)
 
-    args_are_set: bool = attrs.field(init=False, default=False)
-    args: Iterable = attrs.field(init=False, factory=list)
-    kwargs: dict = attrs.field(init=False, factory=dict)
+    args: Iterable = attrs.field(factory=list)
+    kwargs: dict = attrs.field(factory=dict)
 
     completion_callbacks: list[Callable] = attrs.field(factory=list)
     upkeep_settings: TaskUpkeepSettings = attrs.field(factory=TaskUpkeepSettings)
@@ -106,10 +105,8 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     # to play with kwargs.
     # cc: https://peps.python.org/pep-0612/#concatenating-keyword-parameters
     def _set_up(self, *args: Iterable, **kwargs: dict):
-        assert not self.args_are_set
         self.args = args
         self.kwargs = kwargs
-        self.args_are_set = True
 
     def __call__(self, debug: bool = True) -> TaskOutcome[R_co]:
         self.status = TaskStatus.RUNNING
@@ -179,7 +176,6 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         return result
 
     def _call_without_upkeep(self, debug: bool) -> TaskOutcome[R_co]:
-        assert self.args_are_set
         logger.debug(f"STARTING: Execution of {self}.")
         time_start = time.time()
 

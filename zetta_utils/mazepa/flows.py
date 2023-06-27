@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import uuid
 from typing import (
     Any,
     Callable,
@@ -72,18 +73,18 @@ class RawFlowSchemaCls(Protocol[P]):
 class Flow:
     """
     Implementation of mazepa flow.
-    Users are expected to use ``flow`` and ``flow_cls`` decorators rather
+    Users are expected to use ``flow_schema`` and ``flow_schema_cls`` decorators rather
     than using this class directly.
     """
 
     fn: Callable[..., FlowFnReturnType]
-    id_: str
+    id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     _iterator: FlowFnReturnType = attrs.field(init=False, default=None)
     tags: list[str] = attrs.field(factory=list)
 
     # These are saved as attributes just for printability.
-    args: Iterable = attrs.field(init=False, default=list)
-    kwargs: Dict = attrs.field(init=False, factory=dict)
+    args: Iterable = attrs.field(factory=list)
+    kwargs: Dict = attrs.field(factory=dict)
     _has_been_called: bool = attrs.field(init=False, default=False)
 
     def add_tags(self, tags: list[str]) -> Flow:  # pragma: no cover

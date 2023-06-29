@@ -5,7 +5,7 @@
 #CHUNK_SIZE:  	[96, 96, 96]
 #PAD_SIZE:		[16, 16, 16]
 #MODEL_CKPT:  	null
-#EXP_VERSION: 	"grayscale_contrast[0.5,1.5]_brightness[-0.5,0.5]_gamma[-1,1]_t0"
+#EXP_VERSION: 	"grayscale_prob[1]_contrast[0.5-1.5]_brightness[-0.5-0.5]_gamma[-1-1]_t0"
 
 #NN_EDGES: [
 	[-1, 0, 0], [0, -1, 0], [0, 0, -1],
@@ -242,13 +242,11 @@ target: {
 		},
 		{
             "@type": "GrayscaleJitter3D"
+			prob: 1
             key: "data_in"
-			jitter: {
-				"@type": "GrayscaleJitter"
-				contrast: {"@type": "uniform_distr", low: 0.5, high: 1.5}
-            	brightness: {"@type": "uniform_distr", low: -0.5, high: 0.5}
-				gamma: {"@type": "uniform_distr", low: -1, high: 1}
-			}
+			contrast: {"@type": "uniform_distr", low: 0.5, high: 1.5}
+			brightness: {"@type": "uniform_distr", low: -0.5, high: 0.5}
+			gamma: {"@type": "uniform_distr", low: -1, high: 1}
         },
 		{
 			"@type": "AffinityProcessor"

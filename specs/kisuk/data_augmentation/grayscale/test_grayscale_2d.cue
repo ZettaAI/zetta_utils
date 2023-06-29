@@ -1,11 +1,11 @@
-#EXP_NAME:      "test_grayscale_2d_aug"
+#EXP_NAME:      "test_grayscale_aug"
 #TRAINING_ROOT: "gs://zetta-research-kisuk/zetta_utils/training_artifacts"
 #LR:            1e-3
 #CLIP:          0e-5
 #CHUNK_SIZE:  	[96, 96, 96]
 #PAD_SIZE:		[16, 16, 16]
 #MODEL_CKPT:  	null
-#EXP_VERSION: 	"grayscale_2d_prob[0.5](per_section)_t0"
+#EXP_VERSION: 	"grayscale_2d_prob[1]_rate[1](per_section)_t0"
 
 #NN_EDGES: [
 	[-1, 0, 0], [0, -1, 0], [0, 0, -1],
@@ -242,15 +242,13 @@ target: {
 		},
 		{
             "@type": "GrayscaleJitter2D"
+			prob: 1
             key: "data_in"
-            prob: 0.5
-            per_section: true
-			jitter: {
-				"@type": "GrayscaleJitter"
-				contrast: {"@type": "uniform_distr", low: 0.5, high: 1.5}
-            	brightness: {"@type": "uniform_distr", low: -0.5, high: 0.5}
-				gamma: {"@type": "uniform_distr", low: -1, high: 1}
-			}
+			rate: 1
+			contrast: {"@type": "uniform_distr", low: 0.5, high: 1.5}
+			brightness: {"@type": "uniform_distr", low: -0.5, high: 0.5}
+			gamma: {"@type": "uniform_distr", low: -1, high: 1}
+			per_section: true
         },
 		{
 			"@type": "AffinityProcessor"

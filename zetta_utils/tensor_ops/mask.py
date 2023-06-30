@@ -7,6 +7,7 @@ import fastremap
 import numpy as np
 import scipy
 import torch
+from kornia import morphology
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
@@ -158,4 +159,84 @@ def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
         result_raw = np.expand_dims(result_raw, (0, -1))
 
     result = convert.astype(result_raw, data) > 0
+    return result
+
+
+@builder.register("kornia_opening")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_opening(
+    data: TensorTypeVar,
+    kernel: TensorTypeVar,
+    device: torch.types.Device = None,
+    **kwargs,
+) -> TensorTypeVar:
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = convert.to_torch(kernel, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.opening(data_torch.float(), kernel=kernel_torch, **kwargs)
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("kornia_closing")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_closing(
+    data: TensorTypeVar,
+    kernel: TensorTypeVar,
+    device: torch.types.Device = None,
+    **kwargs,
+) -> TensorTypeVar:
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = convert.to_torch(kernel, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.closing(data_torch.float(), kernel=kernel_torch, **kwargs)
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("kornia_erosion")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_erosion(
+    data: TensorTypeVar,
+    kernel: TensorTypeVar,
+    device: torch.types.Device = None,
+    **kwargs,
+) -> TensorTypeVar:
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = convert.to_torch(kernel, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.erosion(data_torch.float(), kernel=kernel_torch, **kwargs)
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("kornia_dilation")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_dilation(
+    data: TensorTypeVar,
+    kernel: TensorTypeVar,
+    device: torch.types.Device = None,
+    **kwargs,
+) -> TensorTypeVar:
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = convert.to_torch(kernel, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.dilation(data_torch.float(), kernel=kernel_torch, **kwargs)
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
     return result

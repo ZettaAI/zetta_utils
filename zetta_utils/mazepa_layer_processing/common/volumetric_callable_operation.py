@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from functools import partial
 from typing import Callable, Generic, Sequence, TypeVar
 
 import attrs
@@ -81,9 +82,13 @@ class VolumetricCallableOperation(Generic[P]):
         task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
         result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the
-        # difference between the resolutions of idx and dst_idx
-        dst_data = tensor_ops.crop(result_raw, crop=self.crop_pad)
-        dst[idx] = dst_data
+        # difference between the resolutions of idx and dst_idx.
+        # Padding was applied before the first read processor, so cropping
+        # should be done as last write processor.
+        dst_with_crop = dst.with_procs(
+            write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
+        )
+        dst_with_crop[idx] = result_raw
 
 
 # TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured

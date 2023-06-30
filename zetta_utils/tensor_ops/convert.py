@@ -28,7 +28,7 @@ def to_np(data: Tensor) -> npt.NDArray:
 
 
 @typechecked
-def to_torch(data: Tensor, device: torch.types.Device = "cpu") -> torch.Tensor:
+def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
     """Convert the given tensor to `torch.Tensor`.
 
     :param data: Input tensor_ops.
@@ -37,7 +37,7 @@ def to_torch(data: Tensor, device: torch.types.Device = "cpu") -> torch.Tensor:
 
     """
     if isinstance(data, torch.Tensor):
-        result = data
+        result = data.to(device=device)  # type: ignore # pytorch bug
     else:
         assert isinstance(data, np.ndarray)
         if data.dtype == np.uint64:

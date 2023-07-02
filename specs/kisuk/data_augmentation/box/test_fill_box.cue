@@ -5,7 +5,7 @@
 #CHUNK_SIZE:  	[96, 96, 96]
 #PAD_SIZE:		[16, 16, 16]
 #MODEL_CKPT:  	null
-#EXP_VERSION: 	"box_side[100-300](per_box)_density[0.3]_fill[0-1](per_box)_t0"
+#EXP_VERSION: 	"fill_side[100-300](per_box)(cuboid)_density[0.1-0.3]_fill[0-1](per_box)_t0"
 
 #NN_EDGES: [
 	[-1, 0, 0], [0, -1, 0], [0, 0, -1],
@@ -58,7 +58,8 @@ target: {
 					{
 						"@type": "torch.nn.Conv3d"
 						in_channels: 1
-						out_channels: 16
+						// out_channels: 16
+						out_channels: 8
 						kernel_size: [5, 5, 5]
 						padding: [2, 2, 2]
 						bias: false
@@ -103,15 +104,24 @@ target: {
 							affine: true
 						}
 						list_num_channels: [
-							[16, 16, 16, 16, 16],
+							// [16, 16, 16, 16, 16],
+							// [16, 32, 32, 32, 32],
+							// [32, 64, 64, 64, 64],
+
+							// [64, 128, 128, 128, 128],
+
+							// [64, 64, 64, 64, 64],
+							// [32, 32, 32, 32, 32],
+							// [16, 16, 16, 16, 16],
+							[8, 8, 8, 8, 8],
+							[8, 16, 16, 16, 16],
 							[16, 32, 32, 32, 32],
+
 							[32, 64, 64, 64, 64],
 
-							[64, 128, 128, 128, 128],
-
-							[64, 64, 64, 64, 64],
 							[32, 32, 32, 32, 32],
 							[16, 16, 16, 16, 16],
+							[8, 8, 8, 8, 8],
 						]
 						kernel_sizes: [3, 3, 3]
 						paddings: [1, 1, 1]
@@ -122,7 +132,8 @@ target: {
 					},
 					{
 						"@type": "MultiHeadedOutput"
-						in_channels: 16
+						// in_channels: 16
+						in_channels: 8
 						heads: {
 							"affinity": 3
 						}
@@ -240,33 +251,18 @@ target: {
 			resolution:  [8, 8, 8]
 			targets: 	 ["target"]
 		},
-		// {
-		// 	"@type": "SimpleAugment"
-		// 	isotropic: true
-		// },
-        {
-            "@type": "FillBoxAugment"
+		{
+            "@type": "BoxFill"
+			prob: 1
             key: "data_in"
-            side: {
-                "@type": "uniform_distr"
-                low: 100
-                high: 300
-            }
-            // side: 200
-            density: 0.3
-            // density: {
-            //     "@type": "uniform_distr"
-            //     low: 0.1
-            //     high: 0.5
-            // }
+			// side: 200
+            side: {"@type": "uniform_distr", low: 100, high: 300}
+            // density: 0.3
+            density: {"@type": "uniform_distr", low: 0.1, high: 0.3}
             per_box: true
             is_cube: false
             // fill: 0.5
-            fill: {
-                "@type": "uniform_distr"
-                low: 0
-                high: 1
-            }
+            fill: {"@type": "uniform_distr", low: 0, high: 1}
             fill_per_box: true
         },
 		{

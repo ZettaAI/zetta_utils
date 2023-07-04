@@ -526,6 +526,8 @@ def crop_center(
     ndim = len(size)
     slices = [slice(0, None) for _ in range(data.ndim - ndim)]
     for insz, outsz in zip(data.shape[-ndim:], size):
+        if isinstance(insz, torch.Tensor):
+            insz = insz.item()
         assert insz >= outsz
         lcrop = (insz - outsz) // 2
         rcrop = (insz - outsz) - lcrop

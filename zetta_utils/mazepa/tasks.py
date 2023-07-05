@@ -103,7 +103,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     transient_error_conditions: Sequence[
         TransientErrorCondition
     ] = DEFAULT_TRANSIENT_ERROR_CONDITIONS
-    max_transient_retry: int = 20
+    max_transient_retry: int = 40
 
     # cache_expiration: datetime.timedelta = None
 
@@ -219,6 +219,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
             return_value=return_value,
         )
 
+        logger.info(f"Task done in: {time_end - time_start:.2f}sec.")
         return outcome
 
 

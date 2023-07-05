@@ -48,7 +48,22 @@ def test_bbox_strider_get_all_chunks(mocker):
         stride=IntVec3D(1, 1, 1),
         resolution=Vec3D(1, 1, 1),
     )
-    assert strider.get_all_chunk_bboxes() == [
+    assert strider.get_all_chunk_bboxes(parallel=False) == [
+        BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
+        BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(1, 2))),
+    ]
+
+
+def test_bbox_strider_get_all_chunks_parallel(mocker):
+    strider = BBoxStrider(
+        bbox=BBox3D.from_coords(
+            start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(1, 1, 2), resolution=Vec3D(1, 1, 1)
+        ),
+        chunk_size=IntVec3D(1, 1, 1),
+        stride=IntVec3D(1, 1, 1),
+        resolution=Vec3D(1, 1, 1),
+    )
+    assert strider.get_all_chunk_bboxes(parallel=True) == [
         BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
         BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(1, 2))),
     ]

@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring, no-else-raise
 from __future__ import annotations
 
+import multiprocessing
 from math import ceil, floor
 from typing import List, Literal, Optional, Tuple
 
@@ -231,9 +232,15 @@ class BBoxStrider:
         """Shape of the chunks."""
         return Vec3D[int](*self.step_limits)
 
-    def get_all_chunk_bboxes(self) -> List[BBox3D]:
+    def get_all_chunk_bboxes(self, parallel=True) -> List[BBox3D]:
         """Get all of the chunks."""
-        result = [self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)]  # TODO: generator?
+        if parallel:
+            with multiprocessing.Pool() as pool_obj:
+                result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
+        else:
+            result = [
+                self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)
+            ]  # TODO: generator?
         return result
 
     def get_nth_chunk_bbox(self, n: int) -> BBox3D:

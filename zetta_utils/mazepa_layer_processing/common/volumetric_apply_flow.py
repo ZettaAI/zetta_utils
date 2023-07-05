@@ -375,7 +375,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         return tasks, dst_temp
 
-    def make_tasks_with_checkerboarding(  # pylint: disable=too-many-locals
+    def make_tasks_with_checkerboarding(  # pylint: disable=too-many-locals, too-many-branches
         self,
         idx: VolumetricIndex,
         red_chunks: Iterable[VolumetricIndex],
@@ -413,53 +413,116 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             dst_temp = self._get_temp_dst(dst, idx, chunker_idx)
             dst_temps.append(dst_temp)
 
-            # assert that the idx passed in is in fact exactly divisible by the chunk size
-            red_chunk_aligned = idx.snapped(
-                grid_offset=idx.start, grid_size=self.processing_chunk_size, mode="expand"
-            )
-            if red_chunk_aligned != idx:
-                raise ValueError(
-                    f"received (crop padded) idx {idx} is not evenly divisible by"
-                    f" {self.processing_chunk_size}"
-                )
-            # expand to allow for processing_blend_pad around the edges
-            idx_expanded = idx.padded(self.processing_blend_pad)
-
-            task_idxs = chunker(
-                idx_expanded,
-                stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
-                mode="shrink",
-            )
-            red_ind = 0
             with suppress_type_checks():
+                # assert that the idx passed in is in fact exactly divisible by the chunk size
+                red_chunk_aligned = idx.snapped(
+                    grid_offset=idx.start, grid_size=self.processing_chunk_size, mode="expand"
+                )
+                if red_chunk_aligned != idx:
+                    raise ValueError(
+                        f"received (crop padded) idx {idx} is not evenly divisible by"
+                        f" {self.processing_chunk_size}"
+                    )
+                # expand to allow for processing_blend_pad around the edges
+                idx_expanded = idx.padded(self.processing_blend_pad)
+
+                task_idxs = chunker(
+                    idx_expanded,
+                    stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
+                    mode="shrink",
+                )
+
+                # get offsets in terms of index inds
+                red_chunk_offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
+                # `set` to handle cases where the shape is 1 in some dimensions
+                red_ind_offsets = set(
+                    offset[2] * red_shape[0] * red_shape[1] + offset[1] * red_shape[0] + offset[0]
+                    for offset in red_chunk_offsets
+                )
+                tasks += [
+                    self.op.make_task(task_idx, dst_temp, **op_kwargs) for task_idx in task_idxs
+                ]
+                red_ind = 0
+
                 for task_idx in task_idxs:
-                    tasks.append(self.op.make_task(task_idx, dst_temp, **op_kwargs))
-                    try:
-                        while not task_idx.intersects(red_chunks[red_ind]):
-                            red_ind += 1
-                    # This case catches the case where the chunk is entirely outside any reduction
-                    # chunk; this can happen if, for instance, roi_crop_pad is set to [0, 0, 1]
-                    # and the processing_chunk_size is [X, X, 1]
-                    except IndexError as e:
-                        raise ValueError(
-                            f"The processing chunk `{task_idx.pformat()}` does not correspond to "
-                            "any reduction chunk; please check the `roi_crop_pad` and the "
-                            "`processing_chunk_size`."
-                        ) from e
-                    # check for up to 3 chunks in each dimension
-                    offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
-                    inds = [
-                        red_ind
-                        + offset[0] * red_shape[0] * red_shape[1]
-                        + offset[1] * red_shape[0]
-                        + offset[2]
-                        for offset in offsets
-                    ]
-                    # `set` to handle cases where the shape is 1 in some dimensions
-                    for i in set(inds):
-                        if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
-                            red_chunks_task_idxs[i].append(task_idx)
-                            red_chunks_temps[i].append(dst_temp)
+                    print(task_idx.pformat())
+                    if not task_idx.intersects(red_chunks[red_ind]):
+                        # roll over in Z
+                        if red_ind + 1 - red_shape[0] * red_shape[1] >= 0 and task_idx.intersects(
+                            red_chunks[red_ind + 1 - red_shape[0] * red_shape[1]]
+                        ):
+                            red_ind = red_ind + 1 - red_shape[0] * red_shape[1]
+                        # roll over in Y
+                        elif red_ind + 1 - red_shape[0] >= 0 and task_idx.intersects(
+                            red_chunks[red_ind + 1 - red_shape[0]]
+                        ):
+                            red_ind = red_ind + 1 - red_shape[0]
+                        # all other cases
+                        else:
+                            try:
+                                while not task_idx.intersects(red_chunks[red_ind]):
+                                    red_ind += 1
+                            # This case catches the case where the chunk is entirely outside any
+                            # reduction chunk; this can happen if, for instance, roi_crop_pad is
+                            # set to [0, 0, 1] and the processing_chunk_size is [X, X, 1]
+                            except IndexError as e:
+                                raise ValueError(
+                                    f"The processing chunk `{task_idx.pformat()}` does not "
+                                    " correspond to any reduction chunk; please check the "
+                                    "`roi_crop_pad` and the `processing_chunk_size`."
+                                ) from e
+                    if task_idx.contained_in(red_chunks[red_ind]):
+                        red_chunks_task_idxs[red_ind].append(task_idx)
+                        red_chunks_temps[red_ind].append(dst_temp)
+                    else:
+                        # check for up to 3 chunks in each dimension
+                        inds = [red_ind + red_ind_offset for red_ind_offset in red_ind_offsets]
+                        for i in inds:
+                            if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
+                                red_chunks_task_idxs[i].append(task_idx)
+                                red_chunks_temps[i].append(dst_temp)
+
+            """
+            with suppress_type_checks():
+                task_idxs = chunker(
+                    idx_expanded,
+                    stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
+                    mode="shrink",
+                )
+                red_ind = 0
+                t = time.time()
+                print(f"{t-s} seconds used for chunking tasks")
+                s = time.time()
+                # get offsets in terms of index inds
+                red_chunk_offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
+                # `set` to handle cases where the shape is 1 in some dimensions
+                red_ind_offsets = set([offset[2] * red_shape[0] * red_shape[1]
+                                    + offset[1] * red_shape[0]
+                                    + offset[0]
+                                for offset in red_chunk_offsets])
+
+                tasks+=[self.op.make_task(task_idx, dst_temp, **op_kwargs) for task_idx in task_idxs]
+                for task_idx in task_idxs:
+                    if not task_idx.intersects(red_chunks[red_ind]):
+                        if red_ind + 1 - red_shape[0] * red_shape[1] >= 0 and task_idx.intersects(red_chunks[red_ind + 1 - red_shape[0] * red_shape[1]]):
+                            red_ind = red_ind + 1 - red_shape[0] * red_shape[1]
+                        elif red_ind + 1 - red_shape[0] >= 0 and task_idx.intersects(red_chunks[red_ind + 1 - red_shape[0]]):
+                            red_ind = red_ind + 1 - red_shape[0]
+                        elif red_ind + 1 < len(red_chunks) and task_idx.intersects(red_chunks[red_ind + 1]):
+                            red_ind = red_ind + 1
+                        else:
+                            raise ValueError(
+                                f"The processing chunk `{task_idx.pformat()}` does not correspond to "
+                                "any reduction chunk; please check the `roi_crop_pad` and the "
+                                f"`processing_chunk_size`. {red_chunks[0].pformat()}"
+                            )
+
+                t = time.time()
+                print(f"{t-s} seconds used for intersection and lists")
+
+        t1 = time.time()
+        print(f"{t1-s1} seconds used for generating tasks total")
+        """
 
         return (tasks, red_chunks_task_idxs, red_chunks_temps, dst_temps)
 

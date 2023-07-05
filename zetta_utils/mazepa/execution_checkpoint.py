@@ -51,7 +51,7 @@ def record_execution_checkpoint(
         info_path, zetta_user, execution_id, f"{ckpt_name}.{CHECKPOINT_COMPRESSION}"
     )
 
-    logger.info(f"Saving execution checkpoint to {ckpt_path}")
+    logger.info(f"Saving execution checkpoint to '{ckpt_path}'")
     try:
         with fsspec.open(ckpt_path, "w", compression=CHECKPOINT_COMPRESSION) as f:
             json.dump(completed_ids, f, indent=2)

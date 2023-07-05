@@ -17,7 +17,7 @@
 		"@type": "WarpOperation"
 		mode:    "field"
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_chunk_sizes: [[#CHUNK, #CHUNK, 1]]
 	processing_crop_pads: [[#CROP_PAD, #CROP_PAD, 0]]
 	//level_intermediaries_dirs: ["file://~/.zutils/tmp", "file://~/.zutils/tmp"]

@@ -239,7 +239,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_crop_pads: [[256, 256, 0]]
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	//chunk_size: [512, 512, 1]
@@ -453,7 +453,7 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox_processing:    true
+	expand_bbox:    true
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	processing_chunk_sizes: [[256, 256, #Z_END - #Z_START], [128, 128, #Z_END - #Z_START]]

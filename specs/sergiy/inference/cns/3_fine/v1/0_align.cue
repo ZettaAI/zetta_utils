@@ -193,7 +193,7 @@
 	"@type":        "ComputeFieldStage"
 	dst_resolution: _
 
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [2048, 2048, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
@@ -306,7 +306,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	//expand_bbox_processing: true
+	//expand_bbox: true
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [2048, 2048, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
@@ -555,7 +555,7 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	dst_resolution: [32, 32, 45]
 	bbox: #BBOX
 	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START], [288, 288, #Z_END - #Z_START]]

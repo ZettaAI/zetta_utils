@@ -13,7 +13,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]

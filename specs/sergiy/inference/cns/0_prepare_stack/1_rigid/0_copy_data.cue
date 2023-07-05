@@ -1,7 +1,7 @@
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 429]
-	end_coord: [2048, 2048, 1000]
+	start_coord: [0, 0, 3500]
+	end_coord: [2048, 2048, 3510]
 	resolution: [512, 512, 45]
 }
 
@@ -11,9 +11,9 @@
 		"@type":    "lambda"
 		lambda_str: "lambda src: src"
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
-	max_reduction_chunk_size: [1024 * 4, 1024 * 4, 1]
+	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
 	level_intermediaries_dirs: ['~/.zutils/', '~/.zutils/']
 	dst_resolution: _
 	bbox:           #BBOX
@@ -32,13 +32,16 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x128"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
 worker_resources: {
-	memory: "18560Mi"
+	memory:           "18560Mi"
+	"nvidia.com/gpu": "1"
 }
-worker_replicas:     100
-batch_gap_sleep_sec: 0.1
-local_test:          false
+worker_replicas:        40
+worker_cluster_project: "zetta-lee-fly-vnc-001"
+worker_cluster_region:  "us-east1"
+worker_cluster_name:    "zutils-cns"
+local_test:             false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [

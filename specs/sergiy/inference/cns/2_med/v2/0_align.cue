@@ -97,7 +97,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox_processing:             false
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -107,7 +107,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox_processing:             false
+		expand_bbox:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -138,7 +138,7 @@
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	expand_bbox_processing:             bool | *true
+	expand_bbox:             bool | *true
 	shrink_processing_chunk: bool | *false
 
 	fn: {
@@ -249,7 +249,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox_processing: true
+	expand_bbox: true
 	processing_crop_pads: [[256, 256, 0]]
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	//chunk_size: [512, 512, 1]
@@ -463,7 +463,7 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox_processing:    true
+	expand_bbox:    true
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
 	processing_chunk_sizes: [[128, 128, #Z_END - #Z_START], [72, 72, #Z_END - #Z_START]]

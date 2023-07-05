@@ -443,6 +443,14 @@ class BBox3D:
         x_start, x_stop, y_start, y_stop, z_start, z_stop order."""
         return tuple(s[i] == o[i] for s, o in zip(self.bounds, other.bounds) for i in range(2))
 
+    def contained_in(self: BBox3D, other: BBox3D) -> bool:  # pragma: no cover
+        assert self.unit == other.unit
+        """Returns whether the other BoundingBoxND contains self."""
+        return all(
+            (self_b[0] >= other_b[0] and other_b[1] >= self_b[1])
+            for self_b, other_b in zip(self.bounds, other.bounds)
+        )
+
     def intersects(self: BBox3D, other: BBox3D) -> bool:  # pragma: no cover
         assert self.unit == other.unit
         """Returns whether two BoundingBoxNDs intersect."""

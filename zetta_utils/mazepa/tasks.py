@@ -65,6 +65,16 @@ DEFAULT_TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=RuntimeError,
         text_signature="Attempting to deserialize object on a CUDA device",
     ),
+    TransientErrorCondition(
+        # Transient GCS error
+        exception_type=Exception,
+        text_signature="You have exceeded your bucket's allowed rate",
+    ),
+    TransientErrorCondition(
+        # Transient GCS error
+        exception_type=Exception,
+        text_signature="We encountered an internal error. Please try again",
+    ),
 )
 
 

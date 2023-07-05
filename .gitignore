@@ -1,4 +1,5 @@
 # Traing data logging
+**/tmp.json
 **/wandb/**
 **/.neptune/**
 **/tensorboard/**

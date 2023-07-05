@@ -1,4 +1,5 @@
 import itertools
+import multiprocessing
 from copy import deepcopy
 from os import path
 from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
@@ -347,20 +348,25 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         )
         return attrs.evolve(dst.with_procs(read_procs=()), backend=backend_temp)
 
+    def _make_task(
+        self,
+        arg: Tuple[
+            VolumetricIndex, VolumetricBasedLayerProtocol, dict[str, Any]
+        ],  # cannot type with P.kwargs
+    ) -> mazepa.tasks.Task[R_co]:
+        return self.op.make_task(idx=arg[0], dst=arg[1], **arg[2])
+
     def make_tasks_without_checkerboarding(
         self,
         idx_chunks: Iterable[VolumetricIndex],
         dst: VolumetricBasedLayerProtocol,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
-        tasks = [
-            self.op.make_task(
-                idx=idx_chunk,
-                dst=dst,
-                **op_kwargs,
+        with multiprocessing.Pool() as pool_obj:
+            tasks = pool_obj.map(
+                self._make_task,
+                zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
             )
-            for idx_chunk in idx_chunks
-        ]
         return tasks
 
     def make_tasks_with_intermediaries(  # pylint: disable=too-many-locals
@@ -372,7 +378,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst_temp = self._get_temp_dst(dst, idx)
         idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
-
         return tasks, dst_temp
 
     def make_tasks_with_checkerboarding(  # pylint: disable=too-many-locals, too-many-branches
@@ -412,7 +417,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             """
             dst_temp = self._get_temp_dst(dst, idx, chunker_idx)
             dst_temps.append(dst_temp)
-
             with suppress_type_checks():
                 # assert that the idx passed in is in fact exactly divisible by the chunk size
                 red_chunk_aligned = idx.snapped(
@@ -439,13 +443,17 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     offset[2] * red_shape[0] * red_shape[1] + offset[1] * red_shape[0] + offset[0]
                     for offset in red_chunk_offsets
                 )
-                tasks += [
-                    self.op.make_task(task_idx, dst_temp, **op_kwargs) for task_idx in task_idxs
-                ]
+
+                with multiprocessing.Pool() as pool_obj:
+                    tasks_split = pool_obj.map(
+                        self._make_task,
+                        zip(task_idxs, itertools.repeat(dst_temp), itertools.repeat(op_kwargs)),
+                    )
+                tasks += tasks_split
+
                 red_ind = 0
 
                 for task_idx in task_idxs:
-                    print(task_idx.pformat())
                     if not task_idx.intersects(red_chunks[red_ind]):
                         # roll over in Z
                         if red_ind + 1 - red_shape[0] * red_shape[1] >= 0 and task_idx.intersects(
@@ -481,49 +489,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                             if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
                                 red_chunks_task_idxs[i].append(task_idx)
                                 red_chunks_temps[i].append(dst_temp)
-
-            """
-            with suppress_type_checks():
-                task_idxs = chunker(
-                    idx_expanded,
-                    stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
-                    mode="shrink",
-                )
-                red_ind = 0
-                t = time.time()
-                print(f"{t-s} seconds used for chunking tasks")
-                s = time.time()
-                # get offsets in terms of index inds
-                red_chunk_offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
-                # `set` to handle cases where the shape is 1 in some dimensions
-                red_ind_offsets = set([offset[2] * red_shape[0] * red_shape[1]
-                                    + offset[1] * red_shape[0]
-                                    + offset[0]
-                                for offset in red_chunk_offsets])
-
-                tasks+=[self.op.make_task(task_idx, dst_temp, **op_kwargs) for task_idx in task_idxs]
-                for task_idx in task_idxs:
-                    if not task_idx.intersects(red_chunks[red_ind]):
-                        if red_ind + 1 - red_shape[0] * red_shape[1] >= 0 and task_idx.intersects(red_chunks[red_ind + 1 - red_shape[0] * red_shape[1]]):
-                            red_ind = red_ind + 1 - red_shape[0] * red_shape[1]
-                        elif red_ind + 1 - red_shape[0] >= 0 and task_idx.intersects(red_chunks[red_ind + 1 - red_shape[0]]):
-                            red_ind = red_ind + 1 - red_shape[0]
-                        elif red_ind + 1 < len(red_chunks) and task_idx.intersects(red_chunks[red_ind + 1]):
-                            red_ind = red_ind + 1
-                        else:
-                            raise ValueError(
-                                f"The processing chunk `{task_idx.pformat()}` does not correspond to "
-                                "any reduction chunk; please check the `roi_crop_pad` and the "
-                                f"`processing_chunk_size`. {red_chunks[0].pformat()}"
-                            )
-
-                t = time.time()
-                print(f"{t-s} seconds used for intersection and lists")
-
-        t1 = time.time()
-        print(f"{t1-s1} seconds used for generating tasks total")
-        """
-
         return (tasks, red_chunks_task_idxs, red_chunks_temps, dst_temps)
 
     def flow(  # pylint:disable=too-many-branches, too-many-statements

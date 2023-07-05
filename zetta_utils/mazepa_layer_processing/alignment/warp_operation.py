@@ -22,6 +22,7 @@ class WarpOperation:
     crop_pad: Sequence[int] = (0, 0, 0)
     mask_value_thr: float = 0
     use_translation_adjustment: bool = True
+    translation_granularity: int = 1
 
     def get_operation_name(self):
         return f"WarpOperation<{self.mode}>"
@@ -49,6 +50,7 @@ class WarpOperation:
                 src=src,
                 field=field,
                 idx=idx_padded,
+                translation_granularity=self.translation_granularity,
             )
         else:
             src_data_raw = src[idx_padded]

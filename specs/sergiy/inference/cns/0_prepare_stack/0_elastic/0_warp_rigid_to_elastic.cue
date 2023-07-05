@@ -3,8 +3,8 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1000]
-	end_coord: [2048, 2048, 2000]
+	start_coord: [0, 0, 3290]
+	end_coord: [2048, 2048, 3300]
 	resolution: [512, 512, 45]
 }
 #CROP_PAD: 512
@@ -16,9 +16,10 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
+	level_intermediaries_dirs: ['~/.sutils/tmp', '~/zutils/tmp']
 	processing_chunk_sizes: [[2 * #CHUNK, 2 * #CHUNK, 1], [#CHUNK, #CHUNK, 1]]
 	processing_crop_pads: [[0, 0, 0], [#CROP_PAD, #CROP_PAD, 0]]
-	expand_bbox_processing:    true
+	expand_bbox:    true
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {
@@ -42,13 +43,12 @@
 }
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x112"
+worker_image: "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x184"
 worker_resources: {
 	memory: "18560Mi"
 }
-worker_replicas:     100
-batch_gap_sleep_sec: 0.1
-local_test:          false
+worker_replicas: 40
+local_test:      false
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [

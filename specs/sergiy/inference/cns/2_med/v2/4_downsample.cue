@@ -9,7 +9,7 @@
 
 #FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
-	//expand_bbox_processing: true
+	//expand_bbox: true
 	shrink_processing_chunk: true
 	processing_chunk_sizes:  _
 	dst_resolution:          _

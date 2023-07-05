@@ -66,7 +66,7 @@ viz = [
     "ipywidgets >= 7.7.0",
     "opencv-python-headless >= 4.5.5"
 ]
-cloudvol = [    
+cloudvol = [
     "cloud-files == 4.11.0",
     "cloud-volume @ git+https://github.com/ZettaAI/cloud-volume.git@bde11201610f7a1878f5304f01571928a76b8018",
     "tensorstore == 0.1.33",
@@ -108,6 +108,7 @@ training = [
     "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
     "torch >= 2.0",
     "pytorch-lightning == 1.7.7", # mypy error on newer
+    "torchmetrics == 0.11.4",
     "wandb >= 0.13.1",
 ]
 datastore = [

@@ -40,7 +40,9 @@ def align_with_online_finetuner(
         tgt = tgt.cuda()
         src_field = src_field.cuda()
 
-    if src.abs().sum() == 0 or tgt.abs().sum() == 0 or num_iter <= 0:
+    if src.abs().sum() == 0 or tgt.abs().sum() == 0:
+        result = torch.zeros_like(src_field)
+    elif num_iter <= 0:
         result = src_field
     else:
         sm_keys = {

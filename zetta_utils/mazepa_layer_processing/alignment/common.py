@@ -38,7 +38,7 @@ def translation_adjusted_download(
         xy_translation = cast(
             tuple[int, int],
             tuple(
-                translation_granularity * (e // translation_granularity)
+                translation_granularity * round(e / translation_granularity)
                 for e in xy_translation_raw
             ),
         )

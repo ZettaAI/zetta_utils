@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import overload
+from typing import cast, overload
 
 import torch
 
@@ -11,16 +11,17 @@ from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 
 @overload
 def translation_adjusted_download(
-    idx: VolumetricIndex, src: VolumetricLayer, field: VolumetricLayer
+    idx: VolumetricIndex,
+    src: VolumetricLayer,
+    field: VolumetricLayer,
+    translation_granularity: int = ...,
 ) -> tuple[torch.Tensor, torch.Tensor, tuple[int, int]]:
     ...
 
 
 @overload
 def translation_adjusted_download(
-    idx: VolumetricIndex,
-    src: VolumetricLayer,
-    field: None,
+    idx: VolumetricIndex, src: VolumetricLayer, field: None, translation_granularity: int = ...
 ) -> tuple[torch.Tensor, None, tuple[int, int]]:
     ...
 
@@ -29,10 +30,18 @@ def translation_adjusted_download(
     idx: VolumetricIndex,
     src: VolumetricLayer,
     field: VolumetricLayer | None,
+    translation_granularity: int = 1,
 ) -> tuple[torch.Tensor, torch.Tensor | None, tuple[int, int]]:
     if field is not None:
         field_data = field[idx]
-        xy_translation = alignment.field.profile_field2d_percentile(field_data)
+        xy_translation_raw = alignment.field.profile_field2d_percentile(field_data)
+        xy_translation = cast(
+            tuple[int, int],
+            tuple(
+                translation_granularity * round(e / translation_granularity)
+                for e in xy_translation_raw
+            ),
+        )
 
         field_data[0] -= xy_translation[0]
         field_data[1] -= xy_translation[1]

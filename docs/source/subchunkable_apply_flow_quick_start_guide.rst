@@ -603,7 +603,7 @@ Let's say you wanted to pad each 1024x1024x1 input chunk by 256 pixels in each d
       processing_chunk_sizes: [[1024, 1024, 1]]
       processing_crop_pads: [[256, 256, 0]]
 
-What if you wanted to use blending? Blending is also specified as a padding: given the 1024x1024x1 ``processing_chunk_size``, specifying a ``blend_pad`` of 256 pixels is equivalent to specifying 512 pixel overlap between each 1536x1536x1 chunk. You can specify ``blend_mode`` of either ``linear`` or ``quadratic`` (default). However, if you wish to use blending for any given level, you **must** specify a location for temporary intermediary layers.
+What if you wanted to use blending? Blending is also specified as a padding: given the (1024, 1024, 1) ``processing_chunk_size``, specifying a ``blend_pad`` of 256 pixels is equivalent to specifying 512 pixel overlap between each (1536, 1536, 1) chunk. You can specify ``blend_mode`` of either ``linear`` or ``quadratic`` (default). However, if you wish to use blending for any given level, you **must** specify a location for temporary intermediary layers.
 
 .. code-block:: cue
 

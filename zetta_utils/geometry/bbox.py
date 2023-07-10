@@ -437,13 +437,13 @@ class BBox3D:
             size *= slc.stop - slc.start
         return size
 
-    def aligned(self, other: BBox3D) -> tuple[bool, ...]:  # pragma: no cover
+    def aligned(self, other: BBox3D) -> tuple[bool, ...]:
         assert self.unit == other.unit
         """Returns whether two BoundingBoxNDs are aligned, in
         x_start, x_stop, y_start, y_stop, z_start, z_stop order."""
         return tuple(s[i] == o[i] for s, o in zip(self.bounds, other.bounds) for i in range(2))
 
-    def contained_in(self: BBox3D, other: BBox3D) -> bool:  # pragma: no cover
+    def contained_in(self: BBox3D, other: BBox3D) -> bool:
         assert self.unit == other.unit
         """Returns whether the other BoundingBoxND contains self."""
         return all(
@@ -451,7 +451,7 @@ class BBox3D:
             for self_b, other_b in zip(self.bounds, other.bounds)
         )
 
-    def intersects(self: BBox3D, other: BBox3D) -> bool:  # pragma: no cover
+    def intersects(self: BBox3D, other: BBox3D) -> bool:
         assert self.unit == other.unit
         """Returns whether two BoundingBoxNDs intersect."""
         return all(

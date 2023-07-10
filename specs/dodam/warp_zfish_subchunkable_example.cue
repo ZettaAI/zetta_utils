@@ -20,11 +20,9 @@
 	// these are the args that need to be duplicated for all the levels
 	// expand singletons, raise exception if lengths not same
 	processing_chunk_sizes: [[8192, 8192, 1], [2048, 2048, 1]]
-	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
-	processing_blend_pads: [[0, 0, 0], [16, 16, 0]]
+	processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
+	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_modes: "quadratic"
-
-	roi_crop_pad: [0, 0, 0]
 
 	max_reduction_chunk_sizes: [4096, 4096, 1]
 	expand_bbox_resolution:  true
@@ -32,7 +30,8 @@
 	expand_bbox_processing:  true
 	shrink_processing_chunk: false
 
-	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+//	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+    skip_intermediaries: true
 	op_kwargs: {
 		src: {
 			"@type": "build_ts_layer"

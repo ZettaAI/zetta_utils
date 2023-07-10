@@ -57,3 +57,10 @@ So how does this checkerboarding interact with the subchunking? ``SubchunkableAp
 In practice, to save time, the reduction happens not for each bunk, but for each superbunk consisting of bunks that have been aggregated up to some size, specified by ``max_reduction_chunk_size``. Note that the *L0* ``crop_pad`` is handled by the function or the operation.
 
 This design makes it possible to use arbitrary cropping and blending at each level.
+
+In addition, the intermediary layers are only made when they are necessary:
+
+#. At the top level, no matter how many levels there are. This is because the backend chunk size of the destination layer might not be a divisor of the output size (thus creating a race condition).
+#. For all other levels, where either the blending is used for that level or crop is used for the level above.
+
+This can be overridden with ``skip_intermediaries``.

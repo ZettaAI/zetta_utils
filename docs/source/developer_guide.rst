@@ -317,7 +317,7 @@ Unit Tests vs. Integration Tests
 
 The unit tests are in ``tests/unit``, with the directory structure mirroring the ``zetta_utils`` folder, with the addition of the ``assets`` folder.  Unit tests can be run by running ``pytest`` from the main ``zetta_utils`` directory.
 
-The integration tests are in ``tests/integration``, again with the addition of the ``assets`` folder. Since integration tests are testing how the code will behave in production, the ``assets`` are kept in **Git LFS**. Integration tests can be run from the ``tests`` directory (this is due to a limitation of Github Actions) by running ``pytest --run-integration``.
+The integration tests are in ``tests/integration``, again with the addition of the ``assets`` folder. Since integration tests are testing how the code will behave in production, the ``assets`` are kept in **Git LFS**. Integration tests can be run from the ``tests/integration`` directory (this is due to a limitation of Github Actions) by running ``pytest --run-integration``.
 
 When successfully run, ``pytest`` will generate a code coverage report. Unit tests are automatically run on a pull request, and the code coverage report gets appended to the pull request as part of the CI. Since integration tests take a little longer, the integration tests are run manually through the Github web interface through Actions, rather than automatically.
 

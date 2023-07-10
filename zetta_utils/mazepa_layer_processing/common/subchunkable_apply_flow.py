@@ -74,7 +74,7 @@ class DelegatedSubchunkedOperation(Generic[P]):
 
 
 @builder.register("build_subchunkable_apply_flow")
-def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, too-many-locals, too-many-branches
+def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, too-many-locals, too-many-branches, too-many-statements
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Sequence[float],
     processing_chunk_sizes: Sequence[Sequence[int]],
@@ -84,6 +84,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
     ] = "quadratic",
     level_intermediaries_dirs: Sequence[str | None] | None = None,
+    skip_intermediaries: bool = False,
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None,
     expand_bbox_resolution: bool = False,
     expand_bbox_backend: bool = False,
@@ -135,9 +136,14 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         the number of tasks. Must be larger than the `processing_chunk_size` for the given level.
     :param level_intermediaries_dirs: Intermediary directories for temporary layers at each
         subchunking level, used for handling blending, cropping, and rechunking for backends.
-        If running remotely, the top level ``must`` be also remote, as the worker performing the
-        reduction step may be different from the worker that wrote the processing. The other
-        levels are recommended to be local.
+        Only used if the level is using blending and/or if the level above has crop, or if it is
+        the top level and ``skip_intermediaries`` has not been set. If running remotely, the top
+        level ``must`` be also remote, as the worker performing the reduction step may be
+        different from the worker that wrote the processing. The other levels are recommended to
+        be local.
+    :param skip_intermediaries: Skips all intermediaries. This means that no blending is allowed
+        anywhere, and that only the bottom level may have crop. You MUST ensure that your output
+        is aligned to the backend chunk yourself when this option is used.
     :param expand_bbox_resolution: Expands ``bbox`` (whether given as a ``bbox`` or
         ``start_coord``, ``end_coord``, and ``coord_resolution``) to be integral in the
         ``dst_resolution``.
@@ -236,7 +242,27 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                     f"`processing_chunk_sizes`). Got `len({k}) == {len(v)}`"
                 )
 
-    if level_intermediaries_dirs is not None and len(level_intermediaries_dirs) != num_levels:
+    processing_blend_pads_ = ensure_seq_of_seq(processing_blend_pads, num_levels)
+    processing_crop_pads_ = ensure_seq_of_seq(processing_crop_pads, num_levels)
+    processing_blend_modes_ = ensure_seq_of_seq(processing_blend_modes, num_levels)
+
+    if skip_intermediaries:
+        if level_intermediaries_dirs is not None:
+            raise ValueError(
+                "`level_intermediaries_dirs` was supplied even though "
+                "`skip_intermediaries` = True."
+            )
+        if any(any(v != 0 for v in pad) for pad in processing_blend_pads_):
+            raise ValueError(
+                f"`processing_blend_pads` must be {[0, 0, 0]} in all levels when "
+                "`skip_intermediaries` = True."
+            )
+        if any(any(v != 0 for v in pad) for pad in processing_crop_pads_):
+            raise ValueError(
+                f"`processing_crop_pads` must be {[0, 0, 0]} in all levels except the "
+                "bottom (smallest) when `skip_intermediaries` = True."
+            )
+    elif level_intermediaries_dirs is not None and len(level_intermediaries_dirs) != num_levels:
         raise ValueError(
             f"`len(level_intermediaries_dirs)` != {num_levels}, where {num_levels} is the "
             "number of subchunking levels inferred from `processing_chunk_sizes`"
@@ -251,10 +277,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         level_intermediaries_dirs_ = level_intermediaries_dirs
     else:
         level_intermediaries_dirs_ = [None for _ in range(num_levels)]
-
-    processing_blend_pads_ = ensure_seq_of_seq(processing_blend_pads, num_levels)
-    processing_crop_pads_ = ensure_seq_of_seq(processing_crop_pads, num_levels)
-    processing_blend_modes_ = ensure_seq_of_seq(processing_blend_modes, num_levels)
 
     if auto_divisibility is True and shrink_processing_chunk is True:
         raise ValueError(
@@ -279,6 +301,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         dst=dst,
         dst_resolution=Vec3D(*dst_resolution),
         level_intermediaries_dirs=level_intermediaries_dirs_,
+        skip_intermediaries=skip_intermediaries,
         processing_chunk_sizes=[Vec3D(*v) for v in processing_chunk_sizes],
         processing_crop_pads=[Vec3D(*v) for v in processing_crop_pads_],
         processing_blend_pads=[Vec3D(*v) for v in processing_blend_pads_],
@@ -504,6 +527,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
     level_intermediaries_dirs: Sequence[str | None],
+    skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
     processing_blend_modes: Sequence[Literal["linear", "quadratic"]],
@@ -604,25 +628,26 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
             )
             + "\n"
         )
-    summary += lrpad(length=120) + "\n"
-    summary += (
-        lrpad(
-            " Level  Max red. chunk size  Intermediary dir",
-            length=120,
-        )
-        + "\n"
-    )
-    for level in range(num_levels - 1, -1, -1):
-        i = num_levels - level - 1
+    if not skip_intermediaries:
+        summary += lrpad(length=120) + "\n"
         summary += (
             lrpad(
-                f" {level}      "
-                f"{lrpad(max_reduction_chunk_sizes[i].pformat(), level = 0, length = 22, bounds = '')}"
-                f"{level_intermediaries_dirs[i]}",
+                " Level  Max red. chunk size  Intermediary dir",
                 length=120,
             )
             + "\n"
         )
+        for level in range(num_levels - 1, -1, -1):
+            i = num_levels - level - 1
+            summary += (
+                lrpad(
+                    f" {level}      "
+                    f"{lrpad(max_reduction_chunk_sizes[i].pformat(), level = 0, length = 22, bounds = '')}"
+                    f"{level_intermediaries_dirs[i]}",
+                    length=120,
+                )
+                + "\n"
+            )
     summary += lrpad("", length=120) + "\n"
     summary += lrpad("", bounds="+", filler="=", length=120)
     logger.info(summary)
@@ -632,6 +657,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
     level_intermediaries_dirs: Sequence[str | None],
+    skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_crop_pads: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
@@ -782,6 +808,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             dst=dst,
             dst_resolution=dst_resolution,
             level_intermediaries_dirs=level_intermediaries_dirs,
+            skip_intermediaries=skip_intermediaries,
             processing_chunk_sizes=processing_chunk_sizes,
             processing_blend_pads=processing_blend_pads,
             processing_blend_modes=processing_blend_modes,
@@ -813,7 +840,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         intermediaries_dir=_path_join_if_not_none(level_intermediaries_dirs[-1], "chunks_level_0"),
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
-        force_intermediaries=(num_levels != 1),
+        force_intermediaries=not (skip_intermediaries) and (num_levels != 1),
     )
 
     """
@@ -835,7 +862,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             ),
             allow_cache=(allow_cache_up_to_level >= level + 1),
             clear_cache_on_return=(allow_cache_up_to_level == level + 1),
-            force_intermediaries=(level != num_levels - 1),
+            force_intermediaries=not (skip_intermediaries) and ((level != num_levels - 1)),
         )
 
     return flow_schema(idx, dst, op_args, op_kwargs)

@@ -406,6 +406,75 @@ def test_snapped_exc(bbox: BBox3D, grid_offset, grid_size, mode):
         [
             BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
             BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            (False, False, False, False, False, False),
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            (False, False, True, True, True, False),
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 1), (-10, 9), (-50, 40))),
+            (False, True, False, True, False, False),
+        ],
+    ],
+)
+def test_aligned(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.aligned(bbox2) == expected
+    assert bbox2.aligned(bbox1) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            False,
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            False,
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((-2, 1), (-10, 9), (-50, 40))),
+            True,
+        ],
+    ],
+)
+def test_contained_in(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.contained_in(bbox2) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            True,
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            False,
+        ],
+    ],
+)
+def test_intersects(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.intersects(bbox2) == expected
+    assert bbox2.intersects(bbox1) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
             BBox3D(bounds=((0, 1), (3, 5), (7, 25))),
         ],
         [

@@ -9,6 +9,7 @@ import torch
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.segmentation import vec_to_pca, vec_to_rgb
+from zetta_utils.training.lightning.train import distributed_available
 
 from ..common import log_3d_results
 
@@ -24,6 +25,9 @@ class BaseEmbeddingRegime(pl.LightningModule):
 
     train_log_row_interval: int = 200
     val_log_row_interval: int = 25
+
+    # DDP
+    sync_dist: bool = True
 
     def __attrs_pre_init__(self):
         super().__init__()
@@ -70,13 +74,27 @@ class BaseEmbeddingRegime(pl.LightningModule):
                 continue
             loss_w = self.loss_weights[key]
             losses += [loss_w * loss]
-            self.log(f"loss/{key}/{mode}", loss.item(), on_step=True, on_epoch=True)
+            self.log(
+                f"loss/{key}/{mode}",
+                loss.item(),
+                on_step=True,
+                on_epoch=True,
+                sync_dist=(distributed_available() and self.sync_dist),
+                rank_zero_only=True,
+            )
 
         if len(losses) == 0:
             return None
 
         loss = sum(losses)
-        self.log(f"loss/{mode}", loss.item(), on_step=True, on_epoch=True)
+        self.log(
+            f"loss/{mode}",
+            loss.item(),
+            on_step=True,
+            on_epoch=True,
+            sync_dist=(distributed_available() and self.sync_dist),
+            rank_zero_only=True,
+        )
 
         if log_row:
             log_3d_results(

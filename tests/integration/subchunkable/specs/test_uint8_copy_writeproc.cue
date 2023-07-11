@@ -17,6 +17,7 @@
 	processing_chunk_sizes: [[1024, 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
 	expand_bbox_processing: true
+	level_intermediaries_dirs: ["assets/temp/"]
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	op_kwargs: {

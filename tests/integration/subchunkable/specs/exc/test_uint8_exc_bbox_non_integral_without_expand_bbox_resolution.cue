@@ -15,6 +15,7 @@
 	}
 	processing_chunk_sizes: [[1024, 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
+    level_intermediaries_dirs: ["assets/temp/"]
 	expand_bbox_processing: false
 	expand_bbox_backend: false
 	shrink_processing_chunk: false

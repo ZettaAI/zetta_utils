@@ -6,19 +6,42 @@ import shutil
 import pytest
 
 import zetta_utils
-from zetta_utils import builder, parsing
+from zetta_utils import builder, mazepa, parsing
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
+from zetta_utils.typing import check_type
 
 zetta_utils.load_all_modules()
 
 
+@builder.register("OnlyCopyTSOp")
+@mazepa.taskable_operation_cls
+class OnlyCopyTSOp:
+    def get_input_resolution(self, dst_resolution):  # pylint: disable=no-self-use
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]):
+        return self
+
+    def __call__(
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        src: VolumetricLayer,
+    ) -> None:
+        print(dst.backend)
+        if check_type(dst.backend, TSBackend):
+            dst[idx] = src[idx]
+
+
 @pytest.fixture
-def clear_temp_dir():
+def clear_temp_dir_and_info_cache():
     temp_dir = "./assets/temp/"
     if os.path.isdir(temp_dir):
         shutil.rmtree(temp_dir)
+    _info_cache.clear()
 
 
 # from https://stackoverflow.com/questions/4187564/recursively-compare-two-directories-to-ensure-they-have-the-same-files-and-subdi
@@ -76,6 +99,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_op",
         "test_uint8_copy_auto_divisibility",
         "test_uint8_copy_skip_intermediaries",
+        "test_uint8_copy_dont_skip_intermediaries",
         "test_uint8_copy_multilevel_no_checkerboard",
         "test_uint8_copy_multilevel_checkerboard",
         "test_uint8_copy_blend",
@@ -93,7 +117,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_float32_copy_writeproc_multilevel_checkerboard",
     ],
 )
-def test_subchunkable(cue_name, clear_temp_dir):
+def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
     cue_path = f"./subchunkable/specs/{cue_name}.cue"
     ref_path = f"./assets/outputs_ref/{cue_name}"
     out_path = f"./assets/outputs/{cue_name}"
@@ -120,6 +144,7 @@ def test_subchunkable(cue_name, clear_temp_dir):
         "test_uint8_exc_skip_intermediaries_but_level_intermediaries_dirs",
         "test_uint8_exc_skip_intermediaries_but_blend_pad",
         "test_uint8_exc_skip_intermediaries_but_crop_pad",
+        "test_uint8_exc_not_skip_intermediaries_but_no_level_intermediaries_dirs",
         "test_uint8_exc_shrink_processing_chunk_and_expand_bbox_processing",
         "test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution",
         "test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution_but_expand_bbox_processing",
@@ -132,7 +157,7 @@ def test_subchunkable(cue_name, clear_temp_dir):
         "test_uint8_exc_nondivisible_and_not_recommendable",
     ],
 )
-def test_subchunkable_val_exc(cue_name, clear_temp_dir):
+def test_subchunkable_val_exc(cue_name, clear_temp_dir_and_info_cache):
     cue_path = f"./subchunkable/specs/exc/{cue_name}.cue"
     spec = zetta_utils.parsing.cue.load(cue_path)
     with pytest.raises(ValueError):

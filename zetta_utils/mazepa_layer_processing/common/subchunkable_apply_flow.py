@@ -262,11 +262,16 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 f"`processing_crop_pads` must be {[0, 0, 0]} in all levels except the "
                 "bottom (smallest) when `skip_intermediaries` = True."
             )
-    elif level_intermediaries_dirs is not None and len(level_intermediaries_dirs) != num_levels:
-        raise ValueError(
-            f"`len(level_intermediaries_dirs)` != {num_levels}, where {num_levels} is the "
-            "number of subchunking levels inferred from `processing_chunk_sizes`"
-        )
+    else:
+        if level_intermediaries_dirs is not None and len(level_intermediaries_dirs) != num_levels:
+            raise ValueError(
+                f"`len(level_intermediaries_dirs)` != {num_levels}, where {num_levels} is the "
+                "number of subchunking levels inferred from `processing_chunk_sizes`"
+            )
+        if level_intermediaries_dirs is None:
+            raise ValueError(
+                "`level_intermediaries_dirs` is required unless `skip_intermediaries` is used."
+            )
 
     if max_reduction_chunk_sizes is None:
         max_reduction_chunk_sizes_ = processing_chunk_sizes
@@ -791,9 +796,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         use_checkerboard.append(False)
     else:
         use_checkerboard.append(True)
-    if processing_blend_pads[0] == Vec3D[int](0, 0, 0):
+    if skip_intermediaries is True:
         logger.info(
-            "Since checkerboarding is skipped at the top level, the ROI is required to be chunk-aligned."
+            "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
+            "required to be chunk-aligned."
         )
         dst = attrs.evolve(
             deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
@@ -840,7 +846,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         intermediaries_dir=_path_join_if_not_none(level_intermediaries_dirs[-1], "chunks_level_0"),
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
-        force_intermediaries=not (skip_intermediaries) and (num_levels != 1),
+        force_intermediaries=not (skip_intermediaries),
     )
 
     """

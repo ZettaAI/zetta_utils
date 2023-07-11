@@ -51,7 +51,7 @@ def _get_ts_at_resolution(
 
 
 def _clear_ts_cache(path: str) -> None:
-    resolutions = _ts_cached.pop(path, None)
+    resolutions = _ts_cached.pop(abspath(path), None)
     if resolutions is not None:
         for resolution in resolutions:
             _ts_cache.pop((path, resolution))

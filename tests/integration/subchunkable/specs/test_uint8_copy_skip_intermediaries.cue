@@ -10,12 +10,10 @@
 
 #FLOW: {
 	"@type": "build_subchunkable_apply_flow"
-	fn: {
-		"@type":    "lambda"
-		lambda_str: "lambda src: src"
+	op: {
+		"@type":    "OnlyCopyTSOp"
 	}
-	processing_chunk_sizes: [[1024, 1024, 1]]
-	processing_crop_pads: [[16, 16, 0]]
+	processing_chunk_sizes: [[1024, 1024, 1], [1024, 1024, 1]]
     skip_intermediaries: true
 	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]

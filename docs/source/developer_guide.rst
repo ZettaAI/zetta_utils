@@ -299,7 +299,7 @@ If you need to output information to the user in your code, you should **NEVER**
 
 .. note::
 
-   We prefer to not have ``assert`` statements in any of the core modules. ``assert`` is used to catch programmer error rather than user error, because ``AssertionErrors`` are less helpful than typed ``Errors``. Instead, you should make frequent use of detailed exception handling using the ``from`` keyword. However, ``asserts`` may be used for performance when intending to run with ``python -O``.
+   We prefer to not have ``assert`` statements in any of the core modules. ``assert`` is used to catch programmer error rather than user error, because ``AssertionErrors`` are less helpful than typed ``Errors``. Instead, you should make frequent use of detailed exception handling using the ``from`` keyword. However, ``asserts`` may be used for performance when intending to run with ``python -O``, and also for handling type errors caused by optional arguments (``assert arg is not None``).
 
 Tests
 -----

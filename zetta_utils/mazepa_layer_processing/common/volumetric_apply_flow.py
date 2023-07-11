@@ -243,6 +243,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     use_checkerboarding: bool = attrs.field(init=False)
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
 
+    @property
+    def _intermediaries_are_local(self) -> bool:
+        assert self.intermediaries_dir is not None
+        return self.intermediaries_dir.startswith("file://") or "//" not in self.intermediaries_dir
+
     def _get_backend_chunk_size_to_use(self, dst) -> Vec3D[int]:
         assert self.processing_blend_pad is not None
         backend_chunk_size = deepcopy(self.processing_chunk_size)
@@ -326,12 +331,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     ) -> VolumetricBasedLayerProtocol:
         assert self.intermediaries_dir is not None
         temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
-        allow_cache = self.allow_cache and not self.intermediaries_dir.startswith("file://")
+        allow_cache = self.allow_cache and not self._intermediaries_are_local
         if self.use_checkerboarding:
             backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
         else:
             backend_chunk_size_to_use = self.processing_chunk_size
-        if self.intermediaries_dir.startswith("file://"):
+        if self._intermediaries_are_local and dst.backend.dtype is torch.uint8:
             backend_temp_base = TSBackend.from_precomputed(dst.backend)
         else:
             backend_temp_base = dst.backend

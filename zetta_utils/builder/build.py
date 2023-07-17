@@ -171,9 +171,12 @@ class BuilderPartial:
 
     spec: dict[str, Any]
     _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
+    name: str | None = None
 
     def get_display_name(self):  # pragma: no cover # pretty print
-        if SPECIAL_KEYS["type"] in self.spec:
+        if self.name is not None:
+            return self.name
+        elif SPECIAL_KEYS["type"] in self.spec:
             return self.spec[SPECIAL_KEYS["type"]]
         else:
             return "BuilderPartial"

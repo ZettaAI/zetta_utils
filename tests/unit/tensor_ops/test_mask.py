@@ -1,5 +1,7 @@
 # pylint: disable=missing-docstring,invalid-name
 import numpy as np
+import pytest
+import skimage
 import torch
 
 from zetta_utils.tensor_ops import mask
@@ -156,7 +158,8 @@ def test_kornia_closing():
                     [0, 1, 0, 1],
                     [0, 1, 1, 1],
                 ]
-            ]
+            ],
+            dtype=np.uint8,
         ),
         -1,
     )
@@ -170,13 +173,14 @@ def test_kornia_closing():
                     [0, 1, 1, 0],
                     [0, 0, 0, 0],
                 ]
-            ]
+            ],
+            dtype=np.uint8,
         ),
         -1,
     )
 
     result = mask.kornia_closing(
-        a, torch.ones(3, 3), border_type="constant", border_value=0, device="cpu"
+        a, "square", width=3, border_type="constant", border_value=0, device="cpu"
     )
     assert_array_equal(result, expected)
 
@@ -278,3 +282,34 @@ def test_kornia_erosion():
 
     result = mask.kornia_erosion(a, torch.ones(3, 3), border_type="geodesic")
     assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize(
+    "kernel, width, expected_kernel",
+    [
+        ["square", 7, torch.ones(7, 7)],
+        ["diamond", 7, torch.tensor(skimage.morphology.diamond(7))],
+        ["star", 5, torch.tensor(skimage.morphology.star(5))],
+        ["disk", 7, torch.tensor(skimage.morphology.disk(7))],
+        [torch.ones(5, 3), None, torch.ones(5, 3)],
+        [np.ones((5, 3)), None, torch.ones(5, 3)],
+    ],
+)
+def test_normalize_kernel(kernel, width, expected_kernel):
+    result = mask._normalize_kernel(kernel, width, device=None)  # pylint: disable=protected-access
+    assert_array_equal(result, expected_kernel)
+
+
+@pytest.mark.parametrize(
+    "kernel, width, expected_exc",
+    [
+        ["ball", 7, ValueError],
+        ["square", 2.5, TypeError],
+        ["square", -1, ValueError],
+        [torch.ones(5, 3, 2), None, ValueError],
+        [np.ones((5, 3, 2)), None, ValueError],
+    ],
+)
+def test_normalize_kernel_exc(kernel, width, expected_exc):
+    with pytest.raises(expected_exc):
+        mask._normalize_kernel(kernel, width, device=None)  # pylint: disable=protected-access

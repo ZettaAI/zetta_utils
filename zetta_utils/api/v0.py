@@ -22,6 +22,7 @@ from zetta_utils.alignment.field import (
 from zetta_utils.alignment.misalignment_detector import MisalignmentDetector, naive_misd
 from zetta_utils.alignment.online_finetuner import align_with_online_finetuner
 from zetta_utils.augmentations.common import prob_aug
+from zetta_utils.augmentations.imgaug import imgaug_augment, imgaug_readproc
 from zetta_utils.augmentations.tensor import (
     add_scalar_aug,
     clamp_values_aug,

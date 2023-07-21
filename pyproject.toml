@@ -64,7 +64,11 @@ cloudvol = [
     "tensorstore == 0.1.33",
     "zetta_utils[tensor_ops]",
 ]
-augmentations = ["zetta_utils[tensor_ops]"]
+augmentations = [
+    "zetta_utils[tensor_ops]",
+    "imgaug == 0.4.0",
+    "imagecorruptions == 1.1.2",
+]
 convnet = ["torch >= 2.0", "artificery >= 0.0.3.3"]
 alignment = ["metroem >= 0.1.2", "torch >= 2.0"]
 mazepa = [
@@ -87,7 +91,7 @@ mazepa-addons = [
 ]
 segmentation = ["onnx >= 1.13.0", "onnxruntime-gpu >= 1.13.1"]
 training = [
-    "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs]",
+    "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
     "torch >= 2.0",
     "pytorch-lightning == 1.7.7",                       # mypy error on newer
     "torchmetrics == 0.11.4",

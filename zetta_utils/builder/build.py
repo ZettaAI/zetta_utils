@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Final, Optional, Union
+from typing import Any, Callable, Final
 
 import attrs
 from typeguard import typechecked
@@ -22,8 +22,8 @@ SPECIAL_KEYS: Final = {
 
 @typechecked
 def build(
-    spec: Optional[Union[dict, list]] = None,
-    path: Optional[str] = None,
+    spec: dict | list | None = None,
+    path: str | None = None,
 ) -> Any:
     """Build an object from the given spec.
 
@@ -172,6 +172,7 @@ class BuilderPartial:
     spec: dict[str, Any]
     _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
     name: str | None = None
+    # name: str | None = None
 
     def get_display_name(self):  # pragma: no cover # pretty print
         if self.name is not None:

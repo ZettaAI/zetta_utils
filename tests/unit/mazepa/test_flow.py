@@ -18,10 +18,8 @@ def test_make_flow_schema_cls() -> None:
             yield Dependency()
 
     obj = DummyFlowCls()
-    # reveal_type(obj)
     assert isinstance(obj, FlowSchema)
     flow = obj()
-    # reveal_type(flow)
     assert isinstance(flow, Flow)
 
 
@@ -36,11 +34,14 @@ def test_make_flow_schema():
 
 
 def test_get_batch_tags(mocker):
+    def do_nothing():
+        return
+
     fn = mocker.MagicMock(
         return_value=iter(
             [
                 _FlowSchema(
-                    fn=lambda: None,
+                    fn=do_nothing,
                 )()
             ]
         )

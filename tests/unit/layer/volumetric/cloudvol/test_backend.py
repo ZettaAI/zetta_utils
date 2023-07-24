@@ -54,13 +54,14 @@ def test_cv_backend_dtype_exc():
 
 
 def test_cv_backend_info_expect_same_exc(mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
     )
     with pytest.raises(RuntimeError):
         CVBackend(path=LAYER_X1_PATH, info_spec=info_spec, on_info_exists="expect_same")
-    precomputed._write_info.assert_not_called()
+    _write_info.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -73,13 +74,14 @@ def test_cv_backend_info_expect_same_exc(mocker):
     ],
 )
 def test_cv_backend_info_no_action(path, reference, mode, mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=reference,
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 
-    precomputed._write_info.assert_not_called()
+    _write_info.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -90,14 +92,15 @@ def test_cv_backend_info_no_action(path, reference, mode, mocker):
     ],
 )
 def test_cv_backend_info_overwrite(clear_caches, path, reference, mode, mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=reference,
         default_chunk_size=IntVec3D(999, 999, 1),
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists=mode)
 
-    precomputed._write_info.assert_called_once()
+    _write_info.assert_called_once()
 
 
 @pytest.mark.parametrize(
@@ -107,13 +110,14 @@ def test_cv_backend_info_overwrite(clear_caches, path, reference, mode, mocker):
     ],
 )
 def test_cv_backend_info_no_overwrite_when_same_as_cached(clear_caches, path, reference, mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=reference,
     )
     CVBackend(path=path, info_spec=info_spec, on_info_exists="overwrite")
 
-    precomputed._write_info.assert_not_called()
+    _write_info.assert_not_called()
 
 
 def test_cv_backend_read(clear_caches, mocker):

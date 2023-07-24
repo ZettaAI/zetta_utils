@@ -209,7 +209,7 @@ def test_forward_skips(mocker):
 )
 def test_skip_mode(unet_skip_mode, expected_result, mocker):
     conv2d_forward = mocker.patch("torch.nn.Conv2d.forward")
-    conv2d_forward.side_effect = lambda x: torch.prod(x, dim=1, keepdims=True)
+    conv2d_forward.side_effect = lambda x: torch.prod(torch.Tensor(x), dim=1, keepdim=True)
     unet = convnet.architecture.UNet(
         kernel_sizes=[3, 3],
         list_num_channels=[[1, 1, 1], [1, 1, 1], [1, 1, 1]],

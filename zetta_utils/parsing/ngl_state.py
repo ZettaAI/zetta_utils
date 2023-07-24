@@ -84,7 +84,7 @@ def write_remote_annotations(
     annotations: List[Dict] = []
     layer_d = {
         NglLayerKeys.NAME.value: layer_name,
-        NglLayerKeys.RESOLUTION.value: resolution,
+        NglLayerKeys.RESOLUTION.value: tuple(resolution),
         NglLayerKeys.TOOL.value: DefaultLayerValues.TOOL.value,
         NglLayerKeys.TYPE.value: DefaultLayerValues.TYPE.value,
         NglLayerKeys.ANNOTATION_COLOR.value: DefaultLayerValues.COLOR.value,

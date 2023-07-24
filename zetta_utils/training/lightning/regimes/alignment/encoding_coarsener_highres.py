@@ -18,7 +18,9 @@ from zetta_utils import builder, convnet, tensor_ops  # pylint: disable=unused-i
 # TODO: Refactor function
 def warp_by_px(image, direction, pixels):
 
-    fields = torch.zeros(1, 2, image.shape[-2], image.shape[-1], device=image.device).field()
+    fields = torch.zeros(
+        1, 2, image.shape[-2], image.shape[-1], device=image.device
+    ).field()  # type: ignore
 
     if direction == 0:
         fields[0, 0, :, :] = 0
@@ -83,10 +85,10 @@ class EncodingCoarsenerHighRes(pl.LightningModule):  # pylint: disable=too-many-
 
     def __attrs_post_init__(self):
         if self.encoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.encoder_ckpt_path, ["encoder"])
+            convnet.utils.load_weights_file(self, self.encoder_ckpt_path, ["encoder"])
 
         if self.decoder_ckpt_path is not None:
-            convnet.utils.load_model(self, self.decoder_ckpt_path, ["decoder"])
+            convnet.utils.load_weights_file(self, self.decoder_ckpt_path, ["decoder"])
 
     @staticmethod
     def log_results(mode: str, title_suffix: str = "", **kwargs):

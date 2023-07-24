@@ -6,9 +6,13 @@ from zetta_utils.tensor_ops import mask
 from ..helpers import assert_array_equal
 
 
-def test_skip_on_empty_data():
-    def wrapie(data: torch.Tensor) -> torch.Tensor:
+def test_skip_on_empty_data(mocker):
+    wrapie = mocker.MagicMock()
+
+    def wrapie_call(data: torch.Tensor) -> torch.Tensor:
         return data + 1
+
+    wrapie.__call__ = wrapie_call
 
     wrapped = mask.skip_on_empty_data(wrapie)
     assert wrapped(torch.Tensor([0])) == torch.Tensor([0])

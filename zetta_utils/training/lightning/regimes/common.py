@@ -12,7 +12,7 @@ def is_2d_image(tensor):
 def log_results(mode: str, title_suffix: str = "", **kwargs):
     if all(is_2d_image(v) for v in kwargs.values()):
         row = [
-            wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)  # type: ignore
+            wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
             for k, v in kwargs.items()
         ]
         wandb.log({f"results/{mode}_{title_suffix}_slider": row})
@@ -23,9 +23,9 @@ def log_results(mode: str, title_suffix: str = "", **kwargs):
             row = []
             for k, v in kwargs.items():
                 if is_2d_image(v):
-                    rendered = viz.rendering.Renderer()(v.squeeze())  # type: ignore
+                    rendered = viz.rendering.Renderer()(v.squeeze())
                 else:
-                    rendered = viz.rendering.Renderer()(v[..., z].squeeze())  # type: ignore
+                    rendered = viz.rendering.Renderer()(v[..., z].squeeze())
 
                 row.append(wandb.Image(rendered, caption=k))
 

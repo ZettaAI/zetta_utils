@@ -83,7 +83,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
                 trans_x_px=self.equivar_trans_px_distr(),
                 trans_y_px=self.equivar_trans_px_distr(),
             )
-            .field()
+            .field()  # type: ignore
             .pixels()
             .to(seed_field.device)
         )

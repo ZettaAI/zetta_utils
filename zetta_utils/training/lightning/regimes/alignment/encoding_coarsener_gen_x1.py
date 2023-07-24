@@ -47,7 +47,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         wandb.log(
             {
                 f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)  # type: ignore
+                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
                     for k, v in kwargs.items()
                 ]
             }
@@ -87,7 +87,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
                 size=src.shape[-1],
                 rot_deg=equivar_rot,
             )
-            .field()
+            .field()  # type: ignore
             .to(src.device)(seed_field.from_pixels())
             .pixels()
         )
@@ -97,7 +97,7 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
                 size=src.shape[-1],
                 rot_deg=-equivar_rot,
             )
-            .field()
+            .field()  # type: ignore
             .to(src.device)
         ).pixels()
 

@@ -66,7 +66,7 @@ def aws_credentials():
 def sqs_endpoint(aws_credentials):
     """Ensure that SQS service i s up and responsive."""
     with mock_sqs():
-        client = docker.from_env()
+        client = docker.from_env()  # type: ignore
         container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
 
         timeout = 120

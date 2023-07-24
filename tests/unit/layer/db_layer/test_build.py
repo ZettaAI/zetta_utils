@@ -68,7 +68,7 @@ def test_write_exc(mocker):
 
     layer = build_db_layer(backend)
     with pytest.raises(TypeError):
-        layer["key"] = object
+        layer["key"] = object  # type: ignore
 
     with pytest.raises(ValueError):
         layer["key"] = mocker.MagicMock()

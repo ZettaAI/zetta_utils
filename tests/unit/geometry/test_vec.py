@@ -230,11 +230,14 @@ def test_ops(arg1, arg2, fname, dtype):
     zt_val_r = eval(f"arg2 {fname} arg1")
     arg1_np = np.array(arg1[:])
     if isinstance(arg2, (float, int)):
-        arg2_np = arg2
+        arg2_lit = arg2
+        np_val = eval(f"arg1_np {fname} arg2_lit")
+        np_val_r = eval(f"arg2_lit {fname} arg1_np")
     else:
         arg2_np = np.array(arg2[:])
-    np_val = eval(f"arg1_np {fname} arg2_np")
-    np_val_r = eval(f"arg2_np {fname} arg1_np")
+        np_val = eval(f"arg1_np {fname} arg2_np")
+        np_val_r = eval(f"arg2_np {fname} arg1_np")
+
     assert (np_val == np.array(zt_val[:])).all()
     assert (np_val_r == np.array(zt_val_r[:])).all()
 

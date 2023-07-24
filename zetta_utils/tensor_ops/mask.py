@@ -22,7 +22,7 @@ P = ParamSpec("P")
 
 class TensorOp(Protocol[P]):
     """
-    Protocol which defines what it means for a funciton to be a tensor_op:
+    Protocol which defines what it means for a function to be a tensor_op:
     it must take a `data` argument of TensorTypeVar type, and return a
     tensor of the same type.
     """

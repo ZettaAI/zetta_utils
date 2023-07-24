@@ -303,7 +303,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 raise ValueError(
                     f" `processing_blend_pad` must be less than or equal to"
                     f" half of `processing_chunk_size`; received {self.processing_blend_pad}",
-                    f" which is larger than {self.processing_size // 2}",
+                    f" which is larger than {self.processing_chunk_size // 2}",
                 )
             if self.intermediaries_dir is None:
                 raise ValueError(

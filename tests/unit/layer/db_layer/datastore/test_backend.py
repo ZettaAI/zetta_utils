@@ -14,7 +14,7 @@ from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datasto
 def datastore_emulator():
     """Ensure that the DataStore service is up and responsive."""
 
-    client = docker.from_env()
+    client = docker.from_env()  # type: ignore
     project = "test-project"
     options = "--no-store-on-disk --consistency=1.0 --host-port=0.0.0.0:8081"
     command = f"gcloud --project {project} beta emulators datastore start {options}"
@@ -36,7 +36,7 @@ def datastore_emulator():
         elapsed_time += stop_time
         try:
             container.reload()
-        except docker.errors.DockerException:
+        except docker.errors.DockerException:  # type: ignore
             break
 
     if container.status != "running":

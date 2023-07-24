@@ -11,7 +11,7 @@ def get_affine_field(
     shear_x_deg=0,
     shear_y_deg=0,
     scale=1,
-):
+) -> torch.Tensor:
     """
     Return 2D displacement field that represents the given affine transformation.
     Transformations are applied in the following order -- translation->rotation->shear->scale.
@@ -32,5 +32,5 @@ def get_affine_field(
         * affine.Affine.scale(1 / scale)
     )
     mat = torch.tensor([[aff.a, aff.b, aff.c], [aff.d, aff.e, aff.f]]).unsqueeze(0)
-    field = torch.Field.affine_field(mat, size=(1, 2, size, size))
+    field = torch.Field.affine_field(mat, size=(1, 2, size, size))  # type: ignore
     return field

@@ -33,7 +33,7 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
         return self.read_with_procs(idx=idx_backend)
 
     def __setitem__(
-        self, idx: UserVolumetricIndex, data: Mapping[str, torch.Tensor | int | float | bool]
+        self, idx: UserVolumetricIndex, data: Mapping[str, Union[torch.Tensor, int, float, bool]]
     ):
         idx_backend: VolumetricIndex | None = None
         idx_last: VolumetricIndex | None = None

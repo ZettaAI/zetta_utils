@@ -23,7 +23,8 @@ urls = {Homepage = "https://github.com/zettaai/zetta_utils"}
 requires-python = ">3.8,<3.11"
 dependencies = [
     "attrs >= 21.3",
-    "typeguard @ git+https://github.com/agronholm/typeguard.git@f377be389765ed0db104b41d78fce3c45e72e149",
+    "typeguard",
+    "typeguard @ git+https://github.com/agronholm/typeguard.git@63b28186a9d00bb489f282f80b76834ac3d057fc",
     "cachetools >= 5.2.0",
     "fsspec >= 2022.8.2",
     "rich >= 12.6.0",

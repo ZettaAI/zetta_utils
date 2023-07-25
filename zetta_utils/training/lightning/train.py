@@ -1,43 +1,52 @@
-# pylint: disable=too-many-locals
-
 from __future__ import annotations
 
 import json
 import os
 from contextlib import ExitStack
-from typing import Dict, Final, Optional
+from typing import Final
 
 import pytorch_lightning as pl
+import torch
 import typeguard
 from pytorch_lightning.strategies import ddp
-from torch.distributed.launcher import api as torch_launcher_api
+from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, load_all_modules, log
+from zetta_utils import builder, log, parsing
 from zetta_utils.cloud import resource_allocation
 
+DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
+DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
+DEFAULT_GCP_CLUSTER_PROJECT: Final = "zetta-research"
+
+DEFAULT_GCP_CLUSTER: Final = resource_allocation.k8s.ClusterInfo(
+    name=DEFAULT_GCP_CLUSTER_NAME,
+    region=DEFAULT_GCP_CLUSTER_REGION,
+    project=DEFAULT_GCP_CLUSTER_PROJECT,
+)
+
 logger = log.get_logger("zetta_utils")
-load_all_modules()
 
 builder.register("pl.Trainer")(pl.Trainer)
 builder.register("pl.callbacks.ModelCheckpoint")(pl.callbacks.ModelCheckpoint)
 builder.register("pl.DDPStrategy")(ddp.DDPStrategy)
-builder.register("torch.distributed.LaunchConfig")(torch_launcher_api.LaunchConfig)
 
 REQUIRED_ENV_VARS: Final = [
-    # "GRAFANA_CLOUD_ACCESS_KEY",
     "ZETTA_USER",
     "ZETTA_PROJECT",
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_DEFAULT_REGION",
     "WANDB_API_KEY",
 ]
 
 
 @builder.register("lightning_train")
 @typeguard.typechecked
-def lightning_train():
+def lightning_train(
+    regime: pl.LightningModule,
+    trainer: pl.Trainer,
+    train_dataloader: torch.utils.data.DataLoader,
+    val_dataloader: torch.utils.data.DataLoader | None = None,
+    full_state_ckpt_path: str = "last",
+):
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
 
@@ -55,14 +64,6 @@ def lightning_train():
         checkpoint for the given experiment will be identified and loaded.
     """
     logger.info("Starting training...")
-
-    regime = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["regime"])
-    trainer = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["trainer"])
-    train_dataloader = builder.build(
-        spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["train_dataloader"]
-    )
-    val_dataloader = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["val_dataloader"])
-
     if "CURRENT_BUILD_SPEC" in os.environ:
         if hasattr(trainer, "log_config"):
             trainer.log_config(json.loads(os.environ["CURRENT_BUILD_SPEC"]))
@@ -71,131 +72,75 @@ def lightning_train():
     else:
         logger.warning("Invoked without builder: Unable to save configuration.")
 
+    if full_state_ckpt_path == "last":
+        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):  # type: ignore
+            ckpt_path = trainer.ckpt_path
+        else:
+            ckpt_path = None
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,
         val_dataloaders=val_dataloader,
-        ckpt_path=None,
+        ckpt_path=ckpt_path,
     )
 
 
-@builder.register("multinode_train_launch")
+@builder.register("lightning_train_remote")
 @typeguard.typechecked
-def multinode_train_launch(
-    num_nodes: int,
-    rdzv_endpoint: str,
-    nproc_per_node: int = 1,
-    rdzv_backend: str = "c10d",
-):
-    config = torch_launcher_api.LaunchConfig(
-        run_id="test",
-        min_nodes=num_nodes,
-        max_nodes=num_nodes,
-        nproc_per_node=nproc_per_node,
-        rdzv_backend=rdzv_backend,
-        rdzv_endpoint=rdzv_endpoint,
+def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
+    execution_id = "test"
+    spec = parsing.cue.load(spec_path)
+    configmap = resource_allocation.k8s.get_configmap(
+        name=execution_id, data={"spec.cue": json.dumps(spec)}
     )
-    torch_launcher_api.elastic_launch(config, lightning_train)()
+    spec_source = k8s_client.V1ConfigMapVolumeSource(
+        name=execution_id, items=[k8s_client.V1KeyToPath(key="spec.cue", path="spec.cue")]
+    )
+    spec_vol = k8s_client.V1Volume(name="spec", config_map=spec_source)
+    spec_vol_mount = k8s_client.V1VolumeMount(
+        name="spec", mount_path="/opt/zetta_utils/spec.cue", sub_path="spec.cue"
+    )
 
-
-@builder.register("multinode_train")
-@typeguard.typechecked
-def multinode_train(
-    execution_id: str,
-    image: str,
-    resources: Dict[str, int | float | str],
-    master_node_ip: str,
-    num_nodes: int,
-    env_vars: Optional[Dict[str, str]] = None,
-):
-    env_vars = env_vars or {}
     command = ["zetta"]
-    command_args = ["run", "ddp_master.cue"]
-    resources["memory"] = "10240Mi"
-    resources["nvidia.com/gpu"] = "1"
+    command_args = ["run", "spec.cue"]
 
-    envs = []
-    for key, val in env_vars.items():
-        envs.append(k8s_client.V1EnvVar(name=key, value=val))
+    worker = k8s_client.V1Toleration(
+        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
+    )
 
-    schedule_toleration = k8s_client.V1Toleration(
+    gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
 
-    node_selector = {"cloud.google.com/gke-nodepool": "master"}
-
-    master_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name="master",
+    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
+        execution_id, REQUIRED_ENV_VARS
+    )
+    train_pod_spec = resource_allocation.k8s.get_pod_spec(
+        name=execution_id,
         image=image,
         command=command,
         command_args=command_args,
-        envs=envs,
-        hostname="master",
-        host_network=True,
-        node_selector=node_selector,
+        env_secret_mapping=env_secret_mapping,
         resources=resources,
         restart_policy="Never",
-        tolerations=[schedule_toleration],
+        tolerations=[worker, gpu],
+        volumes=[spec_vol],
+        volume_mounts=[spec_vol_mount],
     )
 
-    master_selector = {"app": "master"}
-    ports = [k8s_client.V1ServicePort(port=29400, protocol="TCP", target_port=29400)]
-    c10d_service = resource_allocation.k8s.get_service(
-        "c10d", ports=ports, selector=master_selector, service_type="NodePort"
+    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
+
+    configmap_ctx = resource_allocation.k8s.configmap_ctx_manager(
+        execution_id=execution_id, cluster_info=DEFAULT_GCP_CLUSTER, configmap=configmap
     )
 
-    master_job = resource_allocation.k8s.get_job("master", pod_spec=master_pod_spec)
-
-    command_args = ["run", "ddp_workers.cue"]
-    node_selector = {"cloud.google.com/gke-nodepool": "workers"}
-
-    host_aliases = [k8s_client.V1HostAlias(hostnames=["master"], ip=master_node_ip)]
-
-    worker_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name="workers",
-        image=image,
-        command=command,
-        command_args=command_args,
-        envs=envs,
-        host_network=True,
-        host_aliases=host_aliases,
-        node_selector=node_selector,
-        resources=resources,
-        tolerations=[schedule_toleration],
-    )
-
-    worker_deployment = resource_allocation.k8s.get_deployment(
-        name="workers",
-        pod_spec=worker_pod_spec,
-        replicas=num_nodes - 1,
-    )
-
-    cluster_info = resource_allocation.k8s.ClusterInfo(
-        "ddp-test-v0", region="us-east1", project="zetta-research"
-    )
-
-    c10d_ctx = resource_allocation.k8s.service_ctx_manager(
+    train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         execution_id=execution_id,
-        cluster_info=cluster_info,
-        service=c10d_service,
-    )
-
-    master_ctx = resource_allocation.k8s.job_ctx_manager(
-        execution_id=execution_id,
-        cluster_info=cluster_info,
-        job=master_job,
-    )
-
-    secrets, _ = resource_allocation.k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
-
-    workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(
-        execution_id=execution_id,
-        cluster_info=cluster_info,
-        deployment=worker_deployment,
+        cluster_info=DEFAULT_GCP_CLUSTER,
+        job=train_job,
         secrets=secrets,
     )
 
     with ExitStack() as stack:
-        stack.enter_context(c10d_ctx)
-        stack.enter_context(master_ctx)
-        stack.enter_context(workers_ctx)
+        stack.enter_context(configmap_ctx)
+        stack.enter_context(train_job_ctx)

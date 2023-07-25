@@ -204,9 +204,7 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
         self.pl_module = trainer.lightning_module
 
     @staticmethod
-    def wrap_forward(
-        pl_module: pl.LightningModule, name: str, trace_configuration: Dict[str, Dict[str, Any]]
-    ) -> None:
+    def wrap_forward(pl_module: pl.LightningModule, name: str, trace_configuration: Dict) -> None:
         model = getattr(pl_module, name)
         model.__forward__ = model.forward
 

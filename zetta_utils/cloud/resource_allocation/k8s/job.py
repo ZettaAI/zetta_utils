@@ -5,7 +5,7 @@ Helpers for k8s job.
 """
 
 from contextlib import contextmanager
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 
@@ -18,6 +18,7 @@ from zetta_utils import log
 #     register_execution_resource,
 # )
 from .common import ClusterInfo, get_cluster_data
+from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
 
@@ -87,6 +88,7 @@ def job_ctx_manager(
     execution_id: str,
     cluster_info: ClusterInfo,
     job: k8s_client.V1Job,
+    secrets: List[k8s_client.V1Secret],
     namespace: Optional[str] = "default",
 ):
     configuration, _ = get_cluster_data(cluster_info)
@@ -94,13 +96,14 @@ def job_ctx_manager(
 
     batch_v1_api = k8s_client.BatchV1Api()
 
-    logger.info(f"Creating k8s job `{job.metadata.name}`")
-    batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
+    with secrets_ctx_mngr(execution_id, secrets, cluster_info):
+        logger.info(f"Creating k8s job `{job.metadata.name}`")
+        batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
 
-    try:
-        yield
-    finally:
-        ...
+        try:
+            yield
+        finally:
+            ...
 
     # try:
     #     yield

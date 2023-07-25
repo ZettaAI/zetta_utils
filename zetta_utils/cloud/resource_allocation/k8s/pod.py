@@ -28,13 +28,17 @@ def get_pod_spec(
     node_selector: Optional[Dict[str, str]] = None,
     restart_policy: Optional[str] = "Always",
     tolerations: Optional[List[k8s_client.V1Toleration]] = None,
+    volumes: Optional[List[k8s_client.V1Volume]] = None,
+    volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
 ) -> k8s_client.V1PodSpec:
 
     envs = envs or []
     host_aliases = host_aliases or []
     tolerations = tolerations or []
+    volumes = volumes or []
+    volume_mounts = volume_mounts or []
 
-    volume_mounts = [
+    volume_mounts += [
         k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
         k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
     ]
@@ -77,5 +81,5 @@ def get_pod_spec(
         security_context={},
         termination_grace_period_seconds=30,
         tolerations=tolerations,
-        volumes=[dshm, tmp],
+        volumes=volumes + [dshm, tmp],
     )

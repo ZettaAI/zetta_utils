@@ -7,6 +7,7 @@ from .common import (
     get_cluster_data,
 )
 
+from .configmap import get_configmap, configmap_ctx_manager
 from .cronjob import configure_cronjob
 from .deployment import deployment_ctx_mngr, get_deployment, get_zutils_worker_deployment
 from .job import get_job, get_job_template, job_ctx_manager

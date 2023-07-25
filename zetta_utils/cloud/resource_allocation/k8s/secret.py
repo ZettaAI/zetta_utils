@@ -109,14 +109,19 @@ def secrets_ctx_mngr(
     try:
         yield
     finally:
-        # new configuration to refresh expired tokens (long running executions)
-        configuration, _ = get_cluster_data(cluster_info)
-        k8s_client.Configuration.set_default(configuration)
+        ...
 
-        # need to create a new client for the above to take effect
-        k8s_core_v1_api = k8s_client.CoreV1Api()
-        for secret in secrets:
-            logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
-            k8s_core_v1_api.delete_namespaced_secret(
-                name=secret.metadata.name, namespace=namespace
-            )
+    # try:
+    #     yield
+    # finally:
+    #     # new configuration to refresh expired tokens (long running executions)
+    #     configuration, _ = get_cluster_data(cluster_info)
+    #     k8s_client.Configuration.set_default(configuration)
+
+    #     # need to create a new client for the above to take effect
+    #     k8s_core_v1_api = k8s_client.CoreV1Api()
+    #     for secret in secrets:
+    #         logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
+    #         k8s_core_v1_api.delete_namespaced_secret(
+    #             name=secret.metadata.name, namespace=namespace
+    #         )

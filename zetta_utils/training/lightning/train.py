@@ -128,12 +128,13 @@ def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
         volume_mounts=[spec_vol_mount],
     )
 
-    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
-
     configmap_ctx = resource_allocation.k8s.configmap_ctx_manager(
-        execution_id=execution_id, cluster_info=DEFAULT_GCP_CLUSTER, configmap=configmap
+        execution_id=execution_id,
+        cluster_info=DEFAULT_GCP_CLUSTER,
+        configmap=configmap,
     )
 
+    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         execution_id=execution_id,
         cluster_info=DEFAULT_GCP_CLUSTER,

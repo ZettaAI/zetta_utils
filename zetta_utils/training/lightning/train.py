@@ -84,6 +84,7 @@ def lightning_train_remote(
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
+    follow_logs: Optional[bool] = False,
 ) -> None:
     cluster_info = resource_allocation.k8s.parse_cluster_info(
         cluster_name=worker_cluster_name,
@@ -152,3 +153,8 @@ def lightning_train_remote(
         stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         stack.enter_context(configmap_ctx)
         stack.enter_context(train_job_ctx)
+
+        if follow_logs:
+            resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
+        else:
+            resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)

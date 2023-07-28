@@ -13,7 +13,7 @@ from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa, parsing
-from zetta_utils.cloud_management import resource_allocation
+from zetta_utils.cloud_management import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
 
@@ -149,5 +149,6 @@ def lightning_train_remote(
     )
 
     with ExitStack() as stack:
+        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         stack.enter_context(configmap_ctx)
         stack.enter_context(train_job_ctx)

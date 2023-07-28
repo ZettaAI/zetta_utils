@@ -7,17 +7,15 @@ from contextlib import contextmanager
 from typing import Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
-
-# from kubernetes import watch
+from kubernetes import watch  # type: ignore
 from zetta_utils import log
 
+from ..resource_tracker import (
+    ExecutionResource,
+    ExecutionResourceTypes,
+    register_execution_resource,
+)
 from .common import ClusterInfo, get_cluster_data
-
-# from ..resource_tracker import (
-#     ExecutionResource,
-#     ExecutionResourceTypes,
-#     register_execution_resource,
-# )
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
@@ -98,6 +96,13 @@ def job_ctx_manager(
     with secrets_ctx_mngr(execution_id, secrets, cluster_info):
         logger.info(f"Creating k8s job `{job.metadata.name}`")
         batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
+        register_execution_resource(
+            ExecutionResource(
+                execution_id,
+                ExecutionResourceTypes.K8S_JOB.value,
+                job.metadata.name,
+            )
+        )
 
         try:
             yield
@@ -106,15 +111,23 @@ def job_ctx_manager(
                     name=job.metadata.name,
                     namespace=namespace,
                 )
-                logger.info(f"`{job.metadata.name}` job status: {job.status}")
-                time.sleep(30)
-            # log_stream = watch.Watch().stream(
-            #     core_api.read_namespaced_pod_log,
-            #     name=f"job/{job.metadata.name}",
-            #     namespace=namespace,
-            # )
-            # for output in log_stream:
-            #     logger.info(output)
+                logger.info(f"`{job.metadata.name}` job status: {job.status.ready}")
+                if job.status.ready == 1:
+                    break
+                time.sleep(5)
+
+            core_api = k8s_client.CoreV1Api()
+            pods = core_api.list_namespaced_pod(
+                namespace=namespace, label_selector=f"job-name={job.metadata.name}"
+            )
+            job_pod = pods.items[0]
+            log_stream = watch.Watch().stream(
+                core_api.read_namespaced_pod_log,
+                name=job_pod.metadata.name,
+                namespace=namespace,
+            )
+            for output in log_stream:
+                logger.info(output)
         finally:
             # new configuration to refresh expired tokens (long running executions)
             configuration, _ = get_cluster_data(cluster_info)

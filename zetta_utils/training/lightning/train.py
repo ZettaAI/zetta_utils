@@ -12,7 +12,7 @@ from pytorch_lightning.strategies import ddp
 from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log, parsing
+from zetta_utils import builder, log, mazepa, parsing
 from zetta_utils.cloud import resource_allocation
 
 DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
@@ -88,7 +88,11 @@ def lightning_train(
 @builder.register("lightning_train_remote")
 @typeguard.typechecked
 def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
-    execution_id = "test"
+
+    execution_id = mazepa.id_generation.get_unique_id(
+        prefix="exec", slug_len=4, add_uuid=False, max_len=50
+    )
+
     spec = parsing.cue.load(spec_path)
     configmap = resource_allocation.k8s.get_configmap(
         name=execution_id, data={"spec.cue": json.dumps(spec)}

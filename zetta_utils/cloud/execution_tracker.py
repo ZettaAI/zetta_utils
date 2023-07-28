@@ -1,6 +1,7 @@
 import json
 import os
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from enum import Enum
 from typing import Mapping
@@ -9,6 +10,7 @@ import attrs
 import fsspec
 from cloudfiles import paths
 
+from zetta_utils.common import RepeatTimer
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.log import get_logger
@@ -110,3 +112,18 @@ def record_execution_run(execution_id: str) -> None:  # pragma: no cover
 
     with fsspec.open(info_path, "w") as f:
         json.dump(execution_run, f, indent=2)
+
+
+@contextmanager
+def heartbeat_tracking_ctx_mngr(execution_id, heartbeat_interval=30):
+    def _send_heartbeat():
+        update_execution_heartbeat(execution_id)
+
+    heart = RepeatTimer(heartbeat_interval, _send_heartbeat)
+    heart.start()
+    try:
+        yield
+    except Exception as e:
+        raise e from None
+    finally:
+        heart.cancel()

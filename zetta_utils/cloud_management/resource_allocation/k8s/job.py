@@ -81,6 +81,69 @@ def get_job(
     return k8s_client.V1Job(metadata=meta, spec=job_spec)
 
 
+def _wait_for_job_start(
+    job: k8s_client.V1Job,
+    namespace: str,
+    batch_v1_api: k8s_client.BatchV1Api,
+) -> None:
+    while True:
+        job = batch_v1_api.read_namespaced_job_status(
+            name=job.metadata.name,
+            namespace=namespace,
+        )
+        logger.info(f"Waiting for `{job.metadata.name}` to start.")
+        if job.status.ready == 1:
+            break
+        time.sleep(5)
+    logger.info(f"`{job.metadata.name}` job started.")
+
+
+def follow_job_logs(
+    job: k8s_client.V1Job,
+    cluster_info: ClusterInfo,
+    namespace: str = "default",
+):
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    batch_v1_api = k8s_client.BatchV1Api()
+
+    _wait_for_job_start(job, namespace, batch_v1_api)
+
+    core_api = k8s_client.CoreV1Api()
+    pods = core_api.list_namespaced_pod(
+        namespace=namespace, label_selector=f"job-name={job.metadata.name}"
+    )
+    job_name = pods.items[0].metadata.name
+    log_stream = watch.Watch().stream(
+        core_api.read_namespaced_pod_log,
+        name=job_name,
+        namespace=namespace,
+    )
+    for output in log_stream:
+        logger.info(output)
+
+
+def wait_for_job_completion(
+    job: k8s_client.V1Job,
+    cluster_info: ClusterInfo,
+    namespace: str = "default",
+):
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    batch_v1_api = k8s_client.BatchV1Api()
+
+    _wait_for_job_start(job, namespace, batch_v1_api)
+
+    while job.status.succeeded == 0:
+        job = batch_v1_api.read_namespaced_job_status(
+            name=job.metadata.name,
+            namespace=namespace,
+        )
+        logger.info(f"Waiting for `{job.metadata.name}` to complete.")
+        time.sleep(5)
+    logger.info(f"`{job.metadata.name}` job completed.")
+
+
 @contextmanager
 def job_ctx_manager(
     execution_id: str,
@@ -106,28 +169,6 @@ def job_ctx_manager(
 
         try:
             yield
-            while True:
-                job = batch_v1_api.read_namespaced_job_status(
-                    name=job.metadata.name,
-                    namespace=namespace,
-                )
-                logger.info(f"`{job.metadata.name}` job status: {job.status.ready}")
-                if job.status.ready == 1:
-                    break
-                time.sleep(5)
-
-            core_api = k8s_client.CoreV1Api()
-            pods = core_api.list_namespaced_pod(
-                namespace=namespace, label_selector=f"job-name={job.metadata.name}"
-            )
-            job_pod = pods.items[0]
-            log_stream = watch.Watch().stream(
-                core_api.read_namespaced_pod_log,
-                name=job_pod.metadata.name,
-                namespace=namespace,
-            )
-            for output in log_stream:
-                logger.info(output)
         finally:
             # new configuration to refresh expired tokens (long running executions)
             configuration, _ = get_cluster_data(cluster_info)

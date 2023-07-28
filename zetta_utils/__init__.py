@@ -11,7 +11,7 @@ def load_all_modules():
     load_inference_modules()
     load_training_modules()
     from . import mazepa_addons
-    from . import cloud
+    from . import cloud_management
 
 
 def try_load_train_inference():  # pragma: no cover

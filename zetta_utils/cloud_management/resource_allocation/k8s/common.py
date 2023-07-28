@@ -4,7 +4,7 @@ Tools to interact with kubernetes clusters.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Final, Optional, Tuple
 
 import attrs
 
@@ -17,12 +17,24 @@ from .gke import gke_cluster_data
 logger = log.get_logger("zetta_utils")
 
 
+DEFAULT_CLUSTER_NAME: Final = "zutils-x3"
+DEFAULT_CLUSTER_REGION: Final = "us-east1"
+DEFAULT_CLUSTER_PROJECT: Final = "zetta-research"
+
+
 @builder.register("mazepa.k8s.ClusterInfo")
 @attrs.frozen
 class ClusterInfo:
     name: str
     region: Optional[str] = None
     project: Optional[str] = None
+
+
+DEFAULT_CLUSTER_INFO: Final = ClusterInfo(
+    name=DEFAULT_CLUSTER_NAME,
+    region=DEFAULT_CLUSTER_REGION,
+    project=DEFAULT_CLUSTER_PROJECT,
+)
 
 
 @attrs.frozen
@@ -91,3 +103,30 @@ def get_cluster_data(info: ClusterInfo) -> Tuple[k8s_client.Configuration, str]:
     configuration.api_key_prefix["authorization"] = "Bearer"
     configuration.api_key["authorization"] = cluster_auth.token
     return configuration, workload_pool
+
+
+def parse_cluster_info(
+    cluster_name: Optional[str] = None,
+    cluster_region: Optional[str] = None,
+    cluster_project: Optional[str] = None,
+) -> ClusterInfo:
+    if cluster_name is None:
+        logger.info(f"Using default cluster: {DEFAULT_CLUSTER_INFO}")
+        cluster_info = DEFAULT_CLUSTER_INFO
+        if cluster_region is not None or cluster_project is not None:
+            raise ValueError(
+                "Both `cluster_region` and `cluster_project` must be `None` "
+                "when `cluster_name` is `None`"
+            )
+    else:
+        if cluster_region is None or cluster_project is None:
+            raise ValueError(
+                "Both `cluster_region` and `cluster_project` must be provided "
+                "when `cluster_name` is specified."
+            )
+        cluster_info = ClusterInfo(
+            name=cluster_name,
+            region=cluster_region,
+            project=cluster_project,
+        )
+    return cluster_info

@@ -10,6 +10,7 @@ omit =
   zetta_utils/mazepa_addons/**/*.py
   zetta_utils/alignment/*.py
   zetta_utils/training/lightning/*.py
+  zetta_utils/cloud/**/*.py
   setup.py
 
 [report]

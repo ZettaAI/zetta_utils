@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from contextlib import ExitStack
-from typing import Final
+from typing import Final, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -13,17 +13,7 @@ from pytorch_lightning.utilities.cloud_io import get_filesystem
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa, parsing
-from zetta_utils.cloud import resource_allocation
-
-DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
-DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
-DEFAULT_GCP_CLUSTER_PROJECT: Final = "zetta-research"
-
-DEFAULT_GCP_CLUSTER: Final = resource_allocation.k8s.ClusterInfo(
-    name=DEFAULT_GCP_CLUSTER_NAME,
-    region=DEFAULT_GCP_CLUSTER_REGION,
-    project=DEFAULT_GCP_CLUSTER_PROJECT,
-)
+from zetta_utils.cloud_management import resource_allocation
 
 logger = log.get_logger("zetta_utils")
 
@@ -87,7 +77,19 @@ def lightning_train(
 
 @builder.register("lightning_train_remote")
 @typeguard.typechecked
-def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
+def lightning_train_remote(
+    worker_image: str,
+    worker_resources: dict,
+    spec_path: str,
+    worker_cluster_name: Optional[str] = None,
+    worker_cluster_region: Optional[str] = None,
+    worker_cluster_project: Optional[str] = None,
+) -> None:
+    cluster_info = resource_allocation.k8s.parse_cluster_info(
+        cluster_name=worker_cluster_name,
+        cluster_region=worker_cluster_region,
+        cluster_project=worker_cluster_project,
+    )
 
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
@@ -121,11 +123,11 @@ def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
     )
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=execution_id,
-        image=image,
+        image=worker_image,
         command=command,
         command_args=command_args,
         env_secret_mapping=env_secret_mapping,
-        resources=resources,
+        resources=worker_resources,
         restart_policy="Never",
         tolerations=[worker, gpu],
         volumes=[spec_vol],
@@ -134,14 +136,14 @@ def lightning_train_remote(image: str, resources: dict, spec_path: str) -> None:
 
     configmap_ctx = resource_allocation.k8s.configmap_ctx_manager(
         execution_id=execution_id,
-        cluster_info=DEFAULT_GCP_CLUSTER,
+        cluster_info=cluster_info,
         configmap=configmap,
     )
 
     train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         execution_id=execution_id,
-        cluster_info=DEFAULT_GCP_CLUSTER,
+        cluster_info=cluster_info,
         job=train_job,
         secrets=secrets,
     )

@@ -1,5 +1,3 @@
-# pylint: disable=unused-argument
-
 """
 Helpers for k8s deployments.
 """
@@ -10,11 +8,11 @@ from typing import Any, Dict, List, Optional, Union
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa
 
-# from ..resource_tracker import (
-#     ExecutionResource,
-#     ExecutionResourceTypes,
-#     register_execution_resource,
-# )
+from ..resource_tracker import (
+    ExecutionResource,
+    ExecutionResourceTypes,
+    register_execution_resource,
+)
 from .common import ClusterInfo, get_cluster_data, get_worker_command
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr
@@ -151,29 +149,24 @@ def deployment_ctx_mngr(
     with secrets_ctx_mngr(execution_id, secrets, cluster_info):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
         k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=namespace)
-        # register_execution_resource(
-        #     ExecutionResource(
-        #         execution_id,
-        #         ExecutionResourceTypes.K8S_DEPLOYMENT.value,
-        #         deployment.metadata.name,
-        #     )
-        # )
+        register_execution_resource(
+            ExecutionResource(
+                execution_id,
+                ExecutionResourceTypes.K8S_DEPLOYMENT.value,
+                deployment.metadata.name,
+            )
+        )
 
         try:
             yield
         finally:
-            ...
+            # new configuration to refresh expired tokens (long running executions)
+            configuration, _ = get_cluster_data(cluster_info)
+            k8s_client.Configuration.set_default(configuration)
 
-        # try:
-        #     yield
-        # finally:
-        #     # new configuration to refresh expired tokens (long running executions)
-        #     configuration, _ = get_cluster_data(cluster_info)
-        #     k8s_client.Configuration.set_default(configuration)
-
-        #     # need to create a new client for the above to take effect
-        #     k8s_apps_v1_api = k8s_client.AppsV1Api()
-        #     logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
-        #     k8s_apps_v1_api.delete_namespaced_deployment(
-        #         name=deployment.metadata.name, namespace=namespace
-        #     )
+            # need to create a new client for the above to take effect
+            k8s_apps_v1_api = k8s_client.AppsV1Api()
+            logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
+            k8s_apps_v1_api.delete_namespaced_deployment(
+                name=deployment.metadata.name, namespace=namespace
+            )

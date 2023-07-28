@@ -2,6 +2,8 @@
 Helpers for k8s pod.
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore

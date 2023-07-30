@@ -131,8 +131,8 @@ class BBox3D:
         else:
             dim_res = resolution[dim]
 
-        dim_range_start_raw = self.bounds[dim][0] / dim_res
-        dim_range_end_raw = self.bounds[dim][1] / dim_res
+        dim_range_start_raw = round(self.bounds[dim][0] / dim_res, 10)
+        dim_range_end_raw = round(self.bounds[dim][1] / dim_res, 10)
 
         if not round_to_int:
             return slice(dim_range_start_raw, dim_range_end_raw)

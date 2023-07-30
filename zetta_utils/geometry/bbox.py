@@ -431,7 +431,7 @@ class BBox3D:
     def get_size(self) -> int | float:  # pragma: no cover
         """Returns the size of the volume in N-D space, in `self.unit^N`."""
         resolution = (1, 1, 1)
-        slices = self.to_slices(resolution)
+        slices = self.to_slices(resolution, round_to_int=False)
         size = 1
         for _, slc in enumerate(slices):
             size *= slc.stop - slc.start

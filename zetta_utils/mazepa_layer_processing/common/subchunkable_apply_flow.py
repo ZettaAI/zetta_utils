@@ -438,7 +438,7 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     processing_chunk_sizes: Sequence[Vec3D[int]],
 ) -> BBox3D:
 
-    bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = bbox.shape / dst_resolution
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(
@@ -475,7 +475,7 @@ def _shrink_processing_chunk(  # pylint: disable=line-too-long
     processing_chunk_sizes: Sequence[Vec3D[int]],
 ) -> Sequence[Vec3D[int]]:
 
-    bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = bbox.shape / dst_resolution
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(

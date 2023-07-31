@@ -8,6 +8,7 @@ from typing import Dict, Final, Iterable, Optional, Union
 from zetta_utils import builder, log, mazepa
 from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa_addons import execution_tracker, resource_allocation
+from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
 
 logger = log.get_logger("zetta_utils")
 
@@ -54,8 +55,7 @@ def get_gcp_with_sqs_config(
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
     ctx_managers: list[AbstractContextManager],
-) -> tuple[mazepa.ExecutionQueue, list[AbstractContextManager]]:
-
+) -> tuple[PushMessageQueue, PullMessageQueue, list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
     ctx_managers.append(
         resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, work_queue_name)
@@ -64,12 +64,19 @@ def get_gcp_with_sqs_config(
     ctx_managers.append(
         resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue_name)
     )
-    exec_queue_spec = {
-        "@type": "mazepa.SQSExecutionQueue",
+    task_queue_spec = {
+        "@type": "SQSQueue",
         "name": work_queue_name,
         "outcome_queue_name": outcome_queue_name,
     }
-    exec_queue = builder.build(exec_queue_spec)
+    outcome_queue_spec = {
+        "@type": "SQSQueue",
+        "name": work_queue_name,
+        "outcome_queue_name": outcome_queue_name,
+    }
+
+    task_queue = builder.build(task_queue_spec)
+    outcome_queue = builder.build(outcome_queue_spec)
 
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
@@ -78,7 +85,8 @@ def get_gcp_with_sqs_config(
     deployment = resource_allocation.k8s.get_deployment(
         execution_id=execution_id,
         image=worker_image,
-        queue=exec_queue_spec,
+        task_queue_spec=task_queue_spec,
+        outcome_queue_spec=outcome_queue_spec,
         replicas=worker_replicas,
         resources=worker_resources,
         env_secret_mapping=env_secret_mapping,
@@ -93,7 +101,7 @@ def get_gcp_with_sqs_config(
             secrets=secrets,
         )
     )
-    return exec_queue, ctx_managers
+    return task_queue, outcome_queue, ctx_managers
 
 
 @contextmanager
@@ -141,7 +149,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:
         execution_tracker.register_execution(execution_id, [])
-        exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
+        task_queue = None
+        outcome_queue = None
     else:
         if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
@@ -163,7 +172,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 project=worker_cluster_project,
             )
         execution_tracker.register_execution(execution_id, [worker_cluster])
-        exec_queue, ctx_managers = get_gcp_with_sqs_config(
+        task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
             worker_image=worker_image,
             worker_cluster=worker_cluster,
@@ -180,7 +189,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
 
         mazepa.execute(
             target=target,
-            exec_queue=exec_queue,
+            task_queue=task_queue,
+            outcome_queue=outcome_queue,
             execution_id=execution_id,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,

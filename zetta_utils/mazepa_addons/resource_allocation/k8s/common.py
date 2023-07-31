@@ -6,12 +6,12 @@ from __future__ import annotations
 import json
 import os
 from contextlib import contextmanager
-from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, Iterable, Tuple
 
 import attrs
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log, mazepa
+from zetta_utils import builder, log
 
 from ..resource_tracker import (
     ExecutionResource,
@@ -30,8 +30,8 @@ CV_SECRETS_NAME = "cloudvolume-secrets"
 @attrs.frozen
 class ClusterInfo:
     name: str
-    region: Optional[str] = None
-    project: Optional[str] = None
+    region: str | None = None
+    project: str | None = None
 
 
 @attrs.frozen
@@ -55,14 +55,16 @@ def _get_init_container_command() -> str:
     return command
 
 
-def _get_worker_command(queue_spec: Dict[str, Any]):
+def _get_mazepa_worker_command(
+    task_queue_spec: dict[str, Any], outcome_queue_spec: dict[str, Any]
+):
     result = (
         """
     zetta -vv -l try run -s '{
         "@type": "mazepa.run_worker"
-        exec_queue:
-    """
-        + json.dumps(queue_spec)
+        """
+        + f"task_queue: {json.dumps(task_queue_spec)}\n"
+        + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
         + """
         max_pull_num: 1
         sleep_sec: 5
@@ -72,7 +74,7 @@ def _get_worker_command(queue_spec: Dict[str, Any]):
     return result
 
 
-def _get_worker_env_vars(env_secret_mapping: Dict[str, str]) -> list:
+def _get_worker_env_vars(env_secret_mapping: dict[str, str]) -> list:
     name_path_map = {
         "MY_NODE_NAME": "spec.nodeName",
         "MY_POD_NAME": "metadata.name",
@@ -106,9 +108,9 @@ def _get_worker_deployment_spec(
     image: str,
     worker_command: str,
     replicas: int,
-    resources: Dict[str, int | float | str],
-    labels: Dict[str, str],
-    env_secret_mapping: Dict[str, str],
+    resources: dict[str, int | float | str],
+    labels: dict[str, str],
+    env_secret_mapping: dict[str, str],
 ) -> k8s_client.V1Deployment:
     volume_mounts = [
         k8s_client.V1VolumeMount(
@@ -189,9 +191,9 @@ def _get_worker_deployment_spec(
 
 def get_secrets_and_mapping(
     execution_id: str, share_envs: Iterable[str] = ()
-) -> Tuple[List[k8s_client.V1Secret], Dict[str, str]]:
-    env_secret_mapping: Dict[str, str] = {}
-    secrets_kv: Dict[str, str] = {}
+) -> Tuple[list[k8s_client.V1Secret], dict[str, str]]:
+    env_secret_mapping: dict[str, str] = {}
+    secrets_kv: dict[str, str] = {}
 
     for env_k in share_envs:
         if not env_k.isupper() or not env_k.replace("_", "").isalpha():
@@ -218,28 +220,22 @@ def get_secrets_and_mapping(
     return secrets, env_secret_mapping
 
 
-def get_deployment(  # pylint: disable=too-many-locals
+def get_mazepa_worker_deployment(
     execution_id: str,
     image: str,
-    queue: Union[mazepa.ExecutionQueue, Dict[str, Any]],
+    task_queue_spec: dict[str, Any],
+    outcome_queue_spec: dict[str, Any],
     replicas: int,
-    resources: Dict[str, int | float | str],
-    env_secret_mapping: Dict[str, str],
-    labels: Optional[Dict[str, str]] = None,
+    resources: dict[str, int | float | str],
+    env_secret_mapping: dict[str, str],
+    labels: dict[str, str] | None = None,
 ):
     if labels is None:
         labels_final = {"execution_id": execution_id}
     else:
         labels_final = labels
 
-    if isinstance(queue, dict):
-        queue_spec = queue
-    else:
-        if hasattr(queue, "__built_with_spec"):
-            queue_spec = queue.__built_with_spec  # pylint: disable=protected-access
-        else:
-            raise ValueError("Only queue's built by `zetta_utils.builder` are allowed.")
-    worker_command = _get_worker_command(queue_spec)
+    worker_command = _get_mazepa_worker_command(task_queue_spec, outcome_queue_spec)
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
     return _get_worker_deployment_spec(
@@ -286,7 +282,7 @@ def get_cluster_data(info: ClusterInfo) -> Tuple[k8s_client.Configuration, str]:
 @contextmanager
 def secrets_ctx_mngr(
     execution_id: str,
-    secrets: List[k8s_client.V1Secret],
+    secrets: list[k8s_client.V1Secret],
     cluster_info: ClusterInfo,
 ):
     configuration, _ = get_cluster_data(cluster_info)
@@ -325,7 +321,7 @@ def deployment_ctx_mngr(
     execution_id: str,
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
-    secrets: List[k8s_client.V1Secret],
+    secrets: list[k8s_client.V1Secret],
 ):
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)

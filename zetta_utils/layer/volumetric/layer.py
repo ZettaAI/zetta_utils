@@ -43,4 +43,4 @@ class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
         self,
         **kwargs,
     ):
-        return attrs.evolve(self, **kwargs)
+        return attrs.evolve(self, **kwargs)  # pragma: no cover

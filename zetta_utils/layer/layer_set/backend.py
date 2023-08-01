@@ -29,4 +29,4 @@ class LayerSetBackend(Backend[IndexT, dict[str, DataT]]):  # pylint: disable=too
         return f"LayerSet[f{'_'.join(self.layers.keys())}]"
 
     def with_changes(self, **kwargs) -> LayerSetBackend[IndexT, DataT]:
-        return attrs.evolve(self, **kwargs)
+        return attrs.evolve(self, **kwargs)  # pragma: no cover

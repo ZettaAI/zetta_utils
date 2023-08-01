@@ -82,7 +82,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     """
 
     def with_changes(self, **kwargs) -> VolumetricBackend[DataT]:
-        return attrs.evolve(self, **kwargs)
+        return attrs.evolve(self, **kwargs)  # pragma: no cover
 
     @abstractmethod
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:

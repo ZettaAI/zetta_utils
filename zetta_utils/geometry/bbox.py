@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Literal, Optional, Sequence, cast
+from typing import Literal, Optional, Sequence, Union, cast
 
 import attrs
 from typeguard import typechecked
@@ -428,7 +428,7 @@ class BBox3D:
             f"({s.join([str(slice.stop) for slice in slices])})"
         )
 
-    def get_size(self) -> int | float:  # pragma: no cover
+    def get_size(self) -> Union[int, float]:  # pragma: no cover
         """Returns the size of the volume in N-D space, in `self.unit^N`."""
         resolution = (1, 1, 1)
         slices = self.to_slices(resolution, round_to_int=False)

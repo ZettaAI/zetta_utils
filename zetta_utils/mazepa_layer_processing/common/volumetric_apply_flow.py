@@ -95,7 +95,6 @@ def get_weight_template(
     z_start_aligned: bool,
     z_stop_aligned: bool,
 ) -> torch.Tensor:
-
     weight = torch.ones(subchunk_shape, dtype=torch.float)
     if processing_blend_mode == "linear":
         weights_x = [x / (2 * x_pad + 1) for x in range(1, 2 * x_pad + 1)]
@@ -184,17 +183,18 @@ def set_allow_cache(*args, **kwargs):
             and not arg.backend.is_local
             and not arg.backend.allow_cache
         ):
-            newarg = attrs.evolve(arg, backend=arg.backend.with_changes(allow_cache=True))
+            newarg = arg.with_changes(backend=arg.backend.with_changes(allow_cache=True))
         else:
             newarg = arg
         newargs.append(newarg)
+
     for k, v in kwargs.items():
         if (
             isinstance(v, VolumetricBasedLayerProtocol)
             and not v.backend.is_local
             and not v.backend.allow_cache
         ):
-            newv = attrs.evolve(v, backend=v.backend.with_changes(allow_cache=True))
+            newv = v.with_changes(backend=v.backend.with_changes(allow_cache=True))
         else:
             newv = v
         newkwargs[k] = newv
@@ -351,7 +351,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             enforce_chunk_aligned_writes=False,
             allow_cache=allow_cache,
         )
-        return attrs.evolve(dst.with_procs(read_procs=()), backend=backend_temp)
+        return dst.with_procs(read_procs=()).with_changes(backend=backend_temp)
 
     def _make_task(
         self,

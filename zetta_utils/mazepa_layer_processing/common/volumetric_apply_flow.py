@@ -183,7 +183,7 @@ def set_allow_cache(*args, **kwargs):
             and not arg.backend.is_local
             and not arg.backend.allow_cache
         ):
-            newv = arg.with_changes(backend=arg.backend.with_changes(allow_cache=True))
+            newarg = arg.with_changes(backend=arg.backend.with_changes(allow_cache=True))
         else:
             newarg = arg
         newargs.append(newarg)

@@ -5,8 +5,6 @@ from typing import TypeVar
 
 import attrs
 
-from zetta_utils.layer.backend_base import Backend
-
 from .. import Backend, Layer
 
 IndexT = TypeVar("IndexT")

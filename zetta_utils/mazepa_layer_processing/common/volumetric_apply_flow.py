@@ -18,7 +18,6 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
 )
-from zetta_utils.layer.volumetric.tensorstore import TSBackend
 
 from ..operation_protocols import VolumetricOpProtocol
 
@@ -336,10 +335,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
         else:
             backend_chunk_size_to_use = self.processing_chunk_size
-        if self._intermediaries_are_local and dst.backend.dtype is torch.uint8:
-            backend_temp_base = TSBackend.from_precomputed(dst.backend)
-        else:
-            backend_temp_base = dst.backend
+        backend_temp_base = dst.backend
         backend_temp = backend_temp_base.with_changes(
             name=path.join(self.intermediaries_dir, temp_name),
             voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
@@ -350,6 +346,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             ),
             enforce_chunk_aligned_writes=False,
             allow_cache=allow_cache,
+            use_compression=False,
         )
         return dst.with_procs(read_procs=()).with_changes(backend=backend_temp)
 

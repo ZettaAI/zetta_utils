@@ -55,7 +55,7 @@ def _clear_ts_cache(path: str) -> None:
     resolutions = _ts_cached.pop(abspath(path), None)
     if resolutions is not None:
         for resolution in resolutions:
-            _ts_cache.pop((path, resolution))
+            _ts_cache.pop((path, resolution), None)
 
 
 @attrs.mutable
@@ -237,6 +237,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         """Currently untyped. Supports:
         "name" = value: str
         "allow_cache" = value: Union[bool, str] - must be False for TensorStoreBackend, ignored
+        "use_compression" = Value: bool - must be False for TensorStoreBackend, ignored
         "enforce_chunk_aligned_writes" = value: bool - must be False for TensorStoreBackend
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
@@ -254,6 +255,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
+            "use_compression",
         ]
         keys_to_kwargs = {"name": "path"}
         keys_to_infospec_fn = {

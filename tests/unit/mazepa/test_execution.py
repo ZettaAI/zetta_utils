@@ -271,7 +271,7 @@ def test_autoexecute_task_transient_error(mocker):
         max_batch_len=2,
     )
     assert task.status == TaskStatus.SUCCEEDED
-    assert task.outcome.return_value == 10
+    assert task.outcome is not None and task.outcome.return_value == 10
     assert task_fn.call_count == 2
 
 
@@ -288,7 +288,7 @@ def test_autoexecute_task_timeout_retry(mocker):
         max_batch_len=2,
     )
     assert task.status == TaskStatus.SUCCEEDED
-    assert task.outcome.return_value == 10
+    assert task.outcome is not None and task.outcome.return_value == 10
 
 
 def test_autoexecute_task_transient_error_too_many(mocker):

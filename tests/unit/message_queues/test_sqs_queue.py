@@ -1,5 +1,6 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import time
+from typing import Any
 
 import boto3
 import coolname
@@ -29,7 +30,7 @@ def aws_credentials():
 def sqs_endpoint(aws_credentials):
     """Ensure that SQS service i s up and responsive."""
     with mock_sqs():
-        client = docker.from_env()
+        client = docker.from_env()  # type: ignore
         container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
 
         timeout = 120
@@ -65,7 +66,7 @@ def success_fn():
 def test_push_pull(raw_queue, mocker):
     raw_queue_name, region_name, endpoint_url = raw_queue
     # mocker.patch("taskqueue.TaskQueue", lambda *args, **kwargs: mocker.MagicMock())
-    q = SQSQueue(
+    q = SQSQueue[Any](
         raw_queue_name,
         region_name=region_name,
         endpoint_url=endpoint_url,
@@ -82,7 +83,7 @@ def test_push_pull(raw_queue, mocker):
 
 def test_delete(raw_queue):
     raw_queue_name, region_name, endpoint_url = raw_queue
-    q = SQSQueue(
+    q = SQSQueue[Any](
         raw_queue_name,
         region_name=region_name,
         endpoint_url=endpoint_url,
@@ -101,7 +102,7 @@ def test_delete(raw_queue):
 
 def test_extend_lease(raw_queue):
     raw_queue_name, region_name, endpoint_url = raw_queue
-    q = SQSQueue(
+    q = SQSQueue[Any](
         raw_queue_name,
         region_name=region_name,
         endpoint_url=endpoint_url,

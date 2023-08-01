@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from contextlib import ExitStack
 from datetime import datetime
-from typing import Callable, Optional, Union, overload
+from typing import Callable, Optional, Union
 
 import attrs
 from typeguard import typechecked
@@ -59,59 +59,21 @@ class Executor:
         )
 
 
-@overload
-def execute(
-    target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
-    task_queue: PushMessageQueue[Task] = ...,
-    outcome_queue: PullMessageQueue[OutcomeReport] = ...,
-    max_batch_len: int = ...,
-    batch_gap_sleep_sec: float = ...,
-    state_constructor: Callable[..., ExecutionState] = ...,
-    execution_id: Optional[str] = ...,
-    raise_on_failed_task: bool = ...,
-    do_dryrun_estimation: bool = ...,
-    show_progress: bool = ...,
-    checkpoint: Optional[str] = ...,
-    checkpoint_interval_sec: Optional[float] = ...,
-    raise_on_failed_checkpoint: bool = ...,
-):
-    ...
-
-
-@overload
-def execute(
-    target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
-    task_queue: None = ...,
-    outcome_queue: None = ...,
-    max_batch_len: int = ...,
-    batch_gap_sleep_sec: float = ...,
-    state_constructor: Callable[..., ExecutionState] = ...,
-    execution_id: Optional[str] = ...,
-    raise_on_failed_task: bool = ...,
-    do_dryrun_estimation: bool = ...,
-    show_progress: bool = ...,
-    checkpoint: Optional[str] = ...,
-    checkpoint_interval_sec: Optional[float] = ...,
-    raise_on_failed_checkpoint: bool = ...,
-):
-    ...
-
-
 @typechecked
 def execute(
-    target,
-    task_queue=None,
-    outcome_queue=None,
-    max_batch_len=1000,
-    batch_gap_sleep_sec=1.0,
-    state_constructor=InMemoryExecutionState,
-    execution_id=None,
-    raise_on_failed_task=True,
-    do_dryrun_estimation=True,
-    show_progress=True,
-    checkpoint=None,
-    checkpoint_interval_sec=None,
-    raise_on_failed_checkpoint=True,
+    target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
+    task_queue: PushMessageQueue[Task] | None = None,
+    outcome_queue: PullMessageQueue[OutcomeReport] | None = None,
+    max_batch_len: int = 1000,
+    batch_gap_sleep_sec: float = 1,
+    state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
+    execution_id: Optional[str] = None,
+    raise_on_failed_task: bool = True,
+    do_dryrun_estimation: bool = True,
+    show_progress: bool = True,
+    checkpoint: Optional[str] = None,
+    checkpoint_interval_sec: Optional[float] = 150,
+    raise_on_failed_checkpoint: bool = True,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -150,9 +112,11 @@ def execute(
             logger.debug(f"Built initial execution state {state}.")
 
         if task_queue is not None:
+            assert outcome_queue is not None
             task_queue_ = task_queue
             outcome_queue_ = outcome_queue
         else:
+            assert outcome_queue is None
             task_queue_ = AutoexecuteTaskQueue(debug=True)
             outcome_queue_ = task_queue_
 

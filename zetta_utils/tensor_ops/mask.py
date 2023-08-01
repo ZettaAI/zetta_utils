@@ -5,7 +5,6 @@ import cc3d
 import einops
 import fastremap
 import numpy as np
-import scipy
 import torch
 from kornia import morphology
 from skimage.morphology import diamond, disk, square, star
@@ -92,74 +91,6 @@ def filter_cc(
 
     result_raw = einops.rearrange(result_raw, "Z C X Y -> C X Y Z")
     result = convert.astype(result_raw, data)
-    return result
-
-
-@builder.register("coarsen_mask")  # type: ignore # TODO: pyright
-@skip_on_empty_data
-@typechecked
-def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
-    """
-    Coarsen the given mask.
-
-    :param data: Input mask tensor (CXYZ).
-    :param width: Amount of pixels by which to coarsen.
-    :return: Coarsened mask tensor.
-    """
-    data_torch_cxyz = convert.to_torch(data)
-
-    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
-
-    kernel = torch.ones(
-        [1, 1]
-        + [
-            3,
-        ]
-        * (data_torch.ndim - 2),
-        device=data_torch.device,
-    )
-    result_torch = data_torch.float()
-    for _ in range(width):
-        conved = torch.nn.functional.conv2d(result_torch, kernel, padding=1)
-        result_torch = (conved >= thr).float()
-
-    result_torch = (result_torch > 0).to(data_torch.dtype)
-
-    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
-    return result
-
-
-@builder.register("binary_closing")  # type: ignore
-@skip_on_empty_data
-@typechecked
-def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
-    """
-    Run binary closing on the mask.
-
-    :param data: Input mask tensor (CXYZ).
-    :param iterations: Number of closing iterations.
-    :return: Closed mask tensor.
-    """
-    data_np = convert.to_np(data)
-
-    if len(data.shape) == 4:
-        # CXYZ
-        assert data.shape[0] == 1
-        assert data.shape[-1] == 1
-        data_np = data_np.squeeze(0).squeeze(-1)
-
-    result_raw = scipy.ndimage.binary_closing(data_np, iterations=iterations)
-    # Prevent boundary erosion
-    result_raw[..., :iterations, :] |= data_np[..., :iterations, :].astype(np.bool_)
-    result_raw[..., -iterations:, :] |= data_np[..., -iterations:, :].astype(np.bool_)
-    result_raw[..., :, :iterations] |= data_np[..., :, :iterations].astype(np.bool_)
-    result_raw[..., :, -iterations:] |= data_np[..., :, -iterations:].astype(np.bool_)
-    result_raw = result_raw.astype(data_np.dtype)
-
-    if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, -1))
-
-    result = convert.astype(result_raw, data) > 0
     return result
 
 

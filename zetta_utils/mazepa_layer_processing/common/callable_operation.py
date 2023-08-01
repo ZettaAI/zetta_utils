@@ -49,7 +49,17 @@ class CallableOperation(Generic[P, IndexT, R]):
         dst[idx] = result
 
 
-@builder.register("build_chunked_callable_flow_schema")
+# TODO: fix mypy
+# Getting error: error:
+# Argument 1 has incompatible type
+# "Callable[
+#   [Arg(Callable[P, R], 'fn'), Arg(IndexChunker[IndexT], 'chunker')],
+#   ChunkedApplyFlowSchema[[LayerWithIndexT[IndexT], **P], IndexT, None]]";
+# expected
+# "Callable[
+#   [Arg(Callable[P, R], 'fn'), Arg(IndexChunker[IndexT], 'chunker')],
+#   ChunkedApplyFlowSchema[[LayerWithIndexT[IndexT], **P], IndexT, None]]"
+@builder.register("build_chunked_callable_flow_schema")  # type: ignore
 def build_chunked_callable_flow_schema(
     fn: Callable[P, R], chunker: IndexChunker[IndexT]
 ) -> ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None,]:

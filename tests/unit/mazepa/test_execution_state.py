@@ -1,4 +1,3 @@
-# type: ignore # We're breaking mypy here
 from __future__ import annotations
 
 from typing import Any
@@ -11,6 +10,7 @@ from zetta_utils.mazepa import (
     InMemoryExecutionState,
     TaskOutcome,
     TaskStatus,
+    constants,
 )
 
 from .maker_utils import make_test_flow, make_test_task
@@ -242,6 +242,27 @@ def test_task_outcome_fail_raise():
     state = InMemoryExecutionState(ongoing_flows=flows, raise_on_failed_task=True)
     state.get_task_batch()
     outcomes = {"a": TaskOutcome[Any](exception=Exception())}
+    with pytest.raises(Exception):
+        state.update_with_task_outcomes(outcomes)
+
+
+def test_task_outcome_fail_unrelated_task_id():
+    # type: () -> None
+    task = make_test_task(fn=lambda: None, id_="a")
+    flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
+    state = InMemoryExecutionState(ongoing_flows=flows, raise_on_failed_task=True)
+    state.get_task_batch()
+    outcomes = {"i'm not from this flow": TaskOutcome[Any](exception=Exception())}
+    state.update_with_task_outcomes(outcomes)
+
+
+def test_task_outcome_fail_raise_unkown_task():
+    # type: () -> None
+    task = make_test_task(fn=lambda: None, id_="a")
+    flows = [make_test_flow(fn=dummy_iter, iterable=[task], id_="flow_0")]
+    state = InMemoryExecutionState(ongoing_flows=flows, raise_on_failed_task=True)
+    state.get_task_batch()
+    outcomes = {constants.UNKOWN_TASK_ID: TaskOutcome[Any](exception=Exception())}
     with pytest.raises(Exception):
         state.update_with_task_outcomes(outcomes)
 

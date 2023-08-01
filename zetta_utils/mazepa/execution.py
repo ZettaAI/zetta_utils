@@ -4,29 +4,31 @@ from __future__ import annotations
 import time
 from contextlib import ExitStack
 from datetime import datetime
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, overload
 
 import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
 from zetta_utils.common import ComparablePartial
+from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
+from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
 
-from . import Flow, Task, dryrun, seq_flow
+from . import Flow, Task, dryrun, sequential_flow
 from .execution_checkpoint import record_execution_checkpoint
-from .execution_queue import ExecutionQueue, LocalExecutionQueue
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
 from .progress_tracker import progress_ctx_mngr
-from .task_outcome import TaskStatus
+from .task_outcome import OutcomeReport, TaskStatus
 from .tasks import _TaskableOperation
 
 logger = log.get_logger("mazepa")
 
 
 @attrs.mutable
-class Executor:  # pragma: no cover # single statement, pure delegation
-    exec_queue: Optional[ExecutionQueue] = None
+class Executor:
+    task_queue: PushMessageQueue[Task] | None = None
+    outcome_queue: PullMessageQueue[OutcomeReport] | None = None
     batch_gap_sleep_sec: float = 4.0
     max_batch_len: int = 1000
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState
@@ -38,9 +40,13 @@ class Executor:  # pragma: no cover # single statement, pure delegation
     raise_on_failed_checkpoint: bool = True
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
+        assert (self.task_queue is None and self.outcome_queue is None) or (
+            self.task_queue is not None and self.outcome_queue is not None
+        )
         return execute(
             target=target,
-            exec_queue=self.exec_queue,
+            task_queue=self.task_queue,
+            outcome_queue=self.outcome_queue,
             batch_gap_sleep_sec=self.batch_gap_sleep_sec,
             max_batch_len=self.max_batch_len,
             state_constructor=self.state_constructor,
@@ -53,20 +59,59 @@ class Executor:  # pragma: no cover # single statement, pure delegation
         )
 
 
-@typechecked
+@overload
 def execute(
     target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
-    exec_queue: Optional[ExecutionQueue] = None,
-    max_batch_len: int = 1000,
-    batch_gap_sleep_sec: float = 1.0,
-    state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
-    execution_id: Optional[str] = None,
-    raise_on_failed_task: bool = True,
-    do_dryrun_estimation: bool = True,
-    show_progress: bool = True,
-    checkpoint: Optional[str] = None,
-    checkpoint_interval_sec: Optional[float] = None,
-    raise_on_failed_checkpoint: bool = True,
+    task_queue: PushMessageQueue[Task] = ...,
+    outcome_queue: PullMessageQueue[OutcomeReport] = ...,
+    max_batch_len: int = ...,
+    batch_gap_sleep_sec: float = ...,
+    state_constructor: Callable[..., ExecutionState] = ...,
+    execution_id: Optional[str] = ...,
+    raise_on_failed_task: bool = ...,
+    do_dryrun_estimation: bool = ...,
+    show_progress: bool = ...,
+    checkpoint: Optional[str] = ...,
+    checkpoint_interval_sec: Optional[float] = ...,
+    raise_on_failed_checkpoint: bool = ...,
+):
+    ...
+
+
+@overload
+def execute(
+    target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
+    task_queue: None = ...,
+    outcome_queue: None = ...,
+    max_batch_len: int = ...,
+    batch_gap_sleep_sec: float = ...,
+    state_constructor: Callable[..., ExecutionState] = ...,
+    execution_id: Optional[str] = ...,
+    raise_on_failed_task: bool = ...,
+    do_dryrun_estimation: bool = ...,
+    show_progress: bool = ...,
+    checkpoint: Optional[str] = ...,
+    checkpoint_interval_sec: Optional[float] = ...,
+    raise_on_failed_checkpoint: bool = ...,
+):
+    ...
+
+
+@typechecked
+def execute(
+    target,
+    task_queue=None,
+    outcome_queue=None,
+    max_batch_len=1000,
+    batch_gap_sleep_sec=1.0,
+    state_constructor=InMemoryExecutionState,
+    execution_id=None,
+    raise_on_failed_task=True,
+    do_dryrun_estimation=True,
+    show_progress=True,
+    checkpoint=None,
+    checkpoint_interval_sec=None,
+    raise_on_failed_checkpoint=True,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -90,12 +135,12 @@ def execute(
             logger.debug(f"Loaded execution state {state}.")
         else:
             if isinstance(target, Task):
-                flows = [seq_flow([target])]
+                flows = [sequential_flow([target])]
             elif isinstance(target, Flow):
                 flows = [target]
             else:  # isinstance(target, (ComparablePartial, Callable)):
                 task = _TaskableOperation(fn=target).make_task()
-                flows = [seq_flow([task])]
+                flows = [sequential_flow([task])]
 
             state = state_constructor(
                 ongoing_flows=flows,
@@ -104,10 +149,12 @@ def execute(
             )
             logger.debug(f"Built initial execution state {state}.")
 
-        if exec_queue is not None:
-            exec_queue_built = exec_queue
+        if task_queue is not None:
+            task_queue_ = task_queue
+            outcome_queue_ = outcome_queue
         else:
-            exec_queue_built = LocalExecutionQueue(debug=True)
+            task_queue_ = AutoexecuteTaskQueue(debug=True)
+            outcome_queue_ = task_queue_
 
         logger.debug(f"STARTING: execution of {target}.")
         start_time = time.time()
@@ -115,7 +162,8 @@ def execute(
         _execute_from_state(
             execution_id=execution_id_final,
             state=state,
-            exec_queue=exec_queue_built,
+            task_queue=task_queue_,
+            outcome_queue=outcome_queue_,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             do_dryrun_estimation=do_dryrun_estimation,
@@ -132,7 +180,8 @@ def execute(
 def _execute_from_state(
     execution_id: str,
     state: ExecutionState,
-    exec_queue: ExecutionQueue,
+    task_queue: PushMessageQueue[Task],
+    outcome_queue: PullMessageQueue[OutcomeReport],
     max_batch_len: int,
     batch_gap_sleep_sec: float,
     do_dryrun_estimation: bool,
@@ -159,9 +208,9 @@ def _execute_from_state(
                 logger.debug("No ongoing flows left.")
                 break
 
-            process_ready_tasks(exec_queue, state, execution_id, max_batch_len)
+            submit_ready_tasks(task_queue, outcome_queue, state, execution_id, max_batch_len)
 
-            if not isinstance(exec_queue, LocalExecutionQueue):
+            if not isinstance(task_queue, AutoexecuteTaskQueue):
                 logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
                 time.sleep(batch_gap_sleep_sec)
                 logger.debug("Awake.")
@@ -185,15 +234,27 @@ def backup_completed_tasks(state: ExecutionState, execution_id: str, raise_on_er
     )
 
 
-def process_ready_tasks(
-    queue: ExecutionQueue, state: ExecutionState, execution_id: str, max_batch_len: int
+def submit_ready_tasks(
+    task_queue: PushMessageQueue[Task],
+    outcome_queue: PullMessageQueue[OutcomeReport],
+    state: ExecutionState,
+    execution_id: str,
+    max_batch_len: int,
 ):
     logger.debug("Pulling task outcomes...")
-    task_outcomes = queue.pull_task_outcomes()
+    task_outcomes = outcome_queue.pull()
+
     if len(task_outcomes) > 0:
         logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
         logger.debug("Updating execution state with taks outcomes.")
-        state.update_with_task_outcomes(task_outcomes)
+        state.update_with_task_outcomes(
+            task_outcomes={e.payload.task_id: e.payload.outcome for e in task_outcomes}
+        )
+        for e in task_outcomes:
+            # it's not important when to acknowledge outcomes, since
+            # only the single manager node will be pulling from the
+            # outcome queue
+            e.acknowledge_fn()
 
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)
@@ -202,6 +263,6 @@ def process_ready_tasks(
     for task in task_batch:
         task.execution_id = execution_id
     logger.debug("Pushing task batch to queue.")
-    queue.push_tasks(task_batch)
+    task_queue.push(task_batch)
     for task in task_batch:
         task.status = TaskStatus.SUBMITTED

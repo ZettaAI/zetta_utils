@@ -61,6 +61,7 @@ tensor-ops = [
     "fastremap >= 1.12.2",
     "einops >= 0.4.1",
     "torchfields >= 0.1.2",
+    "kornia >= 0.6.12",
 ]
 viz = [
     "zetta_utils[tensor_ops]",

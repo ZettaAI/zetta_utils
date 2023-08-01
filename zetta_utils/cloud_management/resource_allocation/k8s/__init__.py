@@ -11,7 +11,7 @@ from .common import (
 
 from .configmap import get_configmap, configmap_ctx_manager
 from .cronjob import configure_cronjob
-from .deployment import deployment_ctx_mngr, get_deployment, get_zutils_worker_deployment
+from .deployment import deployment_ctx_mngr, get_deployment, get_mazepa_worker_deployment
 from .job import (
     get_job,
     get_job_template,

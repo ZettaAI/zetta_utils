@@ -4,7 +4,7 @@ Tools to interact with kubernetes clusters.
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Final, Optional, Tuple
+from typing import Any, Final, Optional, Tuple
 
 import attrs
 
@@ -58,14 +58,15 @@ def _get_init_container_command() -> str:
     return command
 
 
-def get_worker_command(queue_spec: Dict[str, Any]):
+def get_mazepa_worker_command(task_queue_spec: dict[str, Any], outcome_queue_spec: dict[str, Any]):
     result = (
         """
     zetta -vv -l try run -s '{
         "@type": "mazepa.run_worker"
         exec_queue:
     """
-        + json.dumps(queue_spec)
+        + f"task_queue: {json.dumps(task_queue_spec)}\n"
+        + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
         + """
         max_pull_num: 1
         sleep_sec: 5

@@ -1,3 +1,4 @@
+# pylint: disable=unused-import
 from __future__ import annotations
 
 import math
@@ -27,6 +28,7 @@ from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
+from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer
 from zetta_utils.ng.link_builder import make_ng_link
 from zetta_utils.typing import ensure_seq_of_seq
 

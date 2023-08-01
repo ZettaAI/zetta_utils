@@ -20,7 +20,8 @@ LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
 LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
 LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
 LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
-LAYER_UINT63_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63")
+LAYER_UINT63_0_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63_0")
+LAYER_UINT63_1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63_1")
 LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
 LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
 LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
@@ -186,7 +187,7 @@ def test_cv_backend_read_uint63(clear_caches, mocker):
     cv_m = mocker.MagicMock()
     cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_UINT63_PATH)
+    cvb = CVBackend(path=LAYER_UINT63_0_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
         resolution=Vec3D(1, 1, 1),
@@ -202,7 +203,7 @@ def test_cv_backend_read_uint64_exc(clear_caches, mocker):
     cv_m = mocker.MagicMock()
     cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_UINT63_PATH)
+    cvb = CVBackend(path=LAYER_UINT63_1_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
         resolution=Vec3D(1, 1, 1),
@@ -213,7 +214,7 @@ def test_cv_backend_read_uint64_exc(clear_caches, mocker):
 
 def test_cv_backend_write_scalar_uint63(clear_caches, mocker):
     info_spec = PrecomputedInfoSpec(
-        reference_path=LAYER_UINT63_PATH,
+        reference_path=LAYER_UINT63_0_PATH,
     )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
@@ -235,7 +236,7 @@ def test_cv_backend_write_scalar_uint63(clear_caches, mocker):
 
 def test_cv_backend_write_scalar_uint63_exc(clear_caches, mocker):
     info_spec = PrecomputedInfoSpec(
-        reference_path=LAYER_UINT63_PATH,
+        reference_path=LAYER_UINT63_0_PATH,
     )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()

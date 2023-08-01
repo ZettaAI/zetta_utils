@@ -119,12 +119,16 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
 
         pre_diff = (src_f1_enc - tgt_f1_enc).abs()
 
-        pre_tissue_mask = tensor_ops.mask.coarsen(tgt_zeros_f1 + src_zeros_f1, width=2) == 0
+        pre_tissue_mask = (
+            tensor_ops.mask.kornia_dilation(tgt_zeros_f1 + src_zeros_f1, width=5) == 0
+        )
         pre_loss = pre_diff[..., pre_tissue_mask].sum()
         pre_diff_masked = pre_diff.clone()
         pre_diff_masked[..., pre_tissue_mask == 0] = 0
 
-        post_tissue_mask = tensor_ops.mask.coarsen(tgt_zeros_f1 + src_zeros_f2, width=2) == 0
+        post_tissue_mask = (
+            tensor_ops.mask.kornia_dilation(tgt_zeros_f1 + src_zeros_f2, width=5) == 0
+        )
 
         post_magn_mask = seed_field.abs().max(1)[0] > self.field_magn_thr
         post_magn_mask[..., 0:10, :] = 0
@@ -174,8 +178,8 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
 
         field = batch["field"]
 
-        tgt_zeros = tensor_ops.mask.coarsen(tgt == self.zero_value, width=1)
-        src_zeros = tensor_ops.mask.coarsen(src == self.zero_value, width=1)
+        tgt_zeros = tensor_ops.mask.kornia_dilation(tgt == self.zero_value, width=3)
+        src_zeros = tensor_ops.mask.kornia_dilation(src == self.zero_value, width=3)
 
         pre_tissue_mask = (src_zeros + tgt_zeros) == 0
         if pre_tissue_mask.sum() / src.numel() < 0.4:
@@ -199,7 +203,9 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
         pre_diff_masked = pre_diff.clone()
         pre_diff_masked[..., pre_tissue_mask == 0] = 0
 
-        post_tissue_mask = tensor_ops.mask.coarsen(src_zeros_warped + tgt_zeros, width=5) == 0
+        post_tissue_mask = (
+            tensor_ops.mask.kornia_dilation(src_zeros_warped + tgt_zeros, width=5) == 0
+        )
         post_magn_mask = field.abs().sum(1) > self.field_magn_thr
 
         post_magn_mask[..., 0:10, :] = 0
@@ -238,7 +244,7 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
         log_row = batch_idx % self.val_log_row_interval == 0
         sample_name = f"{batch_idx // self.val_log_row_interval}"
 
-        loss = self.compute_minima_loss(
+        loss = self.compute_minima_losskornia_dilation(
             batch=batch, mode="val", log_row=log_row, sample_name=sample_name
         )
         return loss

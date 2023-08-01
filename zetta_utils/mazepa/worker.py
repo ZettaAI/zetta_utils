@@ -4,7 +4,7 @@ import math
 import sys
 import time
 import traceback
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import tenacity
 
@@ -52,7 +52,7 @@ def run_worker(
             exc_type, exception, tb = sys.exc_info()
             traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
 
-            outcome = TaskOutcome(
+            outcome = TaskOutcome[Any](
                 exception=exception,
                 traceback_text=traceback_text,
                 execution_sec=0,
@@ -127,6 +127,7 @@ def _run_task_with_upkeep(task: Task, extend_lease_fn: Callable, debug: bool) ->
         except tenacity.RetryError as e:  # pragma: no cover
             logger.info(f"Couldn't perform upkeep: {e}")
 
+    assert task.upkeep_settings.interval_sec is not None
     upkeep = RepeatTimer(task.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
     upkeep.start()
     try:

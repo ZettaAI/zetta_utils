@@ -9,7 +9,7 @@ from zetta_utils import log
 from zetta_utils.mazepa.worker import process_task
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
-from .task_outcome import OutcomeReport, TaskOutcome
+from .task_outcome import OutcomeReport
 from .tasks import Task
 
 logger = log.get_logger("mazepa")
@@ -31,11 +31,11 @@ class AutoexecuteTaskQueue(MessageQueue):
 
     def pull(
         self, max_num: int = 0, max_time_sec: float = 0  # pylint: disable=unused-argument
-    ) -> list[ReceivedMessage[TaskOutcome]]:
+    ) -> list[ReceivedMessage[OutcomeReport]]:
         if max_num != 0 or max_time_sec != 0:
             raise NotImplementedError()
 
-        results: list[ReceivedMessage[TaskOutcome]] = []
+        results: list[ReceivedMessage[OutcomeReport]] = []
 
         for task in self.tasks_todo[: self.execution_batch_len]:
             # retries are counted for transient error handling

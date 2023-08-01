@@ -90,6 +90,9 @@ class Vec3D(abc.Sequence[T]):
     def __neg__(self) -> Vec3D[T]:
         return Vec3D[T](*(-e for e in self))
 
+    def __round__(self, ndigits=0):
+        return Vec3D[T](*(round(e, ndigits) for e in self))
+
     @overload
     def __add__(self, other: Union[Vec3D[BuiltinInt], BuiltinInt]) -> Vec3D[T]:
         ...

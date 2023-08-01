@@ -5,33 +5,32 @@ Helpers for k8s deployments.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log, mazepa
+from zetta_utils import builder, log
 
 from ..resource_tracker import (
     ExecutionResource,
     ExecutionResourceTypes,
     register_execution_resource,
 )
-from .common import ClusterInfo, get_cluster_data, get_worker_command
+from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
 
 
-def _get_worker_deployment_spec(
+def get_deployment_spec(
     name: str,
     image: str,
-    worker_command: str,
+    command: str,
     replicas: int,
     resources: Dict[str, int | float | str],
     labels: Dict[str, str],
     env_secret_mapping: Dict[str, str],
 ) -> k8s_client.V1Deployment:
-
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
@@ -40,7 +39,7 @@ def _get_worker_deployment_spec(
         name="zutils-worker",
         image=image,
         command=["/bin/sh"],
-        command_args=["-c", worker_command],
+        command_args=["-c", command],
         resources=resources,
         env_secret_mapping=env_secret_mapping,
         tolerations=[schedule_toleration],
@@ -72,10 +71,11 @@ def _get_worker_deployment_spec(
     return deployment
 
 
-def get_zutils_worker_deployment(  # pylint: disable=too-many-locals
+def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     execution_id: str,
     image: str,
-    queue: Union[mazepa.ExecutionQueue, Dict[str, Any]],
+    task_queue_spec: dict[str, Any],
+    outcome_queue_spec: dict[str, Any],
     replicas: int,
     resources: Dict[str, int | float | str],
     env_secret_mapping: Dict[str, str],
@@ -86,21 +86,14 @@ def get_zutils_worker_deployment(  # pylint: disable=too-many-locals
     else:
         labels_final = labels
 
-    if isinstance(queue, dict):
-        queue_spec = queue
-    else:
-        if hasattr(queue, "__built_with_spec"):
-            queue_spec = queue.__built_with_spec  # pylint: disable=protected-access
-        else:
-            raise ValueError("Only queue's built by `zetta_utils.builder` are allowed.")
-    worker_command = get_worker_command(queue_spec)
+    worker_command = get_mazepa_worker_command(task_queue_spec, outcome_queue_spec)
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
-    return _get_worker_deployment_spec(
+    return get_deployment_spec(
         name=execution_id,
         image=image,
         replicas=replicas,
-        worker_command=worker_command,
+        command=worker_command,
         resources=resources,
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,

@@ -1,17 +1,18 @@
 import copy
-from typing import Literal, Protocol, TypeVar
+from typing import Literal, Protocol, TypeVar, Union
 
 import cc3d
 import einops
 import fastremap
 import numpy as np
-import scipy
 import torch
+from kornia import morphology
+from skimage.morphology import diamond, disk, square, star
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder
-from zetta_utils.tensor_typing import TensorTypeVar
+from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from . import convert
 
@@ -93,69 +94,188 @@ def filter_cc(
     return result
 
 
-@builder.register("coarsen_mask")  # type: ignore # TODO: pyright
+def _normalize_kernel(
+    kernel: Union[Tensor, str], width: int, device: torch.types.Device
+) -> torch.Tensor:
+    if isinstance(kernel, str):
+        if kernel == "square":
+            return convert.to_torch(square(width), device=device)
+        if kernel == "diamond":
+            return convert.to_torch(diamond(width), device=device)
+        if kernel == "disk":
+            return convert.to_torch(disk(width), device=device)
+        if kernel == "star":
+            return convert.to_torch(star(width), device=device)
+        else:
+            raise ValueError(f"Unknown kernel type {kernel}")
+    if kernel.ndim != 2:
+        raise ValueError(f"Currently only 2D kernel supported, got {kernel.ndim}D")
+    return convert.to_torch(kernel, device=device)
+
+
+@builder.register("kornia_opening")  # type: ignore
 @skip_on_empty_data
 @typechecked
-def coarsen(data: TensorTypeVar, width: int = 1, thr: int = 1) -> TensorTypeVar:
+def kornia_opening(
+    data: TensorTypeVar,
+    kernel: Union[Tensor, str] = "square",
+    device: torch.types.Device = None,
+    width: int = 3,
+    **kwargs,
+) -> TensorTypeVar:
     """
-    Coarsen the given mask.
+    Close the given mask. Uses kornia.morphology.opening and supports a selection of
+    skimage.morphology 2D footprints as structuring element.
+
+    See https://kornia.readthedocs.io/en/latest/morphology.html#kornia.morphology.opening and
+    https://scikit-image.org/docs/stable/auto_examples/numpy_operations/plot_structuring_elements.html
+    for additional information.
 
     :param data: Input mask tensor (CXYZ).
-    :param width: Amount of pixels by which to coarsen.
-    :return: Coarsened mask tensor.
+    :param kernel: Either a 2D kernel, or one of "square", "diamond", "disk", "star",
+                   defaults to "square".
+    :param device: Target device for opening operation, defaults to None (using data.device)
+    :param width: Follows skimage convention, defaults to 3, ignored if kernel is a `Tensor`.
+    :param kwargs: Additional keyword arguments passed to kornia.morphology.opening
+    :return: The opened mask, same type as input.
     """
-    data_torch_cxyz = convert.to_torch(data)
-
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = _normalize_kernel(kernel, width, device=data_torch_cxyz.device)
     data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
 
-    kernel = torch.ones(
-        [1, 1]
-        + [
-            3,
-        ]
-        * (data_torch.ndim - 2),
-        device=data_torch.device,
+    result_torch = morphology.opening(
+        data_torch,
+        kernel=kernel_torch,
+        max_val=kwargs.pop("max_val", kernel_torch.max()),
+        **kwargs,
     )
-    result_torch = data_torch.float()
-    for _ in range(width):
-        conved = torch.nn.functional.conv2d(result_torch, kernel, padding=1)
-        result_torch = (conved >= thr).float()
 
-    result_torch = (result_torch > 0).to(data_torch.dtype)
-
+    result_torch = result_torch.to(data_torch.dtype)
     result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
     return result
 
 
-@builder.register("binary_closing")  # type: ignore
+@builder.register("kornia_closing")  # type: ignore
 @skip_on_empty_data
 @typechecked
-def binary_closing(data: TensorTypeVar, iterations: int = 1) -> TensorTypeVar:
+def kornia_closing(
+    data: TensorTypeVar,
+    kernel: Union[Tensor, str] = "square",
+    device: torch.types.Device = None,
+    width: int = 3,
+    **kwargs,
+) -> TensorTypeVar:
     """
-    Run binary closing on the mask.
+    Close the given mask. Uses kornia.morphology.closing and supports a selection of
+    skimage.morphology 2D footprints as structuring element.
+
+    See https://kornia.readthedocs.io/en/latest/morphology.html#kornia.morphology.closing and
+    https://scikit-image.org/docs/stable/auto_examples/numpy_operations/plot_structuring_elements.html
+    for additional information.
 
     :param data: Input mask tensor (CXYZ).
-    :param iterations: Number of closing iterations.
-    :return: Closed mask tensor.
+    :param kernel: Either a 2D kernel, or one of "square", "diamond", "disk", "star",
+                   defaults to "square".
+    :param device: Target device for closing operation, defaults to None (using data.device)
+    :param width: Follows skimage convention, defaults to 3, ignored if kernel is a `Tensor`.
+    :param kwargs: Additional keyword arguments passed to kornia.morphology.closing
+    :return: The closed mask, same type as input.
     """
-    data_np = convert.to_np(data)
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = _normalize_kernel(kernel, width, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
 
-    if len(data.shape) == 4:
-        # CXYZ
-        assert data.shape[0] == 1
-        assert data.shape[-1] == 1
-        data_np = data_np.squeeze(0).squeeze(-1)
+    result_torch = morphology.closing(
+        data_torch,
+        kernel=kernel_torch,
+        max_val=kwargs.pop("max_val", kernel_torch.max()),
+        **kwargs,
+    )
 
-    result_raw = scipy.ndimage.binary_closing(data_np, iterations=iterations)
-    # Prevent boundary erosion
-    result_raw[..., :iterations, :] |= data_np[..., :iterations, :].astype(np.bool_)
-    result_raw[..., -iterations:, :] |= data_np[..., -iterations:, :].astype(np.bool_)
-    result_raw[..., :, :iterations] |= data_np[..., :, :iterations].astype(np.bool_)
-    result_raw[..., :, -iterations:] |= data_np[..., :, -iterations:].astype(np.bool_)
-    result_raw = result_raw.astype(data_np.dtype)
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
 
-    if len(data.shape) == 4:
-        result_raw = np.expand_dims(result_raw, (0, -1))
 
-    result = convert.astype(result_raw, data) > 0
+@builder.register("kornia_erosion")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_erosion(
+    data: TensorTypeVar,
+    kernel: Union[Tensor, str] = "square",
+    device: torch.types.Device = None,
+    width: int = 3,
+    **kwargs,
+) -> TensorTypeVar:
+    """
+    Erode the given mask. Uses kornia.morphology.erosion and supports a selection of
+    skimage.morphology 2D footprints as structuring element.
+
+    See https://kornia.readthedocs.io/en/latest/morphology.html#kornia.morphology.erosion and
+    https://scikit-image.org/docs/stable/auto_examples/numpy_operations/plot_structuring_elements.html
+    for additional information.
+
+    :param data: Input mask tensor (CXYZ).
+    :param kernel: Either a 2D kernel, or one of "square", "diamond", "disk", "star",
+                   defaults to "square".
+    :param device: Target device for erosion operation, defaults to None (using data.device)
+    :param width: Follows skimage convention, defaults to 3, ignored if kernel is a `Tensor`.
+    :param kwargs: Additional keyword arguments passed to kornia.morphology.erosion
+    :return: The eroded mask, same type as input.
+    """
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = _normalize_kernel(kernel, width, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.erosion(
+        data_torch,
+        kernel=kernel_torch,
+        max_val=kwargs.pop("max_val", kernel_torch.max()),
+        **kwargs,
+    )
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("kornia_dilation")  # type: ignore
+@skip_on_empty_data
+@typechecked
+def kornia_dilation(
+    data: TensorTypeVar,
+    kernel: Union[Tensor, str] = "square",
+    device: torch.types.Device = None,
+    width: int = 3,
+    **kwargs,
+) -> TensorTypeVar:
+    """
+    Dilate the given mask. Uses kornia.morphology.dilation and supports a selection of
+    skimage.morphology 2D footprints as structuring element.
+
+    See https://kornia.readthedocs.io/en/latest/morphology.html#kornia.morphology.dilation and
+    https://scikit-image.org/docs/stable/auto_examples/numpy_operations/plot_structuring_elements.html
+    for additional information.
+
+    :param data: Input mask tensor (CXYZ).
+    :param kernel: Either a 2D kernel, or one of "square", "diamond", "disk", "star",
+                   defaults to "square".
+    :param device: Target device for dilation operation, defaults to None (using data.device)
+    :param width: Follows skimage convention, defaults to 3, ignored if kernel is a `Tensor`.
+    :param kwargs: Additional keyword arguments passed to kornia.morphology.dilation
+    :return: The dilated mask, same type as input.
+    """
+    data_torch_cxyz = convert.to_torch(data, device=device)
+    kernel_torch = _normalize_kernel(kernel, width, device=data_torch_cxyz.device)
+    data_torch = einops.rearrange(data_torch_cxyz, "C X Y Z -> Z C X Y")
+
+    result_torch = morphology.dilation(
+        data_torch,
+        kernel=kernel_torch,
+        max_val=kwargs.pop("max_val", kernel_torch.max()),
+        **kwargs,
+    )
+
+    result_torch = result_torch.to(data_torch.dtype)
+    result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
     return result

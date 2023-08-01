@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable, Final
+from typing import Any, Callable, Final, Optional
 
 import attrs
 from typeguard import typechecked
@@ -171,8 +171,7 @@ class BuilderPartial:
 
     spec: dict[str, Any]
     _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
-    name: str | None = None
-    # name: str | None = None
+    name: Optional[str] = None
 
     def get_display_name(self):  # pragma: no cover # pretty print
         if self.name is not None:

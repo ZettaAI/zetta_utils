@@ -16,9 +16,9 @@ from zetta_utils.typing import check_type
 zetta_utils.load_all_modules()
 
 
-@builder.register("OnlyCopyTSOp")
+@builder.register("OnlyCopyTempOp")
 @mazepa.taskable_operation_cls
-class OnlyCopyTSOp:
+class OnlyCopyTempOp:
     def get_input_resolution(self, dst_resolution):  # pylint: disable=no-self-use
         return dst_resolution
 
@@ -31,8 +31,7 @@ class OnlyCopyTSOp:
         dst: VolumetricLayer,
         src: VolumetricLayer,
     ) -> None:
-        print(dst.backend)
-        if check_type(dst.backend, TSBackend):
+        if dst.backend.name.find("_temp_") > 0:
             dst[idx] = src[idx]
 
 

@@ -11,10 +11,10 @@
 #FLOW: {
 	"@type": "build_subchunkable_apply_flow"
 	op: {
-		"@type":    "OnlyCopyTSOp"
+		"@type": "OnlyCopyTempOp"
 	}
 	processing_chunk_sizes: [[1024, 1024, 1], [1024, 1024, 1]]
-    skip_intermediaries: true
+	skip_intermediaries:    true
 	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX

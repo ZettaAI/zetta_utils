@@ -1,3 +1,4 @@
+# pylint: disable=unused-import
 from __future__ import annotations
 
 import math
@@ -27,6 +28,7 @@ from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
+from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer
 from zetta_utils.ng.link_builder import make_ng_link
 from zetta_utils.typing import ensure_seq_of_seq
 
@@ -338,7 +340,6 @@ def _expand_bbox_resolution(  # pylint: disable=line-too-long
     bbox: BBox3D,
     dst_resolution: Vec3D,
 ) -> BBox3D:
-
     bbox_new = bbox.snapped(Vec3D[float](0, 0, 0), dst_resolution, "expand")
     if bbox_new != bbox:
         logger.info(
@@ -364,7 +365,6 @@ def _auto_divisibility(  # pylint: disable=line-too-long
     processing_crop_pads: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
 ) -> Sequence[Vec3D[int]]:
-
     num_levels = len(processing_chunk_sizes)
     processing_chunk_sizes_new = list(deepcopy(processing_chunk_sizes))
     for level in range(0, num_levels - 1):
@@ -404,7 +404,6 @@ def _expand_bbox_backend(  # pylint: disable=line-too-long
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
 ) -> BBox3D:
-
     dst_backend_voxel_offset = dst.backend.get_voxel_offset(dst_resolution)
     dst_backend_chunk_size = dst.backend.get_chunk_size(dst_resolution)
     bbox_new = bbox.snapped(
@@ -437,8 +436,7 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     dst_resolution: Vec3D,
     processing_chunk_sizes: Sequence[Vec3D[int]],
 ) -> BBox3D:
-
-    bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = bbox.shape / dst_resolution
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(
@@ -474,8 +472,7 @@ def _shrink_processing_chunk(  # pylint: disable=line-too-long
     dst_resolution: Vec3D,
     processing_chunk_sizes: Sequence[Vec3D[int]],
 ) -> Sequence[Vec3D[int]]:
-
-    bbox_shape_in_res = bbox.shape // dst_resolution
+    bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = bbox.shape / dst_resolution
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(
@@ -549,7 +546,6 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     op_args: Iterable,
     op_kwargs: Mapping[str, Any],
 ) -> None:  # pragma: no cover
-
     summary = ""
     summary += (
         lrpad("  SubchunkableApplyFlow Parameter Summary  ", bounds="+", filler="=", length=120)
@@ -681,7 +677,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op_args: P.args,
     op_kwargs: P.kwargs,
 ) -> mazepa.Flow:
-
     num_levels = len(processing_chunk_sizes)
 
     if auto_divisibility:
@@ -801,12 +796,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
             "required to be chunk-aligned."
         )
-        dst = attrs.evolve(
-            deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
+        dst = deepcopy(dst).with_changes(
+            backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
         )
     else:
-        dst = attrs.evolve(
-            deepcopy(dst), backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
+        dst = deepcopy(dst).with_changes(
+            backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
         )
 
     if print_summary:

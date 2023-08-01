@@ -38,3 +38,9 @@ class VolumetricBasedLayerProtocol(Protocol[DataT, IndexT]):
         ] = None,
     ) -> VolumetricBasedLayerProtocolT:
         ...
+
+    def with_changes(
+        self,
+        **kwargs,
+    ) -> VolumetricBasedLayerProtocol[DataT, IndexT]:
+        ...

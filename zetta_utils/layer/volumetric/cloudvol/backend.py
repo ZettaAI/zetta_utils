@@ -5,6 +5,7 @@ from copy import deepcopy
 from typing import Any, Dict, Literal, Optional, Union
 
 import attrs
+import cachetools
 import cloudvolume as cv
 import numpy as np
 import torch
@@ -18,13 +19,54 @@ from zetta_utils.geometry import BBox3D, Vec3D
 from .. import VolumetricBackend, VolumetricIndex
 from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 
+_cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
+_cv_cached: Dict[str, set] = {}
+
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
 
 # To avoid reloading info file - note that an empty provenance is passed
 # since otherwise the CloudVolume's __new__ will download the provenance
-def get_cv_cached(cloudpath, *args, **kwargs):
-    return CloudVolume(
-        abspath(cloudpath), info=get_info(cloudpath), provenance={}, *args, **kwargs
-    )
+# TODO: Use `assume_metadata` off of the cached info, using `get_info`.
+# Cannot use regular hashkey as the resolutions used need to be tracked
+def _get_cv_cached(
+    path: str,
+    resolution: Optional[Vec3D] = None,
+    cache_bytes_limit: Optional[int] = None,
+    **kwargs,
+) -> cv.frontends.precomputed.CloudVolumePrecomputed:
+    if cache_bytes_limit is None:
+        cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
+    if (abspath(path), resolution) in _cv_cache:
+        return _cv_cache[(abspath(path), resolution)]
+    if resolution is not None:
+        result = CloudVolume(
+            abspath(path),
+            info=get_info(path),
+            provenance={},
+            mip=tuple(resolution),
+            lru_bytes=cache_bytes_limit,
+            **kwargs,
+        )
+    else:
+        result = CloudVolume(
+            abspath(path),
+            info=get_info(path),
+            provenance={},
+            lru_bytes=cache_bytes_limit,
+            **kwargs,
+        )
+    _cv_cache[(abspath(path), resolution)] = result
+    if path not in _cv_cached:
+        _cv_cached[abspath(path)] = set()
+    _cv_cached[abspath(path)].add(resolution)
+    return result
+
+
+def _clear_cv_cache(path: str) -> None:
+    resolutions = _cv_cached.pop(abspath(path), None)
+    if resolutions is not None:
+        for resolution in resolutions:
+            _cv_cache.pop((abspath(path), resolution), None)
 
 
 @attrs.mutable
@@ -36,7 +78,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     dimension order.
     :param path: CloudVolume path.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
-                    print(new_info == get_info(self.path))
         ``mip`` keyword must not be present in ``cv_kwargs``, as the read resolution
         is passed in as a part of index to the backend.
     :param info_spec: Specification for the info file for the layer. If None, the
@@ -61,7 +102,9 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self._set_cv_defaults()
         if self.info_spec is None:
             self.info_spec = PrecomputedInfoSpec()
-        self.info_spec.update_info(self.path, self.on_info_exists)
+        overwritten = self.info_spec.update_info(self.path, self.on_info_exists)
+        if overwritten:
+            _clear_cv_cache(self.path)
 
     def _set_cv_defaults(self):
         self.cv_kwargs.setdefault("bounded", False)
@@ -76,12 +119,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("delete_black_uploads", True)
         self.cv_kwargs.setdefault("agglomerate", True)
 
-    def _get_cv_at_resolution(
-        self, resolution: Vec3D
-    ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
-        result = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
-        return result
-
     @property
     def name(self) -> str:  # pragma: no cover
         return self.path
@@ -95,7 +132,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def dtype(self) -> torch.dtype:
-        result = get_cv_cached(cloudpath=self.path, **self.cv_kwargs)
+        result = _get_cv_cached(self.path, **self.cv_kwargs)
 
         dtype = result.data_type
         try:
@@ -108,7 +145,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def num_channels(self) -> int:  # pragma: no cover
-        result = get_cv_cached(cloudpath=self.path, **self.cv_kwargs)
+        result = _get_cv_cached(self.path, **self.cv_kwargs)
         return result.num_channels
 
     @property
@@ -148,15 +185,18 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             " use `backend.with_changes(use_compression=value:bool)` instead."
         )
 
-    def clear_cache(self) -> None:  # pragma: no cover
+    def clear_disk_cache(self) -> None:  # pragma: no cover
         info = get_info(self.path)
         for scale in info["scales"]:
             res = Vec3D[float](*scale["resolution"])
-            self._get_cv_at_resolution(res).cache.flush()
+            _get_cv_cached(self.path, resolution=res, **self.cv_kwargs).cache.flush()
+
+    def clear_cache(self) -> None:  # pragma: no cover
+        _clear_cv_cache(self.path)
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: cxyz
-        cvol = self._get_cv_at_resolution(idx.resolution)
+        cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
         data_raw = cvol[idx.to_slices()]
 
         result_np = np.transpose(data_raw, (3, 0, 1, 2))
@@ -178,7 +218,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 f"but got a tensor of with ndim == {data_np.ndim}"
             )
 
-        cvol = self._get_cv_at_resolution(idx.resolution)
+        cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
         slices = idx.to_slices()
         # Enable autocrop for writes only
         cvol.autocrop = True
@@ -193,12 +233,13 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def with_changes(self, **kwargs) -> CVBackend:
         """Currently untyped. Supports:
         "name" = value: str
-        "allow_cache" = value: Union[bool, str]
         "use_compression" = value: str
         "enforce_chunk_aligned_writes" = value: bool
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
+
+        "allow_cache" = value: Union[bool, str]: currently unused since this is for the disk cache
         """
         assert self.info_spec is not None
 
@@ -221,7 +262,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "dataset_size_res": info_spec.set_dataset_size,
         }
         keys_to_cv_kwargs = {
-            "allow_cache": "cache",
             "use_compression": "compress",
             "enforce_chunk_aligned_writes": "non_aligned_writes",
         }
@@ -239,24 +279,28 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             if k in keys_to_infospec_fn:
                 keys_to_infospec_fn[k](v)
 
-        return attrs.evolve(
+        if "name" in kwargs:
+            _clear_cv_cache(kwargs["name"])
+        _clear_cv_cache(self.path)
+        result = attrs.evolve(
             self,
             **evolve_kwargs,
             info_spec=info_spec,
             cv_kwargs=cv_kwargs,
             on_info_exists="overwrite",
         )
+        return result
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
         return Vec3D[int](*cvol.voxel_offset)
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
         return Vec3D[int](*cvol.chunk_size)
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(resolution), **self.cv_kwargs)
+        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
         return Vec3D[int](*cvol.volume_size)
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
@@ -267,7 +311,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def get_chunk_aligned_index(  # pragma: no cover
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:
-        cvol = get_cv_cached(cloudpath=self.path, mip=tuple(idx.resolution), **self.cv_kwargs)
+        cvol = _get_cv_cached(self.path, resolution=idx.resolution, **self.cv_kwargs)
         bbox = Bbox(*tuple(zip(*((s.start, s.stop) for s in idx.to_slices()))))
         if mode == "expand":
             bbox_aligned = bbox.expand_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)

@@ -7,6 +7,7 @@ from .operation_protocols import (
     VolumetricOpProtocol,
 )
 from . import alignment
+from . import segmentation
 from .common import (
     ChunkedApplyFlowSchema,
     CallableOperation,

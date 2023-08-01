@@ -4,6 +4,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from typing import Literal, TypeVar
 
+import attrs
 import torch
 
 from zetta_utils.geometry import Vec3D
@@ -14,6 +15,7 @@ from . import VolumetricIndex
 DataT = TypeVar("DataT")
 
 
+@attrs.mutable
 class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too-few-public-methods
     @property
     @abstractmethod
@@ -78,6 +80,9 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
     "dataest_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
+
+    def with_changes(self, **kwargs) -> VolumetricBackend[DataT]:
+        return attrs.evolve(self, **kwargs)  # pragma: no cover
 
     @abstractmethod
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:

@@ -21,3 +21,10 @@ class LayerSetBackend(Backend[IndexT, dict[str, DataT]]):  # pylint: disable=too
     def write(self, idx: IndexT, data: dict[str, DataT]):
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
+
+    @property
+    def name(self) -> str:
+        return f"LayerSet[f{'_'.join(self.layers.keys())}]"  # pragma: no cover
+
+    def with_changes(self, **kwargs) -> LayerSetBackend[IndexT, DataT]:
+        return attrs.evolve(self, **kwargs)  # pragma: no cover

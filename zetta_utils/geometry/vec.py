@@ -90,6 +90,9 @@ class Vec3D(abc.Sequence[T]):
     def __neg__(self) -> Vec3D[T]:
         return Vec3D[T](*(-e for e in self))
 
+    def __round__(self, ndigits=0):
+        return Vec3D[T](*(round(e, ndigits) for e in self))
+
     @overload
     def __add__(self, other: Union[Vec3D[BuiltinInt], BuiltinInt]) -> Vec3D[T]:
         ...
@@ -136,7 +139,7 @@ class Vec3D(abc.Sequence[T]):
         elif isinstance(other, (BuiltinFloat)):
             return Vec3D[BuiltinFloat](*(e - other for e in self))
         elif is_int_vec(other):
-            return Vec3D[T](*(e - f for (e, f) in zip(self, other)))
+            return Vec3D[T](*(e - f for (e, f) in zip(self, other)))  # type: ignore
         else:
             return Vec3D[BuiltinFloat](*(e - f for (e, f) in zip(self, other)))
 
@@ -168,7 +171,7 @@ class Vec3D(abc.Sequence[T]):
         elif isinstance(other, (BuiltinFloat)):
             return Vec3D[BuiltinFloat](*(e * other for e in self))
         elif is_int_vec(other):
-            return Vec3D[T](*(e * f for (e, f) in zip(self, other)))
+            return Vec3D[T](*(e * f for (e, f) in zip(self, other)))  # type: ignore
         else:
             return Vec3D[BuiltinFloat](*(e * f for (e, f) in zip(self, other)))
 
@@ -224,7 +227,7 @@ class Vec3D(abc.Sequence[T]):
         elif isinstance(other, (BuiltinFloat)):
             return Vec3D[BuiltinFloat](*(e % other for e in self))
         elif is_int_vec(other):
-            return Vec3D[T](*(e % f for (e, f) in zip(self, other)))
+            return Vec3D[T](*(e % f for (e, f) in zip(self, other)))  # type: ignore
         else:
             return Vec3D[BuiltinFloat](*(e % f for (e, f) in zip(self, other)))
 

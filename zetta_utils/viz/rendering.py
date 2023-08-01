@@ -1,7 +1,6 @@
 # pylint: disable=missing-docstring
-# type: ignore
 """ZettaAI Python plotting utilities. Most of the plotting functions are not included
-in automated testing, as they're not meand for production use."""
+in automated testing, as they're not meant for production use."""
 from __future__ import annotations
 
 import copy
@@ -54,7 +53,7 @@ class Renderer:  # pylint: disable=too-few-public-methods
         self.fld_kwargs = common_kwargs | fld_kwargs
         self.seg_kwargs = common_kwargs | seg_kwargs
 
-    def __call__(self, x):  # pragma: no cover
+    def __call__(self, x) -> npt.NDArray:  # pragma: no cover
         x = tensor_ops.convert.to_np(x).squeeze()
         if len(x.shape) == 3:
             if x.shape[0] == 2:

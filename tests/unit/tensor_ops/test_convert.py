@@ -14,7 +14,7 @@ def test_to_np(x, expected):
 
 def test_to_np_exc():
     with pytest.raises(Exception):
-        convert.to_np("hello")
+        convert.to_np("hello")  # type: ignore
 
 
 @pytest.mark.parametrize(

@@ -31,13 +31,14 @@ def clear_caches():
 
 
 def test_infospec_expect_same_exc(mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
     )
     with pytest.raises(RuntimeError):
         info_spec.update_info(path=LAYER_X1_PATH, on_info_exists="expect_same")
-    precomputed._write_info.assert_not_called()
+    _write_info.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -50,13 +51,14 @@ def test_infospec_expect_same_exc(mocker):
     ],
 )
 def test_infospec_no_action(path, reference, mode, mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=reference,
     )
     info_spec.update_info(path=path, on_info_exists=mode)
 
-    precomputed._write_info.assert_not_called()
+    _write_info.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -67,14 +69,15 @@ def test_infospec_no_action(path, reference, mode, mocker):
     ],
 )
 def test_infospec_overwrite(clear_caches, path, reference, mode, mocker):
-    precomputed._write_info = mocker.MagicMock()
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         reference_path=reference,
         default_chunk_size=IntVec3D(999, 999, 1),
     )
     info_spec.update_info(path=path, on_info_exists=mode)
 
-    precomputed._write_info.assert_called_once()
+    _write_info.assert_called_once()
 
 
 def test_ts_set_voxel_set_voxel_offset_chunk_and_data(clear_caches, mocker):

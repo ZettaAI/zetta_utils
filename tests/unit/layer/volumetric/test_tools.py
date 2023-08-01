@@ -74,5 +74,5 @@ def test_volumetric_index_chunker(
         resolution=resolution,
         offset=offset,
     )
-    res = vic(idx=idx, stride_start_offset_in_unit=stride_start_offset_in_unit, mode=mode)
+    res = list(vic(idx=idx, stride_start_offset_in_unit=stride_start_offset_in_unit, mode=mode))
     assert res[1].bbox == chunk1

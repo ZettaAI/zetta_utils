@@ -85,5 +85,5 @@ from zetta_utils.tensor_ops import transform
 )
 def test_get_affine_field(data, kwargs, expected):
     field = transform.get_affine_field(size=data.shape[-1], **kwargs)
-    result = field.from_pixels().sample(data)
+    result = field.from_pixels().sample(data)  # type: ignore
     torch.testing.assert_close(result, expected)

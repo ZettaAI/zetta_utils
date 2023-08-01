@@ -62,9 +62,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                     img[-2, -1] = 0
                     images.append(
                         wandb.Image(
-                            PILImage.fromarray(
-                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
-                            ),
+                            PILImage.fromarray(viz.rendering.Renderer()(img), mode="RGB"),
                             caption=f"{k}_b{b}",
                         )
                     )
@@ -76,9 +74,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                     img[-2, -1] = 0
                     images.append(
                         wandb.Image(
-                            PILImage.fromarray(
-                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
-                            ),
+                            PILImage.fromarray(viz.rendering.Renderer()(img), mode="RGB"),
                             caption=f"{k}_b{b}",
                         )
                     )
@@ -90,9 +86,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                     img[-2, -1] = 0
                     images.append(
                         wandb.Image(
-                            PILImage.fromarray(
-                                viz.rendering.Renderer()(img), mode="RGB"  # type: ignore
-                            ),
+                            PILImage.fromarray(viz.rendering.Renderer()(img), mode="RGB"),
                             caption=f"{k}_b{b}",
                         )
                     )
@@ -101,7 +95,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                     v_max = v[b].max().round(decimals=4)
                     images.append(
                         wandb.Image(
-                            viz.rendering.Renderer()(v[b].squeeze()),  # type: ignore
+                            viz.rendering.Renderer()(v[b].squeeze()),
                             caption=f"{k}_b{b} | min: {v_min} | max: {v_max}",
                         )
                     )
@@ -125,6 +119,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
     def _get_warped(self, img, field=None):
         img_padded = torch.nn.functional.pad(img, (1, 1, 1, 1), value=self.zero_value)
         if field is not None:
+            assert hasattr(field, "from_pixels")  # mypy torchfields compatibility
             img_warped = field.from_pixels()(img)
         else:
             img_warped = img
@@ -147,13 +142,13 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         if field is not None:
             zeros_warped = (
                 torch.nn.functional.pad(field, (1, 1, 1, 1), mode="replicate")
-                .from_pixels()
+                .from_pixels()  # type: ignore
                 .sample((~zeros_padded).float(), padding_mode="border")
                 <= 0.1
             )
             non_tissue_zeros_warped = (
                 torch.nn.functional.pad(field, (1, 1, 1, 1), mode="replicate")
-                .from_pixels()
+                .from_pixels()  # type: ignore
                 .sample((~non_tissue_zeros_padded).float(), padding_mode="border")
                 <= 0.1
             )

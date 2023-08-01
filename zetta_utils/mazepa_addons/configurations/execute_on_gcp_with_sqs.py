@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import copy
 import os
-from contextlib import AbstractContextManager, ExitStack, contextmanager
+from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.common import RepeatTimer
-from zetta_utils.mazepa_addons import execution_tracker, resource_allocation
+from zetta_utils.cloud_management import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
 
@@ -20,17 +19,6 @@ REQUIRED_ENV_VARS: Final = [
     "AWS_DEFAULT_REGION",
     "WANDB_API_KEY",
 ]
-
-
-DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
-DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
-DEFAULT_GCP_CLUSTER_PROJECT: Final = "zetta-research"
-
-DEFAULT_GCP_CLUSTER: Final = resource_allocation.k8s.ClusterInfo(
-    name=DEFAULT_GCP_CLUSTER_NAME,
-    region=DEFAULT_GCP_CLUSTER_REGION,
-    project=DEFAULT_GCP_CLUSTER_PROJECT,
-)
 
 
 def _ensure_required_env_vars():
@@ -75,7 +63,7 @@ def get_gcp_with_sqs_config(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    deployment = resource_allocation.k8s.get_deployment(
+    deployment = resource_allocation.k8s.get_zutils_worker_deployment(
         execution_id=execution_id,
         image=worker_image,
         queue=exec_queue_spec,
@@ -94,21 +82,6 @@ def get_gcp_with_sqs_config(
         )
     )
     return exec_queue, ctx_managers
-
-
-@contextmanager
-def heartbeat_tracking_ctx_mngr(execution_id, heartbeat_interval=30):
-    def _send_heartbeat():
-        execution_tracker.update_execution_heartbeat(execution_id)
-
-    heart = RepeatTimer(heartbeat_interval, _send_heartbeat)
-    heart.start()
-    try:
-        yield
-    except Exception as e:
-        raise e from None
-    finally:
-        heart.cancel()
 
 
 @builder.register("mazepa.execute_on_gcp_with_sqs")
@@ -143,25 +116,11 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         execution_tracker.register_execution(execution_id, [])
         exec_queue: mazepa.ExecutionQueue = mazepa.LocalExecutionQueue()
     else:
-        if worker_cluster_name is None:
-            logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
-            worker_cluster = DEFAULT_GCP_CLUSTER
-            if worker_cluster_region is not None or worker_cluster_project is not None:
-                raise ValueError(
-                    "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
-                    "when `worker_cluster_name` is `None`"
-                )
-        else:
-            if worker_cluster_region is None or worker_cluster_project is None:
-                raise ValueError(
-                    "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
-                    "when `worker_cluster_name` is specified."
-                )
-            worker_cluster = resource_allocation.k8s.ClusterInfo(
-                name=worker_cluster_name,
-                region=worker_cluster_region,
-                project=worker_cluster_project,
-            )
+        worker_cluster = resource_allocation.k8s.parse_cluster_info(
+            cluster_name=worker_cluster_name,
+            cluster_region=worker_cluster_region,
+            cluster_project=worker_cluster_project,
+        )
         execution_tracker.register_execution(execution_id, [worker_cluster])
         exec_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=execution_id,
@@ -174,7 +133,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         )
 
     with ExitStack() as stack:
-        stack.enter_context(heartbeat_tracking_ctx_mngr(execution_id))
+        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         for mngr in ctx_managers:
             stack.enter_context(mngr)
 

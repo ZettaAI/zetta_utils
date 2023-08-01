@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import torch  # pylint: disable=unused-import
 
@@ -11,7 +11,7 @@ LAMBDA_STR_MAX_LENGTH: int = 80
 
 
 @register("lambda", False)
-def efficient_parse_lambda_str(lambda_str: str) -> Callable:
+def efficient_parse_lambda_str(lambda_str: str, name: Optional[str] = None) -> Callable:
     """Parses strings that are lambda functions"""
     if not isinstance(lambda_str, str):
         raise TypeError("`lambda_str` must be a string.")
@@ -20,7 +20,7 @@ def efficient_parse_lambda_str(lambda_str: str) -> Callable:
     if len(lambda_str) > LAMBDA_STR_MAX_LENGTH:
         raise ValueError(f"`lambda_str` must be at most {LAMBDA_STR_MAX_LENGTH} characters.")
 
-    return BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": lambda_str})
+    return BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": lambda_str}, name=name)
 
 
 @register("invoke_lambda_str", False)

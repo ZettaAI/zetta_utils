@@ -19,7 +19,7 @@ from rich.traceback import install
 
 SUPRESS_TRACEBACK_MODULES = [cachetools, typeguard, attr, attrs, pickle, dill]
 
-LOKI_HANDLER = None
+LOKI_HANDLER: logging_loki.LokiHandler | None = None
 
 
 class InjectingFilter(logging.Filter):

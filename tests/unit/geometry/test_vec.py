@@ -12,6 +12,8 @@ some_float = 42.42
 some_int = 42
 
 vec3d = Vec3D(1.0, 2.0, 3.0)
+vec3d_fp1 = Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2)
+vec3d_fp2 = Vec3D(0.1, 0.2, 0.3)
 vec3d_neg = Vec3D(-1.0, -2.0, -3.0)
 vec3d_lg = Vec3D(1.5, 2.5, 3.5)
 vec3d_mx = Vec3D(0.5, 2.5, 3.0)
@@ -172,6 +174,10 @@ def test_neg():
     assert vec3d == -vec3d_neg
 
 
+def test_round():
+    assert round(vec3d_fp1, 8) == vec3d_fp2
+
+
 @pytest.mark.parametrize(
     "arg1, arg2, fname, dtype",
     [
@@ -230,11 +236,14 @@ def test_ops(arg1, arg2, fname, dtype):
     zt_val_r = eval(f"arg2 {fname} arg1")
     arg1_np = np.array(arg1[:])
     if isinstance(arg2, (float, int)):
-        arg2_np = arg2
+        arg2_lit = arg2
+        np_val = eval(f"arg1_np {fname} arg2_lit")
+        np_val_r = eval(f"arg2_lit {fname} arg1_np")
     else:
         arg2_np = np.array(arg2[:])
-    np_val = eval(f"arg1_np {fname} arg2_np")
-    np_val_r = eval(f"arg2_np {fname} arg1_np")
+        np_val = eval(f"arg1_np {fname} arg2_np")
+        np_val_r = eval(f"arg2_np {fname} arg1_np")
+
     assert (np_val == np.array(zt_val[:])).all()
     assert (np_val_r == np.array(zt_val_r[:])).all()
 
@@ -343,6 +352,7 @@ def test_subtyping() -> None:
         some_int * intvec3d,
         some_int // intvec3d,
         some_int % intvec3d,
+        round(intvec3d),
     ]:
 
         test_inference_return_int3d(x)
@@ -399,5 +409,6 @@ def test_subtyping() -> None:
         some_float // intvec3d,
         some_float / intvec3d,
         some_float % intvec3d,
+        round(vec3d),
     ]:
         test_inference_return_vec3d(y)

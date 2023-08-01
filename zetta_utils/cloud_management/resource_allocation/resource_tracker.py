@@ -18,8 +18,11 @@ EXECUTION_RESOURCE_DB = build_db_layer(
 
 
 class ExecutionResourceTypes(Enum):
+    K8S_CONFIGMAP = "k8s_configmap"
     K8S_DEPLOYMENT = "k8s_deployment"
+    K8S_JOB = "k8s_job"
     K8S_SECRET = "k8s_secret"
+    K8S_SERVICE = "k8s_service"
     SQS_QUEUE = "sqs_queue"
 
 

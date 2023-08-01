@@ -41,7 +41,7 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
         wandb.log(
             {
                 f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)  # type: ignore
+                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
                     for k, v in kwargs.items()
                 ]
             }
@@ -90,7 +90,7 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
                 trans_x_px=self.equivar_trans_px_distr(),
                 trans_y_px=self.equivar_trans_px_distr(),
             )
-            .field()
+            .field()  # type: ignore
             .pixels()
             .to(seed_field.device)
         )
@@ -244,7 +244,7 @@ class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ances
         log_row = batch_idx % self.val_log_row_interval == 0
         sample_name = f"{batch_idx // self.val_log_row_interval}"
 
-        loss = self.compute_minima_losskornia_dilation(
+        loss = self.compute_minima_loss(
             batch=batch, mode="val", log_row=log_row, sample_name=sample_name
         )
         return loss

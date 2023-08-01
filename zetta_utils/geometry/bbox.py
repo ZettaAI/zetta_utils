@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from math import floor
-from typing import Literal, Optional, Sequence, cast
+from typing import Literal, Optional, Sequence, Union, cast
 
 import attrs
 from typeguard import typechecked
@@ -131,8 +131,8 @@ class BBox3D:
         else:
             dim_res = resolution[dim]
 
-        dim_range_start_raw = self.bounds[dim][0] / dim_res
-        dim_range_end_raw = self.bounds[dim][1] / dim_res
+        dim_range_start_raw = round(self.bounds[dim][0] / dim_res, 10)
+        dim_range_end_raw = round(self.bounds[dim][1] / dim_res, 10)
 
         if not round_to_int:
             return slice(dim_range_start_raw, dim_range_end_raw)
@@ -428,10 +428,10 @@ class BBox3D:
             f"({s.join([str(slice.stop) for slice in slices])})"
         )
 
-    def get_size(self) -> int | float:  # pragma: no cover
+    def get_size(self) -> Union[int, float]:  # pragma: no cover
         """Returns the size of the volume in N-D space, in `self.unit^N`."""
         resolution = (1, 1, 1)
-        slices = self.to_slices(resolution)
+        slices = self.to_slices(resolution, round_to_int=False)
         size = 1
         for _, slc in enumerate(slices):
             size *= slc.stop - slc.start

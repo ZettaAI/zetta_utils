@@ -93,5 +93,6 @@ class DatastoreBackend(DBBackend):
             deepcopy(self), namespace=kwargs["namespace"], project=kwargs.get("project")
         )
 
-    def get_name(self) -> str:  # pragma: no cover
+    @property
+    def name(self) -> str:  # pragma: no cover
         return self.client.base_url

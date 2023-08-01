@@ -4,20 +4,28 @@ from __future__ import annotations
 import functools
 from contextlib import AbstractContextManager
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
 from zetta_utils.mazepa import (
     Dependency,
     InMemoryExecutionState,
-    LocalExecutionQueue,
     TaskStatus,
     concurrent_flow,
     execute,
     flow_schema,
     taskable_operation,
 )
-from zetta_utils.mazepa.remote_execution_queues import SQSExecutionQueue
+from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
+from zetta_utils.mazepa.exceptions import MazepaExecutionFailure, MazepaTimeoutError
+from zetta_utils.mazepa.execution import Executor
+from zetta_utils.mazepa.tasks import Task
+from zetta_utils.mazepa.transient_errors import (
+    MAX_TRANSIENT_RETRIES,
+    ExplicitTransientError,
+)
+from zetta_utils.message_queues.base import MessageQueue
 
 TASK_COUNT = 0
 
@@ -96,6 +104,15 @@ def test_local_execution_one_flow(reset_task_count):
     assert TASK_COUNT == 2
 
 
+def test_local_executor_one_flow(reset_task_count):
+    Executor(
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+        do_dryrun_estimation=False,
+    )(dummy_flow("f1"))
+    assert TASK_COUNT == 2
+
+
 def test_local_execution_one_callable(reset_task_count) -> None:
     execute(
         functools.partial(dummy_task, argument="x0"),
@@ -146,6 +163,7 @@ def test_local_execution_state(reset_task_count):
 
 
 def test_local_execution_state_queue(reset_task_count):
+    q = AutoexecuteTaskQueue(debug=True)
     execute(
         InMemoryExecutionState(
             [
@@ -154,7 +172,8 @@ def test_local_execution_state_queue(reset_task_count):
                 dummy_flow("f3"),
             ]
         ),
-        exec_queue=LocalExecutionQueue(debug=True),
+        task_queue=q,
+        outcome_queue=q,
         batch_gap_sleep_sec=0,
         do_dryrun_estimation=False,
         max_batch_len=2,
@@ -175,13 +194,14 @@ def test_local_no_sleep(mocker):
 
 def test_non_local_sleep(mocker):
     sleep_m = mocker.patch("time.sleep")
-    queue_m = mocker.MagicMock(spec=SQSExecutionQueue)
+    queue_m = mocker.MagicMock(spec=MessageQueue)
     execute(
         empty_flow(),
         batch_gap_sleep_sec=10,
         max_batch_len=2,
         do_dryrun_estimation=False,
-        exec_queue=queue_m,
+        task_queue=queue_m,
+        outcome_queue=queue_m,
     )
     sleep_m.assert_called_once()
 
@@ -221,3 +241,68 @@ def test_local_execution_backup_read(reset_task_count):
         do_dryrun_estimation=False,
         checkpoint="tests/assets/reference/task_checkpoint.zstd",
     )
+
+
+def test_autoexecute_task_error(mocker):
+    q = AutoexecuteTaskQueue(debug=False)
+    task_fn: MagicMock = mocker.MagicMock(side_effect=[Exception, 10])
+    task = Task(task_fn)
+    with pytest.raises(MazepaExecutionFailure):
+        execute(
+            target=task,
+            task_queue=q,
+            outcome_queue=q,
+            batch_gap_sleep_sec=0,
+            do_dryrun_estimation=False,
+            max_batch_len=2,
+        )
+
+
+def test_autoexecute_task_transient_error(mocker):
+    q = AutoexecuteTaskQueue()
+    task_fn: MagicMock = mocker.MagicMock(side_effect=[ExplicitTransientError(), 10])
+    task = Task(task_fn)
+    execute(
+        target=task,
+        task_queue=q,
+        outcome_queue=q,
+        batch_gap_sleep_sec=0,
+        do_dryrun_estimation=False,
+        max_batch_len=2,
+    )
+    assert task.status == TaskStatus.SUCCEEDED
+    assert task.outcome.return_value == 10
+    assert task_fn.call_count == 2
+
+
+def test_autoexecute_task_timeout_retry(mocker):
+    q = AutoexecuteTaskQueue()
+    task = Task(mocker.MagicMock(side_effect=[MazepaTimeoutError, 10]))
+
+    execute(
+        target=task,
+        task_queue=q,
+        outcome_queue=q,
+        batch_gap_sleep_sec=0,
+        do_dryrun_estimation=False,
+        max_batch_len=2,
+    )
+    assert task.status == TaskStatus.SUCCEEDED
+    assert task.outcome.return_value == 10
+
+
+def test_autoexecute_task_transient_error_too_many(mocker):
+    q = AutoexecuteTaskQueue()
+    task_fn: MagicMock = mocker.MagicMock(
+        side_effect=[ExplicitTransientError] * (MAX_TRANSIENT_RETRIES + 1) + [10]
+    )
+    task = Task(task_fn)
+    with pytest.raises(MazepaExecutionFailure):
+        execute(
+            target=task,
+            task_queue=q,
+            outcome_queue=q,
+            batch_gap_sleep_sec=0,
+            do_dryrun_estimation=False,
+            max_batch_len=2,
+        )

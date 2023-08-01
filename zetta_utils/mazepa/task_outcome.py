@@ -13,7 +13,6 @@ class TaskStatus(Enum):
     RUNNING = auto()
     SUCCEEDED = auto()
     FAILED = auto()
-    TRANSIENT_ERROR = auto()
 
 
 R_co = TypeVar("R_co", covariant=True)
@@ -25,3 +24,9 @@ class TaskOutcome(Generic[R_co]):
     traceback_text: Optional[str] = None
     execution_sec: Optional[float] = None
     return_value: Optional[R_co] = None
+
+
+@attrs.frozen
+class OutcomeReport:
+    task_id: str
+    outcome: TaskOutcome

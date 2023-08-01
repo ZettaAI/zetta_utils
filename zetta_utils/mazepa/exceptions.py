@@ -12,3 +12,7 @@ class MazepaCancel(MazepaException):
 
 class MazepaExecutionFailure(MazepaException):
     ...
+
+
+class MazepaTimeoutError(MazepaException, TimeoutError):
+    ...

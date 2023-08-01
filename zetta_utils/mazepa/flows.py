@@ -179,7 +179,7 @@ def concurrent_flow(stages: list[Union[Flow, Task]]):
 
 
 @flow_schema
-def seq_flow(stages: list[Union[Flow, Task]]):  # pragma: no cover
+def sequential_flow(stages: list[Union[Flow, Task]]):
     for e in stages:
         yield e
         yield Dependency()

@@ -32,7 +32,7 @@ target: {
 	processing_crop_pads: [[0, 0, 2]]
 	processing_blend_pads: [[0, 0, 0]]
 
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	fn: {
 		"@type": "detect_consecutive_masks"

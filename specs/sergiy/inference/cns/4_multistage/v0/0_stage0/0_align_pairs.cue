@@ -214,7 +214,7 @@
 
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	expand_bbox:             bool | *true
+	expand_bbox_processing:             bool | *true
 	shrink_processing_chunk: bool | *false
 
 	fn: {
@@ -269,7 +269,7 @@
 
 #WARP_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	op: {
 		"@type": "WarpOperation"
 		mode:    _
@@ -306,7 +306,7 @@
 
 #INVERT_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	fn: {"@type": "invert_field", "@mode": "partial"}
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
@@ -330,7 +330,7 @@
 
 #ENCODE_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	fn: {
 		"@type":    "BaseEncoder"
 		model_path: #BASE_ENCODER_PATH
@@ -361,7 +361,7 @@
 
 #MISD_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	fn: {
 		"@type":    "MisalignmentDetector"
 		model_path: #MISD_MODEL_PATH
@@ -450,7 +450,7 @@
 
 #CREATE_TISSUE_MASK: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	bbox:        _
 	fn: {
 		"@type": "apply_mask_fn"
@@ -502,7 +502,7 @@
 
 #DOWNSAMPLE_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]

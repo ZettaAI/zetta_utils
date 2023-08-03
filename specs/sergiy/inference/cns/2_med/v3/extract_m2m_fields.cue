@@ -34,7 +34,7 @@
 #INVERT_FLOW: {
 	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "invert_field", "@mode": "partial", mode: "torchfields"}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	processing_chunk_sizes: [[512, 512, 1]]
 	//max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]

@@ -104,7 +104,7 @@ import "list"
 		crop_pad: [16, 16, 0]
 		res_change_mult: [int, int, int]
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [int, int, int]
 	processing_chunk_sizes: _
 	processing_crop_pads: [0, 0, 0]

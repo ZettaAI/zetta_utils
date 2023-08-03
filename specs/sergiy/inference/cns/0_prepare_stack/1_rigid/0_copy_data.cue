@@ -11,7 +11,7 @@
 		"@type":    "lambda"
 		lambda_str: "lambda src: src"
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [2048, 2048, 1]]
 	max_reduction_chunk_sizes: [1024 * 4, 1024 * 4, 1]
 	level_intermediaries_dirs: ['~/.zutils/', '~/.zutils/']

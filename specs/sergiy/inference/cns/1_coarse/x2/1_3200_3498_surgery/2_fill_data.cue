@@ -78,7 +78,7 @@ import "list"
 	}
 	processing_chunk_sizes: [[2 * 1024, 2 * 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [256, 256, 45]
 	bbox: #ROI_BOUNDS
 	src: {
@@ -105,7 +105,7 @@ import "list"
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
@@ -178,7 +178,7 @@ import "list"
 
 #DOWNSAMPLE_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
@@ -283,9 +283,9 @@ import "list"
 		crop_pad: [16, 16, 0]
 		res_change_mult: [int, int, int]
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024 * 1, 1024 * 1, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
@@ -341,7 +341,7 @@ import "list"
 
 #MASK_ENCODINGS_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1]]
 	dst_resolution: _
 	fn: {

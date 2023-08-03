@@ -26,7 +26,7 @@
 #GET_RIGIDITY_FLOW: {
 	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "get_rigidity_map", "@mode": "partial"}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	// processing_chunk_sizes: [[4 * 1024, 4 * 1024, 1], [1024, 1024, 1]]
 	// max_reduction_chunk_sizes: [4 * 1024, 4 * 1024, 1]
@@ -106,7 +106,7 @@
 		"@type": "WarpOperation"
 		mode:    "mask"
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
@@ -138,7 +138,7 @@
 		"@mode":    "partial"
 		fill_value: 255.0
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]

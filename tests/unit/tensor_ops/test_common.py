@@ -671,3 +671,41 @@ def test_squeeze_to_exc():
 def test_crop(data, crop, expected):
     result = common.crop(data, crop)
     assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize(
+    "data, crop, expected",
+    [
+        [
+            np.ones((1, 3, 3)),
+            (1, 1),
+            np.ones((1, 1, 1)),
+        ],
+        [
+            np.ones((1, 3, 3)),
+            (1, 2),
+            np.ones((1, 1, 2)),
+        ],
+        [
+            np.array(
+                [
+                    [
+                        [1, 2, 3],
+                        [4, 5, 6],
+                    ]
+                ]
+            ),
+            (1, 2),
+            np.array(
+                [
+                    [
+                        [1, 2],
+                    ]
+                ]
+            ),
+        ],
+    ],
+)
+def test_crop_center(data, crop, expected):
+    result = common.crop_center(data, crop)
+    assert_array_equal(result, expected)

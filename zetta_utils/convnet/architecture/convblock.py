@@ -151,7 +151,7 @@ class ConvBlock(nn.Module):
         for i, layer in enumerate(self.layers):
             if (i in self.skips_dst) and (conv_count in skip_data_for):
                 # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-                if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover
                     size = list(map(lambda x: x.item(), result.shape))  # type: ignore
                 else:
                     size = result.shape
@@ -161,7 +161,7 @@ class ConvBlock(nn.Module):
                 skip_dest = self.skips[str(conv_count)]
                 if skip_dest in skip_data_for:
                     # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-                    if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                    if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover # pylint: disable=line-too-long
                         size = list(map(lambda x: x.item(), result.shape))  # type: ignore
                     else:
                         size = result.shape

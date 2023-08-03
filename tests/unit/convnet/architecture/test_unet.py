@@ -8,7 +8,7 @@ import torch
 
 from zetta_utils import convnet
 
-from ..helpers import assert_array_equal
+from ...helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(
@@ -192,7 +192,7 @@ def test_forward_skips(mocker):
         list_num_channels=[[1, 1, 1], [1, 1, 1, 1], [1, 1, 1]],
         downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
         upsample=partial(torch.nn.Upsample, scale_factor=2),
-        skips={"0": 2},
+        skips={"0": 1},
     )
     result = unet.forward(torch.ones([1, 1, 2, 2]))
     assert_array_equal(

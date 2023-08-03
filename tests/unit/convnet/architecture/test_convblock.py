@@ -6,7 +6,7 @@ import torch
 
 from zetta_utils import convnet
 
-from ..helpers import assert_array_equal
+from ...helpers import assert_array_equal
 
 
 @pytest.mark.parametrize(

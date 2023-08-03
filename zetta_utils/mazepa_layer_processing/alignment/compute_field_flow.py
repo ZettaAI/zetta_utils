@@ -135,7 +135,7 @@ class ComputeFieldFlowSchema:
     ] = "linear"
     level_intermediaries_dirs: Sequence[str | None] | None = None
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None
-    expand_bbox: bool = False
+    expand_bbox_processing: bool = False
     shrink_processing_chunk: bool = False
 
     def flow(
@@ -171,7 +171,7 @@ class ComputeFieldFlowSchema:
             processing_crop_pads=self.processing_crop_pads,
             processing_blend_pads=self.processing_blend_pads,
             processing_blend_modes=self.processing_blend_modes,
-            expand_bbox=self.expand_bbox,
+            expand_bbox_processing=self.expand_bbox_processing,
             shrink_processing_chunk=self.shrink_processing_chunk,
             max_reduction_chunk_sizes=self.max_reduction_chunk_sizes,
             level_intermediaries_dirs=self.level_intermediaries_dirs,

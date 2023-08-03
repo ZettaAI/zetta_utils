@@ -10,6 +10,7 @@ from zetta_utils.cloud_management import execution_tracker, resource_allocation
 from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
+from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
 
 logger = log.get_logger("zetta_utils")
@@ -68,12 +69,10 @@ def get_gcp_with_sqs_config(
     task_queue_spec = {
         "@type": "SQSQueue",
         "name": work_queue_name,
-        "outcome_queue_name": outcome_queue_name,
     }
     outcome_queue_spec = {
         "@type": "SQSQueue",
-        "name": work_queue_name,
-        "outcome_queue_name": outcome_queue_name,
+        "name": outcome_queue_name,
     }
 
     task_queue = builder.build(task_queue_spec)

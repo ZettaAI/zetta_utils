@@ -29,7 +29,7 @@ class TaskRouter(PushMessageQueue[Task]):
             ]
             if len(matching_queue_names) == 0:
                 raise RuntimeError(
-                    f"No queue from set {list(self.queues)} matches " f"all tags {task.tags}."
+                    f"No queue from set {list(self.queues)} matches all tags {task.tags}."
                 )
             tasks_for_queue[matching_queue_names[0]].append(task)
 

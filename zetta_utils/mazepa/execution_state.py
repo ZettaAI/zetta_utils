@@ -123,7 +123,7 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
         :param task_ids: IDs of tasks indicated as completed.
         """
         for task_id, outcome in task_outcomes.items():
-            if task_id == constants.UNKOWN_TASK_ID:
+            if task_id == constants.UNKNOWN_TASK_ID:
                 assert outcome.exception is not None
                 if self.raise_on_failed_task:
                     logger.error(f"Task traceback: {outcome.traceback_text}")

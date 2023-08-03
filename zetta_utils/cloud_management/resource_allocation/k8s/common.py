@@ -63,7 +63,6 @@ def get_mazepa_worker_command(task_queue_spec: dict[str, Any], outcome_queue_spe
         """
     zetta -vv -l try run -s '{
         "@type": "mazepa.run_worker"
-        exec_queue:
     """
         + f"task_queue: {json.dumps(task_queue_spec)}\n"
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"

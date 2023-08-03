@@ -45,6 +45,7 @@ def load_inference_modules():
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+    from .message_queues import sqs
 
 
 def load_training_modules():

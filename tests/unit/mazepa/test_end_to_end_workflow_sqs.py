@@ -142,7 +142,7 @@ def test_worker_task_pull_error(queues_with_worker, mocker) -> None:
         worker()
     outcomes = outcome_queue.pull()
     assert len(outcomes) == 1
-    assert outcomes[0].payload.task_id == constants.UNKOWN_TASK_ID
+    assert outcomes[0].payload.task_id == constants.UNKNOWN_TASK_ID
     exc = outcomes[0].payload.outcome.exception
     assert isinstance(exc, RuntimeError)
     assert "hola" in str(exc)

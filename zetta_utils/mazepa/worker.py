@@ -58,7 +58,7 @@ def run_worker(
                 execution_sec=0,
                 return_value=None,
             )
-            outcome_report = OutcomeReport(task_id=constants.UNKOWN_TASK_ID, outcome=outcome)
+            outcome_report = OutcomeReport(task_id=constants.UNKNOWN_TASK_ID, outcome=outcome)
             outcome_queue.push([outcome_report])
             raise e
 

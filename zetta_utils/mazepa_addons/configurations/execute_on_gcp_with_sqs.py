@@ -73,6 +73,7 @@ def get_gcp_with_sqs_config(
     outcome_queue_spec = {
         "@type": "SQSQueue",
         "name": outcome_queue_name,
+        "pull_wait_sec": 2.5,
     }
 
     task_queue = builder.build(task_queue_spec)
@@ -130,7 +131,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_cluster_project: Optional[str] = None,
     worker_resources: Dict[str, int | float | str] | None = None,
     max_batch_len: int = 10000,
-    batch_gap_sleep_sec: float = 4.0,
+    batch_gap_sleep_sec: float = 0.5,
     extra_ctx_managers: Iterable[AbstractContextManager] = (),
     show_progress: bool = True,
     do_dryrun_estimation: bool = True,

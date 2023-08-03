@@ -86,7 +86,7 @@ class SQSQueue(MessageQueue[T]):
             visibility_timeout=duration_sec,
         )
 
-    def pull(self, max_num: int = 1) -> list[ReceivedMessage[T]]:
+    def pull(self, max_num: int = 500) -> list[ReceivedMessage[T]]:
         results = []
         msgs = utils.receive_msgs(
             queue_name=self.name,

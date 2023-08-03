@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Callable, Optional, Union
 
 import attrs
+from pebble import ProcessPool
 from typeguard import typechecked
 
 from zetta_utils import log
@@ -65,7 +66,7 @@ def execute(
     task_queue: PushMessageQueue[Task] | None = None,
     outcome_queue: PullMessageQueue[OutcomeReport] | None = None,
     max_batch_len: int = 1000,
-    batch_gap_sleep_sec: float = 1,
+    batch_gap_sleep_sec: float = 0.5,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
     execution_id: Optional[str] = None,
     raise_on_failed_task: bool = True,
@@ -204,9 +205,10 @@ def submit_ready_tasks(
     state: ExecutionState,
     execution_id: str,
     max_batch_len: int,
+    num_procs: int = 10,
 ):
     logger.debug("Pulling task outcomes...")
-    task_outcomes = outcome_queue.pull()
+    task_outcomes = outcome_queue.pull(max_num=100)
 
     if len(task_outcomes) > 0:
         logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
@@ -214,12 +216,13 @@ def submit_ready_tasks(
         state.update_with_task_outcomes(
             task_outcomes={e.payload.task_id: e.payload.outcome for e in task_outcomes}
         )
-        for e in task_outcomes:
-            # it's not important when to acknowledge outcomes, since
-            # only the single manager node will be pulling from the
-            # outcome queue
-            e.acknowledge_fn()
 
+        # it's not important when to acknowledge outcomes, since
+        # only the single manager node will be pulling from the
+        # outcome queue
+        with ProcessPool(max_workers=num_procs) as pool:
+            for e in task_outcomes:
+                pool.schedule(e.acknowledge_fn)
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)
     logger.debug(f"A batch of {len(task_batch)} tasks ready for execution.")

@@ -175,6 +175,7 @@ class ComputeFieldFlowSchema:
             shrink_processing_chunk=self.shrink_processing_chunk,
             max_reduction_chunk_sizes=self.max_reduction_chunk_sizes,
             level_intermediaries_dirs=self.level_intermediaries_dirs,
+            skip_intermediaries=not self.level_intermediaries_dirs,
             bbox=bbox,
             dst_resolution=dst_resolution,
             dst=dst,

@@ -476,7 +476,7 @@ def crop_center(
     size: Sequence[int],  # pylint: disable=redefined-outer-name
 ) -> TensorTypeVar:
     """
-    Crop a multidimensional tensor at the center.
+    Crop a multidimensional tensor to the center.
 
     :param data: Input tensor.
     :param size: Size of the crop box.

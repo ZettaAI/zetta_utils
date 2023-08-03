@@ -153,7 +153,7 @@ class UNet(nn.Module):
         for i, layer in enumerate(self.layers):
             if i in skip_data_for:
                 # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-                if isinstance(result.shape[0], torch.Tensor):  # type: ignore
+                if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover
                     size = list(map(lambda x: x.item(), result.shape))  # type: ignore
                 else:
                     size = result.shape

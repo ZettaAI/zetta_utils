@@ -29,7 +29,7 @@ local_test:      true
 	processing_chunk_sizes: [[144 * 2, 144 * 2, 13]]
 	processing_crop_pads: [[0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0]]
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	fn: {
 		"@type":    "lambda"

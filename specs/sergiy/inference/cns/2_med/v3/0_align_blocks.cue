@@ -92,7 +92,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [1024, 1024, 45]
@@ -102,7 +102,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [512, 512, 45]
@@ -113,7 +113,7 @@
 			lr:       0.015
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [256, 256, 45]
@@ -124,7 +124,7 @@
 			lr:       0.03
 		}
 		shrink_processing_chunk: true
-		expand_bbox:             false
+		expand_bbox_processing:             false
 	},
 	#STAGE_TMPL & {
 		dst_resolution: [128, 128, 45]
@@ -209,7 +209,7 @@
 
 	processing_blend_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]
-	expand_bbox:             bool | *true
+	expand_bbox_processing:             bool | *true
 	shrink_processing_chunk: bool | *false
 
 	fn: {
@@ -297,7 +297,7 @@
 		"@type": "WarpOperation"
 		mode:    _
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
@@ -331,7 +331,7 @@
 #INVERT_FLOW_TMPL: {
 	"@type": "build_subchunkable_apply_flow"
 	fn: {"@type": "invert_field", "@mode": "partial"}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
 	processing_crop_pads: [[0, 0, 0], [64, 64, 0]]
@@ -358,7 +358,7 @@
 		"@type":    "BaseEncoder"
 		model_path: #BASE_ENCODER_PATH
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 1, 1024 * 1, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
@@ -389,7 +389,7 @@
 		"@type":    "MisalignmentDetector"
 		model_path: #MISD_MODEL_PATH
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	max_reduction_chunk_sizes: [1024 * 8, 1024 * 8, 1]
@@ -612,7 +612,7 @@
 	op: {
 		"@type": "AcedRelaxationOp"
 	}
-	expand_bbox:    true
+	expand_bbox_processing:    true
 	dst_resolution: #RELAXATION_RESOLUTION
 	bbox:           _
 
@@ -674,7 +674,7 @@
 
 #DOWNSAMPLE_FLOW_TMPL: {
 	"@type":     "build_subchunkable_apply_flow"
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 8, 1024 * 8, 1], [1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	level_intermediaries_dirs: [#TMP_PATH, "~/.zutils/tmp"]

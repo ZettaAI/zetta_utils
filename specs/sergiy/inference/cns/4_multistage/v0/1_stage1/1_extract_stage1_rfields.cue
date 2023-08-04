@@ -33,7 +33,7 @@
 
 #WARP_FLOW_TMPL: {
 	"@type":                   "build_subchunkable_apply_flow"
-	expand_bbox:               true
+	expand_bbox_processing:               true
 	processing_crop_pads:      _ | *null
 	processing_chunk_sizes:    _
 	level_intermediaries_dirs: _ | *null

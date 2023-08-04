@@ -259,7 +259,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 f"`processing_blend_pads` must be {[0, 0, 0]} in all levels when "
                 "`skip_intermediaries` = True."
             )
-        if any(any(v != 0 for v in pad) for pad in processing_crop_pads_):
+        if any(any(v != 0 for v in pad) for pad in processing_crop_pads_[:-1]):
             raise ValueError(
                 f"`processing_crop_pads` must be {[0, 0, 0]} in all levels except the "
                 "bottom (smallest) when `skip_intermediaries` = True."

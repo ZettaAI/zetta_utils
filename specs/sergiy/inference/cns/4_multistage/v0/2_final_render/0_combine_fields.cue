@@ -27,7 +27,7 @@
 		mode:                    "field"
 		translation_granularity: 16
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[8 * 1024, 8 * 1024, 1], [2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	level_intermediaries_dirs: ["~/.zutils/tmp", "~/.zutils/tmp"]

@@ -18,7 +18,7 @@
 		"@type":      "lambda"
 		"lambda_str": "lambda src: (src != src).float()"
 	}
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [512, 512, 30]
 	bbox: #BBOX
 

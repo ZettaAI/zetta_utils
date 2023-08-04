@@ -36,7 +36,7 @@ class ComputeFieldStage:
     ] = "linear"
     level_intermediaries_dirs: Sequence[str | None] | None = None
     max_reduction_chunk_sizes: Sequence[int] | Sequence[Sequence[int]] | None = None
-    expand_bbox: bool = False
+    expand_bbox_processing: bool = False
     shrink_processing_chunk: bool = False
 
     operation: ComputeFieldOperation = attrs.field(init=False)
@@ -181,7 +181,7 @@ class ComputeFieldMultistageFlowSchema:
                 processing_crop_pads=stage.processing_crop_pads,
                 processing_blend_pads=stage.processing_blend_pads,
                 processing_blend_modes=stage.processing_blend_modes,
-                expand_bbox=stage.expand_bbox,
+                expand_bbox_processing=stage.expand_bbox_processing,
                 shrink_processing_chunk=stage.shrink_processing_chunk,
                 max_reduction_chunk_sizes=stage.max_reduction_chunk_sizes,
                 level_intermediaries_dirs=stage.level_intermediaries_dirs,

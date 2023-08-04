@@ -314,7 +314,7 @@
 	}
 	dst_resolution: #STAGES[len(#STAGES)-1].dst_resolution
 	bbox:           #BBOX
-	expand_bbox:    true
+	expand_bbox_processing:    true
 	processing_chunk_sizes: [[512, 512, #Z_END - #Z_START]]
 	processing_crop_pads: [[32, 32, 0]]
 	level_intermediaries_dirs: ["file://~/.zutil/tmp"]

@@ -22,7 +22,7 @@ import "list"
 	}
 	processing_chunk_sizes: [[2 * 1024, 2 * 1024, 1]]
 	processing_crop_pads: [[0, 1024, 1024]]
-	expand_bbox: true
+	expand_bbox_processing: true
 	dst_resolution: [32, 32, 45]
 	bbox: #ROI_BOUNDS
 

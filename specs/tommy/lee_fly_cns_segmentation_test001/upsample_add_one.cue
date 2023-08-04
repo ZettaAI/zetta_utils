@@ -38,7 +38,7 @@ target: {
 
 	// We want to expand the input bbox to be evenly divisible
 	// by chunk size
-	expand_bbox: true
+	expand_bbox_processing: true
 
 	// Specification for the operation we're performing
 	fn: {

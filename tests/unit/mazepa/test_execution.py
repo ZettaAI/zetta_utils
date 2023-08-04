@@ -244,7 +244,7 @@ def test_local_execution_backup_read(reset_task_count):
 
 
 def test_autoexecute_task_error(mocker):
-    q = AutoexecuteTaskQueue(debug=False)
+    q = AutoexecuteTaskQueue(handle_exceptions=True, debug=False)
     task_fn: MagicMock = mocker.MagicMock(side_effect=[Exception, 10])
     task = Task(task_fn)
     with pytest.raises(MazepaExecutionFailure):
@@ -259,7 +259,7 @@ def test_autoexecute_task_error(mocker):
 
 
 def test_autoexecute_task_transient_error(mocker):
-    q = AutoexecuteTaskQueue()
+    q = AutoexecuteTaskQueue(handle_exceptions=True)
     task_fn: MagicMock = mocker.MagicMock(side_effect=[ExplicitTransientError(), 10])
     task = Task(task_fn)
     execute(
@@ -276,7 +276,7 @@ def test_autoexecute_task_transient_error(mocker):
 
 
 def test_autoexecute_task_timeout_retry(mocker):
-    q = AutoexecuteTaskQueue()
+    q = AutoexecuteTaskQueue(handle_exceptions=True)
     task = Task(mocker.MagicMock(side_effect=[MazepaTimeoutError, 10]))
 
     execute(
@@ -292,7 +292,7 @@ def test_autoexecute_task_timeout_retry(mocker):
 
 
 def test_autoexecute_task_transient_error_too_many(mocker):
-    q = AutoexecuteTaskQueue()
+    q = AutoexecuteTaskQueue(handle_exceptions=True)
     task_fn: MagicMock = mocker.MagicMock(
         side_effect=[ExplicitTransientError] * (MAX_TRANSIENT_RETRIES + 1) + [10]
     )

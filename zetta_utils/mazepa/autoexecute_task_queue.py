@@ -6,7 +6,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
-from zetta_utils.mazepa.worker import process_task
+from zetta_utils.mazepa.worker import process_task_message
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
 from .task_outcome import OutcomeReport
@@ -21,6 +21,7 @@ class AutoexecuteTaskQueue(MessageQueue):
     name: str = "local_execution"
     tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
+    handle_exceptions: bool = True
 
     def push(self, payloads: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich
@@ -34,18 +35,18 @@ class AutoexecuteTaskQueue(MessageQueue):
             raise NotImplementedError()
 
         results: list[ReceivedMessage[OutcomeReport]] = []
-
         for task in self.tasks_todo[:max_num]:
             # retries are counted for transient error handling
             curr_retry_count = 0
             while True:
                 task.upkeep_settings.perform_upkeep = False
-                finished_processing, outcome = process_task(
+                finished_processing, outcome = process_task_message(
                     ReceivedMessage(
                         payload=task,
                         approx_receive_count=curr_retry_count,
                     ),
                     debug=self.debug,
+                    handle_exceptions=self.handle_exceptions,
                 )
                 if finished_processing:
                     task.outcome = outcome

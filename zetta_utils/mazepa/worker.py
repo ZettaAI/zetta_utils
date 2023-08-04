@@ -75,7 +75,7 @@ def run_worker(
                 with log.logging_tag_ctx("task_id", task.id_):
                     with log.logging_tag_ctx("execution_id", task.execution_id):
                         if task_filter_fn(task):
-                            ack_task, outcome = process_task(msg=msg, debug=debug)
+                            ack_task, outcome = process_task_message(msg=msg, debug=debug)
                         else:
                             ack_task = True
                             outcome = TaskOutcome(exception=MazepaCancel())
@@ -94,12 +94,16 @@ def run_worker(
             break
 
 
-def process_task(msg: ReceivedMessage[Task], debug: bool) -> tuple[bool, TaskOutcome]:
+def process_task_message(
+    msg: ReceivedMessage[Task], debug: bool, handle_exceptions: bool = True
+) -> tuple[bool, TaskOutcome]:
     task = msg.payload
     if task.upkeep_settings.perform_upkeep:
-        outcome = _run_task_with_upkeep(task, msg.extend_lease_fn, debug=debug)
+        outcome = _run_task_with_upkeep(
+            task, msg.extend_lease_fn, debug=debug, handle_exceptions=handle_exceptions
+        )
     else:
-        outcome = task(debug=debug)
+        outcome = task(debug=debug, handle_exceptions=handle_exceptions)
 
     finished_processing: bool
     if outcome.exception is None:
@@ -119,7 +123,9 @@ def process_task(msg: ReceivedMessage[Task], debug: bool) -> tuple[bool, TaskOut
     return finished_processing, outcome
 
 
-def _run_task_with_upkeep(task: Task, extend_lease_fn: Callable, debug: bool) -> TaskOutcome:
+def _run_task_with_upkeep(
+    task: Task, extend_lease_fn: Callable, debug: bool, handle_exceptions: bool
+) -> TaskOutcome:
     def _perform_upkeep_callbacks():
         assert task.upkeep_settings.interval_sec is not None
         try:
@@ -131,7 +137,7 @@ def _run_task_with_upkeep(task: Task, extend_lease_fn: Callable, debug: bool) ->
     upkeep = RepeatTimer(task.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
     upkeep.start()
     try:
-        result = task(debug=debug)
+        result = task(debug=debug, handle_exceptions=handle_exceptions)
     except Exception as e:  # pragma: no cover
         raise e from None
     finally:

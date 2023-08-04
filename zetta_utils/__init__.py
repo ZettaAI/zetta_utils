@@ -10,7 +10,7 @@ def load_all_modules():
     load_inference_modules()
     load_training_modules()
     from . import mazepa_addons
-
+    from . import message_queues
     from . import cloud_management
 
 
@@ -45,6 +45,7 @@ def load_inference_modules():
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+    from .message_queues import sqs
 
 
 def load_training_modules():

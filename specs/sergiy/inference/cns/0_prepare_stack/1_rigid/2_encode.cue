@@ -105,7 +105,7 @@ import "math"
 		res_change_mult: [int, int, int]
 	}
 	dst_resolution: [int, int, int]
-	expand_bbox: true
+	expand_bbox_processing: true
 	processing_chunk_sizes: [[1024 * 4, 1024 * 4, 1], [1024, 1024, 1]]
 	processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
 	max_reduction_chunk_sizes: [4096, 4096, 1]

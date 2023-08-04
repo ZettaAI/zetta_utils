@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from collections import defaultdict
 from typing import Any, Optional
 
 import attrs
@@ -13,7 +12,7 @@ from tenacity.wait import wait_random
 
 from zetta_utils.log import get_logger
 
-logger = get_logger("mazepa")
+logger = get_logger("zetta_utils")
 
 
 @attrs.frozen
@@ -39,7 +38,7 @@ def get_queue_url(queue_name: str, region_name, endpoint_url: Optional[str] = No
     return result
 
 
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def receive_msgs(
     queue_name: str,
     region_name: str,
@@ -86,47 +85,6 @@ def receive_msgs(
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
-def send_msg(
-    queue_name: str,
-    region_name: str,
-    msg_body: str,
-    endpoint_url: Optional[str] = None,
-):
-    sqs_client = get_sqs_client(region_name, endpoint_url=endpoint_url)
-    msg_ack = sqs_client.send_message(
-        QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
-        MessageBody=msg_body,
-    )
-    if (
-        "ResponseMetadata" not in msg_ack or msg_ack["ResponseMetadata"]["HTTPStatusCode"] != 200
-    ):  # pragma: no cover
-        raise RuntimeError(
-            f"Unable to send message {msg_body} to {queue_name, region_name}: {msg_ack}"
-        )
-
-
-def delete_received_msgs(msgs: list[SQSReceivedMsg]) -> None:
-    receipts_by_queue = defaultdict(list)  # type: dict[tuple[str, str, Optional[str]], list[str]]
-    for msg in msgs:
-        receipts_by_queue[(msg.queue_name, msg.region_name, msg.endpoint_url)].append(
-            msg.receipt_handle
-        )
-
-    # break into chunks of 10
-    receipt_chunks_by_queue = {
-        k: [v[i : i + 10] for i in range(0, len(v), 10)] for k, v in receipts_by_queue.items()
-    }
-    for k, v in receipt_chunks_by_queue.items():
-        for chunk in v:
-            delete_msg_batch(
-                chunk,
-                queue_name=k[0],
-                region_name=k[1],
-                endpoint_url=k[2],
-            )
-
-
-@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_by_receipt_handle(
     receipt_handle: str,
     queue_name: str,
@@ -162,6 +120,8 @@ def change_message_visibility(
     )
 
 
+# To be revived if we need batch deletes:
+"""
 @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def delete_msg_batch(
     receipt_handles: list[str],
@@ -188,3 +148,46 @@ def delete_msg_batch(
             return
 
     raise RuntimeError(f"Failed to delete messages: {ack}")  # pragma: no cover
+
+def delete_received_msgs(msgs: list[SQSReceivedMsg]) -> None:
+    receipts_by_queue = defaultdict(list)  # type: dict[tuple[str, str, Optional[str]], list[str]]
+    for msg in msgs:
+        receipts_by_queue[(msg.queue_name, msg.region_name, msg.endpoint_url)].append(
+            msg.receipt_handle
+        )
+
+    # break into chunks of 10
+    receipt_chunks_by_queue = {
+        k: [v[i : i + 10] for i in range(0, len(v), 10)] for k, v in receipts_by_queue.items()
+    }
+    for k, v in receipt_chunks_by_queue.items():
+        for chunk in v:
+            delete_msg_batch(
+                chunk,
+                queue_name=k[0],
+                region_name=k[1],
+                endpoint_url=k[2],
+            )
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+def send_msg(
+    queue_name: str,
+    region_name: str,
+    msg_body: str,
+    endpoint_url: Optional[str] = None,
+):
+    sqs_client = get_sqs_client(region_name, endpoint_url=endpoint_url)
+    msg_ack = sqs_client.send_message(
+        QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
+        MessageBody=msg_body,
+    )
+    if (
+        "ResponseMetadata" not in msg_ack or msg_ack["ResponseMetadata"]["HTTPStatusCode"] != 200
+    ):  # pragma: no cover
+        raise RuntimeError(
+            f"Unable to send message {msg_body} to {queue_name, region_name}: {msg_ack}"
+        )
+
+
+"""

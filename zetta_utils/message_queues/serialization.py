@@ -6,8 +6,6 @@ import zlib
 
 import dill
 
-from .exceptions import MazepaException
-
 
 def serialize(obj):  # pragma: no cover
     try:
@@ -30,20 +28,9 @@ def _deserialize(s, module):  # pragma: no cover
 
 def deserialize(s):  # pragma: no cover
     try:
-        try:
-            result = _deserialize(s, pickle)
-        except (ModuleNotFoundError, KeyError):
-            result = _deserialize(s, dill)
-    except MazepaException as e:
-        raise e
-    except Exception as e:
-        e.args = (
-            f"{e}\n This exception occured during deserialization, indicating a mismatch "
-            "between serialization and deserialization environments. "
-            "This is most likely caused by worker image being _not_ up to date, "
-            "or scheduler and worker are running different python versions.",
-        )
-        raise e
+        result = _deserialize(s, pickle)
+    except (ModuleNotFoundError, KeyError):
+        result = _deserialize(s, dill)
     return result
 
 

@@ -3,15 +3,15 @@ from __future__ import annotations
 import time
 
 import attrs
+import pytest
 
 from zetta_utils.mazepa import (
     Task,
     TaskableOperation,
-    TaskStatus,
-    TransientErrorCondition,
     taskable_operation,
     taskable_operation_cls,
 )
+from zetta_utils.mazepa.exceptions import MazepaTimeoutError
 
 
 def test_make_taskable_operation_cls() -> None:
@@ -62,21 +62,16 @@ def test_task_runtime_limit() -> None:
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
     outcome = task(debug=False)
-    assert isinstance(outcome.exception, TimeoutError)
+    assert isinstance(outcome.exception, MazepaTimeoutError)
 
 
-def test_transient_error_condition() -> None:
-    @taskable_operation(
-        transient_error_conditions=(TransientErrorCondition(ValueError, "No More"),)
-    )
-    def dummy_task_fn(transient: bool):
-        if transient:
-            raise ValueError("No More")
-        raise ValueError("Yes More")
+def test_task_no_handle_exc() -> None:
+    @taskable_operation(runtime_limit_sec=0.1)
+    def dummy_task_fn():
+        raise Exception()
 
-    transient_task = dummy_task_fn.make_task(transient=True)
-    transient_task()
-    assert transient_task.status == TaskStatus.TRANSIENT_ERROR
-    nontransient_task = dummy_task_fn.make_task(transient=False)
-    nontransient_task()
-    assert nontransient_task.status == TaskStatus.FAILED
+    assert isinstance(dummy_task_fn, TaskableOperation)
+    task = dummy_task_fn.make_task()
+    assert isinstance(task, Task)
+    with pytest.raises(Exception):
+        task(debug=False, handle_exceptions=False)

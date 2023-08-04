@@ -8,6 +8,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
+from zetta_utils.mazepa import constants
 
 from .exceptions import MazepaExecutionFailure
 from .execution_checkpoint import read_execution_checkpoint
@@ -24,7 +25,7 @@ class ProgressReport:
     completed_count: int
 
 
-class ExecutionState(ABC):  # pragma: no cover
+class ExecutionState(ABC):
     raise_on_failed_task: bool = True
 
     @abstractmethod
@@ -90,7 +91,7 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
         if self.checkpoint is not None:
             self._load_completed_ids_from_file(self.checkpoint)
 
-    def get_ongoing_flows(self) -> list[Flow]:  # pragma: no cover
+    def get_ongoing_flows(self) -> list[Flow]:
         return self.ongoing_flows
 
     def get_progress_reports(self) -> dict[str, ProgressReport]:
@@ -122,9 +123,13 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
         :param task_ids: IDs of tasks indicated as completed.
         """
         for task_id, outcome in task_outcomes.items():
-            if task_id in self.ongoing_tasks_dict:
+            if task_id == constants.UNKNOWN_TASK_ID:
+                assert outcome.exception is not None
+                if self.raise_on_failed_task:
+                    logger.error(f"Task traceback: {outcome.traceback_text}")
+                    raise MazepaExecutionFailure("Task failure.")
+            elif task_id in self.ongoing_tasks_dict:
                 self.ongoing_tasks_dict[task_id].outcome = outcome
-
                 if outcome.exception is None:
                     self.ongoing_tasks_dict[task_id].status = TaskStatus.SUCCEEDED
                 else:
@@ -132,6 +137,7 @@ class InMemoryExecutionState(ExecutionState):  # pylint: disable=too-many-instan
                     if self.raise_on_failed_task:
                         logger.error(f"Task traceback: {outcome.traceback_text}")
                         raise MazepaExecutionFailure("Task failure.")
+
                 self._update_completed_id(task_id)
 
     def get_task_batch(self, max_batch_len: int = 10000) -> list[Task]:

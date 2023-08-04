@@ -26,6 +26,7 @@ def get_unique_id(
         result = f"{prefix}-{slug}"
     else:
         result = f"{slug}"
+
     if add_uuid:
         unique_id = str(uuid.uuid1())
         result += unique_id
@@ -106,7 +107,7 @@ def get_literal_id_fn(  # pylint: disable=unused-argument
         fn: Callable,
         args: list,
         kwargs: dict,
-    ) -> str:  # pragma: no cover
+    ) -> str:
         return id_
 
     return get_literal_id

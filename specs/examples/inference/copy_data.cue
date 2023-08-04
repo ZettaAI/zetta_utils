@@ -5,14 +5,14 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 1000]
-	end_coord: [1024 * 100, 1024 * 100, 1010]
+	start_coord: [0, 0, 0]
+	end_coord: [1024 * 100, 1024 * 100, 10]
 	resolution: [4, 4, 45]
 }
 
 // Execution parameters
 "@type":                "mazepa.execute_on_gcp_with_sqs"
-worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x189"
+worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x209"
 worker_cluster_name:    "zutils-x3"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-research"
@@ -21,7 +21,7 @@ worker_resources: {
 	//"nvidia.com/gpu": "1"
 }
 worker_replicas: 10
-local_test:      true // set to `false` execute remotely
+local_test:      false // set to `false` execute remotely
 
 target: {
 	// We're applying subchunkable processing flow,
@@ -35,6 +35,7 @@ target: {
 	processing_chunk_sizes: [[2 * 1024, 2 * 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0]]
+	skip_intermediaries: true
 
 	// We want to expand the input bbox to be evenly divisible
 	// by chunk size

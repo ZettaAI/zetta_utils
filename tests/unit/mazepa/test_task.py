@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 import attrs
+import pytest
 
 from zetta_utils.mazepa import (
     Task,
@@ -62,3 +63,15 @@ def test_task_runtime_limit() -> None:
     assert isinstance(task, Task)
     outcome = task(debug=False)
     assert isinstance(outcome.exception, MazepaTimeoutError)
+
+
+def test_task_no_handle_exc() -> None:
+    @taskable_operation(runtime_limit_sec=0.1)
+    def dummy_task_fn():
+        raise Exception()
+
+    assert isinstance(dummy_task_fn, TaskableOperation)
+    task = dummy_task_fn.make_task()
+    assert isinstance(task, Task)
+    with pytest.raises(Exception):
+        task(debug=False, handle_exceptions=False)

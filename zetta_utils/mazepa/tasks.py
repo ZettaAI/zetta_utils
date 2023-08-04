@@ -74,34 +74,40 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         self.args = args
         self.kwargs = kwargs
 
-    def __call__(self, debug: bool = True) -> TaskOutcome[R_co]:
+    def _call_task_fn(self, debug: bool = True) -> R_co:
+        if debug or self.runtime_limit_sec is None:
+            return_value = self.fn(*self.args, **self.kwargs)
+        else:
+            future = concurrent.process(timeout=self.runtime_limit_sec)(self.fn)(
+                *self.args, **self.kwargs
+            )
+            try:
+                return_value = future.result()
+            except PebbleTimeoutError as e:
+                raise exceptions.MazepaTimeoutError(f"Task '{self.id_}' took too long.") from e
+        return return_value
+
+    def __call__(self, debug: bool = True, handle_exceptions: bool = True) -> TaskOutcome[R_co]:
         logger.debug(f"STARTING: Execution of {self}.")
         self.status = TaskStatus.RUNNING
         time_start = time.time()
 
-        try:
-            if debug or self.runtime_limit_sec is None:
-                return_value = self.fn(*self.args, **self.kwargs)
-            else:
-                future = concurrent.process(timeout=self.runtime_limit_sec)(self.fn)(
-                    *self.args, **self.kwargs
-                )
-                try:
-                    return_value = future.result()
-                except PebbleTimeoutError as e:
-                    raise exceptions.MazepaTimeoutError(f"Task '{self.id_}' took too long.") from e
-
-            exception = None
-            traceback_text = None
-            logger.debug("Successful task execution.")
-        except (SystemExit, KeyboardInterrupt) as exc:  # pragma: no cover
-            raise exc
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error(f"Failed task execution of {self}.")
-            logger.exception(exc)
-            exc_type, exception, tb = sys.exc_info()
-            traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
-            return_value = None
+        exception = None
+        traceback_text = None
+        if handle_exceptions:
+            try:
+                return_value = self._call_task_fn(debug=debug)
+                logger.debug("Successful task execution.")
+            except (SystemExit, KeyboardInterrupt) as exc:  # pragma: no cover
+                raise exc
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.error(f"Failed task execution of {self}.")
+                logger.exception(exc)
+                exc_type, exception, tb = sys.exc_info()
+                traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
+                return_value = None
+        else:
+            return_value = self._call_task_fn(debug=debug)
 
         time_end = time.time()
         logger.info(f"Task done in: {time_end - time_start:.2f}sec.")

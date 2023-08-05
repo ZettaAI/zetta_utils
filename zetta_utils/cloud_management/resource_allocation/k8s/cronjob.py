@@ -35,8 +35,9 @@ def _get_cronjob(
         image=image,
         command=command,
         command_args=command_args,
-        resources=resources,
         envs=envs,
+        resources=resources,
+        restart_policy="OnFailure",
     )
 
     job_template = get_job_template(

@@ -7,11 +7,11 @@ cluster: {
 }
 name: "gc-cron"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:akhilesh_gc_x4"
+image: "us.gcr.io/zetta-research/zetta_utils:gc_cronjob_v1"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
-	"python -m zetta_utils.cloud.resource_cleanup"
+	"python -m zetta_utils.cloud_management.resource_cleanup"
 ]
 env_vars: {
 	"EXECUTION_HEARTBEAT_LOOKBACK": "300",

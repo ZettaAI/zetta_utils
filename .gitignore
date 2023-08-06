@@ -1,3 +1,5 @@
+.vscode
+
 # Traing data logging
 **/tmp.json
 **/wandb/**

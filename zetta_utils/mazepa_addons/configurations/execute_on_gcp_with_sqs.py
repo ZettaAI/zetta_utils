@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import copy
 import os
-from contextlib import AbstractContextManager, ExitStack, contextmanager
+from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
-from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
@@ -105,21 +104,6 @@ def get_gcp_with_sqs_config(
     return task_queue, outcome_queue, ctx_managers
 
 
-@contextmanager
-def heartbeat_tracking_ctx_mngr(execution_id, heartbeat_interval=30):
-    def _send_heartbeat():
-        execution_tracker.update_execution_heartbeat(execution_id)
-
-    heart = RepeatTimer(heartbeat_interval, _send_heartbeat)
-    heart.start()
-    try:
-        yield
-    except Exception as e:
-        raise e from None
-    finally:
-        heart.cancel()
-
-
 @builder.register("mazepa.execute_on_gcp_with_sqs")
 def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],
@@ -184,7 +168,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         )
 
     with ExitStack() as stack:
-        stack.enter_context(heartbeat_tracking_ctx_mngr(execution_id))
+        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         for mngr in ctx_managers:
             stack.enter_context(mngr)
         assert (outcome_queue is None and task_queue is None) or (

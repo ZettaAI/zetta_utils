@@ -26,17 +26,10 @@ def sqs_queue_ctx_mngr(execution_id: str, name: str):
         queue.delete()
 
 
-def get_queue_url(name: str) -> str:
-    """Get the url of an existing queue."""
-    sqs = boto3.client("sqs")
-    queue_url = sqs.get_queue_url(QueueName=name)["QueueUrl"]
-    return queue_url
-
-
 def delete_queue(name: str):
     """Delete queue with given url."""
     sqs = boto3.client("sqs")
-    queue_url = get_queue_url(name)
+    queue_url = sqs.get_queue_url(QueueName=name)["QueueUrl"]
     sqs.delete_queue(QueueUrl=queue_url)
 
 

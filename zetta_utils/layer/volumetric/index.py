@@ -52,7 +52,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def croppped(self, crop: Sequence[int]) -> VolumetricIndex:
+    def cropped(self, crop: Sequence[int]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.cropped(crop=crop, resolution=self.resolution),
             resolution=self.resolution,

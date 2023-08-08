@@ -232,9 +232,9 @@ class BBoxStrider:
         """Shape of the chunks."""
         return Vec3D[int](*self.step_limits)
 
-    def get_all_chunk_bboxes(self, parallel=True) -> List[BBox3D]:
+    def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
-        if parallel:
+        if self.num_chunks > multiprocessing.cpu_count():
             with multiprocessing.Pool() as pool_obj:
                 result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
         else:

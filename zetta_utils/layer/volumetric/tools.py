@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Literal, Optional, Sequence, Tuple
+from typing import List, Literal, Optional, Sequence, Tuple
 
 import attrs
 import torch
@@ -117,7 +117,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         idx: VolumetricIndex,
         stride_start_offset_in_unit: Optional[Vec3D[int]] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
-    ) -> Iterable[VolumetricIndex]:
+    ) -> List[VolumetricIndex]:
 
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:

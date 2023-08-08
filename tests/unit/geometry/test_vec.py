@@ -1,12 +1,13 @@
 # pylint: disable=all
 import typing
+from math import ceil, floor, trunc
 
 import numpy as np
 import pytest
 import typeguard
 
 from zetta_utils import builder
-from zetta_utils.geometry.vec import Vec3D
+from zetta_utils.geometry.vec import Vec3D, allclose, isclose
 
 some_float = 42.42
 some_int = 42
@@ -174,8 +175,25 @@ def test_neg():
     assert vec3d == -vec3d_neg
 
 
+def test_abs():
+    assert abs(vec3d_neg) == vec3d
+    assert abs(vec3d) == vec3d
+
+
 def test_round():
     assert round(vec3d_fp1, 8) == vec3d_fp2
+
+
+def test_floor():
+    assert floor(Vec3D(0.5, -2.5, 3.0)) == Vec3D(0, -3, 3)
+
+
+def test_trunc():
+    assert trunc(Vec3D(0.5, -2.5, 3.0)) == Vec3D(0, -2, 3)
+
+
+def test_ceil():
+    assert ceil(Vec3D(0.5, -2.5, 3.0)) == Vec3D(1, -2, 3)
 
 
 @pytest.mark.parametrize(
@@ -352,7 +370,11 @@ def test_subtyping() -> None:
         some_int * intvec3d,
         some_int // intvec3d,
         some_int % intvec3d,
+        abs(intvec3d),
         round(intvec3d),
+        floor(intvec3d),
+        trunc(intvec3d),
+        ceil(intvec3d),
     ]:
 
         test_inference_return_int3d(x)
@@ -409,6 +431,17 @@ def test_subtyping() -> None:
         some_float // intvec3d,
         some_float / intvec3d,
         some_float % intvec3d,
+        abs(vec3d),
         round(vec3d),
     ]:
         test_inference_return_vec3d(y)
+
+
+def test_isclose():
+    assert isclose(vec3d_fp1, vec3d_fp2) == (True, True, True)
+    assert isclose(vec3d_fp1, vec3d_fp2, abs_tol=0.0, rel_tol=0.0) == (True, False, False)
+
+
+def test_allclose():
+    assert allclose(vec3d_fp1, vec3d_fp2) == True
+    assert allclose(vec3d_fp1, vec3d_fp2, abs_tol=0.0, rel_tol=0.0) == False

@@ -1,6 +1,7 @@
 """Basic type definitions used for type annotations."""
 from __future__ import annotations
 
+import math
 from collections import abc
 from typing import Any, Sequence, Tuple, TypeVar, Union, overload
 
@@ -75,6 +76,35 @@ class Vec3D(abc.Sequence[T]):
     def __ge__(self, other) -> bool:
         return all(s >= o for (s, o) in zip(self.vec, other.vec))
 
+    def isclose(
+        self,
+        other: Vec3D | BuiltinFloat | BuiltinInt,
+        *,
+        rel_tol: BuiltinFloat = 1e-05,
+        abs_tol: BuiltinFloat = 1e-08,
+    ) -> Tuple[bool, bool, bool]:
+        if isinstance(other, Vec3D):
+            return (
+                math.isclose(self.x, other.x, rel_tol=rel_tol, abs_tol=abs_tol),
+                math.isclose(self.y, other.y, rel_tol=rel_tol, abs_tol=abs_tol),
+                math.isclose(self.z, other.z, rel_tol=rel_tol, abs_tol=abs_tol),
+            )
+        else:
+            return (
+                math.isclose(self.x, other, rel_tol=rel_tol, abs_tol=abs_tol),
+                math.isclose(self.y, other, rel_tol=rel_tol, abs_tol=abs_tol),
+                math.isclose(self.z, other, rel_tol=rel_tol, abs_tol=abs_tol),
+            )
+
+    def allclose(
+        self,
+        other: Vec3D | BuiltinFloat | BuiltinInt,
+        *,
+        rel_tol: BuiltinFloat = 1e-05,
+        abs_tol: BuiltinFloat = 1e-08,
+    ) -> bool:
+        return all(self.isclose(other, rel_tol=rel_tol, abs_tol=abs_tol))
+
     def __repr__(self) -> str:
         return f"Vec3D({', '.join(str(e) for e in self)})"
 
@@ -90,8 +120,20 @@ class Vec3D(abc.Sequence[T]):
     def __neg__(self) -> Vec3D[T]:
         return Vec3D[T](*(-e for e in self))
 
-    def __round__(self, ndigits=0):
+    def __abs__(self) -> Vec3D[T]:
+        return Vec3D[T](*(abs(e) for e in self))
+
+    def __round__(self, ndigits: int = 0) -> Vec3D[T]:
         return Vec3D[T](*(round(e, ndigits) for e in self))
+
+    def __floor__(self) -> Vec3D[BuiltinInt]:
+        return Vec3D[BuiltinInt](*(math.floor(e) for e in self))
+
+    def __ceil__(self) -> Vec3D[BuiltinInt]:
+        return Vec3D[BuiltinInt](*(math.ceil(e) for e in self))
+
+    def __trunc__(self) -> Vec3D[BuiltinInt]:
+        return Vec3D[BuiltinInt](*(math.trunc(e) for e in self))
 
     @overload
     def __add__(self, other: Union[Vec3D[BuiltinInt], BuiltinInt]) -> Vec3D[T]:
@@ -253,6 +295,28 @@ class Vec3D(abc.Sequence[T]):
 
     def pformat(self) -> str:  # pragma: no cover
         return str(tuple(self))
+
+
+@typechecked
+def isclose(
+    a: Vec3D,
+    b: Vec3D | BuiltinFloat | BuiltinInt,
+    *,
+    rel_tol: BuiltinFloat = 1e-05,
+    abs_tol: BuiltinFloat = 1e-08,
+) -> Tuple[bool, bool, bool]:
+    return a.isclose(b, rel_tol=rel_tol, abs_tol=abs_tol)
+
+
+@typechecked
+def allclose(
+    a: Vec3D,
+    b: Vec3D | BuiltinFloat | BuiltinInt,
+    *,
+    rel_tol: BuiltinFloat = 1e-05,
+    abs_tol: BuiltinFloat = 1e-08,
+) -> bool:
+    return a.allclose(b, rel_tol=rel_tol, abs_tol=abs_tol)
 
 
 @typechecked

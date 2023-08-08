@@ -365,11 +365,19 @@ def test_cropped_exc(bbox: BBox3D, crop, resolution: Vec3D, expected_exc):
             "expand",
             BBox3D(bounds=((-1, 1), (-3, 3), (-5, 7))),
         ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3.1), (-5, 7))),
+            (0, 0.0, 0.0),
+            (0.1, 0.6 / 3.0, 0.1 + 0.2),
+            "expand",
+            BBox3D(bounds=((-1.0, 1.0), (-3.0, 3.2), (-5.1, 7.2))),
+        ],
     ],
 )
 def test_snapped(bbox: BBox3D, grid_offset, grid_size, mode, expected: BBox3D):
     result = bbox.snapped(grid_offset=grid_offset, grid_size=grid_size, mode=mode)
-    assert result == expected
+    assert result.start.allclose(expected.start)
+    assert result.end.allclose(expected.end)
 
 
 @pytest.mark.parametrize(

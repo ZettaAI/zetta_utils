@@ -2,7 +2,7 @@ import itertools
 import multiprocessing
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, Iterable, List, Literal, Optional, Tuple, TypeVar
+from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
 
 import attrs
 import cachetools
@@ -360,14 +360,22 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
     def make_tasks_without_checkerboarding(
         self,
-        idx_chunks: Iterable[VolumetricIndex],
+        idx_chunks: List[VolumetricIndex],
         dst: VolumetricBasedLayerProtocol,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
-        with multiprocessing.Pool() as pool_obj:
-            tasks = pool_obj.map(
-                self._make_task,
-                zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
+        if len(idx_chunks) > multiprocessing.cpu_count():
+            with multiprocessing.Pool() as pool_obj:
+                tasks = pool_obj.map(
+                    self._make_task,
+                    zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
+                )
+        else:
+            tasks = list(
+                map(
+                    self._make_task,
+                    zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
+                )
             )
         return tasks
 
@@ -385,7 +393,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     def make_tasks_with_checkerboarding(  # pylint: disable=too-many-locals, too-many-branches
         self,
         idx: VolumetricIndex,
-        red_chunks: Iterable[VolumetricIndex],
+        red_chunks: List[VolumetricIndex],
         red_shape: Vec3D[int],
         dst: VolumetricBasedLayerProtocol,
         op_kwargs: P.kwargs,
@@ -445,11 +453,22 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     offset[2] * red_shape[0] * red_shape[1] + offset[1] * red_shape[0] + offset[0]
                     for offset in red_chunk_offsets
                 )
-
-                with multiprocessing.Pool() as pool_obj:
-                    tasks_split = pool_obj.map(
-                        self._make_task,
-                        zip(task_idxs, itertools.repeat(dst_temp), itertools.repeat(op_kwargs)),
+                if len(task_idxs) > multiprocessing.cpu_count():
+                    with multiprocessing.Pool() as pool_obj:
+                        tasks_split = pool_obj.map(
+                            self._make_task,
+                            zip(
+                                task_idxs, itertools.repeat(dst_temp), itertools.repeat(op_kwargs)
+                            ),
+                        )
+                else:
+                    tasks_split = list(
+                        map(
+                            self._make_task,
+                            zip(
+                                task_idxs, itertools.repeat(dst_temp), itertools.repeat(op_kwargs)
+                            ),
+                        )
                     )
                 tasks += tasks_split
 

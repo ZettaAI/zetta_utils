@@ -174,6 +174,39 @@ def test_bbox_strider_get_all_chunks_parallel(mocker):
             None,
             6,
         ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 4),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            None,
+            "exact",
+            None,
+            4,
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 4),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            None,
+            "expand",
+            None,
+            4,
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 4),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            None,
+            "shrink",
+            None,
+            4,
+        ],
     ],
 )
 def test_bbox_strider_len(
@@ -312,6 +345,42 @@ def test_bbox_strider_len(
             5,
             BBox3D.from_slices((slice(1, 4), slice(1, 4), slice(3, 6))),
         ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 3),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 1),
+            IntVec3D(2, 2, 1),
+            Vec3D(0, 0.2, 0.3),
+            "exact",
+            None,
+            3,
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 3),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 1),
+            IntVec3D(2, 2, 1),
+            Vec3D(0, 0.2, 0.3),
+            "shrink",
+            None,
+            3,
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(2, 3, 3),
+            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            IntVec3D(2, 2, 1),
+            IntVec3D(2, 2, 1),
+            Vec3D(0, 0.2, 0.3),
+            "expand",
+            None,
+            3,
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+        ],
     ],
 )
 def test_bbox_strider_get_nth_res(
@@ -337,7 +406,8 @@ def test_bbox_strider_get_nth_res(
         mode=mode,
         max_superchunk_size=max_superchunk_size,
     )
-    assert strider.get_nth_chunk_bbox(idx) == expected
+    bbox = strider.get_nth_chunk_bbox(idx)
+    assert bbox.start.allclose(expected.start) and bbox.end.allclose(expected.end)
 
 
 def test_bbox_strider_exc(mocker):

@@ -387,19 +387,21 @@ class BBox3D:
 
         if mode == "shrink":
             start_final = tuple(
-                ((b[0] - o - EPS) // s + 1) * s + o
+                floor(round((b[0] - o) / s + 1, 10) - EPS) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
             end_final = tuple(
-                (b[1] - o) // s * s + o for b, o, s in zip(self.bounds, grid_offset, grid_size)
+                floor(round((b[1] - o) / s, 10)) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
         else:
             assert mode == "expand", "Typechecking error"
             start_final = tuple(
-                (b[0] - o) // s * s + o for b, o, s in zip(self.bounds, grid_offset, grid_size)
+                floor(round((b[0] - o) / s, 10)) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
             end_final = tuple(
-                ((b[1] - o - EPS) // s + 1) * s + o
+                floor(round((b[1] - o) / s + 1, 10) - EPS) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
         return BBox3D.from_coords(

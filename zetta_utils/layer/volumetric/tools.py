@@ -115,7 +115,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     def __call__(
         self,
         idx: VolumetricIndex,
-        stride_start_offset_in_unit: Optional[Vec3D[int]] = None,
+        stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> List[VolumetricIndex]:
 
@@ -135,7 +135,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     def get_shape(
         self,
         idx: VolumetricIndex,
-        stride_start_offset_in_unit: Optional[Vec3D[int]] = None,
+        stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Vec3D[int]:  # pragma: no cover
 
@@ -144,7 +144,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     def _get_bbox_strider(
         self,
         idx: VolumetricIndex,
-        stride_start_offset_in_unit: Optional[Vec3D[int]] = None,
+        stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> BBoxStrider:
 
@@ -154,11 +154,11 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             chunk_resolution = self.resolution
 
         if stride_start_offset_in_unit is None:
-            stride_start_offset_to_use = (idx.bbox.start + self.offset * chunk_resolution).int()
+            stride_start_offset_to_use = idx.bbox.start + self.offset * chunk_resolution
         else:
             stride_start_offset_to_use = (
                 stride_start_offset_in_unit + self.offset * chunk_resolution
-            ).int()
+            )
 
         if self.stride is None:
             stride = self.chunk_size

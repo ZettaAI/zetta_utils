@@ -45,11 +45,11 @@ class BBoxStrider:
     chunk_size: Vec3D[int]
     stride: Vec3D[int]
     max_superchunk_size: Optional[Vec3D[int]] = None
-    stride_start_offset_in_unit: Optional[Vec3D[int]] = None
+    stride_start_offset_in_unit: Optional[Vec3D] = None
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     stride_in_unit: Vec3D = attrs.field(init=False)
     bbox_snapped: BBox3D = attrs.field(init=False)
-    step_limits: Tuple[int, int, int] = attrs.field(init=False)
+    step_limits: Vec3D[int] = attrs.field(init=False)
     step_start_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     step_end_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     mode: Optional[Literal["shrink", "expand", "exact"]] = "expand"
@@ -110,11 +110,11 @@ class BBoxStrider:
                 )
             )
         )
-        step_limits = Vec3D[int](*(floor(e) for e in step_limits_snapped))
+        step_limits = floor(round(step_limits_snapped, 10))
         bbox_start_diff = bbox_snapped.start - self.bbox.start
         bbox_end_diff = self.bbox.end - bbox_snapped.end
-        step_start_partial = tuple(e > 0 for e in bbox_start_diff)
-        step_end_partial = tuple(e > 0 for e in bbox_end_diff)
+        step_start_partial = tuple(round(e, 10) > 0 for e in bbox_start_diff)
+        step_end_partial = tuple(round(e, 10) > 0 for e in bbox_end_diff)
         step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
         step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
         logger.info(
@@ -130,11 +130,11 @@ class BBoxStrider:
         object.__setattr__(self, "step_end_partial", step_end_partial)
 
     def _attrs_post_init_nonexact(self) -> None:
-        step_start_partial = [False, False, False]
-        step_end_partial = [False, False, False]
+        step_start_partial = (False, False, False)
+        step_end_partial = (False, False, False)
         if self.stride_start_offset_in_unit is not None:
             # align stride_start_offset to just larger than the start of the bbox
-            stride_start_offset_in_unit = Vec3D(*self.stride_start_offset_in_unit)
+            stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset_in_unit)
             stride_start_offset_in_unit += (
                 (self.bbox.start - stride_start_offset_in_unit)
                 // self.stride_in_unit
@@ -176,8 +176,8 @@ class BBoxStrider:
             )
         )
         if self.mode == "shrink":
-            step_limits = Vec3D[int](*(floor(e) for e in step_limits_snapped))
-            if step_limits_raw != step_limits:
+            step_limits = floor(round(step_limits_snapped, 10))
+            if not step_limits_raw.allclose(step_limits):
                 rounded_bbox_bounds = tuple(
                     (
                         bbox_snapped.bounds[i][0],
@@ -196,8 +196,8 @@ class BBoxStrider:
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         if self.mode == "expand":
-            step_limits = Vec3D[int](*(ceil(e) for e in step_limits_snapped))
-            if step_limits_raw != step_limits:
+            step_limits = ceil(round(step_limits_snapped, 10))
+            if not step_limits_raw.allclose(step_limits):
                 rounded_bbox_bounds = tuple(
                     (
                         bbox_snapped.bounds[i][0],

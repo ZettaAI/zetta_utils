@@ -9,6 +9,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder, log
+from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 from . import Vec3D
 from .bbox import BBox3D
@@ -110,11 +111,11 @@ class BBoxStrider:
                 )
             )
         )
-        step_limits = floor(round(step_limits_snapped, 10))
+        step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
         bbox_start_diff = bbox_snapped.start - self.bbox.start
         bbox_end_diff = self.bbox.end - bbox_snapped.end
-        step_start_partial = tuple(round(e, 10) > 0 for e in bbox_start_diff)
-        step_end_partial = tuple(round(e, 10) > 0 for e in bbox_end_diff)
+        step_start_partial = tuple(round(e, VEC3D_PRECISION) > 0 for e in bbox_start_diff)
+        step_end_partial = tuple(round(e, VEC3D_PRECISION) > 0 for e in bbox_end_diff)
         step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
         step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
         logger.info(
@@ -176,7 +177,7 @@ class BBoxStrider:
             )
         )
         if self.mode == "shrink":
-            step_limits = floor(round(step_limits_snapped, 10))
+            step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
             if not step_limits_raw.allclose(step_limits):
                 rounded_bbox_bounds = tuple(
                     (
@@ -196,7 +197,7 @@ class BBoxStrider:
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         if self.mode == "expand":
-            step_limits = ceil(round(step_limits_snapped, 10))
+            step_limits = ceil(round(step_limits_snapped, VEC3D_PRECISION))
             if not step_limits_raw.allclose(step_limits):
                 rounded_bbox_bounds = tuple(
                     (

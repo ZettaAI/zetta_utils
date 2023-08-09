@@ -7,7 +7,7 @@ import pytest
 import typeguard
 
 from zetta_utils import builder
-from zetta_utils.geometry.vec import Vec3D, allclose, isclose
+from zetta_utils.geometry.vec import VEC3D_PRECISION, Vec3D, allclose, isclose
 
 some_float = 42.42
 some_int = 42
@@ -181,7 +181,7 @@ def test_abs():
 
 
 def test_round():
-    assert round(vec3d_fp1, 8) == vec3d_fp2
+    assert round(vec3d_fp1, VEC3D_PRECISION) == vec3d_fp2
 
 
 def test_floor():

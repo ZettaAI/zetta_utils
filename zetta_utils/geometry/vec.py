@@ -15,6 +15,8 @@ BuiltinFloat = float
 
 T = TypeVar("T", bound=float)
 
+VEC3D_PRECISION = 10
+
 
 @attrs.frozen(init=False)
 @typechecked

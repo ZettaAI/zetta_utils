@@ -8,6 +8,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 from . import Vec3D
 
@@ -131,8 +132,8 @@ class BBox3D:
         else:
             dim_res = resolution[dim]
 
-        dim_range_start_raw = round(self.bounds[dim][0] / dim_res, 10)
-        dim_range_end_raw = round(self.bounds[dim][1] / dim_res, 10)
+        dim_range_start_raw = round(self.bounds[dim][0] / dim_res, VEC3D_PRECISION)
+        dim_range_end_raw = round(self.bounds[dim][1] / dim_res, VEC3D_PRECISION)
 
         if not round_to_int:
             return slice(dim_range_start_raw, dim_range_end_raw)
@@ -387,21 +388,21 @@ class BBox3D:
 
         if mode == "shrink":
             start_final = tuple(
-                floor(round((b[0] - o) / s + 1, 10) - EPS) * s + o
+                floor(round((b[0] - o) / s + 1, VEC3D_PRECISION) - EPS) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
             end_final = tuple(
-                floor(round((b[1] - o) / s, 10)) * s + o
+                floor(round((b[1] - o) / s, VEC3D_PRECISION)) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
         else:
             assert mode == "expand", "Typechecking error"
             start_final = tuple(
-                floor(round((b[0] - o) / s, 10)) * s + o
+                floor(round((b[0] - o) / s, VEC3D_PRECISION)) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
             end_final = tuple(
-                floor(round((b[1] - o) / s + 1, 10) - EPS) * s + o
+                floor(round((b[1] - o) / s + 1, VEC3D_PRECISION) - EPS) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
         return BBox3D.from_coords(

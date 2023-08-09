@@ -19,10 +19,10 @@ def sqs_queue_ctx_mngr(execution_id: str, queue: SQSQueue):
         ExecutionResource(execution_id, "sqs_queue", queue.name, region=queue.region_name)
     )
 
-    logger.info(f"Created SQS queue with URL={_queue.url}")
+    logger.info(f"Created SQS queue with URL={_queue['QueueUrl']}")
     try:
         yield
     finally:
-        logger.info(f"Deleting SQS queue '{_queue.name}'")
-        logger.debug(f"Deleting SQS queue with URL={_queue.url}")
-        _queue.delete()
+        logger.info(f"Deleting SQS queue '{queue.name}'")
+        logger.debug(f"Deleting SQS queue with URL={_queue['QueueUrl']}")
+        sqs.delete_queue(QueueUrl=_queue["QueueUrl"])

@@ -58,13 +58,8 @@ def get_gcp_with_sqs_config(
     ctx_managers: list[AbstractContextManager],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
-    ctx_managers.append(
-        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, work_queue_name)
-    )
     outcome_queue_name = f"zzz-{execution_id}-outcome"
-    ctx_managers.append(
-        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue_name)
-    )
+
     task_queue_spec = {
         "@type": "SQSQueue",
         "name": work_queue_name,
@@ -77,6 +72,12 @@ def get_gcp_with_sqs_config(
 
     task_queue = builder.build(task_queue_spec)
     outcome_queue = builder.build(outcome_queue_spec)
+
+    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
+
+    ctx_managers.append(
+        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue)
+    )
 
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS

@@ -37,6 +37,7 @@ class ExecutionResource:
     execution_id: str
     type: str
     name: str
+    region: str = ""
 
 
 def register_execution_resource(resource: ExecutionResource) -> None:

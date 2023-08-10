@@ -7,16 +7,15 @@ import os
 import time
 from typing import Any, Dict, List
 
-import boto3
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils.log import get_logger
+from zetta_utils.message_queues.sqs import utils as sqs_utils
 
 from .execution_tracker import EXECUTION_DB, ExecutionInfoKeys, read_execution_clusters
-from .resource_allocation.aws_sqs import delete_queue
 from .resource_allocation.k8s import get_cluster_data
 from .resource_allocation.resource_tracker import (
     EXECUTION_RESOURCE_DB,
@@ -123,13 +122,14 @@ def _delete_k8s_resources(
 
 def _delete_sqs_queues(resources: Dict[str, ExecutionResource]) -> bool:  # pragma: no cover
     success = True
-    sqs = boto3.client("sqs")
     for resource_id, resource in resources.items():
         if resource.type != ExecutionResourceTypes.SQS_QUEUE.value:
             continue
         try:
             logger.info(f"Deleting SQS queue `{resource.name}`")
-            delete_queue(resource.name)
+            sqs = sqs_utils.get_sqs_client(region_name=resource.region)
+            queue_url = sqs.get_queue_url(QueueName=resource.name)["QueueUrl"]
+            sqs.delete_queue(QueueUrl=queue_url)
         except sqs.exceptions.QueueDoesNotExist as exc:
             logger.info(f"Queue does not exist: `{resource.name}`: {exc}")
             _delete_resource_entry(resource_id)

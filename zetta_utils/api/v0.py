@@ -49,11 +49,7 @@ from zetta_utils.cloud_management.execution_tracker import (
     register_execution,
     update_execution_heartbeat,
 )
-from zetta_utils.cloud_management.resource_allocation.aws_sqs import (
-    delete_queue,
-    get_queues,
-    sqs_queue_ctx_mngr,
-)
+from zetta_utils.cloud_management.resource_allocation.aws_sqs import sqs_queue_ctx_mngr
 from zetta_utils.cloud_management.resource_allocation.gcloud.iam import (
     Role,
     add_role,

@@ -134,20 +134,20 @@ As you can see, ``VolumetricIndex.from_coords`` has automatically calculated the
 Let's try padding and cropping our new ``VolumetricIndex``:
 
 
-.. code-block:: python
+.. doctest::
 
    >>> idx_c = idx.cropped(Vec3D(1,2,3)) # cropping
    >>> idx_c
    VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((4.0, 16.0), (8.0, 20.0), (90.0, 240.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
    >>> print(idx_c.pformat())
-   (1, 2, 3) - (4, 5, 8)
+   (1.0, 2.0, 3.0) - (4.0, 5.0, 8.0)
    >>> idx_c.shape
    Vec3D(3, 3, 5)
    >>> idx_p = idx.padded(Vec3D(1,2,3)) # padding
    >>> idx_p
    VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((-4.0, 24.0), (-8.0, 36.0), (-90.0, 420.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
    >>> print(idx_p.pformat())
-   (-1, -2, -3) - (6, 9, 14)
+   (-1.0, -2.0, -3.0) - (6.0, 9.0, 14.0)
    >>> idx_p.shape
    Vec3D(7, 11, 17)
 
@@ -210,7 +210,7 @@ Precomputed volumes require an *infofile* that contains information about things
 
 For most common use cases, it will suffice to use an existing infofile as a template. We will do that here, but change the chunk size for (8, 8, 40) nm resolution to be (128, 128, 1) voxels:
 
-.. code-block:: python
+.. doctest::
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
    >>> cvl = build_cv_layer(
@@ -221,7 +221,7 @@ For most common use cases, it will suffice to use an existing infofile as a temp
 
 Let's try writing to a chunk:
 
-.. code-block:: python
+.. doctest::
 
    >>> from torch import ones, float32
    >>> from zetta_utils.layer.volumetric import VolumetricIndex
@@ -245,25 +245,37 @@ We have covered most of the basic usage of ``VolumetricLayer``, but there is one
 
 These ``Processors`` imbue ``VolumetricLayer`` with a lot of built-in flexibility. For instance, suppose that we wanted to threshold the normalised FAFB v15 images so that any location with value below 0 was set to 0. Instead of writing code to handle this inside our task, we can simply define a ``DataProcessor`` (which is a protocol) as follows:
 
-.. code-block:: python
+.. doctest::
 
    >>> class ThresholdProcessor:
    ...     def __init__(self, threshold=0):
    ...         self.threshold = threshold
    ...
    ...     def __call__(self, data):
-   ...         data[data < threshold] = threshold
+   ...         data[data < self.threshold] = self.threshold
    ...         return data
 
-We initialise the ``VolumetricLayer`` with this ``DataProcessor``:
+We initialise the ``VolumetricLayer`` with this ``DataProcessor``, and compare the output to one without:
 
-.. code-block:: python
+.. doctest::
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-   >>> cvl = build_cv_layer(
+   >>> cvl_without_proc = build_cv_layer(
+   ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm",
+   ... )
+   >>> cvl_with_proc = build_cv_layer(
    ...    path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm",
    ...    read_procs=[ThresholdProcessor(0)]
    ... )
+   >>> idx = VolumetricIndex.from_coords(
+   ...     start_coord = Vec3D(13000, 4000, 2000),
+   ...     end_coord = Vec3D(13100, 4100, 2001),
+   ...     resolution = Vec3D(64, 64, 40)
+   ... )
+   >>> cvl_without_proc[idx].min()
+   tensor(-2.9492)
+   >>> cvl_with_proc[idx].min()
+   tensor(0.)
 
 This ``VolumetricLayer`` will now apply the ``__call__`` from the ``ThresholdProcessor`` before returning the output for each read.
 
@@ -297,21 +309,21 @@ The **builder** provides machinery to represent ``VolumetricLayer``, ``DataProce
 
 The registration is done through a decorator at the time of declaration. For instance, we may register the ``ThresholdProcessor`` above like so:
 
-.. code-block:: python
+.. doctest::
 
    >>> from zetta_utils import builder
    >>> @builder.register("ThresholdProcessor")
-   >>> class ThresholdProcessor:
-   ...     def __init__(self, threshold=0):
+   ... class ThresholdProcessor:
+   ...     def __init__(self, threshold=-1):
    ...         self.threshold = threshold
    ...
    ...     def __call__(self, data):
-   ...         data[data < threshold] = threshold
+   ...         data[data < self.threshold] = self.threshold
    ...         return data
 
 After a class has been registered, you can represent an object of that class as a dictionary (called a **spec**) by including the matching ``@type`` key and providing the initialisation parameters:
 
-.. code-block:: python
+.. doctest::
 
    >>> spec = {
    ...     "@type": "ThresholdProcessor",
@@ -325,10 +337,10 @@ After a class has been registered, you can represent an object of that class as 
 
 The builder can also register methods and functions:
 
-.. code-block:: python
+.. doctest::
 
    >>> @builder.register("echo")
-   >>> def echo(x):
+   ... def echo(x):
    ...     return x
    >>> spec = {
    ...     "@type": "echo",
@@ -346,7 +358,7 @@ All user-facing ``zetta_utils`` classes (with one exception) and some other usef
 
 The ``builder`` will build your objects recursively, which means you can specify complex strucures. For instance, a ``VolumetricLayer`` that has both read and write procs might look like:
 
-.. code-block:: python
+.. doctest::
 
    >>> spec = {
    ...     "@type": "build_cv_layer",
@@ -540,13 +552,13 @@ One might ask why subchunking is necessary over simple chunking. After all, don'
 
    //
    // Handy variables.
-   #SRC_PATH: "file://path/to/src"
-   #DST_PATH: "file://path/to/dst"
+   #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
+   #DST_PATH: "file://~/zetta_utils_temp/"
    #BBOX: {
       "@type": "BBox3D.from_coords"
-      start_coord: [0, 0, 0]
-      end_coord: [4096, 4096, 10]
-      resolution: [4, 4, 45]
+      start_coord: [29696, 16384, 2000]
+      end_coord: [29696 + 1024, 16384 + 1024, 2000 + 10]
+      resolution: [16, 16, 40]
    }
 
    // We are asking the builder to call mazepa.execute with the following target
@@ -559,7 +571,7 @@ One might ask why subchunking is necessary over simple chunking. After all, don'
       bbox: #BBOX
 
       // What resolution is our destination?
-      dst_resolution: [4, 4, 45]
+      dst_resolution: [16, 16, 40]
 
       // How do we chunk/crop/blend? List of lists for subchunking.
       processing_chunk_sizes: [[1024, 1024, 1]]
@@ -640,15 +652,13 @@ With the changes, the example above becomes:
 .. code-block:: cue
   :emphasize-lines: 25, 26, 27, 29, 30
 
-   //
-   // Handy variables.
-   #SRC_PATH: "file://path/to/src"
-   #DST_PATH: "file://path/to/dst"
+   #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
+   #DST_PATH: "file://~/zetta_utils_temp/"
    #BBOX: {
       "@type": "BBox3D.from_coords"
-      start_coord: [0, 0, 0]
-      end_coord: [4096, 4096, 10]
-      resolution: [4, 4, 45]
+      start_coord: [29696, 16384, 2000]
+      end_coord: [29696 + 1024, 16384 + 1024, 2000 + 10]
+      resolution: [16, 16, 40]
    }
 
    // We are asking the builder to call mazepa.execute with the following target.
@@ -704,13 +714,13 @@ Each level can have its own crop and blend (as well as ``blend_mode``), but ther
 
    //
    // Handy variables.
-   #SRC_PATH: "file://path/to/src"
-   #DST_PATH: "file://path/to/dst"
+   #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
+   #DST_PATH: "file://~/zetta_utils_temp/"
    #BBOX: {
       "@type": "BBox3D.from_coords"
-      start_coord: [0, 0, 0]
-      end_coord: [4096, 4096, 10]
-      resolution: [4, 4, 45]
+      start_coord: [29696, 16384, 2000]
+      end_coord: [29696 + 1024, 16384 + 1024, 2000 + 10]
+      resolution: [16, 16, 40]
    }
 
    // We are asking the builder to call mazepa.execute with the following target.
@@ -782,13 +792,13 @@ To modify the CUE file, we change ``mazepa.execute`` to ``mazepa.execute_on_gcp_
 
    //
    // Handy variables.
-   #SRC_PATH: "file://path/to/src"
-   #DST_PATH: "file://path/to/dst"
+   #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
+   #DST_PATH: "file://~/zetta_utils_temp/"
    #BBOX: {
       "@type": "BBox3D.from_coords"
-      start_coord: [0, 0, 0]
-      end_coord: [4096, 4096, 10]
-      resolution: [4, 4, 45]
+      start_coord: [29696, 16384, 2000]
+      end_coord: [29696 + 1024, 16384 + 1024, 2000 + 10]
+      resolution: [16, 16, 40]
    }
 
    // Execution parameters

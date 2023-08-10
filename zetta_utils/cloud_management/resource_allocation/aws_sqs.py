@@ -1,9 +1,8 @@
 from contextlib import contextmanager
-from typing import Optional
-
-import boto3
 
 from zetta_utils import builder, log
+from zetta_utils.message_queues.sqs import SQSQueue
+from zetta_utils.message_queues.sqs import utils as sqs_utils
 
 from .resource_tracker import ExecutionResource, register_execution_resource
 
@@ -12,41 +11,18 @@ logger = log.get_logger("zetta_utils")
 
 @builder.register("sqs_queue_ctx_mngr")
 @contextmanager
-def sqs_queue_ctx_mngr(execution_id: str, name: str):
-    sqs = boto3.resource("sqs")
-    queue = sqs.create_queue(QueueName=name, Attributes={"SqsManagedSseEnabled": "false"})
-    register_execution_resource(ExecutionResource(execution_id, "sqs_queue", name))
+def sqs_queue_ctx_mngr(execution_id: str, queue: SQSQueue):
+    sqs = sqs_utils.get_sqs_client(queue.region_name)
+    _queue = sqs.create_queue(QueueName=queue.name, Attributes={"SqsManagedSseEnabled": "false"})
 
-    logger.info(f"Created SQS queue with URL={queue.url}")
+    register_execution_resource(
+        ExecutionResource(execution_id, "sqs_queue", queue.name, region=queue.region_name)
+    )
+
+    logger.info(f"Created SQS queue with URL={_queue['QueueUrl']}")
     try:
         yield
     finally:
-        logger.info(f"Deleting SQS queue '{name}'")
-        logger.debug(f"Deleting SQS queue with URL={queue.url}")
-        queue.delete()
-
-
-def delete_queue(name: str):
-    """Delete queue with given url."""
-    sqs = boto3.client("sqs")
-    queue_url = sqs.get_queue_url(QueueName=name)["QueueUrl"]
-    sqs.delete_queue(QueueUrl=queue_url)
-
-
-def get_queues(prefix: Optional[str] = None):
-    """
-    Gets a list of SQS queues. When a prefix is specified, only queues with names
-    that start with the prefix are returned.
-
-    :param prefix: The prefix used to restrict the list of returned queues.
-    :return: A list of Queue objects.
-    """
-    sqs = boto3.resource("sqs")
-    if prefix:
-        queue_iter = sqs.queues.filter(QueueNamePrefix=prefix)
-    else:
-        queue_iter = sqs.queues.all()
-
-    queues = list(queue_iter)
-    logger.info(f"Found {len(queues)} queues.")
-    return queues
+        logger.info(f"Deleting SQS queue '{queue.name}'")
+        logger.debug(f"Deleting SQS queue with URL={_queue['QueueUrl']}")
+        sqs.delete_queue(QueueUrl=_queue["QueueUrl"])

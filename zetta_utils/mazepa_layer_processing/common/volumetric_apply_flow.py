@@ -571,6 +571,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" Submitting {len(tasks_reduce)} tasks."
             )
             yield tasks_reduce
+            yield mazepa.Dependency()
             clear_cache(dst_temp)
             delete_if_local(dst_temp)
         # case with checkerboarding
@@ -648,6 +649,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" Submitting {len(tasks_reduce)} tasks."
             )
             yield tasks_reduce
+            yield mazepa.Dependency()
             clear_cache(*dst_temps)
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:

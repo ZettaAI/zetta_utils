@@ -45,10 +45,74 @@ def trace_and_save_model(
         return type(e).__name__, e.args[0]
 
 
+@builder.register("ZettaDefaultTrainer")
 class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        experiment_name: str,
+        experiment_version: str,
+        *args,
+        checkpointing_kwargs: Optional[dict] = None,
+        progress_bar_kwargs: Optional[dict] = None,
+        **kwargs,
+    ):
+        assert "callbacks" not in kwargs
+        if "strategy" not in kwargs:
+            kwargs["strategy"] = ddp.DDPStrategy(find_unused_parameters=False)
+
+        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+            api_key = os.environ.get("WANDB_API_KEY", None)
+            wandb.login(key=api_key)
+            wandb.init(group=f"{experiment_name}.{experiment_version}")
+
+        self.logger = WandbLogger(
+            project=experiment_name,
+            name=experiment_version,
+            id=experiment_version,
+        )
+
         super().__init__(*args, **kwargs)
         self.trace_configuration = None
+
+        if wandb.run is not None:
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            zetta_root_path = f"{this_dir}/../../.."
+            wandb.run.log_code(zetta_root_path)
+
+        if progress_bar_kwargs is None:
+            progress_bar_kwargs = {}
+        self.callbacks = get_progress_bar_callbacks(**progress_bar_kwargs)
+
+        def log_config(config):
+            if experiment_version.startswith("tmp"):
+                logger.info(
+                    f"Not saving configuration for a temproary experiment {experiment_version}."
+                )
+            else:
+                self.logger.experiment.config["training_configuration"] = config  # type: ignore
+                logger.info("Saved training configuration.")
+
+        self.log_config = log_config
+
+        if checkpointing_kwargs is None:
+            checkpointing_kwargs = {}
+        log_dir = os.path.join(
+            self.default_root_dir,
+            experiment_name,
+            experiment_version,
+        )
+
+        self.callbacks += get_checkpointing_callbacks(
+            log_dir=log_dir,
+            **checkpointing_kwargs,
+        )
+
+        self.callbacks.append(ConfigureTraceCallback(self))
+
+        # Due to a bug in PL we're unable to use normal methods
+        # to resume training with ckpt_path='last' when storing
+        # checkpoints on GCP.
+        self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
     @pl.utilities.rank_zero.rank_zero_only
     def save_checkpoint(
@@ -88,80 +152,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                     res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
                 if res is not None:
                     logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
-
-
-@builder.register("ZettaDefaultTrainer")
-@typeguard.typechecked
-def build_default_trainer(
-    experiment_name: str,
-    experiment_version: str,
-    checkpointing_kwargs: Optional[dict] = None,
-    progress_bar_kwargs: Optional[dict] = None,
-    **kwargs,
-) -> pl.Trainer:
-    if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
-        api_key = os.environ.get("WANDB_API_KEY", None)
-        wandb.login(key=api_key)
-        wandb.init(group=f"{experiment_name}.{experiment_version}")
-
-    wandb_logger = WandbLogger(
-        project=experiment_name,
-        name=experiment_version,
-        id=experiment_version,
-    )
-
-    if wandb.run is not None:
-        this_dir = os.path.dirname(os.path.abspath(__file__))
-        zetta_root_path = f"{this_dir}/../../.."
-        wandb.run.log_code(zetta_root_path)
-
-    # Progress bar needs to be appended first to avoid default TQDM
-    # bar being appended
-    if progress_bar_kwargs is None:
-        progress_bar_kwargs = {}
-    prog_bar_callbacks = get_progress_bar_callbacks(
-        **progress_bar_kwargs,
-    )
-    assert "callbacks" not in kwargs
-
-    if "strategy" not in kwargs:
-        kwargs["strategy"] = ddp.DDPStrategy(find_unused_parameters=False)
-    trainer = ZettaDefaultTrainer(callbacks=prog_bar_callbacks, logger=wandb_logger, **kwargs)
-
-    # Checkpoint callbacks need `default_root_dir`, so they're created
-    # after
-    if checkpointing_kwargs is None:
-        checkpointing_kwargs = {}
-    log_dir = os.path.join(
-        trainer.default_root_dir,
-        experiment_name,
-        experiment_version,
-    )
-
-    trainer.callbacks += get_checkpointing_callbacks(
-        log_dir=log_dir,
-        **checkpointing_kwargs,
-    )
-
-    trainer.callbacks.append(ConfigureTraceCallback(trainer))
-
-    # Due to a bug in PL we're unable to use normal methods
-    # to resume training with ckpt_path='last' when storing
-    # checkpoints on GCP.
-    trainer._ckpt_path = os.path.join(log_dir, "last.ckpt")  # pylint: disable=protected-access
-
-    # def log_config(config):
-    #     if experiment_version.startswith("tmp"):
-    #         logger.info(
-    #             f"Not saving configuration for a temproary experiment {experiment_version}."
-    #         )
-    #     else:
-    #         wandb_logger.experiment.config["training_configuration"] = config
-    #         logger.info("Saved training configuration.")
-
-    # trainer.log_config = log_config  # type: ignore # pylint: disable=attribute-defined-outside-init
-
-    return trainer
 
 
 @typeguard.typechecked

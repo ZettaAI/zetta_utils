@@ -60,42 +60,44 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if "strategy" not in kwargs:
             kwargs["strategy"] = ddp.DDPStrategy(find_unused_parameters=False)
 
+        if checkpointing_kwargs is None:
+            checkpointing_kwargs = {}
+
+        if progress_bar_kwargs is None:
+            progress_bar_kwargs = {}
+
         if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
             wandb.init(group=f"{experiment_name}.{experiment_version}")
-
-        self.logger = WandbLogger(
-            project=experiment_name,
-            name=experiment_version,
-            id=experiment_version,
-        )
-
-        super().__init__(*args, **kwargs)
-        self.trace_configuration = None
 
         if wandb.run is not None:
             this_dir = os.path.dirname(os.path.abspath(__file__))
             zetta_root_path = f"{this_dir}/../../.."
             wandb.run.log_code(zetta_root_path)
 
-        if progress_bar_kwargs is None:
-            progress_bar_kwargs = {}
-        self.callbacks = get_progress_bar_callbacks(**progress_bar_kwargs)
+        kwargs["logger"] = WandbLogger(
+            project=experiment_name,
+            name=experiment_version,
+            id=experiment_version,
+        )
 
-        def log_config(config):
-            if experiment_version.startswith("tmp"):
-                logger.info(
-                    f"Not saving configuration for a temproary experiment {experiment_version}."
-                )
-            else:
-                self.logger.experiment.config["training_configuration"] = config  # type: ignore
-                logger.info("Saved training configuration.")
+        kwargs["callbacks"] = get_progress_bar_callbacks(**progress_bar_kwargs)
 
-        self.log_config = log_config
+        super().__init__(*args, **kwargs)
+        self.trace_configuration: Dict = {}
 
-        if checkpointing_kwargs is None:
-            checkpointing_kwargs = {}
+        # def log_config(config):
+        #     if experiment_version.startswith("tmp"):
+        #         logger.info(
+        #             f"Not saving configuration for a temproary experiment {experiment_version}."
+        #         )
+        #     else:
+        #         self.logger.experiment.config["training_configuration"] = config  # type: ignore
+        #         logger.info("Saved training configuration.")
+
+        # self.log_config = log_config
+
         log_dir = os.path.join(
             self.default_root_dir,
             experiment_name,
@@ -143,15 +145,14 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 with fsspec.open(spec_path, "w") as f:
                     json.dump(spec, f, indent=3)
 
-        if self.trace_configuration is not None:
-            for name in self.trace_configuration.keys():
-                model = self.trace_configuration[name]["model"]
-                trace_input = self.trace_configuration[name]["trace_input"]
-                ctx = torch.multiprocessing.get_context("spawn")
-                with ctx.Pool(processes=1) as pool:
-                    res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
-                if res is not None:
-                    logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
+        for name, val in self.trace_configuration.items():
+            model = val["model"]
+            trace_input = val["trace_input"]
+            ctx = torch.multiprocessing.get_context("spawn")
+            with ctx.Pool(processes=1) as pool:
+                res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
+            if res is not None:
+                logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
 
 
 @typeguard.typechecked

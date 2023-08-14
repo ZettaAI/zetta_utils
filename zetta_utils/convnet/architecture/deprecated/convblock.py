@@ -1,4 +1,5 @@
-# pylint: disable=protected-access
+# type: ignore
+# pylint: disable=protected-access, function-redefined
 from __future__ import annotations
 
 from typing import Callable, Literal, Sequence, Union
@@ -15,7 +16,7 @@ Padding: TypeAlias = Union[Literal["same", "valid"], Sequence[int]]
 PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
 
 
-@builder.register("ConvBlock", versions="==0.0.0")
+@builder.register("ConvBlock", versions="<=0.0.1")
 @typechecked
 # cant use attrs because torch Module + attrs combination makes pylint freak out
 class ConvBlock(nn.Module):

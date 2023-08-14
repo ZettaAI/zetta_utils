@@ -17,7 +17,7 @@ PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
 ActivationMode: TypeAlias = Literal["pre", "post"]
 
 
-@builder.register("ConvBlock", versions=">=0.0.1")
+@builder.register("ConvBlock", versions=">=0.0.2")
 @typechecked
 # cant use attrs because torch Module + attrs combination makes pylint freak out
 class ConvBlock(nn.Module):

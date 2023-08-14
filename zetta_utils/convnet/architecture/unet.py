@@ -17,7 +17,7 @@ from .convblock import ActivationMode, ConvBlock, Padding, PaddingMode
 SkipConnectionMode: TypeAlias = Literal["sum", "concat"]
 
 
-@builder.register("UNet", versions=">=0.0.1")
+@builder.register("UNet", versions=">=0.0.2")
 @typechecked
 class UNet(nn.Module):
     """

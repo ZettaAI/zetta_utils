@@ -24,9 +24,7 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
 
    $ git clone git@github.com:ZettaAI/zetta_utils.git
    $ cd zetta_utils
-   $ SETUPTOOLS_ENABLE_FEATURES=legacy-editable pip install -e '.[all]'
-
-The ``SETUPTOOLS_ENABLE_FEATURES=legacy-editable`` is necessary due to a shortcoming of ``setuptools`` (https://github.com/pypa/setuptools/issues/3535).
+   $ pip install -e '.[all]'
 
 .. note::
 

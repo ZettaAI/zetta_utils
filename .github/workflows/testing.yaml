@@ -8,7 +8,7 @@ on:
 
 env:
   WANDB_MODE: offline
-  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
+  #SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
   pytest:
@@ -63,7 +63,7 @@ jobs:
         with:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
-          
+
 
   pylint-isort:
     strategy:

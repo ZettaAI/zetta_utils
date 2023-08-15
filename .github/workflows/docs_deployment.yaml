@@ -9,8 +9,8 @@ permissions:
   pages: write
   id-token: write
 
-env:
-  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
+  #env:
+  #  SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:
   docs:

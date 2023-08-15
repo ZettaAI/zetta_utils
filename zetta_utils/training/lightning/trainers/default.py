@@ -87,16 +87,17 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         super().__init__(*args, **kwargs)
         self.trace_configuration: Dict = {}
 
-        # def log_config(config):
-        #     if experiment_version.startswith("tmp"):
-        #         logger.info(
-        #             f"Not saving configuration for a temproary experiment {experiment_version}."
-        #         )
-        #     else:
-        #         self.logger.experiment.config["training_configuration"] = config  # type: ignore
-        #         logger.info("Saved training configuration.")
+        @pl.utilities.rank_zero.rank_zero_only
+        def log_config(config):
+            if experiment_version.startswith("tmp"):
+                logger.info(
+                    f"Not saving configuration for a temproary experiment {experiment_version}."
+                )
+            else:
+                self.logger.experiment.config["training_configuration"] = config  # type: ignore
+                logger.info("Saved training configuration.")
 
-        # self.log_config = log_config
+        self.log_config = log_config
 
         log_dir = os.path.join(
             self.default_root_dir,

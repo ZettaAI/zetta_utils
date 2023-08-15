@@ -21,7 +21,7 @@ class AutoexecuteTaskQueue(MessageQueue):
     name: str = "local_execution"
     tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
-    handle_exceptions: bool = True
+    handle_exceptions: bool = False
 
     def push(self, payloads: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich

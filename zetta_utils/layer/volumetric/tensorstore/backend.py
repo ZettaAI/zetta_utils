@@ -65,7 +65,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
     Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
-    :param path: Precomputed path.
+    :param path: Precomputed path. Can be given as relative or absolute.
     :param info_spec: Specification for the info file for the layer. If None, the
         info is assumed to exist.
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
@@ -147,7 +147,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def is_local(self) -> bool:  # pragma: no cover
-        return self.path.startswith("file://")
+        return abspath(self.path).startswith("file://")
 
     @property
     def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover

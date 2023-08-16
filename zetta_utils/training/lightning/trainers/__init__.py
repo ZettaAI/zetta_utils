@@ -1,1 +1,1 @@
-from .default import build_default_trainer
+from .default import ZettaDefaultTrainer

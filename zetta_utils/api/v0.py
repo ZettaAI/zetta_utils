@@ -438,7 +438,6 @@ from zetta_utils.training.lightning.train import lightning_train, lightning_trai
 from zetta_utils.training.lightning.trainers.default import (
     ConfigureTraceCallback,
     ZettaDefaultTrainer,
-    build_default_trainer,
     get_checkpointing_callbacks,
     get_progress_bar_callbacks,
     trace_and_save_model,

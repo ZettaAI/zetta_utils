@@ -34,14 +34,15 @@ def _get_cv_cached(
     cache_bytes_limit: Optional[int] = None,
     **kwargs,
 ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
+    path_ = abspath(path)
     if cache_bytes_limit is None:
         cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
-    if (abspath(path), resolution) in _cv_cache:
-        return _cv_cache[(abspath(path), resolution)]
+    if (path_, resolution) in _cv_cache:
+        return _cv_cache[(path_, resolution)]
     if resolution is not None:
         result = CloudVolume(
-            abspath(path),
-            info=get_info(path),
+            path_,
+            info=get_info(path_),
             provenance={},
             mip=tuple(resolution),
             lru_bytes=cache_bytes_limit,
@@ -49,24 +50,25 @@ def _get_cv_cached(
         )
     else:
         result = CloudVolume(
-            abspath(path),
-            info=get_info(path),
+            path_,
+            info=get_info(path_),
             provenance={},
             lru_bytes=cache_bytes_limit,
             **kwargs,
         )
-    _cv_cache[(abspath(path), resolution)] = result
-    if path not in _cv_cached:
-        _cv_cached[abspath(path)] = set()
-    _cv_cached[abspath(path)].add(resolution)
+    _cv_cache[(path_, resolution)] = result
+    if path_ not in _cv_cached:
+        _cv_cached[path_] = set()
+    _cv_cached[path_].add(resolution)
     return result
 
 
 def _clear_cv_cache(path: str) -> None:
-    resolutions = _cv_cached.pop(abspath(path), None)
+    path_ = abspath(path)
+    resolutions = _cv_cached.pop(path_, None)
     if resolutions is not None:
         for resolution in resolutions:
-            _cv_cache.pop((abspath(path), resolution), None)
+            _cv_cache.pop((path_, resolution), None)
 
 
 @attrs.mutable
@@ -76,7 +78,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
     Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
-    :param path: CloudVolume path.
+    :param path: CloudVolume path. Can be given as relative or absolute.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
         ``mip`` keyword must not be present in ``cv_kwargs``, as the read resolution
         is passed in as a part of index to the backend.
@@ -150,7 +152,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def is_local(self) -> bool:  # pragma: no cover
-        return self.path.startswith("file://")
+        return abspath(self.path).startswith("file://")
 
     @property
     def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover

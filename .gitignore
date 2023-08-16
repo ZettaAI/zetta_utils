@@ -136,7 +136,10 @@ venv.bak/
 /site
 
 # vim swap
-*.swp
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-v][a-z]
+[._]sw[a-p]
 
 # mypy
 .mypy_cache/

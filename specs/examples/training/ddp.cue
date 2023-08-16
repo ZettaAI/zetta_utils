@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_remote_gpu4_x1"
+#EXP_VERSION: "ddp_remote_gpu4_x3"
 
 #TRAINING_ROOT: "gs://tmp_2w/examples/training_artifacts"
 

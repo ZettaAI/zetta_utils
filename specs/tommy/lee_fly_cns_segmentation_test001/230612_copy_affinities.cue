@@ -40,7 +40,7 @@ local_test:      true
 }
 
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		#COPY_TEMPLATE & {
 			op_kwargs: {

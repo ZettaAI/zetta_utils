@@ -395,7 +395,7 @@
 		stages: [
 			for block in #BLOCKS {
 				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-				"@type": "mazepa.seq_flow"
+				"@type": "mazepa.sequential_flow"
 				stages: [
 					#MATCH_OFFSETS_FLOW & {'bbox': bbox},
 					#RELAX_FLOW & {'bbox':         bbox},

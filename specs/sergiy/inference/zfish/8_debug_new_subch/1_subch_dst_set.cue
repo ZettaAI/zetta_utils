@@ -305,7 +305,7 @@
 	fn: {"@type": "invert_field", "@mode": "partial"}
 	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1]]
 	processing_crop_pads: [[64, 64, 0]]
-	temp_layers_dirs: ["file://~/.zutils/cache/"]
+	level_intermediaries_dirs: ["file://~/.zutils/cache/"]
 	dst_resolution: [32, 32, 30]
 	bbox: #BBOX
 	src: {
@@ -334,7 +334,7 @@
 	}
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	processing_crop_pads: [[128, 128, 0]]
-	temp_layers_dirs: ["file://~/.zutils/cache/"]
+	level_intermediaries_dirs: ["file://~/.zutils/cache/"]
 
 	dst_resolution: [32, 32, 30]
 
@@ -450,10 +450,10 @@
 }
 
 #JOINT_POST_ALIGN_FLOW: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				{
 					"@type": "mazepa.concurrent_flow"
@@ -533,7 +533,7 @@
 	local_test:           true
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,

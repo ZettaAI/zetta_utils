@@ -447,7 +447,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
@@ -705,7 +705,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				// {
-				//  "@type": "mazepa.seq_flow"
+				//  "@type": "mazepa.sequential_flow"
 				//  stages: [
 				//   for res in [64, 128, 256, 512, 1024] {
 				//    #DOWNSAMPLE_FLOW_TMPL & {
@@ -720,7 +720,7 @@
 				//  ]
 				// },
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -732,7 +732,7 @@
 					]
 				},
 				// {
-				//  "@type": "mazepa.seq_flow"
+				//  "@type": "mazepa.sequential_flow"
 				//  stages: [
 				//   for res in [64, 128, 256, 512, 1024] {
 				//    #DOWNSAMPLE_FLOW_TMPL & {
@@ -744,7 +744,7 @@
 				//  ]
 				// },
 				// {
-				//  "@type": "mazepa.seq_flow"
+				//  "@type": "mazepa.sequential_flow"
 				//  stages: [
 				//   for res in [64, 128, 256, 512, 1024] {
 				//    #DOWNSAMPLE_FLOW_TMPL & {
@@ -809,7 +809,7 @@
 	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-hasty-thick-woodlouse-of-satiation/2023-04-19_154855_783.zstd"
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#CREATE_TISSUE_MASK,

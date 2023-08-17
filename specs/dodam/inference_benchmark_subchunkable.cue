@@ -45,7 +45,7 @@
 
 	max_reduction_chunk_sizes: [4096, 4096, 16]
 
-	temp_layers_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
 	allow_cache_up_to_level: 1
 
 	image: {

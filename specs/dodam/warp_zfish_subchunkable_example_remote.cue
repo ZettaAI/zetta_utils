@@ -35,7 +35,7 @@ target: {
 
 	fov_crop_pad: [0, 0, 0]
 
-	temp_layers_dirs: [#TEMP_PATH1, #TEMP_PATH0]
+	level_intermediaries_dirs: [#TEMP_PATH1, #TEMP_PATH0]
 	allow_cache_up_to_level: 1
 	src: {
 		"@type": "build_cv_layer"

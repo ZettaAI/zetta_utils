@@ -24,7 +24,7 @@
 
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	processing_crop_pads: [[512, 512, 0]]
-	temp_layers_dirs: ["file://~.zutils/tmp_layers"]
+	level_intermediaries_dirs: ["file://~.zutils/tmp_layers"]
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {

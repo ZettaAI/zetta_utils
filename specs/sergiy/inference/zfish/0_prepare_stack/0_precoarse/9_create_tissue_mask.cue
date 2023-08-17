@@ -83,7 +83,7 @@
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				for res in [64, 128, 256, 512, 1024] {
 					#DOWNSAMPLE_FLOW_TMPL & {
@@ -115,7 +115,7 @@
 	worker_cluster_project: "zetta-jlichtman-zebrafish-001"
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			#CREATE_TISSUE_MASK,
 			#DOWNSAMPLE_FLOW,

@@ -310,14 +310,14 @@
 	worker_cluster_project: "zetta-lee-fly-vnc-001"
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			{
-				"@type": "mazepa.seq_flow"
+				"@type": "mazepa.sequential_flow"
 				stages: [
 					for block in #BLOCKS {
 						let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-						"@type": "mazepa.seq_flow"
+						"@type": "mazepa.sequential_flow"
 						stages: [
 							#MATCH_OFFSETS_FLOW & {'bbox': bbox},
 						]
@@ -329,7 +329,7 @@
 				stages: [
 					for block in #BLOCKS {
 						let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-						"@type": "mazepa.seq_flow"
+						"@type": "mazepa.sequential_flow"
 						stages: [
 							#POST_ALIGN_FLOW & {_bbox: bbox},
 						]

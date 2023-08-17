@@ -102,8 +102,9 @@ def create_instancegroup_from_template(
     """
     Creates a Compute Engine VM instance group from an instance template.
     """
-    client = compute_v1.InstanceGroupManagersClient()
+    assert min_replicas <= max_replicas
 
+    client = compute_v1.InstanceGroupManagersClient()
     request = compute_v1.InsertInstanceGroupManagerRequest()
     request.project = project
     request.zone = zone
@@ -117,7 +118,6 @@ def create_instancegroup_from_template(
     wait_for_extended_operation(operation)
     igmanager = client.get(project=project, zone=zone, instance_group_manager=mig_name)
 
-    assert min_replicas <= max_replicas
     if min_replicas < max_replicas:
         create_mig_autoscaler(
             project=project,

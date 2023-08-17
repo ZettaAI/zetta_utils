@@ -13,7 +13,7 @@ import torch
 from typeguard import suppress_type_checks
 
 from zetta_utils import tensor_ops
-from zetta_utils.common import abspath
+from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -147,7 +147,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def is_local(self) -> bool:  # pragma: no cover
-        return abspath(self.path).startswith("file://")
+        return is_local(self.path)
 
     @property
     def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover

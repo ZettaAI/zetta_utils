@@ -99,7 +99,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     fn: Callable[P, Tensor] | None = None,
     op: VolumetricOpProtocol[P, None, Any] | None = None,
     op_args: Iterable = (),
-    op_kwargs: Mapping[str, Any] = MappingProxyType({}),
+    op_kwargs: Mapping[str, Any] | None = None,
     bbox: BBox3D | None = None,
     start_coord: Sequence[int] | None = None,
     end_coord: Sequence[int] | None = None,
@@ -218,6 +218,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         assert fn is not None
         op_ = VolumetricCallableOperation[P](fn)
 
+    if op_kwargs is not None:
+        op_kwargs_ = op_kwargs
+    else:
+        op_kwargs_ = {}
+
     if generate_ng_link and not print_summary:
         raise ValueError("Cannot use `generate_ng_link` when `print_summary=False`.")
 
@@ -325,7 +330,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         print_summary=print_summary,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
-        op_kwargs=op_kwargs,
+        op_kwargs=op_kwargs_,
     )
 
 

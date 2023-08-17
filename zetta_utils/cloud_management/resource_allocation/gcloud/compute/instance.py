@@ -68,7 +68,7 @@ def create_instance_from_template(
     project: str,
     zone: str,
     instance_name: str,
-    instance_template_name: str,
+    template_name: str,
 ) -> compute_v1.Instance:
     """
     Creates a Compute Engine VM instance from an instance template.
@@ -79,7 +79,7 @@ def create_instance_from_template(
     request.project = project
     request.zone = zone
 
-    instance_template = f"projects/{project}/global/instanceTemplates/{instance_template_name}"
+    instance_template = f"projects/{project}/global/instanceTemplates/{template_name}"
     request.source_instance_template = instance_template
     request.instance_resource.name = instance_name
 

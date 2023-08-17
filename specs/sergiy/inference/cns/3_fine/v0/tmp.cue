@@ -425,7 +425,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
@@ -605,7 +605,7 @@
 }
 
 #POST_ALIGN_FLOW: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		#WARP_FLOW_TMPL & {
 			op: mode:    "img"
@@ -635,7 +635,7 @@
 	local_test:           true
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,

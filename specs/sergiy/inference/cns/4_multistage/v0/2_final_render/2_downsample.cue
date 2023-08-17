@@ -45,7 +45,7 @@ worker_cluster_project: "zetta-lee-fly-vnc-001"
 worker_replicas:        500
 local_test:             false
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		for res in [32, 64, 128, 256, 512, 1024] {
 			#FLOW_TMPL & {

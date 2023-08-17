@@ -44,7 +44,7 @@ target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				#FLOW_TMPL & {
 					op: mode:  "mask"
@@ -67,7 +67,7 @@ target: {
 			]
 		},
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				for res in [64, 128, 256, 512, 1024, 2048, 4096] {
 					#FLOW_TMPL & {

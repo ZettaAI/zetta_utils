@@ -24,7 +24,7 @@
 
 	dst_resolution: [256, 256, 45]
 	bbox: #BBOX
-	temp_layers_dirs: ["gs://tmp_2w/tmp_dirs"]
+	level_intermediaries_dirs: ["gs://tmp_2w/tmp_dirs"]
 	src: {
 		"@type": "build_cv_layer"
 		path:    #SRC_PATH

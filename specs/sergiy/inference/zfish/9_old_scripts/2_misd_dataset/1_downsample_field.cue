@@ -36,7 +36,7 @@ exec_queue: {
 	pull_lease_sec:     6
 }
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		for res in #RESOLUTIONS {
 			#STAGE_TMPL & {

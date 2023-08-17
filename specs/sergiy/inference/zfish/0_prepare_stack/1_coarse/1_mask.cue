@@ -33,7 +33,7 @@
 	}
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	processing_crop_pads: [[0, 0, 0]]
-	temp_layers_dirs: ["file://~.zutils/tmp_layers"]
+	level_intermediaries_dirs: ["file://~.zutils/tmp_layers"]
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {
@@ -96,7 +96,7 @@ batch_gap_sleep_sec: 1
 local_test: false
 
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		{
 			"@type": "mazepa.concurrent_flow"

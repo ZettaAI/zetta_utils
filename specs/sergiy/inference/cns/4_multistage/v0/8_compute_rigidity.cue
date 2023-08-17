@@ -188,14 +188,14 @@ target: {
 		for z_offset in [-1, -2] {
 			[
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						{
 							"@type": "mazepa.concurrent_flow"
 							stages: [
 								#GET_RIGIDITY_FLOW & {_z_offset: z_offset, _field_type: "inv"},
 								{
-									"@type": "mazepa.seq_flow"
+									"@type": "mazepa.sequential_flow"
 									stages: [
 										#GET_RIGIDITY_FLOW & {_z_offset: z_offset, _field_type: "fwd"},
 										#WARP_MASK_TMPL & {_z_offset:    z_offset},

@@ -1,5 +1,6 @@
 # pylint: disable=unused-import
 
+
 from zetta_utils.alignment.aced_relaxation import (
     compute_aced_loss_new,
     get_aced_match_offsets,
@@ -122,7 +123,9 @@ from zetta_utils.common.user_input import (
 from zetta_utils.convnet.architecture.convblock import ConvBlock
 from zetta_utils.convnet.architecture.primitives import (
     AvgPool2DFlatten,
+    CenterCrop,
     Clamp,
+    Crop,
     Flatten,
     MaxPool2DFlatten,
     RescaleValues,
@@ -145,7 +148,7 @@ from zetta_utils.distributions.common import (
 )
 from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.geometry.bbox_strider import BBoxStrider
-from zetta_utils.geometry.vec import Vec3D, is_int_vec, is_raw_vec3d
+from zetta_utils.geometry.vec import Vec3D, allclose, is_int_vec, is_raw_vec3d, isclose
 from zetta_utils.layer.backend_base import Backend
 from zetta_utils.layer.db_layer.backend import DBBackend
 from zetta_utils.layer.db_layer.build import build_db_layer
@@ -370,6 +373,7 @@ from zetta_utils.tensor_ops.common import (
     add,
     compare,
     crop,
+    crop_center,
     divide,
     int_divide,
     interpolate,
@@ -451,5 +455,5 @@ from zetta_utils.typing import (
 from zetta_utils.viz.rendering import Renderer, get_img_from_fig, render_fld, render_img
 from zetta_utils.viz.widgets import entry_loader, visualize_list
 
-set_verbosity(2)
+set_verbosity("INFO")
 configure_logger()

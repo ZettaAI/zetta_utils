@@ -20,30 +20,35 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
+# wrapper to cache using absolute paths with '/info'
+def get_info(path: str) -> Dict[str, Any]:
+    return _get_info_from_info_path(_to_info_path(path))
+
 
 @cachetools.cached(_info_cache, key=_info_hash_key)
-def get_info(path: str) -> Dict[str, Any]:
-    path = abspath(path)
-    if not path.endswith("/info"):
-        path = os.path.join(path, "info")
+def _get_info_from_info_path(info_path: str) -> Dict[str, Any]:
     try:
         fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
-        with fsspec.open(path) as f:
+        with fsspec.open(info_path) as f:
             result = json.load(f)
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"'{path}' does not have an infofile.") from e
+        raise FileNotFoundError(f"The infofile at '{info_path}' does not exist.") from e
     return result
 
 
 def _write_info(
     info: Dict[str, Any], path: str
 ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
-    path = abspath(path)
+    info_path = _to_info_path(path)
+    fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
+    with fsspec.open(info_path, "w") as f:
+        json.dump(info, f)
+
+
+def _to_info_path(path: str) -> str:
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
-    fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
-    with fsspec.open(path, "w") as f:
-        json.dump(info, f)
+    return abspath(path)
 
 
 def _str(n: float) -> str:  # pragma: no cover
@@ -159,10 +164,9 @@ class PrecomputedInfoSpec:
                     f"info existing at '{path}' "
                     "while `on_info_exists` is set to 'expect_same'"
                 )
-
             if existing_info != new_info:
                 _write_info(new_info, path)
-                _info_cache[_info_hash_key(path)] = new_info
+                _info_cache[_info_hash_key(_to_info_path(path))] = new_info
                 return True
 
         return False

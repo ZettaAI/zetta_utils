@@ -14,3 +14,7 @@ def abspath(path: str) -> str:  # pragma: no cover
     if prefixes == ["file"]:
         path_no_prefix = os.path.abspath(os.path.expanduser(path_no_prefix))
     return "://".join(prefixes + [path_no_prefix])
+
+
+def is_local(path: str) -> bool:  # pragma: no cover
+    return abspath(path).startswith("file://")

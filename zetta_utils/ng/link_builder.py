@@ -1,5 +1,5 @@
 import os
-from typing import Literal, Optional, Sequence
+from typing import Literal, Optional, Sequence, Tuple
 
 import neuroglancer
 import numpy as np
@@ -19,7 +19,8 @@ def _get_seunglab_branch_json_state(
 ) -> dict:  # pragma: no cover # visualization related code
     json_state = neuroglancer.url_state.to_json(state)
     for e in json_state["layers"]:
-        e["source"] = e["source"][0]["url"]
+        if "source" in e:
+            e["source"] = e["source"][0]["url"]
 
     json_state["navigation"] = {"zoomFactor": scale_bar_nm / 100}
     if position is not None:
@@ -30,7 +31,7 @@ def _get_seunglab_branch_json_state(
 @typechecked
 @builder.register("make_ng_link")
 def make_ng_link(
-    layers: Sequence[Sequence[str]],
+    layers: Sequence[Tuple[str, str, Optional[str]]],
     position: Optional[Vec3D] = None,
     scale_bar_nm: float = 20.0,
     layout: Literal["xy", "4panel"] = "xy",
@@ -42,10 +43,13 @@ def make_ng_link(
     with viewer.txn() as s:
         for layer_spec in layers:
             if len(layer_spec) != 3:
-                raise ValueError("Each layer spec must be a triple of stirngs")
+                raise ValueError("Each layer spec must be a triple of strings")
 
+            kwargs = {}
+            if layer_spec[2] is not None:
+                kwargs.update({"source": layer_spec[2]})
             s.layers[layer_spec[0]] = neuroglancer.viewer_state.layer_types[layer_spec[1]](
-                source=layer_spec[2]
+                **kwargs
             )
         s.layout = neuroglancer.viewer_state.DataPanelLayout(layout)
 

@@ -518,7 +518,7 @@ def _make_ng_link(
         layer_path = layer_str.split(" ")[-1]
         try:
             build_cv_layer(layer_path)
-            link_layers.append([layer_name, "image", "precomputed://" + layer_path.strip("/")])
+            link_layers.append((layer_name, "image", "precomputed://" + layer_path.strip("/")))
         except FileNotFoundError:
             pass
     try:

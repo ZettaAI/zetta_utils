@@ -369,7 +369,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -385,7 +385,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -398,7 +398,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -411,7 +411,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -485,11 +485,11 @@
 	checkpoint:             "gs://zetta_utils_runs/sergiy/exec-beryl-chachalaca-of-immortal-courage/2023-05-25_044359_601.zstd"
 	target: {
 		//"@type": "mazepa.concurrent_flow"
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			for block in #BLOCKS {
 				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-				"@type": "mazepa.seq_flow"
+				"@type": "mazepa.sequential_flow"
 				stages: [
 					// #JOINT_OFFSET_FLOW & {
 					//  _bbox: bbox

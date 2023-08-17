@@ -15,7 +15,7 @@
 	start_coord: [0, 0, #Z_START]
 	end_coord: [1024, 1024, #Z_END]
 	coord_resolution: [512, 512, 45]
-	temp_layers_dirs: ["gs://tmp_2w/tmp_dirs", "file://~/.cloudvolume/memcache/"]
+	level_intermediaries_dirs: ["gs://tmp_2w/tmp_dirs", "file://~/.cloudvolume/memcache/"]
 	src: {
 		"@type":    "build_cv_layer"
 		path:       _

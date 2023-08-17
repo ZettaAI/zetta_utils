@@ -425,7 +425,7 @@ import "list"
 				"@type": "mazepa.concurrent_flow"
 				stages: [
 					{
-						"@type": "mazepa.seq_flow"
+						"@type": "mazepa.sequential_flow"
 						stages: [
 							// Coarse Alignment
 							#CF_FLOW_TMPL & {
@@ -570,5 +570,5 @@ import "list"
 
 	//ALIGN
 	#JOINT_OFFSET_FLOW
-	
+
 ]

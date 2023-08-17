@@ -27,7 +27,7 @@ target: {
 	"@type": "build_subchunkable_apply_flow"
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	processing_crop_pads: [[128, 128, 0]]
-	temp_layers_dirs: ["file://~.zutils/tmp_layers"]
+	level_intermediaries_dirs: ["file://~.zutils/tmp_layers"]
 	dst_resolution: [32, 32, 30]
 	bbox: #BBOX
 

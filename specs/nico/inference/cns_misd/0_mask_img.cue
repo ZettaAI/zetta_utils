@@ -75,7 +75,7 @@ batch_gap_sleep_sec: 0.05
 local_test: false
 
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		for res in [32, 64, 128] {
 			#FLOW_TMPL & {

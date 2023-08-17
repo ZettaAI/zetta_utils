@@ -68,7 +68,7 @@ worker_replicas:        500
 local_test:             false
 checkpoint:             "gs://zetta_utils_runs/sergiy/exec-fresh-illegal-lion-of-prestige/2023-05-06_185358_44216.zstd"
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		#FLOW_TMPL & {
 			src: path:            #COARSE_FIELD

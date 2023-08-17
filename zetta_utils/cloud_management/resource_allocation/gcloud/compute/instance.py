@@ -24,6 +24,7 @@ def create_instance_template(
     source_image: str,
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
     network: str = "default",
+    on_host_maintenance: Literal["MIGRATE", "TERMINATE"] = "MIGRATE",
     provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
     subnetwork: Optional[str] = None,
 ) -> compute_v1.InstanceTemplate:
@@ -47,6 +48,7 @@ def create_instance_template(
     template.properties.disks = [disk]
     template.properties.machine_type = machine_type
     template.properties.scheduling.provisioning_model = provisioning_model
+    template.properties.scheduling.on_host_maintenance = on_host_maintenance
 
     if accelerators is not None:
         template.properties.guest_accelerators = accelerators

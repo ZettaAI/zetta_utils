@@ -23,6 +23,7 @@ def create_instance_template(
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
     disk_size_gb: int = 64,
     network: str = "default",
+    provisioning_model: str = "STANDARD",
     subnetwork: Optional[str] = None,
     source_image: str = "projects/debian-cloud/global/images/family/debian-12",
 ) -> compute_v1.InstanceTemplate:
@@ -45,6 +46,7 @@ def create_instance_template(
     template.properties = compute_v1.InstanceProperties()
     template.properties.disks = [disk]
     template.properties.machine_type = machine_type
+    template.properties.scheduling.provisioning_model = provisioning_model
 
     if accelerators is not None:
         template.properties.guest_accelerators = accelerators
@@ -92,8 +94,8 @@ def create_instancegroup_from_template(
     zone: str,
     mig_name: str,
     template_name: str,
-    cpu_utilization_target: float = 65,
-    target_size: int = 0,
+    cpu_utilization_target: float = 0.7,
+    target_size: int = 1,
     min_replicas: int = 1,
     max_replicas: int = 1,
 ) -> compute_v1.InstanceGroupManager:
@@ -102,12 +104,9 @@ def create_instancegroup_from_template(
     """
     client = compute_v1.InstanceGroupManagersClient()
 
-    request = compute_v1.InsertInstanceGroupManagerRequest(
-        project=project,
-        zone=zone,
-    )
-
-    request.instance_group_manager_resource = compute_v1.InstanceGroupManager()
+    request = compute_v1.InsertInstanceGroupManagerRequest()
+    request.project = project
+    request.zone = zone
 
     instance_template = f"projects/{project}/global/instanceTemplates/{template_name}"
     request.instance_group_manager_resource.instance_template = instance_template
@@ -116,20 +115,20 @@ def create_instancegroup_from_template(
 
     operation = client.insert(request)
     wait_for_extended_operation(operation)
+    igmanager = client.get(project=project, zone=zone, instance_group_manager=mig_name)
 
     assert min_replicas <= max_replicas
     if min_replicas < max_replicas:
         create_mig_autoscaler(
             project=project,
             zone=zone,
-            autoscaler_name=f"{mig_name}_autoscaler",
-            target=mig_name,
+            autoscaler_name=f"{mig_name}-autoscaler",
+            target=igmanager.self_link,
             cpu_utilization_target=cpu_utilization_target,
             min_replicas=min_replicas,
             max_replicas=max_replicas,
         )
-
-    return client.get(project=project, zone=zone, instance_group_manager=mig_name)
+    return igmanager
 
 
 @builder.register("gcloud.create_mig_autoscaler")
@@ -138,12 +137,16 @@ def create_mig_autoscaler(
     zone: str,
     autoscaler_name: str,
     target: str,
-    cpu_utilization_target: float = 65,
+    cool_down_period_sec: int = 60,
+    cpu_utilization_target: float = 0.7,
     min_replicas: int = 1,
     max_replicas: int = 7,
+    mode: str = "ON",
 ) -> compute_v1.Autoscaler:
     """
     Creates a Compute Engine Autoscaler for a Managed Instance Group (MIG).
+
+    `target` format - `projects/{project}/zones/{zone}/instanceGroups/{mig_name}`
     """
     client = compute_v1.AutoscalersClient()
 
@@ -151,11 +154,14 @@ def create_mig_autoscaler(
     request.project = project
     request.zone = zone
     request.autoscaler_resource.target = target
+    request.autoscaler_resource.name = autoscaler_name
 
     autoscaling_policy = request.autoscaler_resource.autoscaling_policy
+    autoscaling_policy.cool_down_period_sec = cool_down_period_sec
     autoscaling_policy.cpu_utilization.utilization_target = cpu_utilization_target
     autoscaling_policy.min_num_replicas = min_replicas
     autoscaling_policy.max_num_replicas = max_replicas
+    autoscaling_policy.mode = mode
 
     operation = client.insert(request)
     wait_for_extended_operation(operation)

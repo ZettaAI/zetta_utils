@@ -120,7 +120,7 @@
 	local_test:           false
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			#WARP_FLOW_TMPL & {
 				op: mode: "field"

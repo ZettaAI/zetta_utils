@@ -430,7 +430,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
@@ -709,7 +709,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -725,7 +725,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -738,7 +738,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -751,7 +751,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						for res in [64, 128, 256, 512, 1024] {
 							#DOWNSAMPLE_FLOW_TMPL & {
@@ -823,7 +823,7 @@
 		stages: [
 			for block in #BLOCKS {
 				let bbox = #BBOX_TMPL & {_z_start: block._z_start, _z_end: block._z_end}
-				"@type": "mazepa.seq_flow"
+				"@type": "mazepa.sequential_flow"
 				stages: [
 					// #JOINT_OFFSET_FLOW & {
 					//  _bbox: bbox

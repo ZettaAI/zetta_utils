@@ -253,7 +253,7 @@ target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		for offset in #Z_OFFSETS {
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				{
 					"@type": "mazepa.concurrent_flow"

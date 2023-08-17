@@ -202,7 +202,7 @@ import "list"
 	"@type": "mazepa.concurrent_flow"
 	stages: [
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				#DOWNSAMPLE_FLOW_TMPL & {
 					op: mode:  "mask"
@@ -223,7 +223,7 @@ import "list"
 			]
 		},
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				for res in [64, 128, 256, 512, 1024, 2048, 4096] {
 					#DOWNSAMPLE_FLOW_TMPL & {

@@ -29,7 +29,7 @@
 
 	processing_chunk_sizes: [[1024, 1024, 1]]
 	processing_crop_pads: [[512, 512, 0]]
-	temp_layers_dirs: ["file://~.zutils/tmp_layers"]
+	level_intermediaries_dirs: ["file://~.zutils/tmp_layers"]
 	dst_resolution: _
 	bbox:           #BBOX
 	src: {
@@ -83,7 +83,7 @@ worker_resources: {
 	memory: "18560Mi"
 }
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		#WARP_TMPL & {
 			src: path: #COARSE_FIELD

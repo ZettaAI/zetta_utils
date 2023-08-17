@@ -363,7 +363,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_FWD_PATH)/\(z_offset)"
@@ -374,7 +374,7 @@
 					]
 				},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
@@ -492,11 +492,11 @@
 }
 
 #JOINT_POST_ALIGN_FLOW: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				{
 					"@type": "mazepa.concurrent_flow"
@@ -572,7 +572,7 @@
 	local_test:           false
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,

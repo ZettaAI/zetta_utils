@@ -10,7 +10,7 @@
 	"@type": "BBox3D.from_coords"
 	//start_coord: [0, 0, 2958]
 	start_coord: [24 * 1024, 32 * 1024, 2958]
-	end_coord: [40 * 1024, 48 * 1024, 3093]
+	end_coord: [40 * 1024, 48 * 1024, 2959]
 	resolution: [4, 4, 30]
 }
 
@@ -29,26 +29,28 @@
 
 	processing_chunk_sizes: [[1024, 1024, 1]]
 	processing_crop_pads: [[512, 512, 0]]
-	temp_layers_dirs: ["file://~.zutils/tmp_layers"]
+	level_intermediaries_dirs: ["file://~.zutils/tmp_layers"]
 	dst_resolution: _
 	bbox:           #BBOX
-	src: {
-		"@type":            "build_cv_layer"
-		path:               _
-		data_resolution:    _ | *null
-		interpolation_mode: _ | *null
-	}
-	field: {
-		"@type":            "build_cv_layer"
-		path:               _
-		data_resolution:    _ | *null
-		interpolation_mode: "field"
+	op_kwargs: {
+		src: {
+			"@type":            "build_cv_layer"
+			path:               _
+			data_resolution:    _ | *null
+			interpolation_mode: _ | *null
+		}
+		field: {
+			"@type":            "build_cv_layer"
+			path:               _
+			data_resolution:    _ | *null
+			interpolation_mode: "field"
+		}
 	}
 	dst: {
 		"@type": "build_cv_layer"
 		path:    _
 
-		info_reference_path: src.path
+		info_reference_path: op_kwargs.src.path
 
 		info_chunk_size: [1024, 1024, 1]
 
@@ -77,30 +79,33 @@
 worker_image:        "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x90"
 worker_replicas:     30
 batch_gap_sleep_sec: 0.2
-local_test:          false
+local_test:          true
 
 worker_resources: {
 	memory: "18560Mi"
 }
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		#WARP_TMPL & {
-			src: path: #COARSE_FIELD
-			src: data_resolution: [256, 256, 30]
-			src: interpolation_mode: "field"
+			op_kwargs: {
+				src: path: #COARSE_FIELD
+				src: data_resolution: [256, 256, 30]
+				src: interpolation_mode: "field"
 
-			field: path: #FINE_FIELD
-
+				field: path: #FINE_FIELD
+			}
 			dst: path: #COMBINED_FIELD
 			dst_resolution: [32, 32, 30]
 			op: mode: "field"
 		},
 		#WARP_TMPL & {
+			op_kwargs: {
+				src: path:   #PRECOARSE_IMG
+				field: path: #COMBINED_FIELD
+				field: data_resolution: [32, 32, 30]
+			}
 			dst_resolution: [16, 16, 30]
-			src: path:   #PRECOARSE_IMG
-			field: path: #COMBINED_FIELD
-			field: data_resolution: [32, 32, 30]
 			dst: path: #FINAL_IMG
 			op: mode:  "img"
 		},

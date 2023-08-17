@@ -327,7 +327,7 @@
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_PATH)/\(z_offset)"
@@ -373,7 +373,7 @@
 	}
 	processing_chunk_sizes: [[2048, 2048, 1]]
 	processing_crop_pads: [[128, 128, 0]]
-	temp_layers_dirs: ["file://~/.zutils/cache/"]
+	level_intermediaries_dirs: ["file://~/.zutils/cache/"]
 
 	dst_resolution: [32, 32, 30]
 
@@ -489,10 +489,10 @@
 }
 
 #JOINT_POST_ALIGN_FLOW: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		{
-			"@type": "mazepa.seq_flow"
+			"@type": "mazepa.sequential_flow"
 			stages: [
 				{
 					"@type": "mazepa.concurrent_flow"
@@ -572,7 +572,7 @@
 	local_test:           true
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			//#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,

@@ -187,7 +187,7 @@ batch_gap_sleep_sec: 1
 local_test:          false
 #Z_OFFSETS: [-1]
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		// #INVERT_FLOW,
 		// for offset in #Z_OFFSETS {

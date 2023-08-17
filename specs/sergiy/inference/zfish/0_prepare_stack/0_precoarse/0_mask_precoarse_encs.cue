@@ -95,7 +95,7 @@ batch_gap_sleep_sec: 1
 local_test: false
 
 target: {
-	"@type": "mazepa.seq_flow"
+	"@type": "mazepa.sequential_flow"
 	stages: [
 		{
 			"@type": "mazepa.concurrent_flow"

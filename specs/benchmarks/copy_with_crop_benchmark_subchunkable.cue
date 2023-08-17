@@ -32,7 +32,7 @@
 	crop_pads: [0, 0, 0]
 	blend_pads: [0, 0, 0]
 	blend_modes:             "quadratic"
-	temp_layers_dirs:        #TEMP_PATH
+	level_intermediaries_dirs:        #TEMP_PATH
 	allow_cache_up_to_level: 1
 	src: {
 		"@type": "build_cv_layer"

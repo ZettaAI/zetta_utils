@@ -298,7 +298,7 @@
 				//tgt_offset: [0, 0, z_offset]
 				//},
 				{
-					"@type": "mazepa.seq_flow"
+					"@type": "mazepa.sequential_flow"
 					stages: [
 						#CF_FLOW_TMPL & {
 							dst: path: "\(#FIELDS_BWD_PATH)/\(z_offset)"
@@ -338,7 +338,7 @@
 	local_test:           false
 
 	target: {
-		"@type": "mazepa.seq_flow"
+		"@type": "mazepa.sequential_flow"
 		stages: [
 			#JOINT_OFFSET_FLOW,
 			//#MATCH_OFFSETS_FLOW,

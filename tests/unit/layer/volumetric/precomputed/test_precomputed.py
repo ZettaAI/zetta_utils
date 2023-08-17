@@ -21,6 +21,7 @@ LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
 LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
 LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
 LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
+NONEXISTENT_LAYER_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "nonexistent_layer")
 
 _write_info_notmock = precomputed._write_info
 
@@ -28,6 +29,11 @@ _write_info_notmock = precomputed._write_info
 @pytest.fixture
 def clear_caches():
     precomputed._info_cache.clear()
+
+
+def test_nonexistent_info():
+    with pytest.raises(FileNotFoundError):
+        precomputed.get_info(NONEXISTENT_LAYER_PATH)
 
 
 def test_infospec_expect_same_exc(mocker):

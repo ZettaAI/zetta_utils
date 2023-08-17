@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import MutableSequence, Optional
+from typing import Literal, MutableSequence, Optional
 
 from google.cloud import compute_v1
 
@@ -23,7 +23,7 @@ def create_instance_template(
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
     disk_size_gb: int = 64,
     network: str = "default",
-    provisioning_model: str = "STANDARD",
+    provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
     subnetwork: Optional[str] = None,
     source_image: str = "projects/debian-cloud/global/images/family/debian-12",
 ) -> compute_v1.InstanceTemplate:
@@ -141,7 +141,7 @@ def create_mig_autoscaler(
     cpu_utilization_target: float = 0.7,
     min_replicas: int = 1,
     max_replicas: int = 7,
-    mode: str = "ON",
+    mode: Literal["ON", "OFF", "ONLY_SCALE_OUT"] = "ON",
 ) -> compute_v1.Autoscaler:
     """
     Creates a Compute Engine Autoscaler for a Managed Instance Group (MIG).

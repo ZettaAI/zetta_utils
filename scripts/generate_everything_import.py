@@ -55,8 +55,12 @@ def handle_name_overlap(
 
 def get_all_objects(package: str, root_package: str, module: ModuleType | None = None) -> str:
     cache: dict[str, ModuleType] = {}
-    package_module = importlib.import_module(package) if module is None else module
     imports: set[str] = set()
+    try:
+        package_module = importlib.import_module(package) if module is None else module
+    except ImportError:
+        logger.warning(f"Failed to import {package}.")
+        return "\n".join(imports)
     if package_module.__file__:
         package_dir = os.path.dirname(package_module.__file__)
         for _, module_name, _ in pkgutil.walk_packages(
@@ -64,7 +68,10 @@ def get_all_objects(package: str, root_package: str, module: ModuleType | None =
         ):
             if module_name == "zetta_utils.everything":
                 continue
-            module = cache.setdefault(module_name, importlib.import_module(module_name))
+            try:
+                module = cache.setdefault(module_name, importlib.import_module(module_name))
+            except ImportError:
+                continue
             if (
                 module.__package__
                 and module.__package__.startswith(root_package)
@@ -89,6 +96,6 @@ if __name__ == "__main__":
     OUTPUT_FILE = "api.py"
     with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
         file.write("# pylint: disable=unused-import\n\n")
-        file.write(IMPORT_STATEMENTS)
-        file.write("set_verbosity(2)")
-        file.write("configure_logger()")
+        file.write(IMPORT_STATEMENTS + "\n\n")
+        file.write("set_verbosity(\"INFO\")\n")
+        file.write("configure_logger()\n")

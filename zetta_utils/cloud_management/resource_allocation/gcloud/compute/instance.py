@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Literal, MutableSequence, Optional
+import os
+from typing import Literal, MutableMapping, MutableSequence, Optional
 
 from google.cloud import compute_v1
 
@@ -22,6 +23,7 @@ def create_instance_template(
     disk_size_gb: int,
     machine_type: str,
     source_image: str,
+    labels: Optional[MutableMapping[str, str]] = None,
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
     network: str = "default",
     on_host_maintenance: Literal["MIGRATE", "TERMINATE"] = "MIGRATE",
@@ -34,6 +36,10 @@ def create_instance_template(
     `subnetwork` format - `projects/{project}/regions/{region}/subnetworks/{subnetwork}`
     """
 
+    if labels is None:
+        labels = {}
+    labels["created-by"] = os.environ.get("ZETTA_USER", "na")
+
     disk = compute_v1.AttachedDisk()
     initialize_params = compute_v1.AttachedDiskInitializeParams()
     initialize_params.source_image = source_image
@@ -45,6 +51,7 @@ def create_instance_template(
     template = compute_v1.InstanceTemplate()
     template.name = template_name
     template.properties = compute_v1.InstanceProperties()
+    template.properties.labels = labels
     template.properties.disks = [disk]
     template.properties.machine_type = machine_type
     template.properties.scheduling.provisioning_model = provisioning_model
@@ -52,6 +59,13 @@ def create_instance_template(
 
     if accelerators is not None:
         template.properties.guest_accelerators = accelerators
+        items = compute_v1.Items()
+        items.key = "startup-script"
+        items.value = """
+        #! /bin/bash
+        sudo cos-extensions install gpu
+        """
+        template.properties.metadata.items = items
 
     network_interface = compute_v1.NetworkInterface()
     network_interface.network = f"projects/{project}/global/networks/{network}"

@@ -17,7 +17,7 @@ builder.register("gcloud.compute.AcceleratorConfig")(compute_v1.AcceleratorConfi
 builder.register("gcloud.compute.AccessConfig")(compute_v1.AccessConfig)
 builder.register("gcloud.compute.ServiceAccount")(compute_v1.ServiceAccount)
 
-INSTALL_GPU_STARTUP_SCRIPT: Final = """#!/bin/bash
+COS_INSTALL_GPU_STARTUP_SCRIPT: Final = """#!/bin/bash
 sudo cos-extensions install gpu
 """
 
@@ -79,10 +79,11 @@ def create_instance_template(
 
     if accelerators is not None:
         template.properties.guest_accelerators = accelerators
-        items = compute_v1.Items()
-        items.key = "startup-script"
-        items.value = INSTALL_GPU_STARTUP_SCRIPT
-        template.properties.metadata.items = [items]
+        if "cos" in source_image:
+            items = compute_v1.Items()
+            items.key = "startup-script"
+            items.value = COS_INSTALL_GPU_STARTUP_SCRIPT
+            template.properties.metadata.items = [items]
 
     network_interface = compute_v1.NetworkInterface()
     network_interface.network = f"projects/{project}/global/networks/{network}"

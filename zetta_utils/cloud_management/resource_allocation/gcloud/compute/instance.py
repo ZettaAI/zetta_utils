@@ -201,3 +201,16 @@ def create_mig_autoscaler(
     operation = client.insert(request)
     wait_for_extended_operation(operation)
     return client.get(project=project, zone=zone, autoscaler=autoscaler_name)
+
+
+def get_instance(
+    project: str,
+    zone: str,
+    instance_name: str,
+) -> compute_v1.Instance:
+    """Gets an existing VM instance."""
+    client = compute_v1.InstancesClient()
+    request = compute_v1.GetInstanceRequest()
+    request.project = project
+    request.zone = zone
+    return client.get(project=project, zone=zone, instance=instance_name)

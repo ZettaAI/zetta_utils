@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Literal, MutableMapping, MutableSequence, Optional
+from typing import Final, Literal, MutableMapping, MutableSequence, Optional
 
 from google.cloud import compute_v1
 
@@ -14,6 +14,20 @@ from ..core import wait_for_extended_operation
 logger = log.get_logger("zetta_utils")
 
 builder.register("gcloud.AcceleratorConfig")(compute_v1.AcceleratorConfig)
+builder.register("gcloud.network.AccessConfig")(compute_v1.AccessConfig)
+
+INSTALL_GPU_STARTUP_SCRIPT: Final = """#!/bin/bash
+if which nvidia-smi
+then
+  exit
+fi
+
+mkdir -p /opt/google
+cd /opt/google || exit
+
+curl https://raw.githubusercontent.com/GoogleCloudPlatform/compute-gpu-installation/main/linux/install_gpu_driver.py --output install_gpu_driver.py
+sudo python3 install_gpu_driver.py
+"""
 
 
 @builder.register("gcloud.create_instance_template")
@@ -26,6 +40,7 @@ def create_instance_template(
     labels: Optional[MutableMapping[str, str]] = None,
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
     network: str = "default",
+    network_accessconfigs: Optional[MutableSequence[compute_v1.AccessConfig]] = None,
     on_host_maintenance: Literal["MIGRATE", "TERMINATE"] = "MIGRATE",
     provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
     subnetwork: Optional[str] = None,
@@ -61,14 +76,13 @@ def create_instance_template(
         template.properties.guest_accelerators = accelerators
         items = compute_v1.Items()
         items.key = "startup-script"
-        items.value = """
-        #! /bin/bash
-        sudo cos-extensions install gpu
-        """
-        template.properties.metadata.items = items
+        items.value = INSTALL_GPU_STARTUP_SCRIPT
+        template.properties.metadata.items = [items]
 
     network_interface = compute_v1.NetworkInterface()
     network_interface.network = f"projects/{project}/global/networks/{network}"
+    if network_accessconfigs is not None:
+        network_interface.access_configs = network_accessconfigs
     if subnetwork is not None:
         network_interface.subnetwork = subnetwork
     template.properties.network_interfaces = [network_interface]

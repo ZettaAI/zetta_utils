@@ -13,20 +13,12 @@ from ..core import wait_for_extended_operation
 
 logger = log.get_logger("zetta_utils")
 
-builder.register("gcloud.AcceleratorConfig")(compute_v1.AcceleratorConfig)
-builder.register("gcloud.network.AccessConfig")(compute_v1.AccessConfig)
+builder.register("gcloud.compute.AcceleratorConfig")(compute_v1.AcceleratorConfig)
+builder.register("gcloud.compute.AccessConfig")(compute_v1.AccessConfig)
+builder.register("gcloud.compute.ServiceAccount")(compute_v1.ServiceAccount)
 
 INSTALL_GPU_STARTUP_SCRIPT: Final = """#!/bin/bash
-if which nvidia-smi
-then
-  exit
-fi
-
-mkdir -p /opt/google
-cd /opt/google || exit
-
-curl https://raw.githubusercontent.com/GoogleCloudPlatform/compute-gpu-installation/main/linux/install_gpu_driver.py --output install_gpu_driver.py
-sudo python3 install_gpu_driver.py
+sudo cos-extensions install gpu
 """
 
 
@@ -34,7 +26,7 @@ sudo python3 install_gpu_driver.py
 def create_instance_template(
     template_name: str,
     project: str,
-    disk_size_gb: int,
+    bootdisk_size_gb: int,
     machine_type: str,
     source_image: str,
     labels: Optional[MutableMapping[str, str]] = None,
@@ -43,6 +35,7 @@ def create_instance_template(
     network_accessconfigs: Optional[MutableSequence[compute_v1.AccessConfig]] = None,
     on_host_maintenance: Literal["MIGRATE", "TERMINATE"] = "MIGRATE",
     provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
+    service_accounts: Optional[MutableSequence[compute_v1.ServiceAccount]] = None,
     subnetwork: Optional[str] = None,
 ) -> compute_v1.InstanceTemplate:
     """
@@ -55,22 +48,34 @@ def create_instance_template(
         labels = {}
     labels["created-by"] = os.environ.get("ZETTA_USER", "na")
 
-    disk = compute_v1.AttachedDisk()
+    if service_accounts is None:
+        svc_account = compute_v1.ServiceAccount()
+        svc_account.email = "zutils-worker-x0@zetta-research.iam.gserviceaccount.com"
+        svc_account.scopes = [
+            "https://www.googleapis.com/auth/devstorage.read_write",
+            "https://www.googleapis.com/auth/datastore",
+        ]
+        service_accounts = [svc_account]
+
+    bootdisk = compute_v1.AttachedDisk()
     initialize_params = compute_v1.AttachedDiskInitializeParams()
     initialize_params.source_image = source_image
-    initialize_params.disk_size_gb = disk_size_gb
-    disk.initialize_params = initialize_params
-    disk.auto_delete = True
-    disk.boot = True
+    initialize_params.disk_size_gb = bootdisk_size_gb
+    initialize_params.labels = labels
+    bootdisk.initialize_params = initialize_params
+    bootdisk.auto_delete = True
+    bootdisk.boot = True
+    disks = [bootdisk]
 
     template = compute_v1.InstanceTemplate()
     template.name = template_name
     template.properties = compute_v1.InstanceProperties()
     template.properties.labels = labels
-    template.properties.disks = [disk]
+    template.properties.disks = disks
     template.properties.machine_type = machine_type
     template.properties.scheduling.provisioning_model = provisioning_model
     template.properties.scheduling.on_host_maintenance = on_host_maintenance
+    template.properties.service_accounts = service_accounts
 
     if accelerators is not None:
         template.properties.guest_accelerators = accelerators

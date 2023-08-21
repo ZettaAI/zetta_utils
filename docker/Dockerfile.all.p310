@@ -1,5 +1,5 @@
 #FROM pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
-FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:12.2.0-runtime-ubuntu20.04
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
@@ -24,6 +24,6 @@ RUN apt-get update \
 ENV PYTHONPATH /opt/zetta_utils
 WORKDIR /opt/zetta_utils
 ADD pyproject.toml /opt/zetta_utils/
-RUN pip install '.[all]'
+RUN pip install '.[modules]'
 COPY . /opt/zetta_utils/
 RUN zetta --help

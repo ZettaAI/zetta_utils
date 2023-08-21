@@ -64,7 +64,10 @@ def load_weights_file(
         return model
 
     with fsspec.open(ckpt_path) as f:
-        loaded_state_raw = torch.load(f)["state_dict"]
+        if torch.cuda.is_available():
+            loaded_state_raw = torch.load(f)["state_dict"]
+        else:
+            loaded_state_raw = torch.load(f, map_location=torch.device('cpu'))["state_dict"]
         if component_names is None:
             loaded_state = loaded_state_raw
         elif remove_component_prefix:

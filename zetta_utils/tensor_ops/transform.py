@@ -1,8 +1,9 @@
 import affine
 import torch
 import torchfields  # pylint: disable=unused-import
+from zetta_utils import builder
 
-
+@builder.register("get_affine_field")
 def get_affine_field(
     size,
     trans_x_px=0,
@@ -23,7 +24,7 @@ def get_affine_field(
     :param rot_deg: Rotation degrees, clockwise
     :param shear_x_deg: X shear degrees.
     :param shear_y_deg: Y shear degrees.
-
+    :return: The torch tensor in CXYZ.
     """
     aff = (
         affine.Affine.translation(-trans_x_px * 2 / size, -trans_y_px * 2 / size)
@@ -33,4 +34,4 @@ def get_affine_field(
     )
     mat = torch.tensor([[aff.a, aff.b, aff.c], [aff.d, aff.e, aff.f]]).unsqueeze(0)
     field = torch.Field.affine_field(mat, size=(1, 2, size, size))  # type: ignore
-    return field
+    return field.movedim(0, -1)  # ZCXY -> CXYZ

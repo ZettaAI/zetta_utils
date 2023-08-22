@@ -1,57 +1,92 @@
 # pylint: disable=missing-docstring
-from typing import Literal, Optional, Sequence, SupportsIndex, Union
+from typing import (
+    Callable,
+    Hashable,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    SupportsIndex,
+    TypeVar,
+    Union,
+)
 
 import einops
 import numpy as np
 import torch
 from typeguard import typechecked
+from typing_extensions import Concatenate, ParamSpec
 
 from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
+P = ParamSpec("P")
+T = TypeVar("T", bound=Union[Tensor, Mapping[Hashable, Tensor]])
+
+
+def supports_dict(
+    func: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+) -> Callable[Concatenate[T, P], T]:
+    def wrapper(data: T, *args: P.args, **kwargs: P.kwargs) -> T:
+        if isinstance(data, Mapping):
+            return {k: func(v, *args, **kwargs) for k, v in data.items()}
+        else:
+            return func(data, *args, **kwargs)
+
+    return wrapper
+
 
 @builder.register("rearrange")
+@supports_dict
 def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
     return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops
 
 
 @builder.register("reduce")
+@supports_dict
 def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
     return einops.reduce(tensor=data, **kwargs) # type: ignore # bad typing by einops
 
 
 @builder.register("repeat")
+@supports_dict
 def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
     return einops.repeat(tensor=data, **kwargs) # type: ignore # bad typing by einops
 
 
 @builder.register("multiply")
+@supports_dict
 def multiply(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return value * data
 
 
 @builder.register("add")
+@supports_dict
 def add(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return value + data
 
 
 @builder.register("power")
+@supports_dict
 def power(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return data ** value
 
 
 @builder.register("divide")
+@supports_dict
 def divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return data / value
 
 
 @builder.register("int_divide")
+@supports_dict
 def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
     return data // value
 
 
 @builder.register("unsqueeze")
 @typechecked
+@supports_dict
 def unsqueeze(
     data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
 ) -> TensorTypeVar:
@@ -76,6 +111,7 @@ def unsqueeze(
 
 @builder.register("squeeze")
 @typechecked
+@supports_dict
 def squeeze(
     data: TensorTypeVar, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None
 ) -> TensorTypeVar:
@@ -222,6 +258,7 @@ def _validate_interpolation_setting(
 
 @builder.register("unsqueeze_to")
 @typechecked
+@supports_dict
 def unsqueeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -243,6 +280,7 @@ def unsqueeze_to(
 
 @builder.register("squeeze_to")
 @typechecked
+@supports_dict
 def squeeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -269,6 +307,7 @@ def squeeze_to(
 
 @builder.register("interpolate")
 @typechecked
+@supports_dict
 def interpolate(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
     size: Optional[Sequence[int]] = None,
@@ -389,6 +428,7 @@ CompareMode = Literal[
 
 @builder.register("compare")
 @typechecked
+@supports_dict
 def compare(
     data: TensorTypeVar,
     mode: CompareMode,
@@ -444,6 +484,7 @@ def compare(
 
 @builder.register("crop")
 @typechecked
+@supports_dict
 def crop(
     data: TensorTypeVar,
     crop: Sequence[int],  # pylint: disable=redefined-outer-name
@@ -471,6 +512,7 @@ def crop(
 
 @builder.register("crop_center")
 @typechecked
+@supports_dict
 def crop_center(
     data: TensorTypeVar,
     size: Sequence[int],  # pylint: disable=redefined-outer-name

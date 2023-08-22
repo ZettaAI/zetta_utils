@@ -12,6 +12,7 @@ from typeguard import typechecked
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder
+from zetta_utils.tensor_ops.common import supports_dict
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from . import convert
@@ -51,6 +52,7 @@ def skip_on_empty_data(fn: OpT) -> OpT:
 
 
 @builder.register("filter_cc")  # type: ignore # TODO: pyright
+@supports_dict
 @skip_on_empty_data
 @typechecked
 def filter_cc(
@@ -114,6 +116,7 @@ def _normalize_kernel(
 
 
 @builder.register("kornia_opening")  # type: ignore
+@supports_dict
 @skip_on_empty_data
 @typechecked
 def kornia_opening(
@@ -156,6 +159,7 @@ def kornia_opening(
 
 
 @builder.register("kornia_closing")  # type: ignore
+@supports_dict
 @skip_on_empty_data
 @typechecked
 def kornia_closing(
@@ -198,6 +202,7 @@ def kornia_closing(
 
 
 @builder.register("kornia_erosion")  # type: ignore
+@supports_dict
 @skip_on_empty_data
 @typechecked
 def kornia_erosion(
@@ -240,6 +245,7 @@ def kornia_erosion(
 
 
 @builder.register("kornia_dilation")  # type: ignore
+@supports_dict
 @skip_on_empty_data
 @typechecked
 def kornia_dilation(

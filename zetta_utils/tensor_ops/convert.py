@@ -7,6 +7,7 @@ import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, tensor_ops
+from zetta_utils.tensor_ops.common import supports_dict
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 
@@ -73,6 +74,7 @@ def astype(data: Tensor, reference: TensorTypeVar) -> TensorTypeVar:
 
 @builder.register("to_float32")
 @typechecked
+@supports_dict
 def to_float32(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to fp32.
 
@@ -90,6 +92,7 @@ def to_float32(data: TensorTypeVar) -> TensorTypeVar:
 
 @builder.register("to_uint8")
 @typechecked
+@supports_dict
 def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to uint8.
 

@@ -69,7 +69,12 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
-            wandb.init(group=f"{experiment_name}.{experiment_version}")
+            wandb.init(
+                project=experiment_name,
+                group=f"{experiment_name}.{experiment_version}",
+                name=experiment_version,
+                id=experiment_version,
+            )
 
         if wandb.run is not None:
             this_dir = os.path.dirname(os.path.abspath(__file__))

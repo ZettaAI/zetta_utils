@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 import os
 from contextlib import ExitStack
-from typing import Final, Optional
+from typing import Any, Dict, Final, List, Optional
 
 import pytorch_lightning as pl
 import torch
 import typeguard
 from pytorch_lightning.strategies import ddp
 from pytorch_lightning.utilities.cloud_io import get_filesystem
+from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, mazepa, parsing
@@ -75,12 +76,167 @@ def lightning_train(
     )
 
 
+def _parse_spec_and_train():
+    regime = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["regime"])
+    trainer = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["trainer"])
+    train_dataloader = builder.build(
+        spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["train_dataloader"]
+    )
+    val_dataloader = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["val_dataloader"])
+    lightning_train(regime, trainer, train_dataloader, val_dataloader)
+
+
+@builder.register("multinode_train_launch")
+@typeguard.typechecked
+def multinode_train_launch(
+    execution_id: str,
+    num_nodes: int,
+    rdzv_endpoint: str,
+    nproc_per_node: int = 1,
+    rdzv_backend: str = "c10d",
+):
+    config = torch_launcher_api.LaunchConfig(
+        run_id=execution_id,
+        min_nodes=num_nodes,
+        max_nodes=num_nodes,
+        nproc_per_node=nproc_per_node,
+        rdzv_backend=rdzv_backend,
+        rdzv_endpoint=rdzv_endpoint,
+    )
+    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+
+
+def _get_tolerations() -> List[k8s_client.V1Toleration]:
+    gpu = k8s_client.V1Toleration(
+        key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
+    )
+    worker = k8s_client.V1Toleration(
+        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
+    )
+    return [gpu, worker]
+
+
+def _spec_configmap_vol_and_ctx(
+    execution_id: str,
+    cluster_info: resource_allocation.k8s.ClusterInfo,
+    specs: Dict[str, Any],
+):
+    configmap = resource_allocation.k8s.get_configmap(
+        name=execution_id,
+        data={f"{spec_name}.cue": json.dumps(spec) for spec_name, spec in specs.items()},
+    )
+
+    configmap_projection = k8s_client.V1ConfigMapProjection(
+        name=execution_id,
+        items=[k8s_client.V1KeyToPath(key=f"{spec}.cue", path=f"{spec}.cue") for spec in specs],
+    )
+
+    projected_source = k8s_client.V1ProjectedVolumeSource(
+        sources=[k8s_client.V1VolumeProjection(config_map=configmap_projection)]
+    )
+    specs_vol = k8s_client.V1Volume(name="specs", projected=projected_source)
+
+    mount = k8s_client.V1VolumeMount(
+        name="specs",
+        mount_path="/opt/zetta_utils/specs",
+    )
+
+    ctx = resource_allocation.k8s.configmap_ctx_manager(
+        execution_id=execution_id,
+        cluster_info=cluster_info,
+        configmap=configmap,
+    )
+    return (specs_vol, [mount], ctx)
+
+
+def _create_ddp_master_job(
+    execution_id: str,
+    *,
+    cluster_info: resource_allocation.k8s.ClusterInfo,
+    image: str,
+    resources: dict,
+    train_spec: Any,
+    num_nodes: int,
+    follow_logs: Optional[bool] = False,
+    host_network: Optional[bool] = False,
+):
+    worker_mig_spec = {}
+    zetta_cmd = "zetta run specs/spec.cue"
+    if num_nodes > 1:
+        train_spec["@type"] = "multinode_train_launch"
+        train_spec["num_nodes"] = num_nodes
+        train_spec["rdzv_endpoint"] = "localhost:29400"
+        zetta_cmd = "zetta run specs/worker_mig.cue && zetta run specs/spec.cue"
+        worker_mig_spec = {
+            "@type": "gcloud.create_mig_from_template",
+            "project": "zetta-research",
+            "zone": "us-east1-c",
+            "mig_name": "ddp-workers",
+            "template_name": "ddp-workers",
+            "target_size": num_nodes - 1,
+            # "startup_script": image,
+        }
+    specs = {
+        "train": train_spec,
+        "worker_mig": worker_mig_spec,
+    }
+    vol, mounts, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
+    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
+        execution_id, REQUIRED_ENV_VARS
+    )
+
+    train_spec["rdzv_endpoint"] = "master:29400"
+    envs = [
+        k8s_client.V1EnvVar(name="ZETTA_RUN_SPEC", value=json.dumps(train_spec)),
+        k8s_client.V1EnvVar(
+            name="NODE_IP",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="status.hostIP")
+            ),
+        ),
+    ]
+    train_pod_spec = resource_allocation.k8s.get_pod_spec(
+        name=execution_id,
+        image=image,
+        command=["/bin/bash"],
+        command_args=["-c", zetta_cmd],
+        envs=envs,
+        env_secret_mapping=env_secret_mapping,
+        hostname="master",
+        host_network=host_network,
+        resources=resources,
+        restart_policy="Never",
+        tolerations=_get_tolerations(),
+        volumes=[vol],
+        volume_mounts=mounts,
+    )
+
+    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
+    train_job_ctx = resource_allocation.k8s.job_ctx_manager(
+        execution_id=execution_id,
+        cluster_info=cluster_info,
+        job=train_job,
+        secrets=secrets,
+    )
+
+    with ExitStack() as stack:
+        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
+        stack.enter_context(spec_ctx)
+        stack.enter_context(train_job_ctx)
+
+        if follow_logs:
+            resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
+        else:
+            resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)
+
+
 @builder.register("lightning_train_remote")
 @typeguard.typechecked
 def lightning_train_remote(
     worker_image: str,
     worker_resources: dict,
     spec_path: str,
+    num_nodes: int = 4,
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
@@ -95,66 +251,15 @@ def lightning_train_remote(
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
-
     spec = parsing.cue.load(spec_path)
-    configmap = resource_allocation.k8s.get_configmap(
-        name=execution_id, data={"spec.cue": json.dumps(spec)}
-    )
-    spec_source = k8s_client.V1ConfigMapVolumeSource(
-        name=execution_id, items=[k8s_client.V1KeyToPath(key="spec.cue", path="spec.cue")]
-    )
-    spec_vol = k8s_client.V1Volume(name="spec", config_map=spec_source)
-    spec_vol_mount = k8s_client.V1VolumeMount(
-        name="spec", mount_path="/opt/zetta_utils/spec.cue", sub_path="spec.cue"
-    )
 
-    command = ["zetta"]
-    command_args = ["run", "spec.cue"]
-
-    worker = k8s_client.V1Toleration(
-        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
-    )
-
-    gpu = k8s_client.V1Toleration(
-        key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
-    )
-
-    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
-        execution_id, REQUIRED_ENV_VARS
-    )
-    train_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=execution_id,
+    _create_ddp_master_job(
+        execution_id,
+        cluster_info=cluster_info,
+        follow_logs=follow_logs,
         image=worker_image,
-        command=command,
-        command_args=command_args,
-        env_secret_mapping=env_secret_mapping,
         resources=worker_resources,
-        restart_policy="Never",
-        tolerations=[worker, gpu],
-        volumes=[spec_vol],
-        volume_mounts=[spec_vol_mount],
+        train_spec=spec,
+        num_nodes=num_nodes,
+        host_network=num_nodes > 1,
     )
-
-    configmap_ctx = resource_allocation.k8s.configmap_ctx_manager(
-        execution_id=execution_id,
-        cluster_info=cluster_info,
-        configmap=configmap,
-    )
-
-    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
-    train_job_ctx = resource_allocation.k8s.job_ctx_manager(
-        execution_id=execution_id,
-        cluster_info=cluster_info,
-        job=train_job,
-        secrets=secrets,
-    )
-
-    with ExitStack() as stack:
-        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
-        stack.enter_context(configmap_ctx)
-        stack.enter_context(train_job_ctx)
-
-        if follow_logs:
-            resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
-        else:
-            resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)

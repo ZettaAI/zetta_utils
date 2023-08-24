@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import Final, Literal, MutableMapping, MutableSequence, Optional
 
+import yaml
 from google.cloud import compute_v1
 
 from zetta_utils import builder, log
@@ -54,6 +55,8 @@ def create_instance_template(
         svc_account.scopes = [
             "https://www.googleapis.com/auth/devstorage.read_write",
             "https://www.googleapis.com/auth/datastore",
+            "https://www.googleapis.com/auth/compute",
+            "https://www.googleapis.com/auth/cloud-platform",
         ]
         service_accounts = [svc_account]
 
@@ -134,6 +137,7 @@ def create_instancegroup_from_template(
     target_size: int = 0,
     min_replicas: int = 1,
     max_replicas: int = 1,
+    # startup_script: Optional[str] = None,
 ) -> compute_v1.InstanceGroupManager:
     """
     Creates a Compute Engine VM instance group from an instance template.
@@ -146,6 +150,15 @@ def create_instancegroup_from_template(
     request.zone = zone
 
     instance_template = f"projects/{project}/global/instanceTemplates/{template_name}"
+    # if startup_script is not None:
+    #     instance_template_client = compute_v1.InstanceTemplatesClient()
+    #     template = instance_template_client.get(project=project, instance_template=template_name)
+    #     items = compute_v1.Items()
+    #     items.key = "startup-script"
+    #     items.value = _get_worker_cloud_init_config(startup_script)
+    #     template.properties.metadata.items = items
+    #     instance_template = template.self_link
+
     request.instance_group_manager_resource.instance_template = instance_template
     request.instance_group_manager_resource.name = mig_name
     request.instance_group_manager_resource.target_size = target_size
@@ -215,3 +228,75 @@ def get_instance(
     request.project = project
     request.zone = zone
     return client.get(project=project, zone=zone, instance=instance_name)
+
+
+def _get_worker_cloud_init_config(worker_image: str):
+    user = {"user": os.environ["ZETTA_USER"], "uid": 2000}
+
+    env_file = {
+        "content": f"""MASTER_IP={os.environ["NODE_IP"]}
+LOGLEVEL="INFO"
+NCCL_SOCKET_IFNAME="eth0"
+ZETTA_USER={os.environ["ZETTA_USER"]}
+ZETTA_PROJECT={os.environ["ZETTA_PROJECT"]}
+ZETTA_RUN_SPEC={os.environ["ZETTA_RUN_SPEC"]}
+WANDB_API_KEY={os.environ["WANDB_API_KEY"]}
+""",
+        "path": "/etc/profile",
+    }
+
+    gpu_service_file = {
+        "content": """[Unit]
+Description=Install GPU drivers
+Wants=gcr-online.target docker.socket
+After=gcr-online.target docker.socket
+
+[Service]
+User=root
+Type=oneshot
+ExecStart=cos-extensions install gpu
+StandardOutput=journal+console
+StandardError=journal+console
+""",
+        "path": "/etc/systemd/system/install-gpu.service",
+    }
+
+    workers_service_file = {
+        "content": f"""[Unit]
+Description=Run a workers GPU application container
+Requires=install-gpu.service
+After=install-gpu.service
+
+[Service]
+User=root
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/bin/docker run --rm -u 2000 --name=workers \
+  --volume /var/lib/nvidia:/usr/local/nvidia \
+  --device /dev/nvidia-uvm:/dev/nvidia-uvm \
+  --device /dev/nvidiactl:/dev/nvidiactl \
+  --device /dev/nvidia0:/dev/nvidia0 \
+  {worker_image} zetta run -s $ZETTA_RUN_SPEC
+StandardOutput=journal+console
+StandardError=journal+console
+""",
+        "path": "/etc/systemd/system/install-gpu.service",
+    }
+
+    cloud_init_config = {
+        "users": [user],
+        "write_files": [env_file, gpu_service_file, workers_service_file],
+        "runcmd": [
+            "systemctl daemon-reload",
+            "systemctl start install-gpu.service",
+            "systemctl start workers.service",
+        ],
+    }
+
+    def _multiline_presenter(dumper, data):
+        if data.count("\n") > 0:
+            return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data)
+
+    yaml.add_representer(str, _multiline_presenter)
+    return yaml.dump(cloud_init_config)

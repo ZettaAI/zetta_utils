@@ -28,6 +28,28 @@ REQUIRED_ENV_VARS: Final = [
     "WANDB_API_KEY",
 ]
 
+WORKER_MIG_TEMPLATE_ARGS: Final = {
+    "bootdisk_size_gb": 64,
+    "machine_type": "n1-highmem-2",
+    "source_image": "projects/cos-cloud/global/images/family/cos-stable",
+    "accelerators": [
+        {
+            "@type": "gcloud.compute.AcceleratorConfig",
+            "accelerator_count": 1,
+            "accelerator_type": "nvidia-tesla-t4",
+        }
+    ],
+    "network_accessconfigs": [
+        {
+            "@type": "gcloud.compute.AccessConfig",
+            "network_tier": "PREMIUM",
+            "type": "ONE_TO_ONE_NAT",
+        }
+    ],
+    "provisioning_model": "SPOT",
+    "on_host_maintenance": "TERMINATE",
+}
+
 
 @builder.register("lightning_train")
 @typeguard.typechecked
@@ -103,8 +125,22 @@ def multinode_train_launch(
         nproc_per_node=nproc_per_node,
         rdzv_backend=rdzv_backend,
         rdzv_endpoint=rdzv_endpoint,
+        rdzv_timeout=7200,
     )
-    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+    # `MASTER_IP` is set only on workers
+    master_ip = os.environ.get("MASTER_IP")
+    if master_ip is not None:
+        config.rdzv_endpoint = f"{master_ip}:29400"
+        torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+    else:
+        # create worker vm group only on the master
+        template_ctx = resource_allocation.gcloud.instance_template_ctx_mngr(**kwargs)
+        mig_ctx = resource_allocation.gcloud.mig_ctx_mngr(**kwargs)
+
+        with ExitStack() as stack:
+            stack.enter_context(template_ctx)
+            stack.enter_context(mig_ctx)
+            torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
 def _get_tolerations() -> List[k8s_client.V1Toleration]:
@@ -159,32 +195,28 @@ def _create_ddp_master_job(
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
     resources: dict,
-    train_spec: Any,
+    train_spec: dict,
     num_nodes: int,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
 ):
-    worker_mig_spec = {}
     zetta_cmd = "zetta run specs/train.cue"
     if num_nodes > 1:
+        template_args = {
+            "template_name": "ddp-workers",
+            "project": resource_allocation.k8s.DEFAULT_CLUSTER_PROJECT,
+            "worker_image": image,
+        }
+        template_args.update(WORKER_MIG_TEMPLATE_ARGS)  # type: ignore
+        mig_args = {"mig_name": "ddp-workers", "target_size": num_nodes - 1, "zone": "us-east1-d"}
+
         train_spec["@type"] = "multinode_train_launch"
         train_spec["execution_id"] = execution_id
         train_spec["num_nodes"] = num_nodes
         train_spec["rdzv_endpoint"] = "localhost:29400"
-        # zetta_cmd = "zetta run specs/worker_mig.cue && zetta run specs/train.cue"
-        worker_mig_spec = {
-            "@type": "gcloud.create_mig_from_template",
-            "project": "zetta-research",
-            "zone": "us-east1-d",
-            "mig_name": "ddp-workers",
-            "template_name": "ddp-workers",
-            "target_size": num_nodes - 1,
-            # "startup_script": image,
-        }
-    specs = {
-        "train": train_spec,
-        "worker_mig": worker_mig_spec,
-    }
+        train_spec.update(template_args)
+        train_spec.update(mig_args)
+    specs = {"train": train_spec}
     vol, mounts, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
@@ -241,7 +273,7 @@ def lightning_train_remote(
     worker_image: str,
     worker_resources: dict,
     spec_path: str,
-    num_nodes: int = 4,
+    num_nodes: int = 2,
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,

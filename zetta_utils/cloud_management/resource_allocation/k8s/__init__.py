@@ -5,6 +5,7 @@ Tools to interact with kubernetes clusters.
 from .common import (
     ClusterInfo,
     DEFAULT_CLUSTER_INFO,
+    DEFAULT_CLUSTER_PROJECT,
     get_cluster_data,
     parse_cluster_info,
 )

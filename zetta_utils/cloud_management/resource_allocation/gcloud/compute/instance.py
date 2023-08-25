@@ -40,13 +40,14 @@ def create_instance_template(
     service_accounts: Optional[MutableSequence[compute_v1.ServiceAccount]] = None,
     subnetwork: Optional[str] = None,
     worker_image: Optional[str] = None,
+    **kwargs,  # pylint: disable=unused-argument
 ) -> compute_v1.InstanceTemplate:
     """
     Create an instance template that uses a provided subnet.
 
     `subnetwork` format - `projects/{project}/regions/{region}/subnetworks/{subnetwork}`
     """
-
+    logger.info(f"Creating GCE instance template `{template_name}`")
     if labels is None:
         labels = {}
     labels["created-by"] = os.environ.get("ZETTA_USER", "na")
@@ -86,12 +87,12 @@ def create_instance_template(
         template.properties.guest_accelerators = accelerators
         if "cos" in source_image:
             items = compute_v1.Items()
-            items.key = "startup-script"
-            items.value = (
-                _get_worker_cloud_init_config(worker_image)
-                if worker_image
-                else COS_INSTALL_GPU_STARTUP_SCRIPT
-            )
+            if worker_image is None:
+                items.key = "startup-script"
+                items.value = COS_INSTALL_GPU_STARTUP_SCRIPT
+            else:
+                items.key = "user-data"
+                items.value = _get_worker_cloud_init_config(worker_image)
             template.properties.metadata.items = [items]
 
     network_interface = compute_v1.NetworkInterface()
@@ -109,20 +110,23 @@ def create_instance_template(
 
 
 def delete_instance_template(template_name: str, project: str):
-    template_path = f"projects/{project}/global/instanceTemplates/{template_name}"
-    template_client = compute_v1.InstanceTemplatesClient()
-    template_client.delete(instance_template=template_path, project=project)
+    logger.info(f"Deleting GCE instance template `{template_name}`")
+    client = compute_v1.InstanceTemplatesClient()
+    request = compute_v1.DeleteInstanceTemplateRequest()
+    # template_path = f"projects/{project}/global/instanceTemplates/{template_name}"
+    request.instance_template = template_name
+    request.project = project
+    operation = client.delete(request)
+    wait_for_extended_operation(operation)
 
 
 @builder.register("gcloud.instance_template_ctx_mngr")
 @contextmanager
 def instance_template_ctx_mngr(**kwargs):
-    logger.info(f"Creating GCE instance template `{kwargs['template_name']}`")
     create_instance_template(**kwargs)
     try:
         yield
     finally:
-        logger.info(f"Deleting GCE instance template `{kwargs['template_name']}`")
         delete_instance_template(kwargs["template_name"], kwargs["project"])
 
 
@@ -161,10 +165,12 @@ def create_mig_from_template(
     target_size: int = 0,
     min_replicas: int = 1,
     max_replicas: int = 1,
+    **kwargs,  # pylint: disable=unused-argument
 ) -> compute_v1.InstanceGroupManager:
     """
     Creates a Compute Engine VM instance group from an instance template.
     """
+    logger.info(f"Creating GCE Managed Instance Group `{mig_name}`")
     assert min_replicas <= max_replicas
 
     client = compute_v1.InstanceGroupManagersClient()
@@ -195,6 +201,7 @@ def create_mig_from_template(
 
 
 def delete_mig(mig_name: str, project: str, zone: str):
+    logger.info(f"Deleting GCE Managed Instance Group `{mig_name}`")
     client = compute_v1.InstanceGroupManagersClient()
     request = compute_v1.DeleteInstanceGroupManagerRequest()
     request.instance_group_manager = mig_name
@@ -207,12 +214,10 @@ def delete_mig(mig_name: str, project: str, zone: str):
 @builder.register("gcloud.mig_ctx_mngr")
 @contextmanager
 def mig_ctx_mngr(**kwargs):
-    logger.info(f"Creating GCE Managed Instance Group `{kwargs['mig_name']}`")
     create_mig_from_template(**kwargs)
     try:
         yield
     finally:
-        logger.info(f"Deleting GCE Managed Instance Group `{kwargs['template_name']}`")
         delete_mig(kwargs["mig_name"], kwargs["project"], kwargs["zone"])
 
 
@@ -266,57 +271,66 @@ def get_instance(
     return client.get(project=project, zone=zone, instance=instance_name)
 
 
-def _get_worker_cloud_init_config(worker_image: str):
+def _get_worker_cloud_init_config(image: str):
     user = {"user": os.environ["ZETTA_USER"], "uid": 2000}
-
     env_file = {
-        "content": f"""MASTER_IP={os.environ["NODE_IP"]}
-LOGLEVEL="INFO"
-NCCL_SOCKET_IFNAME="eth0"
-ZETTA_USER={os.environ["ZETTA_USER"]}
-ZETTA_PROJECT={os.environ["ZETTA_PROJECT"]}
-ZETTA_RUN_SPEC={os.environ["ZETTA_RUN_SPEC"]}
-WANDB_API_KEY={os.environ["WANDB_API_KEY"]}
-""",
         "path": "/etc/profile",
+        "content": f"""export MASTER_IP='{os.environ["NODE_IP"]}'
+export LOGLEVEL='INFO'
+export NCCL_SOCKET_IFNAME='eth0'
+""",
     }
 
     gpu_service_file = {
-        "content": """[Unit]
+        "path": "/etc/systemd/system/install-gpu.service",
+        "content": f"""[Unit]
 Description=Install GPU drivers
 Wants=gcr-online.target docker.socket
 After=gcr-online.target docker.socket
 
 [Service]
-User=root
+User={os.environ['ZETTA_USER']}
 Type=oneshot
 ExecStart=cos-extensions install gpu
 StandardOutput=journal+console
 StandardError=journal+console
 """,
-        "path": "/etc/systemd/system/install-gpu.service",
     }
 
+    mounts_ = [
+        "--volume /var/lib/nvidia:/usr/local/nvidia",
+        "--device /dev/nvidia-uvm:/dev/nvidia-uvm",
+        "--device /dev/nvidiactl:/dev/nvidiactl",
+        "--device /dev/nvidia0:/dev/nvidia0",
+    ]
+    mounts = " ".join(mounts_)
+
+    envs_ = [
+        "-e LOGLEVEL=INFO",
+        "-e NCCL_SOCKET_IFNAME=eth0",
+        f"-e MASTER_IP={os.environ['NODE_IP']}",
+        f"-e ZETTA_USER={os.environ['ZETTA_USER']}",
+        f"-e ZETTA_PROJECT={os.environ['ZETTA_PROJECT']}",
+        f"-e WANDB_API_KEY={os.environ['WANDB_API_KEY']}",
+    ]
+    envs = " ".join(envs_)
+    args = f"{envs} {mounts}"
+
     workers_service_file = {
+        "path": "/etc/systemd/system/workers.service",
         "content": f"""[Unit]
 Description=Run a workers GPU application container
 Requires=install-gpu.service
 After=install-gpu.service
 
 [Service]
-User=root
+User={os.environ['ZETTA_USER']}
 Type=oneshot
 RemainAfterExit=true
-ExecStart=/usr/bin/docker run --rm -u 2000 --name=workers \
-  --volume /var/lib/nvidia:/usr/local/nvidia \
-  --device /dev/nvidia-uvm:/dev/nvidia-uvm \
-  --device /dev/nvidiactl:/dev/nvidiactl \
-  --device /dev/nvidia0:/dev/nvidia0 \
-  {worker_image} zetta run -s $ZETTA_RUN_SPEC
+ExecStart=docker run --name=workers {args} {image} zetta run -s '{os.environ["ZETTA_RUN_SPEC"]}'
 StandardOutput=journal+console
 StandardError=journal+console
 """,
-        "path": "/etc/systemd/system/install-gpu.service",
     }
 
     cloud_init_config = {
@@ -325,6 +339,7 @@ StandardError=journal+console
         "runcmd": [
             "systemctl daemon-reload",
             "systemctl start install-gpu.service",
+            f"su {os.environ['ZETTA_USER']} -c 'docker-credential-gcr configure-docker'",
             "systemctl start workers.service",
         ],
     }
@@ -335,4 +350,4 @@ StandardError=journal+console
         return dumper.represent_scalar("tag:yaml.org,2002:str", data)
 
     yaml.add_representer(str, _multiline_presenter)
-    return yaml.dump(cloud_init_config)
+    return f"#cloud-config\n\n{yaml.dump(cloud_init_config, default_flow_style=False)}"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
 from typing import Final, Literal, MutableMapping, MutableSequence, Optional
 
 import yaml
@@ -38,6 +39,7 @@ def create_instance_template(
     provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
     service_accounts: Optional[MutableSequence[compute_v1.ServiceAccount]] = None,
     subnetwork: Optional[str] = None,
+    worker_image: Optional[str] = None,
 ) -> compute_v1.InstanceTemplate:
     """
     Create an instance template that uses a provided subnet.
@@ -85,7 +87,11 @@ def create_instance_template(
         if "cos" in source_image:
             items = compute_v1.Items()
             items.key = "startup-script"
-            items.value = COS_INSTALL_GPU_STARTUP_SCRIPT
+            items.value = (
+                _get_worker_cloud_init_config(worker_image)
+                if worker_image
+                else COS_INSTALL_GPU_STARTUP_SCRIPT
+            )
             template.properties.metadata.items = [items]
 
     network_interface = compute_v1.NetworkInterface()
@@ -100,6 +106,24 @@ def create_instance_template(
     operation = template_client.insert(project=project, instance_template_resource=template)
     wait_for_extended_operation(operation)
     return template_client.get(project=project, instance_template=template_name)
+
+
+def delete_instance_template(template_name: str, project: str):
+    template_path = f"projects/{project}/global/instanceTemplates/{template_name}"
+    template_client = compute_v1.InstanceTemplatesClient()
+    template_client.delete(instance_template=template_path, project=project)
+
+
+@builder.register("gcloud.instance_template_ctx_mngr")
+@contextmanager
+def instance_template_ctx_mngr(**kwargs):
+    logger.info(f"Creating GCE instance template `{kwargs['template_name']}`")
+    create_instance_template(**kwargs)
+    try:
+        yield
+    finally:
+        logger.info(f"Deleting GCE instance template `{kwargs['template_name']}`")
+        delete_instance_template(kwargs["template_name"], kwargs["project"])
 
 
 @builder.register("gcloud.create_instance_from_template")
@@ -128,7 +152,7 @@ def create_instance_from_template(
 
 
 @builder.register("gcloud.create_mig_from_template")
-def create_instancegroup_from_template(
+def create_mig_from_template(
     project: str,
     zone: str,
     mig_name: str,
@@ -137,7 +161,6 @@ def create_instancegroup_from_template(
     target_size: int = 0,
     min_replicas: int = 1,
     max_replicas: int = 1,
-    # startup_script: Optional[str] = None,
 ) -> compute_v1.InstanceGroupManager:
     """
     Creates a Compute Engine VM instance group from an instance template.
@@ -149,17 +172,8 @@ def create_instancegroup_from_template(
     request.project = project
     request.zone = zone
 
-    instance_template = f"projects/{project}/global/instanceTemplates/{template_name}"
-    # if startup_script is not None:
-    #     instance_template_client = compute_v1.InstanceTemplatesClient()
-    #     template = instance_template_client.get(project=project, instance_template=template_name)
-    #     items = compute_v1.Items()
-    #     items.key = "startup-script"
-    #     items.value = _get_worker_cloud_init_config(startup_script)
-    #     template.properties.metadata.items = items
-    #     instance_template = template.self_link
-
-    request.instance_group_manager_resource.instance_template = instance_template
+    template_path = f"projects/{project}/global/instanceTemplates/{template_name}"
+    request.instance_group_manager_resource.instance_template = template_path
     request.instance_group_manager_resource.name = mig_name
     request.instance_group_manager_resource.target_size = target_size
 
@@ -178,6 +192,28 @@ def create_instancegroup_from_template(
             max_replicas=max_replicas,
         )
     return igmanager
+
+
+def delete_mig(mig_name: str, project: str, zone: str):
+    client = compute_v1.InstanceGroupManagersClient()
+    request = compute_v1.DeleteInstanceGroupManagerRequest()
+    request.instance_group_manager = mig_name
+    request.project = project
+    request.zone = zone
+    operation = client.delete(request)
+    wait_for_extended_operation(operation)
+
+
+@builder.register("gcloud.mig_ctx_mngr")
+@contextmanager
+def mig_ctx_mngr(**kwargs):
+    logger.info(f"Creating GCE Managed Instance Group `{kwargs['mig_name']}`")
+    create_mig_from_template(**kwargs)
+    try:
+        yield
+    finally:
+        logger.info(f"Deleting GCE Managed Instance Group `{kwargs['template_name']}`")
+        delete_mig(kwargs["mig_name"], kwargs["project"], kwargs["zone"])
 
 
 @builder.register("gcloud.create_mig_autoscaler")

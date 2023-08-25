@@ -94,6 +94,7 @@ def multinode_train_launch(
     rdzv_endpoint: str,
     nproc_per_node: int = 1,
     rdzv_backend: str = "c10d",
+    **kwargs,  # pylint: disable=unused-argument
 ):
     config = torch_launcher_api.LaunchConfig(
         run_id=execution_id,
@@ -110,10 +111,13 @@ def _get_tolerations() -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
+    compute = k8s_client.V1Toleration(
+        key="compute-access", operator="Equal", value="true", effect="NoSchedule"
+    )
     worker = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
-    return [gpu, worker]
+    return [gpu, compute, worker]
 
 
 def _spec_configmap_vol_and_ctx(
@@ -161,16 +165,17 @@ def _create_ddp_master_job(
     host_network: Optional[bool] = False,
 ):
     worker_mig_spec = {}
-    zetta_cmd = "zetta run specs/spec.cue"
+    zetta_cmd = "zetta run specs/train.cue"
     if num_nodes > 1:
         train_spec["@type"] = "multinode_train_launch"
+        train_spec["execution_id"] = execution_id
         train_spec["num_nodes"] = num_nodes
         train_spec["rdzv_endpoint"] = "localhost:29400"
-        zetta_cmd = "zetta run specs/worker_mig.cue && zetta run specs/spec.cue"
+        # zetta_cmd = "zetta run specs/worker_mig.cue && zetta run specs/train.cue"
         worker_mig_spec = {
             "@type": "gcloud.create_mig_from_template",
             "project": "zetta-research",
-            "zone": "us-east1-c",
+            "zone": "us-east1-d",
             "mig_name": "ddp-workers",
             "template_name": "ddp-workers",
             "target_size": num_nodes - 1,

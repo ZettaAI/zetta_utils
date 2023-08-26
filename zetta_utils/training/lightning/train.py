@@ -28,30 +28,6 @@ REQUIRED_ENV_VARS: Final = [
     "WANDB_API_KEY",
 ]
 
-WORKER_MIG_TEMPLATE_ARGS: Final = {
-    "machine_type": "n1-highmem-2",
-    "network": "ddp-test",
-    "subnetwork": "projects/zetta-research/regions/us-east1/subnetworks/ddp-us-east1",
-    "bootdisk_size_gb": 64,
-    "source_image": "projects/cos-cloud/global/images/family/cos-stable",
-    "accelerators": [
-        {
-            "@type": "gcloud.compute.AcceleratorConfig",
-            "accelerator_count": 1,
-            "accelerator_type": "nvidia-tesla-t4",
-        }
-    ],
-    "network_accessconfigs": [
-        {
-            "@type": "gcloud.compute.AccessConfig",
-            "network_tier": "PREMIUM",
-            "type": "ONE_TO_ONE_NAT",
-        }
-    ],
-    "provisioning_model": "SPOT",
-    "on_host_maintenance": "TERMINATE",
-}
-
 
 @builder.register("lightning_train")
 @typeguard.typechecked
@@ -116,7 +92,6 @@ def _parse_spec_and_train():
 def multinode_train_launch(
     execution_id: str,
     num_nodes: int,
-    rdzv_endpoint="localhost:29400",
     nproc_per_node: int = 1,
     rdzv_backend: str = "c10d",
     **kwargs,  # pylint: disable=unused-argument
@@ -127,34 +102,19 @@ def multinode_train_launch(
         max_nodes=num_nodes,
         nproc_per_node=nproc_per_node,
         rdzv_backend=rdzv_backend,
-        rdzv_endpoint=rdzv_endpoint,
-        rdzv_timeout=7200,
+        rdzv_endpoint="master:29400" if os.environ.get("MY_ROLE") else "localhost:29400",
     )
-    if os.environ.get("MY_ROLE") is None:
-        # master; create worker vm group
-        template_ctx = resource_allocation.gcloud.instance_template_ctx_mngr(**kwargs)
-        mig_ctx = resource_allocation.gcloud.mig_ctx_mngr(**kwargs)
-        with ExitStack() as stack:
-            stack.enter_context(template_ctx)
-            stack.enter_context(mig_ctx)
-            torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
-    else:
-        # workers
-        config.rdzv_endpoint = "master:29400"
-        torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
-def _get_tolerations() -> List[k8s_client.V1Toleration]:
+def _get_tolerations(role: str = "master") -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
-    compute = k8s_client.V1Toleration(
-        key="compute-access", operator="Equal", value="true", effect="NoSchedule"
-    )
     worker = k8s_client.V1Toleration(
-        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
+        key=f"{role}-pool", operator="Equal", value="true", effect="NoSchedule"
     )
-    return [gpu, compute, worker]
+    return [gpu, worker]
 
 
 def _spec_configmap_vol_and_ctx(
@@ -198,48 +158,38 @@ def _create_ddp_master_job(
     resources: dict,
     train_spec: dict,
     num_nodes: int,
+    env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
-):
+):  # pylint: disable=too-many-locals
     zetta_cmd = "zetta run specs/train.cue"
-    if num_nodes > 1:
-        template_args = {
-            "template_name": "ddp-workers",
-            "project": resource_allocation.k8s.DEFAULT_CLUSTER_PROJECT,
-            "worker_image": image,
-        }
-        template_args.update(WORKER_MIG_TEMPLATE_ARGS)  # type: ignore
-        mig_args = {"mig_name": "ddp-workers", "target_size": num_nodes - 1, "zone": "us-east1-d"}
-
-        train_spec["@type"] = "multinode_train_launch"
-        train_spec["execution_id"] = execution_id
-        train_spec["num_nodes"] = num_nodes
-        train_spec.update(template_args)
-        train_spec.update(mig_args)
+    env_vars = env_vars or {}
+    train_spec["@type"] = "multinode_train_launch"
+    train_spec["execution_id"] = execution_id
+    train_spec["num_nodes"] = num_nodes
     specs = {"train": train_spec}
     vol, mounts, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    envs = [
-        k8s_client.V1EnvVar(name="LOGLEVEL", value="DEBUG"),
-        k8s_client.V1EnvVar(name="NCCL_DEBUG", value="INFO"),
-        k8s_client.V1EnvVar(name="NCCL_SOCKET_IFNAME", value="eth0"),
-        k8s_client.V1EnvVar(name="ZETTA_RUN_SPEC", value=json.dumps(train_spec)),
-        k8s_client.V1EnvVar(
-            name="NODE_IP",
-            value_from=k8s_client.V1EnvVarSource(
-                field_ref=k8s_client.V1ObjectFieldSelector(field_path="status.hostIP")
-            ),
+    envs = []
+    for key, val in env_vars.items():
+        envs.append(k8s_client.V1EnvVar(name=key, value=val))
+
+    ip_env = k8s_client.V1EnvVar(
+        name="NODE_IP",
+        value_from=k8s_client.V1EnvVarSource(
+            field_ref=k8s_client.V1ObjectFieldSelector(field_path="status.hostIP")
         ),
-    ]
+    )
+
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=execution_id,
         image=image,
         command=["/bin/bash"],
         command_args=["-c", zetta_cmd],
-        envs=envs,
+        envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
         host_network=host_network,
@@ -263,6 +213,40 @@ def _create_ddp_master_job(
         stack.enter_context(spec_ctx)
         stack.enter_context(train_job_ctx)
 
+        if num_nodes > 1:
+            train_pod = resource_allocation.k8s.get_job_pod(train_job, cluster_info)
+            aliases = [k8s_client.V1HostAlias(hostnames=["master"], ip=train_pod.status.host_ip)]
+            worker_role_env = k8s_client.V1EnvVar(name="MY_ROLE", value="worker")
+
+            worker_pod_spec = resource_allocation.k8s.get_pod_spec(
+                name="workers",
+                image=image,
+                command=["/bin/bash"],
+                command_args=["-c", zetta_cmd],
+                envs=envs + [worker_role_env],
+                env_secret_mapping=env_secret_mapping,
+                host_network=True,
+                host_aliases=aliases,
+                resources=resources,
+                tolerations=_get_tolerations(role="worker"),
+                volumes=[vol],
+                volume_mounts=mounts,
+            )
+
+            worker_deployment = resource_allocation.k8s.get_deployment(
+                name=f"{execution_id}-workers",
+                pod_spec=worker_pod_spec,
+                replicas=num_nodes - 1,
+            )
+
+            workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(
+                execution_id=execution_id,
+                cluster_info=cluster_info,
+                deployment=worker_deployment,
+                secrets=[],
+            )
+            stack.enter_context(workers_ctx)
+
         if follow_logs:
             resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
         else:
@@ -275,7 +259,8 @@ def lightning_train_remote(
     worker_image: str,
     worker_resources: dict,
     spec_path: str,
-    num_nodes: int = 2,
+    num_nodes: int = 1,
+    env_vars: Optional[Dict[str, str]] = None,
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
@@ -295,6 +280,7 @@ def lightning_train_remote(
     _create_ddp_master_job(
         execution_id,
         cluster_info=cluster_info,
+        env_vars=env_vars,
         follow_logs=follow_logs,
         image=worker_image,
         resources=worker_resources,

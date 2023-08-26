@@ -110,10 +110,10 @@ def follow_job_logs(
     _wait_for_job_start(job, namespace, batch_v1_api)
 
     core_api = k8s_client.CoreV1Api()
-    pods = core_api.list_namespaced_pod(
+    podlist = core_api.list_namespaced_pod(
         namespace=namespace, label_selector=f"job-name={job.metadata.name}"
     )
-    job_name = pods.items[0].metadata.name
+    job_name = podlist.items[0].metadata.name
     log_stream = watch.Watch().stream(
         core_api.read_namespaced_pod_log,
         name=job_name,
@@ -121,6 +121,24 @@ def follow_job_logs(
     )
     for output in log_stream:
         logger.info(output)
+
+
+def get_job_pod(
+    job: k8s_client.V1Job,
+    cluster_info: ClusterInfo,
+    namespace: str = "default",
+) -> k8s_client.V1Pod:
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    batch_v1_api = k8s_client.BatchV1Api()
+
+    _wait_for_job_start(job, namespace, batch_v1_api)
+
+    core_api = k8s_client.CoreV1Api()
+    podlist = core_api.list_namespaced_pod(
+        namespace=namespace, label_selector=f"job-name={job.metadata.name}"
+    )
+    return podlist.items[0]
 
 
 def wait_for_job_completion(

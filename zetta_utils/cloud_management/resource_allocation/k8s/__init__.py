@@ -16,6 +16,7 @@ from .deployment import deployment_ctx_mngr, get_deployment, get_mazepa_worker_d
 from .job import (
     get_job,
     get_job_template,
+    get_job_pod,
     job_ctx_manager,
     follow_job_logs,
     wait_for_job_completion,

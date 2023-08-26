@@ -31,16 +31,17 @@ def create_instance_template(
     bootdisk_size_gb: int,
     machine_type: str,
     source_image: str,
-    labels: Optional[MutableMapping[str, str]] = None,
     accelerators: Optional[MutableSequence[compute_v1.AcceleratorConfig]] = None,
+    labels: Optional[MutableMapping[str, str]] = None,
     network: str = "default",
     network_accessconfigs: Optional[MutableSequence[compute_v1.AccessConfig]] = None,
     on_host_maintenance: Literal["MIGRATE", "TERMINATE"] = "MIGRATE",
     provisioning_model: Literal["STANDARD", "SPOT"] = "STANDARD",
     service_accounts: Optional[MutableSequence[compute_v1.ServiceAccount]] = None,
     subnetwork: Optional[str] = None,
+    tags: Optional[MutableSequence[str]] = None,
     worker_image: Optional[str] = None,
-    **kwargs,  # pylint: disable=unused-argument
+    **kwargs,  # pylint: disable=unused-argument, too-many-statements
 ) -> compute_v1.InstanceTemplate:
     """
     Create an instance template that uses a provided subnet.
@@ -50,6 +51,8 @@ def create_instance_template(
     logger.info(f"Creating GCE instance template `{template_name}`")
     if labels is None:
         labels = {}
+    if tags is None:
+        tags = []
     labels["created-by"] = os.environ.get("ZETTA_USER", "na")
 
     if service_accounts is None:
@@ -78,6 +81,7 @@ def create_instance_template(
     template.properties = compute_v1.InstanceProperties()
     template.properties.labels = labels
     template.properties.disks = disks
+    template.properties.tags.items = tags
     template.properties.machine_type = machine_type
     template.properties.scheduling.provisioning_model = provisioning_model
     template.properties.scheduling.on_host_maintenance = on_host_maintenance
@@ -309,7 +313,7 @@ StandardError=journal+console
         f"-e WANDB_API_KEY={os.environ['WANDB_API_KEY']}",
     ]
     envs = " ".join(envs_)
-    args = f"--network=host --add-host master:{os.environ['NODE_IP']} {envs} {mounts}"
+    args = f"-m 10240m --network=host --add-host master:{os.environ['NODE_IP']} {envs} {mounts}"
 
     workers_service_file = {
         "path": "/etc/systemd/system/workers.service",

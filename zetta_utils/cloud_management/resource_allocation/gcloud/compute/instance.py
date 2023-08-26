@@ -273,14 +273,6 @@ def get_instance(
 
 def _get_worker_cloud_init_config(image: str):
     user = {"user": os.environ["ZETTA_USER"], "uid": 2000}
-    env_file = {
-        "path": "/etc/profile",
-        "content": f"""export MASTER_IP='{os.environ["NODE_IP"]}'
-export LOGLEVEL='INFO'
-export NCCL_SOCKET_IFNAME='eth0'
-""",
-    }
-
     gpu_service_file = {
         "path": "/etc/systemd/system/install-gpu.service",
         "content": f"""[Unit]
@@ -306,15 +298,18 @@ StandardError=journal+console
     mounts = " ".join(mounts_)
 
     envs_ = [
-        "-e LOGLEVEL=INFO",
+        "-e MY_ROLE=worker",
+        "-e MASTER_ADDR=master",
+        "-e MASTER_PORT=29400",
+        "-e LOGLEVEL=DEBUG",
+        "-e NCCL_DEBUG=INFO",
         "-e NCCL_SOCKET_IFNAME=eth0",
-        f"-e MASTER_IP={os.environ['NODE_IP']}",
         f"-e ZETTA_USER={os.environ['ZETTA_USER']}",
         f"-e ZETTA_PROJECT={os.environ['ZETTA_PROJECT']}",
         f"-e WANDB_API_KEY={os.environ['WANDB_API_KEY']}",
     ]
     envs = " ".join(envs_)
-    args = f"{envs} {mounts}"
+    args = f"--network=host --add-host master:{os.environ['NODE_IP']} {envs} {mounts}"
 
     workers_service_file = {
         "path": "/etc/systemd/system/workers.service",
@@ -335,7 +330,7 @@ StandardError=journal+console
 
     cloud_init_config = {
         "users": [user],
-        "write_files": [env_file, gpu_service_file, workers_service_file],
+        "write_files": [gpu_service_file, workers_service_file],
         "runcmd": [
             "systemctl daemon-reload",
             "systemctl start install-gpu.service",

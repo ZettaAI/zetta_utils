@@ -13,7 +13,7 @@ from pytorch_lightning.utilities.cloud_io import get_filesystem
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log, mazepa, parsing
+from zetta_utils import builder, load_all_modules, log, mazepa, parsing
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
@@ -99,6 +99,7 @@ def lightning_train(
 
 
 def _parse_spec_and_train():
+    load_all_modules()
     regime = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["regime"])
     trainer = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["trainer"])
     train_dataloader = builder.build(
@@ -113,7 +114,7 @@ def _parse_spec_and_train():
 def multinode_train_launch(
     execution_id: str,
     num_nodes: int,
-    rdzv_endpoint: str,
+    rdzv_endpoint="localhost:29400",
     nproc_per_node: int = 1,
     rdzv_backend: str = "c10d",
     **kwargs,  # pylint: disable=unused-argument
@@ -127,20 +128,18 @@ def multinode_train_launch(
         rdzv_endpoint=rdzv_endpoint,
         rdzv_timeout=7200,
     )
-    # `MASTER_IP` is set only on workers
-    master_ip = os.environ.get("MASTER_IP")
-    if master_ip is not None:
-        config.rdzv_endpoint = f"{master_ip}:29400"
-        torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
-    else:
-        # create worker vm group only on the master
+    if os.environ.get("MY_ROLE") is None:
+        # master; create worker vm group
         template_ctx = resource_allocation.gcloud.instance_template_ctx_mngr(**kwargs)
         mig_ctx = resource_allocation.gcloud.mig_ctx_mngr(**kwargs)
-
         with ExitStack() as stack:
             stack.enter_context(template_ctx)
             stack.enter_context(mig_ctx)
             torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+    else:
+        # workers
+        config.rdzv_endpoint = "master:29400"
+        torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
 def _get_tolerations() -> List[k8s_client.V1Toleration]:
@@ -213,7 +212,6 @@ def _create_ddp_master_job(
         train_spec["@type"] = "multinode_train_launch"
         train_spec["execution_id"] = execution_id
         train_spec["num_nodes"] = num_nodes
-        train_spec["rdzv_endpoint"] = "localhost:29400"
         train_spec.update(template_args)
         train_spec.update(mig_args)
     specs = {"train": train_spec}
@@ -222,8 +220,10 @@ def _create_ddp_master_job(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    train_spec["rdzv_endpoint"] = "master:29400"
     envs = [
+        k8s_client.V1EnvVar(name="LOGLEVEL", value="DEBUG"),
+        k8s_client.V1EnvVar(name="NCCL_DEBUG", value="INFO"),
+        k8s_client.V1EnvVar(name="NCCL_SOCKET_IFNAME", value="eth0"),
         k8s_client.V1EnvVar(name="ZETTA_RUN_SPEC", value=json.dumps(train_spec)),
         k8s_client.V1EnvVar(
             name="NODE_IP",

@@ -29,8 +29,10 @@ REQUIRED_ENV_VARS: Final = [
 ]
 
 WORKER_MIG_TEMPLATE_ARGS: Final = {
-    "bootdisk_size_gb": 64,
     "machine_type": "n1-highmem-2",
+    "network": "ddp-test",
+    "subnetwork": "projects/zetta-research/regions/us-east1/subnetworks/ddp-us-east1",
+    "bootdisk_size_gb": 64,
     "source_image": "projects/cos-cloud/global/images/family/cos-stable",
     "accelerators": [
         {

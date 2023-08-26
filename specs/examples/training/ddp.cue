@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "ddp_remote_gpu4_x3"
+#EXP_VERSION: "remote_ddp_x52"
 
 #TRAINING_ROOT: "gs://tmp_2w/examples/training_artifacts"
 
@@ -41,7 +41,8 @@ regime: {
 trainer: {
 	"@type":            "ZettaDefaultTrainer"
 	accelerator:        "cuda"
-	devices:            4
+	devices:            1
+	num_nodes:          32
 	max_epochs:         100
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME

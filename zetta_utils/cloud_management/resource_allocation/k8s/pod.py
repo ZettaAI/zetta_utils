@@ -40,10 +40,10 @@ def get_pod_spec(
     volumes = volumes or []
     volume_mounts = volume_mounts or []
 
-    volume_mounts += [
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
+    # volume_mounts += [
+    #     k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
+    #     k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
+    # ]
 
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
 

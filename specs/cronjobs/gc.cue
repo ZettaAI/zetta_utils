@@ -22,7 +22,7 @@ preset_env_vars: [
     "AWS_DEFAULT_REGION"
 ]
 resources: {
-	memory: "1Gi"
+	memory: "500Mi"
 }
 spec_config: {
 	"@type": "mazepa.k8s.CronJobSpec"

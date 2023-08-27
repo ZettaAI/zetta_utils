@@ -7,7 +7,7 @@ cluster: {
 }
 name: "gc-cron"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:gc_cronjob_v1"
+image: "us.gcr.io/zetta-research/zetta_utils:gc_cronjob_v2"
 command: ["/bin/sh"]
 command_args: [
 	"-c",

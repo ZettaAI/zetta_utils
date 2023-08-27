@@ -28,16 +28,9 @@ def _get_cronjob(
     resources: Dict[str, int | float | str],
     spec_config: CronJobSpecConfig,
     labels: Optional[Dict[str, str]] = None,
+    tolerations: Optional[k8s_client.V1Toleration] = None,
 ) -> k8s_client.V1CronJob:
-
-    worker = k8s_client.V1Toleration(
-        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
-    )
-
-    gpu = k8s_client.V1Toleration(
-        key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
-    )
-
+    tolerations = tolerations or []
     pod_spec = get_pod_spec(
         name=name,
         image=image,
@@ -46,7 +39,7 @@ def _get_cronjob(
         envs=envs,
         resources=resources,
         restart_policy="OnFailure",
-        tolerations=[worker, gpu],
+        tolerations=tolerations,
     )
 
     job_template = get_job_template(

@@ -107,7 +107,7 @@ def multinode_train_launch(
     torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
-def _get_tolerations(role: str = "master") -> List[k8s_client.V1Toleration]:
+def _get_tolerations(role: str) -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
@@ -137,7 +137,7 @@ def _spec_configmap_vol_and_ctx(
     )
     specs_vol = k8s_client.V1Volume(name="specs", projected=projected_source)
 
-    mount = k8s_client.V1VolumeMount(
+    specs_mount = k8s_client.V1VolumeMount(
         name="specs",
         mount_path="/opt/zetta_utils/specs",
     )
@@ -147,7 +147,7 @@ def _spec_configmap_vol_and_ctx(
         cluster_info=cluster_info,
         configmap=configmap,
     )
-    return (specs_vol, [mount], ctx)
+    return (specs_vol, specs_mount, ctx)
 
 
 def _create_ddp_master_job(
@@ -168,7 +168,7 @@ def _create_ddp_master_job(
     train_spec["execution_id"] = execution_id
     train_spec["num_nodes"] = num_nodes
     specs = {"train": train_spec}
-    vol, mounts, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
+    vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
     )
@@ -195,9 +195,13 @@ def _create_ddp_master_job(
         host_network=host_network,
         resources=resources,
         restart_policy="Never",
-        tolerations=_get_tolerations(),
+        # with multinode ddp we need a node on standard pool for an IP
+        # that remains the same for the duration of training
+        # these pools must have `master-pool=true` taint
+        # not ncessary for single node ddp so it can be scheduled on preemptibles
+        tolerations=_get_tolerations(role="master" if num_nodes > 1 else "worker"),
         volumes=[vol],
-        volume_mounts=mounts,
+        volume_mounts=[mount],
     )
 
     train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
@@ -230,7 +234,7 @@ def _create_ddp_master_job(
                 resources=resources,
                 tolerations=_get_tolerations(role="worker"),
                 volumes=[vol],
-                volume_mounts=mounts,
+                volume_mounts=[mount],
             )
 
             worker_deployment = resource_allocation.k8s.get_deployment(

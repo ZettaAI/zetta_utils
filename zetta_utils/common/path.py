@@ -1,7 +1,7 @@
 import os.path
 
 
-def abspath(path: str) -> str:  # pragma: no cover
+def abspath(path: str) -> str:
     """
     Changes relative paths to absolute paths, and does so while respecting prefixes;
     adds 'file://' protocol if no protocol is specified.

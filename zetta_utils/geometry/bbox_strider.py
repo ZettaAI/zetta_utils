@@ -166,7 +166,7 @@ class BBoxStrider:
             )
         )
         bbox_size_in_unit = self.bbox.end - self.bbox.start
-        step_limits_raw: Vec3D[float] = Vec3D[float](
+        step_limits_raw = Vec3D[float](
             *(
                 (b - s) / st + 1
                 for b, s, st in zip(

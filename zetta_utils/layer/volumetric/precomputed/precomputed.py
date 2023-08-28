@@ -8,9 +8,6 @@ from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 import attrs
 import cachetools
 from cachetools.keys import hashkey
-
-# import fsspec
-# import fsspec.asyn
 from cloudfiles import CloudFile
 
 from zetta_utils.common import abspath, is_local

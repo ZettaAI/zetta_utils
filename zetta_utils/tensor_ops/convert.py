@@ -50,6 +50,8 @@ def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
                 raise ValueError("Unable to convert uint32 dtype to int32")
             data = data.astype(np.int32)
 
+        if any(v < 0 for v in data.strides):  # torch.from_numpy does not support negative strides
+            data = data.copy("K")
         result = torch.from_numpy(data).to(device)  # type: ignore # pytorch bug
 
     return result

@@ -48,3 +48,6 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
 
     def pformat(self) -> str:  # pragma: no cover
         return self.backend.pformat()
+
+    def with_changes(self, **kwargs):
+        return attrs.evolve(self, **kwargs)  # pragma: no cover

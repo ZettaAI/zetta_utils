@@ -7,6 +7,7 @@ import os
 import time
 from typing import Any, Dict, List
 
+import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
 from kubernetes.client.exceptions import ApiException as K8sApiException
@@ -125,12 +126,16 @@ def _delete_sqs_queues(resources: Dict[str, ExecutionResource]) -> bool:  # prag
     for resource_id, resource in resources.items():
         if resource.type != ExecutionResourceTypes.SQS_QUEUE.value:
             continue
+        region_name = resource.region
+        if resource.region == "" or resource.region is None:
+            region_name = taskqueue.secrets.AWS_DEFAULT_REGION
+        logger.info(f"Region {region_name}")
+        sqs_client = sqs_utils.get_sqs_client(region_name=region_name)
         try:
             logger.info(f"Deleting SQS queue `{resource.name}`")
-            sqs = sqs_utils.get_sqs_client(region_name=resource.region)
-            queue_url = sqs.get_queue_url(QueueName=resource.name)["QueueUrl"]
-            sqs.delete_queue(QueueUrl=queue_url)
-        except sqs.exceptions.QueueDoesNotExist as exc:
+            queue_url = sqs_client.get_queue_url(QueueName=resource.name)["QueueUrl"]
+            sqs_client.delete_queue(QueueUrl=queue_url)
+        except sqs_client.exceptions.QueueDoesNotExist as exc:
             logger.info(f"Queue does not exist: `{resource.name}`: {exc}")
             _delete_resource_entry(resource_id)
         except Boto3Error as exc:

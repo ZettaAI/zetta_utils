@@ -129,7 +129,6 @@ def _delete_sqs_queues(resources: Dict[str, ExecutionResource]) -> bool:  # prag
         region_name = resource.region
         if resource.region == "" or resource.region is None:
             region_name = taskqueue.secrets.AWS_DEFAULT_REGION
-        logger.info(f"Region {region_name}")
         sqs_client = sqs_utils.get_sqs_client(region_name=region_name)
         try:
             logger.info(f"Deleting SQS queue `{resource.name}`")

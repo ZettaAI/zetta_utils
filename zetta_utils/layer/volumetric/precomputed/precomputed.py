@@ -1,18 +1,16 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-import json
 import os
 from copy import deepcopy
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 
 import attrs
 import cachetools
-import fsspec
-import fsspec.asyn
 from cachetools.keys import hashkey
+from cloudfiles import CloudFile
 
-from zetta_utils.common import abspath
+from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
 InfoExistsModes = Literal["expect_same", "overwrite"]
@@ -20,30 +18,38 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
+# wrapper to cache using absolute paths with '/info'.
+# invalidates the cached infofile if the infofile is local and has since been deleted.
+def get_info(path: str) -> Dict[str, Any]:
+    info_path = _to_info_path(path)
+    if is_local(info_path):
+        if not CloudFile(info_path).exists():
+            _info_cache.pop(_info_hash_key(info_path), None)
+    return _get_info_from_info_path(info_path)
+
 
 @cachetools.cached(_info_cache, key=_info_hash_key)
-def get_info(path: str) -> Dict[str, Any]:
-    path = abspath(path)
-    if not path.endswith("/info"):
-        path = os.path.join(path, "info")
-    try:
-        fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
-        with fsspec.open(path) as f:
-            result = json.load(f)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"'{path}' does not have an infofile.") from e
+def _get_info_from_info_path(info_path: str) -> Dict[str, Any]:
+    cf = CloudFile(info_path)
+    if cf.exists():
+        result = CloudFile(info_path).get_json()
+    else:
+        raise FileNotFoundError(f"The infofile at '{info_path}' does not exist.")
+
     return result
 
 
 def _write_info(
     info: Dict[str, Any], path: str
 ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
-    path = abspath(path)
+    info_path = _to_info_path(path)
+    CloudFile(info_path).put_json(info)
+
+
+def _to_info_path(path: str) -> str:
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
-    fsspec.asyn.reset_lock()  # https://github.com/fsspec/gcsfs/issues/379
-    with fsspec.open(path, "w") as f:
-        json.dump(info, f)
+    return abspath(path)
 
 
 def _str(n: float) -> str:  # pragma: no cover
@@ -138,10 +144,8 @@ class PrecomputedInfoSpec:
             existing_info = get_info(path)
         except FileNotFoundError:
             existing_info = None
-
         new_info = self.make_info()
         self.reference_path = path
-
         if new_info is None and existing_info is None:
             raise RuntimeError(  # pragma: no cover
                 f"The infofile at {path} does not exist, but the infospec "
@@ -159,10 +163,9 @@ class PrecomputedInfoSpec:
                     f"info existing at '{path}' "
                     "while `on_info_exists` is set to 'expect_same'"
                 )
-
             if existing_info != new_info:
                 _write_info(new_info, path)
-                _info_cache[_info_hash_key(path)] = new_info
+                _info_cache[_info_hash_key(_to_info_path(path))] = new_info
                 return True
 
         return False

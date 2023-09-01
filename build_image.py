@@ -16,7 +16,7 @@ def main():
         "-m",
         type=str,
         default="all",
-        choices=["all", "training", "inference"],
+        choices=["all"],
         help="Which dependencies to install.",
     )
     parser.add_argument(
@@ -24,7 +24,7 @@ def main():
         "-p",
         type=str,
         default="3.9",
-        choices=["3.9"],
+        choices=["3.9", "3.10"],
         help="Which python version to use for the image.",
     )
 

@@ -166,8 +166,6 @@ class BBoxStrider:
             )
         )
         bbox_size_in_unit = self.bbox.end - self.bbox.start
-        # TODO: Type this variable again once typeguard bug has been fixed:
-        # https://github.com/agronholm/typeguard/issues/380
         step_limits_raw = Vec3D[float](
             *(
                 (b - s) / st + 1

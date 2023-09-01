@@ -39,14 +39,7 @@ def get_pod_spec(
     tolerations = tolerations or []
     volumes = volumes or []
     volume_mounts = volume_mounts or []
-
-    volume_mounts += [
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
-
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
-
     container = k8s_client.V1Container(
         command=command,
         args=command_args,

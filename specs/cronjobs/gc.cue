@@ -7,7 +7,7 @@ cluster: {
 }
 name: "gc-cron"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:gc_cronjob_v1"
+image: "us.gcr.io/zetta-research/zetta_utils:gc_cronjob_v2"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
@@ -22,7 +22,7 @@ preset_env_vars: [
     "AWS_DEFAULT_REGION"
 ]
 resources: {
-	memory: "1Gi"
+	memory: "500Mi"
 }
 spec_config: {
 	"@type": "mazepa.k8s.CronJobSpec"

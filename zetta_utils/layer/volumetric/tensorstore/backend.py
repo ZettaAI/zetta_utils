@@ -13,7 +13,7 @@ import torch
 from typeguard import suppress_type_checks
 
 from zetta_utils import tensor_ops
-from zetta_utils.common import abspath
+from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
@@ -65,7 +65,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
     Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
-    :param path: Precomputed path.
+    :param path: Precomputed path. Can be given as relative or absolute.
     :param info_spec: Specification for the info file for the layer. If None, the
         info is assumed to exist.
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
@@ -147,7 +147,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def is_local(self) -> bool:  # pragma: no cover
-        return self.path.startswith("file://")
+        return is_local(self.path)
 
     @property
     def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover

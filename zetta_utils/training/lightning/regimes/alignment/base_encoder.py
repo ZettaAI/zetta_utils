@@ -4,6 +4,7 @@
 from typing import Optional
 
 import attrs
+import einops
 import pytorch_lightning as pl
 import torch
 
@@ -74,14 +75,17 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         )
 
         f_aff = (
-            tensor_ops.transform.get_affine_field(
-                size=src.shape[-1],
-                rot_deg=self.equivar_rot_deg_distr(),
-                scale=self.equivar_scale_distr(),
-                shear_x_deg=self.equivar_shear_deg_distr(),
-                shear_y_deg=self.equivar_shear_deg_distr(),
-                trans_x_px=self.equivar_trans_px_distr(),
-                trans_y_px=self.equivar_trans_px_distr(),
+            einops.rearrange(
+                tensor_ops.transform.get_affine_field(
+                    size=src.shape[-1],
+                    rot_deg=self.equivar_rot_deg_distr(),
+                    scale=self.equivar_scale_distr(),
+                    shear_x_deg=self.equivar_shear_deg_distr(),
+                    shear_y_deg=self.equivar_shear_deg_distr(),
+                    trans_x_px=self.equivar_trans_px_distr(),
+                    trans_y_px=self.equivar_trans_px_distr(),
+                ),
+                "C X Y Z -> Z C X Y",
             )
             .field()  # type: ignore
             .pixels()

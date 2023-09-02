@@ -4,6 +4,7 @@
 from typing import Optional
 
 import attrs
+import einops
 import pytorch_lightning as pl
 import torch
 import wandb
@@ -83,9 +84,12 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         equivar_rot = self.equivar_rot_deg_distr()
 
         equivar_field = (
-            tensor_ops.transform.get_affine_field(
-                size=src.shape[-1],
-                rot_deg=equivar_rot,
+            einops.rearrange(
+                tensor_ops.transform.get_affine_field(
+                    size=src.shape[-1],
+                    rot_deg=equivar_rot,
+                ),
+                "C X Y Z -> Z C X Y",
             )
             .field()  # type: ignore
             .to(src.device)(seed_field.from_pixels())

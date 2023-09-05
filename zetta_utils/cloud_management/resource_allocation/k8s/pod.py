@@ -57,13 +57,6 @@ def get_pod_spec(
         volume_mounts=volume_mounts,
     )
 
-    dshm = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    tmp = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-
     return k8s_client.V1PodSpec(
         containers=[container],
         dns_policy=dns_policy,
@@ -76,5 +69,5 @@ def get_pod_spec(
         security_context={},
         termination_grace_period_seconds=30,
         tolerations=tolerations,
-        volumes=volumes + [dshm, tmp],
+        volumes=volumes,
     )

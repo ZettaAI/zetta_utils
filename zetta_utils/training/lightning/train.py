@@ -173,6 +173,19 @@ def _create_ddp_master_job(
         execution_id, REQUIRED_ENV_VARS
     )
 
+    dshm = k8s_client.V1Volume(
+        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
+    )
+    tmp = k8s_client.V1Volume(
+        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
+    )
+    volumes = [vol, dshm, tmp]
+    mounts = [
+        mount,
+        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
+        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
+    ]
+
     envs = []
     for key, val in env_vars.items():
         envs.append(k8s_client.V1EnvVar(name=key, value=val))
@@ -200,8 +213,8 @@ def _create_ddp_master_job(
         # these pools must have `master-pool=true` taint
         # not ncessary for single node ddp so it can be scheduled on preemptibles
         tolerations=_get_tolerations(role="master" if num_nodes > 1 else "worker"),
-        volumes=[vol],
-        volume_mounts=[mount],
+        volumes=volumes,
+        volume_mounts=mounts,
     )
 
     train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
@@ -233,8 +246,8 @@ def _create_ddp_master_job(
                 host_aliases=aliases,
                 resources=resources,
                 tolerations=_get_tolerations(role="worker"),
-                volumes=[vol],
-                volume_mounts=[mount],
+                volumes=volumes,
+                volume_mounts=mounts,
             )
 
             worker_deployment = resource_allocation.k8s.get_deployment(

@@ -30,6 +30,8 @@ def get_deployment_spec(
     resources: Dict[str, int | float | str],
     labels: Dict[str, str],
     env_secret_mapping: Dict[str, str],
+    volumes: Optional[List[k8s_client.V1Volume]] = None,
+    volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
 ) -> k8s_client.V1Deployment:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -43,6 +45,8 @@ def get_deployment_spec(
         resources=resources,
         env_secret_mapping=env_secret_mapping,
         tolerations=[schedule_toleration],
+        volumes=volumes,
+        volume_mounts=volume_mounts,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -89,6 +93,18 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     worker_command = get_mazepa_worker_command(task_queue_spec, outcome_queue_spec)
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
+    dshm = k8s_client.V1Volume(
+        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
+    )
+    tmp = k8s_client.V1Volume(
+        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
+    )
+    volumes = [dshm, tmp]
+    volume_mounts = [
+        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
+        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
+    ]
+
     return get_deployment_spec(
         name=execution_id,
         image=image,
@@ -97,6 +113,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         resources=resources,
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,
+        volumes=volumes,
+        volume_mounts=volume_mounts,
     )
 
 

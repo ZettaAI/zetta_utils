@@ -1,9 +1,11 @@
+# type: ignore
+# pylint: skip-file
 from __future__ import annotations
-from functools import partial
 
 import json
 import math
 import os
+from functools import partial
 
 from cloudvolume import CloudVolume
 

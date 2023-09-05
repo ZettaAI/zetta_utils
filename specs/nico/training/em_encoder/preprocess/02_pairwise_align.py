@@ -1,10 +1,11 @@
+# type: ignore
+# pylint: skip-file
 from __future__ import annotations
 
 import math
 from functools import partial
 
 from cloudvolume import CloudVolume
-
 
 from zetta_utils.api.v0 import *
 

@@ -1,13 +1,14 @@
+# type: ignore
+# pylint: skip-file
 from __future__ import annotations
 
+import json
 import math
-from functools import partial
 import os
+from copy import deepcopy
+from functools import partial
 
 from cloudvolume import CloudVolume
-from copy import deepcopy
-import json
-
 
 from zetta_utils.api.v0 import *
 

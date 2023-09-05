@@ -1,3 +1,5 @@
+# type: ignore
+# pylint: skip-file
 from __future__ import annotations
 
 import math
@@ -5,19 +7,17 @@ import math
 from cloudvolume import CloudVolume
 from cloudvolume.lib import Bbox
 
-from zetta_utils import mazepa
-from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import execute_on_gcp_with_sqs
+from zetta_utils import log, mazepa
 from zetta_utils.builder.built_in_registrations import efficient_parse_lambda_str
 from zetta_utils.geometry.bbox import BBox3D
+from zetta_utils.geometry.vec import Vec3D
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.layer.volumetric.tools import VolumetricIndexTranslator
+from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
+    execute_on_gcp_with_sqs,
+)
 from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
-
-from zetta_utils import log
-
 from zetta_utils.ng.link_builder import make_ng_link
-
-from zetta_utils.geometry.vec import Vec3D
 
 logger = log.get_logger("zetta_utils")
 log.set_verbosity("INFO")
@@ -464,8 +464,9 @@ for k in SOURCE_PATHS.keys():
     )
 
 
-import os
 import json
+import os
+
 os.environ["ZETTA_RUN_SPEC"] = json.dumps("")
 execute_on_gcp_with_sqs(
     worker_image="us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20230728_7",

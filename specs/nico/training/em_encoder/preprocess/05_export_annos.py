@@ -1,3 +1,5 @@
+# type: ignore
+# pylint: skip-file
 from __future__ import annotations
 
 from cloudvolume import CloudVolume

@@ -14,6 +14,7 @@ from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, load_all_modules, log, mazepa, parsing
+from zetta_utils.builder.build import BuilderPartial
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
 
 logger = log.get_logger("zetta_utils")
@@ -302,7 +303,7 @@ def _create_ddp_master_job(
 def lightning_train_remote(
     worker_image: str,
     worker_resources: dict,
-    spec_path: str,
+    spec_path: str | dict | BuilderPartial,
     num_nodes: int = 1,
     retry_count: int = 3,
     env_vars: Optional[Dict[str, str]] = None,
@@ -321,7 +322,12 @@ def lightning_train_remote(
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )
-    spec = parsing.cue.load(spec_path)
+    if isinstance(spec_path, str):
+        spec = parsing.cue.load(spec_path)
+    elif isinstance(spec_path, dict):
+        spec = spec_path
+    elif isinstance(spec_path, BuilderPartial):
+        spec = spec_path.spec
 
     _create_ddp_master_job(
         execution_id,

@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
+import math
 import os
 from copy import deepcopy
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple
@@ -58,6 +59,71 @@ def _str(n: float) -> str:  # pragma: no cover
     return str(n)
 
 
+def _check_integer_seq(seq: Sequence[int | float]) -> bool:
+    error = False
+    for k in seq:
+        error |= not float(k).is_integer()
+    return error
+
+
+def _get_ref_scale(
+    add_scales_ref: str | dict[str, Any], reference_info: dict[str, Any]
+) -> dict[str, Any]:
+    # the reference scale can either be a dictionary or an existing key in `ref_info`
+    if isinstance(add_scales_ref, dict):
+        return add_scales_ref
+    # if not, search in ref_info
+    if "scales" not in reference_info:
+        raise RuntimeError("`scales` must be in `reference_info` if `add_scales_ref` is a key")
+    matched = list(filter(lambda x: x["key"] == add_scales_ref, reference_info["scales"]))
+    if len(matched) == 0:
+        raise RuntimeError(f'`reference_info` does not have scale "{add_scales_ref}"')
+    return matched[0]
+
+
+def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> dict[str, Any]:
+    """Make a single scale based on the reference scale"""
+    ret = {}
+    if isinstance(target, dict):
+        ret = target.copy()
+    else:
+        ret["resolution"] = target
+    multiplier = [k / v for k, v in zip(ret["resolution"], ref["resolution"])]
+
+    # fill missing values if necessary
+    if "key" not in ret:
+        ret["key"] = "_".join([str(k) for k in ret["resolution"]])
+    if "size" not in ret:
+        ret["size"] = [k / m for k, m in zip(ref["size"], multiplier)]
+    if "voxel_offset" not in ret:
+        ret["voxel_offset"] = [k / m for k, m in zip(ref["voxel_offset"], multiplier)]
+    if "chunk_sizes" not in ret:
+        ret["chunk_sizes"] = ref["chunk_sizes"]
+    if "encoding" not in ret:
+        ret["encoding"] = ref["encoding"]
+
+    # check and convert values to int
+    errored = _check_integer_seq(ret["size"])
+    errored |= _check_integer_seq(ret["voxel_offset"])
+    if errored:
+        raise RuntimeError(f"Computed scale {ret} does not have integer size and offsets")
+    ret["voxel_offset"] = [int(k) for k in ret["voxel_offset"]]
+    ret["size"] = [int(k) for k in ret["size"]]
+    return ret
+
+
+def _merge_and_sort_scales(existing_scales, new_scales):
+    """Merge two list of scales, overwriting the old with new entries"""
+    ret_dict = dict(zip([k["key"] for k in existing_scales], existing_scales))
+    ret_dict.update(dict(zip([k["key"] for k in new_scales], new_scales)))
+    # sort scales by voxel volumes
+    ret = [
+        ret_dict[k]
+        for k in sorted(ret_dict.keys(), key=lambda x: math.prod(ret_dict[x]["resolution"]))
+    ]
+    return ret
+
+
 @attrs.mutable
 class PrecomputedInfoSpec:
     reference_path: str | None = None
@@ -69,6 +135,9 @@ class PrecomputedInfoSpec:
     voxel_offset_map: dict[str, Sequence[int]] | None = None
     dataset_size_map: dict[str, Sequence[int]] | None = None
     data_type: str | None = None
+    add_scales: Sequence[Sequence[int] | dict[str, Any]] | None = None
+    add_scales_ref: str | dict[str, Any] | None = None
+    add_scales_mode: str = "merge"
     # ensure_scales: Optional[Iterable[int]] = None
 
     def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
@@ -96,7 +165,11 @@ class PrecomputedInfoSpec:
     def make_info(  # pylint: disable=too-many-branches, consider-iterating-dictionary
         self,
     ) -> Optional[Dict[str, Any]]:
-        if self.reference_path is None and self.field_overrides is None:
+        if (
+            self.reference_path is None
+            and self.field_overrides is None
+            and self.add_scales is None
+        ):
             result = None
         else:
             field_overrides = self.field_overrides
@@ -105,7 +178,27 @@ class PrecomputedInfoSpec:
             reference_info = {}  # type: Dict[str, Any]
             if self.reference_path is not None:
                 reference_info = get_info(self.reference_path)
-            result = deepcopy({**reference_info, **field_overrides})
+
+            result = deepcopy(reference_info)
+
+            if self.add_scales is not None:
+                if self.add_scales_ref is None:
+                    raise RuntimeError("`add_scales_ref` must be given if `add_scales` is used")
+                if "scales" in field_overrides:
+                    raise RuntimeError(
+                        "`scales` must not be in `field_overrides` if `add_scales` is used"
+                    )
+                ref_scale = _get_ref_scale(self.add_scales_ref, reference_info)
+                new_scales = [_make_scale(ref=ref_scale, target=e) for e in self.add_scales]
+                if self.add_scales_mode == "replace" or "scales" not in result:
+                    result["scales"] = _merge_and_sort_scales({}, new_scales)
+                elif self.add_scales_mode == "merge":
+                    result["scales"] = _merge_and_sort_scales(result["scales"], new_scales)
+                else:
+                    raise RuntimeError(f"Unknown `add_scales_mode` {self.add_scales_mode}")
+
+            result.update(field_overrides)
+
             if self.default_chunk_size is not None:
                 for e in result["scales"]:
                     e["chunk_sizes"] = [[*self.default_chunk_size]]
@@ -146,6 +239,7 @@ class PrecomputedInfoSpec:
             existing_info = None
         new_info = self.make_info()
         self.reference_path = path
+        self.add_scales = None  # no need to and cannot add scales after ref path is updated
         if new_info is None and existing_info is None:
             raise RuntimeError(  # pragma: no cover
                 f"The infofile at {path} does not exist, but the infospec "

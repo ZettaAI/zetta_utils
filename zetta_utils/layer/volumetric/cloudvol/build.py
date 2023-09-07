@@ -78,8 +78,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         Each entry can be either a resolution (e.g., [4, 4, 40]) or a partially filled
         Precomputed scale. By default, ``size`` and ``voxel_offset`` will be scaled
         accordingly to the reference scale, while keeping ``chunk_sizes`` the same.
-        Note that using ``info_[chunk,dataset,voxel]_size[_map]`` will override
-        these values.
+        Note that using ``info_[chunk_size,dataset_size,voxel_offset][_map]`` will
+        override these values.
     :param info_add_scales_ref: Reference scale to be used.
     :param info_add_scales_mode: Either "merge" or "replace". "merge" will
         merge added scales to existing scales if ``info_reference_path`` is

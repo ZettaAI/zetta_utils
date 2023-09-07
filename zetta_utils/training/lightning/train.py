@@ -78,13 +78,19 @@ def lightning_train(
 
 def _parse_spec_and_train():
     load_all_modules()
-    regime = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["regime"])
-    trainer = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["trainer"])
-    train_dataloader = builder.build(
-        spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["train_dataloader"]
-    )
-    val_dataloader = builder.build(spec=json.loads(os.environ["ZETTA_RUN_SPEC"])["val_dataloader"])
-    lightning_train(regime, trainer, train_dataloader, val_dataloader)
+    train_spec = json.loads(os.environ["ZETTA_RUN_SPEC"])
+    regime = builder.build(spec=train_spec["regime"])
+    trainer = builder.build(spec=train_spec["trainer"])
+    train_dataloader = builder.build(spec=train_spec["train_dataloader"])
+    try:
+        val_dataloader = builder.build(spec=train_spec["val_dataloader"])
+    except KeyError:
+        val_dataloader = None
+    try:
+        full_state_ckpt_path = builder.build(spec=train_spec["full_state_ckpt_path"])
+    except KeyError:
+        full_state_ckpt_path = "last"
+    lightning_train(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
 
 
 @builder.register("multinode_train_launch")
@@ -158,15 +164,19 @@ def _create_ddp_master_job(
     resources: dict,
     train_spec: dict,
     num_nodes: int,
+    retry_count: int,
     env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
 ):  # pylint: disable=too-many-locals
     zetta_cmd = "zetta run specs/train.cue"
     env_vars = env_vars or {}
-    train_spec["@type"] = "multinode_train_launch"
-    train_spec["execution_id"] = execution_id
-    train_spec["num_nodes"] = num_nodes
+
+    if num_nodes > 1:
+        train_spec["@type"] = "multinode_train_launch"
+        train_spec["execution_id"] = execution_id
+        train_spec["num_nodes"] = num_nodes
+        train_spec["trainer"]["num_nodes"] = num_nodes
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
@@ -217,7 +227,9 @@ def _create_ddp_master_job(
         volume_mounts=mounts,
     )
 
-    train_job = resource_allocation.k8s.get_job(execution_id, pod_spec=train_pod_spec)
+    train_job = resource_allocation.k8s.get_job(
+        execution_id, pod_spec=train_pod_spec, backoff_limit=retry_count
+    )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         execution_id=execution_id,
         cluster_info=cluster_info,
@@ -277,12 +289,14 @@ def lightning_train_remote(
     worker_resources: dict,
     spec_path: str,
     num_nodes: int = 1,
+    retry_count: int = 3,
     env_vars: Optional[Dict[str, str]] = None,
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
     follow_logs: Optional[bool] = False,
 ) -> None:
+    assert num_nodes > 0
     cluster_info = resource_allocation.k8s.parse_cluster_info(
         cluster_name=worker_cluster_name,
         cluster_region=worker_cluster_region,
@@ -304,4 +318,5 @@ def lightning_train_remote(
         train_spec=spec,
         num_nodes=num_nodes,
         host_network=num_nodes > 1,
+        retry_count=retry_count,
     )

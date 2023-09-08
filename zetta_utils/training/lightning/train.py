@@ -161,13 +161,14 @@ def _create_ddp_master_job(
     *,
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
-    resources: dict,
+    resource_limits: dict[str, int | float | str],
     train_spec: dict,
     num_nodes: int,
     retry_count: int,
     env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
+    resource_requests: Optional[dict[str, int | float | str]] = None,
 ):  # pylint: disable=too-many-locals
     zetta_cmd = "zetta run specs/train.cue"
     env_vars = env_vars or {}
@@ -216,7 +217,7 @@ def _create_ddp_master_job(
         env_secret_mapping=env_secret_mapping,
         hostname="master",
         host_network=host_network,
-        resources=resources,
+        resources=resource_limits,
         restart_policy="Never",
         # with multinode ddp we need a node on standard pool for an IP
         # that remains the same for the duration of training
@@ -225,6 +226,7 @@ def _create_ddp_master_job(
         tolerations=_get_tolerations(role="master" if num_nodes > 1 else "worker"),
         volumes=volumes,
         volume_mounts=mounts,
+        resource_requests=resource_requests,
     )
 
     train_job_failure_policy = k8s_client.V1PodFailurePolicy(
@@ -271,10 +273,11 @@ def _create_ddp_master_job(
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,
                 host_aliases=aliases,
-                resources=resources,
+                resources=resource_limits,
                 tolerations=_get_tolerations(role="worker"),
                 volumes=volumes,
                 volume_mounts=mounts,
+                resource_requests=resource_requests,
             )
 
             worker_deployment = resource_allocation.k8s.get_deployment(
@@ -301,7 +304,7 @@ def _create_ddp_master_job(
 @typeguard.typechecked
 def lightning_train_remote(
     worker_image: str,
-    worker_resources: dict,
+    worker_resources: dict[str, int | float | str],
     spec_path: str,
     num_nodes: int = 1,
     retry_count: int = 3,
@@ -310,6 +313,7 @@ def lightning_train_remote(
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
     follow_logs: Optional[bool] = False,
+    worker_resource_requests: Optional[dict[str, int | float | str]] = None,
 ) -> None:
     assert num_nodes > 0
     cluster_info = resource_allocation.k8s.parse_cluster_info(
@@ -329,9 +333,10 @@ def lightning_train_remote(
         env_vars=env_vars,
         follow_logs=follow_logs,
         image=worker_image,
-        resources=worker_resources,
+        resource_limits=worker_resources,
         train_spec=spec,
         num_nodes=num_nodes,
         host_network=num_nodes > 1,
         retry_count=retry_count,
+        resource_requests=worker_resource_requests,
     )

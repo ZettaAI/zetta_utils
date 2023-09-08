@@ -32,6 +32,7 @@ def get_pod_spec(
     tolerations: Optional[List[k8s_client.V1Toleration]] = None,
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
 ) -> k8s_client.V1PodSpec:
 
     envs = envs or []
@@ -49,8 +50,8 @@ def get_pod_spec(
         image_pull_policy=image_pull_policy,
         ports=ports,
         resources=k8s_client.V1ResourceRequirements(
-            requests=resources,
             limits=resources,
+            requests=resource_requests or resources,
         ),
         termination_message_path="/dev/termination-log",
         termination_message_policy="File",

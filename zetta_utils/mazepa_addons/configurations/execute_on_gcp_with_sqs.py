@@ -56,6 +56,7 @@ def get_gcp_with_sqs_config(
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
     ctx_managers: list[AbstractContextManager],
+    worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
     outcome_queue_name = f"zzz-{execution_id}-outcome"
@@ -92,6 +93,7 @@ def get_gcp_with_sqs_config(
         resources=worker_resources,
         env_secret_mapping=env_secret_mapping,
         labels=worker_labels,
+        resource_requests=worker_resource_requests,
     )
 
     ctx_managers.append(
@@ -124,6 +126,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: float = 300.0,
     raise_on_failed_checkpoint: bool = True,
+    worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
 ):
     _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
@@ -166,6 +169,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_replicas=worker_replicas,
             worker_resources=worker_resources if worker_resources else {},
             ctx_managers=ctx_managers,
+            worker_resource_requests=worker_resource_requests,
         )
 
     with ExitStack() as stack:

@@ -26,6 +26,7 @@ def _get_job_spec(
     meta: k8s_client.V1ObjectMeta,
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
+    pod_failure_policy: Optional[k8s_client.V1PodFailurePolicy] = None,
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ):
@@ -33,6 +34,7 @@ def _get_job_spec(
     return k8s_client.V1JobSpec(
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        pod_failure_policy=pod_failure_policy,
         selector=selector,
         suspend=suspend,
         template=pod_template,
@@ -44,6 +46,7 @@ def get_job_template(
     pod_spec: k8s_client.V1PodSpec,
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
+    pod_failure_policy: Optional[k8s_client.V1PodFailurePolicy] = None,
     labels: Optional[Dict[str, str]] = None,
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
@@ -54,6 +57,7 @@ def get_job_template(
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        pod_failure_policy=pod_failure_policy,
         selector=selector,
         suspend=suspend,
     )
@@ -65,6 +69,7 @@ def get_job(
     pod_spec: k8s_client.V1PodSpec,
     active_deadline_seconds: Optional[int] = None,
     backoff_limit: Optional[int] = 3,
+    pod_failure_policy: Optional[k8s_client.V1PodFailurePolicy] = None,
     labels: Optional[Dict[str, str]] = None,
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
@@ -75,6 +80,7 @@ def get_job(
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,
         backoff_limit=backoff_limit,
+        pod_failure_policy=pod_failure_policy,
         selector=selector,
         suspend=suspend,
     )

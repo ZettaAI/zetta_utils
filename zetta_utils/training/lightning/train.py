@@ -227,8 +227,23 @@ def _create_ddp_master_job(
         volume_mounts=mounts,
     )
 
+    train_job_failure_policy = k8s_client.V1PodFailurePolicy(
+        rules=[
+            k8s_client.V1PodFailurePolicyRule(
+                action="Ignore",
+                on_pod_conditions=[
+                    k8s_client.V1PodFailurePolicyOnPodConditionsPattern(
+                        status="True", type="DisruptionTarget"
+                    )
+                ],
+            )
+        ]
+    )
     train_job = resource_allocation.k8s.get_job(
-        execution_id, pod_spec=train_pod_spec, backoff_limit=retry_count
+        execution_id,
+        pod_spec=train_pod_spec,
+        backoff_limit=retry_count,
+        pod_failure_policy=train_job_failure_policy,
     )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         execution_id=execution_id,

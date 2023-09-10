@@ -4,12 +4,18 @@ import math
 import sys
 import time
 import traceback
+from contextlib import ExitStack
 from typing import Any, Callable, Optional
 
 import tenacity
 
 from zetta_utils import log
-from zetta_utils.common import RepeatTimer
+from zetta_utils.common import (
+    RepeatTimer,
+    SemaphoreType,
+    configure_semaphores,
+    setup_persistent_process_pool,
+)
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
 from zetta_utils.mazepa.task_outcome import OutcomeReport, TaskOutcome
@@ -36,62 +42,67 @@ def run_worker(
     max_pull_num: int = 1,
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
+    num_procs: int = 1,
+    semaphores_spec: dict[SemaphoreType, int] | None = None,
     debug: bool = False,
 ):
-    start_time = time.time()
-    while True:
-        try:
-            task_msgs = task_queue.pull(max_num=max_pull_num)
-        except (exceptions.MazepaException, SystemExit, KeyboardInterrupt) as e:
-            raise e  # pragma: no cover
-        except Exception as e:  # pylint: disable=broad-except
-            # The broad except here is OK because it will be propagated to the outcome
-            # queue and reraise the exception
-            logger.error("Failed pulling tasks from the queue:")
-            logger.exception(e)
-            exc_type, exception, tb = sys.exc_info()
-            traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
+    with ExitStack() as stack:
+        stack.enter_context(configure_semaphores(semaphores_spec))
+        stack.enter_context(setup_persistent_process_pool(num_procs))
+        start_time = time.time()
+        while True:
+            try:
+                task_msgs = task_queue.pull(max_num=max_pull_num)
+            except (exceptions.MazepaException, SystemExit, KeyboardInterrupt) as e:
+                raise e  # pragma: no cover
+            except Exception as e:  # pylint: disable=broad-except
+                # The broad except here is OK because it will be propagated to the outcome
+                # queue and reraise the exception
+                logger.error("Failed pulling tasks from the queue:")
+                logger.exception(e)
+                exc_type, exception, tb = sys.exc_info()
+                traceback_text = "".join(traceback.format_exception(exc_type, exception, tb))
 
-            outcome = TaskOutcome[Any](
-                exception=exception,
-                traceback_text=traceback_text,
-                execution_sec=0,
-                return_value=None,
-            )
-            outcome_report = OutcomeReport(task_id=constants.UNKNOWN_TASK_ID, outcome=outcome)
-            outcome_queue.push([outcome_report])
-            raise e
+                outcome = TaskOutcome[Any](
+                    exception=exception,
+                    traceback_text=traceback_text,
+                    execution_sec=0,
+                    return_value=None,
+                )
+                outcome_report = OutcomeReport(task_id=constants.UNKNOWN_TASK_ID, outcome=outcome)
+                outcome_queue.push([outcome_report])
+                raise e
 
-        logger.info(f"Got {len(task_msgs)} tasks.")
+            logger.info(f"Got {len(task_msgs)} tasks.")
 
-        if len(task_msgs) == 0:
-            logger.info(f"Sleeping for {sleep_sec} secs.")
-            time.sleep(sleep_sec)
-        else:
-            logger.info("STARTING: taks batch execution.")
-            time_start = time.time()
-            for msg in task_msgs:
-                task = msg.payload
-                with log.logging_tag_ctx("task_id", task.id_):
-                    with log.logging_tag_ctx("execution_id", task.execution_id):
-                        if task_filter_fn(task):
-                            ack_task, outcome = process_task_message(msg=msg, debug=debug)
-                        else:
-                            ack_task = True
-                            outcome = TaskOutcome(exception=MazepaCancel())
+            if len(task_msgs) == 0:
+                logger.info(f"Sleeping for {sleep_sec} secs.")
+                time.sleep(sleep_sec)
+            else:
+                logger.info("STARTING: task batch execution.")
+                time_start = time.time()
+                for msg in task_msgs:
+                    task = msg.payload
+                    with log.logging_tag_ctx("task_id", task.id_):
+                        with log.logging_tag_ctx("execution_id", task.execution_id):
+                            if task_filter_fn(task):
+                                ack_task, outcome = process_task_message(msg=msg, debug=debug)
+                            else:
+                                ack_task = True
+                                outcome = TaskOutcome(exception=MazepaCancel())
 
-                        if ack_task:
-                            outcome_report = OutcomeReport(
-                                task_id=msg.payload.id_, outcome=outcome
-                            )
-                            outcome_queue.push([outcome_report])
-                            msg.acknowledge_fn()
+                            if ack_task:
+                                outcome_report = OutcomeReport(
+                                    task_id=msg.payload.id_, outcome=outcome
+                                )
+                                outcome_queue.push([outcome_report])
+                                msg.acknowledge_fn()
 
-            time_end = time.time()
-            logger.info(f"DONE: taks batch execution ({time_end - time_start:.2f}sec).")
+                time_end = time.time()
+                logger.info(f"DONE: task batch execution ({time_end - time_start:.2f}sec).")
 
-        if max_runtime is not None and time.time() - start_time > max_runtime:
-            break
+            if max_runtime is not None and time.time() - start_time > max_runtime:
+                break
 
 
 def process_task_message(

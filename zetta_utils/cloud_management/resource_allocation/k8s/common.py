@@ -10,6 +10,7 @@ import attrs
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
+from zetta_utils.common import SemaphoreType
 
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
@@ -58,7 +59,12 @@ def _get_init_container_command() -> str:
     return command
 
 
-def get_mazepa_worker_command(task_queue_spec: dict[str, Any], outcome_queue_spec: dict[str, Any]):
+def get_mazepa_worker_command(
+    task_queue_spec: dict[str, Any],
+    outcome_queue_spec: dict[str, Any],
+    num_procs: int = 1,
+    semaphores_spec: dict[SemaphoreType, int] | None = None,
+):
     result = (
         """
     zetta -vv -l try run -s '{
@@ -66,6 +72,8 @@ def get_mazepa_worker_command(task_queue_spec: dict[str, Any], outcome_queue_spe
     """
         + f"task_queue: {json.dumps(task_queue_spec)}\n"
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
+        + f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
+        + f"num_procs: {num_procs}\n"
         + """
         max_pull_num: 1
         sleep_sec: 5

@@ -1,5 +1,5 @@
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_exc_auto_divisibility_and_expand_bbox_backend"
+#DST_PATH: "assets/outputs/test_uint8_copy_no_op_kwargs"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -12,21 +12,14 @@
 	"@type": "build_subchunkable_apply_flow"
 	fn: {
 		"@type":    "lambda"
-		lambda_str: "lambda src: src"
+		lambda_str: "lambda: torch.full((1,1024,1024,1), fill_value=42, dtype=torch.uint8)"
 	}
-	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
-	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
-	level_intermediaries_dirs: ["assets/temp/", "assets/temp"]
-	auto_divisibility:   true
-	expand_bbox_backend: true
+	processing_chunk_sizes: [[1024, 1024, 1]]
+	processing_crop_pads: [[0, 0, 0]]
+	level_intermediaries_dirs: ["assets/temp/"]
+	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
-	op_kwargs: {
-		src: {
-			"@type": "build_cv_layer"
-			path:    #SRC_PATH
-		}
-	}
 	dst: {
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH

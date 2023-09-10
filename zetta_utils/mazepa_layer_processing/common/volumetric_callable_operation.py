@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from contextlib import ExitStack
 from functools import partial
 from typing import Callable, Generic, Sequence, TypeVar
 
@@ -9,6 +10,7 @@ import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils.common import SemaphoreType, semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer import IndexChunker
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
@@ -28,10 +30,15 @@ class VolumetricCallableOperation(Generic[P]):
     Wrapper that converts a volumetric processing callable to a taskable operation .
     Adds support for pad/crop_pad and destination index resolution change.
 
-    :param fn: Callable that will perform data processing
+    :param fn: Callable that will perform data processing.
+    :param fn_semaphores: Semaphores to be acquired while the `fn` is running.
+        Note that the reading and writing parts already acquire their own semaphores,
+        and thus, `fn_semaphores` only needs to include `read` or `write` if the
+        `fn` does either of these things.
     """
 
     fn: Callable[P, torch.Tensor]
+    fn_semaphores: Sequence[SemaphoreType] | None = None
     crop_pad: Sequence[int] = (0, 0, 0)
     res_change_mult: Sequence[float] = (1, 1, 1)
     input_crop_pad: Sequence[int] = attrs.field(init=False)
@@ -79,8 +86,13 @@ class VolumetricCallableOperation(Generic[P]):
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
         idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
-        task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
-        result_raw = self.fn(**task_kwargs)
+        with semaphore("read"):
+            task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
+        with ExitStack() as semaphore_stack:
+            if self.fn_semaphores is not None:
+                for semaphore_type in self.fn_semaphores:
+                    semaphore_stack.enter_context(semaphore(semaphore_type))
+            result_raw = self.fn(**task_kwargs)
         # Data crop amount is determined by the index pad and the
         # difference between the resolutions of idx and dst_idx.
         # Padding was applied before the first read processor, so cropping
@@ -88,7 +100,8 @@ class VolumetricCallableOperation(Generic[P]):
         dst_with_crop = dst.with_procs(
             write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
         )
-        dst_with_crop[idx] = result_raw
+        with semaphore("write"):
+            dst_with_crop[idx] = result_raw
 
 
 # TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured

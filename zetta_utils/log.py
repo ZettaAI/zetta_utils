@@ -93,8 +93,9 @@ def configure_logger(level=None, third_party_level="ERROR"):
     )
     rich_handler.addFilter(InjectingFilter())
     handlers = [rich_handler]
-    if LOKI_HANDLER is not None:
-        handlers.append(LOKI_HANDLER)
+    # TODO: Add Loki Handler with multiprocessing support / deferred write
+    # if LOKI_HANDLER is not None:
+    #    handlers.append(LOKI_HANDLER)
     logging.basicConfig(
         level=level, format="%(name)s %(pathname)20s:%(lineno)4d \n%(message)s", handlers=handlers
     )

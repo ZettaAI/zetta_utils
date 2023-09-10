@@ -7,6 +7,7 @@ import einops
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import builder, mazepa, tensor_ops
+from zetta_utils.common import semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.mazepa_layer_processing.alignment.common import (
@@ -45,42 +46,46 @@ class WarpOperation:
         field: VolumetricLayer,
     ) -> None:
         idx_padded = idx.padded(self.crop_pad)
-        if self.use_translation_adjustment:
-            src_data_raw, field_data_raw, xy_translation = translation_adjusted_download(
-                src=src,
-                field=field,
-                idx=idx_padded,
-                translation_granularity=self.translation_granularity,
-            )
-        else:
-            src_data_raw = src[idx_padded]
-            field_data_raw = field[idx_padded]
-            xy_translation = (0, 0)
+        with semaphore("read"):
+            if self.use_translation_adjustment:
+                src_data_raw, field_data_raw, xy_translation = translation_adjusted_download(
+                    src=src,
+                    field=field,
+                    idx=idx_padded,
+                    translation_granularity=self.translation_granularity,
+                )
+            else:
+                src_data_raw = src[idx_padded]
+                field_data_raw = field[idx_padded]
+                xy_translation = (0, 0)
 
-        src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
-        field_data = einops.rearrange(
-            field_data_raw, "C X Y Z -> Z C X Y"
-        ).field_()  # type: ignore # no type for Torchfields yet
+        with semaphore("cpu"):
+            src_data = einops.rearrange(src_data_raw, "C X Y Z -> Z C X Y")
+            field_data = einops.rearrange(
+                field_data_raw, "C X Y Z -> Z C X Y"
+            ).field_()  # type: ignore # no type for Torchfields yet
 
-        with torchfields.set_identity_mapping_cache(True):
-            if self.mode == "field":
-                src_data = src_data.field_().from_pixels()  # type: ignore
+            with torchfields.set_identity_mapping_cache(True):
+                if self.mode == "field":
+                    src_data = src_data.field_().from_pixels()  # type: ignore
 
-            dst_data_raw = field_data.from_pixels()(src_data.float())
-            if self.mode == "mask":
-                dst_data_raw = dst_data_raw > self.mask_value_thr
-            elif self.mode == "field":
-                dst_data_raw = dst_data_raw.pixels()
-                dst_data_raw.x += xy_translation[0]
-                dst_data_raw.y += xy_translation[1]
+                dst_data_raw = field_data.from_pixels()(src_data.float())
+                if self.mode == "mask":
+                    dst_data_raw = dst_data_raw > self.mask_value_thr
+                elif self.mode == "field":
+                    dst_data_raw = dst_data_raw.pixels()
+                    dst_data_raw.x += xy_translation[0]
+                    dst_data_raw.y += xy_translation[1]
 
-        dst_data_raw = dst_data_raw.to(src_data.dtype)
+            dst_data_raw = dst_data_raw.to(src_data.dtype)
 
-        # Cropping along 2 spatial dimentions, Z is batch
-        # the typed generation is necessary because mypy cannot tell that when you slice an
-        # Vec3D[int], the outputs contain ints (might be due to the fact that np.int64s
-        # are not ints
-        crop_2d = tuple(int(e) for e in self.crop_pad[:-1])
-        dst_data_cropped = tensor_ops.crop(dst_data_raw, crop_2d)
-        dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
-        dst[idx] = dst_data
+            # Cropping along 2 spatial dimentions, Z is batch
+            # the typed generation is necessary because mypy cannot tell that when you slice an
+            # Vec3D[int], the outputs contain ints (might be due to the fact that np.int64s
+            # are not ints
+            crop_2d = tuple(int(e) for e in self.crop_pad[:-1])
+            dst_data_cropped = tensor_ops.crop(dst_data_raw, crop_2d)
+            dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
+
+        with semaphore("write"):
+            dst[idx] = dst_data

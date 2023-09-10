@@ -24,6 +24,7 @@ from torch import Tensor
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.common import SemaphoreType
 from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
@@ -54,6 +55,7 @@ class DelegatedSubchunkedOperation(Generic[P]):
     flow_schema: VolumetricApplyFlowSchema[P, None]
     operation_name: str
     level: int
+    parallel_if_pool_exists: bool
 
     def get_input_resolution(  # pylint: disable=no-self-use
         self, dst_resolution: Vec3D
@@ -70,9 +72,11 @@ class DelegatedSubchunkedOperation(Generic[P]):
         *op_args: P.args,
         **op_kwargs: P.kwargs,
     ) -> None:
-        mazepa.Executor(do_dryrun_estimation=False, show_progress=False)(
-            self.flow_schema(idx, dst, op_args, op_kwargs)
-        )
+        mazepa.Executor(
+            do_dryrun_estimation=False,
+            show_progress=False,
+            parallel_if_pool_exists=self.parallel_if_pool_exists,
+        )(self.flow_schema(idx, dst, op_args, op_kwargs))
 
 
 @builder.register("build_subchunkable_apply_flow")
@@ -93,10 +97,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     expand_bbox_processing: bool = True,
     shrink_processing_chunk: bool = False,
     auto_divisibility: bool = False,
-    allow_cache_up_to_level: int = 0,
+    allow_cache_up_to_level: int | None = None,
     print_summary: bool = True,
     generate_ng_link: bool = False,
     fn: Callable[P, Tensor] | None = None,
+    fn_semaphores: Sequence[SemaphoreType] | None = None,
     op: VolumetricOpProtocol[P, None, Any] | None = None,
     op_args: Iterable = (),
     op_kwargs: Mapping[str, Any] | None = None,
@@ -171,11 +176,13 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         ``expand_bbox_backend`` and ``shrink_processing_chunk``.
     :param allow_cache_up_to_level: The subchunking level (smallest is 0) where the cache for
         different remote layers should be cleared after the processing is done. Recommended to
-        keep this at the number of levels of subchunking.
+        keep this at the level of the largest subchunks (default).
     :param print_summary: Whether a summary should be printed.
     :param generate_ng_link: Whether a neuroglancer link should be generated in the summary.
         Requires ``print_summary``.
     :param fn: The function to be run on each chunk. Cannot be used with ``op``.
+    :param fn_semaphores: The semaphores to be acquired while the function runs. Supports
+        ``read``, ``write``, ``cuda``, and ``cpu``. Cannot be used with ``op``.
     :param op: The operation to be run on each chunk. Cannot be used with ``fn``.
     :param op_args: Only used for typing. Do not use: will raise an exception if nonempty.
     :param op_kwargs: Any kwarguments taken by the ``fn`` or the ``op``.
@@ -187,7 +194,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         and ``coord_resolution``; cannot be used with ``bbox``.
     :param coord_resolution: The resolution in which the coordinates are given for the bounding
         box. Must be used with ``start_coord`` and ``end_coord``; cannot be used with ``bbox``.
-
     """
     if bbox is None:
         if start_coord is None or end_coord is None or coord_resolution is None:
@@ -208,6 +214,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
+    if fn_semaphores is not None and op is not None:
+        raise ValueError(
+            "Cannot take both `fn_semaphores` and `op`; please use either `fn` with "
+            "`fn_semaphores, or use `op`."
+        )
     if fn is None and op is None:
         raise ValueError("Need exactly one of `fn` and `op`; received neither.")
 
@@ -216,7 +227,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         op_ = op
     else:
         assert fn is not None
-        op_ = VolumetricCallableOperation[P](fn)
+        op_ = VolumetricCallableOperation[P](fn, fn_semaphores=fn_semaphores)
 
     if op_kwargs is not None:
         op_kwargs_ = op_kwargs
@@ -308,6 +319,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             "Please choose at most one.",
         )
 
+    if allow_cache_up_to_level is None:
+        allow_cache_up_to_level_ = num_levels - 1
+    else:
+        allow_cache_up_to_level_ = allow_cache_up_to_level
+
     assert len(list(op_args)) == 0
     return _build_subchunkable_apply_flow(
         dst=dst,
@@ -318,7 +334,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         processing_crop_pads=[Vec3D(*v) for v in processing_crop_pads_],
         processing_blend_pads=[Vec3D(*v) for v in processing_blend_pads_],
         processing_blend_modes=processing_blend_modes_,  # type: ignore # Literal gets lost
-        allow_cache_up_to_level=allow_cache_up_to_level,
+        allow_cache_up_to_level=allow_cache_up_to_level_,
         max_reduction_chunk_sizes=[Vec3D(*v) for v in max_reduction_chunk_sizes_],
         op=op_,
         bbox=bbox_,
@@ -855,7 +871,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     for level in range(1, num_levels):
         flow_schema = VolumetricApplyFlowSchema(
             op=DelegatedSubchunkedOperation(  # type:ignore #readability over typing here
-                flow_schema, op_name, level
+                flow_schema,
+                op_name,
+                level,
+                parallel_if_pool_exists=(level == 1),
             ),
             processing_chunk_size=processing_chunk_sizes[-level - 1],
             max_reduction_chunk_size=max_reduction_chunk_sizes[-level - 1],

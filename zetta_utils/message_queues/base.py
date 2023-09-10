@@ -5,6 +5,10 @@ import attrs
 
 T = TypeVar("T")
 
+# Explicit function for lambda: None that can be pickled
+def return_none() -> None:  # pragma: no cover
+    return None
+
 
 @attrs.frozen
 class ReceivedMessage(Generic[T]):
@@ -20,8 +24,8 @@ class ReceivedMessage(Generic[T]):
     """
 
     payload: T
-    acknowledge_fn: Callable = lambda: None
-    extend_lease_fn: Callable = lambda _: None
+    acknowledge_fn: Callable = return_none
+    extend_lease_fn: Callable = return_none
     approx_receive_count: int = 0
 
 

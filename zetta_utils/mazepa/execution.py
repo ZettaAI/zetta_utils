@@ -39,6 +39,7 @@ class Executor:
     checkpoint: Optional[str] = None
     checkpoint_interval_sec: Optional[float] = None
     raise_on_failed_checkpoint: bool = True
+    parallel_if_pool_exists: bool = False
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         assert (self.task_queue is None and self.outcome_queue is None) or (
@@ -57,6 +58,7 @@ class Executor:
             checkpoint=self.checkpoint,
             checkpoint_interval_sec=self.checkpoint_interval_sec,
             raise_on_failed_checkpoint=self.raise_on_failed_checkpoint,
+            parallel_if_pool_exists=self.parallel_if_pool_exists,
         )
 
 
@@ -75,6 +77,7 @@ def execute(
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: Optional[float] = 150,
     raise_on_failed_checkpoint: bool = True,
+    parallel_if_pool_exists: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -118,7 +121,9 @@ def execute(
             outcome_queue_ = outcome_queue
         else:
             assert outcome_queue is None
-            task_queue_ = AutoexecuteTaskQueue(debug=True)
+            task_queue_ = AutoexecuteTaskQueue(
+                debug=True, parallel_if_pool_exists=parallel_if_pool_exists
+            )
             outcome_queue_ = task_queue_
 
         logger.debug(f"STARTING: execution of {target}.")
@@ -205,24 +210,29 @@ def submit_ready_tasks(
     state: ExecutionState,
     execution_id: str,
     max_batch_len: int,
-    num_procs: int = 10,
+    num_procs: int = 8,
 ):
     logger.debug("Pulling task outcomes...")
     task_outcomes = outcome_queue.pull(max_num=100)
 
     if len(task_outcomes) > 0:
         logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
-        logger.debug("Updating execution state with taks outcomes.")
+        logger.debug("Updating execution state with task outcomes.")
         state.update_with_task_outcomes(
             task_outcomes={e.payload.task_id: e.payload.outcome for e in task_outcomes}
         )
 
-        # it's not important when to acknowledge outcomes, since
-        # only the single manager node will be pulling from the
-        # outcome queue
+    # only acknowledge in parallel if task_queue is remote; else do so serially.
+    # the timing of acknowledgements don't matter since
+    # only the single manager node pulls from the outcome queue
+    if isinstance(task_queue, AutoexecuteTaskQueue):
+        for e in task_outcomes:
+            e.acknowledge_fn()
+    else:
         with ProcessPool(max_workers=num_procs) as pool:
             for e in task_outcomes:
                 pool.schedule(e.acknowledge_fn)
+
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)
     logger.debug(f"A batch of {len(task_batch)} tasks ready for execution.")

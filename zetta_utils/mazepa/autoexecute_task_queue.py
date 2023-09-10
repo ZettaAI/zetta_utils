@@ -6,6 +6,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
+from zetta_utils.common import get_persistent_process_pool
 from zetta_utils.mazepa.worker import process_task_message
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
@@ -22,6 +23,7 @@ class AutoexecuteTaskQueue(MessageQueue):
     tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
     handle_exceptions: bool = False
+    parallel_if_pool_exists: bool = False
 
     def push(self, payloads: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich
@@ -29,29 +31,58 @@ class AutoexecuteTaskQueue(MessageQueue):
         self.tasks_todo += list(payloads)
 
     def pull(
-        self, max_num: int = 1, max_time_sec: float = 0  # pylint: disable=unused-argument
+        self,
+        max_num: int = 128,
+        max_time_sec: float = 0,
     ) -> list[ReceivedMessage[OutcomeReport]]:
         if max_time_sec != 0:
             raise NotImplementedError()
+        if len(self.tasks_todo) == 0:
+            return []
+        else:
+            pool = get_persistent_process_pool()
+            if not self.parallel_if_pool_exists or pool is None:
+                results: list[ReceivedMessage[OutcomeReport]] = []
+                for task in self.tasks_todo[:max_num]:
+                    results.append(execute_task(task, self.debug, self.handle_exceptions))
+            # TODO: remove monkey patching from builder so that unit tests work;
+            # pickle does not handle monkey patched objects inside Python
+            else:  # pragma: no cover
+                futures = []
+                for task in self.tasks_todo[:max_num]:
+                    futures.append(
+                        pool.schedule(
+                            execute_task,
+                            kwargs={
+                                "task": task,
+                                "debug": self.debug,
+                                "handle_exceptions": self.handle_exceptions,
+                            },
+                        )
+                    )
+                results = [future.result() for future in futures]
+            self.tasks_todo = self.tasks_todo[max_num:]
+            return results
 
-        results: list[ReceivedMessage[OutcomeReport]] = []
-        for task in self.tasks_todo[:max_num]:
-            # retries are counted for transient error handling
-            curr_retry_count = 0
-            while True:
-                task.upkeep_settings.perform_upkeep = False
-                finished_processing, outcome = process_task_message(
-                    ReceivedMessage(
-                        payload=task,
-                        approx_receive_count=curr_retry_count,
-                    ),
-                    debug=self.debug,
-                    handle_exceptions=self.handle_exceptions,
-                )
-                if finished_processing:
-                    task.outcome = outcome
-                    break
-                curr_retry_count += 1
-            results.append(ReceivedMessage(OutcomeReport(task_id=task.id_, outcome=outcome)))
-        self.tasks_todo = self.tasks_todo[max_num:]
-        return results
+
+def execute_task(
+    task: Task, debug: bool, handle_exceptions: bool
+) -> ReceivedMessage[OutcomeReport]:
+    # retries are counted for transient error handling
+    curr_retry_count = 0
+
+    while True:
+        task.upkeep_settings.perform_upkeep = False
+        finished_processing, outcome = process_task_message(
+            ReceivedMessage(
+                payload=task,
+                approx_receive_count=curr_retry_count,
+            ),
+            debug=debug,
+            handle_exceptions=handle_exceptions,
+        )
+        if finished_processing:
+            task.outcome = outcome
+            break
+        curr_retry_count += 1
+    return ReceivedMessage(OutcomeReport(task_id=task.id_, outcome=outcome))

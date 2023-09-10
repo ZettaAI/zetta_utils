@@ -12,8 +12,8 @@
 		mode:    "img"
 	}
 
-	start_coord: [4096*2 - 15, 4096 * 2, 3003]
-	end_coord: [12288 * 2, 12288 * 2, 3005]
+	start_coord: [4096 * 3, 4096 * 4, 3003]
+	end_coord: [12288 * 2, 12288 * 2, 3011]
 	coord_resolution: [16, 16, 30]
 
 	dst_resolution: [32, 32, 30]
@@ -40,11 +40,11 @@
 	skip_intermediaries: false
 	op_kwargs: {
 		src: {
-			"@type": "build_ts_layer"
+			"@type": "build_cv_layer"
 			path:    #SRC_PATH
 		}
 		field: {
-			"@type": "build_ts_layer"
+			"@type": "build_cv_layer"
 			path:    #FIELD_PATH
 			data_resolution: [32, 32, 30]
 			interpolation_mode: "field"
@@ -56,8 +56,16 @@
 		info_reference_path: #SRC_PATH
 		on_info_exists:      "overwrite"
 	}
+
 }
 
-"@type": "mazepa.execute"
+"@type": "mazepa.execute_locally"
 target:
-	#FLOW_TMPL
+		#FLOW_TMPL
+num_procs: 4
+semaphores_spec: {
+	read:  4
+	write: 4
+	cuda:  4
+	cpu:   4
+}

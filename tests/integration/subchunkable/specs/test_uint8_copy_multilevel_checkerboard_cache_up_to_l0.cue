@@ -1,5 +1,5 @@
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_exc_auto_divisibility_and_expand_bbox_backend"
+#DST_PATH: "assets/outputs/test_uint8_copy_multilevel_checkerboard_cache_up_to_l0"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -15,10 +15,11 @@
 		lambda_str: "lambda src: src"
 	}
 	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
-	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
-	level_intermediaries_dirs: ["assets/temp/", "assets/temp"]
-	auto_divisibility:   true
-	expand_bbox_backend: true
+	processing_crop_pads: [[256, 256, 0], [0, 0, 0]]
+	max_reduction_chunk_sizes: [1024, 1024, 1]
+	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
+	expand_bbox_processing:  true
+	allow_cache_up_to_level: 0
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	op_kwargs: {

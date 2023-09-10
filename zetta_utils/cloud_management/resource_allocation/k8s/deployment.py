@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
+from zetta_utils.common import SemaphoreType
 
 from ..resource_tracker import (
     ExecutionResource,
@@ -87,13 +88,17 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     env_secret_mapping: Dict[str, str],
     labels: Optional[Dict[str, str]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    num_procs: int = 1,
+    semaphores_spec: dict[SemaphoreType, int] | None = None,
 ):
     if labels is None:
         labels_final = {"execution_id": execution_id}
     else:
         labels_final = labels
 
-    worker_command = get_mazepa_worker_command(task_queue_spec, outcome_queue_spec)
+    worker_command = get_mazepa_worker_command(
+        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
+    )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
     dshm = k8s_client.V1Volume(

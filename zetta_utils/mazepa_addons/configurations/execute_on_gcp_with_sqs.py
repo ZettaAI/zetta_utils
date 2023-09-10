@@ -7,10 +7,14 @@ from typing import Dict, Final, Iterable, Optional, Union
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
+from zetta_utils.common import SemaphoreType
+from zetta_utils.mazepa import execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
+
+from .execute_locally import execute_locally
 
 logger = log.get_logger("zetta_utils")
 
@@ -57,6 +61,8 @@ def get_gcp_with_sqs_config(
     worker_labels: Optional[Dict[str, str]],
     ctx_managers: list[AbstractContextManager],
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
+    num_procs: int = 1,
+    semaphores_spec: dict[SemaphoreType, int] | None = None,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
     outcome_queue_name = f"zzz-{execution_id}-outcome"
@@ -94,6 +100,8 @@ def get_gcp_with_sqs_config(
         env_secret_mapping=env_secret_mapping,
         labels=worker_labels,
         resource_requests=worker_resource_requests,
+        num_procs=num_procs,
+        semaphores_spec=semaphores_spec,
     )
 
     ctx_managers.append(
@@ -127,6 +135,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     checkpoint_interval_sec: float = 300.0,
     raise_on_failed_checkpoint: bool = True,
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
+    num_procs: int = 1,
+    semaphores_spec: dict[SemaphoreType, int] | None = None,
 ):
     _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
@@ -138,8 +148,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if local_test:
         execution_tracker.register_execution(execution_id, [])
-        task_queue = None
-        outcome_queue = None
     else:
         if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
@@ -170,25 +178,40 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_resources=worker_resources if worker_resources else {},
             ctx_managers=ctx_managers,
             worker_resource_requests=worker_resource_requests,
+            num_procs=num_procs,
+            semaphores_spec=semaphores_spec,
         )
 
     with ExitStack() as stack:
         stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         for mngr in ctx_managers:
             stack.enter_context(mngr)
-        assert (outcome_queue is None and task_queue is None) or (
-            task_queue is not None and outcome_queue is not None
-        )
-        mazepa.execute(
-            target=target,
-            task_queue=task_queue,
-            outcome_queue=outcome_queue,
-            execution_id=execution_id,
-            max_batch_len=max_batch_len,
-            batch_gap_sleep_sec=batch_gap_sleep_sec,
-            show_progress=show_progress,
-            do_dryrun_estimation=do_dryrun_estimation,
-            checkpoint=checkpoint,
-            checkpoint_interval_sec=checkpoint_interval_sec,
-            raise_on_failed_checkpoint=raise_on_failed_checkpoint,
-        )
+        if local_test:
+            execute_locally(
+                target=target,
+                task_queue=None,
+                execution_id=execution_id,
+                max_batch_len=max_batch_len,
+                batch_gap_sleep_sec=batch_gap_sleep_sec,
+                show_progress=show_progress,
+                do_dryrun_estimation=do_dryrun_estimation,
+                checkpoint=checkpoint,
+                checkpoint_interval_sec=checkpoint_interval_sec,
+                raise_on_failed_checkpoint=raise_on_failed_checkpoint,
+                num_procs=num_procs,
+                semaphores_spec=semaphores_spec,
+            )
+        else:
+            execute(
+                target=target,
+                task_queue=task_queue,
+                outcome_queue=outcome_queue,
+                execution_id=execution_id,
+                max_batch_len=max_batch_len,
+                batch_gap_sleep_sec=batch_gap_sleep_sec,
+                show_progress=show_progress,
+                do_dryrun_estimation=do_dryrun_estimation,
+                checkpoint=checkpoint,
+                checkpoint_interval_sec=checkpoint_interval_sec,
+                raise_on_failed_checkpoint=raise_on_failed_checkpoint,
+            )

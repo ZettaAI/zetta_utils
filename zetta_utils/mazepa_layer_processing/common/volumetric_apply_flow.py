@@ -12,6 +12,7 @@ from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
 from zetta_utils import log, mazepa
+from zetta_utils.common import semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
@@ -39,7 +40,10 @@ class Copy:
         dst: VolumetricBasedLayerProtocol,
         idx: VolumetricIndex,
     ) -> None:
-        dst[idx] = src[idx]
+        with semaphore("read"):
+            data = src[idx]
+        with semaphore("write"):
+            dst[idx] = data
 
 
 @mazepa.taskable_operation_cls
@@ -71,13 +75,16 @@ class ReduceByWeightedSum:
                     )
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
+                    with semaphore("read"):
+                        res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    res[subidx_channels] = layer[intscn]
-            dst[red_idx] = res
+                    with semaphore("read"):
+                        res[subidx_channels] = layer[intscn]
+            with semaphore("write"):
+                dst[red_idx] = res
 
 
 @cachetools.cached(_weights_cache)

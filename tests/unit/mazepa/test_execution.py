@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import functools
 from contextlib import AbstractContextManager
-from typing import Any
+from typing import Any, Iterable
 from unittest.mock import MagicMock
 
 import pytest
@@ -20,14 +20,26 @@ from zetta_utils.mazepa import (
 from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
 from zetta_utils.mazepa.exceptions import MazepaExecutionFailure, MazepaTimeoutError
 from zetta_utils.mazepa.execution import Executor
+from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.mazepa.transient_errors import (
     MAX_TRANSIENT_RETRIES,
     ExplicitTransientError,
 )
-from zetta_utils.message_queues.base import MessageQueue
+from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
 TASK_COUNT = 0
+
+
+class DummyWrapperQueue(MessageQueue):
+    name: str = "wrapper for testing parallel acknowledgement"
+    queue: AutoexecuteTaskQueue = AutoexecuteTaskQueue(debug=True)
+
+    def push(self, payloads: Iterable[Task]):
+        self.queue.push(payloads)
+
+    def pull(self, max_num: int = 1) -> list[ReceivedMessage[OutcomeReport]]:
+        return self.queue.pull(max_num)
 
 
 @pytest.fixture
@@ -306,3 +318,16 @@ def test_autoexecute_task_transient_error_too_many(mocker):
             do_dryrun_estimation=False,
             max_batch_len=2,
         )
+
+
+def test_parallel_acknowledgement(reset_task_count):
+    q = DummyWrapperQueue()
+    execute(
+        dummy_flow("f1"),
+        task_queue=q,
+        outcome_queue=q,
+        batch_gap_sleep_sec=0,
+        max_batch_len=1,
+        do_dryrun_estimation=False,
+    )
+    assert TASK_COUNT == 2

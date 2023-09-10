@@ -113,7 +113,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("progress", False)
         self.cv_kwargs.setdefault("autocrop", False)
         self.cv_kwargs.setdefault("non_aligned_writes", False)
-        self.cv_kwargs.setdefault("cache", False)
+        self.cv_kwargs.setdefault("cache", not self.is_local)
         self.cv_kwargs.setdefault("compress_cache", False)
         self.cv_kwargs.setdefault("compress", True)
         self.cv_kwargs.setdefault("cdn_cache", False)
@@ -195,6 +195,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_cv_cache(self.path)
+        self.clear_disk_cache()
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: cxyz
@@ -240,8 +241,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
-
-        "allow_cache" = value: Union[bool, str]: currently unused since this is for the disk cache
+        "allow_cache" = value: Union[bool, str]
         """
         assert self.info_spec is not None
 

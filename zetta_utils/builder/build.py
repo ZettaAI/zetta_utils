@@ -1,7 +1,6 @@
 """Bulding objects from nested specs."""
 from __future__ import annotations
 
-import json
 from typing import Any, Callable, Final, Optional
 
 import attrs
@@ -9,6 +8,7 @@ from typeguard import typechecked
 
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
+from zetta_utils.parsing import json
 
 from . import constants
 from .registry import get_matching_entry
@@ -183,7 +183,6 @@ class BuilderPartial:
 
     def _get_built_spec_kwargs(self, version: str) -> dict[str, Any]:
         if self._built_spec_kwargs is None:
-
             self._built_spec_kwargs = {
                 k: _traverse_spec(
                     v,

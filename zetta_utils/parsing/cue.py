@@ -1,5 +1,4 @@
 """cuelang parsing."""
-import json
 import os
 import pathlib
 import subprocess
@@ -8,6 +7,7 @@ import tempfile
 import fsspec
 
 from zetta_utils import log
+from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
 

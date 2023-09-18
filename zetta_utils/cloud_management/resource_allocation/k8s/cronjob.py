@@ -25,10 +25,11 @@ def _get_cronjob(
     command: List[str],
     command_args: List[str],
     envs: List[k8s_client.V1EnvVar],
-    resources: Dict[str, int | float | str],
+    resource_limits: Dict[str, int | float | str],
     spec_config: CronJobSpecConfig,
     labels: Optional[Dict[str, str]] = None,
     tolerations: Optional[k8s_client.V1Toleration] = None,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
 ) -> k8s_client.V1CronJob:
     tolerations = tolerations or []
     pod_spec = get_pod_spec(
@@ -37,9 +38,10 @@ def _get_cronjob(
         command=command,
         command_args=command_args,
         envs=envs,
-        resources=resources,
+        resources=resource_limits,
         restart_policy="OnFailure",
         tolerations=tolerations,
+        resource_requests=resource_requests,
     )
 
     job_template = get_job_template(
@@ -88,6 +90,7 @@ def configure_cronjob(
     spec_config: CronJobSpecConfig = CronJobSpecConfig(),
     labels: Optional[Dict[str, str]] = None,
     patch: Optional[bool] = False,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
 ):
     """
     Create a cronjob or patch/update an existing one.
@@ -113,9 +116,10 @@ def configure_cronjob(
         command=command,
         command_args=command_args,
         envs=envs,
-        resources=resources,
+        resource_limits=resources,
         spec_config=spec_config,
         labels=labels,
+        resource_requests=resource_requests,
     )
     if patch:
         batch_v1_api.patch_namespaced_cron_job(name=name, namespace=namespace, body=cronjob)

@@ -32,6 +32,7 @@ def get_deployment_spec(
     env_secret_mapping: Dict[str, str],
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
 ) -> k8s_client.V1Deployment:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -47,6 +48,7 @@ def get_deployment_spec(
         tolerations=[schedule_toleration],
         volumes=volumes,
         volume_mounts=volume_mounts,
+        resource_requests=resource_requests,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -84,6 +86,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     resources: Dict[str, int | float | str],
     env_secret_mapping: Dict[str, str],
     labels: Optional[Dict[str, str]] = None,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
 ):
     if labels is None:
         labels_final = {"execution_id": execution_id}
@@ -115,6 +118,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         env_secret_mapping=env_secret_mapping,
         volumes=volumes,
         volume_mounts=volume_mounts,
+        resource_requests=resource_requests,
     )
 
 

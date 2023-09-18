@@ -1,4 +1,3 @@
-import json
 import os
 import pprint
 from typing import Optional
@@ -7,6 +6,7 @@ import click
 
 import zetta_utils
 from zetta_utils import log
+from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
 

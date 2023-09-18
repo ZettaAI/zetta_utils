@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from contextlib import ExitStack
 from typing import Any, Dict, Final, List, Optional
@@ -16,6 +15,7 @@ from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, load_all_modules, log, mazepa, parsing
 from zetta_utils.builder.build import BuilderPartial
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
+from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
 

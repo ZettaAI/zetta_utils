@@ -1,10 +1,9 @@
 # pylint: disable=unused-argument,redefined-outer-name
-import json
-
 import pytest
 from click.testing import CliRunner
 
 from zetta_utils import builder, cli
+from zetta_utils.parsing import json
 
 
 @pytest.fixture

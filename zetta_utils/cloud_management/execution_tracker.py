@@ -1,4 +1,3 @@
-import json
 import os
 import time
 from contextlib import contextmanager
@@ -14,6 +13,7 @@ from zetta_utils.common import RepeatTimer
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.log import get_logger
+from zetta_utils.parsing import json
 
 from .resource_allocation.k8s import ClusterInfo
 

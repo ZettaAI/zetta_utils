@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import importlib.metadata
-import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +14,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import ddp
 
 from zetta_utils import builder, log
+from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
 ONNX_OPSET_VERSION = 17
@@ -126,7 +126,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
     ):  # pylint: disable=too-many-locals
-
         if filepath.startswith("./"):
             filepath = f"{self.default_root_dir}/{filepath[2:]}"
         super().save_checkpoint(filepath, weights_only, storage_options)

@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, TypeVar
+from typing import Callable, Generic, Sequence, TypeVar
 
 import attrs
-from git import Sequence
 
 T = TypeVar("T")
 

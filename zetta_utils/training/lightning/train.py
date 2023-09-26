@@ -85,7 +85,6 @@ def _parse_spec_and_train():
     with open(TRAIN_SPEC_PATH, "r", encoding="utf-8") as f:
         train_spec = json.load(f)
 
-    train_spec = json.loads(os.environ["ZETTA_RUN_SPEC"])
     regime = builder.build(spec=train_spec["regime"])
     trainer = builder.build(spec=train_spec["trainer"])
     train_dataloader = builder.build(spec=train_spec["train_dataloader"])

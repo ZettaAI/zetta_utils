@@ -23,8 +23,6 @@ builder.register("pl.Trainer")(pl.Trainer)
 builder.register("pl.callbacks.ModelCheckpoint")(pl.callbacks.ModelCheckpoint)
 builder.register("pl.DDPStrategy")(ddp.DDPStrategy)
 
-
-TRAIN_SPEC_PATH: Final = "specs/train.cue"
 REQUIRED_ENV_VARS: Final = [
     "ZETTA_USER",
     "ZETTA_PROJECT",
@@ -82,7 +80,7 @@ def lightning_train(
 def _parse_spec_and_train():
     load_all_modules()
 
-    with open(TRAIN_SPEC_PATH, "r", encoding="utf-8") as f:
+    with open(os.environ["ZETTA_RUN_SPEC_PATH"], "r", encoding="utf-8") as f:
         train_spec = json.load(f)
 
     regime = builder.build(spec=train_spec["regime"])
@@ -176,7 +174,7 @@ def _create_ddp_master_job(
     host_network: Optional[bool] = False,
     resource_requests: Optional[dict[str, int | float | str]] = None,
 ):  # pylint: disable=too-many-locals
-    zetta_cmd = f"zetta run {TRAIN_SPEC_PATH}"
+    zetta_cmd = "zetta run specs/train.cue"
     env_vars = env_vars or {}
 
     if num_nodes > 1:

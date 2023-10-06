@@ -60,7 +60,7 @@ viz = [
     "opencv-python-headless >= 4.5.5",
 ]
 cloudvol = [
-    "cloud-volume == 8.25.0",
+    "cloud-volume == 8.27.0",
     "tensorstore == 0.1.33",
     "zetta_utils[tensor_ops]",
 ]
@@ -74,7 +74,7 @@ mazepa = [
     "chardet == 5.0.0",
     "coolname >= 1.1.0",
     "task-queue >= 2.12.0",
-    "boto3 >= 1.26.10",
+    "boto3 == 1.28.4",
     "xxhash ~= 3.2.0",
 ]
 mazepa-addons = [

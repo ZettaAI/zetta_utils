@@ -59,7 +59,7 @@ def _str(n: float) -> str:  # pragma: no cover
     return str(n)
 
 
-def _check_integer_seq(seq: Sequence[int | float]) -> bool:
+def _check_seq_is_int(seq: Sequence[int | float]) -> bool:
     error = False
     for k in seq:
         error |= not float(k).is_integer()
@@ -67,14 +67,17 @@ def _check_integer_seq(seq: Sequence[int | float]) -> bool:
 
 
 def _get_ref_scale(
-    add_scales_ref: str | dict[str, Any], reference_info: dict[str, Any]
+    add_scales_ref: str | dict[str, Any] | None, reference_info: dict[str, Any]
 ) -> dict[str, Any]:
     # the reference scale can either be a dictionary or an existing key in `ref_info`
     if isinstance(add_scales_ref, dict):
         return add_scales_ref
-    # if not, search in ref_info
+    # if not, search for the given key in ref_info
     if "scales" not in reference_info:
         raise RuntimeError("`scales` must be in `reference_info` if `add_scales_ref` is a key")
+    if add_scales_ref is None:
+        # get the highest res scale by sorting
+        add_scales_ref = _merge_and_sort_scales(reference_info["scales"], [])[0]["key"]
     matched = list(filter(lambda x: x["key"] == add_scales_ref, reference_info["scales"]))
     if len(matched) == 0:
         raise RuntimeError(f'`reference_info` does not have scale "{add_scales_ref}"')
@@ -103,8 +106,8 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
         ret["encoding"] = ref["encoding"]
 
     # check and convert values to int
-    errored = _check_integer_seq(ret["size"])
-    errored |= _check_integer_seq(ret["voxel_offset"])
+    errored = _check_seq_is_int(ret["size"])
+    errored |= _check_seq_is_int(ret["voxel_offset"])
     if errored:
         raise RuntimeError(f"Computed scale {ret} does not have integer size and offsets")
     ret["voxel_offset"] = [int(k) for k in ret["voxel_offset"]]
@@ -112,7 +115,9 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
     return ret
 
 
-def _merge_and_sort_scales(existing_scales, new_scales):
+def _merge_and_sort_scales(
+    existing_scales: Sequence[dict[str, Any]], new_scales: Sequence[dict[str, Any]]
+) -> Sequence[dict[str, Any]]:
     """Merge two list of scales, overwriting the old with new entries"""
     ret_dict = dict(zip([k["key"] for k in existing_scales], existing_scales))
     ret_dict.update(dict(zip([k["key"] for k in new_scales], new_scales)))
@@ -182,8 +187,6 @@ class PrecomputedInfoSpec:
             result = deepcopy(reference_info)
 
             if self.add_scales is not None:
-                if self.add_scales_ref is None:
-                    raise RuntimeError("`add_scales_ref` must be given if `add_scales` is used")
                 if "scales" in field_overrides:
                     raise RuntimeError(
                         "`scales` must not be in `field_overrides` if `add_scales` is used"
@@ -191,7 +194,7 @@ class PrecomputedInfoSpec:
                 ref_scale = _get_ref_scale(self.add_scales_ref, reference_info)
                 new_scales = [_make_scale(ref=ref_scale, target=e) for e in self.add_scales]
                 if self.add_scales_mode == "replace" or "scales" not in result:
-                    result["scales"] = _merge_and_sort_scales({}, new_scales)
+                    result["scales"] = _merge_and_sort_scales([], new_scales)
                 elif self.add_scales_mode == "merge":
                     result["scales"] = _merge_and_sort_scales(result["scales"], new_scales)
                 else:

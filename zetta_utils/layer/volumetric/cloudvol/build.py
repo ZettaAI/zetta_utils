@@ -80,7 +80,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         accordingly to the reference scale, while keeping ``chunk_sizes`` the same.
         Note that using ``info_[chunk_size,dataset_size,voxel_offset][_map]`` will
         override these values.
-    :param info_add_scales_ref: Reference scale to be used.
+    :param info_add_scales_ref: Reference scale to be used. If `None`, use
+        the highest available resolution scale.
     :param info_add_scales_mode: Either "merge" or "replace". "merge" will
         merge added scales to existing scales if ``info_reference_path`` is
         used, while "replace" will not keep them.

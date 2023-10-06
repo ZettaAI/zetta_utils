@@ -17,12 +17,12 @@ def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cov
 
 @builder.register("reduce")
 def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.reduce(tensor=data, **kwargs)
+    return einops.reduce(tensor=data, **kwargs) # type: ignore # bad typing by einops
 
 
 @builder.register("repeat")
 def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.repeat(tensor=data, **kwargs)
+    return einops.repeat(tensor=data, **kwargs) # type: ignore # bad typing by einops
 
 
 @builder.register("multiply")

@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence, Union
+from typing import Any, Iterable, Literal, Sequence, Union
 
 import torch
 
@@ -36,7 +36,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
     info_add_scales: Sequence[Sequence[int] | dict[str, Any]] | None = None,
     info_add_scales_ref: str | dict[str, Any] | None = None,
-    info_add_scales_mode: str = "merge",
+    info_add_scales_mode: Literal["merge", "replace"] = "merge",
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
@@ -79,7 +79,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         Precomputed scale. By default, ``size`` and ``voxel_offset`` will be scaled
         accordingly to the reference scale, while keeping ``chunk_sizes`` the same.
         Note that using ``info_[chunk_size,dataset_size,voxel_offset][_map]`` will
-        override these values.
+        override these values. Using this will also sort the added and existing scales
+        by their resolutions.
     :param info_add_scales_ref: Reference scale to be used. If `None`, use
         the highest available resolution scale.
     :param info_add_scales_mode: Either "merge" or "replace". "merge" will

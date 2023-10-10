@@ -46,20 +46,19 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
 @builder.register("VolumetricIndexOverrideStartOffset")
 @typechecked
 @attrs.mutable
-class VolumetricIndexOverrideStartOffset:
-    offset: Sequence[float | None]
+class VolumetricIndexOverrideStartOffset:  # pragma: no cover # under 3 statements, no conditionals
+    override_offset: Sequence[int | None]
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         start = IntVec3D(
-            *[int(x) if x is not None else int(y) for x, y in zip(self.offset, idx.start)]
+            *[x if x is not None else y for x, y in zip(self.override_offset, idx.start)]
         )
         stop = start + (idx.stop - idx.start)
-        result = idx.from_coords(
+        return VolumetricIndex.from_coords(
             start_coord=start.vec,
             end_coord=stop.vec,
             resolution=idx.resolution,
         )
-        return result
 
 
 @builder.register("DataResolutionInterpolator")

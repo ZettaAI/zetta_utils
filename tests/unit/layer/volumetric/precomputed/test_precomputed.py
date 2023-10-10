@@ -180,14 +180,7 @@ def test_add_scale_full_entry(clear_caches, tmpdir):
         reference_path=tmp_layer,
         add_scales=[
             {
-                "key": "asdf8",
-                "resolution": [8, 8, 40],
-                "chunk_sizes": [[32, 32, 1]],
-                "encoding": "raw",
-                "size": [1000, 1000, 1000],
-                "voxel_offset": [1, 2, 3],
-            },
-            {
+                "key": "33_33_40",
                 "resolution": [33, 33, 40],
                 "chunk_sizes": [[7, 8, 9]],
                 "encoding": "raw",
@@ -198,13 +191,31 @@ def test_add_scale_full_entry(clear_caches, tmpdir):
     )
     info_spec.update_info(tmp_layer, on_info_exists="overwrite")
     scales = get_info(tmp_layer)["scales"]
-    assert "asdf8" in [e["key"] for e in scales]
     assert "33_33_40" in [e["key"] for e in scales]
     for scale in scales:
-        if scale["key"] == "asdf8":
-            assert scale["voxel_offset"] == [1, 2, 3]
         if scale["key"] == "33_33_40":
             assert scale["chunk_sizes"] == [[7, 8, 9]]
+
+
+def test_add_scale_unsupported_keys(clear_caches, tmpdir):
+    """Throw error if key does not match resolution"""
+    precomputed._write_info = _write_info_notmock
+    tmp_layer = make_tmp_layer(tmpdir)
+    info_spec = PrecomputedInfoSpec(
+        reference_path=tmp_layer,
+        add_scales=[
+            {
+                "key": "40_33_33",
+                "resolution": [33, 33, 40],
+                "chunk_sizes": [[7, 8, 9]],
+                "encoding": "raw",
+                "size": [1000, 1000, 1000],
+                "voxel_offset": [4, 5, 6],
+            },
+        ],
+    )
+    with pytest.raises(RuntimeError):
+        info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
 def test_add_scale_with_ref(clear_caches, tmpdir):

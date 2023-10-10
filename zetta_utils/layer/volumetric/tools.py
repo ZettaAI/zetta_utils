@@ -7,7 +7,7 @@ import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
-from zetta_utils.geometry import BBoxStrider, Vec3D
+from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
 
 from .. import IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
@@ -39,6 +39,25 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
             idx=idx,
             offset=self.offset,
             resolution=self.resolution,
+        )
+        return result
+
+
+@builder.register("VolumetricIndexOverrideStartOffset")
+@typechecked
+@attrs.mutable
+class VolumetricIndexOverrideStartOffset:
+    offset: Sequence[float | None]
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        start = IntVec3D(
+            *[int(x) if x is not None else int(y) for x, y in zip(self.offset, idx.start)]
+        )
+        stop = start + (idx.stop - idx.start)
+        result = idx.from_coords(
+            start_coord=start.vec,
+            end_coord=stop.vec,
+            resolution=idx.resolution,
         )
         return result
 

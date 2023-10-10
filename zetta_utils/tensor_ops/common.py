@@ -1,7 +1,6 @@
 # pylint: disable=missing-docstring
 from typing import (
     Callable,
-    Hashable,
     Literal,
     Mapping,
     Optional,
@@ -21,13 +20,11 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 P = ParamSpec("P")
-T = TypeVar("T", bound=Union[Tensor, Mapping[Hashable, Tensor]])
+T = TypeVar("T")
 
 
-def supports_dict(
-    func: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
-) -> Callable[Concatenate[T, P], T]:
-    def wrapper(data: T, *args: P.args, **kwargs: P.kwargs) -> T:
+def supports_dict(func: Callable[Concatenate[T, P], T]):
+    def wrapper(data, *args: P.args, **kwargs: P.kwargs):
         if isinstance(data, Mapping):
             return {k: func(v, *args, **kwargs) for k, v in data.items()}
         else:
@@ -113,7 +110,8 @@ def unsqueeze(
 @typechecked
 @supports_dict
 def squeeze(
-    data: TensorTypeVar, dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None
+    data: TensorTypeVar,
+    dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None,
 ) -> TensorTypeVar:
     """
     Returns a tensor with all the dimensions of input of size 1 removed.

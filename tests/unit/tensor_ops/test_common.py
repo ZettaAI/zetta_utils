@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from zetta_utils.tensor_ops import common
+from zetta_utils.tensor_typing import TensorTypeVar
 
 from ..helpers import assert_array_equal
 
@@ -475,22 +476,42 @@ def array_x1_avg_pool():
             {"scale_factor": (0.5, 0.5), "unsqueeze_input_to": 3},
             "array_x1_avg_pool",
         ],
-        ["mask_x0", "mask", {"scale_factor": 0.5, "unsqueeze_input_to": 4}, "mask_x0_max_pool"],
+        [
+            "mask_x0",
+            "mask",
+            {"scale_factor": 0.5, "unsqueeze_input_to": 4},
+            "mask_x0_max_pool",
+        ],
         [
             "mask_x0",
             "mask",
             {"scale_factor": 0.5, "mask_value_thr": 0.5, "unsqueeze_input_to": 4},
             "mask_x0_max_pool_thr05",
         ],
-        ["mask_x0", "mask", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, "mask_x0_ups"],
-        ["field_x0", "field", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, "field_x0_ups"],
+        [
+            "mask_x0",
+            "mask",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            "mask_x0_ups",
+        ],
+        [
+            "field_x0",
+            "field",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            "field_x0_ups",
+        ],
         [
             "field_x0",
             "field",
             {"scale_factor": [2.0, 2.0], "unsqueeze_input_to": 4},
             "field_x0_ups",
         ],
-        ["seg_x0", "segmentation", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, "seg_x0_ups"],
+        [
+            "seg_x0",
+            "segmentation",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            "seg_x0_ups",
+        ],
         [
             "torch_seg_x0",
             "segmentation",
@@ -546,14 +567,24 @@ def array_6d():
         ["array_6d", "img", {"scale_factor": 0.5}, ValueError],
         ["array_1d_x0", "img", {"scale_factor": 0.357}, RuntimeError],
         ["array_1d_x0", "img", {"scale_factor": 1, "size": (1,)}, ValueError],
-        ["array_1d_x0", "img", {"size": (1, 1, 1), "unsqueeze_input_to": 3}, ValueError],
+        [
+            "array_1d_x0",
+            "img",
+            {"size": (1, 1, 1), "unsqueeze_input_to": 3},
+            ValueError,
+        ],
         [
             "array_2d_x0",
             "img",
             {"scale_factor": [1.0, 0.5, 0.5], "unsqueeze_input_to": 4},
             ValueError,
         ],
-        ["seg_uint64", "segmentation", {"scale_factor": 2.0, "unsqueeze_input_to": 4}, ValueError],
+        [
+            "seg_uint64",
+            "segmentation",
+            {"scale_factor": 2.0, "unsqueeze_input_to": 4},
+            ValueError,
+        ],
     ],
 )
 def test_interpolate_exc(data_name, mode, kwargs, request, expected_exc):
@@ -713,13 +744,13 @@ def test_crop_center(data, crop, expected):
 
 def test_supports_dict():
     @common.supports_dict
-    def f(x, y, z=1):
+    def f(x: TensorTypeVar, y, z=1):
         return x + y + z
 
     in_np, expected_np = np.array([1]), np.array([3])
     assert_array_equal(f(in_np, 1), expected_np)
 
-    in_dict = {"ndarray": in_np, "torch": torch.tensor(in_np)}
-    expected_dict = {"ndarray": expected_np, "torch": torch.tensor(expected_np)}
+    in_dict = {"ndarray": in_np, "torch": torch.Tensor(in_np)}
+    expected_dict = {"ndarray": expected_np, "torch": torch.Tensor(expected_np)}
 
     assert f(in_dict, 1) == expected_dict

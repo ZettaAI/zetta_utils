@@ -60,10 +60,7 @@ def _str(n: float) -> str:  # pragma: no cover
 
 
 def _check_seq_is_int(seq: Sequence[int | float]) -> bool:
-    error = False
-    for k in seq:
-        error |= not float(k).is_integer()
-    return error
+    return not all(float(k).is_integer() for k in seq)
 
 
 def _get_ref_scale(
@@ -94,8 +91,16 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
     multiplier = [k / v for k, v in zip(ret["resolution"], ref["resolution"])]
 
     # fill missing values if necessary
+    expected_key = "_".join([str(k) for k in ret["resolution"]])
     if "key" not in ret:
-        ret["key"] = "_".join([str(k) for k in ret["resolution"]])
+        ret["key"] = expected_key
+    else:
+        # check that user provided `key` is equal to res "x_y_z"
+        if ret["key"] != expected_key:
+            raise RuntimeError(
+                f"Scale key of {ret} has to be {expected_key} to match scale resolution"
+                f" {ret['resolution']}"
+            )
     if "size" not in ret:
         ret["size"] = [k / m for k, m in zip(ref["size"], multiplier)]
     if "voxel_offset" not in ret:
@@ -119,8 +124,7 @@ def _merge_and_sort_scales(
     existing_scales: Sequence[dict[str, Any]], new_scales: Sequence[dict[str, Any]]
 ) -> Sequence[dict[str, Any]]:
     """Merge two list of scales, overwriting the old with new entries"""
-    ret_dict = dict(zip([k["key"] for k in existing_scales], existing_scales))
-    ret_dict.update(dict(zip([k["key"] for k in new_scales], new_scales)))
+    ret_dict = {k["key"]: k for k in list(existing_scales) + list(new_scales)}
     # sort scales by voxel volumes
     ret = [
         ret_dict[k]

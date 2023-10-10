@@ -48,3 +48,16 @@ def test_to_float(x, expected):
 def test_to_uint(x, expected):
     result = convert.to_uint8(x)
     np.testing.assert_array_equal(result, expected)
+
+
+def test_to_torch_from_uint32():
+    x = np.ones(3).astype(np.uint32)
+    result = convert.to_torch(x)
+    np.testing.assert_array_equal(result, x)
+
+
+def test_to_torch_from_uint32_exc():
+    x = np.ones(3).astype(np.uint32)
+    x[0] = np.uint32(2 ** 31)
+    with pytest.raises(ValueError):
+        convert.to_torch(x)

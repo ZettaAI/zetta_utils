@@ -44,6 +44,11 @@ def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
             if data.max() > np.uint64(2 ** 63 - 1):
                 raise ValueError("Unable to convert uint64 dtype to int64")
             data = data.astype(np.int64)
+        elif data.dtype == np.uint32:
+            if data.max() > np.uint32(2 ** 31 - 1):
+                raise ValueError("Unable to convert uint32 dtype to int32")
+            data = data.astype(np.int32)
+
         result = torch.from_numpy(data).to(device)  # type: ignore # pytorch bug
 
     return result

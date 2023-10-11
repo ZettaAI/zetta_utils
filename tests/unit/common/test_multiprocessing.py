@@ -16,8 +16,7 @@ def test_run_func(args, expected):
     with setup_persistent_process_pool(3):
         pool = get_persistent_process_pool()
         assert pool is not None
-        future = pool.map(times2, args)
-        assert list(future.result()) == expected
+        assert list(pool.map(times2, args)) == expected
 
 
 def test_no_init_with_1_proc():
@@ -37,7 +36,6 @@ def test_unalloc_nonexistent_exc():
         with setup_persistent_process_pool(2):
             pool = get_persistent_process_pool()
             assert pool is not None
-            pool.stop()
-            pool.join()
+            pool.shutdown()
             zetta_utils.common.multiprocessing.PERSISTENT_PROCESS_POOL = None
         # exception on exiting context

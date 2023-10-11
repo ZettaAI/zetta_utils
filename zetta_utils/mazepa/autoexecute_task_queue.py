@@ -51,13 +51,11 @@ class AutoexecuteTaskQueue(MessageQueue):
                 futures = []
                 for task in self.tasks_todo[:max_num]:
                     futures.append(
-                        pool.schedule(
+                        pool.submit(
                             execute_task,
-                            kwargs={
-                                "task": task,
-                                "debug": self.debug,
-                                "handle_exceptions": self.handle_exceptions,
-                            },
+                            task=task,
+                            debug=self.debug,
+                            handle_exceptions=self.handle_exceptions,
                         )
                     )
                 results = [future.result() for future in futures]

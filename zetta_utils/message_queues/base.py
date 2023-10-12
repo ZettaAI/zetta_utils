@@ -2,12 +2,27 @@ from abc import ABC, abstractmethod
 from typing import Callable, Generic, Sequence, TypeVar
 
 import attrs
+import taskqueue
 
 T = TypeVar("T")
 
 # Explicit function for lambda: None that can be pickled
 def return_none() -> None:  # pragma: no cover
     return None
+
+
+class TQTask(taskqueue.RegisteredTask):
+    """
+    Wrapper that makes Mazepa tasks submittable with `python-task-queue`.
+    """
+
+    def __init__(self, task_ser: str):
+        super().__init__(
+            task_ser=task_ser,
+        )
+
+    def execute(self):  # pragma: no cover
+        raise NotImplementedError()
 
 
 @attrs.frozen

@@ -11,7 +11,7 @@ from zetta_utils.mazepa import constants
 from zetta_utils.mazepa.tasks import _TaskableOperation
 from zetta_utils.message_queues.sqs.queue import SQSQueue
 
-from ..message_queues.test_sqs_queue import aws_credentials, sqs_endpoint
+from ..message_queues.sqs.test_queue import aws_credentials, sqs_endpoint
 
 boto3.setup_default_session()
 

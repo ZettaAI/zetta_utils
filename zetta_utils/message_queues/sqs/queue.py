@@ -11,22 +11,8 @@ from zetta_utils import builder
 from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.message_queues.base import MessageQueue
 
-from .. import ReceivedMessage, serialization
+from .. import ReceivedMessage, TQTask, serialization
 from . import utils
-
-
-class TQTask(taskqueue.RegisteredTask):
-    """
-    Wrapper that makes Mazepa tasks submittable with `python-task-queue`.
-    """
-
-    def __init__(self, task_ser: str):
-        super().__init__(
-            task_ser=task_ser,
-        )
-
-    def execute(self):  # pragma: no cover
-        raise NotImplementedError()
 
 
 def _delete_task_message(

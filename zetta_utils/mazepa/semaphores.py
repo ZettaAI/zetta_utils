@@ -13,7 +13,7 @@ from posix_ipc import (  # pylint: disable=no-name-in-module
 
 from zetta_utils import log
 
-logger = log.get_logger("zetta_utils")
+logger = log.get_logger("mazepa")
 SemaphoreType = Literal["read", "write", "cuda", "cpu"]
 
 DEFAULT_SEMA_COUNT = 1
@@ -103,7 +103,8 @@ class DummySemaphore:  # pragma: no cover
 def semaphore(name: SemaphoreType) -> Semaphore:
     """
     Fetches and returns either the semaphore associated with the current process,
-    or the semaphore associated with the parent process, or a dummy semaphore, in that order.
+    or the semaphore associated with the parent process, or a dummy semaphore,
+    in that order.
     """
     if not name in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")

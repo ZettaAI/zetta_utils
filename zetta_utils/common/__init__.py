@@ -11,5 +11,3 @@ from .path import abspath, is_local
 from .pprint import lrpad
 from .signal_handlers import custom_signal_handler_ctx
 from .timer import RepeatTimer
-from .semaphores import SemaphoreType, configure_semaphores, semaphore
-from .multiprocessing import setup_persistent_process_pool, get_persistent_process_pool

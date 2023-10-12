@@ -113,7 +113,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("progress", False)
         self.cv_kwargs.setdefault("autocrop", False)
         self.cv_kwargs.setdefault("non_aligned_writes", False)
-        self.cv_kwargs.setdefault("cache", not self.is_local)
+        self.cv_kwargs.setdefault("cache", False)
         self.cv_kwargs.setdefault("compress_cache", False)
         self.cv_kwargs.setdefault("compress", True)
         self.cv_kwargs.setdefault("cdn_cache", False)
@@ -195,7 +195,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_cv_cache(self.path)
-        self.clear_disk_cache()
 
     def read(self, idx: VolumetricIndex) -> torch.Tensor:
         # Data out: cxyz

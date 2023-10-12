@@ -6,7 +6,7 @@ from typing import List
 import posix_ipc
 import pytest
 
-from zetta_utils.common.semaphores import (
+from zetta_utils.mazepa.semaphores import (
     DummySemaphore,
     SemaphoreType,
     configure_semaphores,
@@ -21,7 +21,7 @@ def cleanup_semaphores():
     sema_types: List[SemaphoreType] = ["read", "write", "cuda", "cpu"]
     for name in sema_types:
         try:
-            # two unlinks in case parent semaphore exists
+            # two unlinks in case grandparent semaphore exists
             semaphore(name).unlink()
             semaphore(name).unlink()
         except:

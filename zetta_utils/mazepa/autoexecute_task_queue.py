@@ -6,7 +6,6 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
-from zetta_utils.common import get_persistent_process_pool
 from zetta_utils.mazepa.worker import process_task_message
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
@@ -23,7 +22,6 @@ class AutoexecuteTaskQueue(MessageQueue):
     tasks_todo: list[Task] = attrs.field(init=False, factory=list)
     debug: bool = False
     handle_exceptions: bool = False
-    parallel_if_pool_exists: bool = False
 
     def push(self, payloads: Iterable[Task]):
         # TODO: Fix progress bar issue with multiple live displays in rich
@@ -40,27 +38,9 @@ class AutoexecuteTaskQueue(MessageQueue):
         if len(self.tasks_todo) == 0:
             return []
         else:
-            pool = get_persistent_process_pool()
-            if not self.parallel_if_pool_exists or pool is None:
-                results: list[ReceivedMessage[OutcomeReport]] = []
-                for task in self.tasks_todo[:max_num]:
-                    results.append(execute_task(task, self.debug, self.handle_exceptions))
-            # TODO: remove monkey patching from builder so that unit tests work;
-            # pickle does not handle monkey patched objects inside Python
-            else:  # pragma: no cover
-                futures = []
-                for task in self.tasks_todo[:max_num]:
-                    futures.append(
-                        pool.schedule(
-                            execute_task,
-                            kwargs={
-                                "task": task,
-                                "debug": self.debug,
-                                "handle_exceptions": self.handle_exceptions,
-                            },
-                        )
-                    )
-                results = [future.result() for future in futures]
+            results: list[ReceivedMessage[OutcomeReport]] = []
+            for task in self.tasks_todo[:max_num]:
+                results.append(execute_task(task, self.debug, self.handle_exceptions))
             self.tasks_todo = self.tasks_todo[max_num:]
             return results
 

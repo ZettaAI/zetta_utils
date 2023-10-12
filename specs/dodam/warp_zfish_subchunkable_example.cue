@@ -13,7 +13,7 @@
 	}
 
 	start_coord: [4096 * 3, 4096 * 4, 3003]
-	end_coord: [12288 * 2, 12288 * 2, 3011]
+	end_coord: [12288 * 2, 12288 * 2, 3006]
 	coord_resolution: [16, 16, 30]
 
 	dst_resolution: [32, 32, 30]
@@ -24,7 +24,7 @@
 	//processing_crop_pads: [[0, 0, 0], [16, 16, 0], [32, 32, 0]]
 	//processing_blend_pads: [[0, 0, 0], [0, 0, 0], [16, 16, 0]]
 	//level_intermediaries_dirs: [#TEMP_PATH2, #TEMP_PATH1, #TEMP_PATH0]
-	processing_chunk_sizes: [[8192, 8192, 1], [2048, 2048, 1]]
+	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
 	processing_crop_pads: [[0, 0, 0], [16, 16, 0]]
 	processing_blend_pads: [[0, 0, 0], [16, 16, 0]]
 	processing_blend_modes: "quadratic"
@@ -62,10 +62,11 @@
 "@type": "mazepa.execute_locally"
 target:
 		#FLOW_TMPL
-num_procs: 4
+num_procs: 32
 semaphores_spec: {
 	read:  4
 	write: 4
-	cuda:  4
+	cuda:  1
 	cpu:   4
 }
+debug: true

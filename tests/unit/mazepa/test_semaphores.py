@@ -4,9 +4,10 @@ import os
 from typing import List
 
 import posix_ipc
+import psutil
 import pytest
 
-from zetta_utils.common.semaphores import (
+from zetta_utils.mazepa.semaphores import (
     DummySemaphore,
     SemaphoreType,
     configure_semaphores,
@@ -21,7 +22,7 @@ def cleanup_semaphores():
     sema_types: List[SemaphoreType] = ["read", "write", "cuda", "cpu"]
     for name in sema_types:
         try:
-            # two unlinks in case parent semaphore exists
+            # two unlinks in case grandparent semaphore exists
             semaphore(name).unlink()
             semaphore(name).unlink()
         except:
@@ -65,13 +66,14 @@ def test_unlink_nonexistent_exc():
         # exception on exiting context
 
 
-def test_get_parent_semaphore():
+def test_get_grandparent_semaphore():
+    grandpa_pid = psutil.Process(os.getppid()).ppid()
     try:
-        sema = posix_ipc.Semaphore(name_to_posix_name("read", os.getppid()))
+        sema = posix_ipc.Semaphore(name_to_posix_name("read", grandpa_pid))
         sema.unlink()
     except:
         pass
-    sema = posix_ipc.Semaphore(name_to_posix_name("read", os.getppid()), flags=posix_ipc.O_CREX)
+    sema = posix_ipc.Semaphore(name_to_posix_name("read", grandpa_pid), flags=posix_ipc.O_CREX)
     assert sema.name == semaphore("read").name
     sema.unlink()
 

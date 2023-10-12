@@ -15,6 +15,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndexTranslator,
     VolumetricLayer,
 )
+from zetta_utils.mazepa import semaphore
 from zetta_utils.mazepa_layer_processing.alignment.common import (
     translation_adjusted_download,
 )
@@ -77,20 +78,22 @@ class ComputeFieldOperation:
         src_field: Optional[VolumetricLayer],
         tgt_field: Optional[VolumetricLayer],
     ):
-        idx_input = copy.deepcopy(idx)
-        idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(self.crop_pad)
+        with semaphore("read"):
+            idx_input = copy.deepcopy(idx)
+            idx_input.resolution = self.get_input_resolution(idx.resolution)
+            idx_input_padded = idx_input.padded(self.crop_pad)
 
-        src_data, src_field_data, src_translation = translation_adjusted_download(
-            src=src,
-            field=src_field,
-            idx=idx_input_padded,
-        )
-        if src_data.abs().sum() > 0:
-            tgt_data, tgt_field_data, _ = translation_adjusted_download(
-                src=tgt, field=tgt_field, idx=idx_input_padded
+            src_data, src_field_data, src_translation = translation_adjusted_download(
+                src=src,
+                field=src_field,
+                idx=idx_input_padded,
             )
+            if src_data.abs().sum() > 0:
+                tgt_data, tgt_field_data, _ = translation_adjusted_download(
+                    src=tgt, field=tgt_field, idx=idx_input_padded
+                )
 
+        with semaphore("cpu"):
             if tgt_field_data is not None:
                 tgt_field_data_zcxy = einops.rearrange(tgt_field_data, "C X Y Z -> Z C X Y")
                 tgt_data_zcxy = einops.rearrange(tgt_data, "C X Y Z -> Z C X Y")
@@ -109,13 +112,16 @@ class ComputeFieldOperation:
             else:
                 tgt_data_final = tgt_data
 
+        with semaphore("cuda"):
             result_raw = self.fn(
                 src=src_data,
                 tgt=tgt_data_final,
                 src_field=src_field_data,
             )
             result = tensor_ops.crop(result_raw, crop=self.output_crop_px)
+            torch.cuda.empty_cache()
 
+        with semaphore("write"):
             result[0] += src_translation[0]
             result[1] += src_translation[1]
             dst[idx] = result

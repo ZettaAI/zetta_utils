@@ -1,21 +1,19 @@
 # pylint: disable=too-many-locals
 from __future__ import annotations
 
+import os
 from contextlib import ExitStack
 from typing import Callable, Optional, Union
 
 from typeguard import typechecked
 
 from zetta_utils import builder, log
-from zetta_utils.common import (
-    ComparablePartial,
-    SemaphoreType,
-    configure_semaphores,
-    setup_persistent_process_pool,
-)
-from zetta_utils.mazepa import Flow, Task, execute
-from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
+from zetta_utils.common import ComparablePartial
+from zetta_utils.mazepa import Flow, SemaphoreType, Task, configure_semaphores, execute
 from zetta_utils.mazepa.execution_state import ExecutionState, InMemoryExecutionState
+from zetta_utils.message_queues import LocalQueue
+
+from .worker_pool import setup_local_worker_pool
 
 logger = log.get_logger("mazepa")
 
@@ -24,7 +22,6 @@ logger = log.get_logger("mazepa")
 @builder.register("mazepa.execute_locally")
 def execute_locally(
     target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable],
-    task_queue: AutoexecuteTaskQueue | None = None,
     max_batch_len: int = 1000,
     batch_gap_sleep_sec: float = 0.5,
     state_constructor: Callable[..., ExecutionState] = InMemoryExecutionState,
@@ -37,18 +34,32 @@ def execute_locally(
     raise_on_failed_checkpoint: bool = True,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    debug: bool = False,
 ):
+
     with ExitStack() as stack:
         logger.info(
             "Configuring for local execution: "
-            "allocating semaphores and persistent process pool as needed."
+            "creating local queues, allocating semaphores, and starting local workers."
         )
         stack.enter_context(configure_semaphores(semaphores_spec))
-        stack.enter_context(setup_persistent_process_pool(num_procs))
+
+        if debug:
+            logger.info("Debug mode: Using single process execution without local queues.")
+            task_queue = None
+            outcome_queue = None
+        else:
+            task_queue_name = f"{os.getpid()}_task_queue"
+            outcome_queue_name = f"{os.getpid()}_outcome_queue"
+            task_queue = stack.enter_context(LocalQueue(task_queue_name))
+            outcome_queue = stack.enter_context(LocalQueue(outcome_queue_name))
+            stack.enter_context(
+                setup_local_worker_pool(num_procs, task_queue_name, outcome_queue_name)
+            )
         execute(
             target=target,
             task_queue=task_queue,
-            outcome_queue=task_queue,
+            outcome_queue=outcome_queue,
             max_batch_len=max_batch_len,
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             state_constructor=state_constructor,

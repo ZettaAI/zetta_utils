@@ -24,12 +24,12 @@ from torch import Tensor
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.common import SemaphoreType
 from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer
+from zetta_utils.mazepa import SemaphoreType
 from zetta_utils.ng.link_builder import make_ng_link
 from zetta_utils.typing import ensure_seq_of_seq
 
@@ -55,7 +55,6 @@ class DelegatedSubchunkedOperation(Generic[P]):
     flow_schema: VolumetricApplyFlowSchema[P, None]
     operation_name: str
     level: int
-    parallel_if_pool_exists: bool
 
     def get_input_resolution(  # pylint: disable=no-self-use
         self, dst_resolution: Vec3D
@@ -75,7 +74,6 @@ class DelegatedSubchunkedOperation(Generic[P]):
         mazepa.Executor(
             do_dryrun_estimation=False,
             show_progress=False,
-            parallel_if_pool_exists=self.parallel_if_pool_exists,
         )(self.flow_schema(idx, dst, op_args, op_kwargs))
 
 
@@ -874,7 +872,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 flow_schema,
                 op_name,
                 level,
-                parallel_if_pool_exists=(level == 1),
             ),
             processing_chunk_size=processing_chunk_sizes[-level - 1],
             max_reduction_chunk_size=max_reduction_chunk_sizes[-level - 1],

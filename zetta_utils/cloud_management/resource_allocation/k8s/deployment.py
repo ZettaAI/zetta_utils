@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
-from zetta_utils.common import SemaphoreType
+from zetta_utils.mazepa import SemaphoreType
 
 from ..resource_tracker import (
     ExecutionResource,

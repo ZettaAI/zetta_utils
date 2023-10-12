@@ -1,3 +1,4 @@
-from .base import ReceivedMessage, MessageQueue
+from .base import ReceivedMessage, MessageQueue, TQTask
 from . import serialization
-from . import sqs
+from .local import LocalQueue
+from .sqs import SQSQueue

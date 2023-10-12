@@ -40,7 +40,7 @@ def _load_model(
     return result
 
 
-_load_model_cached = cachetools.cached(cachetools.LRUCache(maxsize=8))(_load_model)
+_load_model_cached = cachetools.cached(cachetools.LRUCache(maxsize=2))(_load_model)
 
 
 @typechecked

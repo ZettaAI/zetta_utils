@@ -12,13 +12,13 @@ from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
 from zetta_utils import log, mazepa
-from zetta_utils.common import semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
     VolumetricIndex,
     VolumetricIndexChunker,
 )
+from zetta_utils.mazepa import semaphore
 
 from ..operation_protocols import VolumetricOpProtocol
 

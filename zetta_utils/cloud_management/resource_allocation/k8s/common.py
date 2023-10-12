@@ -10,7 +10,7 @@ import attrs
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
-from zetta_utils.common import SemaphoreType
+from zetta_utils.mazepa import SemaphoreType
 
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
@@ -68,7 +68,7 @@ def get_mazepa_worker_command(
     result = (
         """
     zetta -vv -l try run -s '{
-        "@type": "mazepa.run_worker"
+        "@type": "mazepa.run_worker_manager"
     """
         + f"task_queue: {json.dumps(task_queue_spec)}\n"
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"

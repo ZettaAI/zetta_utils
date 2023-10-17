@@ -29,7 +29,7 @@ class NaiveSupervisedRegime(pl.LightningModule):
     def validation_epoch_start(self, _):
         seed_everything(42)
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         seed_everything(None)
 
     def validation_step(self, batch, batch_idx):

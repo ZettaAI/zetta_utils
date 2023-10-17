@@ -43,21 +43,21 @@ class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-m
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
-    @staticmethod
-    def log_results(mode: str, title_suffix: str = "", **kwargs):
-        wandb.log(
-            {
-                f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
-                    for k, v in kwargs.items()
-                ]
-            }
+    def log_results(self, mode: str, title_suffix: str = "", **kwargs):
+        if not self.logger:
+            return
+        self.logger.log_image(
+            f"results/{mode}_{title_suffix}_slider",
+            images=[
+                wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
+                for k, v in kwargs.items()
+            ],
         )
 
     def validation_epoch_start(self, _):
         seed_everything(42)
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         self.log_results(
             "val",
             "worst",

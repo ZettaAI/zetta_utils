@@ -45,20 +45,18 @@ class MisalignmentDetectorRegime(pl.LightningModule):  # pylint: disable=too-man
         field_norm = (field_i ** 2 + field_j ** 2) ** 0.5
         return torch.clamp(field_norm, 0, threshold)
 
-    @staticmethod
-    def log_results(mode: str, title_suffix: str = "", **kwargs):
-        wandb.log(
-            {
-                f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(v.squeeze(), caption=k) for k, v in kwargs.items()
-                ]
-            }
+    def log_results(self, mode: str, title_suffix: str = "", **kwargs):
+        if not self.logger:
+            return
+        self.logger.log_image(
+            f"results/{mode}_{title_suffix}_slider",
+            images=[wandb.Image(v.squeeze(), caption=k) for k, v in kwargs.items()],
         )
         # images = torchvision.utils.make_grid([img[0] for img, _ in img_spec])
         # caption = ",".join(cap for _, cap in img_spec) + title_suffix
         # wandb.log({f"results/{mode}_row": [wandb.Image(images, caption)]})
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         self.log_results(
             "val",
             "worst",

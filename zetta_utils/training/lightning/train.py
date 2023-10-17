@@ -7,8 +7,8 @@ from typing import Any, Dict, Final, List, Optional
 import pytorch_lightning as pl
 import torch
 import typeguard
+from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.strategies import ddp
-from pytorch_lightning.utilities.cloud_io import get_filesystem
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -28,6 +28,10 @@ REQUIRED_ENV_VARS: Final = [
     "ZETTA_PROJECT",
     "WANDB_API_KEY",
 ]
+
+
+def distributed_available() -> bool:
+    return torch.distributed.is_available() and torch.distributed.is_initialized()
 
 
 @builder.register("lightning_train")
@@ -65,7 +69,7 @@ def lightning_train(
         logger.warning("Invoked without builder: Unable to save configuration.")
 
     if full_state_ckpt_path == "last":
-        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):  # type: ignore
+        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):
             ckpt_path = trainer.ckpt_path
         else:
             ckpt_path = None

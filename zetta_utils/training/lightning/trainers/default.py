@@ -69,34 +69,44 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
-            wandb.init(
-                project=experiment_name,
-                group=f"{experiment_name}.{experiment_version}",
-                name=experiment_version,
-                id=experiment_version,
-            )
 
-        if wandb.run is not None:
-            this_dir = os.path.dirname(os.path.abspath(__file__))
-            zetta_root_path = f"{this_dir}/../../.."
-            wandb.run.log_code(zetta_root_path)
-
+        pid = os.getpid()
         kwargs["logger"] = WandbLogger(
             project=experiment_name,
-            name=experiment_version,
-            id=experiment_version,
+            group=f"{experiment_name}.{experiment_version}",
+            name=f"{experiment_version}",
+            id=f"{experiment_version}.{pid}",
         )
 
-        kwargs["callbacks"] = get_progress_bar_callbacks(**progress_bar_kwargs)
+        log_dir = os.path.join(
+            kwargs.get("default_root_dir", os.getcwd()),
+            experiment_name,
+            f"{experiment_version}",
+        )
+
+        kwargs["callbacks"] = get_progress_bar_callbacks(
+            **progress_bar_kwargs
+        ) + get_checkpointing_callbacks(
+            log_dir=log_dir,
+            **checkpointing_kwargs,
+        )
 
         super().__init__(*args, **kwargs)
+
+        if self.global_rank != 0:
+            return
+
+        if self.logger and self.logger.experiment:
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            zetta_root_path = f"{this_dir}/../../.."
+            self.logger.experiment.log_code(zetta_root_path)
+
         self.trace_configuration: Dict = {}
 
-        @pl.utilities.rank_zero.rank_zero_only
         def log_config(config):
             if experiment_version.startswith("tmp"):
                 logger.info(
-                    f"Not saving configuration for a temproary experiment {experiment_version}."
+                    f"Not saving configuration for a temporary experiment {experiment_version}."
                 )
             else:
                 self.logger.experiment.config["training_configuration"] = config  # type: ignore
@@ -104,18 +114,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         self.log_config = log_config
 
-        log_dir = os.path.join(
-            self.default_root_dir,
-            experiment_name,
-            experiment_version,
-        )
-
-        self.callbacks += get_checkpointing_callbacks(
-            log_dir=log_dir,
-            **checkpointing_kwargs,
-        )
-
-        self.callbacks.append(ConfigureTraceCallback(self))
+        # self.callbacks will exist at runtime
+        self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
 
         # Due to a bug in PL we're unable to use normal methods
         # to resume training with ckpt_path='last' when storing
@@ -155,6 +155,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             trace_input = val["trace_input"]
             ctx = torch.multiprocessing.get_context("spawn")
             with ctx.Pool(processes=1) as pool:
+                # See https://github.com/pytorch/pytorch/issues/35600
                 res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
             if res is not None:
                 logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
@@ -201,20 +202,20 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
 
     @staticmethod
     def wrap_forward(pl_module: pl.LightningModule, name: str, trace_configuration: Dict) -> None:
-        model = getattr(pl_module, name)
-        model.__forward__ = model.forward
+        model = pl_module.get_submodule(name)
+        setattr(model, "__forward__", model.forward)
 
         def wrapped_forward(*args, **kwargs):
             trace_configuration[name] = {"model": model, "trace_input": args}
-            return model.__forward__(*args, **kwargs)
+            return getattr(model, "__forward__")(*args, **kwargs)
 
         setattr(model, "forward", wrapped_forward)
 
     @staticmethod
     def unwrap_forward(pl_module: pl.LightningModule, name: str) -> None:
-        model = getattr(pl_module, name)
+        model = pl_module.get_submodule(name)
         wrapped_forward = model.forward
-        model.forward = model.__forward__
+        model.forward = getattr(model, "__forward__")
         delattr(model, "__forward__")
         del wrapped_forward
 
@@ -224,18 +225,11 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
         pl_module: pl.LightningModule,
         batch: Any,
         batch_idx: int,
-        dataloader_idx: int,
+        dataloader_idx: int = 0,
     ) -> None:
-        if (
-            hasattr(self.trainer, "trace_configuration")
-            and self.trainer.trace_configuration is None
-        ):
+        if hasattr(self.trainer, "trace_configuration") and not self.trainer.trace_configuration:
             input_to_trace = batch
-            models_to_trace = [
-                attr
-                for attr in set(dir(pl_module))
-                if issubclass(type(getattr(pl_module, attr)), torch.nn.Module)
-            ]
+            models_to_trace = [name for name, _ in pl_module.named_children()]
             trace_configuration = {}  # type: Dict[str, Dict[str, Any]]
             for name in models_to_trace:
                 ConfigureTraceCallback.wrap_forward(pl_module, name, trace_configuration)

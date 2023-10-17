@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import wandb
+from pytorch_lightning.loggers.logger import Logger
 
 from zetta_utils import viz
 
@@ -9,13 +12,16 @@ def is_2d_image(tensor):
     )
 
 
-def log_results(mode: str, title_suffix: str = "", **kwargs):
+def log_results(mode: str, title_suffix: str = "", logger: Logger | None = None, **kwargs):
     if all(is_2d_image(v) for v in kwargs.values()):
         row = [
             wandb.Image(viz.rendering.Renderer()(v.squeeze()), caption=k)
             for k, v in kwargs.items()
         ]
-        wandb.log({f"results/{mode}_{title_suffix}_slider": row})
+        if logger is None:
+            wandb.log({f"results/{mode}_{title_suffix}_slider": row})
+        else:
+            logger.log_image(f"results/{mode}_{title_suffix}_slider", images=row)
     else:
         max_z = max(v.shape[-1] for v in kwargs.values())
 
@@ -29,4 +35,7 @@ def log_results(mode: str, title_suffix: str = "", **kwargs):
 
                 row.append(wandb.Image(rendered, caption=k))
 
-            wandb.log({f"results/{mode}_{title_suffix}_slider_z{z}": row})
+            if logger is None:
+                wandb.log({f"results/{mode}_{title_suffix}_slider_z{z}": row})
+            else:
+                logger.log_image(f"results/{mode}_{title_suffix}_slider_z{z}", images=row)

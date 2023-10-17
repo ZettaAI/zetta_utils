@@ -9,9 +9,9 @@ import torch
 import torchvision
 import wandb
 from PIL import Image
-from pytorch_lightning.utilities.distributed import distributed_available
 
 from zetta_utils import builder, tensor_ops
+from zetta_utils.training.lightning.train import distributed_available
 
 
 @builder.register("EncodingCoarsenerRegime")
@@ -33,20 +33,18 @@ class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-a
     def __attrs_pre_init__(self):
         super().__init__()
 
-    @staticmethod
-    def log_results(mode: str, title_suffix: str = "", **kwargs):
-        wandb.log(
-            {
-                f"results/{mode}_{title_suffix}_slider": [
-                    wandb.Image(v.squeeze(), caption=k) for k, v in kwargs.items()
-                ]
-            }
+    def log_results(self, mode: str, title_suffix: str = "", **kwargs):
+        if not self.logger:
+            return
+        self.logger.log_image(
+            f"results/{mode}_{title_suffix}_slider",
+            images=[wandb.Image(v.squeeze(), caption=k) for k, v in kwargs.items()],
         )
         # images = torchvision.utils.make_grid([img[0] for img, _ in img_spec])
         # caption = ",".join(cap for _, cap in img_spec) + title_suffix
         # wandb.log({f"results/{mode}_row": [wandb.Image(images, caption)]})
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         self.log_results(
             "val",
             "worst",

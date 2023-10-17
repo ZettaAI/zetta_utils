@@ -41,7 +41,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         log_results(
             "val",
             "worst",

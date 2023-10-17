@@ -49,8 +49,9 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         return optimizer
 
-    @staticmethod
-    def log_results(mode: str, title_suffix: str = "", **kwargs):
+    def log_results(self, mode: str, title_suffix: str = "", **kwargs):
+        if not self.logger:
+            return
         images = []
         for k, v in kwargs.items():
             for b in range(1):
@@ -100,12 +101,12 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
                         )
                     )
 
-        wandb.log({f"results/{mode}_{title_suffix}_slider": images})
+        self.logger.log_image(f"results/{mode}_{title_suffix}_slider", images=images)
 
     def validation_epoch_start(self, _):  # pylint: disable=no-self-use
         seed_everything(42)
 
-    def validation_epoch_end(self, _):
+    def on_validation_epoch_end(self):
         self.log_results(
             "val",
             "worst",

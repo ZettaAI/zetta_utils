@@ -43,10 +43,10 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
-@builder.register("VolumetricIndexOverrideStartOffset")
+@builder.register("VolumetricIndexStartOffsetOverrider")
 @typechecked
 @attrs.mutable
-class VolumetricIndexOverrideStartOffset:  # pragma: no cover # under 3 statements, no conditionals
+class VolumetricIndexStartOffsetOverrider:
     override_offset: Sequence[int | None]
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:

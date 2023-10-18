@@ -15,6 +15,7 @@ from .tools import (
     InvertProcessor,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,
+    VolumetricIndexStartOffsetOverrider,
 )
 from .layer import (
     VolumetricLayer,

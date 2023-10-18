@@ -24,12 +24,21 @@ class WarpOperation:
     mask_value_thr: float = 0
     use_translation_adjustment: bool = True
     translation_granularity: int = 1
+    downsampling_factor: Sequence[int] = (1, 1, 1)
+
+    """
+    Warp operation.
+
+    :param downsampling_factor: apply downsampling in xyz after warping. Values
+        greater than 1 will make the operator read higher resolution data, warp
+        it, then downsample to the requested resolution.
+    """
 
     def get_operation_name(self):
         return f"WarpOperation<{self.mode}>"
 
-    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
-        return dst_resolution
+    def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
+        return dst_resolution / Vec3D(*self.downsampling_factor)
 
     def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> WarpOperation:
         return attrs.evolve(self, crop_pad=Vec3D(*self.crop_pad) + crop_pad)
@@ -46,6 +55,8 @@ class WarpOperation:
         field: VolumetricLayer,
     ) -> None:
         idx_padded = idx.padded(self.crop_pad)
+        idx_padded.resolution = self.get_input_resolution(idx_padded.resolution)
+
         with semaphore("read"):
             if self.use_translation_adjustment:
                 src_data_raw, field_data_raw, xy_translation = translation_adjusted_download(
@@ -67,6 +78,10 @@ class WarpOperation:
 
             with torchfields.set_identity_mapping_cache(True):
                 if self.mode == "field":
+                    if self.downsampling_factor != (1, 1, 1):
+                        raise NotImplementedError(
+                            "Downsampling should work but not tested with field warping"
+                        )
                     src_data = src_data.field_().from_pixels()  # type: ignore
 
                 dst_data_raw = field_data.from_pixels()(src_data.float())
@@ -83,9 +98,17 @@ class WarpOperation:
             # the typed generation is necessary because mypy cannot tell that when you slice an
             # Vec3D[int], the outputs contain ints (might be due to the fact that np.int64s
             # are not ints
-            crop_2d = tuple(int(e) for e in self.crop_pad[:-1])
+            crop_2d = tuple(
+                int(e * mult) for e, mult in zip(self.crop_pad[:-1], self.downsampling_factor[:-1])
+            )
             dst_data_cropped = tensor_ops.crop(dst_data_raw, crop_2d)
             dst_data = einops.rearrange(dst_data_cropped, "Z C X Y -> C X Y Z")
+            if self.downsampling_factor != (1, 1, 1):
+                dst_data = tensor_ops.interpolate(
+                    data=dst_data,
+                    scale_factor=[1.0 / k for k in self.downsampling_factor],
+                    mode=self.mode,
+                )
 
         with semaphore("write"):
             dst[idx] = dst_data

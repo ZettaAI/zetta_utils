@@ -162,13 +162,15 @@ def wait_for_job_completion(
         name=job.metadata.name,
         namespace=namespace,
     )
-    while job.status.succeeded == 0:
+    not_done = job.status.succeeded == 0 or job.status.succeeded is None
+    while not_done:
+        logger.info(f"Waiting for `{job.metadata.name}` to complete.")
         time.sleep(5)
         job = batch_v1_api.read_namespaced_job_status(
             name=job.metadata.name,
             namespace=namespace,
         )
-        logger.info(f"Waiting for `{job.metadata.name}` to complete.")
+        not_done = job.status.succeeded == 0 or job.status.succeeded is None
     logger.info(f"`{job.metadata.name}` job completed.")
 
 

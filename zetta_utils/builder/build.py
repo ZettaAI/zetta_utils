@@ -9,6 +9,7 @@ from typeguard import typechecked
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 from zetta_utils.parsing import json
+from zetta_utils.typing import JsonDict
 
 from . import constants
 from .registry import get_matching_entry
@@ -18,6 +19,19 @@ SPECIAL_KEYS: Final = {
     "type": "@type",
     "version": "@version",
 }
+
+BUILT_OBJECT_ID_REGISTRY: dict[int, JsonDict] = {}
+
+
+def get_initial_builder_spec(obj: Any) -> JsonDict | None:
+    """Returns the builder spec that the object was initially built with.
+    Note that mutations to the object after it was built will not be
+    reflected in the spec. Returns `None` if the object was not built with
+    builder
+    """
+    # breakpoint()
+    result = BUILT_OBJECT_ID_REGISTRY.get(id(obj), None)
+    return result
 
 
 @typechecked
@@ -41,12 +55,18 @@ def build(
 
     # error check the spec
     _traverse_spec(
-        final_spec, _check_type_value, name_prefix="spec", version=constants.DEFAULT_VERSION
+        final_spec,
+        _check_type_value,
+        name_prefix="spec",
+        version=constants.DEFAULT_VERSION,
     )
 
     # build the spec
     result = _traverse_spec(
-        final_spec, _build_dict_spec, name_prefix="spec", version=constants.DEFAULT_VERSION
+        final_spec,
+        _build_dict_spec,
+        name_prefix="spec",
+        version=constants.DEFAULT_VERSION,
     )
 
     return result
@@ -64,7 +84,10 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
         elif isinstance(spec, list):
             result = [
                 _traverse_spec(
-                    spec=e, apply_fn=apply_fn, name_prefix=f"{name_prefix}[{i}]", version=version
+                    spec=e,
+                    apply_fn=apply_fn,
+                    name_prefix=f"{name_prefix}[{i}]",
+                    version=version,
                 )
                 for i, e in enumerate(spec)
             ]
@@ -93,7 +116,7 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
                 }
         else:
             result = spec
-
+    BUILT_OBJECT_ID_REGISTRY[id(result)] = spec
     return result
 
 
@@ -106,7 +129,10 @@ def _check_type_value(spec: dict[str, Any], name_prefix: str, version: str) -> A
     get_matching_entry(this_type, version=version)
     for k, v in spec.items():
         _traverse_spec(
-            v, apply_fn=_check_type_value, name_prefix=f"{name_prefix}.{k}", version=version
+            v,
+            apply_fn=_check_type_value,
+            name_prefix=f"{name_prefix}.{k}",
+            version=version,
         )
 
 
@@ -152,11 +178,6 @@ def _build_dict_spec(spec: dict[str, Any], name_prefix: str, version: str) -> An
         result = BuilderPartial(spec=spec)
     else:
         raise ValueError(f"Unsupported mode: {this_mode}")
-
-    # save the spec that was used to create the object if possible
-    # slotted classes won't allow adding new attributes
-    if hasattr(result, "__dict__"):
-        object.__setattr__(result, "__built_with_spec", spec)
 
     return result
 

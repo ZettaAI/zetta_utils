@@ -121,3 +121,16 @@ def ensure_seq_of_seq(x, length):
         result = [x] * length
 
     return result
+
+
+JsonSerializableValue = Union[
+    str,
+    int,
+    float,
+    bool,
+    None,
+    list["JsonSerializableValue"],
+    dict[str, "JsonSerializableValue"],
+]
+
+JsonDict = dict[str, JsonSerializableValue]

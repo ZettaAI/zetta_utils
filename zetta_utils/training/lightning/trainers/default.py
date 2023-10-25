@@ -14,7 +14,9 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import ddp
 
 from zetta_utils import builder, log
+from zetta_utils.builder.build import get_initial_builder_spec
 from zetta_utils.parsing import json
+from zetta_utils.typing import JsonSerializableValue
 
 logger = log.get_logger("zetta_utils")
 ONNX_OPSET_VERSION = 17
@@ -133,15 +135,20 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
-            if hasattr(v, "__built_with_spec"):
-                model_spec = getattr(v, "__built_with_spec")  # pylint: disable=protected-access
-                while "@type" in model_spec and model_spec["@type"] == "load_weights_file":
-                    model_spec = model_spec["model"]
+            model_spec: JsonSerializableValue = get_initial_builder_spec(v)
+            if model_spec is not None:
+                unrolled_spec: JsonSerializableValue = model_spec
+                while (
+                    isinstance(unrolled_spec, dict)
+                    and "@type" in unrolled_spec
+                    and unrolled_spec["@type"] == "load_weights_file"
+                ):
+                    unrolled_spec = unrolled_spec["model"]
 
                 spec = {
                     "@type": "load_weights_file",
                     "@version": importlib.metadata.version("zetta_utils"),
-                    "model": model_spec,
+                    "model": unrolled_spec,
                     "ckpt_path": filepath,
                     "component_names": [k],
                     "remove_component_prefix": True,

@@ -70,13 +70,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 
-        pid = os.getpid()
-        kwargs["logger"] = WandbLogger(
-            project=experiment_name,
-            group=f"{experiment_name}.{experiment_version}",
-            name=f"{experiment_version}",
-            id=f"{experiment_version}.{pid}",
-        )
+        kwargs["logger"] = False
 
         log_dir = os.path.join(
             kwargs.get("default_root_dir", os.getcwd()),
@@ -92,6 +86,13 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         )
 
         super().__init__(*args, **kwargs)
+
+        self.logger = WandbLogger(
+            project=experiment_name,
+            group=f"{experiment_name}.{experiment_version}",
+            name=f"{experiment_version}",
+            id=f"{experiment_version}.{self.global_rank}",
+        )
 
         if self.global_rank != 0:
             return

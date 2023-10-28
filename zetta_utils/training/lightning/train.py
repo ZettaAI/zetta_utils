@@ -267,14 +267,17 @@ def _create_ddp_master_job(
         if num_nodes > 1:
             train_pod = resource_allocation.k8s.get_job_pod(train_job, cluster_info)
             aliases = [k8s_client.V1HostAlias(hostnames=["master"], ip=train_pod.status.host_ip)]
-            worker_role_env = k8s_client.V1EnvVar(name="MY_ROLE", value="worker")
+            worker_env = [
+                k8s_client.V1EnvVar(name="MY_ROLE", value="worker"),
+                k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
+            ]
 
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
                 command=["/bin/bash"],
                 command_args=["-c", zetta_cmd],
-                envs=envs + [worker_role_env],
+                envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,
                 host_aliases=aliases,

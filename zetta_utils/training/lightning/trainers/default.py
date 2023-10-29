@@ -94,6 +94,11 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             id=f"{experiment_version}.{self.global_rank}",
         )
 
+        self.trace_configuration: Dict = {}
+
+        # self.callbacks will exist at runtime
+        self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
+
         if self.global_rank != 0:
             return
 
@@ -101,8 +106,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             this_dir = os.path.dirname(os.path.abspath(__file__))
             zetta_root_path = f"{this_dir}/../../.."
             self.logger.experiment.log_code(zetta_root_path)
-
-        self.trace_configuration: Dict = {}
 
         def log_config(config):
             if experiment_version.startswith("tmp"):
@@ -114,9 +117,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 logger.info("Saved training configuration.")
 
         self.log_config = log_config
-
-        # self.callbacks will exist at runtime
-        self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
 
         # Due to a bug in PL we're unable to use normal methods
         # to resume training with ckpt_path='last' when storing

@@ -6,6 +6,8 @@ import time
 from contextlib import contextmanager
 from typing import Dict, List, Optional
 
+from kubernetes.client.exceptions import ApiException
+
 from kubernetes import client as k8s_client  # type: ignore
 from kubernetes import watch  # type: ignore
 from zetta_utils import log
@@ -39,6 +41,12 @@ def _get_job_spec(
         suspend=suspend,
         template=pod_template,
     )
+
+
+def _reset_batch_api(cluster_info: ClusterInfo):
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    return k8s_client.BatchV1Api()
 
 
 def get_job_template(
@@ -109,10 +117,7 @@ def follow_job_logs(
     cluster_info: ClusterInfo,
     namespace: str = "default",
 ):
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    batch_v1_api = k8s_client.BatchV1Api()
-
+    batch_v1_api = _reset_batch_api(cluster_info)
     _wait_for_job_start(job, namespace, batch_v1_api)
 
     core_api = k8s_client.CoreV1Api()
@@ -134,10 +139,7 @@ def get_job_pod(
     cluster_info: ClusterInfo,
     namespace: str = "default",
 ) -> k8s_client.V1Pod:
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    batch_v1_api = k8s_client.BatchV1Api()
-
+    batch_v1_api = _reset_batch_api(cluster_info)
     _wait_for_job_start(job, namespace, batch_v1_api)
 
     core_api = k8s_client.CoreV1Api()
@@ -152,10 +154,7 @@ def wait_for_job_completion(
     cluster_info: ClusterInfo,
     namespace: str = "default",
 ):
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    batch_v1_api = k8s_client.BatchV1Api()
-
+    batch_v1_api = _reset_batch_api(cluster_info)
     _wait_for_job_start(job, namespace, batch_v1_api)
 
     job = batch_v1_api.read_namespaced_job_status(
@@ -166,10 +165,18 @@ def wait_for_job_completion(
     while not_done:
         logger.info(f"Waiting for `{job.metadata.name}` to complete.")
         time.sleep(5)
-        job = batch_v1_api.read_namespaced_job_status(
-            name=job.metadata.name,
-            namespace=namespace,
-        )
+        try:
+            job = batch_v1_api.read_namespaced_job_status(
+                name=job.metadata.name,
+                namespace=namespace,
+            )
+        except ApiException:
+            batch_v1_api = _reset_batch_api(cluster_info)
+            job = batch_v1_api.read_namespaced_job_status(
+                name=job.metadata.name,
+                namespace=namespace,
+            )
+
         not_done = job.status.succeeded == 0 or job.status.succeeded is None
     logger.info(f"`{job.metadata.name}` job completed.")
 
@@ -182,10 +189,7 @@ def job_ctx_manager(
     secrets: List[k8s_client.V1Secret],
     namespace: Optional[str] = "default",
 ):
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-
-    batch_v1_api = k8s_client.BatchV1Api()
+    batch_v1_api = _reset_batch_api(cluster_info)
     with secrets_ctx_mngr(execution_id, secrets, cluster_info):
         logger.info(f"Creating k8s job `{job.metadata.name}`")
         batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
@@ -201,11 +205,7 @@ def job_ctx_manager(
             yield
         finally:
             # new configuration to refresh expired tokens (long running executions)
-            configuration, _ = get_cluster_data(cluster_info)
-            k8s_client.Configuration.set_default(configuration)
-
-            # need to create a new client for the above to take effect
-            batch_v1_api = k8s_client.BatchV1Api()
+            batch_v1_api = _reset_batch_api(cluster_info)
             logger.info(f"Deleting k8s job `{job.metadata.name}`")
             batch_v1_api.delete_namespaced_job(
                 name=job.metadata.name,

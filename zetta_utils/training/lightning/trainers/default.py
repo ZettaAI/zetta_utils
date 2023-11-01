@@ -192,8 +192,8 @@ def get_checkpointing_callbacks(
 
 
 @typeguard.typechecked
-def get_progress_bar_callbacks() -> List[pl.callbacks.Callback]:  # pragma: no cover
-    result = [pl.callbacks.RichProgressBar()]  # type: List[pl.callbacks.Callback]
+def get_progress_bar_callbacks(**kwargs) -> List[pl.callbacks.Callback]:  # pragma: no cover
+    result = [pl.callbacks.RichProgressBar(**kwargs)]  # type: List[pl.callbacks.Callback]
     return result
 
 

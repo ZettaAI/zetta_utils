@@ -138,6 +138,7 @@ class ConvBlock(nn.Module):
 
         if normalize_last and (normalization is not None):
             self.layers.append(normalization(num_channels[-1]))  # pylint: disable=not-callable
+        post_skips_dst.append(len(self.layers))
         if activate_last:
             self.layers.append(activation())
 
@@ -149,7 +150,7 @@ class ConvBlock(nn.Module):
         skip_data_for = {}  # type: dict[int, torch.Tensor]
         result = data
         conv_count = 0
-        for i, layer in enumerate(self.layers):
+        for i, layer in enumerate(self.layers[:] + [None]):
             if (i in self.skips_dst) and (conv_count in skip_data_for):
                 # In tracing mode, shapes obtained from tensor.shape are traced as tensors
                 if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover
@@ -170,9 +171,9 @@ class ConvBlock(nn.Module):
                 else:
                     skip_data_for[skip_dest] = result
 
-            result = layer(result)
-
-            if isinstance(layer, torch.nn.modules.conv._ConvNd):
-                conv_count += 1
+            if layer:
+                result = layer(result)
+                if isinstance(layer, torch.nn.modules.conv._ConvNd):
+                    conv_count += 1
 
         return result

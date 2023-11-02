@@ -132,7 +132,8 @@ class ConvBlock(nn.Module):
                 new_conv.bias.data[:] = 0
             self.layers.append(new_conv)
 
-            pre_skips_src.append(len(self.layers))
+            if i < len(num_channels) - 2:
+                pre_skips_src.append(len(self.layers))
             pre_skips_dst.append(len(self.layers))
 
         if normalize_last and (normalization is not None):

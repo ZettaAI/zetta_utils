@@ -56,7 +56,8 @@ class BaseCoarsener:
                     y_end = y + self.tile_size + self.tile_pad_in
                     tile = data_in[:, :, x_start:x_end, y_start:y_end]
                     if (tile != 0).sum() > 0.0:
-                        tile_result = model(tile)
+                        with torch.autocast(device_type=device):
+                            tile_result = model(tile)
                         if tile_pad_out > 0:
                             tile_result = tile_result[
                                 :, :, tile_pad_out:-tile_pad_out, tile_pad_out:-tile_pad_out

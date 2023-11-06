@@ -36,7 +36,8 @@ class BaseEncoder:
                 raise ValueError(f"Unsupported src dtype: {src.dtype}")
 
             data_in = einops.rearrange(data_in, "C X Y Z -> Z C X Y")
-            result = model(data_in.to(device))
+            with torch.autocast(device_type=device):
+                result = model(data_in.to(device))
             result = einops.rearrange(result, "Z C X Y -> C X Y Z")
 
             # Final layer assumed to be tanh

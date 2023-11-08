@@ -75,7 +75,6 @@ def get_mazepa_worker_command(
         + f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
         + f"num_procs: {num_procs}\n"
         + """
-        max_pull_num: 1
         sleep_sec: 5
     }'
     """

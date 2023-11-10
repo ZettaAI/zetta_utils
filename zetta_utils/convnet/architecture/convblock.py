@@ -168,7 +168,7 @@ class ConvBlock(nn.Module):
                 skip_dest = self.skips[str(conv_count)]
                 if skip_dest in skip_data_for:
                     size = _get_size(result)
-                    skip_data_for[skip_dest] += crop_center(skip_data_for[skip_dest], size)
+                    skip_data_for[skip_dest] += crop_center(result, size)
                 else:
                     skip_data_for[skip_dest] = result
 

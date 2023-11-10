@@ -110,12 +110,38 @@ def not_test_forward_naive(mocker):
     )
 
 
-def test_forward_skips(mocker):
-    mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
-    block = convnet.architecture.ConvBlock(
-        kernel_sizes=[2, 2], num_channels=[1, 2, 3, 4, 5], skips={"0": 2, "1": 2, "2": 3}
-    )
-    result = block(torch.ones([1, 1, 1, 1]))
-    assert_array_equal(
-        result.cpu().detach().numpy(), 6 * torch.ones([1, 1, 1, 1]).cpu().detach().numpy()
-    )
+@pytest.mark.parametrize(
+    "skips, expected",
+    [
+        # fmt: off
+        [
+            None,
+            1 * 2 * 2 * 2 * 2           # 4 convolutions
+        ],
+        [
+            {"0": 2, "1": 2, "2": 3},
+            (((1 * 2 * 2)               # first 2 convolutions
+            + 1                         # Skip content "0": 2
+            + 1 * 2                     # Skip content "1": 2
+            ) * 2                       # third convolution
+            + (1 * 2 * 2)               # Skip content "2": 3
+            + 1                         # also includes the skip content "0": 2
+            + 1 * 2                     # also includes the skip content "1": 2
+            ) * 2                       # fourth convolution
+        ],
+        [
+            {"0": 3, "1": 3, "2": 4},
+            ((1 * 2 * 2 * 2)            # first 3 convolutions
+            + 1                         # Skip content "0": 3
+            + 1 * 2                     # Skip content "1": 3
+            ) * 2                       # fourth convolution
+            + (1 * 2 * 2)               # Skip content "2": 4
+        ],
+        # fmt: on
+    ],
+)
+def test_forward_skips(mocker, skips, expected):
+    mocker.patch("torch.nn.Conv2d.forward", lambda _, x: 2 * x)
+    block = convnet.architecture.ConvBlock(kernel_sizes=[1], num_channels=[1] * 5, skips=skips)
+    result = block(torch.ones((1, 1, 1, 1)))
+    assert_array_equal(result.detach().numpy(), torch.full((1, 1, 1, 1), expected).numpy())

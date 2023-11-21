@@ -580,7 +580,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             yield tasks_reduce
             yield mazepa.Dependency()
             clear_cache(dst_temp)
-            delete_if_local(dst_temp)
+            try:
+                delete_if_local(dst_temp)
+            except FileNotFoundError:
+                pass
         # case with checkerboarding
         else:
             if dst.backend.enforce_chunk_aligned_writes:

@@ -112,6 +112,7 @@ class AcedRelaxationOp:
         lr: float = 0.3,
         rigidity_weight: float = 10.0,
         fix: Literal["first", "last", "both"] | None = "first",
+        max_dist: int = 2,
     ):
         idx_padded = idx.padded(self.crop_pad)
         first_section_idx_padded = idx_padded.translated_end((0, 0, 1 - idx_padded.shape[-1]))
@@ -140,6 +141,7 @@ class AcedRelaxationOp:
                     lr=lr,
                     rigidity_weight=rigidity_weight,
                     fix=fix,
+                    max_dist=max_dist,
                 )
                 result_cropped = tensor_ops.crop(result, self.crop_pad)
                 torch.cuda.empty_cache()

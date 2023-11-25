@@ -44,8 +44,8 @@ def lightning_train(
     num_nodes: int = 1,
     nproc_per_node: int = 1,
     retry_count: int = 3,
-    local_run: bool = False,
-    follow_logs: bool = False,
+    local_run: bool = True,
+    follow_logs: bool = True,
     image: Optional[str] = None,
     cluster_name: Optional[str] = None,
     cluster_region: Optional[str] = None,
@@ -86,7 +86,7 @@ def lightning_train(
     """
 
     if local_run:
-        _lightning_train(regime, trainer, train_dataloader, val_dataloader=val_dataloader)
+        _lightning_train_local(regime, trainer, train_dataloader, val_dataloader=val_dataloader)
         return
 
     assert image is not None, "Must provide a container image for remote training."
@@ -102,14 +102,14 @@ def lightning_train(
 
     train_spec = {
         "@type": "lightning_train",
-        "regime": regime,
-        "trainer": trainer,
-        "train_dataloader": train_dataloader,
-        "val_dataloader": val_dataloader,
+        "regime": builder.get_initial_builder_spec(regime),
+        "trainer": builder.get_initial_builder_spec(trainer),
+        "train_dataloader": builder.get_initial_builder_spec(train_dataloader),
+        "val_dataloader": builder.get_initial_builder_spec(val_dataloader),
         "full_state_ckpt_path": full_state_ckpt_path,
     }
 
-    _create_ddp_master_job(
+    _lightning_train_remote(
         execution_id,
         cluster_info=cluster_info,
         image=image,
@@ -147,7 +147,7 @@ def multinode_train_launch(
     torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
-def _lightning_train(
+def _lightning_train_local(
     regime: pl.LightningModule,
     trainer: pl.Trainer,
     train_dataloader: torch.utils.data.DataLoader,
@@ -194,7 +194,7 @@ def _parse_spec_and_train():
         full_state_ckpt_path = builder.build(spec=train_spec["full_state_ckpt_path"])
     except KeyError:
         full_state_ckpt_path = "last"
-    _lightning_train(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
+    _lightning_train_local(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
 
 
 def _get_tolerations(role: str) -> List[k8s_client.V1Toleration]:
@@ -240,7 +240,7 @@ def _spec_configmap_vol_and_ctx(
     return (specs_vol, specs_mount, ctx)
 
 
-def _create_ddp_master_job(
+def _lightning_train_remote(
     execution_id: str,
     *,
     cluster_info: resource_allocation.k8s.ClusterInfo,
@@ -261,7 +261,6 @@ def _create_ddp_master_job(
     Runs the command `zetta run specs/train.cue` on one or more worker pods.
     """
 
-    train_spec["local_run"] = True  # run locally on the pod
     if num_nodes > 1:
         train_spec["@type"] = "multinode_train_launch"
         train_spec["execution_id"] = execution_id

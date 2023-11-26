@@ -109,6 +109,9 @@ def lightning_train(
         "full_state_ckpt_path": full_state_ckpt_path,
     }
 
+    for _key in ["regime", "trainer", "train_dataloader"]:
+        assert train_spec[_key] is not None, f"{_key} requires builder compatible spec."
+
     _lightning_train_remote(
         execution_id,
         cluster_info=cluster_info,

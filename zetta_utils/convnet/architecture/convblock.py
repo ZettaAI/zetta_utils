@@ -100,6 +100,7 @@ class ConvBlock(nn.Module):
             self.skips = skips
 
         self.layers = torch.nn.ModuleList()
+        self.base_layer_pos = set()
 
         num_conv = len(num_channels) - 1
         kernel_sizes_ = ensure_seq_of_seq(kernel_sizes, num_conv)
@@ -139,6 +140,7 @@ class ConvBlock(nn.Module):
             # TODO: make this step optional
             if new_conv.bias is not None:
                 new_conv.bias.data[:] = 0
+            self.base_layer_pos.add(len(self.layers))
             self.layers.append(new_conv)
 
             pre_skips_src.append(len(self.layers))
@@ -174,7 +176,7 @@ class ConvBlock(nn.Module):
 
             result = layer(result)
 
-            if isinstance(layer, torch.nn.modules.conv._ConvNd):
+            if i in self.base_layer_pos:
                 conv_count += 1
 
         if (len(self.layers) in self.skips_dst) and (conv_count in skip_data_for):

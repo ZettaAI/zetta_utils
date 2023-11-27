@@ -5,3 +5,5 @@ from .base_encoder import BaseEncoder
 from .base_coarsener import BaseCoarsener
 from .encoding_coarsener import EncodingCoarsener
 from .misalignment_detector import MisalignmentDetector
+from .defect_detector import DefectDetector
+from .resin_detector import ResinDetector

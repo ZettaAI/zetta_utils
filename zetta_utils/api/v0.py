@@ -439,7 +439,7 @@ from zetta_utils.training.lightning.regimes.naive_supervised import (
     NaiveSupervisedRegime,
 )
 from zetta_utils.training.lightning.regimes.noop import NoOpRegime
-from zetta_utils.training.lightning.train import lightning_train, lightning_train_remote
+from zetta_utils.training.lightning.train import lightning_train
 from zetta_utils.training.lightning.trainers.default import (
     ConfigureTraceCallback,
     ZettaDefaultTrainer,

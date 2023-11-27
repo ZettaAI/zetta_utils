@@ -1,13 +1,14 @@
 import attrs
+import cc3d
+import cv2
 import einops
+import fastremap
+import numpy as np
 import torch
 from typeguard import typechecked
 
 from zetta_utils import builder, convnet
-import numpy as np
-import cv2
-import fastremap
-import cc3d
+
 
 @builder.register("ResinDetector")
 @typechecked
@@ -80,28 +81,34 @@ class ResinDetector:
 
             result = einops.rearrange(result, "Z C X Y -> C X Y Z")
             result = torch.sigmoid(result)
-            pred = (((result > 250. / 255.) * 255).to(dtype=torch.uint8, device='cpu'))
+            pred = ((result > 250.0 / 255.0) * 255).to(dtype=torch.uint8, device="cpu")
 
             # Background is resin
             pred[src == 0.0] = 255
 
             # Filter small islands of tissue
             tissue = (255 - pred).squeeze().numpy()
-            tissue = cv2.morphologyEx(tissue, cv2.MORPH_CLOSE, np.ones((3,3), np.uint8))
-            tissue = cv2.morphologyEx(tissue, cv2.MORPH_OPEN, np.ones((3,3), np.uint8))
+            tissue = cv2.morphologyEx(tissue, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+            tissue = cv2.morphologyEx(tissue, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
             if self.tissue_filter_threshold > 0:
-                cc = cc3d.connected_components(tissue)
-                uniq, counts = fastremap.unique(cc, return_counts=True)
-                cc = fastremap.mask(cc, [lbl for lbl, cnt in zip(uniq, counts) if cnt < self.tissue_filter_threshold])
-                tissue[cc==0] = 0
+                # TODO: refactor logic with the below & test
+                islands = cc3d.connected_components(tissue)
+                uniq, counts = fastremap.unique(islands, return_counts=True)
+                islands = fastremap.mask(
+                    islands,
+                    [lbl for lbl, cnt in zip(uniq, counts) if cnt < self.tissue_filter_threshold],
+                )
+                tissue[islands == 0] = 0
 
             # Filter small islands of resin
             resin = 255 - tissue
             if self.resin_filter_threshold > 0:
-                cc = cc3d.connected_components(resin)
-                uniq, counts = fastremap.unique(cc, return_counts=True)
-                cc = fastremap.mask(cc, [lbl for lbl, cnt in zip(uniq, counts) if cnt < self.resin_filter_threshold])
-                resin[cc==0] = 0
-
+                islands = cc3d.connected_components(resin)
+                uniq, counts = fastremap.unique(islands, return_counts=True)
+                islands = fastremap.mask(
+                    islands,
+                    [lbl for lbl, cnt in zip(uniq, counts) if cnt < self.resin_filter_threshold],
+                )
+                resin[islands == 0] = 0
 
         return torch.from_numpy(resin).reshape(pred.shape)

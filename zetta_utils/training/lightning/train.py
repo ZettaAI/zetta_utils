@@ -90,9 +90,8 @@ def lightning_train(
         return
 
     assert image is not None, "Must provide a container image for remote training."
-    assert (
-        resource_requests or resource_limits
-    ), "Must provide at least one of resource requests or limits for remote training."
+    assert resource_limits is not None, "Must provide resource limits for remote training."
+
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
     )

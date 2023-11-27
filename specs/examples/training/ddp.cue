@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "remote_ddp_x52"
+#EXP_VERSION: "single_spec_ddp_x0"
 
 #TRAINING_ROOT: "gs://tmp_2w/examples/training_artifacts"
 
@@ -8,15 +8,35 @@
 #ENCODER_CKPT: null
 #DECODER_CKPT: null
 
-
 #ENC_CV: "gs://fafb_v15_aligned/v0/img/img"
 
+"@type":         "lightning_train"
+
+///////////////////////////////////////////////////////////////////
+////////////////////////// DDP Config /////////////////////////////
+///////////////////////////////////////////////////////////////////
+local_run:       false
+cluster_name:    "zutils-x3"
+cluster_region:  "us-east1"
+cluster_project: "zetta-research"
+image:           "us.gcr.io/zetta-research/zetta_utils:single_spec_ddp_x0"
+resource_requests: {
+	memory:           "8192Mi"
+	"nvidia.com/gpu": "1"
+}
+resource_limits: {
+	memory:           "8192Mi"
+	"nvidia.com/gpu": "1"
+}
+env_vars: {
+	"LOGLEVEL":           "INFO"
+	"NCCL_SOCKET_IFNAME": "eth0"
+}
 
 ///////////////////////////////////////////////////////////////////
 //////////////////////// Training Spec ////////////////////////////
 ///////////////////////////////////////////////////////////////////
 
-"@type": "lightning_train"
 regime: {
 	"@type": "EncodingCoarsenerRegime"
 	lr:      4e-4
@@ -42,7 +62,7 @@ trainer: {
 	"@type":            "ZettaDefaultTrainer"
 	accelerator:        "cuda"
 	devices:            1
-	num_nodes:          32
+	num_nodes:          1
 	max_epochs:         100
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME
@@ -121,7 +141,7 @@ trainer: {
 					{
 						"@type": "to_float32"
 						"@mode": "partial"
-					}
+					},
 				]
 			}
 		}

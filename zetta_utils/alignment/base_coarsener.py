@@ -17,6 +17,7 @@ class BaseCoarsener:
     model_path: str
     abs_val_thr: float = 0.005
     ds_factor: int = 1
+    output_channels: int = 1
     tile_pad_in: int = 128
     tile_size: int = 1024
 
@@ -36,14 +37,15 @@ class BaseCoarsener:
                 raise ValueError(f"Unsupported src dtype: {src.dtype}")
 
             data_in = einops.rearrange(data_in, "C X Y Z -> Z C X Y").to(device)
-            result = torch.zeros_like(
-                data_in[
-                    ...,
-                    : data_in.shape[-2] // self.ds_factor,
-                    : data_in.shape[-1] // self.ds_factor,
-                ]
-            ).float()
-
+            result = torch.zeros(
+                data_in.shape[0],
+                self.output_channels,
+                data_in.shape[-2] // self.ds_factor,
+                data_in.shape[-1] // self.ds_factor,
+                dtype=torch.float32,
+                layout=data_in.layout,
+                device=data_in.device
+            )
             tile_pad_out = self.tile_pad_in // self.ds_factor
 
             for x in range(self.tile_pad_in, data_in.shape[-2] - self.tile_pad_in, self.tile_size):
@@ -56,7 +58,8 @@ class BaseCoarsener:
                     y_end = y + self.tile_size + self.tile_pad_in
                     tile = data_in[:, :, x_start:x_end, y_start:y_end]
                     if (tile != 0).sum() > 0.0:
-                        tile_result = model(tile)
+                        with torch.autocast(device_type=device):
+                            tile_result = model(tile)
                         if tile_pad_out > 0:
                             tile_result = tile_result[
                                 :, :, tile_pad_out:-tile_pad_out, tile_pad_out:-tile_pad_out

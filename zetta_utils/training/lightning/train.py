@@ -36,13 +36,12 @@ def distributed_available() -> bool:
 @builder.register("lightning_train")
 @typeguard.typechecked
 def lightning_train(
-    regime: pl.LightningModule,
-    trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: Optional[torch.utils.data.DataLoader] = None,
+    regime: pl.LightningModule | dict[str, Any],
+    trainer: pl.Trainer | dict[str, Any],
+    train_dataloader: torch.utils.data.DataLoader | dict[str, Any],
+    val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
     full_state_ckpt_path: str = "last",
     num_nodes: int = 1,
-    nproc_per_node: int = -1,
     retry_count: int = 3,
     local_run: bool = True,
     follow_logs: bool = True,
@@ -70,8 +69,6 @@ def lightning_train(
         than a model checkpoint. If ``full_state_ckpt_path=="last"``, the latest
         checkpoint for the given experiment will be identified and loaded.
     :param num_nodes: Number of GPU nodes for distributed training.
-    :param nproc_per_node: Number of GPU workers per node.
-        Default `-1` means use the same as trainer (`trainer.num_devices`) unless overridden.
     :param retry_count: Max retry count for the master train job;
         excludes failures due to pod distruptions.
     :param local_run: If True run the training locally.
@@ -85,13 +82,31 @@ def lightning_train(
     :param resource_limits: K8s reource limits per pod.
     :param resource_requests: K8s resource requests per pod.
     """
+    args_mapping = {
+        "regime": regime,
+        "trainer": trainer,
+        "train_dataloader": train_dataloader,
+        "val_dataloader": val_dataloader,
+    }
 
     if local_run:
-        _lightning_train_local(regime, trainer, train_dataloader, val_dataloader=val_dataloader)
+        _lightning_train_local(
+            regime=regime if not isinstance(regime, dict) else builder.build(regime),
+            trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
+            train_dataloader=train_dataloader
+            if not isinstance(train_dataloader, dict)
+            else builder.build(train_dataloader),
+            val_dataloader=val_dataloader
+            if not isinstance(val_dataloader, dict)
+            else builder.build(val_dataloader),
+            full_state_ckpt_path=full_state_ckpt_path,
+        )
         return
 
-    assert image is not None, "Must provide a container image for remote training."
-    assert resource_limits is not None, "Must provide resource limits for remote training."
+    if image is None:
+        raise ValueError("Must provide a container image for remote training.")
+    if resource_limits is None:
+        raise ValueError("Must provide resource limits for remote training.")
 
     execution_id = mazepa.id_generation.get_unique_id(
         prefix="exec", slug_len=4, add_uuid=False, max_len=50
@@ -103,27 +118,36 @@ def lightning_train(
         cluster_project=cluster_project,
     )
 
-    train_spec = {
-        "@type": "lightning_train",
-        "regime": builder.get_initial_builder_spec(regime),
-        "trainer": builder.get_initial_builder_spec(trainer),
-        "train_dataloader": builder.get_initial_builder_spec(train_dataloader),
-        "val_dataloader": builder.get_initial_builder_spec(val_dataloader),
+    args_mapping = {
+        "regime": regime,
+        "trainer": trainer,
+        "train_dataloader": train_dataloader,
+        "val_dataloader": val_dataloader,
+    }
+
+    train_args: dict = {
         "full_state_ckpt_path": full_state_ckpt_path,
     }
 
-    for _key in ["regime", "trainer", "train_dataloader"]:
-        assert train_spec[_key] is not None, f"{_key} requires builder compatible spec."
+    for k, v in args_mapping.items():
+        if isinstance(v, dict):
+            # argument given as spec, use it directly
+            train_args[k] = v
+        else:
+            arg_spec = builder.get_initial_builder_spec(v)
+            if arg_spec is None:
+                raise RuntimeError(
+                    f"No builder spec found for {k}. Remote training requires arguments to "
+                )
+            train_args[k] = arg_spec
 
-    nproc_per_node = trainer.num_devices if nproc_per_node < 0 else nproc_per_node
     _lightning_train_remote(
         execution_id,
         cluster_info=cluster_info,
         image=image,
         num_nodes=num_nodes,
-        nproc_per_node=nproc_per_node,
         retry_count=retry_count,
-        train_spec=train_spec,
+        train_args=train_args,
         env_vars=env_vars,
         follow_logs=follow_logs,
         host_network=num_nodes > 1,
@@ -132,9 +156,9 @@ def lightning_train(
     )
 
 
-@builder.register("multinode_train_launch")
+@builder.register("_multinode_train_launch")
 @typeguard.typechecked
-def multinode_train_launch(
+def _multinode_train_launch(
     execution_id: str,
     num_nodes: int,
     nproc_per_node: int,
@@ -154,6 +178,8 @@ def multinode_train_launch(
     torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
 
 
+@builder.register("_lightning_train_local")
+@typeguard.typechecked
 def _lightning_train_local(
     regime: pl.LightningModule,
     trainer: pl.Trainer,
@@ -186,19 +212,20 @@ def _lightning_train_local(
 def _parse_spec_and_train():
     load_all_modules()
 
-    train_spec = None
+    train_args = None
     with open(os.environ["ZETTA_RUN_SPEC_PATH"], "r", encoding="utf-8") as f:
-        train_spec = json.load(f)
+        train_args = json.load(f)
+    logger.info(train_args)
 
-    regime = builder.build(spec=train_spec["regime"])
-    trainer = builder.build(spec=train_spec["trainer"])
-    train_dataloader = builder.build(spec=train_spec["train_dataloader"])
+    regime = builder.build(spec=train_args["regime"])
+    trainer = builder.build(spec=train_args["trainer"])
+    train_dataloader = builder.build(spec=train_args["train_dataloader"])
     try:
-        val_dataloader = builder.build(spec=train_spec["val_dataloader"])
+        val_dataloader = builder.build(spec=train_args["val_dataloader"])
     except KeyError:
         val_dataloader = None
     try:
-        full_state_ckpt_path = builder.build(spec=train_spec["full_state_ckpt_path"])
+        full_state_ckpt_path = train_args["full_state_ckpt_path"]
     except KeyError:
         full_state_ckpt_path = "last"
     _lightning_train_local(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
@@ -253,9 +280,8 @@ def _lightning_train_remote(
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
     num_nodes: int,
-    nproc_per_node: int,
     retry_count: int,
-    train_spec: dict,
+    train_args: dict,
     env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
@@ -267,13 +293,31 @@ def _lightning_train_remote(
     Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
     Runs the command `zetta run specs/train.cue` on one or more worker pods.
     """
+    if train_args["trainer"]["accelerator"] == "gpu":
+        num_devices = int(resource_limits["nvidia.com/gpu"])  # type: ignore
+        trainer_devices = train_args["trainer"]["devices"]
+        if (
+            isinstance(trainer_devices, int)
+            and trainer_devices != -1
+            and trainer_devices != num_devices
+        ):
+            raise ValueError(
+                f"Trainer specification uses {trainer_devices} devices, "
+                f"while `nvidia.com/gpu` limit is {num_devices}."
+            )
+    else:
+        raise NotImplementedError()
 
     if num_nodes > 1:
-        train_spec["@type"] = "multinode_train_launch"
-        train_spec["execution_id"] = execution_id
-        train_spec["num_nodes"] = num_nodes
-        train_spec["nproc_per_node"] = nproc_per_node
-        train_spec["trainer"]["num_nodes"] = num_nodes
+        train_args["execution_id"] = execution_id
+        train_args["num_nodes"] = num_nodes
+        train_args["nproc_per_node"] = num_devices
+
+        train_args["trainer"]["num_nodes"] = num_nodes
+        train_spec = {"@type": "_multinode_train_launch", **train_args}
+    else:
+        train_spec = {"@type": "_lightning_train_local", **train_args}
+
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
@@ -321,7 +365,9 @@ def _lightning_train_remote(
         # that remains the same for the duration of training
         # these pools must have `master-pool=true` taint
         # not ncessary for single node ddp so it can be scheduled on preemptibles
-        tolerations=_get_tolerations(role="master" if num_nodes > 1 else "worker"),
+        tolerations=_get_tolerations(
+            "worker"
+        ),  # _get_tolerations(role="master" if num_nodes > 1 else "worker"),
         volumes=volumes,
         volume_mounts=mounts,
         resource_requests=resource_requests,

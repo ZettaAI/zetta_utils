@@ -61,3 +61,6 @@ def load_training_modules():
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+
+
+try_load_train_inference()

@@ -9,9 +9,9 @@ import "list"
 #CHUNK_XY:       1024
 #FM:             32
 
-#FIELD_MAGN_THR: 5.0
+#FIELD_MAGN_THR: 1.5
 #Z_OFFSETS:      [1, 2]
-#DS_FACTOR:      1
+#DS_FACTOR:      2
 
 
 #EXP_VERSION: "1.0.0_dsfactor\(#DS_FACTOR)_thr\(#FIELD_MAGN_THR)_lr\(#LR)_z" + strings.Join([for z in #Z_OFFSETS {strconv.FormatInt(z, 10)}], "_")
@@ -80,7 +80,6 @@ import "list"
 		"@type":                "MisalignmentDetectorAcedRegime"
 		output_mode:            "binary"
 		encoder_path:           null
-		max_shared_displacement_px: 0.0
 		max_src_displacement_px: {
 			"@type": "uniform_distr"
 			low:     0.0
@@ -160,13 +159,14 @@ import "list"
 		"@type":                 "ZettaDefaultTrainer"
 		accelerator:             "gpu"
 		precision:               "16-mixed",
+		strategy:                "auto",
 		devices:                 1
 		max_epochs:              100
 		default_root_dir:        #TRAINING_ROOT
 		experiment_name:         #EXP_NAME
 		experiment_version:      #EXP_VERSION
 		log_every_n_steps:       10
-		val_check_interval:      500
+		val_check_interval:      250
 		num_sanity_val_steps:    -1
 		reload_dataloaders_every_n_epochs: 1,
 		checkpointing_kwargs: {
@@ -188,10 +188,10 @@ import "list"
 					"end": list.Sum([for dataset in #TRAIN_DATASETS {dataset.num_samples}])
 				},
 				replacement: false,
-				num_samples: 4000,
+				num_samples: 2000,
 			},
 		},
-		num_workers: 19
+		num_workers: 8
 		dataset:     #TRAINING
 		pin_memory:  true
 	}
@@ -199,7 +199,7 @@ import "list"
 		"@type":     "TorchDataLoader"
 		batch_size:  4
 		shuffle:     false
-		num_workers: 19
+		num_workers: 8
 		dataset:     #VALIDATION
 		pin_memory:  true
 	}
@@ -252,16 +252,19 @@ import "list"
 										"@type": "build_cv_layer"
 										path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
 										read_procs: #ENC_PROCS
+										cv_kwargs: {"cache": false},
 									}
 									tgt: {
 										"@type": "build_cv_layer"
 										path:    #TGT_ENC_PATH + key + "/tgt_enc_2023"
 										read_procs: #ENC_PROCS
+										cv_kwargs: {"cache": false},
 									}
 									displacement: {
 										"@type": "build_cv_layer"
 										path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
 										read_procs: #DISP_PROCS
+										cv_kwargs: {"cache": false},
 									}
 								}
 							}
@@ -302,16 +305,19 @@ import "list"
 										"@type": "build_cv_layer"
 										path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
 										read_procs: #ENC_PROCS
+										cv_kwargs: {"cache": true}
 									}
 									tgt: {
 										"@type": "build_cv_layer"
 										path:    #TGT_ENC_PATH + key + "/tgt_enc_2023"
 										read_procs: #ENC_PROCS
+										cv_kwargs: {"cache": true}
 									}
 									displacement: {
 										"@type": "build_cv_layer"
 										path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
 										read_procs: #DISP_PROCS
+										cv_kwargs: {"cache": true}
 									}
 								}
 							}
@@ -334,18 +340,18 @@ import "list"
 }
 
 
-
-// "@type":        "lightning_train_remote"
-// "@mode":        "partial"
-// worker_cluster_name: "zutils-x3"
-// worker_cluster_region: "us-east1"
-// worker_cluster_project: "zetta-research"
-// worker_image:   "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231113"
-// worker_resources: {"nvidia.com/gpu": "4"},
-// worker_resource_requests: {"memory": "27560Mi", "cpu": 28},
-// num_nodes: 1
-// spec_path: #TARGET
-// follow_logs: true
-// env_vars: {"LOGLEVEL": "INFO", "NCCL_SOCKET_IFNAME": "eth0"},
-
-[#TARGET]
+"@type": "lightning_train"
+regime: #TARGET.regime
+trainer: #TARGET.trainer
+train_dataloader: #TARGET.train_dataloader
+val_dataloader: #TARGET.val_dataloader
+cluster_name: "zutils-x3"
+cluster_region: "us-east1"
+cluster_project: "zetta-research"
+image:   "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231129"
+resource_limits: {"nvidia.com/gpu": "1"}
+resource_requests: {"memory": "8560Mi", "cpu": 7}
+num_nodes: 1
+follow_logs: false
+env_vars: {"LOGLEVEL": "INFO", "NCCL_SOCKET_IFNAME": "eth0"}
+local_run: false

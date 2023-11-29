@@ -22,22 +22,17 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
     train_log_row_interval: int = 200
     val_log_row_interval: int = 25
     field_magn_thr: float = 1
+    penalize_soma: bool = True
 
-    max_shared_displacement_px: float = 8.0
     max_src_displacement_px: distributions.Distribution = distributions.uniform_distr(8.0, 32.0)
     equivar_rot_deg_distr: distributions.Distribution = distributions.uniform_distr(0, 360)
     equivar_trans_px_distr: distributions.Distribution = distributions.uniform_distr(-10, 10)
 
-    tgt_val_translation: int = 4
     zero_value: float = 0
     output_mode: Literal["binary", "displacement"] = "binary"
 
     encoder_path: Optional[str] = None
     encoder: torch.nn.Module = attrs.field(init=False, default=torch.nn.Identity())
-
-    worst_val_loss: float = attrs.field(init=False, default=0)
-    worst_val_sample: dict = attrs.field(init=False, factory=dict)
-    worst_val_sample_idx: Optional[int] = attrs.field(init=False, default=None)
 
     def __attrs_pre_init__(self):
         super().__init__()
@@ -213,11 +208,15 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
             tgt, field=None
         )
 
-        # Create mask that excludes soma interior from loss, but keep thin tissue in between
-        # from either section
-        joint_tissue = tgt_warped_tissue_wo_soma + src_warped_tissue_wo_soma
-        # Previous mask also added partial tissue at boundary - don't want to penalize there
-        intersect_tissue = joint_tissue & src_warped_tissue_w_soma & tgt_warped_tissue_w_soma
+        if self.penalize_soma:
+            intersect_tissue = src_warped_tissue_w_soma & tgt_warped_tissue_w_soma
+        else:
+            # Create mask that excludes soma interior from loss, but keep thin tissue in between
+            # from either section
+            joint_tissue = tgt_warped_tissue_wo_soma + src_warped_tissue_wo_soma
+            # Previous mask also added partial tissue at boundary - don't want to penalize there
+            intersect_tissue = joint_tissue & src_warped_tissue_w_soma & tgt_warped_tissue_w_soma
+
         if intersect_tissue.sum() == 0:
             return None
 

@@ -30,10 +30,14 @@ def try_load_train_inference():  # pragma: no cover
     except ImportError:
         ...
 
+def try_load_submodules():
+    try:
+        from . import alignment
+    except ImportError:
+        ...
 
 def load_inference_modules():
     from . import (
-        alignment,
         augmentations,
         convnet,
         mazepa,
@@ -46,11 +50,11 @@ def load_inference_modules():
     from .layer import volumetric
     from .layer.volumetric import cloudvol
     from .message_queues import sqs
+    try_load_submodules()
 
 
 def load_training_modules():
     from . import (
-        alignment,
         augmentations,
         convnet,
         mazepa,
@@ -61,6 +65,7 @@ def load_training_modules():
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+    try_load_submodules()
 
 
 try_load_train_inference()

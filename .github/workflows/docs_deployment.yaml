@@ -19,12 +19,22 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Get token from Github App
+        uses: actions/create-github-app-token@v1
+        id: app_token
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PEM }}
+          # owner is required, otherwise the creds will fail the checkout step
+          owner: ${{ github.repository_owner }}
+
+      - name: Checkout from GitHub
+        uses: actions/checkout@v4
         with:
           lfs: 'false'
-          submodules: 'recursive'
+          submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
+          token: ${{ steps.app_token.outputs.token }}
       - name: Setup Python
         uses: actions/setup-python@v4
         with:

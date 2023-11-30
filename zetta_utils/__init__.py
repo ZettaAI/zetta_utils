@@ -30,7 +30,7 @@ def try_load_train_inference():  # pragma: no cover
     except ImportError:
         ...
 
-def try_load_submodules():
+def try_load_submodules(): # pragma: no cover 
     try:
         from . import alignment
     except ImportError:

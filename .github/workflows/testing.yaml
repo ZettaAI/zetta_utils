@@ -37,40 +37,37 @@ jobs:
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
-
       - name: Get changed files
-        uses: dorny/paths-filter@v2
-        id: filter
+        id: changed-py-files
+        uses: tj-actions/changed-files@v40
         with:
-          list-files: shell
-          base: 'main'
-          filters: |
-            py_modified:
-              - added|modified: "./**/*.py"
+          files: |
+            **/*.py
+
       - name: Setup Python
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Setup Go
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
       - name: Install Python dependencies
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: pip install -e '.[modules, test]'
       - name: Install CUE
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: go install cuelang.org/go/cmd/cue@latest
       - name: Run pytest
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: coverage run -m py.test ./tests/unit
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         with:
           files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
 
@@ -103,29 +100,26 @@ jobs:
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
-        uses: dorny/paths-filter@v2
-        id: filter
+        id: changed-py-files
+        uses: tj-actions/changed-files@v40
         with:
-          base: 'main'
-          list-files: shell
-          filters: |
-            py_modified:
-              - added|modified: "./**/*.py"
+          files: |
+            **/*.py
       - name: Setup Python
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: pip install -e '.[modules, test]'
       - name: Run pylint
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
-        run: pylint ${{ steps.filter.outputs.py_modified_files }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: pylint ${{ steps.changed-py-files.outputs.all_changed_files }}
       - name: Run isort
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: isort --check-only --df --verbose --profile black .
   mypy:
     strategy:
@@ -154,26 +148,23 @@ jobs:
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
-        uses: dorny/paths-filter@v2
-        id: filter
+        id: changed-py-files
+        uses: tj-actions/changed-files@v40
         with:
-          list-files: shell
-          base: 'main'
-          filters: |
-            py_modified:
-              - added|modified: "./**/*.py"
+          files: |
+            **/*.py
       - name: Setup Python
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: pip install -e '.[modules, test]'
       - name: Run mypy
-        if: ${{ steps.filter.outputs.py_modified == 'true' }}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: mypy .
 
   test-docs:
@@ -203,31 +194,32 @@ jobs:
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
-        uses: dorny/paths-filter@v2
-        id: filter
+        id: changed-py-files
+        uses: tj-actions/changed-files@v40
         with:
-          list-files: shell
-          base: 'main'
-          filters: |
-            docs_modified:
-              - added|modified: "./**/*.rst"
-            py_modified:
-              - added|modified: "./**/*.py"
+          files: |
+            **/*.py
+      - name: Get changed files
+        id: changed-docs-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files: |
+            **/*.rst
       - name: Setup Python
-        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
       - name: Install Python dependencies
-        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run: pip install -e '.[modules, docs]'
       - name: Doctest
-        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run: make -C docs doctest
       - name: Build Docs
-        if: ${{ steps.filter.outputs.docs_modified == 'true' || steps.filter.outputs.py_modified == 'true'}}
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run:  make -C docs html
 
   all-checks-test:

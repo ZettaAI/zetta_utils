@@ -26,7 +26,7 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
    $ cd zetta_utils
    $ pip install -e '.[all]'
 
-If you are a member of the Zetta team and have access to private submodules, instead do:
+If you are a member of the Zetta team and have access to private submodules, add `--recurse-submodules` to the clone command:
 
 .. code-block:: console
 

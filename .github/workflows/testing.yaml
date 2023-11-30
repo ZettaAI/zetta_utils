@@ -21,6 +21,7 @@ jobs:
           - "3.10"
     runs-on: ${{ matrix.os }}
     steps:
+      - run echo ${{ secrets.APP_ID }} 
       - name: Get token from Github App
         uses: actions/create-github-app-token@v1
         id: app_token

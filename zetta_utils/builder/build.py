@@ -1,6 +1,7 @@
 """Bulding objects from nested specs."""
 from __future__ import annotations
 
+from concurrent.futures import Future, ProcessPoolExecutor
 from typing import Any, Callable, Final, Optional
 
 import attrs
@@ -22,6 +23,8 @@ SPECIAL_KEYS: Final = {
 
 BUILT_OBJECT_ID_REGISTRY: dict[int, JsonDict] = {}
 
+BUILDER_PARALLEL_EXECUTOR: Final = ProcessPoolExecutor()
+
 
 def get_initial_builder_spec(obj: Any) -> JsonDict | None:
     """Returns the builder spec that the object was initially built with.
@@ -35,10 +38,7 @@ def get_initial_builder_spec(obj: Any) -> JsonDict | None:
 
 
 @typechecked
-def build(
-    spec: dict | list | None = None,
-    path: str | None = None,
-) -> Any:
+def build(spec: dict | list | None = None, path: str | None = None, parallel: bool = False) -> Any:
     """Build an object from the given spec.
 
     :param spec: Input dictionary.
@@ -59,6 +59,7 @@ def build(
         _check_type_value,
         name_prefix="spec",
         version=constants.DEFAULT_VERSION,
+        parallel=False,
     )
 
     # build the spec
@@ -67,12 +68,17 @@ def build(
         _build_dict_spec,
         name_prefix="spec",
         version=constants.DEFAULT_VERSION,
+        parallel=parallel,
     )
+    if parallel and isinstance(result, Future):
+        result = _await_builder_future(result)
 
     return result
 
 
-def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str) -> Any:
+def _traverse_spec(
+    spec: Any, apply_fn: Callable, name_prefix: str, version: str, parallel: bool
+) -> Any:
     try:
         spec_as_str = json.dumps(spec)
     except TypeError:
@@ -88,6 +94,7 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
                     apply_fn=apply_fn,
                     name_prefix=f"{name_prefix}[{i}]",
                     version=version,
+                    parallel=parallel,
                 )
                 for i, e in enumerate(spec)
             ]
@@ -98,12 +105,15 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
                     apply_fn=apply_fn,
                     name_prefix=f"{name_prefix}[{i}]",
                     version=version,
+                    parallel=parallel,
                 )
                 for i, e in enumerate(spec)
             )
         elif isinstance(spec, dict):
             if SPECIAL_KEYS["type"] in spec:
-                result = apply_fn(spec, name_prefix, version=version)
+                result = apply_fn(
+                    spec, name_prefix=name_prefix, version=version, parallel=parallel
+                )
             else:
                 result = {
                     k: _traverse_spec(
@@ -111,6 +121,7 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
                         apply_fn=apply_fn,
                         name_prefix=f"{name_prefix}.{k}",
                         version=version,
+                        parallel=parallel,
                     )
                     for k, v in spec.items()
                 }
@@ -120,7 +131,8 @@ def _traverse_spec(spec: Any, apply_fn: Callable, name_prefix: str, version: str
     return result
 
 
-def _check_type_value(spec: dict[str, Any], name_prefix: str, version: str) -> Any:
+def _check_type_value(spec: dict[str, Any], name_prefix: str, version: str, parallel: bool) -> Any:
+    assert parallel is False
     if SPECIAL_KEYS["version"] in spec:
         version = spec[SPECIAL_KEYS["version"]]
 
@@ -133,31 +145,60 @@ def _check_type_value(spec: dict[str, Any], name_prefix: str, version: str) -> A
             apply_fn=_check_type_value,
             name_prefix=f"{name_prefix}.{k}",
             version=version,
+            parallel=parallel,
         )
 
 
-def _build_dict_spec(spec: dict[str, Any], name_prefix: str, version: str) -> Any:
+def _await_builder_future(target: Future):
+    result = target.result()
+    BUILT_OBJECT_ID_REGISTRY[id(result)] = BUILT_OBJECT_ID_REGISTRY[id(target)]
+    return result
+
+
+def _ensure_results_available(target: Any) -> Any:
+    if isinstance(target, Future):
+        result = _await_builder_future(target)
+    elif isinstance(target, dict):
+        result = {k: _ensure_results_available(v) for k, v in target.items()}
+    elif isinstance(target, list):
+        result = [_ensure_results_available(item) for item in target]
+    elif isinstance(target, tuple):
+        result = tuple(_ensure_results_available(item) for item in target)
+    else:
+        result = target
+    return result
+
+
+def _build_dict_spec(spec: dict[str, Any], name_prefix: str, version: str, parallel: bool) -> Any:
     this_mode = spec.get(SPECIAL_KEYS["mode"], "regular")
     this_type = spec[SPECIAL_KEYS["type"]]
 
     if SPECIAL_KEYS["version"] in spec:
         version = spec[SPECIAL_KEYS["version"]]
 
+    result: Any
     if this_mode == "regular":
         fn = get_matching_entry(this_type, version=version).fn
+        fn_kwargs = {}
         fn_kwargs = {
             k: _traverse_spec(
                 v,
                 apply_fn=_build_dict_spec,
                 name_prefix=f"{name_prefix}.{k}",
                 version=version,
+                parallel=parallel,
             )
             for k, v in spec.items()
             if k not in SPECIAL_KEYS.values()
         }
+        if parallel:
+            fn_kwargs = _ensure_results_available(fn_kwargs)
 
         try:
-            result = fn(**fn_kwargs)
+            if parallel:
+                result = BUILDER_PARALLEL_EXECUTOR.submit(fn, **fn_kwargs)
+            else:
+                result = fn(**fn_kwargs)
         except Exception as e:  # pragma: no cover
             if hasattr(fn, "__name__"):
                 name = fn.__name__
@@ -175,7 +216,7 @@ def _build_dict_spec(spec: dict[str, Any], name_prefix: str, version: str) -> An
                 f'"@mode": "partial" is not allowed for '
                 f'"@type": "{spec[SPECIAL_KEYS["type"]]}"'
             )
-        result = BuilderPartial(spec=spec)
+        result = BuilderPartial(spec=spec, parallel=parallel)
     else:
         raise ValueError(f"Unsupported mode: {this_mode}")
 
@@ -193,6 +234,7 @@ class BuilderPartial:
     spec: dict[str, Any]
     _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
     name: Optional[str] = None
+    parallel: bool = False
 
     def get_display_name(self):  # pragma: no cover # pretty print
         if self.name is not None:
@@ -210,6 +252,7 @@ class BuilderPartial:
                     apply_fn=_build_dict_spec,
                     name_prefix=f"partial.{k}",
                     version=version,
+                    parallel=self.parallel,
                 )
                 for k, v in self.spec.items()
                 if k not in SPECIAL_KEYS.values()

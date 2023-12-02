@@ -1,4 +1,5 @@
 # pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name,invalid-name, line-too-long
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -83,6 +84,49 @@ def test_build_from_path(mocker):
     assert result == spec
 
 
+def sleeper_function(sleep_time: float, **kwargs):
+    for _, v in kwargs.items():
+        assert v is True
+    time.sleep(sleep_time)
+    return True
+
+
+@pytest.fixture
+def register_sleeper_func():
+    builder.register("sleeper_func", versions=">=0.0.0")(sleeper_function)
+    yield
+    builder.unregister(name="sleeper_func", fn=sleeper_function)
+
+
+# Has to be pretty long to manifest parallelization difference
+# when pytest-cov is enabled
+SLEEP_TIME = 2
+
+SLEEPER_SPEC = {
+    "@type": "sleeper_func",
+    "sleep_time": SLEEP_TIME,
+    "arg1": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+    "arg2": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+}
+
+
+def test_sleeper_serial(register_sleeper_func):
+    s = time.time()
+    result = builder.build(spec=SLEEPER_SPEC, parallel=False)
+    e = time.time()
+    assert result is True
+    assert e - s > SLEEP_TIME * 3
+
+
+def test_sleeper_parallel(register_sleeper_func):
+    s = time.time()
+    result = builder.build(spec=SLEEPER_SPEC, parallel=True)
+    e = time.time()
+    assert result is True
+    time_ellapsed = e - s
+    assert time_ellapsed < SLEEP_TIME * 3
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -139,9 +183,12 @@ def test_register(register_dummy_a):
     ],
 )
 def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
-    result = builder.build(spec)
-    assert result == expected
-    assert builder.get_initial_builder_spec(result) == spec
+    result_parallel = builder.build(spec, parallel=True)
+    result_serial = builder.build(spec, parallel=False)
+    assert result_parallel == expected
+    assert result_serial == expected
+    assert builder.get_initial_builder_spec(result_parallel) == spec
+    assert builder.get_initial_builder_spec(result_serial) == spec
 
 
 @pytest.mark.parametrize(
@@ -163,9 +210,12 @@ def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register
     ],
 )
 def test_build_versioned(spec: dict, expected: Any, register_dummy_a_v0, register_dummy_a_v2):
-    result = builder.build(spec)
-    assert result == expected
-    assert builder.get_initial_builder_spec(result) == spec
+    result_parallel = builder.build(spec, parallel=True)
+    result_serial = builder.build(spec, parallel=False)
+    assert result_parallel == expected
+    assert result_serial == expected
+    assert builder.get_initial_builder_spec(result_parallel) == spec
+    assert builder.get_initial_builder_spec(result_serial) == spec
 
 
 def test_build_partial(register_dummy_a, register_dummy_c):

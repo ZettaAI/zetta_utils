@@ -45,3 +45,37 @@ def test_zetta_run_str(spec, register_dummy):
     runner = CliRunner()
     result = runner.invoke(cli.run, ["-s", json.dumps(spec)])
     assert result.exit_code == 0
+
+
+CUSTOM_IMPORT_CONTENT = """
+from zetta_utils import builder
+builder.register("registered_in_file")(lambda: None)
+"""
+SPEC_WITH_CUSTOM_IMPORT = {"@type": "registered_in_file"}
+
+
+def test_zetta_run_extra_import_fail(tmp_path):
+    runner = CliRunner()
+    # make sure that it doesn't run without a file import
+    should_fail = runner.invoke(cli.run, ["-s", json.dumps(SPEC_WITH_CUSTOM_IMPORT)])
+    assert should_fail.exit_code != 0
+
+
+def test_zetta_run_extra_import_success(tmp_path):
+    runner = CliRunner()
+    my_file = tmp_path / "custom_import.py"
+    my_file.write_text(CUSTOM_IMPORT_CONTENT)
+    should_succeed = runner.invoke(
+        cli.run, ["-s", json.dumps(SPEC_WITH_CUSTOM_IMPORT), "-i", str(my_file)]
+    )
+    assert should_succeed.exit_code == 0
+
+
+def test_zetta_run_extra_import_py_check_fail(tmp_path):
+    runner = CliRunner()
+    my_file = tmp_path / "custom_import"
+    my_file.write_text(CUSTOM_IMPORT_CONTENT)
+    should_succeed = runner.invoke(
+        cli.run, ["-s", json.dumps(SPEC_WITH_CUSTOM_IMPORT), "-i", str(my_file)]
+    )
+    assert should_succeed.exit_code != 0

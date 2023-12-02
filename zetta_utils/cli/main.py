@@ -37,6 +37,13 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
     log.configure_logger()
 
 
+def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
+    for path in value:
+        if not path.endswith(".py"):
+            raise click.BadParameter("File must end with .py")
+    return value
+
+
 @click.command()
 @click.argument("path", type=click.Path(), required=False)
 @click.option(
@@ -60,7 +67,22 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
     is_flag=True,
     help="Whether to pass `parallel` flag to builder.",
 )
-def run(path: Optional[str], str_spec: Optional[str], pdb: bool, parallel_builder: bool):
+@click.option(
+    "--extra_import",
+    "-i",
+    "extra_imports",
+    type=str,
+    multiple=True,
+    callback=validate_py_path,
+    help="Specify additional imports. Must end with `.py`.",
+)
+def run(
+    path: Optional[str],
+    str_spec: Optional[str],
+    pdb: bool,
+    parallel_builder: bool,
+    extra_imports: tuple[str],
+):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
@@ -71,6 +93,13 @@ def run(path: Optional[str], str_spec: Optional[str], pdb: bool, parallel_builde
         spec = zetta_utils.parsing.cue.loads(str_spec)
 
     os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
+
+    for import_path in extra_imports:
+        assert import_path.endswith(".py")
+        with open(import_path, "r", encoding="utf-8") as f:
+            code = f.read()
+            exec(code)  # pylint: disable=exec-used
+
     result = zetta_utils.builder.build(spec, parallel=parallel_builder)
     logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
     if pdb:

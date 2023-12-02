@@ -53,7 +53,14 @@ def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
     is_flag=True,
     help="When set to `True`, will insert a breakpoint after building.",
 )
-def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
+@click.option(
+    "--parallel_builder",
+    "-p",
+    type=bool,
+    is_flag=True,
+    help="Whether to pass `parallel` flag to builder.",
+)
+def run(path: Optional[str], str_spec: Optional[str], pdb: bool, parallel_builder: bool):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
@@ -64,7 +71,7 @@ def run(path: Optional[str], str_spec: Optional[str], pdb: bool):
         spec = zetta_utils.parsing.cue.loads(str_spec)
 
     os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
-    result = zetta_utils.builder.build(spec)
+    result = zetta_utils.builder.build(spec, parallel=parallel_builder)
     logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
     if pdb:
         breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover

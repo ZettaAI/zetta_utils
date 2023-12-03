@@ -1,5 +1,5 @@
 #EXP_NAME:    "encoding_coarsener"
-#EXP_VERSION: "single_spec_ddp_x0"
+#EXP_VERSION: "single_spec_ddp_x2"
 
 #TRAINING_ROOT: "gs://tmp_2w/examples/training_artifacts"
 
@@ -19,7 +19,7 @@ local_run:       false
 cluster_name:    "zutils-x3"
 cluster_region:  "us-east1"
 cluster_project: "zetta-research"
-image:           "us.gcr.io/zetta-research/zetta_utils:single_spec_ddp_x0"
+image:           "us.gcr.io/zetta-research/zetta_utils:single_spec_ddp_x2"
 resource_requests: {
 	memory:           "8192Mi"
 	"nvidia.com/gpu": "1"
@@ -60,9 +60,8 @@ regime: {
 }
 trainer: {
 	"@type":            "ZettaDefaultTrainer"
-	accelerator:        "cuda"
+	accelerator:        "gpu"
 	devices:            1
-	num_nodes:          1
 	max_epochs:         100
 	default_root_dir:   #TRAINING_ROOT
 	experiment_name:    #EXP_NAME

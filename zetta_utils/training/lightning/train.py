@@ -171,6 +171,7 @@ def _multinode_train_launch(
         run_id=execution_id,
         min_nodes=num_nodes,
         max_nodes=num_nodes,
+        max_restarts=1,
         nproc_per_node=nproc_per_node,
         rdzv_backend=rdzv_backend,
         rdzv_endpoint="master:29400" if is_worker else "localhost:29400",

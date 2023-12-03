@@ -84,6 +84,10 @@ def configure_logger(level=None, third_party_level="ERROR"):
             level = max(0, 20 - 10 * level)
         SAVED_LEVEL = level
 
+    stream_handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s - %(filename)s:%(lineno)d - %(message)s")
+    stream_handler.setFormatter(formatter)
+
     rich_handler = RichHandler(
         rich_tracebacks=True,
         show_path=False,
@@ -93,7 +97,11 @@ def configure_logger(level=None, third_party_level="ERROR"):
         tracebacks_word_wrap=False,
     )
     rich_handler.addFilter(InjectingFilter())
-    handlers = [rich_handler]
+    try:
+        _ = os.environ["KUBERNETES_SERVICE_HOST"]
+        handlers = [stream_handler]
+    except KeyError:
+        handlers = [rich_handler]  # type: ignore
     # TODO: Add Loki Handler with multiprocessing support / deferred write
     # if LOKI_HANDLER is not None:
     #    handlers.append(LOKI_HANDLER)

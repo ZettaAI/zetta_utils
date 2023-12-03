@@ -85,7 +85,7 @@ def configure_logger(level=None, third_party_level="ERROR"):
         SAVED_LEVEL = level
 
     stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s - %(filename)s:%(lineno)d - %(message)s")
+    formatter = logging.Formatter("%(asctime)s %(name)s %(pathname)s:%(lineno)d: %(message)s")
     stream_handler.setFormatter(formatter)
 
     rich_handler = RichHandler(

@@ -90,6 +90,7 @@ def configure_logger(level=None, third_party_level="ERROR"):
         show_time=True,
         enable_link_path=False,
         log_time_format=get_time_str,
+        tracebacks_word_wrap=False,
     )
     rich_handler.addFilter(InjectingFilter())
     handlers = [rich_handler]

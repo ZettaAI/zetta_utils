@@ -46,7 +46,7 @@ jobs:
       - name: Install Python dependencies
         run: pip install -e '.[modules, test]'
       - name: Install CUE
-        run: go install cuelang.org/go/cmd/cue@latest
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Run pytest
         run: cd tests/integration && coverage run -m pytest --run-integration .
       - name: Send coverage repot to codecov

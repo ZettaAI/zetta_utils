@@ -61,7 +61,7 @@ jobs:
         run: pip install -e '.[modules, test]'
       - name: Install CUE
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: go install cuelang.org/go/cmd/cue@latest
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: coverage run -m py.test ./tests/unit

@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import AbstractContextManager, ExitStack
-from typing import Dict, Final, Iterable, Optional, Union
+from typing import Dict, Final, Iterable, Literal, Optional, Union
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
@@ -62,6 +62,7 @@ def get_gcp_with_sqs_config(
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
     outcome_queue_name = f"zzz-{execution_id}-outcome"
@@ -101,6 +102,7 @@ def get_gcp_with_sqs_config(
         resource_requests=worker_resource_requests,
         num_procs=num_procs,
         semaphores_spec=semaphores_spec,
+        provisioning_model=provisioning_model,
     )
 
     ctx_managers.append(
@@ -137,6 +139,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
@@ -182,6 +185,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_resource_requests=worker_resource_requests,
             num_procs=num_procs,
             semaphores_spec=semaphores_spec,
+            provisioning_model=provisioning_model,
         )
 
     with ExitStack() as stack:

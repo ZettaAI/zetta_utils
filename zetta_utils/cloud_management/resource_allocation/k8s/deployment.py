@@ -5,7 +5,7 @@ Helpers for k8s deployments.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
@@ -35,6 +35,7 @@ def get_deployment_spec(
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> k8s_client.V1Deployment:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -47,6 +48,7 @@ def get_deployment_spec(
         command_args=["-c", command],
         resources=resources,
         env_secret_mapping=env_secret_mapping,
+        node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
         tolerations=[schedule_toleration],
         volumes=volumes,
         volume_mounts=volume_mounts,
@@ -91,6 +93,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     if labels is None:
         labels_final = {"execution_id": execution_id}
@@ -113,6 +116,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         volumes=get_common_volumes(),
         volume_mounts=get_common_volume_mounts(),
         resource_requests=resource_requests,
+        provisioning_model=provisioning_model,
     )
 
 

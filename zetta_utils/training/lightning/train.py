@@ -239,7 +239,10 @@ def _get_tolerations() -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
-    return [gpu]
+    worker = k8s_client.V1Toleration(
+        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
+    )
+    return [gpu, worker]
 
 
 def _spec_configmap_vol_and_ctx(

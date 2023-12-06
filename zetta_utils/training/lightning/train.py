@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import ExitStack
-from typing import Any, Dict, Final, List, Optional
+from typing import Any, Dict, Final, List, Literal, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -52,6 +52,7 @@ def lightning_train(
     env_vars: Optional[Dict[str, str]] = None,
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
+    provisioning_model: Literal["STANDARD", "SPOT"] = "SPOT",
 ) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -81,6 +82,7 @@ def lightning_train(
     :param env_vars: Custom env variables to be set on pods.
     :param resource_limits: K8s reource limits per pod.
     :param resource_requests: K8s resource requests per pod.
+    :param provisioning_model: VM provision type to use for worker pods.
     """
     args_mapping = {
         "regime": regime,
@@ -153,6 +155,7 @@ def lightning_train(
         host_network=num_nodes > 1,
         resource_limits=resource_limits,
         resource_requests=resource_requests,
+        provisioning_model=provisioning_model,
     )
 
 
@@ -232,14 +235,11 @@ def _parse_spec_and_train():
     _lightning_train_local(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
 
 
-def _get_tolerations(role: str) -> List[k8s_client.V1Toleration]:
+def _get_tolerations() -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
-    worker = k8s_client.V1Toleration(
-        key=f"{role}-pool", operator="Equal", value="true", effect="NoSchedule"
-    )
-    return [gpu, worker]
+    return [gpu]
 
 
 def _spec_configmap_vol_and_ctx(
@@ -288,6 +288,7 @@ def _lightning_train_remote(
     host_network: Optional[bool] = False,
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
+    provisioning_model: Literal["STANDARD", "SPOT"] = "SPOT",
 ):  # pylint: disable=too-many-locals
     """
     Parse spec and launch single/multinode training accordingly.
@@ -313,7 +314,6 @@ def _lightning_train_remote(
         train_args["execution_id"] = execution_id
         train_args["num_nodes"] = num_nodes
         train_args["nproc_per_node"] = num_devices
-
         train_args["trainer"]["num_nodes"] = num_nodes
         train_spec = {"@type": "_multinode_train_launch", **train_args}
     else:
@@ -325,18 +325,8 @@ def _lightning_train_remote(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    dshm = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    tmp = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    volumes = [vol, dshm, tmp]
-    mounts = [
-        mount,
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
+    volumes = [vol] + resource_allocation.k8s.get_common_volumes()
+    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts()
 
     envs = []
     env_vars = env_vars or {}
@@ -364,11 +354,8 @@ def _lightning_train_remote(
         restart_policy="Never",
         # with multinode ddp we need a node on standard pool for an IP
         # that remains the same for the duration of training
-        # these pools must have `master-pool=true` taint
-        # not ncessary for single node ddp so it can be scheduled on preemptibles
-        tolerations=_get_tolerations(
-            "worker"
-        ),  # _get_tolerations(role="master" if num_nodes > 1 else "worker"),
+        node_selector={"cloud.google.com/gke-provisioning": "standard"},
+        tolerations=_get_tolerations(),
         volumes=volumes,
         volume_mounts=mounts,
         resource_requests=resource_requests,
@@ -412,6 +399,9 @@ def _lightning_train_remote(
                 k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
             ]
 
+            node_selector = {"cloud.google.com/gke-provisioning": "spot"}
+            if provisioning_model == "STANDARD":
+                node_selector = {"cloud.google.com/gke-provisioning": "standard"}
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
@@ -422,7 +412,8 @@ def _lightning_train_remote(
                 host_network=True,
                 host_aliases=aliases,
                 resources=resource_limits,
-                tolerations=_get_tolerations(role="worker"),
+                node_selector=node_selector,
+                tolerations=_get_tolerations(),
                 volumes=volumes,
                 volume_mounts=mounts,
                 resource_requests=resource_requests,

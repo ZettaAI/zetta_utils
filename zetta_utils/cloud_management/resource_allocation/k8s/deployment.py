@@ -19,6 +19,7 @@ from ..resource_tracker import (
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr
+from .volume import get_common_volume_mounts, get_common_volumes
 
 logger = log.get_logger("zetta_utils")
 
@@ -101,18 +102,6 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
-    dshm = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    tmp = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    volumes = [dshm, tmp]
-    volume_mounts = [
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
-
     return get_deployment_spec(
         name=execution_id,
         image=image,
@@ -121,8 +110,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         resources=resources,
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,
-        volumes=volumes,
-        volume_mounts=volume_mounts,
+        volumes=get_common_volumes(),
+        volume_mounts=get_common_volume_mounts(),
         resource_requests=resource_requests,
     )
 

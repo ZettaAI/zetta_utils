@@ -68,10 +68,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if progress_bar_kwargs is None:
             progress_bar_kwargs = {}
 
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
-            api_key = os.environ.get("WANDB_API_KEY", None)
-            wandb.login(key=api_key)
-
         kwargs["logger"] = False
 
         log_dir = os.path.join(
@@ -89,36 +85,13 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         super().__init__(*args, **kwargs)
 
-        self.logger = WandbLogger(
-            project=experiment_name,
-            group=f"{experiment_name}.{experiment_version}",
-            name=f"{experiment_version}",
-            id=f"{experiment_version}.{self.global_rank}",
-        )
-
         self.trace_configuration: Dict = {}
 
         # self.callbacks will exist at runtime
         self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
-
-        if self.global_rank != 0:
-            return
-
-        if self.logger and self.logger.experiment:
-            this_dir = os.path.dirname(os.path.abspath(__file__))
-            zetta_root_path = f"{this_dir}/../../.."
-            self.logger.experiment.log_code(zetta_root_path)
-
-        def log_config(config):
-            if experiment_version.startswith("tmp"):
-                logger.info(
-                    f"Not saving configuration for a temporary experiment {experiment_version}."
-                )
-            else:
-                self.logger.experiment.config["training_configuration"] = config  # type: ignore
-                logger.info("Saved training configuration.")
-
-        self.log_config = log_config
+        self.callbacks.append(  # type: ignore
+            ConfigureLogging(experiment_name, experiment_version)
+        )
 
         # Due to a bug in PL we're unable to use normal methods
         # to resume training with ckpt_path='last' when storing
@@ -245,3 +218,42 @@ class ConfigureTraceCallback(pl.callbacks.Callback):  # pragma: no cover
             for name in models_to_trace:
                 ConfigureTraceCallback.unwrap_forward(pl_module, name)
             self.trainer.trace_configuration = trace_configuration
+
+
+class ConfigureLogging(pl.callbacks.Callback):
+    def __init__(
+        self,
+        exp_name: str,
+        exp_version: str,
+    ) -> None:
+        self.exp_name = exp_name
+        self.exp_version = exp_version
+
+    def on_train_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
+        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+            api_key = os.environ.get("WANDB_API_KEY", None)
+            wandb.login(key=api_key)
+
+        trainer.logger = WandbLogger(
+            project=self.exp_name,
+            group=f"{self.exp_name}.{self.exp_version}",
+            name=f"{self.exp_version}",
+            id=f"{self.exp_version}.{trainer.global_rank}",
+        )
+
+        if trainer.global_rank != 0:
+            return
+
+        if trainer.logger and trainer.logger.experiment:
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            zetta_root_path = f"{this_dir}/../../.."
+            trainer.logger.experiment.log_code(zetta_root_path)
+
+        def log_config(config):
+            if self.exp_version.startswith("tmp"):
+                logger.info(f"Not saving configuration for a temp experiment {self.exp_version}.")
+            else:
+                self.logger.experiment.config["training_configuration"] = config  # type: ignore
+                logger.info("Saved training configuration.")
+
+        trainer.log_config = log_config  # type: ignore

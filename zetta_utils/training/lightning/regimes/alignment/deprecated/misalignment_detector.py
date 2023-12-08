@@ -13,7 +13,7 @@ import zetta_utils as zu
 from zetta_utils import builder, convnet, tensor_ops  # pylint: disable=unused-import
 
 
-@builder.register("MisalignmentDetectorRegime")
+@builder.register("MisalignmentDetectorRegime", versions="==0.0.0")
 @attrs.mutable(eq=False)
 class MisalignmentDetectorRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     detector: torch.nn.Module

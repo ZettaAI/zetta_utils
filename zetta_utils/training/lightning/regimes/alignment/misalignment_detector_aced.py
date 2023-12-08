@@ -1,4 +1,5 @@
 # pylint: disable=too-many-locals
+import os
 from typing import Literal, Optional
 
 import attrs
@@ -107,15 +108,11 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
         seed_everything(42)
 
     def on_validation_epoch_end(self):
-        self.log_results(
-            "val",
-            "worst",
-            **self.worst_val_sample,
-        )
-        self.worst_val_loss = 0
-        self.worst_val_sample = {}
-        self.worst_val_sample_idx = None
-        seed_everything(None)
+        env_seed = os.environ.get("PL_GLOBAL_SEED")
+        if env_seed is not None:
+            seed_everything(int(env_seed) + self.current_epoch)
+        else:
+            seed_everything(None)
 
     def _get_warped(self, img, field=None):
         img_padded = torch.nn.functional.pad(img, (1, 1, 1, 1), value=self.zero_value)
@@ -236,7 +233,7 @@ class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too
             weight = torch.ones_like(gt_labels, dtype=torch.float32)
         weight[intersect_tissue == 0] = 0.0
 
-        loss_map = torch.nn.functional.binary_cross_entropy(
+        loss_map = torch.nn.functional.binary_cross_entropy_with_logits(
             prediction, gt_labels.float(), weight=weight, reduction="none"
         )
 

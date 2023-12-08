@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from contextlib import ExitStack
-from typing import Any, Dict, Final, List, Optional
+from typing import Any, Dict, Final, List, Literal, Optional
 
 import pytorch_lightning as pl
 import torch
@@ -12,8 +12,7 @@ from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, load_all_modules, log, mazepa, parsing
-from zetta_utils.builder.build import BuilderPartial
+from zetta_utils import builder, load_all_modules, log, mazepa
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
 from zetta_utils.parsing import json
 
@@ -37,12 +36,24 @@ def distributed_available() -> bool:
 @builder.register("lightning_train")
 @typeguard.typechecked
 def lightning_train(
-    regime: pl.LightningModule,
-    trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
+    regime: pl.LightningModule | dict[str, Any],
+    trainer: pl.Trainer | dict[str, Any],
+    train_dataloader: torch.utils.data.DataLoader | dict[str, Any],
+    val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
     full_state_ckpt_path: str = "last",
-):
+    num_nodes: int = 1,
+    retry_count: int = 3,
+    local_run: bool = True,
+    follow_logs: bool = False,
+    image: Optional[str] = None,
+    cluster_name: Optional[str] = None,
+    cluster_region: Optional[str] = None,
+    cluster_project: Optional[str] = None,
+    env_vars: Optional[Dict[str, str]] = None,
+    resource_limits: Optional[dict[str, int | float | str]] = None,
+    resource_requests: Optional[dict[str, int | float | str]] = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
+) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
 
@@ -58,7 +69,128 @@ def lightning_train(
         Must be a full training state checkpoint created by PytorchLightning rather
         than a model checkpoint. If ``full_state_ckpt_path=="last"``, the latest
         checkpoint for the given experiment will be identified and loaded.
+    :param num_nodes: Number of GPU nodes for distributed training.
+    :param retry_count: Max retry count for the master train job;
+        excludes failures due to pod distruptions.
+    :param local_run: If True run the training locally.
+    :param follow_logs: If True, eagerly print logs from the pod.
+        If False, will wait until job completes successfully.
+    :param image: Container image to use.
+    :param cluster_name: Cluster configuration.
+    :param cluster_region: Cluster configuration.
+    :param cluster_project: Cluster configuration.
+    :param env_vars: Custom env variables to be set on pods.
+    :param resource_limits: K8s reource limits per pod.
+    :param resource_requests: K8s resource requests per pod.
+    :param provisioning_model: VM provision type to use for worker pods.
     """
+    args_mapping = {
+        "regime": regime,
+        "trainer": trainer,
+        "train_dataloader": train_dataloader,
+        "val_dataloader": val_dataloader,
+    }
+
+    if local_run:
+        _lightning_train_local(
+            regime=regime if not isinstance(regime, dict) else builder.build(regime),
+            trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
+            train_dataloader=train_dataloader
+            if not isinstance(train_dataloader, dict)
+            else builder.build(train_dataloader),
+            val_dataloader=val_dataloader
+            if not isinstance(val_dataloader, dict)
+            else builder.build(val_dataloader),
+            full_state_ckpt_path=full_state_ckpt_path,
+        )
+        return
+
+    if image is None:
+        raise ValueError("Must provide a container image for remote training.")
+    if resource_limits is None:
+        raise ValueError("Must provide resource limits for remote training.")
+
+    execution_id = mazepa.id_generation.get_unique_id(
+        prefix="exec", slug_len=4, add_uuid=False, max_len=50
+    )
+
+    cluster_info = resource_allocation.k8s.parse_cluster_info(
+        cluster_name=cluster_name,
+        cluster_region=cluster_region,
+        cluster_project=cluster_project,
+    )
+
+    args_mapping = {
+        "regime": regime,
+        "trainer": trainer,
+        "train_dataloader": train_dataloader,
+        "val_dataloader": val_dataloader,
+    }
+
+    train_args: dict = {
+        "full_state_ckpt_path": full_state_ckpt_path,
+    }
+
+    for k, v in args_mapping.items():
+        if isinstance(v, dict):
+            # argument given as spec, use it directly
+            train_args[k] = v
+        else:
+            arg_spec = builder.get_initial_builder_spec(v)
+            if arg_spec is None:
+                raise RuntimeError(
+                    f"No builder spec found for {k}. Remote training requires arguments to "
+                )
+            train_args[k] = arg_spec
+
+    _lightning_train_remote(
+        execution_id,
+        cluster_info=cluster_info,
+        image=image,
+        num_nodes=num_nodes,
+        retry_count=retry_count,
+        train_args=train_args,
+        env_vars=env_vars,
+        follow_logs=follow_logs,
+        host_network=num_nodes > 1,
+        resource_limits=resource_limits,
+        resource_requests=resource_requests,
+        provisioning_model=provisioning_model,
+    )
+
+
+@builder.register("_multinode_train_launch")
+@typeguard.typechecked
+def _multinode_train_launch(
+    execution_id: str,
+    num_nodes: int,
+    nproc_per_node: int,
+    rdzv_backend: str = "c10d",
+    **kwargs,  # pylint: disable=unused-argument
+):
+    # worker pods have MY_ROLE env set to `worker`
+    is_worker = os.environ.get("MY_ROLE") == "worker"
+    config = torch_launcher_api.LaunchConfig(
+        run_id=execution_id,
+        min_nodes=num_nodes,
+        max_nodes=num_nodes,
+        max_restarts=1,
+        nproc_per_node=nproc_per_node,
+        rdzv_backend=rdzv_backend,
+        rdzv_endpoint="master:29400" if is_worker else "localhost:29400",
+    )
+    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+
+
+@builder.register("_lightning_train_local")
+@typeguard.typechecked
+def _lightning_train_local(
+    regime: pl.LightningModule,
+    trainer: pl.Trainer,
+    train_dataloader: torch.utils.data.DataLoader,
+    val_dataloader: torch.utils.data.DataLoader | None = None,
+    full_state_ckpt_path: str = "last",
+):
     logger.info("Starting training...")
     if "CURRENT_BUILD_SPEC" in os.environ:
         if hasattr(trainer, "log_config"):
@@ -83,47 +215,32 @@ def lightning_train(
 
 def _parse_spec_and_train():
     load_all_modules()
-    train_spec = json.loads(os.environ["ZETTA_RUN_SPEC"])
-    regime = builder.build(spec=train_spec["regime"])
-    trainer = builder.build(spec=train_spec["trainer"])
-    train_dataloader = builder.build(spec=train_spec["train_dataloader"])
+
+    train_args = None
+    with open(os.environ["ZETTA_RUN_SPEC_PATH"], "r", encoding="utf-8") as f:
+        train_args = json.load(f)
+    logger.info(train_args)
+
+    regime = builder.build(spec=train_args["regime"])
+    trainer = builder.build(spec=train_args["trainer"])
+    train_dataloader = builder.build(spec=train_args["train_dataloader"])
     try:
-        val_dataloader = builder.build(spec=train_spec["val_dataloader"])
+        val_dataloader = builder.build(spec=train_args["val_dataloader"])
     except KeyError:
         val_dataloader = None
     try:
-        full_state_ckpt_path = builder.build(spec=train_spec["full_state_ckpt_path"])
+        full_state_ckpt_path = train_args["full_state_ckpt_path"]
     except KeyError:
         full_state_ckpt_path = "last"
-    lightning_train(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
+    _lightning_train_local(regime, trainer, train_dataloader, val_dataloader, full_state_ckpt_path)
 
 
-@builder.register("multinode_train_launch")
-@typeguard.typechecked
-def multinode_train_launch(
-    execution_id: str,
-    num_nodes: int,
-    nproc_per_node: int = 1,
-    rdzv_backend: str = "c10d",
-    **kwargs,  # pylint: disable=unused-argument
-):
-    config = torch_launcher_api.LaunchConfig(
-        run_id=execution_id,
-        min_nodes=num_nodes,
-        max_nodes=num_nodes,
-        nproc_per_node=nproc_per_node,
-        rdzv_backend=rdzv_backend,
-        rdzv_endpoint="master:29400" if os.environ.get("MY_ROLE") else "localhost:29400",
-    )
-    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
-
-
-def _get_tolerations(role: str) -> List[k8s_client.V1Toleration]:
+def _get_tolerations() -> List[k8s_client.V1Toleration]:
     gpu = k8s_client.V1Toleration(
         key="nvidia.com/gpu", operator="Equal", value="present", effect="NoSchedule"
     )
     worker = k8s_client.V1Toleration(
-        key=f"{role}-pool", operator="Equal", value="true", effect="NoSchedule"
+        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
     return [gpu, worker]
 
@@ -161,48 +278,65 @@ def _spec_configmap_vol_and_ctx(
     return (specs_vol, specs_mount, ctx)
 
 
-def _create_ddp_master_job(
+def _lightning_train_remote(
     execution_id: str,
     *,
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
-    resource_limits: dict[str, int | float | str],
-    train_spec: dict,
     num_nodes: int,
     retry_count: int,
+    train_args: dict,
     env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
     host_network: Optional[bool] = False,
+    resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ):  # pylint: disable=too-many-locals
-    zetta_cmd = "zetta run specs/train.cue"
-    env_vars = env_vars or {}
+    """
+    Parse spec and launch single/multinode training accordingly.
+    Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
+    Runs the command `zetta run specs/train.cue` on one or more worker pods.
+    """
+    if train_args["trainer"]["accelerator"] == "gpu":
+        num_devices = int(resource_limits["nvidia.com/gpu"])  # type: ignore
+        trainer_devices = train_args["trainer"]["devices"]
+        if (
+            isinstance(trainer_devices, int)
+            and trainer_devices != -1
+            and trainer_devices != num_devices
+        ):
+            raise ValueError(
+                f"Trainer specification uses {trainer_devices} devices, "
+                f"while `nvidia.com/gpu` limit is {num_devices}."
+            )
+    else:
+        raise NotImplementedError()
 
+    # with multinode ddp we need a node on standard pool for an IP
+    # that remains the same for the duration of training
+    node_selector = {"cloud.google.com/gke-provisioning": "standard"}
     if num_nodes > 1:
-        train_spec["@type"] = "multinode_train_launch"
-        train_spec["execution_id"] = execution_id
-        train_spec["num_nodes"] = num_nodes
-        train_spec["trainer"]["num_nodes"] = num_nodes
+        train_args["execution_id"] = execution_id
+        train_args["num_nodes"] = num_nodes
+        train_args["nproc_per_node"] = num_devices
+        train_args["trainer"]["num_nodes"] = num_nodes
+        train_spec = {"@type": "_multinode_train_launch", **train_args}
+    else:
+        train_spec = {"@type": "_lightning_train_local", **train_args}
+        node_selector = {"cloud.google.com/gke-provisioning": provisioning_model}
+
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
         execution_id, REQUIRED_ENV_VARS
     )
 
-    dshm = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    tmp = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    volumes = [vol, dshm, tmp]
-    mounts = [
-        mount,
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
+    volumes = [vol] + resource_allocation.k8s.get_common_volumes()
+    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts()
 
     envs = []
+    env_vars = env_vars or {}
     for key, val in env_vars.items():
         envs.append(k8s_client.V1EnvVar(name=key, value=val))
 
@@ -213,6 +347,7 @@ def _create_ddp_master_job(
         ),
     )
 
+    zetta_cmd = "zetta run specs/train.cue"
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=execution_id,
         image=image,
@@ -224,11 +359,8 @@ def _create_ddp_master_job(
         host_network=host_network,
         resources=resource_limits,
         restart_policy="Never",
-        # with multinode ddp we need a node on standard pool for an IP
-        # that remains the same for the duration of training
-        # these pools must have `master-pool=true` taint
-        # not ncessary for single node ddp so it can be scheduled on preemptibles
-        tolerations=_get_tolerations(role="master" if num_nodes > 1 else "worker"),
+        node_selector=node_selector,
+        tolerations=_get_tolerations(),
         volumes=volumes,
         volume_mounts=mounts,
         resource_requests=resource_requests,
@@ -282,7 +414,8 @@ def _create_ddp_master_job(
                 host_network=True,
                 host_aliases=aliases,
                 resources=resource_limits,
-                tolerations=_get_tolerations(role="worker"),
+                node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
+                tolerations=_get_tolerations(),
                 volumes=volumes,
                 volume_mounts=mounts,
                 resource_requests=resource_requests,
@@ -306,50 +439,3 @@ def _create_ddp_master_job(
             resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
         else:
             resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)
-
-
-@builder.register("lightning_train_remote")
-@typeguard.typechecked
-def lightning_train_remote(
-    worker_image: str,
-    worker_resources: dict[str, int | float | str],
-    spec_path: str | dict | BuilderPartial,
-    num_nodes: int = 1,
-    retry_count: int = 3,
-    env_vars: Optional[Dict[str, str]] = None,
-    worker_cluster_name: Optional[str] = None,
-    worker_cluster_region: Optional[str] = None,
-    worker_cluster_project: Optional[str] = None,
-    follow_logs: Optional[bool] = False,
-    worker_resource_requests: Optional[dict[str, int | float | str]] = None,
-) -> None:
-    assert num_nodes > 0
-    cluster_info = resource_allocation.k8s.parse_cluster_info(
-        cluster_name=worker_cluster_name,
-        cluster_region=worker_cluster_region,
-        cluster_project=worker_cluster_project,
-    )
-
-    execution_id = mazepa.id_generation.get_unique_id(
-        prefix="exec", slug_len=4, add_uuid=False, max_len=50
-    )
-    if isinstance(spec_path, str):
-        spec = parsing.cue.load(spec_path)
-    elif isinstance(spec_path, dict):
-        spec = spec_path
-    elif isinstance(spec_path, BuilderPartial):
-        spec = spec_path.spec
-
-    _create_ddp_master_job(
-        execution_id,
-        cluster_info=cluster_info,
-        env_vars=env_vars,
-        follow_logs=follow_logs,
-        image=worker_image,
-        resource_limits=worker_resources,
-        train_spec=spec,
-        num_nodes=num_nodes,
-        host_network=num_nodes > 1,
-        retry_count=retry_count,
-        resource_requests=worker_resource_requests,
-    )

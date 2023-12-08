@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal, Optional, Sequence
 
 import attrs
+import torch
 
 from zetta_utils import alignment, builder, mazepa, tensor_ops
 from zetta_utils.geometry import BBox3D, Vec3D
@@ -12,6 +13,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricLayer,
     VolumetricLayerSet,
 )
+from zetta_utils.mazepa.semaphores import semaphore
 
 from ..common import build_chunked_volumetric_callable_flow_schema
 
@@ -67,17 +69,20 @@ class AcedMatchOffsetOp:
         max_dist: int,
     ):
         idx_padded = idx.padded(self.crop_pad)
-        tissue_mask_data = tissue_mask[idx_padded]
+        with semaphore("read"):
+            tissue_mask_data = tissue_mask[idx_padded]
         if (tissue_mask_data != 0).sum() > 0:
-            result = alignment.aced_relaxation.get_aced_match_offsets(
-                tissue_mask=tissue_mask_data,
-                misalignment_masks={k: v[idx_padded] for k, v in misalignment_masks.items()},
-                pairwise_fields={k: v[idx_padded] for k, v in pairwise_fields.items()},
-                pairwise_fields_inv={k: v[idx_padded] for k, v in pairwise_fields_inv.items()},
-                max_dist=max_dist,
-            )
+            with semaphore("cuda"):
+                result = alignment.aced_relaxation.get_aced_match_offsets(
+                    tissue_mask=tissue_mask_data,
+                    misalignment_masks={k: v[idx_padded] for k, v in misalignment_masks.items()},
+                    pairwise_fields={k: v[idx_padded] for k, v in pairwise_fields.items()},
+                    pairwise_fields_inv={k: v[idx_padded] for k, v in pairwise_fields_inv.items()},
+                    max_dist=max_dist,
+                )
             result = {k: tensor_ops.crop(v, self.crop_pad) for k, v in result.items()}
-            dst[idx] = result
+            with semaphore("write"):
+                dst[idx] = result
 
 
 @builder.register("AcedRelaxationOp")
@@ -107,35 +112,42 @@ class AcedRelaxationOp:
         lr: float = 0.3,
         rigidity_weight: float = 10.0,
         fix: Literal["first", "last", "both"] | None = "first",
+        max_dist: int = 2,
     ):
         idx_padded = idx.padded(self.crop_pad)
         first_section_idx_padded = idx_padded.translated_end((0, 0, 1 - idx_padded.shape[-1]))
         last_section_idx_padded = idx_padded.translated_start((0, 0, idx_padded.shape[-1] - 1))
 
-        match_offsets_data = match_offsets[idx_padded]
+        with semaphore("read"):
+            match_offsets_data = match_offsets[idx_padded]
 
         if (match_offsets_data != 0).sum() > 0:
-            result = alignment.aced_relaxation.perform_aced_relaxation(
-                match_offsets=match_offsets_data,
-                pfields={k: v[idx_padded] for k, v in pfields.items()},
-                rigidity_masks=rigidity_masks[idx_padded] if rigidity_masks else None,
-                first_section_fix_field=(
-                    first_section_fix_field[first_section_idx_padded]
-                    if first_section_fix_field
-                    else None
-                ),
-                last_section_fix_field=(
-                    last_section_fix_field[last_section_idx_padded]
-                    if last_section_fix_field
-                    else None
-                ),
-                num_iter=num_iter,
-                lr=lr,
-                rigidity_weight=rigidity_weight,
-                fix=fix,
-            )
-            result_cropped = tensor_ops.crop(result, self.crop_pad)
-            dst[idx] = result_cropped
+            with semaphore("cuda"):
+                result = alignment.aced_relaxation.perform_aced_relaxation(
+                    match_offsets=match_offsets_data,
+                    pfields={k: v[idx_padded] for k, v in pfields.items()},
+                    rigidity_masks=rigidity_masks[idx_padded] if rigidity_masks else None,
+                    first_section_fix_field=(
+                        first_section_fix_field[first_section_idx_padded]
+                        if first_section_fix_field
+                        else None
+                    ),
+                    last_section_fix_field=(
+                        last_section_fix_field[last_section_idx_padded]
+                        if last_section_fix_field
+                        else None
+                    ),
+                    num_iter=num_iter,
+                    lr=lr,
+                    rigidity_weight=rigidity_weight,
+                    fix=fix,
+                    max_dist=max_dist,
+                )
+                result_cropped = tensor_ops.crop(result, self.crop_pad)
+                torch.cuda.empty_cache()
+
+            with semaphore("write"):
+                dst[idx] = result_cropped
 
 
 @builder.register("build_aced_relaxation_flow")

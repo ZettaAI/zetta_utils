@@ -17,6 +17,15 @@ PaddingMode: TypeAlias = Literal["zeros", "reflect", "replicate", "circular"]
 ActivationMode: TypeAlias = Literal["pre", "post"]
 
 
+def _get_size(data: torch.Tensor) -> Sequence[int]:
+    # In tracing mode, shapes obtained from tensor.shape are traced as tensors
+    if isinstance(data.shape[0], torch.Tensor):  # type: ignore[unreachable] # pragma: no cover
+        size = list(map(lambda x: x.item(), data.shape))  # type: ignore[unreachable]
+    else:
+        size = data.shape
+    return size
+
+
 @builder.register("ConvBlock", versions=">=0.0.2")
 @typechecked
 # cant use attrs because torch Module + attrs combination makes pylint freak out
@@ -91,6 +100,7 @@ class ConvBlock(nn.Module):
             self.skips = skips
 
         self.layers = torch.nn.ModuleList()
+        self.base_layer_pos = set()
 
         num_conv = len(num_channels) - 1
         kernel_sizes_ = ensure_seq_of_seq(kernel_sizes, num_conv)
@@ -113,7 +123,7 @@ class ConvBlock(nn.Module):
         for i, (ch_in, ch_out) in enumerate(zip(num_channels[:-1], num_channels[1:])):
             if (activation_mode == "pre") or (i >= 1):
                 if normalization is not None:
-                    self.layers.append(normalization(ch_in))  # pylint: disable=not-callable
+                    self.layers.append(normalization(ch_in))
 
                 post_skips_dst.append(len(self.layers))
                 self.layers.append(activation())
@@ -130,6 +140,7 @@ class ConvBlock(nn.Module):
             # TODO: make this step optional
             if new_conv.bias is not None:
                 new_conv.bias.data[:] = 0
+            self.base_layer_pos.add(len(self.layers))
             self.layers.append(new_conv)
 
             if i < len(num_channels) - 2:
@@ -137,8 +148,9 @@ class ConvBlock(nn.Module):
             pre_skips_dst.append(len(self.layers))
 
         if normalize_last and (normalization is not None):
-            self.layers.append(normalization(num_channels[-1]))  # pylint: disable=not-callable
-        post_skips_dst.append(len(self.layers))
+            self.layers.append(normalization(num_channels[-1]))
+        if activation_mode == "post":
+            post_skips_dst.append(len(self.layers))
         if activate_last:
             self.layers.append(activation())
 
@@ -152,28 +164,24 @@ class ConvBlock(nn.Module):
         conv_count = 0
         for i, layer in enumerate(self.layers[:] + [None]):
             if (i in self.skips_dst) and (conv_count in skip_data_for):
-                # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-                if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover
-                    size = list(map(lambda x: x.item(), result.shape))  # type: ignore
-                else:
-                    size = result.shape
+                size = _get_size(result)
                 result += crop_center(skip_data_for[conv_count], size)
 
             if (i in self.skips_src) and (str(conv_count) in self.skips):
                 skip_dest = self.skips[str(conv_count)]
                 if skip_dest in skip_data_for:
-                    # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-                    if isinstance(result.shape[0], torch.Tensor):  # type: ignore # pragma: no cover # pylint: disable=line-too-long
-                        size = list(map(lambda x: x.item(), result.shape))  # type: ignore
-                    else:
-                        size = result.shape
-                    skip_data_for[skip_dest] += crop_center(skip_data_for[skip_dest], size)
+                    size = _get_size(result)
+                    skip_data_for[skip_dest] += crop_center(result, size)
                 else:
                     skip_data_for[skip_dest] = result
 
-            if layer:
-                result = layer(result)
-                if isinstance(layer, torch.nn.modules.conv._ConvNd):
-                    conv_count += 1
+            result = layer(result)
+
+            if i in self.base_layer_pos:
+                conv_count += 1
+
+        if (len(self.layers) in self.skips_dst) and (conv_count in skip_data_for):
+            size = _get_size(result)
+            result += crop_center(skip_data_for[conv_count], size)
 
         return result

@@ -137,3 +137,6 @@ venv.bak/
 
 # Pyre type checker
 .pyre/
+
+# editable installs
+src/

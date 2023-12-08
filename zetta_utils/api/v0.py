@@ -414,23 +414,6 @@ from zetta_utils.training.datasets.sample_indexers.volumetric_strided_indexer im
 from zetta_utils.training.lightning.regimes.alignment.base_encoder import (
     BaseEncoderRegime,
 )
-from zetta_utils.training.lightning.regimes.alignment.encoding_coarsener import (
-    EncodingCoarsenerRegime,
-)
-from zetta_utils.training.lightning.regimes.alignment.encoding_coarsener_gen_x1 import (
-    EncodingCoarsenerGenX1Regime,
-)
-from zetta_utils.training.lightning.regimes.alignment.encoding_coarsener_highres import (
-    EncodingCoarsenerHighRes,
-    center_crop_norm,
-    warp_by_px,
-)
-from zetta_utils.training.lightning.regimes.alignment.minima_encoder import (
-    MinimaEncoderRegime,
-)
-from zetta_utils.training.lightning.regimes.alignment.misalignment_detector import (
-    MisalignmentDetectorRegime,
-)
 from zetta_utils.training.lightning.regimes.alignment.misalignment_detector_aced import (
     MisalignmentDetectorAcedRegime,
 )
@@ -439,7 +422,7 @@ from zetta_utils.training.lightning.regimes.naive_supervised import (
     NaiveSupervisedRegime,
 )
 from zetta_utils.training.lightning.regimes.noop import NoOpRegime
-from zetta_utils.training.lightning.train import lightning_train, lightning_train_remote
+from zetta_utils.training.lightning.train import lightning_train
 from zetta_utils.training.lightning.trainers.default import (
     ConfigureTraceCallback,
     ZettaDefaultTrainer,

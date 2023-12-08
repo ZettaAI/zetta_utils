@@ -15,7 +15,9 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import ddp
 
 from zetta_utils import builder, log
+from zetta_utils.builder.build import get_initial_builder_spec
 from zetta_utils.parsing import json
+from zetta_utils.typing import JsonSerializableValue
 
 logger = log.get_logger("zetta_utils")
 ONNX_OPSET_VERSION = 17
@@ -67,10 +69,6 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if progress_bar_kwargs is None:
             progress_bar_kwargs = {}
 
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
-            api_key = os.environ.get("WANDB_API_KEY", None)
-            wandb.login(key=api_key)
-
         kwargs["logger"] = False
 
         log_dir = os.path.join(
@@ -88,37 +86,15 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         super().__init__(*args, **kwargs)
 
-        self.logger = WandbLogger(
-            project=experiment_name,
-            group=f"{experiment_name}.{experiment_version}",
-            name=f"{experiment_version}",
-            id=f"{experiment_version}.{self.global_rank}",
-        )
-
         self.trace_configuration: Dict = {}
 
         # self.callbacks will exist at runtime
-        # self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
         self.callbacks.append(WallClockTimeCallback())  # type: ignore
 
-        if self.global_rank != 0:
-            return
-
-        if self.logger and self.logger.experiment:
-            this_dir = os.path.dirname(os.path.abspath(__file__))
-            zetta_root_path = f"{this_dir}/../../.."
-            self.logger.experiment.log_code(zetta_root_path)
-
-        def log_config(config):
-            if experiment_version.startswith("tmp"):
-                logger.info(
-                    f"Not saving configuration for a temporary experiment {experiment_version}."
-                )
-            else:
-                self.logger.experiment.config["training_configuration"] = config  # type: ignore
-                logger.info("Saved training configuration.")
-
-        self.log_config = log_config
+        self.callbacks.append(ConfigureTraceCallback(self))  # type: ignore
+        self.callbacks.append(  # type: ignore
+            ConfigureLogging(experiment_name, experiment_version)
+        )
 
         # Due to a bug in PL we're unable to use normal methods
         # to resume training with ckpt_path='last' when storing
@@ -135,15 +111,20 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
 
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
-            if hasattr(v, "__built_with_spec"):
-                model_spec = getattr(v, "__built_with_spec")  # pylint: disable=protected-access
-                while "@type" in model_spec and model_spec["@type"] == "load_weights_file":
-                    model_spec = model_spec["model"]
+            model_spec: JsonSerializableValue = get_initial_builder_spec(v)
+            if model_spec is not None:
+                unrolled_spec: JsonSerializableValue = model_spec
+                while (
+                    isinstance(unrolled_spec, dict)
+                    and "@type" in unrolled_spec
+                    and unrolled_spec["@type"] == "load_weights_file"
+                ):
+                    unrolled_spec = unrolled_spec["model"]
 
                 spec = {
                     "@type": "load_weights_file",
                     "@version": importlib.metadata.version("zetta_utils"),
-                    "model": model_spec,
+                    "model": unrolled_spec,
                     "ckpt_path": filepath,
                     "component_names": [k],
                     "remove_component_prefix": True,
@@ -268,3 +249,41 @@ class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
         end_time = time.perf_counter()
         elapsed_time = end_time - self.start_time
         pl_module.log("elapsed/train", elapsed_time, on_step=True, on_epoch=True)
+
+class ConfigureLogging(pl.callbacks.Callback):
+    def __init__(
+        self,
+        exp_name: str,
+        exp_version: str,
+    ) -> None:
+        self.exp_name = exp_name
+        self.exp_version = exp_version
+
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
+        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+            api_key = os.environ.get("WANDB_API_KEY", None)
+            wandb.login(key=api_key)
+
+        trainer.logger = WandbLogger(
+            project=self.exp_name,
+            group=f"{self.exp_name}.{self.exp_version}",
+            name=f"{self.exp_version}",
+            id=f"{self.exp_version}.{trainer.global_rank}",
+        )
+
+        if trainer.global_rank != 0:
+            return
+
+        if trainer.logger and trainer.logger.experiment:
+            this_dir = os.path.dirname(os.path.abspath(__file__))
+            zetta_root_path = f"{this_dir}/../../.."
+            trainer.logger.experiment.log_code(zetta_root_path)
+
+        def log_config(config):
+            if self.exp_version.startswith("tmp"):
+                logger.info(f"Not saving configuration for a temp experiment {self.exp_version}.")
+            else:
+                self.logger.experiment.config["training_configuration"] = config  # type: ignore
+                logger.info("Saved training configuration.")
+
+        trainer.log_config = log_config  # type: ignore

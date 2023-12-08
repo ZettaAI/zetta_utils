@@ -1,1 +1,2 @@
 from .inference import run_affinities_inference_onnx
+from .affs_inferencer import AffinitiesInferencer

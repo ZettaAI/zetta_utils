@@ -134,8 +134,14 @@ def follow_job_logs(
         namespace=namespace,
         tail_lines=tail_lines,
     )
-    for output in log_stream:
-        logger.info(output)
+    if tail_lines is None:
+        for output in log_stream:
+            logger.info(output)
+    else:
+        result = []
+        for output in log_stream:
+            result.append(output)
+        logger.info("\n".join(result))
 
 
 def get_job_pod(

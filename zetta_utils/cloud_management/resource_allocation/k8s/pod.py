@@ -19,7 +19,7 @@ def get_pod_spec(
     image: str,
     command: List[str],
     command_args: List[str],
-    resources: Dict[str, int | float | str],
+    resources: Optional[Dict[str, int | float | str]] = None,
     dns_policy: Optional[str] = "Default",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,

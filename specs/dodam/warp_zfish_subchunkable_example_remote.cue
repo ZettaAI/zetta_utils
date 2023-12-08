@@ -60,19 +60,20 @@
 }
 
 "@type":         "mazepa.execute_on_gcp_with_sqs"
-worker_image:    "us.gcr.io/zetta-research/zetta_utils:dodam_subchunkable_parallel"
-worker_replicas: 16
+worker_image:    "us.gcr.io/zetta-research/zetta_utils:dodam-dev"
+worker_replicas: 4
 
 worker_resources: {
 	"nvidia.com/gpu": "1"
 }
 
-local_test: false
-num_procs:  4
+num_procs: 4
 semaphores_spec: {
 	read:  4
 	write: 4
-	cuda:  4
+	cuda:  1
 	cpu:   4
 }
-target: #FLOW_TMPL
+target:     #FLOW_TMPL
+debug:      false
+local_test: false

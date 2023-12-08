@@ -3,12 +3,11 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import AbstractContextManager, ExitStack
-from typing import Dict, Final, Iterable, Optional, Union
+from typing import Dict, Final, Iterable, Literal, Optional, Union
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.cloud_management import execution_tracker, resource_allocation
-from zetta_utils.common import SemaphoreType
-from zetta_utils.mazepa import execute
+from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
@@ -63,6 +62,7 @@ def get_gcp_with_sqs_config(
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
     outcome_queue_name = f"zzz-{execution_id}-outcome"
@@ -102,6 +102,7 @@ def get_gcp_with_sqs_config(
         resource_requests=worker_resource_requests,
         num_procs=num_procs,
         semaphores_spec=semaphores_spec,
+        provisioning_model=provisioning_model,
     )
 
     ctx_managers.append(
@@ -131,12 +132,14 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     show_progress: bool = True,
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
+    debug: bool = False,
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: float = 300.0,
     raise_on_failed_checkpoint: bool = True,
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     _ensure_required_env_vars()
     execution_id = mazepa.id_generation.get_unique_id(
@@ -146,6 +149,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     execution_tracker.record_execution_run(execution_id)
 
     ctx_managers = copy.copy(list(extra_ctx_managers))
+    if debug and not local_test:
+        raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
     if local_test:
         execution_tracker.register_execution(execution_id, [])
     else:
@@ -180,6 +185,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             worker_resource_requests=worker_resource_requests,
             num_procs=num_procs,
             semaphores_spec=semaphores_spec,
+            provisioning_model=provisioning_model,
         )
 
     with ExitStack() as stack:
@@ -189,7 +195,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         if local_test:
             execute_locally(
                 target=target,
-                task_queue=None,
                 execution_id=execution_id,
                 max_batch_len=max_batch_len,
                 batch_gap_sleep_sec=batch_gap_sleep_sec,
@@ -200,6 +205,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 raise_on_failed_checkpoint=raise_on_failed_checkpoint,
                 num_procs=num_procs,
                 semaphores_spec=semaphores_spec,
+                debug=debug,
             )
         else:
             execute(

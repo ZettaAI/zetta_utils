@@ -1,10 +1,10 @@
-FROM pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
+FROM pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update \
   && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common unixodbc-dev \
-  && pip install posix-ipc \
+  && pip install --no-cache-dir posix-ipc gevent \
   && apt-get --purge autoremove -y build-essential \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/* \
@@ -22,6 +22,6 @@ RUN apt-get update \
 ENV PYTHONPATH /opt/zetta_utils
 WORKDIR /opt/zetta_utils
 ADD pyproject.toml /opt/zetta_utils/
-RUN pip install '.[modules]'
+RUN pip install --no-cache-dir '.[modules]'
 COPY . /opt/zetta_utils/
 RUN zetta --help

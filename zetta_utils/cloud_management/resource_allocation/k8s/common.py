@@ -10,7 +10,7 @@ import attrs
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
-from zetta_utils.common import SemaphoreType
+from zetta_utils.mazepa import SemaphoreType
 
 from .eks import eks_cluster_data
 from .gke import gke_cluster_data
@@ -65,17 +65,25 @@ def get_mazepa_worker_command(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
 ):
+    if num_procs == 1 and semaphores_spec is None:
+        command = "mazepa.run_worker"
+        num_procs_line = ""
+        semaphores_line = ""
+    else:
+        command = "mazepa.run_worker_manager"
+        num_procs_line = f"num_procs: {num_procs}\n"
+        semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
+
     result = (
         """
     zetta -vv -l try run -s '{
-        "@type": "mazepa.run_worker"
     """
+        + f'"@type": "{command}"\n'
         + f"task_queue: {json.dumps(task_queue_spec)}\n"
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
-        + f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
-        + f"num_procs: {num_procs}\n"
+        + num_procs_line
+        + semaphores_line
         + """
-        max_pull_num: 1
         sleep_sec: 5
     }'
     """

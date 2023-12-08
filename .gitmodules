@@ -1,0 +1,3 @@
+[submodule "zetta_utils/alignment"]
+	path = zetta_utils/alignment
+	url = git@github.com:ZettaAI/alignment.git

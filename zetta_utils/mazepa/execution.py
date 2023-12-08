@@ -39,7 +39,6 @@ class Executor:
     checkpoint: Optional[str] = None
     checkpoint_interval_sec: Optional[float] = None
     raise_on_failed_checkpoint: bool = True
-    parallel_if_pool_exists: bool = False
 
     def __call__(self, target: Union[Task, Flow, ExecutionState, ComparablePartial, Callable]):
         assert (self.task_queue is None and self.outcome_queue is None) or (
@@ -58,7 +57,6 @@ class Executor:
             checkpoint=self.checkpoint,
             checkpoint_interval_sec=self.checkpoint_interval_sec,
             raise_on_failed_checkpoint=self.raise_on_failed_checkpoint,
-            parallel_if_pool_exists=self.parallel_if_pool_exists,
         )
 
 
@@ -77,7 +75,6 @@ def execute(
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: Optional[float] = 150,
     raise_on_failed_checkpoint: bool = True,
-    parallel_if_pool_exists: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -122,7 +119,7 @@ def execute(
         else:
             assert outcome_queue is None
             task_queue_ = AutoexecuteTaskQueue(
-                debug=True, parallel_if_pool_exists=parallel_if_pool_exists
+                debug=True,
             )
             outcome_queue_ = task_queue_
 

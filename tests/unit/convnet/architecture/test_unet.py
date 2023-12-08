@@ -185,19 +185,46 @@ def not_test_forward_naive(mocker):
     )
 
 
-def test_forward_skips(mocker):
-    mocker.patch("torch.nn.Conv2d.forward", lambda _, x: x)
+@pytest.mark.parametrize(
+    "skips, expected",
+    [
+        # fmt: off
+        [
+            None,
+            (1 * 2 * 2          # L0 convblock, left
+            * 2 * 2 * 2         # L1 convblock
+            + 1 * 2 * 2         # UNet skip connection
+            ) * 2 * 2           # L0 convblock, right
+        ],
+        [
+            {"0": 1},
+            ((((1 * 2 + 1) * 2  # L0 convblock, left   --> 6
+            * 2 + 6) * 2 * 2    # L1 convblock         --> 72
+            + 6                 # UNet skip connection --> 78
+            ) * 2 + 78) * 2     # L0 convblock, right  --> 468
+        ],
+        [
+            {"0": 2},
+            ((((1 * 2 * 2 + 1)  # L0 convblock, left   --> 5
+            * 2 * 2 + 5) * 2    # L1 convblock         --> 50
+            + 5                 # UNet skip connection --> 55
+            ) * 2 * 2 + 55)     # L0 convblock, right  --> 275
+        ],
+        # fmt: on
+    ],
+)
+def test_forward_skips(mocker, skips, expected):
+    mocker.patch("torch.nn.Conv2d.forward", lambda _, x: 2 * x)
     unet = convnet.architecture.UNet(
-        kernel_sizes=[3, 3],
+        kernel_sizes=[1],
         list_num_channels=[[1, 1, 1], [1, 1, 1, 1], [1, 1, 1]],
-        downsample=partial(torch.nn.AvgPool2d, kernel_size=2),
-        upsample=partial(torch.nn.Upsample, scale_factor=2),
-        skips={"0": 1},
+        downsample=partial(torch.nn.AvgPool2d, kernel_size=1),
+        upsample=partial(torch.nn.Upsample, scale_factor=1),
+        skips=skips,
+        unet_skip_mode="sum",
     )
-    result = unet.forward(torch.ones([1, 1, 2, 2]))
-    assert_array_equal(
-        result.cpu().detach().numpy(), 12 * torch.ones([1, 1, 2, 2]).cpu().detach().numpy()
-    )
+    result = unet.forward(torch.ones((1, 1, 1, 1)))
+    assert_array_equal(result.detach().numpy(), torch.full((1, 1, 1, 1), expected).numpy())
 
 
 @pytest.mark.parametrize(

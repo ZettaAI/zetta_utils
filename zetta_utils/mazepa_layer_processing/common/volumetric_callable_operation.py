@@ -10,10 +10,10 @@ import torch
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.common import SemaphoreType, semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer import IndexChunker
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.mazepa import SemaphoreType, semaphore
 
 from . import ChunkedApplyFlowSchema
 from .callable_operation import _process_callable_kwargs
@@ -93,6 +93,7 @@ class VolumetricCallableOperation(Generic[P]):
                 for semaphore_type in self.fn_semaphores:
                     semaphore_stack.enter_context(semaphore(semaphore_type))
             result_raw = self.fn(**task_kwargs)
+            torch.cuda.empty_cache()
         # Data crop amount is determined by the index pad and the
         # difference between the resolutions of idx and dst_idx.
         # Padding was applied before the first read processor, so cropping

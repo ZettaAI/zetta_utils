@@ -141,8 +141,7 @@ def test_register(register_dummy_a):
 def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
     result = builder.build(spec)
     assert result == expected
-    if hasattr(result, "__dict__"):
-        assert result.__built_with_spec == spec
+    assert builder.get_initial_builder_spec(result) == spec
 
 
 @pytest.mark.parametrize(
@@ -166,8 +165,7 @@ def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register
 def test_build_versioned(spec: dict, expected: Any, register_dummy_a_v0, register_dummy_a_v2):
     result = builder.build(spec)
     assert result == expected
-    if hasattr(result, "__dict__"):
-        assert result.__built_with_spec == spec
+    assert builder.get_initial_builder_spec(result) == spec
 
 
 def test_build_partial(register_dummy_a, register_dummy_c):

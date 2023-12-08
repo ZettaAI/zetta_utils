@@ -7,9 +7,9 @@ import einops
 import torchfields  # pylint: disable=unused-import # monkeypatch
 
 from zetta_utils import builder, mazepa, tensor_ops
-from zetta_utils.common import semaphore
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.mazepa import semaphore
 from zetta_utils.mazepa_layer_processing.alignment.common import (
     translation_adjusted_download,
 )

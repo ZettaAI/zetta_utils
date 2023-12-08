@@ -5,11 +5,11 @@ Helpers for k8s deployments.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
-from zetta_utils.common import SemaphoreType
+from zetta_utils.mazepa import SemaphoreType
 
 from ..resource_tracker import (
     ExecutionResource,
@@ -19,6 +19,7 @@ from ..resource_tracker import (
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr
+from .volume import get_common_volume_mounts, get_common_volumes
 
 logger = log.get_logger("zetta_utils")
 
@@ -34,6 +35,7 @@ def get_deployment_spec(
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> k8s_client.V1Deployment:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -46,6 +48,7 @@ def get_deployment_spec(
         command_args=["-c", command],
         resources=resources,
         env_secret_mapping=env_secret_mapping,
+        node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
         tolerations=[schedule_toleration],
         volumes=volumes,
         volume_mounts=volume_mounts,
@@ -90,6 +93,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     if labels is None:
         labels_final = {"execution_id": execution_id}
@@ -101,18 +105,6 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
-    dshm = k8s_client.V1Volume(
-        name="dshm", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    tmp = k8s_client.V1Volume(
-        name="tmp", empty_dir=k8s_client.V1EmptyDirVolumeSource(medium="Memory")
-    )
-    volumes = [dshm, tmp]
-    volume_mounts = [
-        k8s_client.V1VolumeMount(mount_path="/dev/shm", name="dshm"),
-        k8s_client.V1VolumeMount(mount_path="/tmp", name="tmp"),
-    ]
-
     return get_deployment_spec(
         name=execution_id,
         image=image,
@@ -121,9 +113,10 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         resources=resources,
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,
-        volumes=volumes,
-        volume_mounts=volume_mounts,
+        volumes=get_common_volumes(),
+        volume_mounts=get_common_volume_mounts(),
         resource_requests=resource_requests,
+        provisioning_model=provisioning_model,
     )
 
 

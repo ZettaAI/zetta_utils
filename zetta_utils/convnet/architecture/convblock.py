@@ -143,8 +143,7 @@ class ConvBlock(nn.Module):
             self.base_layer_pos.add(len(self.layers))
             self.layers.append(new_conv)
 
-            if i < len(num_channels) - 2:
-                pre_skips_src.append(len(self.layers))
+            pre_skips_src.append(len(self.layers))
             pre_skips_dst.append(len(self.layers))
 
         if normalize_last and (normalization is not None):
@@ -162,7 +161,7 @@ class ConvBlock(nn.Module):
         skip_data_for = {}  # type: dict[int, torch.Tensor]
         result = data
         conv_count = 0
-        for i, layer in enumerate(self.layers[:] + [None]):
+        for i, layer in enumerate(self.layers):
             if (i in self.skips_dst) and (conv_count in skip_data_for):
                 size = _get_size(result)
                 result += crop_center(skip_data_for[conv_count], size)

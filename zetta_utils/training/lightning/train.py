@@ -44,7 +44,7 @@ def lightning_train(
     num_nodes: int = 1,
     retry_count: int = 3,
     local_run: bool = True,
-    follow_logs: bool = True,
+    follow_logs: bool = False,
     image: Optional[str] = None,
     cluster_name: Optional[str] = None,
     cluster_region: Optional[str] = None,

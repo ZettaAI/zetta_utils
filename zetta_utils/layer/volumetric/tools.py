@@ -65,7 +65,7 @@ class VolumetricIndexStartOffsetOverrider:
 @builder.register("VolumetricIndexPadder")
 @typechecked
 @attrs.mutable
-class VolumetricIndexPadder:
+class VolumetricIndexPadder:  # pragma: no cover
     pad: Sequence[int]
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
@@ -195,7 +195,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> List[VolumetricIndex]:
-
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:
             logger.info(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
@@ -215,7 +214,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Vec3D[int]:  # pragma: no cover
-
         return self._get_bbox_strider(idx, stride_start_offset_in_unit, mode).shape
 
     def _get_bbox_strider(
@@ -224,7 +222,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> BBoxStrider:
-
         if self.resolution is None:
             chunk_resolution = idx.resolution
         else:

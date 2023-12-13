@@ -494,3 +494,17 @@ def test_intersects(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
 )
 def test_intersection(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
     assert bbox1.intersection(bbox2) == expected
+
+
+def test_transpose_local():
+    bbox = BBox3D(bounds=((0, 1), (3, 5), (7, 25)))
+    transposed = bbox.transposed(0, 1, local=True)
+    expected = BBox3D(bounds=((0, 2), (3, 4), (7, 25)))
+    assert transposed == expected
+
+
+def test_transpose_global():
+    bbox = BBox3D(bounds=((0, 1), (3, 5), (7, 25)))
+    transposed = bbox.transposed(0, 1, local=False)
+    expected = BBox3D(bounds=((3, 5), (0, 1), (7, 25)))
+    assert transposed == expected

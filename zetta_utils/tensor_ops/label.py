@@ -7,6 +7,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry import IntVec3D
+from zetta_utils.tensor_ops.common import squeeze_to
 from zetta_utils.tensor_typing import TensorTypeVar
 
 from . import convert
@@ -103,9 +104,8 @@ def seg_to_rgb(
     :param data: Input segmentation
     """
     assert 2 <= data.ndim <= 5
+    data = squeeze_to(data, ndim=3)
     data_np = convert.to_np(data)
-    data_np = data_np[0, ...] if data_np.ndim > 4 else data_np
-    data_np = data_np[0, ...] if data_np.ndim > 3 else data_np
     unq, unq_inv = np.unique(data_np, return_inverse=True)
 
     # pylint: disable=invalid-name

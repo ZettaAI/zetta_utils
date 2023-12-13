@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, overload
 
 import numpy as np
 from typeguard import typechecked
@@ -45,29 +45,47 @@ def get_disp_pair(
     return data[tuple(slices1)], data[tuple(slices2)]
 
 
-@builder.register("seg_to_aff")
-@typechecked
+@overload
 def seg_to_aff(
     data: TensorTypeVar,
     edge: Sequence[int],
-    mask: TensorTypeVar | None = None,
-) -> TensorTypeVar | tuple[TensorTypeVar, TensorTypeVar]:
+    mask: TensorTypeVar = ...,
+) -> tuple[TensorTypeVar, TensorTypeVar]:
+    ...
+
+
+@overload
+def seg_to_aff(
+    data: TensorTypeVar,
+    edge: Sequence[int],
+    mask: None = ...,
+) -> TensorTypeVar:
+    ...
+
+
+@builder.register("convert_seg_to_aff")
+@typechecked
+def seg_to_aff(
+    data,
+    edge,
+    mask=None,
+):
     """
     Transform a segmentation into an affinity map characterized by the given
-    ``edge,'' or an offset vector.
+    `edge`
 
-    :param data: Input segmentation
-    :param edge: Edge, or an offset vector
+    :param data: Input segmentation 3D volume
+    :param edge: Edge, meaning an offset vector
     :param mask: Binary mask for `data`
     """
     pair = get_disp_pair(data, edge)
     aff = (pair[0] == pair[1]) & (pair[0] != 0) & (pair[1] != 0)
     aff = convert.astype(aff, data, cast=True)
 
+    result = aff
     if mask is not None:
         assert data.shape == mask.shape
         pair = get_disp_pair(mask, edge)
         affmsk = convert.astype(pair[0] * pair[1], mask, cast=True)
-        return aff, affmsk
-
-    return aff
+        result = aff, affmsk
+    return result

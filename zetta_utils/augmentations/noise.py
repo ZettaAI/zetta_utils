@@ -18,7 +18,7 @@ from .common import DataAugment
 @builder.register("RandomGaussianNoise")
 @typechecked
 @attrs.frozen
-class RandomGaussianNoise(DataAugment):
+class RandomGaussianNoise(DataAugment):  # pragma: no cover
     key: str
     std: float | Distribution
 

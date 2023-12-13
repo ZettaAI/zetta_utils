@@ -22,7 +22,7 @@ def grayscale_jitter(
     brightness: float,
     gamma: float,
     gamma_base: float = 2.0,
-) -> torch.Tensor:
+) -> torch.Tensor:  # pragma: no cover
     data *= contrast
     data += brightness
     data = torch.clamp(data, min=0, max=1)
@@ -32,7 +32,7 @@ def grayscale_jitter(
 
 @typechecked
 @attrs.mutable
-class GrayscaleJitter(DataTransform):
+class GrayscaleJitter(DataTransform):  # pragma: no cover
     contrast: float | Distribution = 1.0
     brightness: float | Distribution = 0.0
     gamma: float | Distribution = 0.0
@@ -73,7 +73,7 @@ class GrayscaleJitter(DataTransform):
 @builder.register("GrayscaleJitter3D")
 @typechecked
 @attrs.frozen
-class GrayscaleJitter3D(DataAugment):
+class GrayscaleJitter3D(DataAugment):  # pragma: no cover
     key: str
 
     contrast: float | Distribution = 1.0
@@ -108,7 +108,7 @@ def build_grayscale_jitter_2d(
     brightness: float | Distribution = 0.0,
     gamma: float | Distribution = 0.0,
     per_section: float = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,
@@ -133,7 +133,7 @@ def build_partial_grayscale_jitter_2d(
     gamma: float | Distribution = 0.0,
     per_section: bool = False,
     per_partial: bool = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,

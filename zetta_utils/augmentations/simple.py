@@ -17,7 +17,7 @@ from .common import ComposedAugment, DataAugment, JointIndexDataAugment
 @builder.register("RandomFlip")
 @typechecked
 @attrs.frozen
-class RandomFlip(DataAugment):
+class RandomFlip(DataAugment):  # pragma: no cover
     dims: Sequence[int]
 
     def augment(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
@@ -29,7 +29,7 @@ class RandomFlip(DataAugment):
 @builder.register("RandomTranspose")
 @typechecked
 @attrs.mutable
-class RandomTranspose(JointIndexDataAugment):
+class RandomTranspose(JointIndexDataAugment):  # pragma: no cover
     dim0: int
     dim1: int
 

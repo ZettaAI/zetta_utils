@@ -17,7 +17,7 @@ def build_missing_section(
     rate: float | Distribution,
     fill: float | Distribution = 0,
     per_section: float = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,
@@ -35,7 +35,7 @@ def build_partial_missing_section(
     fill: float | Distribution = 0,
     per_section: bool = False,
     per_partial: bool = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,

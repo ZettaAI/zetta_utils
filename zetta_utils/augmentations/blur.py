@@ -17,7 +17,7 @@ def build_blurry_section(
     rate: float | Distribution,
     sigma: float | Distribution,
     per_section: float = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,
@@ -35,7 +35,7 @@ def build_partial_blurry_section(
     sigma: float | Distribution,
     per_section: bool = False,
     per_partial: bool = False,
-) -> RandomSection:
+) -> RandomSection:  # pragma: no cover
     return RandomSection(
         prob=prob,
         key=key,

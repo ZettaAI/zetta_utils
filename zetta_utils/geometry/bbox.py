@@ -21,7 +21,7 @@ Tuple2D = tuple[float, float]
 
 @attrs.frozen()
 @typechecked
-class BBox3D:
+class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
     """
     3-Dimentional cuboid in space.
     :param bounds: Bounds along X, Y, Z dimensions.

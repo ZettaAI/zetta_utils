@@ -228,7 +228,7 @@ class MultiHeadedOutput(MultiHeaded):
         heads: Mapping[str, int],
         conv: Callable[..., torch.nn.modules.conv._ConvNd],
         preactivation: torch.nn.Module | None = None,
-        activation: Callable[[], torch.nn.Module] | None = None,
+        activation: torch.nn.Module | None = None,
     ):
         heads_ = {}
         for name, out_channels in heads.items():

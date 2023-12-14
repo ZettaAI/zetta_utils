@@ -219,11 +219,11 @@ class AffinityProcessor(JointIndexDataProcessor):  # pragma: no cover
         # Padding in the negative & positive directions
         if self.symmetric:
             pad_max = max(abs(np.concatenate(edges_union)))
-            self.pad_neg = -Vec3D(pad_max, pad_max, pad_max)
-            self.pad_pos = Vec3D(pad_max, pad_max, pad_max)
+            self.pad_neg = -Vec3D[int](pad_max, pad_max, pad_max)
+            self.pad_pos = Vec3D[int](pad_max, pad_max, pad_max)
         else:
-            self.pad_neg = Vec3D(*np.amin(np.array(edges_union), axis=0, initial=0))
-            self.pad_pos = Vec3D(*np.amax(np.array(edges_union), axis=0, initial=0))
+            self.pad_neg = Vec3D[int](*np.amin(np.array(edges_union), axis=0, initial=0))
+            self.pad_pos = Vec3D[int](*np.amax(np.array(edges_union), axis=0, initial=0))
 
         # Slices for cropping
         self.slices = _compute_slices(edges_union, pad_crop=True, symmetric=self.symmetric)

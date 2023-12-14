@@ -42,13 +42,13 @@ def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cov
 @builder.register("reduce")
 @supports_dict
 def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.reduce(tensor=data, **kwargs) # type: ignore # bad typing by einops
+    return einops.reduce(tensor=data, **kwargs)  # type: ignore # bad typing by einops
 
 
 @builder.register("repeat")
 @supports_dict
 def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.repeat(tensor=data, **kwargs) # type: ignore # bad typing by einops
+    return einops.repeat(tensor=data, **kwargs)  # type: ignore # bad typing by einops
 
 
 @builder.register("multiply")
@@ -526,7 +526,7 @@ def crop_center(
     ndim = len(size)
     slices = [slice(0, None) for _ in range(data.ndim - ndim)]
     for insz, outsz in zip(data.shape[-ndim:], size):
-        if isinstance(insz, torch.Tensor):
+        if isinstance(insz, torch.Tensor):  # pragma: no cover # only occurs for JIT
             insz = insz.item()
         assert insz >= outsz
         lcrop = (insz - outsz) // 2

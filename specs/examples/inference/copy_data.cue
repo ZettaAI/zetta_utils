@@ -12,7 +12,7 @@
 
 // Execution parameters
 "@type":                "mazepa.execute_on_gcp_with_sqs"
-worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p39_x209"
+worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p310_x214"
 worker_cluster_name:    "zutils-x3"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-research"

@@ -94,13 +94,13 @@ def get_mazepa_worker_command(
 def _get_provider_cluster_data(info: ClusterInfo) -> Tuple[ClusterAuth, str]:
     if info.project is not None:
         assert info.region is not None, "GKE cluster needs both `project` and `region`."
-        logger.info("Cluster provider: GKE/GCP.")
+        logger.debug("Cluster provider: GKE/GCP.")
 
         cluster_data, cert, token = gke_cluster_data(info.name, info.region, info.project)
         endpoint = cluster_data.endpoint
         workload_pool = cluster_data.workload_identity_config.workload_pool
     else:
-        logger.info("Cluster provider: EKS/AWS.")
+        logger.debug("Cluster provider: EKS/AWS.")
 
         cluster_data, cert, token = eks_cluster_data(info.name)
         endpoint = cluster_data["endpoint"]

@@ -1,27 +1,28 @@
 from __future__ import annotations
 
 import io
-from typing import Optional, Sequence, TypeAlias, Union
+from typing import Optional, Sequence, Union
 
 import cachetools
 import fsspec
 import onnx
 import onnxruntime as ort
 import torch
+from onnxruntime.capi.onnxruntime_inference_collection import (
+    InferenceSession as OrtInferenceSession,
+)
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
 
 logger = log.get_logger("zetta_utils")
 
-OrtInferenceSessionT: TypeAlias = ort.capi.onnxruntime_inference_collection.InferenceSession
-
 
 @builder.register("load_model")
 @typechecked
 def load_model(
     path: str, device: Union[str, torch.device] = "cpu", use_cache: bool = False
-) -> torch.nn.Module | OrtInferenceSessionT:  # pragma: no cover
+) -> torch.nn.Module | OrtInferenceSession:  # pragma: no cover
     if use_cache:
         result = _load_model_cached(path, device)
     else:
@@ -31,7 +32,7 @@ def load_model(
 
 def _load_model(
     path: str, device: Union[str, torch.device] = "cpu"
-) -> torch.nn.Module | OrtInferenceSessionT:  # pragma: no cover
+) -> torch.nn.Module | OrtInferenceSession:  # pragma: no cover
     logger.debug(f"Loading model from '{path}'")
     if path.endswith(".json"):
         result = builder.build(path=path).to(device)

@@ -136,7 +136,7 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
 @builder.register("ROIMaskProcessor")
 @typechecked
 @attrs.mutable
-class ROIMaskProcessor(JointIndexDataProcessor):  # pragma: no cover
+class ROIMaskProcessor(JointIndexDataProcessor):
     start_coord: Sequence[int]
     end_coord: Sequence[int]
     resolution: Sequence[float]

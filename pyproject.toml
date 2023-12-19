@@ -189,7 +189,7 @@ generated-members = "torch.*"
 
 [tool.pytest.ini_options]
 addopts = "-ra --cov=zetta_utils --cov-report=term-missing --strict-markers --ignore=.eggs --tb=short --junitxml=test-results.xml --cov-report=html --cov-report=xml"
-testpaths = ["tests"]
+testpaths = ["tests", "zetta_utils/alignment"]
 norecursedirs = ".env .git .venv build dist "
 python_files = "test.py tests.py test_*.py *_test.py"
 

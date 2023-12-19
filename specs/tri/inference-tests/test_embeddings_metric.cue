@@ -38,8 +38,8 @@ if #MODEL_RES_XY == 16 {
 }
 
 // Specify function to use for generating the metric graph
-#VEC2AFF_FUNCTION: {"@type": "vec2aff_v1", "@mode": "partial", delta_mult: 15000}
-// #VEC2AFF_FUNCTION: {"@type": "vec2aff", "@mode": "partial", delta_d: 0.2}
+#VEC2AFF_FUNCTION: {"@type": "vec_to_affs_v1", "@mode": "partial", delta_mult: 15000}
+// #VEC2AFF_FUNCTION: {"@type": "vec_to_affs", "@mode": "partial", delta_d: 0.2}
 
 // 16384, 20480, 18944
 #TEST_SMALL: true

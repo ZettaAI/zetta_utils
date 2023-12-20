@@ -8,6 +8,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
 from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
+from zetta_utils.geometry.bbox import Slices3D
 
 from .. import IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
@@ -59,6 +60,17 @@ class VolumetricIndexStartOffsetOverrider:
             end_coord=stop.vec,
             resolution=idx.resolution,
         )
+
+
+@builder.register("VolumetricIndexPadder")
+@typechecked
+@attrs.mutable
+class VolumetricIndexPadder:  # pragma: no cover
+    pad: Sequence[int]
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        result = idx.padded(pad=self.pad)
+        return result
 
 
 @builder.register("DataResolutionInterpolator")
@@ -121,6 +133,77 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
         return result
 
 
+@builder.register("ROIMaskProcessor")
+@typechecked
+@attrs.mutable
+class ROIMaskProcessor(JointIndexDataProcessor):
+    """
+    This processor dynamically produces an ROI (Region Of Interest) mask for a
+    training patch in volumetric data processing. An ROI mask fills 1 for voxels
+    within the ROI and 0 for voxels outside the ROI. The ROI is specified using
+    ``start_coord``, ``end_coord``, and ``resolution``. ROI masks are produced
+    only for those layers specified in `targets`.
+
+    The naming convention for the generated ROI mask layers follows a preset pattern:
+    the name of the target layer is appended with the suffix ``_mask``. For instance,
+    if the target layer is ``layer1``, the corresponding mask will be named ``layer1_mask``.
+    If a layer with the intended mask name already exists in the data, the processor
+    skips the auto-generation of the ROI mask for that specific layer to avoid
+    redundancy and potential data overwrite.
+
+    :param start_coord: The starting coordinates of the ROI in the data, represented
+        as a sequence of integers.
+    :param end_coord: The ending coordinates of the ROI, aligning with ``start_coord``
+        to define the ROI region.
+    :param resolution: The resolution of the ROI, given as a sequence of floats.
+        This defines the size of each voxel within the ROI.
+    :param targets: A list of strings specifying the target layers in the data for which
+        the ROI masks will be generated.
+    """
+
+    start_coord: Sequence[int]
+    end_coord: Sequence[int]
+    resolution: Sequence[float]
+    targets: list[str]
+
+    roi: VolumetricIndex = attrs.field(init=False)
+    prepared_subidx: Slices3D | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        roi = VolumetricIndex.from_coords(
+            start_coord=self.start_coord,
+            end_coord=self.end_coord,
+            resolution=Vec3D(*self.resolution),
+        )
+        object.__setattr__(self, "roi", roi)
+
+    def process_index(
+        self, idx: VolumetricIndex, mode: Literal["read", "write"]
+    ) -> VolumetricIndex:
+        intersection = idx.intersection(self.roi)
+        self.prepared_subidx = intersection.translated(-idx.start).to_slices()
+        return idx
+
+    def process_data(
+        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
+    ) -> dict[str, torch.Tensor]:
+        assert self.prepared_subidx is not None
+
+        for target in self.targets:
+            assert target in data
+            if target + "_mask" in data:
+                continue
+            roi_mask = torch.zeros_like(data[target])
+            extra_dims = roi_mask.ndim - len(self.prepared_subidx)
+            slices = [slice(0, None) for _ in range(extra_dims)]
+            slices += list(self.prepared_subidx)
+            roi_mask[tuple(slices)] = 1
+            data[target + "_mask"] = roi_mask
+
+        self.prepared_subidx = None
+        return data
+
+
 @attrs.mutable
 # TODO: Refacter the offset part into a separate subclass
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
@@ -136,7 +219,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> List[VolumetricIndex]:
-
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:
             logger.info(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
@@ -156,7 +238,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> Vec3D[int]:  # pragma: no cover
-
         return self._get_bbox_strider(idx, stride_start_offset_in_unit, mode).shape
 
     def _get_bbox_strider(
@@ -165,7 +246,6 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
     ) -> BBoxStrider:
-
         if self.resolution is None:
             chunk_resolution = idx.resolution
         else:

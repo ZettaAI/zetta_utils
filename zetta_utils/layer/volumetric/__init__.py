@@ -13,6 +13,8 @@ from .frontend import (
 from .tools import (
     DataResolutionInterpolator,
     InvertProcessor,
+    ROIMaskProcessor,
+    VolumetricIndexPadder,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,
     VolumetricIndexStartOffsetOverrider,

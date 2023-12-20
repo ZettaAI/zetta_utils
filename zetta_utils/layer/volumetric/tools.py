@@ -137,6 +137,30 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
 @typechecked
 @attrs.mutable
 class ROIMaskProcessor(JointIndexDataProcessor):
+    """
+    This processor dynamically produces an ROI (Region Of Interest) mask for a
+    training patch in volumetric data processing. An ROI mask fills 1 for voxels
+    within the ROI and 0 for voxels outside the ROI. The ROI is specified using
+    ``start_coord``, ``end_coord``, and ``resolution``. ROI masks are produced
+    only for those layers specified in `targets`.
+
+    The naming convention for the generated ROI mask layers follows a preset pattern:
+    the name of the target layer is appended with the suffix ``_mask``. For instance,
+    if the target layer is ``layer1``, the corresponding mask will be named ``layer1_mask``.
+    If a layer with the intended mask name already exists in the data, the processor
+    skips the auto-generation of the ROI mask for that specific layer to avoid
+    redundancy and potential data overwrite.
+
+    :param start_coord: The starting coordinates of the ROI in the data, represented
+        as a sequence of integers.
+    :param end_coord: The ending coordinates of the ROI, aligning with ``start_coord``
+        to define the ROI region.
+    :param resolution: The resolution of the ROI, given as a sequence of floats.
+        This defines the size of each voxel within the ROI.
+    :param targets: A list of strings specifying the target layers in the data for which
+        the ROI masks will be generated.
+    """
+
     start_coord: Sequence[int]
     end_coord: Sequence[int]
     resolution: Sequence[float]

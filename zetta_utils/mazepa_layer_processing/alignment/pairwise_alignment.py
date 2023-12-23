@@ -146,7 +146,7 @@ class SubchunkableFnFlowSchema:
         )
         self.callable_fn = callable_fn
 
-    def flow(self, bbox):
+    def flow(self, bbox, i):
         flow = build_subchunkable_apply_flow(
             bbox=bbox,
             op=VolumetricCallableOperation(
@@ -219,12 +219,8 @@ class EncodingFlowSchema:
             self.flows.append(flow)
 
     def flow(self, bbox):
-        for flow in self.flows:
-            yield flow(bbox)
-            # yield mazepa.Dependency()
-        # yield self.flows[1](bbox)
-        # yield self.flows[2](bbox)
-        # yield mazepa.Dependency()
+        for i, flow in enumerate(self.flows):
+            yield flow(bbox, i)
 
 
 @builder.register("PairwiseAlignmentFlowSchema")

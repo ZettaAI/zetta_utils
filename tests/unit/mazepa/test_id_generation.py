@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from functools import partial
+from typing import Any, Callable, Mapping
 
 import attrs
 
+from zetta_utils import mazepa
 from zetta_utils.mazepa import taskable_operation_cls
 from zetta_utils.mazepa.id_generation import generate_invocation_id as gen_id
 
@@ -80,6 +82,20 @@ class TaskableD:
         return self.a * b
 
 
+@mazepa.flow_schema_cls
+@attrs.mutable
+class FlowSchema:
+    fn_kwargs: Mapping[Any, Any]
+    callable_fn: Callable[..., Any]
+
+    def __init__(self, fn_kwargs: Mapping[Any, Any], callable_fn: Callable[..., Any]):
+        self.fn_kwargs = fn_kwargs
+        self.callable_fn = callable_fn
+
+    def flow(self, *args, **kwargs):
+        return self.callable_fn(*args, **kwargs)
+
+
 def test_generate_invocation_id_method() -> None:
     assert gen_id(ClassA().method, [], {}) != gen_id(ClassB().method, [], {})
     assert gen_id(ClassB().method, [], {}) != gen_id(ClassC().method, [], {})
@@ -130,3 +146,33 @@ def test_generate_invocation_id_taskable_op() -> None:
 
     assert gen_id(TaskableD(1), [], {}) == gen_id(TaskableD(1), [], {})
     assert gen_id(TaskableD(1), [], {}) != gen_id(TaskableD(2), [], {})
+
+
+def test_generate_invocation_id_flow_schema() -> None:
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassB().method).flow, [], {}
+    )
+    assert gen_id(FlowSchema({}, ClassB().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassC().method).flow, [], {}
+    )
+
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [4, 2], {}) == gen_id(
+        FlowSchema({}, ClassA().method).flow, [4, 2], {}
+    )
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {"a": 1}) == gen_id(
+        FlowSchema({}, ClassA().method).flow, [], {"a": 1}
+    )
+
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [4, 2], {}) != gen_id(
+        FlowSchema({}, ClassA().method).flow, [6, 3], {}
+    )
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {"a": 1}) != gen_id(
+        FlowSchema({}, ClassA().method).flow, [], {"a": 2}
+    )
+
+    assert gen_id(FlowSchema({}, ClassD1().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassD2().method).flow, [], {}
+    )
+    assert gen_id(FlowSchema({}, ClassE(1).method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassE(2).method).flow, [], {}
+    )

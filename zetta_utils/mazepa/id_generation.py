@@ -1,14 +1,12 @@
 # pylint: disable=unused-argument
 from __future__ import annotations
 
-import functools
 import uuid
 from typing import Callable, Optional
 
 import xxhash
 from coolname import generate_slug
 
-import zetta_utils.mazepa.tasks
 from zetta_utils import log
 
 logger = log.get_logger("mazepa")
@@ -37,46 +35,49 @@ def get_unique_id(
 
 
 def _get_code_hash(
-    fn: Callable, _hash: Optional[xxhash.xxh128] = None, _prefix=""
+    fn: Callable, _hash: Optional[xxhash.xxh128] = None, _visited: Optional[set[int]] = None
 ) -> xxhash.xxh128:
     if _hash is None:
         _hash = xxhash.xxh128()
+    if _visited is None:
+        _visited = set()
 
-    try:
-        _hash.update(fn.__qualname__)
+    # Check to prevent infinite recursion
+    # This is a bit silly, as the entire custom code hashing endeavor is done to avoid
+    # issues with Python's code hash in the first place...
+    # However, PYTHONHASHSEED is not an issue for tracking methods within the same session.
+    # Generating recursive loops with the same code hash requires some effort by the user
+    if id(fn) in _visited:
+        return _hash
+
+    _visited.add(id(fn))
+
+    for attribute_name in {x for x in dir(fn) if not x.startswith("__")}:
+        attrib = getattr(fn, attribute_name)
+        if callable(attrib):
+            _get_code_hash(attrib, _hash, _visited)
+        else:
+            _hash.update(f"{attribute_name}: {attrib}".encode())
+
+    if hasattr(fn, "__self__") and fn.__self__ is not None:
+        _get_code_hash(fn.__self__, _hash, _visited)
 
         try:
-            # Mypy wants to see (BuiltinFunctionType, MethodType, MethodWrapperType),
-            # but not all have __self__.__dict__ that is not a mappingproxy
-            method_kwargs = fn.__self__.__dict__  # type: ignore
-            if isinstance(method_kwargs, dict):
-                _hash.update(method_kwargs.__repr__())
+            _get_code_hash(fn.__self__.__call__.__func__, _hash, _visited)
         except AttributeError:
             pass
 
-        _hash.update(fn.__code__.co_code)
-
-        return _hash
+    try:
+        _hash.update(fn.__qualname__)
     except AttributeError:
         pass
 
-    if isinstance(fn, functools.partial):
-        _hash.update(fn.args.__repr__().encode())
+    try:
+        _hash.update(fn.__code__.co_code)
+    except AttributeError:
+        pass
 
-        _hash.update(fn.keywords.__repr__().encode())
-
-        _hash = _get_code_hash(fn.func, _hash=_hash, _prefix=_prefix + "  ")
-        return _hash
-
-    if isinstance(
-        fn, (zetta_utils.mazepa.tasks.TaskableOperation, zetta_utils.builder.BuilderPartial)
-    ):
-        _hash.update(fn.__repr__())
-
-        _hash = _get_code_hash(fn.__call__, _hash=_hash, _prefix=_prefix + "  ")
-        return _hash
-
-    raise TypeError(f"Can't hash code for fn of type {type(fn)}")
+    return _hash
 
 
 def generate_invocation_id(

@@ -53,7 +53,14 @@ def _get_code_hash(
     _visited.add(id(fn))
 
     for attribute_name in {x for x in dir(fn) if not x.startswith("__")}:
+        attrib = getattr(fn.__class__, attribute_name, None)
+
+        if attrib is not None and isinstance(attrib, property):
+            _get_code_hash(attrib, _hash, _visited)  # type: ignore
+            continue
+
         attrib = getattr(fn, attribute_name)
+
         if callable(attrib):
             _get_code_hash(attrib, _hash, _visited)
         else:

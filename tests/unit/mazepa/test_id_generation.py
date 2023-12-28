@@ -51,6 +51,10 @@ class ClassE:
     def method(self, b):
         return self.a * b
 
+    @property
+    def prop(self):
+        return self.a
+
 
 @taskable_operation_cls()
 @attrs.mutable

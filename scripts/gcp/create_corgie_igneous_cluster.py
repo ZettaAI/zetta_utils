@@ -9,7 +9,7 @@ ADD_GPU_COMMAND_TMPL = 'gcloud beta container --project "{PROJECT_NAME}" node-po
 
 ADD_WORKLOAD_IDENTITY_TMPL = 'gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} && gcloud iam service-accounts create {CLUSTER_NAME}-worker --project={PROJECT_NAME} && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/storage.objectUser" && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/artifactregistry.reader" && gcloud iam service-accounts add-iam-policy-binding {CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com --role roles/iam.workloadIdentityUser --member "serviceAccount:{PROJECT_NAME}.svc.id.goog[default/default]" --project {PROJECT_NAME} && kubectl annotate serviceaccount default --namespace default iam.gke.io/gcp-service-account={CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com'
 
-CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME}; kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded.yaml"
+CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME}; kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml"
 
 
 def main():  # pylint: disable=too-many-statements

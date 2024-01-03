@@ -90,7 +90,9 @@ def load_weights_file(
         return model
 
     with fsspec.open(ckpt_path) as f:
-        loaded_state_raw = torch.load(f)["state_dict"]
+        # Scheduler might not have GPU, but will still attempt to load model weights
+        map_location = "cpu" if not torch.cuda.is_available() else None
+        loaded_state_raw = torch.load(f, map_location=map_location)["state_dict"]
         if component_names is None:
             loaded_state = loaded_state_raw
         elif remove_component_prefix:

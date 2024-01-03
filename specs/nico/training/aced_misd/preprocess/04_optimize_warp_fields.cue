@@ -6,11 +6,13 @@ import "list"
 #ORIGINAL_WARPED_SRC_IMG_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/warped_img"
 #TGT_ENC_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/tgt_enc_2023"
 #WARPED_SRC_ENC_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/warped_enc_2023"
+#PERLIN_SRC_IMG_PATH: #BASE_PATH + "misd/img/" // + k + "/perlin_only_img" + "/z\(_z_offset)"
+#PERLIN_SRC_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + "/perlin_only_enc" + "/z\(_z_offset)"
 #PERLIN_FIELD_PATH: #BASE_PATH + "misd/misalignment_fields/" // + k + "/raw_perlin"
 #DST_FIELD_PATH: #BASE_PATH + "misd/misalignment_fields/" // + k + "/optimized_perlin" | "/no_perlin" + "/z\(_z_offset)"
 
-#DST_WARPED_SRC_IMG_PATH: #BASE_PATH + "misd/img/" // + k + "/good_alignment" | "/bad_alignment" + "/z\(_z_offset)"
-#DST_WARPED_SRC_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + "/good_alignment" | "/bad_alignment" + "/z\(_z_offset)"
+#DST_WARPED_SRC_IMG_PATH: #BASE_PATH + "misd/img/" // + k + "/good_alignment" | "/bad_alignment_v2" + "/z\(_z_offset)"
+#DST_WARPED_SRC_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + "/good_alignment" | "/bad_alignment_v2" + "/z\(_z_offset)"
 
 
 #DATASETS: {
@@ -183,7 +185,14 @@ import "list"
 
 #DST_INFO_CHUNK_SIZE: [2048, 2048, 1]
 #MAX_TASK_SIZE: [8192, 8192, 1]
-#PERLIN_FIELD_DS_FACTOR: math.Pow(2, 3)
+#PERLIN_FIELD_DS_FACTOR: math.Pow(2, 0)
+
+_ALIGN_PARAMS: {
+	"256": {sm: 25, num_iter: 700, lr: 0.03},
+	"128": {sm: 25, num_iter: 500, lr: 0.05},
+	"64":  {sm: 25, num_iter: 300, lr: 0.1},
+	"32":  {sm: 25, num_iter: 200, lr: 0.1},
+}
 
 #STAGE_TMPL: {
 	_stage_bounds: _
@@ -215,7 +224,7 @@ import "list"
 	data_type: "float32",
 	num_channels: 2,
 	scales: [
-		for i in list.Range(0, 3, 1) {
+		for i in list.Range(0, 4, 1) {
 			let res_factor = [math.Pow(2, i), math.Pow(2, i), 1]
 			let vx_res = [ for j in [0, 1, 2] {_highest_resolution[j] * res_factor[j]}]
 			let ds_offset = [ for j in [0, 1, 2] {
@@ -253,40 +262,38 @@ import "list"
 	stages: [
 		#STAGE_TMPL & {
 			_stage_bounds: _bounds
+			dst_resolution: [_dst_resolution[0] * 8, _dst_resolution[1] * 8, _dst_resolution[2]]
+			fn: #STAGE_TMPL.fn & _ALIGN_PARAMS["256"]
+		},
+		#STAGE_TMPL & {
+			_stage_bounds: _bounds
 			dst_resolution: [_dst_resolution[0] * 4, _dst_resolution[1] * 4, _dst_resolution[2]]
-			fn: {
-				sm:       25
-				num_iter: 500
-				lr:       0.05
-			}
+			fn: #STAGE_TMPL.fn & _ALIGN_PARAMS["128"]
 		},
 		#STAGE_TMPL & {
 			_stage_bounds: _bounds
 			dst_resolution: [_dst_resolution[0] * 2, _dst_resolution[1] * 2, _dst_resolution[2]]
-			fn: {
-				sm:       25
-				num_iter: 300
-				lr:       0.1
-			}
+			fn: #STAGE_TMPL.fn & _ALIGN_PARAMS["64"]
 		},
 		#STAGE_TMPL & {
 			_stage_bounds: _bounds
 			dst_resolution: _dst_resolution
-			fn: {
-				sm:       25
-				num_iter: 200
-				lr:       0.1
-			}
+			fn: #STAGE_TMPL.fn & _ALIGN_PARAMS["32"]
 		},
 	]
 
-	if _z_offset == 2 {
+	if _z_offset == 2 && _use_perlin_field == false {
 		src_offset: [0, 0, 1]  // src is already offset by 1
 		offset_resolution: _dst_resolution
 	}
 	src: {
 		"@type": "build_cv_layer"
-		path:    #WARPED_SRC_ENC_PATH + _layer_name + "/warped_enc_2023"
+		if _use_perlin_field == false {
+			path:    #WARPED_SRC_ENC_PATH + _layer_name + "/warped_enc_2023"
+		}
+		if _use_perlin_field == true {
+			path:    #PERLIN_SRC_ENC_PATH + _layer_name + "/perlin32_only_enc/z\(_z_offset)"
+		}
 	}
 	tgt: {
 		"@type": "build_cv_layer"
@@ -294,11 +301,11 @@ import "list"
 	}
 	dst: {
 		"@type":  "build_cv_layer"
-		if _use_perlin_field == true {
-			path: #PERLIN_FIELD_PATH + _layer_name + "/optimized_perlin/z\(_z_offset)"
-		}
 		if _use_perlin_field == false {
-			path: #PERLIN_FIELD_PATH + _layer_name + "/no_perlin/z\(_z_offset)"
+			path: #DST_FIELD_PATH + _layer_name + "/no_perlin/z\(_z_offset)"
+		}
+		if _use_perlin_field == true {
+			path: #DST_FIELD_PATH + _layer_name + "/revert_perlin32/z\(_z_offset)"
 		}
 		info_field_overrides: #FIELD_INFO_OVERRIDE & {
 			_dataset_bounds: _bounds
@@ -316,14 +323,53 @@ import "list"
 		}
 		on_info_exists: "overwrite"
 	}
-	if _use_perlin_field {
-		src_field: {
-			let ds_factor = [#PERLIN_FIELD_DS_FACTOR, #PERLIN_FIELD_DS_FACTOR, 1]
+}
+
+#COMPOSE_PERLIN_FIELD_TEMPLATE: {
+	_bounds: _
+	_layer_name: _
+	_z_offset: int
+
+	let max_chunk_size = [
+		list.Min([#MAX_TASK_SIZE[0], math.Ceil((_bounds[0][1] - _bounds[0][0]) / #DST_INFO_CHUNK_SIZE[0] / dst_resolution[0]) * #DST_INFO_CHUNK_SIZE[0]]),
+		list.Min([#MAX_TASK_SIZE[1], math.Ceil((_bounds[1][1] - _bounds[1][0]) / #DST_INFO_CHUNK_SIZE[1] / dst_resolution[1]) * #DST_INFO_CHUNK_SIZE[1]]),
+		1
+	]
+
+	"@type": "build_subchunkable_apply_flow"
+	op: {
+		"@type": "WarpOperation"
+		mode:    "field"
+		crop_pad: [256, 256, 0]
+	}
+	dst_resolution: _
+	processing_chunk_sizes: [max_chunk_size, [2048, 2048, 1]]
+	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
+	skip_intermediaries: true
+	expand_bbox_processing: true
+	bbox: {
+		"@type": "BBox3D.from_coords",
+		start_coord: [_bounds[0][0], _bounds[1][0], _bounds[2][0]]
+		end_coord: [_bounds[0][1], _bounds[1][1], _bounds[2][1]]
+	}
+	op_kwargs: {
+		src: {
 			"@type": "build_cv_layer"
-			path:    #PERLIN_FIELD_PATH + _layer_name + "/raw_perlin"
-			data_resolution: [ for j in [0, 1, 2] {_dst_resolution[j] * ds_factor[j]} ]
-			interpolation_mode: "field"
+			path: #PERLIN_FIELD_PATH + _layer_name + "/raw_perlin_32nm"
 		}
+		field: {
+			"@type": "build_cv_layer"
+			path: #DST_FIELD_PATH + _layer_name + "/revert_perlin32/z\(_z_offset)"
+		}
+	}
+	dst: {
+		"@type": "build_cv_layer"
+		path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin_v2/z\(_z_offset)"
+		info_field_overrides: #FIELD_INFO_OVERRIDE & {
+			_dataset_bounds: _bounds
+			_highest_resolution: dst_resolution
+		}
+		on_info_exists: "overwrite"
 	}
 }
 
@@ -342,8 +388,8 @@ import "list"
 		1
 	]
 	if _use_perlin_field == true {
-		_src_field_path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin/z\(_z_offset)"
-		_dst_img_path: #DST_WARPED_SRC_IMG_PATH + _layer_name + "/bad_alignment/z\(_z_offset)"
+		_src_field_path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin_v2/z\(_z_offset)"
+		_dst_img_path: #DST_WARPED_SRC_IMG_PATH + _layer_name + "/bad_alignment_v2/z\(_z_offset)"
 	}
 	if _use_perlin_field == false {
 		_src_field_path: #DST_FIELD_PATH + _layer_name + "/no_perlin/z\(_z_offset)"
@@ -413,7 +459,7 @@ import "list"
 
 	_path: _
 	if _use_perlin_field == true {
-		_path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin/z\(_z_offset)"
+		_path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin_v2/z\(_z_offset)"
 	}
 	if _use_perlin_field == false {
 		_path: #DST_FIELD_PATH + _layer_name + "/no_perlin/z\(_z_offset)"
@@ -457,7 +503,7 @@ import "list"
 	op_kwargs: {
 		input: {
 			"@type": "build_cv_layer"
-			path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin/z\(_z_offset)"
+			path: #DST_FIELD_PATH + _layer_name + "/optimized_perlin_v2/z\(_z_offset)"
 		}
 		other: {
 			"@type": "build_cv_layer"
@@ -466,7 +512,7 @@ import "list"
 	}
 	dst: {
 		"@type": "build_cv_layer"
-		path: #DST_FIELD_PATH + _layer_name + "/displacements/z\(_z_offset)"
+		path: #DST_FIELD_PATH + _layer_name + "/displacements_v2/z\(_z_offset)"
 		info_reference_path: #TGT_ENC_PATH + _layer_name + "/tgt_enc_2023"
 		info_field_overrides: {
 			data_type: "uint8"
@@ -502,8 +548,8 @@ import "list"
 	_src_img_path: _
 	_dst_enc_path: _
 	if _use_perlin_field == true {
-		_src_img_path: #DST_WARPED_SRC_IMG_PATH + _layer_name + "/bad_alignment/z\(_z_offset)"
-		_dst_enc_path: #DST_WARPED_SRC_ENC_PATH + _layer_name + "/bad_alignment/z\(_z_offset)"
+		_src_img_path: #DST_WARPED_SRC_IMG_PATH + _layer_name + "/bad_alignment_v2/z\(_z_offset)"
+		_dst_enc_path: #DST_WARPED_SRC_ENC_PATH + _layer_name + "/bad_alignment_v2/z\(_z_offset)"
 	}
 	if _use_perlin_field == false {
 		_src_img_path: #DST_WARPED_SRC_IMG_PATH + _layer_name + "/good_alignment/z\(_z_offset)"
@@ -555,11 +601,11 @@ import "list"
 
 #COMPUTE_FIELD_STAGE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 	worker_resources: {
 		"nvidia.com/gpu":     "1"
 	}
-	worker_replicas:      300
+	worker_replicas:      50
 	batch_gap_sleep_sec:  0.1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -609,13 +655,53 @@ import "list"
 }
 
 
+#WARP_PERLIN_FIELD_STAGE: {
+	"@type":      "mazepa.execute_on_gcp_with_sqs"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
+	worker_resources: {
+		"nvidia.com/gpu":     "1"
+	}
+	worker_replicas:      50
+	batch_gap_sleep_sec:  0.1
+	do_dryrun_estimation: true
+	local_test:           false
+	worker_cluster_project: "zetta-research"
+	worker_cluster_region: "us-east1"
+	worker_cluster_name: "zutils-x3"
+	target: {
+		"@type": "mazepa.concurrent_flow"
+		stages: [
+			for key, dataset in #DATASETS {
+				"@type": "mazepa.concurrent_flow"
+				stages: [
+					#COMPOSE_PERLIN_FIELD_TEMPLATE & {
+						_bounds: dataset.bounds,
+						dst_resolution: dataset.resolution
+						_layer_name: key,
+						_z_offset: 1
+					},
+					if dataset.contiguous {
+						#COMPOSE_PERLIN_FIELD_TEMPLATE & {
+							_bounds: dataset.bounds,
+							dst_resolution: dataset.resolution
+							_layer_name: key,
+							_z_offset: 2
+						},
+					}
+				]
+			}
+		]
+	}
+}
+
+
 #WARP_IMAGE_STAGE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 	worker_resources: {
-		"memory":     "8Gi"
+		"nvidia.com/gpu":     "1"
 	}
-	worker_replicas:      100
+	worker_replicas:      50
 	batch_gap_sleep_sec:  0.1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -666,11 +752,11 @@ import "list"
 
 #DOWNSAMPLE_FIELD_STAGE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 	worker_resources: {
 		"memory":     "8Gi"
 	}
-	worker_replicas:      100
+	worker_replicas:      50
 	batch_gap_sleep_sec:  0.1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -721,11 +807,11 @@ import "list"
 
 #EXTRACT_DISPLACEMENT_STAGE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 	worker_resources: {
 		"memory":     "8Gi"
 	}
-	worker_replicas:      100
+	worker_replicas:      50
 	batch_gap_sleep_sec:  0.1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -775,11 +861,11 @@ import "list"
 
 #ENCODE_IMAGE_STAGE: {
 	"@type":      "mazepa.execute_on_gcp_with_sqs"
-	worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+	worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 	worker_resources: {
 		"nvidia.com/gpu":     "1"
 	}
-	worker_replicas:      300
+	worker_replicas:      50
 	batch_gap_sleep_sec:  0.1
 	do_dryrun_estimation: true
 	local_test:           false
@@ -840,6 +926,7 @@ import "list"
 
 [
   #COMPUTE_FIELD_STAGE,
+  #WARP_PERLIN_FIELD_STAGE,
   #WARP_IMAGE_STAGE,
   #DOWNSAMPLE_FIELD_STAGE,
   #EXTRACT_DISPLACEMENT_STAGE,

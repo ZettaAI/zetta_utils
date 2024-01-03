@@ -7,6 +7,9 @@ import "list"
 #DST_TGT_ENC_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/tgt_enc_2023"
 #DST_WARPED_SRC_ENC_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/warped_enc_2023"
 
+#PERLIN_WARPED_SRC_IMG_PATH: #BASE_PATH + "misd/img/" // + k + "/perlin_only_img"
+#PERLIN_WARPED_DST_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + "/perlin_only_enc"
+
 #DATASETS: {
 	"microns_pinky": {
 		"contiguous": true
@@ -263,7 +266,7 @@ import "list"
 
 
 "@type":      "mazepa.execute_on_gcp_with_sqs"
-worker_image: "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231118"
+worker_image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231213"
 worker_resources: {
 	"nvidia.com/gpu":     1
 }
@@ -277,7 +280,7 @@ worker_cluster_name: "zutils-x3"
 target: {
 	"@type": "mazepa.concurrent_flow"
 	stages: [
-		for img_source in ["tgt", "warped_src"] {
+		for img_source in ["perlin32_only_z1", "perlin32_only_z2"] { //["tgt", "warped_src", "perlin_only"] {
 			"@type": "mazepa.concurrent_flow"
 			stages: [
 				for key, dataset in #DATASETS {
@@ -311,6 +314,14 @@ target: {
 								if img_source == "warped_src" {
 									op_kwargs: src: path: #WARPED_SRC_IMG_PATH + key + "/warped_img"
 									dst: path: #DST_WARPED_SRC_ENC_PATH + key + "/warped_enc_2023"
+								}
+								if img_source == "perlin32_only_z1" {
+									op_kwargs: src: path: #PERLIN_WARPED_SRC_IMG_PATH + key + "/perlin32_only_img/z1"
+									dst: path: #PERLIN_WARPED_DST_ENC_PATH + key + "/perlin32_only_enc/z1"
+								}
+								if img_source == "perlin32_only_z2" {
+									op_kwargs: src: path: #PERLIN_WARPED_SRC_IMG_PATH + key + "/perlin32_only_img/z2"
+									dst: path: #PERLIN_WARPED_DST_ENC_PATH + key + "/perlin32_only_enc/z2"
 								}
 							}
 						}

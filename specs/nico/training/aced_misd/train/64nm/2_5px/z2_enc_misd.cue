@@ -4,25 +4,26 @@ import "list"
 
 #EXP_NAME:       "aced_misd_general"
 #TRAINING_ROOT:  "gs://zetta-research-nico/training_artifacts"
-#LR:             2e-4
+#LR:             1e-4
 #K:              3
 #CHUNK_XY:       1024
 #FM:             32
 
-#FIELD_MAGN_THR: 2.5
+#FIELD_MAGN_THR: 2.0
 #Z_OFFSETS:      [2]
 #DS_FACTOR:      2
 
 
-#EXP_VERSION: "1.0.0_dsfactor\(#DS_FACTOR)_thr\(#FIELD_MAGN_THR)_lr\(#LR)_z" + strings.Join([for z in #Z_OFFSETS {strconv.FormatInt(z, 10)}], "_")
-#MODEL_CKPT: null  // "gs://zetta-research-nico/training_artifacts/aced_misd_cns/thr5.0_lr0.00005_z1z2_400-500_2910-2920_more_aligned_unet5_32/last.ckpt"
+#EXP_VERSION: "3.2.0_dsfactor\(#DS_FACTOR)_thr\(#FIELD_MAGN_THR)_lr\(#LR)_z" + strings.Join([for z in #Z_OFFSETS {strconv.FormatInt(z, 10)}], "_")
+#MODEL_CKPT: "gs://zetta-research-nico/training_artifacts/aced_misd_general/3.1.1_dsfactor2_thr2.0_lr0.0001_z2/last.ckpt"
 
 #BASE_PATH: "gs://zetta-research-nico/encoder/"
-#SRC_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + ["/good_alignment"|"/bad_alignment"] + "/z\(_z_offset)"
+#SRC_ENC_PATH: #BASE_PATH + "misd/enc/" // + k + ["/bad_alignment"] + "/z\(_z_offset)"
 #TGT_ENC_PATH: #BASE_PATH + "pairwise_aligned/" // + k + "/tgt_enc_2023"
 #DISP_PATH: #BASE_PATH + "misd/misalignment_fields/" // + k + "/displacements/z\(_z_offset)"
 
 #VAL_DATASETS: {
+	"kronauer_cra9_defects": {"resolution": [32, 32, 42], "num_samples": 73},
 	"microns_basil": {"resolution": [32, 32, 40], "num_samples": 2591},
 }
 
@@ -32,6 +33,7 @@ import "list"
 	"kim_n2da": {"resolution": [32, 32, 50], "num_samples": 446},
 	"kim_pfc2022": {"resolution": [32, 32, 40], "num_samples": 3699},
 	"kronauer_cra9": {"resolution": [32, 32, 42], "num_samples": 740},
+	"kronauer_cra9_defects": {"resolution": [32, 32, 42], "num_samples": 1000},  //z1: 93, z2: 73
 	"kubota_001": {"resolution": [40, 40, 40], "num_samples": 4744},
 	"lee_ppc": {"resolution": [32, 32, 40], "num_samples": 7219},
 	"prieto_godino_larva": {"resolution": [32, 32, 32], "num_samples": 4584},
@@ -157,7 +159,7 @@ import "list"
 	}
 	trainer: {
 		"@type":                 "ZettaDefaultTrainer"
-		accelerator:             "gpu"
+		accelerator:             "auto"
 		precision:               "16-mixed",
 		strategy:                "auto",
 		devices:                 1
@@ -250,7 +252,12 @@ import "list"
 								layers: {
 									src: {
 										"@type": "build_cv_layer"
-										path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
+										if key == "kronauer_cra9_defects" {
+											path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
+										}
+										if key != "kronauer_cra9_defects" {
+											path:    #SRC_ENC_PATH + key + "/bad_alignment_v2/z\(z_offset)"
+										}
 										read_procs: #ENC_PROCS
 										cv_kwargs: {"cache": false},
 									}
@@ -262,19 +269,41 @@ import "list"
 									}
 									displacement: {
 										"@type": "build_cv_layer"
-										path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
+										if key == "kronauer_cra9_defects" {
+											path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
+										}
+										if key != "kronauer_cra9_defects" {
+											path:    #DISP_PATH + key + "/displacements_v2/z\(z_offset)"
+										}
 										read_procs: #DISP_PROCS
 										cv_kwargs: {"cache": false},
 									}
 								}
 							}
-							sample_indexer: {
-								"@type": "RandomIndexer",
-								inner_indexer: {
-									"@type": "VolumetricNGLIndexer",
-									resolution: [dataset.resolution[0] * #DS_FACTOR, dataset.resolution[1] * #DS_FACTOR, dataset.resolution[2]],
-									chunk_size: [#CHUNK_XY, #CHUNK_XY, 1],
-									path: "zetta-research-nico/encoder/pairwise_aligned/" + key,
+							if key != "kronauer_cra9_defects" {
+								sample_indexer: {
+									"@type": "RandomIndexer",
+									inner_indexer: {
+										"@type": "VolumetricNGLIndexer",
+										resolution: [dataset.resolution[0] * #DS_FACTOR, dataset.resolution[1] * #DS_FACTOR, dataset.resolution[2]],
+										chunk_size: [#CHUNK_XY, #CHUNK_XY, 1],
+										path: "zetta-research-nico/encoder/pairwise_aligned/" + key,
+									}
+								}
+							}
+							if key == "kronauer_cra9_defects" {
+								sample_indexer: {
+									"@type": "RandomIndexer",
+									inner_indexer: {
+										"@type": "LoopIndexer",
+										desired_num_samples: 1000  // about one sixth of all samples
+										inner_indexer: {
+											"@type": "VolumetricNGLIndexer",
+											resolution: [dataset.resolution[0] * #DS_FACTOR, dataset.resolution[1] * #DS_FACTOR, dataset.resolution[2]],
+											chunk_size: [#CHUNK_XY, #CHUNK_XY, 1],
+											path: "zetta-research-nico/encoder/pairwise_aligned/\(key)_z\(z_offset)"
+										}
+									}
 								}
 							}
 						},
@@ -303,7 +332,12 @@ import "list"
 								layers: {
 									src: {
 										"@type": "build_cv_layer"
-										path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
+										if key == "kronauer_cra9_defects" {
+											path:    #SRC_ENC_PATH + key + "/bad_alignment/z\(z_offset)"
+										}
+										if key != "kronauer_cra9_defects" {
+											path:    #SRC_ENC_PATH + key + "/bad_alignment_v2/z\(z_offset)"
+										}
 										read_procs: #ENC_PROCS
 										cv_kwargs: {"cache": true}
 									}
@@ -315,7 +349,12 @@ import "list"
 									}
 									displacement: {
 										"@type": "build_cv_layer"
-										path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
+										if key == "kronauer_cra9_defects" {
+											path:    #DISP_PATH + key + "/displacements/z\(z_offset)"
+										}
+										if key != "kronauer_cra9_defects" {
+											path:    #DISP_PATH + key + "/displacements_v2/z\(z_offset)"
+										}
 										read_procs: #DISP_PROCS
 										cv_kwargs: {"cache": true}
 									}
@@ -328,7 +367,12 @@ import "list"
 									"@type": "VolumetricNGLIndexer",
 									resolution: [dataset.resolution[0] * #DS_FACTOR, dataset.resolution[1] * #DS_FACTOR, dataset.resolution[2]],
 									chunk_size: [#CHUNK_XY, #CHUNK_XY, 1],
-									path: "zetta-research-nico/encoder/pairwise_aligned/" + key,
+									if key == "kronauer_cra9_defects" {
+										path: "zetta-research-nico/encoder/pairwise_aligned/\(key)_z\(z_offset)"
+									}
+									if key != "kronauer_cra9_defects" {
+										path: "zetta-research-nico/encoder/pairwise_aligned/" + key,
+									}
 								}
 							}
 						},
@@ -348,10 +392,11 @@ val_dataloader: #TARGET.val_dataloader
 cluster_name: "zutils-x3"
 cluster_region: "us-east1"
 cluster_project: "zetta-research"
-image:   "us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20231129"
+image:   "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:nico_py3.9_20231219"
 resource_limits: {"nvidia.com/gpu": "1"}
 resource_requests: {"memory": "8560Mi", "cpu": 7}
 num_nodes: 1
 follow_logs: false
 env_vars: {"LOGLEVEL": "INFO", "NCCL_SOCKET_IFNAME": "eth0"}
 local_run: false
+provisioning_model: "standard"

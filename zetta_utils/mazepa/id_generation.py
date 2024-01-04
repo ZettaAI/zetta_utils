@@ -42,15 +42,20 @@ def generate_invocation_id(
     prefix: Optional[str] = None,
 ):
     x = xxhash.xxh128()
-    x.update(
-        dill.dumps(
-            (fn, args, kwargs),
-            protocol=dill.DEFAULT_PROTOCOL,
-            byref=False,
-            recurse=True,
-            fmode=dill.FILE_FMODE,
+    try:
+        x.update(
+            dill.dumps(
+                (fn, args, kwargs),
+                protocol=dill.DEFAULT_PROTOCOL,
+                byref=False,
+                recurse=True,
+                fmode=dill.FILE_FMODE,
+            )
         )
-    )
+    except dill.PicklingError as e:
+        logger.warning(f"Failed to pickle {fn} with args {args} and kwargs {kwargs}: {e}")
+        x.update(str(uuid.uuid4()))
+
     if prefix is not None:
         return f"{prefix}-{x.hexdigest()}"
     else:

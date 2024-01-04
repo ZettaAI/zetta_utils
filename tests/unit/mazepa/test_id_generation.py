@@ -219,3 +219,12 @@ def test_persistence_across_sessions() -> None:
         result = pool.map(_gen_id_calls, range(2))
 
     assert result[0] == result[1]
+
+
+def test_unpickleable_fn(mocker) -> None:
+    # See https://github.com/uqfoundation/dill/issues/147 and possibly
+    # https://github.com/uqfoundation/dill/issues/56
+
+    unpickleable_fn = mocker.MagicMock()
+    # gen_id will return a random UUID in case of pickle errors
+    assert gen_id(unpickleable_fn, [], {}) != gen_id(unpickleable_fn, [], {})

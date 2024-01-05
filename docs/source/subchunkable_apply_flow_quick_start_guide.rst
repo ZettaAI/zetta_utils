@@ -671,7 +671,7 @@ With the changes, the example above becomes:
       bbox: #BBOX
 
       // What resolution is our destination?
-      dst_resolution: [4, 4, 45]
+      dst_resolution: [16, 16, 40]
 
       // How do we chunk/crop/blend? List of lists for subchunking.
       processing_chunk_sizes: [[1024, 1024, 1], [256, 256, 1]]
@@ -733,7 +733,7 @@ Each level can have its own crop and blend (as well as ``blend_mode``), but ther
       bbox: #BBOX
 
       // What resolution is our destination?
-      dst_resolution: [4, 4, 45]
+      dst_resolution: [16, 16, 40]
 
       // How do we chunk/crop/blend? List of lists for subchunking.
       // Note that 1024 + 96 * 2 + 32 * 2 = 1280 is evenly divisible by 256.
@@ -821,7 +821,7 @@ To modify the CUE file, we change ``mazepa.execute`` to ``mazepa.execute_on_gcp_
       bbox: #BBOX
 
       // What resolution is our destination?
-      dst_resolution: [4, 4, 45]
+      dst_resolution: [16, 16, 40]
 
       // How do we chunk/crop/blend? List of lists for subchunking.
       // Note that 1024 + 96 * 2 + 32 * 2 = 1280 is evenly divisible by 256.

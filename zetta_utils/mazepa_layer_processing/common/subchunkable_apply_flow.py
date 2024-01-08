@@ -884,7 +884,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             ),
             allow_cache=(allow_cache_up_to_level >= level + 1),
             clear_cache_on_return=(allow_cache_up_to_level == level + 1),
-            force_intermediaries=not (skip_intermediaries) and ((level != num_levels - 1)),
+            force_intermediaries=not (skip_intermediaries),
         )
 
     return flow_schema(idx, dst, op_args, op_kwargs)

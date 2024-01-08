@@ -70,7 +70,10 @@ augmentations = [
     "imagecorruptions == 1.1.2",
 ]
 convnet = ["torch >= 2.0", "artificery >= 0.0.3.3"]
-alignment = ["metroem >= 0.1.2", "torch >= 2.0"]
+alignment = [
+    "metroem @ git+https://github.com/ZettaAI/metroem.git",
+    "torch >= 2.0",
+]
 mazepa = [
     "zetta_utils[gcfs-exceptions]", # Exceptions used by gcfs.retry
     "tenacity == 8.1.0",            # 8.2 didn't type `retry` properly -- expects no args

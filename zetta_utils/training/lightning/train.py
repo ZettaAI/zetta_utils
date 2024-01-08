@@ -298,7 +298,7 @@ def _lightning_train_remote(
     Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
     Runs the command `zetta run specs/train.cue` on one or more worker pods.
     """
-    if train_args["trainer"]["accelerator"] == "gpu":
+    if train_args["trainer"]["accelerator"] in ("gpu", "cuda", "auto"):
         num_devices = int(resource_limits["nvidia.com/gpu"])  # type: ignore
         trainer_devices = train_args["trainer"]["devices"]
         if (

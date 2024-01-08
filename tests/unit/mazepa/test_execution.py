@@ -239,7 +239,13 @@ def test_local_execution_backup_write(reset_task_count, mocker):
     record_execution_checkpoint_m.assert_called()
 
 
-def test_local_execution_backup_read(reset_task_count):
+def test_local_execution_backup_read(reset_task_count, mocker):
+    task1 = dummy_task.make_task(argument="f1-x1")
+    mocker.patch(
+        "zetta_utils.mazepa.execution_state.read_execution_checkpoint",
+        return_value=set([task1.id_]),
+    )
+
     execute(
         concurrent_flow(
             [
@@ -251,7 +257,7 @@ def test_local_execution_backup_read(reset_task_count):
         batch_gap_sleep_sec=0,
         max_batch_len=2,
         do_dryrun_estimation=False,
-        checkpoint="tests/assets/reference/task_checkpoint.zstd",
+        checkpoint="MOCKED_PATH",
     )
 
 

@@ -39,7 +39,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files: |
             **/*.py
@@ -101,7 +101,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files: |
             **/*.py
@@ -149,7 +149,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files: |
             **/*.py
@@ -195,13 +195,13 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files: |
             **/*.py
       - name: Get changed files
         id: changed-docs-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files: |
             **/*.rst

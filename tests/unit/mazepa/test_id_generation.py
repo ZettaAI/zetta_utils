@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import multiprocessing
 from functools import partial
+from typing import Any, Callable, Mapping
 
 import attrs
 
+from zetta_utils import mazepa
 from zetta_utils.mazepa import taskable_operation_cls
 from zetta_utils.mazepa.id_generation import generate_invocation_id as gen_id
 
@@ -49,6 +52,10 @@ class ClassE:
     def method(self, b):
         return self.a * b
 
+    @property
+    def prop(self):
+        return self.a
+
 
 @taskable_operation_cls()
 @attrs.mutable
@@ -78,6 +85,20 @@ class TaskableD:
 
     def __call__(self, b):
         return self.a * b
+
+
+@mazepa.flow_schema_cls
+@attrs.mutable
+class FlowSchema:
+    fn_kwargs: Mapping[Any, Any]
+    callable_fn: Callable[..., Any]
+
+    def __init__(self, fn_kwargs: Mapping[Any, Any], callable_fn: Callable[..., Any]):
+        self.fn_kwargs = fn_kwargs
+        self.callable_fn = callable_fn
+
+    def flow(self, *args, **kwargs):
+        return self.callable_fn(*args, **kwargs)
 
 
 def test_generate_invocation_id_method() -> None:
@@ -130,3 +151,80 @@ def test_generate_invocation_id_taskable_op() -> None:
 
     assert gen_id(TaskableD(1), [], {}) == gen_id(TaskableD(1), [], {})
     assert gen_id(TaskableD(1), [], {}) != gen_id(TaskableD(2), [], {})
+
+
+def test_generate_invocation_id_flow_schema() -> None:
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassB().method).flow, [], {}
+    )
+    assert gen_id(FlowSchema({}, ClassB().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassC().method).flow, [], {}
+    )
+
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [4, 2], {}) == gen_id(
+        FlowSchema({}, ClassA().method).flow, [4, 2], {}
+    )
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {"a": 1}) == gen_id(
+        FlowSchema({}, ClassA().method).flow, [], {"a": 1}
+    )
+
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [4, 2], {}) != gen_id(
+        FlowSchema({}, ClassA().method).flow, [6, 3], {}
+    )
+    assert gen_id(FlowSchema({}, ClassA().method).flow, [], {"a": 1}) != gen_id(
+        FlowSchema({}, ClassA().method).flow, [], {"a": 2}
+    )
+
+    assert gen_id(FlowSchema({}, ClassD1().method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassD2().method).flow, [], {}
+    )
+    assert gen_id(FlowSchema({}, ClassE(1).method).flow, [], {}) != gen_id(
+        FlowSchema({}, ClassE(2).method).flow, [], {}
+    )
+
+
+def _gen_id_calls(_) -> dict[str, str]:
+    gen_ids = {
+        'gen_id(ClassA().method, [], {"a": 1})': gen_id(ClassA().method, [], {"a": 1}),
+        "gen_id(ClassD1().method, [], {})": gen_id(ClassD1().method, [], {}),
+        "gen_id(ClassE(1).method, [], {})": gen_id(ClassE(1).method, [], {}),
+        "gen_id(partial(ClassA().method, 42), [], {})": gen_id(
+            partial(ClassA().method, 42), [], {}
+        ),
+        "gen_id(partial(ClassD1().method, 42), [], {})": gen_id(
+            partial(ClassD1().method, 42), [], {}
+        ),
+        "gen_id(partial(ClassE(1).method, 42), [], {})": gen_id(
+            partial(ClassE(1).method, 42), [], {}
+        ),
+        "gen_id(TaskableA(), [], {})": gen_id(TaskableA(), [], {}),
+        "gen_id(TaskableD(1), [], {})": gen_id(TaskableD(1), [], {}),
+        "gen_id(FlowSchema({}, ClassA().method).flow, [], {})": gen_id(
+            FlowSchema({}, ClassA().method).flow, [], {}
+        ),
+        "gen_id(FlowSchema({}, ClassD1().method).flow, [], {})": gen_id(
+            FlowSchema({}, ClassD1().method).flow, [], {}
+        ),
+        "gen_id(FlowSchema({}, ClassE(1).method).flow, [], {})": gen_id(
+            FlowSchema({}, ClassE(1).method).flow, [], {}
+        ),
+    }
+    return gen_ids
+
+
+def test_persistence_across_sessions() -> None:
+    # Create two separate processes - spawn ensures a new PYTHONHASHSEED is used
+    ctx = multiprocessing.get_context("spawn")
+    with ctx.Pool(processes=2) as pool:
+        result = pool.map(_gen_id_calls, range(2))
+
+    assert result[0] == result[1]
+
+
+def test_unpickleable_fn(mocker) -> None:
+    # See https://github.com/uqfoundation/dill/issues/147 and possibly
+    # https://github.com/uqfoundation/dill/issues/56
+
+    unpickleable_fn = mocker.MagicMock()
+    # gen_id will return a random UUID in case of pickle errors
+    assert gen_id(unpickleable_fn, [], {}) != gen_id(unpickleable_fn, [], {})

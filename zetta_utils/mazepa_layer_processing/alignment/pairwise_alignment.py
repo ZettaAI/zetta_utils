@@ -281,11 +281,10 @@ class SubchunkableFnFlowSchema:
         )
         self.fn = fn
 
-    def flow(self, bbox, i):  # pylint: disable=unused-argument
+    def flow(self, bbox):  # pylint: disable=unused-argument
         flow = build_subchunkable_apply_flow(
             bbox=bbox,
             op=VolumetricCallableOperation(
-                # fn=self.fn(**self.fn_kwargs),
                 fn=self.fn,
                 **self.op_kwargs,
             ),
@@ -297,10 +296,8 @@ class SubchunkableFnFlowSchema:
 @mazepa.flow_schema_cls
 @attrs.mutable
 class SubchunkableFnFlowSchema2:
-    # op_kwargs: Mapping[str, Any]
     op: Callable
     subchunkable_kwargs: Mapping[str, Any]
-    # fn: Callable[..., Any]
 
     def __init__(
         self,
@@ -382,7 +379,8 @@ class SubchunkableFnFlowSchema2:
             # self.op = partial(op, **op_kwargs)
             self.op = op
 
-    def flow(self, bbox, i):  # pylint: disable=unused-argument
+    # def flow(self, bbox, i):  # pylint: disable=unused-argument
+    def flow(self, bbox):  # pylint: disable=unused-argument
         flow = build_subchunkable_apply_flow(
             bbox=bbox,
             op=self.op,
@@ -463,8 +461,10 @@ class EncodingFlowSchema:
             self.subchunkable_flows.append(flow)
 
     def flow(self, bbox):
-        for i, flow in enumerate(self.subchunkable_flows):
-            yield flow(bbox, i)
+        # for i, flow in enumerate(self.subchunkable_flows):
+        #     yield flow(bbox, i)
+        for flow in self.subchunkable_flows:
+            yield flow(bbox)
 
 
 @mazepa.flow_schema_cls
@@ -679,6 +679,15 @@ class MaskEncodingsFlowSchema:
             yield flow(bbox, i)
 
 
+# def to_fp16(data):
+#     # return data.tensor_().half()
+#     return data.tensor_().to(torch.float16)
+
+
+# def to_fp32(data):
+#     return data.to(torch.float32)
+
+
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldFlowSchema:
@@ -752,7 +761,8 @@ class ComputeFieldFlowSchema:
             dst_kwargs = {
                 "path": dst_path_,
                 "info_reference_path": src_path,
-                "data_type": "float32",
+                # "data_type": "float32",
+                "data_type": "float16",
                 "resolution_list": [stage["dst_resolution"] for stage in stages],
             } | dst_factory_kwargs
             dst_layer = _make_dst_layer_field(**dst_kwargs)
@@ -826,8 +836,9 @@ class InvertFieldFlowSchema:
             self.subchunkable_flows.append(flow)
 
     def flow(self, bbox):
-        for i, flow in enumerate(self.subchunkable_flows):
-            yield flow(bbox, i)
+        # for i, flow in enumerate(self.subchunkable_flows):
+        for flow in self.subchunkable_flows:
+            yield flow(bbox)
 
 
 @mazepa.flow_schema_cls
@@ -884,8 +895,8 @@ class WarpFlowSchema:
             self.subchunkable_flows.append(flow)
 
     def flow(self, bbox):
-        for i, flow in enumerate(self.subchunkable_flows):
-            yield flow(bbox, i)
+        for flow in self.subchunkable_flows:
+            yield flow(bbox)
 
 @builder.register("PairwiseAlignmentFlowSchema")
 @mazepa.flow_schema_cls

@@ -578,6 +578,9 @@ One might ask why subchunking is necessary over simple chunking. After all, don'
       processing_crop_pads: [[0, 0, 0]]
       processing_blend_pads: [[0, 0, 0]]
 
+      // Where to put the temporary layers.
+      level_intermediaries_dirs: ["file://~/.zetta_utils/tmp/"]
+
       // Specification for the operation we're performing.
       fn: {
          "@type":    "lambda"

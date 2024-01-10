@@ -137,7 +137,7 @@ Datasets
 --------
 
 You can wrap any layer (include layer set) as a Pytorch dataset.
-In this example we will make a dataset out of the followign layer set:
+In this example we will make a dataset out of the following layer set:
 
 .. doctest::
 

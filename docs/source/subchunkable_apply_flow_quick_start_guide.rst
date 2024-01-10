@@ -385,7 +385,7 @@ CUE Files
 
 With the builder, a dictionary is all we need to specify a function call. The dictionary can be specified in any structured language, CUE
 
-``zetta_utils`` uses **CUE** files for configuring a run. CUE is an open-source data validation language that is a superset of JSON.
+``zetta_utils`` uses **CUE** files for configuring a run. `CUE <https://cuelang.org/>`_ is an open-source data validation language that is a superset of JSON.  To proceed with this tutorial, be sure you have cuelang `installed <https://cuelang.org/docs/install/>`_.
 
 .. collapse:: Why not just use Python or JSON?
 

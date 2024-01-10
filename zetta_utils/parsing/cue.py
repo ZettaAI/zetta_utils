@@ -1,6 +1,7 @@
 """cuelang parsing."""
 import os
 import pathlib
+import shutil
 import subprocess
 import tempfile
 
@@ -24,6 +25,11 @@ def loads(s: str):
 
 
 def load_local(local_path: str):
+    if shutil.which(cue_exe) is None:
+        raise RuntimeError(
+            f"{cue_exe} not found.  Please ensure cuelang is installed ( https://cuelang.org/ )"
+        )
+
     local_path_str = _to_str_path(local_path)
     command_result = subprocess.run(
         [cue_exe, "export", local_path_str], capture_output=True, check=False

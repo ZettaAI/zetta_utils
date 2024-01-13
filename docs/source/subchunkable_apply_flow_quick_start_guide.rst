@@ -643,10 +643,7 @@ Subchunking
 Let's take the above example and modify it slightly to use subchunking, so that each (1024, 1024, 1) chunk is split into (256, 256, 1) subchunks. Two things need to be changed:
 
 #. The three ``processing_`` arguments need to be lengthened to length 2.
-#. The smallest subchunk size (256) is smaller than the backend chunk size of the destination layer (1024).
-Because of this, we must remove the ``skip_intermediaries: true`` and instead include ``level_intermediaries_dirs``.
-The immediate operation results will be first written to the intermediary location, and then later copied over
-to the final destination layer with the correct chunk size.
+#. The smallest subchunk size (256) is smaller than the backend chunk size of the destination layer (1024). Because of this, we must remove the ``skip_intermediaries: true`` and instead include ``level_intermediaries_dirs``. The immediate operation results will be first written to the intermediary location, and then later copied over to the final destination layer with the correct chunk size.
 
 .. collapse:: Intermediate Directories
 
@@ -794,7 +791,7 @@ This subsection assumes that you have followed the GCS and SQS part of the *Gett
 Once you have a valid spec, getting ``SubchunkableApplyFlow`` to run on a remote cluster on Google Cloud Platform using SQS queues is very easy:
 
 #. Select your project in the GCP Console, and make a new cluster in the Kubernetes engine.
-#. Build and push your docker image using ``python build_image.py --project {PROJECT} --tag {tag}`` `[build_image.py] <https://github.com/ZettaAI/zetta_utils/blob/main/build_image.py>`_
+#. Build and push your docker image using ``python build_image.py --project {PROJECT} --tag {tag}`` [`build_image.py <https://github.com/ZettaAI/zetta_utils/blob/main/build_image.py>`_]
 #. Modify the CUE file to use remote execution.
 #. Run ``zetta run file.cue``.
 

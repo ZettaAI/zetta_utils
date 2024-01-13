@@ -578,6 +578,11 @@ One might ask why subchunking is necessary over simple chunking. After all, don'
       processing_crop_pads: [[0, 0, 0]]
       processing_blend_pads: [[0, 0, 0]]
 
+      // Flag to indicate "simple" processing mode where outputs get
+      // written directly to the destination layer. Don't worry about
+      // this for now
+      skip_intermediaries: true
+
       // Specification for the operation we're performing.
       fn: {
          "@type":    "lambda"
@@ -638,14 +643,16 @@ Subchunking
 Let's take the above example and modify it slightly to use subchunking, so that each (1024, 1024, 1) chunk is split into (256, 256, 1) subchunks. Two things need to be changed:
 
 #. The three ``processing_`` arguments need to be lengthened to length 2.
-#. ``level_intermediaries_dirs`` argument **must** be included, with two directories (which can be the same).
+#. The smallest subchunk size (256) is smaller than the backend chunk size of the destination layer (1024).
+Because of this, we must remove the ``skip_intermediaries: true`` and instead include ``level_intermediaries_dirs``.
+The immediate operation results will be first written to the intermediary location, and then later copied over
+to the final destination layer with the correct chunk size.
 
 .. collapse:: Intermediate Directories
 
-   The ``level_intermediaries_dirs`` is only used for the top level if either:
-
-   #. The top level ``processing_chunk`` has ``blend_pad`` set, or
-   #. ``roi_crop_pad`` (which is the ``crop_pad`` for the entire BBox) is set.
+   The ``level_intermediaries_dirs`` must be specified whenever ``skip_intermediaries``
+   is not used. ``skip_intermediaries`` cannot be used when non-zero ``blend_pad`` or
+   ``roi_crop_pad`` is used.
 
 With the changes, the example above becomes:
 
@@ -744,6 +751,12 @@ Each level can have its own crop and blend (as well as ``blend_mode``), but ther
       processing_blend_pads: [[32, 32, 0], [16, 16, 0]]
       processing_blend_modes: ["linear", "quadratic"]
 
+      // Blending is performed in two stages. First, overlapping operation
+      // outputs are written to the intermediary dirs as separate layers.
+      // Second, those outputs are blended together (aka reduced) into
+      // the final destination layer. This reduction is a chunked operation
+      // as well, and we can specify the chunk size in which it's done:
+      max_reduction_chunk_sizes: [1024, 1024, 1]
       // Where to put the temporary layers.
       level_intermediaries_dirs: ["file://~/.zetta_utils/tmp/", "file://~/.zetta_utils/tmp/"]
 
@@ -781,7 +794,7 @@ This subsection assumes that you have followed the GCS and SQS part of the *Gett
 Once you have a valid spec, getting ``SubchunkableApplyFlow`` to run on a remote cluster on Google Cloud Platform using SQS queues is very easy:
 
 #. Select your project in the GCP Console, and make a new cluster in the Kubernetes engine.
-#. Build and push your docker image using ``python build.py --project {PROJECT} --tag {tag}``
+#. Build and push your docker image using ``python build_image.py --project {PROJECT} --tag {tag}`` `[build_image.py] <https://github.com/ZettaAI/zetta_utils/blob/main/build_image.py>`_
 #. Modify the CUE file to use remote execution.
 #. Run ``zetta run file.cue``.
 
@@ -828,9 +841,6 @@ To modify the CUE file, we change ``mazepa.execute`` to ``mazepa.execute_on_gcp_
       // The bottom level can have whatever crop_pad and blend_pad set
       // without divisibility considerations.
       processing_chunk_sizes: [[1024, 1024, 1], [256, 256, 1]]
-      processing_crop_pads: [[96, 96, 0], [24, 24, 0]]
-      processing_blend_pads: [[32, 32, 0], [16, 16, 0]]
-      processing_blend_modes: ["linear", "quadratic"]
 
       // Where to put the temporary layers.
       level_intermediaries_dirs: ["file://~/.zetta_utils/tmp/", "file://~/.zetta_utils/tmp/"]

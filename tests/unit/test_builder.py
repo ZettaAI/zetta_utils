@@ -58,9 +58,9 @@ def register_dummy_c():
 
 @pytest.fixture
 def register_dummy_a_v0():
-    builder.register("dummy_a", versions="==0.0.0")(DummyA)
+    builder.register("dummy_a", allow_parallel=False, versions="==0.0.0")(DummyA)
     yield
-    builder.unregister(name="dummy_a", fn=DummyA, versions="==0.0.0")
+    builder.unregister(name="dummy_a", fn=DummyA, allow_parallel=False, versions="==0.0.0")
 
 
 @pytest.fixture
@@ -133,8 +133,9 @@ def test_sleeper_parallel(register_sleeper_func):
         None,
         1,
         "abc",
-        (1, "abc"),
-        {"int": 1, "str": "abc", "tuple": (1, 2), "dict": {"yes": "sir"}},
+        {"k": "v"},
+        ["a", 1, None],
+        {"int": 1, "str": "abc", "dict": {"yes": "sir"}},
     ],
 )
 def test_identity_builds(value):
@@ -149,6 +150,7 @@ def test_identity_builds(value):
         [None, ValueError],
         [1, Exception],
         ["yo", Exception],
+        [{"a": ValueError}, ValueError],
         [{"@type": "something_not_registered"}, RuntimeError],
         [{"@type": "dummy_a", "a": 1, "@mode": "unsupported_mode_5566"}, ValueError],
     ],
@@ -166,8 +168,8 @@ def test_register(register_dummy_a):
     "spec, expected",
     [
         [{"a": "b"}, {"a": "b"}],
-        [{"a": ValueError}, {"a": ValueError}],
         [{SPECIAL_KEYS["type"]: "dummy_a", "a": 2}, DummyA(a=2)],
+        [{"k": {SPECIAL_KEYS["type"]: "dummy_a", "a": 2}}, {"k": DummyA(a=2)}],
         [{SPECIAL_KEYS["type"]: "dummy_b", "b": 2}, DummyB(b=2)],
         [
             {SPECIAL_KEYS["type"]: "dummy_a", "a": [{SPECIAL_KEYS["type"]: "dummy_b", "b": 3}]},
@@ -176,9 +178,9 @@ def test_register(register_dummy_a):
         [
             {
                 SPECIAL_KEYS["type"]: "dummy_a",
-                "a": ({SPECIAL_KEYS["type"]: "dummy_b", "b": 3},),
+                "a": {SPECIAL_KEYS["type"]: "dummy_b", "b": 3},
             },
-            DummyA(a=(DummyB(b=3),)),
+            DummyA(a=DummyB(b=3)),
         ],
     ],
 )

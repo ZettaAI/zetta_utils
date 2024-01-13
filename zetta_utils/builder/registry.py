@@ -19,6 +19,7 @@ REGISTRY: dict[str, list[RegistryEntry]] = defaultdict(list)
 class RegistryEntry:
     fn: Callable
     allow_partial: bool
+    allow_parallel: bool
     version_spec: SpecifierSet
 
 
@@ -46,6 +47,7 @@ def get_matching_entry(
 def register(
     name: str,
     allow_partial: bool = True,
+    allow_parallel: bool = True,
     versions: str | SpecifierSet = constants.DEFAULT_VERSION_SPEC,
 ) -> Callable[[T], T]:
     """Decorator for registering classes to be buildable.
@@ -67,7 +69,12 @@ def register(
 
     def decorator(fn: T) -> T:
         REGISTRY[name].append(
-            RegistryEntry(fn=fn, allow_partial=allow_partial, version_spec=version_spec)
+            RegistryEntry(
+                fn=fn,
+                allow_partial=allow_partial,
+                version_spec=version_spec,
+                allow_parallel=allow_parallel,
+            )
         )
         return fn
 
@@ -78,8 +85,14 @@ def unregister(
     name: str,
     fn: Callable,
     allow_partial: bool = True,
+    allow_parallel: bool = True,
     versions: str | SpecifierSet = constants.DEFAULT_VERSION_SPEC,
 ):
     version_spec = SpecifierSet(str(versions))
-    entry = RegistryEntry(fn=fn, allow_partial=allow_partial, version_spec=version_spec)
+    entry = RegistryEntry(
+        fn=fn,
+        allow_partial=allow_partial,
+        allow_parallel=allow_parallel,
+        version_spec=version_spec,
+    )
     REGISTRY[name].remove(entry)

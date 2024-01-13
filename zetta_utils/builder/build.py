@@ -1,8 +1,9 @@
 """Bulding objects from nested specs."""
 from __future__ import annotations
 
-from concurrent.futures import Future, ProcessPoolExecutor
-from typing import Any, Callable, Final, Optional
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
+from typing import Any, Callable, Final, Optional, cast
 
 import attrs
 from typeguard import typechecked
@@ -10,7 +11,7 @@ from typeguard import typechecked
 from zetta_utils import parsing
 from zetta_utils.common import ctx_managers
 from zetta_utils.parsing import json
-from zetta_utils.typing import JsonDict
+from zetta_utils.typing import JsonDict, JsonSerializableValue
 
 from . import constants
 from .registry import get_matching_entry
@@ -21,18 +22,17 @@ SPECIAL_KEYS: Final = {
     "version": "@version",
 }
 
-BUILT_OBJECT_ID_REGISTRY: dict[int, JsonDict] = {}
+BUILT_OBJECT_ID_REGISTRY: dict[int, JsonSerializableValue] = {}
 
 BUILDER_PARALLEL_EXECUTOR: Final = ProcessPoolExecutor()
 
 
-def get_initial_builder_spec(obj: Any) -> JsonDict | None:
+def get_initial_builder_spec(obj: Any) -> JsonSerializableValue:
     """Returns the builder spec that the object was initially built with.
     Note that mutations to the object after it was built will not be
     reflected in the spec. Returns `None` if the object was not built with
     builder
     """
-    # breakpoint()
     result = BUILT_OBJECT_ID_REGISTRY.get(id(obj), None)
     return result
 
@@ -53,172 +53,214 @@ def build(spec: dict | list | None = None, path: str | None = None, parallel: bo
     else:
         final_spec = parsing.cue.load(path)
 
-    # error check the spec
-    _traverse_spec(
-        final_spec,
-        _check_type_value,
-        name_prefix="spec",
-        version=constants.DEFAULT_VERSION,
-        parallel=False,
+    result = _build(
+        spec=final_spec, parallel=parallel, name_prefix="spec", version=constants.DEFAULT_VERSION
     )
-
-    # build the spec
-    result = _traverse_spec(
-        final_spec,
-        _build_dict_spec,
-        name_prefix="spec",
-        version=constants.DEFAULT_VERSION,
-        parallel=parallel,
-    )
-    if parallel and isinstance(result, Future):
-        result = _await_builder_future(result)
 
     return result
 
 
-def _traverse_spec(
-    spec: Any, apply_fn: Callable, name_prefix: str, version: str, parallel: bool
-) -> Any:
-    try:
-        spec_as_str = json.dumps(spec)
-    except TypeError:
-        spec_as_str = '{"error": "Unserializable Spec"}'
+def _build(spec: JsonSerializableValue, parallel: bool, version: str, name_prefix: str) -> Any:
+    stages = _parse_stages(spec, version=version, name_prefix=name_prefix)
+    result = _execute_build_stages(stages=stages, parallel=parallel)
+    return result
 
-    with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
-        if isinstance(spec, (bool, int, float, str)) or spec is None:
-            result = spec  # type: Any
-        elif isinstance(spec, list):
-            result = [
-                _traverse_spec(
-                    spec=e,
-                    apply_fn=apply_fn,
-                    name_prefix=f"{name_prefix}[{i}]",
-                    version=version,
-                    parallel=parallel,
-                )
-                for i, e in enumerate(spec)
-            ]
-        elif isinstance(spec, tuple):
-            result = tuple(
-                _traverse_spec(
-                    spec=e,
-                    apply_fn=apply_fn,
-                    name_prefix=f"{name_prefix}[{i}]",
-                    version=version,
-                    parallel=parallel,
-                )
-                for i, e in enumerate(spec)
-            )
-        elif isinstance(spec, dict):
-            if SPECIAL_KEYS["type"] in spec:
-                result = apply_fn(
-                    spec, name_prefix=name_prefix, version=version, parallel=parallel
-                )
-            else:
-                result = {
-                    k: _traverse_spec(
-                        spec=v,
-                        apply_fn=apply_fn,
-                        name_prefix=f"{name_prefix}.{k}",
-                        version=version,
-                        parallel=parallel,
-                    )
-                    for k, v in spec.items()
-                }
+
+@attrs.mutable
+class ObjectToBeBuilt:
+    spec: JsonSerializableValue
+    fn: Callable
+    name_prefix: str
+    kwargs: dict[str, Any] = attrs.field(factory=dict)
+    parent: ObjectToBeBuilt | None = None
+    parent_kwarg_name: str | None = None
+
+    def build(self) -> Any:
+        spec_as_str = json.dumps(self.spec)
+        with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
+            result = self.fn(**self.kwargs)
+        return result
+
+
+@attrs.mutable
+class Stage:
+    sequential_part: list[ObjectToBeBuilt] = attrs.field(factory=list)
+    parallel_part: list[ObjectToBeBuilt] = attrs.field(factory=list)
+
+
+def _execute_build_stages(stages: list[Stage], parallel: bool):
+    assert len(stages) > 0
+
+    def _process_results(objs: list[ObjectToBeBuilt], results: list[Any]):
+        for obj, result in zip(objs, results):
+            BUILT_OBJECT_ID_REGISTRY[id(result)] = obj.spec
+            if obj.parent is not None:
+                assert obj.parent_kwarg_name is not None
+                obj.parent.kwargs[obj.parent_kwarg_name] = result
+
+    for stage in stages:
+        results_sequential = [obj.build() for obj in stage.sequential_part]
+        _process_results(stage.sequential_part, results_sequential)
+        if parallel:
+            futures = [BUILDER_PARALLEL_EXECUTOR.submit(obj.build) for obj in stage.parallel_part]
+            results_parallel = [fut.result() for fut in futures]
         else:
-            result = spec
-    BUILT_OBJECT_ID_REGISTRY[id(result)] = spec
+            results_parallel = [obj.build() for obj in stage.parallel_part]
+        _process_results(stage.parallel_part, results_parallel)
+
+    assert len(results_parallel) <= 1
+    result = (results_sequential + results_parallel)[-1]
     return result
 
 
-def _check_type_value(spec: dict[str, Any], name_prefix: str, version: str, parallel: bool) -> Any:
-    assert parallel is False
-    if SPECIAL_KEYS["version"] in spec:
-        version = spec[SPECIAL_KEYS["version"]]
+def _build_list(**kwargs):
+    return list(kwargs.values())
 
-    this_type = spec[SPECIAL_KEYS["type"]]
 
-    get_matching_entry(this_type, version=version)
-    for k, v in spec.items():
-        _traverse_spec(
-            v,
-            apply_fn=_check_type_value,
-            name_prefix=f"{name_prefix}.{k}",
-            version=version,
-            parallel=parallel,
+def _build_dict(**kwargs):
+    return kwargs
+
+
+def _is_basic(obj) -> bool:
+    return isinstance(obj, (int, float, bool, str, dict, list, tuple)) or obj is None
+
+
+def _parse_stages(spec: JsonSerializableValue, name_prefix: str, version: str) -> list[Stage]:
+    stage_dict: dict[int, Stage] = defaultdict(Stage)
+    final_obj = _parse_stages_inner(
+        spec=spec,
+        stages_dict=stage_dict,
+        level=0,
+        version=version,
+        parent=None,
+        parent_kwarg_name=None,
+        name_prefix=name_prefix,
+    )
+    result = [stage_dict[k] for k in reversed(sorted(stage_dict.keys()))]
+    if _is_basic(final_obj) or isinstance(final_obj, BuilderPartial):
+        result.append(
+            Stage(
+                sequential_part=[
+                    ObjectToBeBuilt(spec=spec, fn=lambda: final_obj, name_prefix="spec")
+                ]
+            )
+        )
+    return result
+
+
+def _parse_stages_inner(  # pylint: disable=too-many-branches
+    spec: JsonSerializableValue,
+    stages_dict: dict[int, Stage],
+    level: int,
+    version: str,
+    name_prefix: str,
+    parent: ObjectToBeBuilt | None,
+    parent_kwarg_name: str | None,
+) -> ObjectToBeBuilt | JsonSerializableValue | BuilderPartial:
+    result: ObjectToBeBuilt | JsonSerializableValue | BuilderPartial
+    if isinstance(spec, (int, float, bool, str)) or spec is None:
+        result = spec
+    elif isinstance(spec, list):
+        this_obj = ObjectToBeBuilt(
+            spec=spec,
+            fn=_build_list,
+            parent=parent,
+            parent_kwarg_name=parent_kwarg_name,
+            name_prefix=name_prefix,
         )
 
-
-def _await_builder_future(target: Future):
-    result = target.result()
-    BUILT_OBJECT_ID_REGISTRY[id(result)] = BUILT_OBJECT_ID_REGISTRY[id(target)]
-    return result
-
-
-def _ensure_results_available(target: Any) -> Any:
-    if isinstance(target, Future):
-        result = _await_builder_future(target)
-    elif isinstance(target, dict):
-        result = {k: _ensure_results_available(v) for k, v in target.items()}
-    elif isinstance(target, list):
-        result = [_ensure_results_available(item) for item in target]
-    elif isinstance(target, tuple):
-        result = tuple(_ensure_results_available(item) for item in target)
-    else:
-        result = target
-    return result
-
-
-def _build_dict_spec(spec: dict[str, Any], name_prefix: str, version: str, parallel: bool) -> Any:
-    this_mode = spec.get(SPECIAL_KEYS["mode"], "regular")
-    this_type = spec[SPECIAL_KEYS["type"]]
-
-    if SPECIAL_KEYS["version"] in spec:
-        version = spec[SPECIAL_KEYS["version"]]
-
-    result: Any
-    if this_mode == "regular":
-        fn = get_matching_entry(this_type, version=version).fn
-        fn_kwargs = {}
-        fn_kwargs = {
-            k: _traverse_spec(
-                v,
-                apply_fn=_build_dict_spec,
-                name_prefix=f"{name_prefix}.{k}",
+        args = [
+            _parse_stages_inner(
+                e,
+                stages_dict=stages_dict,
+                level=level,
+                parent=this_obj,
+                parent_kwarg_name=str(i),
                 version=version,
-                parallel=parallel,
+                name_prefix=f"{name_prefix}[{i}]",
+            )
+            for i, e in enumerate(spec)
+        ]
+
+        if all(_is_basic(e) for e in args):
+            result = type(spec)(cast(list[JsonSerializableValue], args))
+        else:
+            this_obj.kwargs = {str(i): v for i, v in enumerate(args) if _is_basic(v)}
+            stages_dict[level].sequential_part.append(this_obj)
+            result = this_obj
+
+    elif isinstance(spec, dict) and "@type" not in spec:
+        assert "@mode" not in spec
+        this_obj = ObjectToBeBuilt(
+            spec=spec,
+            fn=_build_dict,
+            parent=parent,
+            parent_kwarg_name=parent_kwarg_name,
+            name_prefix=name_prefix,
+        )
+        kwargs = {
+            k: _parse_stages_inner(
+                v,
+                stages_dict=stages_dict,
+                level=level,
+                parent=this_obj,
+                parent_kwarg_name=k,
+                version=version,
+                name_prefix=f"{name_prefix}[{k}]",
             )
             for k, v in spec.items()
-            if k not in SPECIAL_KEYS.values()
         }
-        if parallel:
-            fn_kwargs = _ensure_results_available(fn_kwargs)
+        all_basic = all(_is_basic(e) for e in kwargs.values())
+        if all_basic:
+            result = cast(JsonSerializableValue, kwargs)
+        else:
+            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_basic(v)}
+            stages_dict[level].sequential_part.append(this_obj)
+            result = this_obj
+    elif isinstance(spec, dict):
+        assert "@type" in spec
 
-        try:
-            if parallel:
-                result = BUILDER_PARALLEL_EXECUTOR.submit(fn, **fn_kwargs)
-            else:
-                result = fn(**fn_kwargs)
-        except Exception as e:  # pragma: no cover
-            if hasattr(fn, "__name__"):
-                name = fn.__name__
-            else:
-                name = str(fn)
-            e.args = (
-                f'{e}\nException occured while building "{name_prefix}" '
-                f'with "@type" "{this_type}" '
-                f'(mapped to "{name}" from module "{fn.__module__}", "@mode": "{this_mode}")',
+        if "@version" in spec:
+            version = cast(str, spec["@version"])
+        this_type = spec["@type"]
+        assert isinstance(this_type, str)
+        entry = get_matching_entry(this_type, version)
+        if "@mode" in spec and spec["@mode"] == "partial":
+            if not entry.allow_partial:
+                raise ValueError(f'`"@mode": partial` not allowed for `"@type": {this_type}"`')
+            assert isinstance(spec, dict)
+            result = BuilderPartial(spec=spec)
+        else:
+            if "@mode" in spec and spec["@mode"] != "regular":
+                raise ValueError(f"Unsupported mode {spec['@mode']}")
+            this_obj = ObjectToBeBuilt(
+                spec=spec,
+                fn=entry.fn,
+                parent=parent,
+                parent_kwarg_name=parent_kwarg_name,
+                name_prefix=name_prefix,
             )
-            raise e from None
-    elif this_mode == "partial":
-        if not get_matching_entry(this_type, version=version).allow_partial:
-            raise ValueError(
-                f'"@mode": "partial" is not allowed for '
-                f'"@type": "{spec[SPECIAL_KEYS["type"]]}"'
-            )
-        result = BuilderPartial(spec=spec, parallel=parallel)
+            kwargs = {
+                k: _parse_stages_inner(
+                    v,
+                    stages_dict=stages_dict,
+                    level=level + 1,
+                    parent=this_obj,
+                    parent_kwarg_name=k,
+                    version=version,
+                    name_prefix=f"{name_prefix}.{k}",
+                )
+                for k, v in spec.items()
+                if not k.startswith("@")
+            }
+            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_basic(v)}
+            if entry.allow_parallel:
+                stages_dict[level + 1].parallel_part.append(this_obj)
+            else:
+                stages_dict[level + 1].sequential_part.append(this_obj)
+            result = this_obj
     else:
-        raise ValueError(f"Unsupported mode: {this_mode}")
+        raise ValueError(f"Unsupported type: {type(spec)}")
 
     return result
 
@@ -231,15 +273,17 @@ class BuilderPartial:
     Useful to efficiently serialize partially spec-ed constructs.
     """
 
-    spec: dict[str, Any]
-    _built_spec_kwargs: dict[str, Any] | None = attrs.field(init=False, default=None)
+    spec: JsonDict
+    _built_spec_kwargs: dict[str, JsonSerializableValue] | None = attrs.field(
+        init=False, default=None
+    )
     name: Optional[str] = None
     parallel: bool = False
 
     def get_display_name(self):  # pragma: no cover # pretty print
         if self.name is not None:
             return self.name
-        elif SPECIAL_KEYS["type"] in self.spec:
+        elif isinstance(self.spec, dict) and SPECIAL_KEYS["type"] in self.spec:
             return self.spec[SPECIAL_KEYS["type"]]
         else:
             return "BuilderPartial"
@@ -247,9 +291,8 @@ class BuilderPartial:
     def _get_built_spec_kwargs(self, version: str) -> dict[str, Any]:
         if self._built_spec_kwargs is None:
             self._built_spec_kwargs = {
-                k: _traverse_spec(
-                    v,
-                    apply_fn=_build_dict_spec,
+                k: _build(
+                    spec=v,
                     name_prefix=f"partial.{k}",
                     version=version,
                     parallel=self.parallel,
@@ -266,9 +309,9 @@ class BuilderPartial:
             spec_as_str = '{"error": "Unserializable Spec"}'
 
         with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
-            version = self.spec.get(SPECIAL_KEYS["version"], constants.DEFAULT_VERSION)
+            version = cast(str, self.spec.get(SPECIAL_KEYS["version"], constants.DEFAULT_VERSION))
 
-            fn = get_matching_entry(self.spec[SPECIAL_KEYS["type"]], version=version).fn
+            fn = get_matching_entry(cast(str, self.spec[SPECIAL_KEYS["type"]]), version=version).fn
             result = fn(
                 *args,
                 **self._get_built_spec_kwargs(version=version),

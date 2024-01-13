@@ -251,13 +251,13 @@ such as the dataset from the earlier example:
    ...        "@type": "VolumetricStridedIndexer",
    ...        "bbox": {
    ...           "@type": "BBox3D.from_coords",
-   ...           "start_coord": (1000, 1000, 2000),
-   ...           "end_coord": (2000, 2000, 2100),
-   ...           "resolution": (64, 64, 40),
+   ...           "start_coord": [1000, 1000, 2000],
+   ...           "end_coord": [2000, 2000, 2100],
+   ...           "resolution": [64, 64, 40],
    ...        },
-   ...        "resolution": (64, 64, 40),
-   ...        "chunk_size": (128, 128, 1),
-   ...        "stride": (32, 32, 1),
+   ...        "resolution": [64, 64, 40],
+   ...        "chunk_size": [128, 128, 1],
+   ...        "stride": [32, 32, 1],
    ...        "mode": "shrink",
    ...    }
    ... }

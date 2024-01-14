@@ -33,7 +33,7 @@ def distributed_available() -> bool:
     return torch.distributed.is_available() and torch.distributed.is_initialized()
 
 
-@builder.register("lightning_train")
+@builder.register("lightning_train", allow_parallel=False)
 @typeguard.typechecked
 def lightning_train(
     regime: pl.LightningModule | dict[str, Any],
@@ -139,7 +139,8 @@ def lightning_train(
             arg_spec = builder.get_initial_builder_spec(v)
             if arg_spec is None:
                 raise RuntimeError(
-                    f"No builder spec found for {k}. Remote training requires arguments to "
+                    f"No builder spec found for `{k}`. Remote training requires arguments to "
+                    "be created using `builder` module."
                 )
             train_args[k] = arg_spec
 

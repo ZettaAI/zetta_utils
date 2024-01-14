@@ -12,7 +12,7 @@ import wandb
 from zetta_utils import builder, distributions, tensor_ops, viz
 
 
-@builder.register("MinimaEncoderRegime", versions="==0.0.0")
+@builder.register("MinimaEncoderRegime", versions="==0.0.0", allow_parallel=False)
 @attrs.mutable(eq=False)
 class MinimaEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module

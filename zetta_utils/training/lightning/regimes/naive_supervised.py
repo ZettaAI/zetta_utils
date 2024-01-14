@@ -9,7 +9,7 @@ from zetta_utils import builder
 from .common import log_results
 
 
-@builder.register("NaiveSupervisedRegime")
+@builder.register("NaiveSupervisedRegime", allow_parallel=False)
 @attrs.mutable(eq=False)
 class NaiveSupervisedRegime(pl.LightningModule):
     model: torch.nn.Module

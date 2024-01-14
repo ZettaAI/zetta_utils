@@ -14,7 +14,7 @@ from zetta_utils.training.lightning.train import distributed_available
 from ..common import log_3d_results
 
 
-@builder.register("BaseEmbeddingRegime")
+@builder.register("BaseEmbeddingRegime", allow_parallel=False)
 @attrs.mutable(eq=False)
 class BaseEmbeddingRegime(pl.LightningModule):
     model: torch.nn.Module

@@ -14,7 +14,7 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.training.lightning.train import distributed_available
 
 
-@builder.register("EncodingCoarsenerRegime", versions="==0.0.0")
+@builder.register("EncodingCoarsenerRegime", versions="==0.0.0", allow_parallel=False)
 @attrs.mutable(eq=False)
 class EncodingCoarsenerRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     encoder: torch.nn.Module

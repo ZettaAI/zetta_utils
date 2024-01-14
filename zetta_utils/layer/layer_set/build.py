@@ -11,8 +11,8 @@ from .. import IndexProcessor, Layer
 from . import LayerSet, LayerSetBackend, LayerSetDataProcT
 
 
-@typechecked
 @builder.register("build_layer_set")
+@typechecked
 def build_layer_set(
     layers: dict[str, Layer],
     readonly: bool = False,

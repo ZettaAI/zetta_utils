@@ -78,7 +78,18 @@ class ObjectToBeBuilt:
     def build(self) -> Any:
         spec_as_str = json.dumps(self.spec)
         with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
-            result = self.fn(**self.kwargs)
+            try:
+                result = self.fn(**self.kwargs)
+            except Exception as e:  # pragma: no cover
+                if hasattr(self.fn, "__name__"):
+                    name = self.fn.__name__
+                else:
+                    name = str(self.fn)
+                e.args = (
+                    f'{e}\nException occured while building "{self.name_prefix}" '
+                    f'(mapped to "{name}" from module "{self.fn.__module__}")',
+                )
+                raise e from None
         return result
 
 

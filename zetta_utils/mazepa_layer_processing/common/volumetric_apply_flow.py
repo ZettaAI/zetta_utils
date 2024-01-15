@@ -248,6 +248,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     force_intermediaries: bool = False
     use_checkerboarding: bool = attrs.field(init=False)
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
+    flow_id: str = "no_id"
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -333,10 +334,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         dst: VolumetricBasedLayerProtocol,
         idx: VolumetricIndex,
+        prefix: Optional[Any] = None,
         suffix: Optional[Any] = None,
     ) -> VolumetricBasedLayerProtocol:
         assert self.intermediaries_dir is not None
-        temp_name = f"_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
+        temp_name = f"{prefix}_{self.op.__class__.__name__}_temp_{idx.pformat()}_{suffix}"
         allow_cache = self.allow_cache and not self._intermediaries_are_local
         if self.use_checkerboarding:
             backend_chunk_size_to_use = self._get_backend_chunk_size_to_use(dst)
@@ -392,7 +394,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol,
         op_kwargs: P.kwargs,
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
-        dst_temp = self._get_temp_dst(dst, idx)
+        dst_temp = self._get_temp_dst(dst, idx, self.flow_id)
         idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
         return tasks, dst_temp
@@ -432,7 +434,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
-            dst_temp = self._get_temp_dst(dst, idx, chunker_idx)
+            dst_temp = self._get_temp_dst(dst, idx, self.flow_id, chunker_idx)
             dst_temps.append(dst_temp)
             with suppress_type_checks():
                 # assert that the idx passed in is in fact exactly divisible by the chunk size

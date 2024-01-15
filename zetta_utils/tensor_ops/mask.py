@@ -59,6 +59,7 @@ def filter_cc(
     data: TensorTypeVar,
     mode: MaskFilteringModes = "keep_small",
     thr: int = 100,
+    data_in_zcxy: bool = False,
 ) -> TensorTypeVar:
     """
     Remove connected components from the given input tensor_ops.
@@ -72,7 +73,8 @@ def filter_cc(
     """
     data_np = convert.to_np(data)
 
-    data_np = einops.rearrange(data_np, "C X Y Z -> Z C X Y")
+    if not data_in_zcxy:
+        data_np = einops.rearrange(data_np, "C X Y Z -> Z C X Y")
     assert data_np.shape[1] == 1
 
     result_raw = np.zeros_like(data_np)
@@ -91,7 +93,8 @@ def filter_cc(
             result_raw[z] = copy.copy(data_np[z])
             result_raw[z][filtered_mask == 0] = 0
 
-    result_raw = einops.rearrange(result_raw, "Z C X Y -> C X Y Z")
+    if not data_in_zcxy:
+        result_raw = einops.rearrange(result_raw, "Z C X Y -> C X Y Z")
     result = convert.astype(result_raw, data)
     return result
 

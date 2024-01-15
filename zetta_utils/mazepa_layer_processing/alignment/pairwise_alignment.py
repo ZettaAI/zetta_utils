@@ -12,7 +12,7 @@ from functools import partial
 import torch
 
 from zetta_utils import builder, mazepa
-from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D, IntVec3D
 from zetta_utils.layer.volumetric import (
     DataResolutionInterpolator,
     VolumetricIndexTranslator,
@@ -50,28 +50,16 @@ from .compute_field_multistage_flow import (
 from .warp_operation import WarpOperation
 
 
-def _make_dst_layer(path, info_reference_path, data_type, resolution_list, chunk_size=None):
-    return build_cv_layer(
-        path=path,
-        info_reference_path=info_reference_path,
-        info_add_scales=resolution_list,
-        info_add_scales_mode="replace",
-        info_field_overrides={
-            "type": "image",
-            "num_channels": 1,
-            "data_type": data_type,
-        },
-        info_chunk_size=chunk_size,
-        on_info_exists="overwrite",
-    )
-
 def _default_layer_factory(
         path,
         resolution_list=None,
         add_zfpc=False,
-        **kwargs):
+        per_scale_config=None,
+        **build_cv_kwargs):
     if resolution_list is None:
         resolution_list = []
+    if per_scale_config is None:
+        per_scale_config = {}
 
     info_add_scales = None
     if resolution_list is not None:
@@ -80,7 +68,7 @@ def _default_layer_factory(
         for res in resolution_list:
             scale = {
                 "resolution": res,
-            }
+            } | per_scale_config
             if add_zfpc:
                 scale |= {
                     "encoding": "zfpc",
@@ -88,97 +76,19 @@ def _default_layer_factory(
                     "zfpc_tolerance": 0.001953125,
                 }
             info_add_scales.append(scale)
-    info_add_scales = kwargs.pop("info_add_scales", info_add_scales)
-
-    # info_field_overrides = kwargs.pop("info_field_overrides", {})
-    # info_field_overrides = {
-    #         "type": "image",
-    #         "num_channels": 2,
-    #         "data_type": data_type,
-    # } | info_field_overrides
-    return build_cv_layer(
-        path=path,
-        info_add_scales=kwargs.pop("info_add_scales", info_add_scales),
-        info_add_scales_mode=kwargs.pop("info_add_scales_mode", "replace"),
-        on_info_exists=kwargs.pop("on_info_exists", "overwrite"),
-        **kwargs
-    )
-
-def _make_dst_layer_field(path, data_type, resolution_list, **kwargs):
-    scales = []
-    for res in resolution_list:
-        scale = {
-            "resolution": res,
-            "encoding": "zfpc",
-            "zfpc_correlated_dims": [True, True, False, False],
-            "zfpc_tolerance": 0.001953125,
-        }
-        scales.append(scale)
-
-    info_field_overrides = kwargs.pop("info_field_overrides", {})
-    info_field_overrides = {
-            "type": "image",
-            "num_channels": 2,
-            "data_type": data_type,
-    } | info_field_overrides
+    info_add_scales = build_cv_kwargs.pop("info_add_scales", info_add_scales)
 
     return build_cv_layer(
         path=path,
-        info_add_scales=scales,
-        info_add_scales_mode=kwargs.pop("info_add_scales_mode", "replace"),
-        info_field_overrides=info_field_overrides,
-        on_info_exists="overwrite",
-        **kwargs
+        info_add_scales=build_cv_kwargs.pop("info_add_scales", info_add_scales),
+        info_add_scales_mode=build_cv_kwargs.pop("info_add_scales_mode", "replace"),
+        on_info_exists=build_cv_kwargs.pop("on_info_exists", "overwrite"),
+        **build_cv_kwargs
     )
-
-
-def _set_tiled_fn_kwargs(model_path, ds_factor=None, overrides=None):
-    if overrides is None:
-        overrides = {}
-    fn_kwargs = {}
-    fn_kwargs["model_path"] = model_path
-    if ds_factor is not None:
-        fn_kwargs["ds_factor"] = ds_factor
-    # fn_kwargs["tile_pad_in"] = ds_factor * crop_pad[0]
-    # fn_kwargs["tile_size"] = ds_factor * processing_chunk_sizes[-1][0]
-    fn_kwargs |= overrides
-    return fn_kwargs
-
-
-def _get_dst_layer(dst: str | VolumetricLayer, layer_factory: Callable):
-    if isinstance(dst, VolumetricLayer):
-        return dst
-    return layer_factory(dst)
 
 
 def _pad_crop_pads(crop_pad, length):
     return [[0, 0, 0]] * (length - 1) + [crop_pad]
-
-
-def _set_subchunkable_kwargs(
-    src_layer,
-    dst_layer,
-    processing_chunk_sizes,
-    crop_pad,
-    dst_resolution=None,
-    overrides=None,
-):
-    kwargs = {}
-    kwargs["processing_chunk_sizes"] = processing_chunk_sizes
-    kwargs["processing_crop_pads"] = _pad_crop_pads(crop_pad, len(processing_chunk_sizes))
-    kwargs["skip_intermediaries"] = True
-    kwargs["level_intermediaries_dirs"] = None
-    kwargs["dst"] = dst_layer
-    kwargs["dst_resolution"] = dst_resolution
-
-    if overrides is not None:
-        kwargs |= overrides
-
-    # need to merge instead of override `op_kwargs`
-    # if "op_kwargs" not in kwargs or "src" not in kwargs["op_kwargs"]:
-    kwargs["op_kwargs"] = {"src": src_layer} | kwargs.get("op_kwargs", {})
-
-    return kwargs
 
 
 def _set_volumetric_callable_default_op_kwargs(
@@ -203,99 +113,6 @@ def _set_volumetric_callable_default_op_kwargs(
 @mazepa.flow_schema_cls
 @attrs.mutable
 class SubchunkableFnFlowSchema:
-    # fn_kwargs: Mapping[str, Any]
-    op_kwargs: Mapping[str, Any]
-    subchunkable_kwargs: Mapping[str, Any]
-    fn: Callable[..., Any]
-
-    def __init__(
-        self,
-        fn,
-        dst_resolution: Sequence[int],
-        processing_chunk_sizes: Sequence[Sequence[int]],
-        task_name: str = None,
-        fn_uses_cuda: bool = False,
-        model_res_change_mult: Sequence[int] | None = None,
-        model_max_processing_chunk_size: Sequence[int] | None = None,
-        src_path: str | None = None,
-        src_layer: VolumetricLayer | None = None,
-        dst_path: str | None = None,
-        dst_layer: VolumetricLayer | None = None,
-        dst_factory: Callable | None = None,
-        dst_factory_chunk_size: Sequence[int] | None = None,
-        dst_factory_resolution_list: Sequence[Sequence[int]] | None = None,
-        dst_data_type: str | None = None,
-        crop_pad: Sequence[int] | None = None,
-        subchunkable_kwargs=None,
-        op_kwargs=None,
-        # fn_kwargs=None,
-    ):
-        if src_layer is None:
-            assert src_path is not None
-            src_layer = build_cv_layer(src_path)
-
-        if dst_layer is None:
-            if src_path is None:
-                raise RuntimeError(
-                    f"If `dst_layer` is not provided, `src_path` must be specified to be used as"
-                    f" `info_reference_path` in making the destination layer with `dst_path`={dst_path}"
-                )
-            if dst_factory is None:
-                if dst_factory_resolution_list is None:
-                    dst_factory_resolution_list = [dst_resolution]
-                dst_factory = partial(
-                    _make_dst_layer,
-                    resolution_list=dst_factory_resolution_list,
-                    chunk_size=dst_factory_chunk_size,
-                    info_reference_path=src_path,
-                    data_type=dst_data_type,
-                )
-            dst_layer = dst_factory(dst_path)
-
-        if crop_pad is None:
-            crop_pad = [0, 0, 0]
-
-        if model_max_processing_chunk_size is not None:
-            max_chunk_size = list(model_max_processing_chunk_size)
-            assert len(max_chunk_size) == 2 or len(max_chunk_size) == 3
-            if len(max_chunk_size) == 2:
-                # pad dimension
-                max_chunk_size.append(1)
-            processing_chunk_sizes[-1] = [
-                min(a, b) for a, b in zip(max_chunk_size, processing_chunk_sizes[-1])
-            ]
-
-        self.subchunkable_kwargs = _set_subchunkable_kwargs(
-            src_layer=src_layer,
-            dst_layer=dst_layer,
-            dst_resolution=dst_resolution,
-            processing_chunk_sizes=processing_chunk_sizes,
-            crop_pad=crop_pad,
-            overrides=subchunkable_kwargs,
-        )
-        self.op_kwargs = _set_volumetric_callable_default_op_kwargs(
-            res_change_mult=model_res_change_mult,
-            fn_uses_cuda=fn_uses_cuda,
-            task_name=task_name,
-            overrides=op_kwargs,
-        )
-        self.fn = fn
-
-    def flow(self, bbox):  # pylint: disable=unused-argument
-        flow = build_subchunkable_apply_flow(
-            bbox=bbox,
-            op=VolumetricCallableOperation(
-                fn=self.fn,
-                **self.op_kwargs,
-            ),
-            **self.subchunkable_kwargs,
-        )
-        yield flow
-
-
-@mazepa.flow_schema_cls
-@attrs.mutable
-class SubchunkableFnFlowSchema2:
     op: Callable
     subchunkable_kwargs: Mapping[str, Any]
 
@@ -307,6 +124,7 @@ class SubchunkableFnFlowSchema2:
         op=None,
         op_kwargs=None,
         fn=None,
+        fn_kwargs: Mapping[str, Any] | None = None,
         fn_uses_cuda: bool = False,
         model_res_change_mult: Sequence[int] | None = None,
         model_max_processing_chunk_size: Sequence[int] | None = None,
@@ -327,6 +145,8 @@ class SubchunkableFnFlowSchema2:
             subchunkable_kwargs = {}
         if op_kwargs is None:
             op_kwargs = {}
+        if fn_kwargs is None:
+            fn_kwargs = {}
 
         if dst_layer is None:
             if src_path is None:
@@ -352,6 +172,7 @@ class SubchunkableFnFlowSchema2:
             if len(max_chunk_size) == 2:
                 # pad dimension
                 max_chunk_size.append(1)
+            processing_chunk_sizes = copy.deepcopy(processing_chunk_sizes)
             processing_chunk_sizes[-1] = [
                 min(a, b) for a, b in zip(max_chunk_size, processing_chunk_sizes[-1])
             ]
@@ -368,6 +189,8 @@ class SubchunkableFnFlowSchema2:
 
         if op is None:
             # wrap provided fn with VolumetricCallableOperation
+            if len(fn_kwargs):
+                fn = partial(fn, **fn_kwargs)
             op_kwargs = _set_volumetric_callable_default_op_kwargs(
                 res_change_mult=model_res_change_mult,
                 fn_uses_cuda=fn_uses_cuda,
@@ -376,7 +199,8 @@ class SubchunkableFnFlowSchema2:
             )
             self.op = VolumetricCallableOperation(fn, **op_kwargs)
         else:
-            # self.op = partial(op, **op_kwargs)
+            if len(op_kwargs):
+                op = partial(op, **op_kwargs)
             self.op = op
 
     # def flow(self, bbox, i):  # pylint: disable=unused-argument
@@ -397,17 +221,12 @@ class EncodingFlowSchema:
     def __init__(
         self,
         models: Sequence[Any],
-        processing_chunk_sizes: Sequence[Sequence[int]],
-        src_path: str | None = None,
-        src_layer: VolumetricLayer | None = None,
         dst_path: str | None = None,
-        dst_layer: VolumetricLayer | None = None,
-        dst_factory_chunk_size: Sequence[int] | None = None,
-        dst_factory_resolution_list: Sequence[Sequence[int]] | None = None,
-        crop_pad: Sequence[int] | None = None,
+        dst_factory_kwargs: Mapping[str, Any] | None = None,
         subchunkable_kwargs=None,
         op_kwargs=None,
         fn_kwargs=None,
+        **kwargs,
     ):
         if subchunkable_kwargs is None:
             subchunkable_kwargs = {}
@@ -415,54 +234,45 @@ class EncodingFlowSchema:
             op_kwargs = {}
         if fn_kwargs is None:
             fn_kwargs = {}
-        if dst_factory_resolution_list is None:
-            dst_factory_resolution_list = [model["dst_resolution"] for model in models]
+        if dst_factory_kwargs is None:
+            dst_factory_kwargs = {}
+
+        dst_factory_kwargs = {
+            "resolution_list": [model["dst_resolution"] for model in models],
+            "info_field_overrides": {
+                "data_type": "int8"
+            }
+        } | dst_factory_kwargs
 
         self.subchunkable_flows = []
         for model in models:
-            model_proc_chunk_sizes = copy.copy(processing_chunk_sizes)
-            max_chunk_size = model.get("max_processing_chunk_size", None)
-            # apply per-model overrides
-            model_subchunkable_kwargs = copy.copy(subchunkable_kwargs) | model.get(
+
+            fn = model["fn"]
+            model_fn_kwargs = fn_kwargs | model.get("fn_kwargs", {})
+            model_subchunkable_kwargs = subchunkable_kwargs | model.get(
                 "subchunkable_kwargs", {}
             )
             model_op_kwargs = op_kwargs | model.get("op_kwargs", {})
-            model_fn_kwargs = fn_kwargs | model.get("fn_kwargs", {})
-
-            res_change_mult = model.get("res_change_mult", [1, 1, 1])
-
-            model_fn_kwargs = _set_tiled_fn_kwargs(
-                model_path=model["path"],
-                ds_factor=res_change_mult[0],
-                overrides=model_fn_kwargs,
-            )
-            fn = BaseCoarsener(**model_fn_kwargs)
-
             dst_resolution = model["dst_resolution"]
+            dst_path_ = model.get("dst_path", dst_path)
+
             flow = SubchunkableFnFlowSchema(
                 fn=fn,
+                fn_kwargs=model_fn_kwargs,
                 task_name=f"ImageEncoding-{dst_resolution[0]}",
                 fn_uses_cuda=True,
-                dst_resolution=model["dst_resolution"],
-                model_res_change_mult=res_change_mult,
-                model_max_processing_chunk_size=max_chunk_size,
-                src_path=src_path,
-                src_layer=src_layer,
-                dst_path=dst_path,
-                dst_layer=dst_layer,
-                dst_factory_chunk_size=dst_factory_chunk_size,
-                dst_factory_resolution_list=dst_factory_resolution_list,
-                dst_data_type="int8",
-                processing_chunk_sizes=model_proc_chunk_sizes,
-                crop_pad=crop_pad,
+                dst_resolution=dst_resolution,
+                model_res_change_mult=model.get("res_change_mult", [1, 1, 1]),
+                model_max_processing_chunk_size=model.get("max_processing_chunk_size", None),
+                dst_path=dst_path_,
+                dst_factory_kwargs=dst_factory_kwargs,
                 subchunkable_kwargs=model_subchunkable_kwargs,
                 op_kwargs=model_op_kwargs,
+                **kwargs,
             )
             self.subchunkable_flows.append(flow)
 
     def flow(self, bbox):
-        # for i, flow in enumerate(self.subchunkable_flows):
-        #     yield flow(bbox, i)
         for flow in self.subchunkable_flows:
             yield flow(bbox)
 
@@ -471,54 +281,21 @@ class EncodingFlowSchema:
 @attrs.mutable
 class DefectFlowSchema:
     subchunkable_flow: SubchunkableFnFlowSchema
-
     def __init__(
         self,
-        model_path: str,
-        dst_resolution: Sequence[int],
-        processing_chunk_sizes: Sequence[Sequence[int]],
-        src_path: str | None = None,
-        src_layer: VolumetricLayer | None = None,
-        dst_path: str | None = None,
-        dst_layer: VolumetricLayer | None = None,
-        dst_factory_chunk_size: Sequence[int] | None = None,
-        dst_factory_resolution_list: Sequence[Sequence[int]] | None = None,
-        crop_pad: Sequence[int] | None = None,
-        subchunkable_kwargs=None,
-        op_kwargs=None,
-        fn_kwargs=None,
+        **kwargs,
     ):
-
-        fn_kwargs = _set_tiled_fn_kwargs(
-            model_path=model_path,
-            overrides=fn_kwargs,
-        )
-        fn = DefectDetector(**fn_kwargs)
-
         self.subchunkable_flow = SubchunkableFnFlowSchema(
-            fn=fn,
             task_name="Defect",
             fn_uses_cuda=True,
-            dst_resolution=dst_resolution,
-            model_res_change_mult=(1, 1, 1),
-            src_path=src_path,
-            src_layer=src_layer,
-            dst_path=dst_path,
-            dst_layer=dst_layer,
-            dst_factory_chunk_size=dst_factory_chunk_size,
-            dst_factory_resolution_list=dst_factory_resolution_list,
-            dst_data_type="uint8",
-            processing_chunk_sizes=processing_chunk_sizes,
-            crop_pad=crop_pad,
-            subchunkable_kwargs=subchunkable_kwargs,
-            op_kwargs=op_kwargs,
+            **kwargs,
         )
-
     def flow(self, bbox):
-        yield self.subchunkable_flow(bbox, 0)
+        yield self.subchunkable_flow(bbox)
 
 
-def _binarize_defect_prediction(
+@builder.register("binarize_defect_prediction")
+def binarize_defect_prediction(
     src: torch.Tensor,
     threshold,
     kornia_opening_width: int = 0,
@@ -527,6 +304,7 @@ def _binarize_defect_prediction(
     kornia_closing_width: int = 0,
 ):
     # TODO: add option to convert to ZCYX once instead of at every step
+    # It is currently running very slowly
 
     pred = compare(src, mode=">=", value=threshold, binarize=True)
 
@@ -549,52 +327,74 @@ def _binarize_defect_prediction(
 
     return to_uint8(pred)
 
+import skimage.morphology
+from kornia import morphology
+import einops
+
+def _make_kernel(width):
+    # return convert.to_torch(square(width), device=device)
+    return torch.from_numpy(skimage.morphology.square(width))
+
+
+# @builder.register("binarize_defect_prediction2")
+# def binarize_defect_prediction2(
+#     src: torch.Tensor,
+#     threshold,
+#     kornia_opening_width: int = 0,
+#     kornia_dilation_width: int = 0,
+#     filter_cc_threshold: int = 0,
+#     kornia_closing_width: int = 0,
+# ):
+#     pred = einops.rearrange(src, "C X Y Z -> Z C X Y")
+#     pred = compare(pred, mode=">=", value=threshold, binarize=True)
+#     unmask = to_uint8(pred)  # kornia doesn't like `bool` type
+
+#     if kornia_opening_width:
+#         # remove thin line from unmask
+#         kernel = _make_kernel(kornia_opening_width)
+#         unmask = morphology.opening(unmask, kernel=kernel, max_val=kernel.max())
+
+#     # if kornia_dilation_width:
+#     #     # grow unmask a little
+#     #     kernel = _make_kernel(kornia_dilation_width)
+#     #     unmask = morphology.dilation(unmask, kernel=kernel, max_val=kernel.max(),
+#     #         border_type="constant",
+#     #         border_value=0.0,
+#     #         )
+
+#     pred = torch.where(unmask > 0, 0, pred)
+
+#     # if filter_cc_threshold:
+#     #     # remove small islands that are likely FPs
+#     #     pred = filter_cc(pred, mode="keep_large", thr=filter_cc_threshold,
+#     #                     data_in_zcxy=True,)
+#     # if kornia_closing_width:
+#     #     # connect disconnected folds
+#     #     kernel = _make_kernel(kornia_closing_width)
+#     #     pred = morphology.closing(pred, kernel=kernel, max_val=kernel.max())
+
+#     pred = einops.rearrange(pred, "Z C X Y -> C X Y Z")
+#     return to_uint8(pred)
+
 
 @mazepa.flow_schema_cls
 @attrs.mutable
 class BinarizeDefectFlowSchema:
     subchunkable_flow: SubchunkableFnFlowSchema
-
     def __init__(
         self,
-        fn_kwargs: Mapping[str, Any],
-        dst_resolution: Sequence[int],
-        processing_chunk_sizes: Sequence[Sequence[int]],
-        src_path: str | None = None,
-        src_layer: VolumetricLayer | None = None,
-        dst_path: str | None = None,
-        dst_layer: VolumetricLayer | None = None,
-        dst_factory_chunk_size: Sequence[int] | None = None,
-        dst_factory_resolution_list: Sequence[Sequence[int]] | None = None,
-        crop_pad: Sequence[int] | None = None,
-        subchunkable_kwargs=None,
-        op_kwargs=None,
+        **kwargs,
     ):
-        fn = partial(_binarize_defect_prediction, **fn_kwargs)
         self.subchunkable_flow = SubchunkableFnFlowSchema(
-            fn=fn,
             task_name="BinarizeDefect",
-            fn_uses_cuda=False,
-            dst_resolution=dst_resolution,
-            model_res_change_mult=(1, 1, 1),
-            src_path=src_path,
-            src_layer=src_layer,
-            dst_path=dst_path,
-            dst_layer=dst_layer,
-            dst_factory_chunk_size=dst_factory_chunk_size,
-            dst_factory_resolution_list=dst_factory_resolution_list,
-            dst_data_type="uint8",
-            processing_chunk_sizes=processing_chunk_sizes,
-            crop_pad=crop_pad,
-            subchunkable_kwargs=subchunkable_kwargs,
-            op_kwargs=op_kwargs,
+            **kwargs,
         )
-
     def flow(self, bbox):
-        yield self.subchunkable_flow(bbox, 0)
+        yield self.subchunkable_flow(bbox)
 
 
-def _mask_out(src, mask, grow_mask_width=0):
+@builder.register("zero_out_src_with_mask")
+def zero_out_src_with_mask(src, mask, grow_mask_width=0):
     if grow_mask_width > 0:
         mask = kornia_dilation(mask, width=grow_mask_width)
     return torch.where(mask > 0, 0, src)  # where(cond, true, false)
@@ -607,91 +407,83 @@ class MaskEncodingsFlowSchema:
 
     def __init__(
         self,
-        dst_resolution_list: Sequence[Sequence[int]],
-        processing_chunk_sizes: Sequence[Sequence[int]],
-        grow_mask_width: int = 0,
-        src_encodings_path: str | None = None,
-        src_encodings_layer: VolumetricLayer | None = None,
-        src_mask_path: str | None = None,
-        src_mask_layer: VolumetricLayer | None = None,
-        src_mask_resolution: Sequence[int] | None = None,
-        dst_path: str | None = None,
-        dst_layer: VolumetricLayer | None = None,
-        dst_factory_chunk_size: Sequence[int] | None = None,
-        dst_factory_resolution_list: Sequence[Sequence[int]] | None = None,
-        crop_pad: Sequence[int] | None = None,
+        fn: Callable,
+        dst_resolution_list: Sequence[Sequence[int] | Mapping[str, Any]],
+        fn_kwargs: Mapping[str, Any] | None = None,
+        src_path: str | None = None,
+        src_layer: VolumetricLayer | None = None,
+        mask_path: str | None = None,
+        mask_layer: VolumetricLayer | None = None,
+        mask_resolution: Sequence[int] | None = None,
+        dst_factory_kwargs: Mapping[str, Any] | None = None,
         subchunkable_kwargs=None,
-        op_kwargs: Mapping[str, Any] | None = None,
+        **kwargs,
     ):
-        if op_kwargs is None:
-            op_kwargs = {}
+        if fn_kwargs is None:
+            fn_kwargs = {}
         if subchunkable_kwargs is None:
             subchunkable_kwargs = {}
+        if dst_factory_kwargs is None:
+            dst_factory_kwargs = {}
 
-        # add mask src to op_kwargs
-        if src_mask_layer is None:
-            assert src_mask_path is not None
-            src_mask_layer = build_cv_layer(
-                src_mask_path,
-                data_resolution=src_mask_resolution,
+        # assume fn takes src & mask as inputs, add mask src to op_kwargs
+        if mask_layer is None:
+            assert mask_path is not None
+            mask_layer = build_cv_layer(
+                mask_path,
+                data_resolution=mask_resolution,
                 interpolation_mode="mask",
             )
-        # op_kwargs_src_mask = {"mask": src_mask_layer}
-        # op_kwargs = op_kwargs_src_mask | op_kwargs
-        op_kwargs_src_mask = {"op_kwargs": {"mask": src_mask_layer}}
-        subchunkable_kwargs = op_kwargs_src_mask | subchunkable_kwargs
+        op_kwargs_mask = {"op_kwargs": {"mask": mask_layer}}
+        subchunkable_kwargs = op_kwargs_mask | subchunkable_kwargs
 
-        if dst_factory_resolution_list is None:
-            dst_factory_resolution_list = dst_resolution_list
+        dst_factory_kwargs = {
+            "resolution_list": [model["dst_resolution"] for model in dst_resolution_list],
+            "info_field_overrides": {
+                "data_type": "int8"
+            }
+        } | dst_factory_kwargs
 
         self.subchunkable_flows = []
-        for dst_resolution in dst_resolution_list:
+        for model in dst_resolution_list:
+            dst_resolution = model["dst_resolution"]
+            fn_kwargs_ = fn_kwargs | model.get("fn_kwargs", {})
 
-            src_encodings_path_ = src_encodings_path
-            src_encodings_layer_ = src_encodings_layer
-
-            # TODO: process per resolution overrides
-
-            mask_fn = partial(_mask_out, grow_mask_width=grow_mask_width)
+            # add src to op_kwargs in subchunkable_kwargs
+            src_path_ = model.get("src_path", src_path)
+            src_layer_ = model.get("src_layer", src_layer)
+            if src_layer_ is None:
+                src_layer_ = build_cv_layer(src_path_)
+            subchunkable_kwargs_ = copy.deepcopy(subchunkable_kwargs)
+            subchunkable_kwargs_["op_kwargs"]["src"] = src_layer_
 
             flow = SubchunkableFnFlowSchema(
-                fn=mask_fn,
-                task_name="MaskEncodings",
+                fn=fn,
+                fn_kwargs=fn_kwargs_,
+                task_name=f"MaskEncodings-{dst_resolution[0]}",
                 fn_uses_cuda=False,
                 dst_resolution=dst_resolution,
                 model_res_change_mult=(1, 1, 1),
-                src_path=src_encodings_path_,
-                src_layer=src_encodings_layer_,
-                dst_path=dst_path,
-                dst_layer=dst_layer,
-                dst_factory_chunk_size=dst_factory_chunk_size,
-                dst_factory_resolution_list=dst_factory_resolution_list,
-                dst_data_type="int8",
-                processing_chunk_sizes=processing_chunk_sizes,
-                crop_pad=crop_pad,
-                subchunkable_kwargs=subchunkable_kwargs,
-                op_kwargs=op_kwargs,
+                src_path=src_path_,
+                src_layer=src_layer_,
+                dst_factory_kwargs=dst_factory_kwargs,
+                subchunkable_kwargs=subchunkable_kwargs_,
+                **kwargs,
             )
             self.subchunkable_flows.append(flow)
 
     def flow(self, bbox):
-        for i, flow in enumerate(self.subchunkable_flows):
-            yield flow(bbox, i)
-
-
-# def to_fp16(data):
-#     # return data.tensor_().half()
-#     return data.tensor_().to(torch.float16)
-
-
-# def to_fp32(data):
-#     return data.to(torch.float32)
+        for flow in self.subchunkable_flows:
+            yield flow(bbox)
 
 
 @mazepa.flow_schema_cls
 @attrs.mutable
 class ComputeFieldFlowSchema:
     flows: Sequence[ComputeFieldMultistageFlowSchema]
+    z_offsets: Sequence[int]
+    shrink_bbox_to_z_offsets: bool
+    z_offset_resolution: int
 
     def __init__(
         self,
@@ -702,13 +494,14 @@ class ComputeFieldFlowSchema:
         # resume_resolution: Sequence[int] | None = None,
         processing_chunk_sizes: Sequence[Sequence[int]],
 
+        shrink_bbox_to_z_offsets: bool = False,
+
         src_path: str | None = None,
         src_layer: VolumetricLayer | None = None,
         tgt_path: str | None = None,
         tgt_layer: VolumetricLayer | None = None,
-
         dst_path: str | None = None,
-        # dst_layer: VolumetricLayer | None = None,
+        dst_factory: Callable | None = None,
         dst_factory_kwargs: Mapping[str, Any] | None = None,
 
         crop_pad: Sequence[int] | None = None,
@@ -722,18 +515,24 @@ class ComputeFieldFlowSchema:
         if crop_pad is None:
             crop_pad = [0, 0, 0]
 
+        self.z_offsets = z_offsets
+        self.shrink_bbox_to_z_offsets = shrink_bbox_to_z_offsets
+
         if tgt_path is None:
             tgt_path = src_path
         if src_layer is None:
             src_layer = build_cv_layer(src_path)
         if tgt_layer is None:
             tgt_layer = build_cv_layer(tgt_path)
+        if dst_factory is None:
+            dst_factory = _default_layer_factory
 
         # z_offset_resolution = set([stage["dst_resolution"][2] for stage in stages])
         z_offset_resolution = {stage["dst_resolution"][2] for stage in stages}
         if len(z_offset_resolution) > 1:
             raise RuntimeError("Inconsistent z resolutions between stages!")
         z_offset_resolution = z_offset_resolution.pop()
+        self.z_offset_resolution = z_offset_resolution
 
         cf_stages = []
         for stage in stages:
@@ -761,11 +560,14 @@ class ComputeFieldFlowSchema:
             dst_kwargs = {
                 "path": dst_path_,
                 "info_reference_path": src_path,
-                # "data_type": "float32",
-                "data_type": "float16",
                 "resolution_list": [stage["dst_resolution"] for stage in stages],
+                "info_field_overrides": {
+                    "type": "image",
+                    "data_type": "float32",
+                    "num_channels": 2,
+                }
             } | dst_factory_kwargs
-            dst_layer = _make_dst_layer_field(**dst_kwargs)
+            dst_layer = dst_factory(**dst_kwargs)
             default_tmp_layer_factory = partial(
                         build_cv_layer,
                         info_reference_path=dst_path_,
@@ -793,59 +595,69 @@ class ComputeFieldFlowSchema:
             self.flows.append(partial(flow, **ms_kwargs))
 
     def flow(self, bbox):
-        for i, flow in enumerate(self.flows):
-            yield flow(bbox=bbox)
+        for flow, z_offset in zip(self.flows, self.z_offsets):
+            bbox_ = bbox
+            if self.shrink_bbox_to_z_offsets:
+                bbox_ = _shrink_bbox_to_z_offset(bbox, z_offset, self.z_offset_resolution)
+            yield flow(bbox=bbox_)
+
+
+def _shrink_bbox_to_z_offset(bbox, z_offset, z_offset_resolution):
+    if z_offset < 0:
+        bbox_ = BBox3D.from_coords(bbox.start + IntVec3D(0, 0, -z_offset * z_offset_resolution),
+                                   bbox.end)
+    else:
+        bbox_ = BBox3D.from_coords(bbox.start,
+                                   bbox.end - IntVec3D(0, 0, z_offset * z_offset_resolution))
+    return bbox_
 
 
 @mazepa.flow_schema_cls
 @attrs.mutable
 class InvertFieldFlowSchema:
-    subchunkable_flows: Sequence[SubchunkableFnFlowSchema2]
-
+    flows: Sequence[SubchunkableFnFlowSchema]
+    z_offsets: Sequence[int]
+    shrink_bbox_to_z_offsets: bool
+    z_offset_resolution: int
     def __init__(
         self,
-        # dst_resolution_list: Sequence[Sequence[int]],
         dst_resolution: Sequence[int],
         z_offsets: Sequence[int],
-        fn: Callable,
-        fn_kwargs: Mapping[str, Any] | None = None,
+        shrink_bbox_to_z_offsets: bool = False,
         src_path: str | None = None,
         dst_path: str | None = None,
-        # processing_chunk_sizes: Sequence[Sequence[int]],
-        # dst_factory_kwargs: Mapping[str, Any] | None = None,
-        # crop_pad: Sequence[int] | None = None,
-        # subchunkable_kwargs=None,
-        # op_kwargs: Mapping[str, Any] | None = None,
         **kwargs,
     ):
-        if fn_kwargs is None:
-            fn_kwargs = {}
-        self.subchunkable_flows = []
+        self.z_offsets = z_offsets
+        self.shrink_bbox_to_z_offsets = shrink_bbox_to_z_offsets
+        self.z_offset_resolution = dst_resolution[2]
+        self.flows = []
         for z_offset in z_offsets:
             src_path_ = os.path.join(src_path, str(z_offset))
             dst_path_ = os.path.join(dst_path, str(z_offset))
-            flow = SubchunkableFnFlowSchema2(
+            flow = SubchunkableFnFlowSchema(
                 task_name=f"InvertField_z{z_offset}",
-                fn=partial(fn, **fn_kwargs),
                 dst_resolution=dst_resolution,
-                # fn_uses_cuda=True,
                 src_path=src_path_,
                 dst_path=dst_path_,
                 **kwargs,
             )
-            self.subchunkable_flows.append(flow)
-
+            self.flows.append(flow)
     def flow(self, bbox):
-        # for i, flow in enumerate(self.subchunkable_flows):
-        for flow in self.subchunkable_flows:
-            yield flow(bbox)
+        for flow, z_offset in zip(self.flows, self.z_offsets):
+            bbox_ = bbox
+            if self.shrink_bbox_to_z_offsets:
+                bbox_ = _shrink_bbox_to_z_offset(bbox, z_offset, self.z_offset_resolution)
+            yield flow(bbox=bbox_)
 
 
 @mazepa.flow_schema_cls
 @attrs.mutable
 class WarpFlowSchema:
-    subchunkable_flows: Sequence[SubchunkableFnFlowSchema2]
-
+    flows: Sequence[SubchunkableFnFlowSchema]
+    z_offsets: Sequence[int]
+    shrink_bbox_to_z_offsets: bool
+    z_offset_resolution: int
     def __init__(
         self,
         dst_resolution: Sequence[int],
@@ -853,6 +665,7 @@ class WarpFlowSchema:
         src_path: str,
         field_path: str,
         dst_path: str,
+        shrink_bbox_to_z_offsets: bool = False,
         field_resolution: Sequence[int] = None,
         subchunkable_kwargs=None,
         **kwargs,
@@ -860,13 +673,17 @@ class WarpFlowSchema:
         if subchunkable_kwargs is None:
             subchunkable_kwargs = {}
 
-        self.subchunkable_flows = []
+        self.z_offsets = z_offsets
+        self.shrink_bbox_to_z_offsets = shrink_bbox_to_z_offsets
+        self.z_offset_resolution = dst_resolution[2]
+
+        self.flows = []
         for z_offset in z_offsets:
 
             field_path_ = os.path.join(field_path, str(z_offset))
             dst_path_ = os.path.join(dst_path, str(z_offset))
             src_idx_translator = VolumetricIndexTranslator(
-                offset=[0, 0, z_offset], resolution=[1, 1, dst_resolution[2]]
+                offset=[0, 0, z_offset], resolution=dst_resolution
             )
             src_layer = build_cv_layer(
                 src_path, index_procs=[src_idx_translator]
@@ -874,14 +691,14 @@ class WarpFlowSchema:
             field_layer = build_cv_layer(
                 field_path_, data_resolution=field_resolution, interpolation_mode="field"
             )
-            subchunkable_kwargs = {
+            subchunkable_kwargs_ = {
                 "op_kwargs": {
                     "src": src_layer,
                     "field": field_layer,
                 }
             } | subchunkable_kwargs
 
-            flow = SubchunkableFnFlowSchema2(
+            flow = SubchunkableFnFlowSchema(
                 task_name=f"Warp_{z_offset}",
                 op=WarpOperation(mode="img"),
                 dst_resolution=dst_resolution,
@@ -889,14 +706,188 @@ class WarpFlowSchema:
                 src_path=src_path,
                 src_layer=src_layer,
                 dst_path=dst_path_,
-                subchunkable_kwargs=subchunkable_kwargs,
+                subchunkable_kwargs=subchunkable_kwargs_,
                 **kwargs,
             )
-            self.subchunkable_flows.append(flow)
+            self.flows.append(flow)
 
     def flow(self, bbox):
-        for flow in self.subchunkable_flows:
-            yield flow(bbox)
+        for flow, z_offset in zip(self.flows, self.z_offsets):
+            bbox_ = bbox
+            if self.shrink_bbox_to_z_offsets:
+                bbox_ = _shrink_bbox_to_z_offset(bbox, z_offset, self.z_offset_resolution)
+            yield flow(bbox=bbox_)
+
+
+@mazepa.flow_schema_cls
+@attrs.mutable
+class EncodeWarpedImgsFlowSchema:
+    flows: Sequence[SubchunkableFnFlowSchema]
+    z_offsets: Sequence[int]
+    shrink_bbox_to_z_offsets: bool
+    z_offset_resolution: int
+    def __init__(
+        self,
+        model: Mapping[str, Any],
+        z_offsets: Sequence[int],
+        src_path: str,
+        dst_path: str,
+        src_resolution: Sequence[int] | None = None,
+        shrink_bbox_to_z_offsets: bool = False,
+        dst_factory_kwargs: Mapping[str, Any] | None = None,
+        reencode_tgt: Mapping[str, Any] | None = None,
+        **kwargs,
+    ):
+        if dst_factory_kwargs is None:
+            dst_factory_kwargs = {}
+
+        fn = model["fn"]
+        dst_resolution = model["dst_resolution"]
+
+        self.z_offsets = copy.deepcopy(z_offsets)
+        self.shrink_bbox_to_z_offsets = shrink_bbox_to_z_offsets
+        self.z_offset_resolution = dst_resolution[2]
+
+        dst_factory_kwargs = {
+            "resolution_list": [dst_resolution],
+            "info_field_overrides": {
+                "data_type": "int8"
+            }
+        } | dst_factory_kwargs
+
+        self.flows = []
+        for z_offset in self.z_offsets:
+
+            src_path_ = os.path.join(src_path, str(z_offset))
+            dst_path_ = os.path.join(dst_path, str(z_offset))
+            src_layer = build_cv_layer(src_path_, data_resolution=src_resolution, interpolation_mode="img")
+
+            flow = SubchunkableFnFlowSchema(
+                fn=fn,
+                task_name=f"EncodeWarpedImg_z{z_offset}",
+                fn_uses_cuda=True,
+                dst_resolution=dst_resolution,
+                model_res_change_mult=model.get("res_change_mult", [1, 1, 1]),
+                model_max_processing_chunk_size=model.get("max_processing_chunk_size", None),
+                dst_factory_kwargs=dst_factory_kwargs,
+                src_path=src_path_,
+                src_layer=src_layer,
+                dst_path=dst_path_,
+                **kwargs,
+            )
+            self.flows.append(flow)
+
+        if reencode_tgt is not None:
+            # re-encode tgt with the given encoder
+            src_path_ = reencode_tgt["src_path"]
+            dst_path_ = reencode_tgt["dst_path"]
+            flow = SubchunkableFnFlowSchema(
+                fn=fn,
+                task_name=f"EncodeWarpedImg_tgt",
+                fn_uses_cuda=True,
+                dst_resolution=dst_resolution,
+                model_res_change_mult=model.get("res_change_mult", [1, 1, 1]),
+                model_max_processing_chunk_size=model.get("max_processing_chunk_size", None),
+                dst_factory_kwargs=dst_factory_kwargs,
+                src_path=src_path_,
+                dst_path=dst_path_,
+                **kwargs,
+            )
+            self.flows.append(flow)
+            self.z_offsets.append(0)
+
+    def flow(self, bbox):
+        for flow, z_offset in zip(self.flows, self.z_offsets):
+            bbox_ = bbox
+            if self.shrink_bbox_to_z_offsets:
+                bbox_ = _shrink_bbox_to_z_offset(bbox, z_offset, self.z_offset_resolution)
+            yield flow(bbox=bbox_)
+
+
+@mazepa.flow_schema_cls
+@attrs.mutable
+class MisalignmentDetectorFlowSchema:
+    flows: Sequence[SubchunkableFnFlowSchema]
+    z_offsets: Sequence[int]
+    shrink_bbox_to_z_offsets: bool
+    z_offset_resolution: int
+    def __init__(
+        self,
+        dst_resolution: Sequence[int],
+        models: Sequence[Mapping[str, Any]],    # one per z section
+        z_offsets: Sequence[int],
+        src_path: str,
+        dst_path: str,
+
+        tgt_path: str | None = None,
+        tgt_layer: VolumetricLayer | None = None,
+        shrink_bbox_to_z_offsets: bool = False,
+        dst_factory_kwargs: Mapping[str, Any] | None = None,
+        subchunkable_kwargs=None,
+        **kwargs,
+    ):
+        if dst_factory_kwargs is None:
+            dst_factory_kwargs = {}
+        if subchunkable_kwargs is None:
+            subchunkable_kwargs = {}
+
+        self.z_offsets = z_offsets
+        self.shrink_bbox_to_z_offsets = shrink_bbox_to_z_offsets
+        self.z_offset_resolution = dst_resolution[2]
+
+        dst_factory_kwargs = {
+            "resolution_list": [dst_resolution],
+            "info_field_overrides": {
+                "data_type": "uint8"
+            }
+        } | dst_factory_kwargs
+
+        # add tgt to op_kwargs
+        if tgt_layer is None:
+            assert tgt_path is not None
+            tgt_layer = build_cv_layer(tgt_path)
+        op_kwargs_mask = {"op_kwargs": {"tgt": tgt_layer}}
+        subchunkable_kwargs = op_kwargs_mask | subchunkable_kwargs
+
+        if len(models) == 1:
+            models = models * len(z_offsets)
+        assert(len(models) == len(z_offsets))
+
+        self.flows = []
+        for z_offset, model in zip(z_offsets, models):
+
+            fn = model["fn"]
+            dst_resolution_ = model.get("dst_resolution", dst_resolution)
+
+            src_path_ = os.path.join(src_path, str(z_offset))
+            dst_path_ = os.path.join(dst_path, str(z_offset))
+            src_layer = build_cv_layer(src_path_)
+
+            subchunkable_kwargs_ = copy.deepcopy(subchunkable_kwargs)
+            subchunkable_kwargs_["op_kwargs"]["src"] = src_layer
+
+            flow = SubchunkableFnFlowSchema(
+                fn=fn,
+                task_name=f"Misd_z{z_offset}",
+                fn_uses_cuda=True,
+                dst_resolution=dst_resolution_,
+                model_max_processing_chunk_size=model.get("max_processing_chunk_size", None),
+                dst_factory_kwargs=dst_factory_kwargs,
+                src_path=src_path_,
+                src_layer=src_layer,
+                dst_path=dst_path_,
+                subchunkable_kwargs=subchunkable_kwargs_,
+                **kwargs,
+            )
+            self.flows.append(flow)
+
+    def flow(self, bbox):
+        for flow, z_offset in zip(self.flows, self.z_offsets):
+            bbox_ = bbox
+            if self.shrink_bbox_to_z_offsets:
+                bbox_ = _shrink_bbox_to_z_offset(bbox, z_offset, self.z_offset_resolution)
+            yield flow(bbox=bbox_)
+
 
 @builder.register("PairwiseAlignmentFlowSchema")
 @mazepa.flow_schema_cls
@@ -909,6 +900,8 @@ class PairwiseAlignmentFlowSchema:
     compute_field_flow: ComputeFieldFlowSchema | None
     invert_field_flow: InvertFieldFlowSchema | None
     warp_flow: WarpFlowSchema | None
+    enc_warped_imgs_flow: EncodeWarpedImgsFlowSchema | None
+    misd_flow: MisalignmentDetectorFlowSchema | None
 
     def flow(self, bbox):
         encoding_task = []
@@ -953,6 +946,18 @@ class PairwiseAlignmentFlowSchema:
             warp_task = self.warp_flow(bbox)
             yield warp_task
 
+        enc_warped_imgs_task = []
+        if self.enc_warped_imgs_flow is not None:
+            yield mazepa.Dependency(warp_task)
+            enc_warped_imgs_task = self.enc_warped_imgs_flow(bbox)
+            yield enc_warped_imgs_task
+
+        misd_task = []
+        if self.misd_flow is not None:
+            yield mazepa.Dependency(enc_warped_imgs_task)
+            misd_task = self.misd_flow(bbox)
+            yield misd_task
+
 
 @builder.register("build_pairwise_alignment_flow")
 def build_pairwise_alignment_flow(
@@ -975,6 +980,10 @@ def build_pairwise_alignment_flow(
     invert_field_flow_kwargs: Mapping[str, Any] | None = None,
     run_warp: bool = False,
     warp_flow_kwargs: Mapping[str, Any] | None = None,
+    run_enc_warped_imgs: bool = False,
+    enc_warped_imgs_flow_kwargs: Mapping[str, Any] | None = None,
+    run_misd: bool = False,
+    misd_flow_kwargs: Mapping[str, Any] | None = None,
 ) -> mazepa.Flow:  # pylint: disable=too-many-statements)
 
     def resolve_path(path, default=None):
@@ -1016,8 +1025,8 @@ def build_pairwise_alignment_flow(
     mask_encodings_flow = None
     if mask_encodings_flow_kwargs is None:
         mask_encodings_flow_kwargs = {}
-    set_path(mask_encodings_flow_kwargs, "src_mask_path", default=binarize_defect_flow_kwargs["dst_path"])
-    set_path(mask_encodings_flow_kwargs, "src_encodings_path", default=encoding_flow_kwargs["dst_path"])
+    set_path(mask_encodings_flow_kwargs, "mask_path", default=binarize_defect_flow_kwargs["dst_path"])
+    set_path(mask_encodings_flow_kwargs, "src_path", default=encoding_flow_kwargs["dst_path"])
     set_path(mask_encodings_flow_kwargs, "dst_path", default="masked_encodings")
     if run_mask_encodings:
         mask_encodings_flow = MaskEncodingsFlowSchema(**mask_encodings_flow_kwargs)
@@ -1025,8 +1034,8 @@ def build_pairwise_alignment_flow(
     compute_field_flow = None
     if compute_field_flow_kwargs is None:
         compute_field_flow_kwargs = {}
-    cf_default_src = mask_encodings_flow_kwargs["dst_path"] if skipped_defect else \
-                     encoding_flow_kwargs["dst_path"]
+    cf_default_src = encoding_flow_kwargs["dst_path"] if skipped_defect else \
+                     mask_encodings_flow_kwargs["dst_path"]
     set_path(compute_field_flow_kwargs, "src_path", default=cf_default_src)
     set_path(compute_field_flow_kwargs, "dst_path", default="fields_fwd")
     compute_field_flow_kwargs = {"z_offsets": z_offsets} | compute_field_flow_kwargs
@@ -1038,8 +1047,8 @@ def build_pairwise_alignment_flow(
         invert_field_flow_kwargs = {}
     set_path(invert_field_flow_kwargs, "src_path", default=compute_field_flow_kwargs["dst_path"])
     set_path(invert_field_flow_kwargs, "dst_path", default="fields_inv")
-    # try to determine dst_resolution
     if "stages" in compute_field_flow_kwargs:
+        # try to get field_resolution from the previous step
         cf_dst_resolution = compute_field_flow_kwargs["stages"][-1]["dst_resolution"]
         invert_field_flow_kwargs = {"dst_resolution": cf_dst_resolution} | invert_field_flow_kwargs
     invert_field_flow_kwargs = {"z_offsets": z_offsets} | invert_field_flow_kwargs
@@ -1052,12 +1061,44 @@ def build_pairwise_alignment_flow(
     set_path(warp_flow_kwargs, "src_path", default=src_image_path)
     set_path(warp_flow_kwargs, "field_path", default=invert_field_flow_kwargs["dst_path"])
     set_path(warp_flow_kwargs, "dst_path", default="imgs_warped")
-    # try to determine field_resolution
     if "dst_resolution" in invert_field_flow_kwargs:
+        # try to get field_resolution from the previous step
         warp_flow_kwargs = {"field_resolution": invert_field_flow_kwargs["dst_resolution"]} | warp_flow_kwargs
     warp_flow_kwargs = {"z_offsets": z_offsets} | warp_flow_kwargs
     if run_warp:
         warp_flow = WarpFlowSchema(**warp_flow_kwargs)
+
+    enc_warped_imgs_flow = None
+    if enc_warped_imgs_flow_kwargs is None:
+        enc_warped_imgs_flow_kwargs = {}
+    set_path(enc_warped_imgs_flow_kwargs, "src_path", default=warp_flow_kwargs["dst_path"])
+    set_path(enc_warped_imgs_flow_kwargs, "dst_path", default="imgs_warped_encoded")
+    if "dst_resolution" in warp_flow_kwargs:
+        # try to get resolution from the previous step
+        enc_warped_imgs_flow_kwargs = {"src_resolution": warp_flow_kwargs["dst_resolution"]} | enc_warped_imgs_flow_kwargs
+    enc_warped_imgs_flow_kwargs = {"z_offsets": z_offsets} | enc_warped_imgs_flow_kwargs
+    if "reencode_tgt" in enc_warped_imgs_flow_kwargs:
+        set_path(enc_warped_imgs_flow_kwargs["reencode_tgt"], "src_path", default=src_image_path)
+        set_path(enc_warped_imgs_flow_kwargs["reencode_tgt"], "dst_path", default="encodings_misd")
+    if run_enc_warped_imgs:
+        enc_warped_imgs_flow = EncodeWarpedImgsFlowSchema(**enc_warped_imgs_flow_kwargs)
+
+
+    misd_flow = None
+    if misd_flow_kwargs is None:
+        misd_flow_kwargs = {}
+    set_path(misd_flow_kwargs, "src_path", default=enc_warped_imgs_flow_kwargs["dst_path"])
+    set_path(misd_flow_kwargs, "dst_path", default="misalignments")
+
+    # determine tgt
+    if "reencode_tgt" in enc_warped_imgs_flow_kwargs:
+        set_path(misd_flow_kwargs, "tgt_path", default=enc_warped_imgs_flow_kwargs["reencode_tgt"]["dst_path"])
+    else:
+        set_path(misd_flow_kwargs, "tgt_path", default=encoding_flow_kwargs["dst_path"])
+
+    misd_flow_kwargs = {"z_offsets": z_offsets} | misd_flow_kwargs
+    if run_misd:
+        misd_flow = MisalignmentDetectorFlowSchema(**misd_flow_kwargs)
 
     flow_schema = PairwiseAlignmentFlowSchema(
         encoding_flow=encoding_flow,
@@ -1067,6 +1108,8 @@ def build_pairwise_alignment_flow(
         compute_field_flow=compute_field_flow,
         invert_field_flow=invert_field_flow,
         warp_flow=warp_flow,
+        enc_warped_imgs_flow=enc_warped_imgs_flow,
+        misd_flow=misd_flow,
     )
     flow = flow_schema(bbox=bbox)
     return flow

@@ -29,7 +29,7 @@ from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer
-from zetta_utils.mazepa import SemaphoreType
+from zetta_utils.mazepa import SemaphoreType, id_generation
 from zetta_utils.ng.link_builder import make_ng_link
 from zetta_utils.typing import ensure_seq_of_seq
 
@@ -845,6 +845,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_args=op_args,
             op_kwargs=op_kwargs,
         )
+    """
+    Generate flow id for deconflicting intermediaries
+    """
+    flow_id = id_generation.get_unique_id(
+        prefix="subchunkable", slug_len=4, add_uuid=False, max_len=50
+    )
 
     """
     Basic building blocks where the work gets done, at the very bottom
@@ -861,6 +867,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
         force_intermediaries=not (skip_intermediaries),
+        flow_id=flow_id,
     )
 
     """
@@ -885,6 +892,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             allow_cache=(allow_cache_up_to_level >= level + 1),
             clear_cache_on_return=(allow_cache_up_to_level == level + 1),
             force_intermediaries=not (skip_intermediaries),
+            flow_id=flow_id,
         )
 
     return flow_schema(idx, dst, op_args, op_kwargs)

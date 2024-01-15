@@ -25,7 +25,7 @@ def loads(s: str):
 
 
 def load_local(local_path: str):
-    if shutil.which(cue_exe) is None:
+    if shutil.which(cue_exe) is None:  # pragma: no cover
         raise RuntimeError(
             f"{cue_exe} not found.  Please ensure cuelang is installed ( https://cuelang.org/ )"
         )

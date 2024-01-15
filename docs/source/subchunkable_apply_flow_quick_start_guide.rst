@@ -539,7 +539,7 @@ Introduction
 
 **SubchunkableApplyFlow** is the main way that the end users are expected to run inference with ``zetta_utils``. Given an arbitrary chunkwise function or an operation, ``SubchunkableApplyFlow`` provides two key functionalities:
 
-#. The ability to recursively split the provided bounding box into chunks, subchunks, subsubchunks, and so forth, with parallelisation at the chunk level.
+#. The ability to recursively split the provided bounding box into chunks, subchunks, subsubchunks, and so forth, with global parallelisation at the chunk level. (Local parallelisation, which happens at the smallest level, is handled by ``mazepa``.)
 #. The ability to specify (subject to divisibility requirements discussed below) arbitrary blending (either linear or quadratic) or cropping at each level.
 
 Chunking with cropping and blending is an absolute necessity for running inference or any other volumetric task in the context of connectomics: because a dataset can be at petascale or even larger, there is no hope of running anything without splitting the dataset into chunks. To mitigate the edge artifacts from chunkwise processing, we can use either cropping or blending. Cropping refers to padding the area to be processed and only writing in the middle of the area; blending refers to padding the areas to be processed and writing out a weighted sum of the outputs from different chunks in the area that overlaps.
@@ -580,7 +580,7 @@ One might ask why subchunking is necessary over simple chunking. After all, don'
 
       // Flag to indicate "simple" processing mode where outputs get
       // written directly to the destination layer. Don't worry about
-      // this for now
+      // this for now.
       skip_intermediaries: true
 
       // Specification for the operation we're performing.
@@ -645,7 +645,7 @@ Let's take the above example and modify it slightly to use subchunking, so that 
 #. The three ``processing_`` arguments need to be lengthened to length 2.
 #. The smallest subchunk size (256) is smaller than the backend chunk size of the destination layer (1024). Because of this, we must remove the ``skip_intermediaries: true`` and instead include ``level_intermediaries_dirs``. The immediate operation results will be first written to the intermediary location, and then later copied over to the final destination layer with the correct chunk size.
 
-.. collapse:: Intermediate Directories
+.. collapse:: Intermediary Directories
 
    The ``level_intermediaries_dirs`` must be specified whenever ``skip_intermediaries``
    is not used. ``skip_intermediaries`` cannot be used when non-zero ``blend_pad`` or
@@ -654,7 +654,7 @@ Let's take the above example and modify it slightly to use subchunking, so that 
 With the changes, the example above becomes:
 
 .. code-block:: cue
-  :emphasize-lines: 25, 26, 27, 29, 30
+  :emphasize-lines: 23, 24, 25, 27, 28
 
    #SRC_PATH: "https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm"
    #DST_PATH: "file://~/zetta_utils_temp/"
@@ -710,11 +710,13 @@ With the changes, the example above becomes:
       }
    }
 
-Each level can have its own crop and blend (as well as ``blend_mode``), but there is a caveat: **for each level, the processing chunk must evenly divide the ``crop`` and ``blend`` padded processing chunk of the level above**. This is because ``SubchunkableApplyFlow`` uses a recursive implementation, where each padded processing chunk is split into smaller processing subchunks. Thus, a valid example might look like:
+Each level can have its own crop and blend (as well as ``blend_mode``), but there are two caveats:
 
+#. **For each level, the processing chunk must evenly divide the ``crop`` and ``blend`` padded processing chunk of the level above**. This is because ``SubchunkableApplyFlow`` uses a recursive implementation, where each padded processing chunk is split into smaller processing subchunks.
+#. If you are using blend for any level, you must specify ``max_reduction_chunk_sizes``, which specifies the maximum size of the reduction chunk. When blending is specified, the overlapping, padded outputs are written to separate layers within the intermediary directory, before they are combined (reduced) into the final output based on the `processing_blend_modes` for that level. The reduction operation is also chunked, and ``SubchunkableApplyFlow`` automatically handles the combining of multiple processing chunks into backend-aligned reduction chunks, up to the ``max_reduction_chunk_size`` specified. ``max_reduction_chunk_sizes`` can be given as a single list for all levels or as a list of lists like ``processing_blend/crop_pads``, but it is recommended to set it as large as possible because I/O operations are more efficient with larger chunks.
 
 .. code-block:: cue
-  :emphasize-lines: 24, 25, 26, 27, 28, 29, 30, 31
+  :emphasize-lines: 24, 25, 26, 27, 28, 29, 30, 31, 33, 34
 
    //
    // Handy variables.
@@ -748,12 +750,9 @@ Each level can have its own crop and blend (as well as ``blend_mode``), but ther
       processing_blend_pads: [[32, 32, 0], [16, 16, 0]]
       processing_blend_modes: ["linear", "quadratic"]
 
-      // Blending is performed in two stages. First, overlapping operation
-      // outputs are written to the intermediary dirs as separate layers.
-      // Second, those outputs are blended together (aka reduced) into
-      // the final destination layer. This reduction is a chunked operation
-      // as well, and we can specify the chunk size in which it's done:
-      max_reduction_chunk_sizes: [1024, 1024, 1]
+      // How large can our reduction chunks be?
+      max_reduction_chunk_sizes: [2048, 2048, 1]
+
       // Where to put the temporary layers.
       level_intermediaries_dirs: ["file://~/.zetta_utils/tmp/", "file://~/.zetta_utils/tmp/"]
 
@@ -781,7 +780,6 @@ Each level can have its own crop and blend (as well as ``blend_mode``), but ther
          on_info_exists:      "overwrite"
       }
    }
-
 
 Running Remotely
 ----------------
@@ -872,3 +870,6 @@ When you run this file (with ``local_test`` set to ``false``), ``zetta_utils`` w
 .. note::
 
   When cancelling a run in progress, do **NOT** press *Ctrl-C* multiple times. If you press *Ctrl-C* once, ``zetta_utils`` will prompt for confirmation of the cancellation, and gracefully garbage collect the SQS queues and the deployment before returning.
+
+.. warning::
+  **If the run force quits and the garbage collector has not been configured, the deployment may run indefinitely!**

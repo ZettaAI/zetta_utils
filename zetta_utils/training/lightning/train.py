@@ -97,10 +97,10 @@ def lightning_train(
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
             train_dataloader=train_dataloader
             if not isinstance(train_dataloader, dict)
-            else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_BY_DEFAULT),
+            else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED),
             val_dataloader=val_dataloader
             if not isinstance(val_dataloader, dict)
-            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_BY_DEFAULT),
+            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED),
             full_state_ckpt_path=full_state_ckpt_path,
         )
         return

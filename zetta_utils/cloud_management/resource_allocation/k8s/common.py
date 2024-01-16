@@ -76,7 +76,7 @@ def get_mazepa_worker_command(
 
     result = (
         """
-    zetta -vv -l try run -s '{
+    zetta -vv -l try run -p -s '{
     """
         + f'"@type": "{command}"\n'
         + f"task_queue: {json.dumps(task_queue_spec)}\n"

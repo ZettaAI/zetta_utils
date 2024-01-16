@@ -293,7 +293,7 @@ def _lightning_train_remote(
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
-):  # pylint: disable=too-many-locals
+):  # pylint: disable=too-many-locals,too-many-statements
     """
     Parse spec and launch single/multinode training accordingly.
     Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
@@ -347,8 +347,10 @@ def _lightning_train_remote(
             field_ref=k8s_client.V1ObjectFieldSelector(field_path="status.hostIP")
         ),
     )
-
-    zetta_cmd = "zetta run -p specs/train.cue"
+    flags = ""
+    if builder.PARALLEL_BUILD_ALLOWED:
+        flags += " -p"
+    zetta_cmd = f"zetta run {flags} specs/train.cue"
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=execution_id,
         image=image,

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import attrs
 from google.cloud.datastore import Client, Entity, Key
@@ -46,6 +46,30 @@ class DatastoreBackend(DBBackend):
     project: Optional[str] = None
     _client: Optional[Client] = None
     _exclude_from_indexes: tuple[str, ...] = ()
+
+    def __deepcopy__(self, memo) -> DatastoreBackend:
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+
+        # Skip _client, because it's unpickleable
+        for field in attrs.fields_dict(cls):
+            if field == "_client":
+                setattr(result, field, None)
+            else:
+                value = getattr(self, field)
+                setattr(result, field, deepcopy(value, memo))
+
+        return result
+
+    def __getstate__(self):
+        state = attrs.asdict(self)
+        state["_client"] = None
+        return state
+
+    def __setstate__(self, state: dict[str, Any]):
+        for field in attrs.fields_dict(self.__class__):
+            setattr(self, field, state[field])
 
     def _get_keys_or_entities(
         self, idx: DBIndex, data: Optional[DBDataT] = None

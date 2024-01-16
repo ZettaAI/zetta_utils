@@ -141,7 +141,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
         if count <= 0:
             return zeros_mask
 
-        scale_factor = 0.5**count
+        scale_factor = 0.5 ** count
         return (
             torch.nn.functional.interpolate(
                 zeros_mask.float(), scale_factor=scale_factor, mode="bilinear"
@@ -223,7 +223,7 @@ class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancesto
             ((abs_error_local_opt - abs_error_1px_shift + 4.0) * 0.2)
             .pow(
                 8.0  # increase to put more focus on locations where bad alignment
-                     # still produces similar encodings - try 8? -> 42
+                # still produces similar encodings - try 8? -> 42
             )
             .logsumexp(dim=0)
         )

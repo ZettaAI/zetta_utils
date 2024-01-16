@@ -348,7 +348,7 @@ def _lightning_train_remote(
         ),
     )
 
-    zetta_cmd = "zetta run specs/train.cue"
+    zetta_cmd = "zetta run -p specs/train.cue"
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=execution_id,
         image=image,

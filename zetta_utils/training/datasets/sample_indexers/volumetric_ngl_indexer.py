@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import ceil
 from typing import Sequence
 
 import attrs
@@ -7,6 +8,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry.vec import VEC3D_PRECISION
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.parsing import ngl_state
 
@@ -60,14 +62,10 @@ class VolumetricNGLIndexer(SampleIndexer):
         resolution = Vec3D[float](*self.resolution)
         chunk_size = Vec3D[int](*self.chunk_size)
 
-        start_coord_raw = point - chunk_size * resolution / 2
-        # Offset to start with the given coord. Important for Z
-        start_coord_raw += resolution
-        # Round to get exact coords
-        start_coord = (start_coord_raw // resolution) * resolution
-        end_coord = start_coord + chunk_size * resolution
+        start_coord = ceil(round(point / resolution - chunk_size / 2, VEC3D_PRECISION))
+        end_coord = start_coord + chunk_size
 
-        sample_bbox = BBox3D.from_coords(start_coord, end_coord, resolution=Vec3D(1, 1, 1))
+        sample_bbox = BBox3D.from_coords(start_coord, end_coord, resolution=resolution)
 
         result = VolumetricIndex(bbox=sample_bbox, resolution=resolution)
 

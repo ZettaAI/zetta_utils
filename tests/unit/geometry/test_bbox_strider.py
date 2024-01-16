@@ -177,7 +177,7 @@ def test_bbox_strider_get_all_chunks_parallel(mocker):
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 4),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
             None,
@@ -188,7 +188,7 @@ def test_bbox_strider_get_all_chunks_parallel(mocker):
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 4),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
             None,
@@ -199,7 +199,7 @@ def test_bbox_strider_get_all_chunks_parallel(mocker):
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 4),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
             None,
@@ -348,38 +348,38 @@ def test_bbox_strider_len(
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 3),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 1),
             IntVec3D(2, 2, 1),
             Vec3D(0, 0.2, 0.3),
             "exact",
             None,
             3,
-            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6))),
         ],
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 3),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 1),
             IntVec3D(2, 2, 1),
             Vec3D(0, 0.2, 0.3),
             "shrink",
             None,
             3,
-            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6))),
         ],
         [
             Vec3D(0, -1, 0),
             Vec3D(2, 3, 3),
-            Vec3D(0.1, 0.6/3.0, 0.1+0.2),
+            Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2),
             IntVec3D(2, 2, 1),
             IntVec3D(2, 2, 1),
             Vec3D(0, 0.2, 0.3),
             "expand",
             None,
             3,
-            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6)))
+            BBox3D.from_slices((slice(0, 0.2), slice(0.2, 0.6), slice(0.3, 0.6))),
         ],
     ],
 )

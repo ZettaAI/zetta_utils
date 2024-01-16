@@ -101,7 +101,7 @@ def run(
             exec(code)  # pylint: disable=exec-used
 
     if parallel_builder:
-        zetta_utils.builder.PARALLEL_BUILD_BY_DEFAULT = True
+        zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
     result = zetta_utils.builder.build(spec, parallel=parallel_builder)
     logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")

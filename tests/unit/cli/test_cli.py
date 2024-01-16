@@ -6,11 +6,12 @@ from zetta_utils import builder, cli
 from zetta_utils.parsing import json
 
 
+def dummy(i):
+    return i
+
+
 @pytest.fixture
 def register_dummy():
-    def dummy(i):
-        return i
-
     builder.register("dummy")(dummy)
     yield
     del builder.REGISTRY["dummy"]
@@ -26,6 +27,8 @@ def test_zetta_run(spec, register_dummy, mocker):
     mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
     runner = CliRunner()
     result = runner.invoke(cli.run, ".")
+    assert result.exit_code == 0
+    result = runner.invoke(cli.run, ["-p", "."])
     assert result.exit_code == 0
 
 

@@ -97,5 +97,5 @@ if __name__ == "__main__":
     with open(OUTPUT_FILE, "w", encoding="utf-8") as file:
         file.write("# pylint: disable=unused-import\n\n")
         file.write(IMPORT_STATEMENTS + "\n\n")
-        file.write("set_verbosity(\"INFO\")\n")
+        file.write('set_verbosity("INFO")\n')
         file.write("configure_logger()\n")

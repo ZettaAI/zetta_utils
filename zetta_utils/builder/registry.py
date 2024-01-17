@@ -13,6 +13,7 @@ from . import constants
 T = TypeVar("T", bound=Callable)
 
 REGISTRY: dict[str, list[RegistryEntry]] = defaultdict(list)
+MUTLIPROCESSING_INCOMPATIBLE_CLASSES: set[str] = set()
 
 
 @attrs.frozen
@@ -68,6 +69,12 @@ def register(
             )
 
     def decorator(fn: T) -> T:
+        nonlocal allow_parallel
+        for k in MUTLIPROCESSING_INCOMPATIBLE_CLASSES:
+            if fn.__module__ is not None and k.lower() in fn.__module__.lower():
+                allow_parallel = False
+                break
+
         REGISTRY[name].append(
             RegistryEntry(
                 fn=fn,

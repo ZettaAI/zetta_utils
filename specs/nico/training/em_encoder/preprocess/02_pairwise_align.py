@@ -59,7 +59,6 @@ for k, v in SOURCE_PATHS.items():
 
     cv_src_img = CloudVolume(src_img_path, progress=False)
 
-
     bounds = cv_src_img.bounds
     resolution = cv_src_img.resolution.tolist()
     minpt = bounds.minpt.tolist()
@@ -128,25 +127,24 @@ for k, v in SOURCE_PATHS.items():
             [
                 min(8192, 2048 * math.ceil(size[0] / 2048)),
                 min(8192, 2048 * math.ceil(size[1] / 2048)),
-                1
+                1,
             ],
             [
                 min(8192, 2048 * math.ceil(size[0] / 2048)),
                 min(8192, 2048 * math.ceil(size[1] / 2048)),
-                1
+                1,
             ],
             [
                 min(8192, 2048 * math.ceil(size[0] / 2048)),
                 min(8192, 2048 * math.ceil(size[1] / 2048)),
-                1
+                1,
             ],
             [
                 min(16384, 2048 * math.ceil(size[0] / 2048)),
                 min(16384, 2048 * math.ceil(size[1] / 2048)),
-                1
+                1,
             ],
         ]
-
 
         compute_field_flow = build_compute_field_multistage_flow(
             stages=[
@@ -170,12 +168,12 @@ for k, v in SOURCE_PATHS.items():
                     processing_chunk_sizes=[lvl0_sizes[2], [2048, 2048, 1]],
                     processing_crop_pads=[[0, 0, 0], [64, 64, 0]],
                     expand_bbox_processing=True,
-                )
+                ),
             ],
             bbox=BBox3D.from_coords(
                 start_coord=[minpt[0], minpt[1], z_start],
                 end_coord=[maxpt[0], maxpt[1], z_end],
-                resolution=resolution
+                resolution=resolution,
             ),
             src_offset=[0, 0, 1],
             tgt_offset=[0, 0, 0],
@@ -187,17 +185,15 @@ for k, v in SOURCE_PATHS.items():
                 info_field_overrides=field_ref,
             ),
             tmp_layer_dir=TMP_FIELD_PATH + k,
-            tmp_layer_factory=partial(build_cv_layer, info_field_overrides=field_ref)
+            tmp_layer_factory=partial(build_cv_layer, info_field_overrides=field_ref),
         )
         concurrent_cf_flows.append(compute_field_flow)
-
 
         warp_img_flow = build_subchunkable_apply_flow(
             dst=build_cv_layer(
                 dst_img_path,
                 cv_kwargs={"delete_black_uploads": True},
                 info_reference_path=src_img_path,
-
             ),
             op=WarpOperation(mode="img"),
             skip_intermediaries=True,
@@ -208,13 +204,10 @@ for k, v in SOURCE_PATHS.items():
                 "src": build_cv_layer(
                     src_img_path,
                     index_procs=[
-                        VolumetricIndexTranslator(
-                            offset=[0, 0, 1],
-                            resolution=resolution
-                        )
+                        VolumetricIndexTranslator(offset=[0, 0, 1], resolution=resolution)
                     ],
                 ),
-                "field": build_cv_layer(dst_field_path)
+                "field": build_cv_layer(dst_field_path),
             },
             bbox=BBox3D.from_coords(
                 start_coord=[minpt[0], minpt[1], z_start],
@@ -246,7 +239,7 @@ execute_on_gcp_with_sqs(
 )
 
 execute_on_gcp_with_sqs(
-    worker_image="us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20230809", #03_2
+    worker_image="us.gcr.io/zetta-research/zetta_utils:nico_py3.9_20230809",  # 03_2
     worker_resources={"memory": "13000Mi"},
     worker_replicas=50,
     worker_cluster_name="zutils-x3",

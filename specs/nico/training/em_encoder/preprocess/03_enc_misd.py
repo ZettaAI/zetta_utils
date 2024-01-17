@@ -75,10 +75,22 @@ for k, v in SOURCE_PATHS.items():
     mask_ref["data_type"] = "uint8"
 
     mask_thresh_ref = deepcopy(mask_ref)
-    mask_thresh_ref["scales"][0]["size"] = [math.ceil(maxpt[0] / 2.0**10), math.ceil(maxpt[1] / 2.0**10), maxpt[2]]
-    mask_thresh_ref["scales"][0]["chunk_sizes"] = [[math.ceil(maxpt[0] / 2.0**10), math.ceil(maxpt[1] / 2.0**10), 1]]
-    mask_thresh_ref["scales"][0]["resolution"] = [resolution[0] * 2**10, resolution[1] * 2**10, resolution[2]]
-    mask_thresh_ref["scales"][0]["key"] = f"{resolution[0] * 2**10}_{resolution[1] * 2**10}_{resolution[2]}"
+    mask_thresh_ref["scales"][0]["size"] = [
+        math.ceil(maxpt[0] / 2.0 ** 10),
+        math.ceil(maxpt[1] / 2.0 ** 10),
+        maxpt[2],
+    ]
+    mask_thresh_ref["scales"][0]["chunk_sizes"] = [
+        [math.ceil(maxpt[0] / 2.0 ** 10), math.ceil(maxpt[1] / 2.0 ** 10), 1]
+    ]
+    mask_thresh_ref["scales"][0]["resolution"] = [
+        resolution[0] * 2 ** 10,
+        resolution[1] * 2 ** 10,
+        resolution[2],
+    ]
+    mask_thresh_ref["scales"][0][
+        "key"
+    ] = f"{resolution[0] * 2**10}_{resolution[1] * 2**10}_{resolution[2]}"
 
     if v["contiguous"]:
         z_ranges = [(minpt[2], maxpt[2] + 1)]
@@ -88,7 +100,7 @@ for k, v in SOURCE_PATHS.items():
     superchunk_size = [
         min(8192, 2048 * math.ceil(size[0] / 2048)),
         min(8192, 2048 * math.ceil(size[1] / 2048)),
-        1
+        1,
     ]
 
     for z_start, z_end in z_ranges:
@@ -152,7 +164,6 @@ for k, v in SOURCE_PATHS.items():
         # )
         # concurrent_misd_flows.append(misd_flow)
 
-
         # seq_ds_flows = []
         # for src_res in [[resolution[0] * 2**factor, resolution[1] * 2**factor, resolution[2]] for factor in range(0, 2)]:
         #     dst_res = [2 * src_res[0], 2 * src_res[1], src_res[2]]
@@ -184,7 +195,7 @@ for k, v in SOURCE_PATHS.items():
         # concurrent_img_ds_flows.append(sequential_flow(seq_ds_flows))
 
         seq_ds_flows = []
-        dst_res = [resolution[0] * 2**10, resolution[1] * 2**10, resolution[2]]
+        dst_res = [resolution[0] * 2 ** 10, resolution[1] * 2 ** 10, resolution[2]]
         ds_flow = build_subchunkable_apply_flow(
             dst=build_cv_layer(
                 misd_mask_thr_path,
@@ -192,10 +203,14 @@ for k, v in SOURCE_PATHS.items():
                 data_resolution=dst_res,
                 interpolation_mode="nearest",
             ),
-            fn=efficient_parse_lambda_str(lambda_str="lambda src: src", name=f"Downsample Warped Mask"),
+            fn=efficient_parse_lambda_str(
+                lambda_str="lambda src: src", name=f"Downsample Warped Mask"
+            ),
             skip_intermediaries=True,
             dst_resolution=resolution,
-            processing_chunk_sizes=[[math.ceil(maxpt[0]/1024.0)*1024, math.ceil(maxpt[1]/1024.0)*1024, 1]],
+            processing_chunk_sizes=[
+                [math.ceil(maxpt[0] / 1024.0) * 1024, math.ceil(maxpt[1] / 1024.0) * 1024, 1]
+            ],
             processing_crop_pads=[[0, 0, 0]],
             op_kwargs={
                 "src": build_cv_layer(
@@ -204,10 +219,20 @@ for k, v in SOURCE_PATHS.items():
                         partial(rearrange, pattern="C X Y Z -> Z C X Y"),
                         partial(compare, mode=">=", value=32, binarize=True),
                         partial(to_float32),
-                        partial(interpolate, scale_factor=[1.0/2**10, 1.0/2**10], mode="area", unsqueeze_input_to=4),
+                        partial(
+                            interpolate,
+                            scale_factor=[1.0 / 2 ** 10, 1.0 / 2 ** 10],
+                            mode="area",
+                            unsqueeze_input_to=4,
+                        ),
                         partial(compare, mode=">", value=0.1, binarize=True),
                         partial(to_uint8),
-                        partial(interpolate, scale_factor=[2**10, 2**10], mode="nearest", unsqueeze_input_to=4),
+                        partial(
+                            interpolate,
+                            scale_factor=[2 ** 10, 2 ** 10],
+                            mode="nearest",
+                            unsqueeze_input_to=4,
+                        ),
                         partial(rearrange, pattern="Z C X Y -> C X Y Z"),
                     ],
                 ),
@@ -221,7 +246,6 @@ for k, v in SOURCE_PATHS.items():
             expand_bbox_resolution=True,
         )
         concurrent_mask_ds_flows.append(ds_flow)
-
 
 
 os.environ["ZETTA_RUN_SPEC"] = json.dumps("")
@@ -239,7 +263,7 @@ os.environ["ZETTA_RUN_SPEC"] = json.dumps("")
 #     target=sequential_flow([
 #         concurrent_flow(concurrent_enc_flows),
 #         concurrent_flow(concurrent_misd_flows),
-        
+
 #     ])
 # )
 
@@ -265,15 +289,27 @@ for k in SOURCE_PATHS.keys():
     link = make_ng_link(
         layers=[
             ("tgt", "image", f"precomputed://gs://zetta-research-nico/encoder/datasets/{k}"),
-            ("src", "image", f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/warped_img"),
-            ("misd", "image", f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/misd_mask"),
-            ("bad_chunks", "segmentation", f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/misd_mask_thr"),
+            (
+                "src",
+                "image",
+                f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/warped_img",
+            ),
+            (
+                "misd",
+                "image",
+                f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/misd_mask",
+            ),
+            (
+                "bad_chunks",
+                "segmentation",
+                f"precomputed://gs://zetta-research-nico/encoder/pairwise_aligned/{k}/misd_mask_thr",
+            ),
             (f"CREATE:zetta-research-nico/encoder/pairwise_aligned/{k}", "annotation", None),
         ],
         title=k,
         position=Vec3D(*(cv.bounds.center().round()[:2]), 0),
         scale_bar_nm=30000,
-        print_to_logger=False
+        print_to_logger=False,
     )
 
     print(f"{k}: {link}")

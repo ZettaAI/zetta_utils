@@ -373,7 +373,7 @@ for k, v in SOURCE_PATHS.items():
         processing_chunk_size = [
             max(1024, 32768 // (scale_factor * chunk_size_xy_adjust)),
             max(1024, 32768 // (scale_factor * chunk_size_xy_adjust)),
-            2
+            2,
         ]
         src_bboxes = [
             BBox3D.from_coords(
@@ -437,11 +437,17 @@ for k, v in SOURCE_PATHS.items():
                         index_procs=[
                             VolumetricIndexTranslator(
                                 offset=[
-                                    10 * (src_bbox.start[0] - dst_bbox.start[0]), # Hack for decimal resolutions
-                                    10 * (src_bbox.start[1] - dst_bbox.start[1]), # Hack for decimal resolutions
+                                    10
+                                    * (
+                                        src_bbox.start[0] - dst_bbox.start[0]
+                                    ),  # Hack for decimal resolutions
+                                    10
+                                    * (
+                                        src_bbox.start[1] - dst_bbox.start[1]
+                                    ),  # Hack for decimal resolutions
                                     src_bbox.start[2] - dst_bbox.start[2],
                                 ],
-                                resolution=[0.1, 0.1, 1],                         # Hack for decimal resolutions
+                                resolution=[0.1, 0.1, 1],  # Hack for decimal resolutions
                             )
                         ],
                     )
@@ -480,5 +486,5 @@ execute_on_gcp_with_sqs(
     # checkpoint="gs://zetta_utils_runs/nkem/exec-nice-sepia-wren-of-jest/2023-07-29_152159_7246.zstd",
     local_test=False,
     batch_gap_sleep_sec=0.1,
-    target=mazepa.seq_flow(flows)
+    target=mazepa.seq_flow(flows),
 )

@@ -69,7 +69,7 @@ for k, v in SOURCE_PATHS.items():
                 misd_mask_thr_path,
                 write_procs=[
                     partial(to_uint8),
-                ]
+                ],
             ),
             fn=efficient_parse_lambda_str(
                 lambda_str="lambda src: (src['src']==0) | (src['tgt']==0) | (src['misd']!=0)",
@@ -77,9 +77,7 @@ for k, v in SOURCE_PATHS.items():
             ),
             skip_intermediaries=True,
             dst_resolution=[resolution[0] * 1024, resolution[1] * 1024, resolution[2]],
-            processing_chunk_sizes=[
-                [math.ceil(size[0] / 1024.0), math.ceil(size[1] / 1024.0), 1]
-            ],
+            processing_chunk_sizes=[[math.ceil(size[0] / 1024.0), math.ceil(size[1] / 1024.0), 1]],
             processing_crop_pads=[[0, 0, 0]],
             op_kwargs={
                 "src": build_layer_set(

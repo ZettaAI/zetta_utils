@@ -30,7 +30,7 @@ from zetta_utils.augmentations.tensor import (
     rand_perlin_2d_octaves,
     square_tile_pattern_aug,
 )
-from zetta_utils.builder.build import BuilderPartial, build
+from zetta_utils.builder.building import BuilderPartial, build
 from zetta_utils.builder.built_in_registrations import (
     efficient_parse_lambda_str,
     invoke_lambda_str,

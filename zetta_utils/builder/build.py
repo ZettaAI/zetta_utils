@@ -133,7 +133,9 @@ def _build_dict(**kwargs):
 
 
 def _is_basic(obj) -> bool:
-    return isinstance(obj, (int, float, bool, str, dict, list, tuple)) or obj is None
+    return (
+        isinstance(obj, (int, float, bool, str, dict, list, tuple, BuilderPartial)) or obj is None
+    )
 
 
 def _parse_stages(spec: JsonSerializableValue, name_prefix: str, version: str) -> list[Stage]:

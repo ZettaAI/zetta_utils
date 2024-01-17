@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional
 
 import torch  # pylint: disable=unused-import
 
-from .build import BuilderPartial
+from .building import BuilderPartial
 from .registry import register
 
 LAMBDA_STR_MAX_LENGTH: int = 80

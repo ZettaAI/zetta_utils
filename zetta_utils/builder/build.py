@@ -6,6 +6,7 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Any, Callable, Final, Optional, cast
 
 import attrs
+import cachetools
 from typeguard import typechecked
 
 from zetta_utils import parsing
@@ -24,7 +25,10 @@ SPECIAL_KEYS: Final = {
 
 BUILT_OBJECT_ID_REGISTRY: dict[int, JsonSerializableValue] = {}
 
-BUILDER_PARALLEL_EXECUTOR: Final = ProcessPoolExecutor()
+
+@cachetools.cached({})
+def _get_parallel_executor() -> ProcessPoolExecutor:
+    return ProcessPoolExecutor()
 
 
 def get_initial_builder_spec(obj: Any) -> JsonSerializableValue:
@@ -113,7 +117,7 @@ def _execute_build_stages(stages: list[Stage], parallel: bool):
         results_sequential = [obj.build() for obj in stage.sequential_part]
         _process_results(stage.sequential_part, results_sequential)
         if parallel:
-            futures = [BUILDER_PARALLEL_EXECUTOR.submit(obj.build) for obj in stage.parallel_part]
+            futures = [_get_parallel_executor().submit(obj.build) for obj in stage.parallel_part]
             results_parallel = [fut.result() for fut in futures]
         else:
             results_parallel = [obj.build() for obj in stage.parallel_part]

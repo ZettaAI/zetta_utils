@@ -15,7 +15,7 @@ from zetta_utils.training.lightning.train import distributed_available
 from ..common import log_3d_results
 
 
-@builder.register("BaseAffinityRegime", allow_parallel=False)
+@builder.register("BaseAffinityRegime")
 @attrs.mutable(eq=False)
 class BaseAffinityRegime(pl.LightningModule):
     model: torch.nn.Module

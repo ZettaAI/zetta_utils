@@ -15,7 +15,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.strategies import ddp
 
 from zetta_utils import builder, log
-from zetta_utils.builder.build import get_initial_builder_spec
+from zetta_utils.builder import get_initial_builder_spec
 from zetta_utils.parsing import json
 from zetta_utils.typing import JsonSerializableValue
 

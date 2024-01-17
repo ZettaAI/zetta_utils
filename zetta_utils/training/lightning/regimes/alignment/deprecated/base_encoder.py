@@ -19,7 +19,7 @@ from zetta_utils import builder, distributions, tensor_ops, viz
 from zetta_utils.training.lightning.regimes.common import log_results
 
 
-@builder.register("BaseEncoderRegime", versions="==0.0.1", allow_parallel=False)
+@builder.register("BaseEncoderRegime", versions="==0.0.1")
 @attrs.mutable(eq=False)
 class BaseEncoderRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module

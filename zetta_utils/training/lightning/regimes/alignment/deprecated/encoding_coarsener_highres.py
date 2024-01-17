@@ -60,7 +60,7 @@ def center_crop_norm(image):
     return crop(norm(image))
 
 
-@builder.register("EncodingCoarsenerHighRes", versions="==0.0.0", allow_parallel=False)
+@builder.register("EncodingCoarsenerHighRes", versions="==0.0.0")
 @attrs.mutable(eq=False)
 class EncodingCoarsenerHighRes(pl.LightningModule):  # pylint: disable=too-many-ancestors
     encoder: torch.nn.Module

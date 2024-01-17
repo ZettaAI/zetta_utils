@@ -22,13 +22,7 @@ SPECIAL_KEYS: Final = {
     "type": "@type",
     "version": "@version",
 }
-
 BUILT_OBJECT_ID_REGISTRY: dict[int, JsonSerializableValue] = {}
-
-
-@cachetools.cached({})
-def _get_parallel_executor() -> ProcessPoolExecutor:
-    return ProcessPoolExecutor()
 
 
 def get_initial_builder_spec(obj: Any) -> JsonSerializableValue:
@@ -70,6 +64,17 @@ def _build(spec: JsonSerializableValue, parallel: bool, version: str, name_prefi
     return result
 
 
+class UnpicklableDict(dict):
+    def __reduce__(self):
+        """Ensure that the object becomes an empty dictionary when pickled."""
+        return (UnpicklableDict, (), None, None, iter({}.items()))
+
+
+@cachetools.cached(UnpicklableDict())
+def _get_process_pool():
+    return ProcessPoolExecutor()
+
+
 @attrs.mutable
 class ObjectToBeBuilt:
     spec: JsonSerializableValue
@@ -78,23 +83,27 @@ class ObjectToBeBuilt:
     kwargs: dict[str, Any] = attrs.field(factory=dict)
     parent: ObjectToBeBuilt | None = None
     parent_kwarg_name: str | None = None
+    allow_parallel: bool = True
 
-    def build(self) -> Any:
-        spec_as_str = json.dumps(self.spec)
-        with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
-            try:
-                result = self.fn(**self.kwargs)
-            except Exception as e:  # pragma: no cover
-                if hasattr(self.fn, "__name__"):
-                    name = self.fn.__name__
-                else:
-                    name = str(self.fn)
-                e.args = (
-                    f'{e}\nException occured while building "{self.name_prefix}" '
-                    f'(mapped to "{name}" from module "{self.fn.__module__}")',
-                )
-                raise e from None
-        return result
+
+def _build_object(
+    fn: Callable, kwargs: dict[str, Any], spec: JsonSerializableValue, name_prefix: str
+) -> Any:
+    spec_as_str = json.dumps(spec)
+    with ctx_managers.set_env_ctx_mngr(CURRENT_BUILD_SPEC=spec_as_str):
+        try:
+            result = fn(**kwargs)
+        except Exception as e:  # pragma: no cover
+            if hasattr(fn, "__name__"):
+                name = fn.__name__
+            else:
+                name = str(fn)
+            e.args = (
+                f'{e}\nException occured while building "{name_prefix}" '
+                f'(mapped to "{name}" from module "{fn.__module__}")',
+            )
+            raise e from None
+    return result
 
 
 @attrs.mutable
@@ -106,26 +115,52 @@ class Stage:
 def _execute_build_stages(stages: list[Stage], parallel: bool):
     assert len(stages) > 0
 
-    def _process_results(objs: list[ObjectToBeBuilt], results: list[Any]):
-        for obj, result in zip(objs, results):
-            BUILT_OBJECT_ID_REGISTRY[id(result)] = obj.spec
-            if obj.parent is not None:
-                assert obj.parent_kwarg_name is not None
-                obj.parent.kwargs[obj.parent_kwarg_name] = result
+    def _process_result(obj: ObjectToBeBuilt, result: Any):
+        # for obj, result in zip(objs, results):
+        BUILT_OBJECT_ID_REGISTRY[id(result)] = obj.spec
+        if obj.parent is not None:
+            assert obj.parent_kwarg_name is not None
+            obj.parent.kwargs[obj.parent_kwarg_name] = result
 
     for stage in stages:
-        results_sequential = [obj.build() for obj in stage.sequential_part]
-        _process_results(stage.sequential_part, results_sequential)
-        if parallel:
-            futures = [_get_parallel_executor().submit(obj.build) for obj in stage.parallel_part]
-            results_parallel = [fut.result() for fut in futures]
-        else:
-            results_parallel = [obj.build() for obj in stage.parallel_part]
-        _process_results(stage.parallel_part, results_parallel)
+        for obj in stage.sequential_part:
+            obj_result = _build_object(
+                fn=obj.fn,
+                kwargs=obj.kwargs,
+                spec=obj.spec,
+                name_prefix=obj.name_prefix,
+            )
+            _process_result(obj, obj_result)
 
-    assert len(results_parallel) <= 1
-    result = (results_sequential + results_parallel)[-1]
-    return result
+        if parallel:
+            futures = [
+                _get_process_pool().submit(
+                    _build_object,
+                    obj.fn,
+                    obj.kwargs,
+                    obj.spec,
+                    obj.name_prefix,
+                )
+                for obj in stage.parallel_part
+            ]
+            results_parallel = [fut.result() for fut in futures]
+            for obj, result in zip(stage.parallel_part, results_parallel):
+                _process_result(obj, result)
+            # the last parallel built object is returned if the
+            # last stage has parallel part
+            if len(results_parallel) > 0:
+                obj_result = results_parallel[-1]
+        else:
+            for obj in stage.parallel_part:
+                obj_result = _build_object(
+                    fn=obj.fn,
+                    kwargs=obj.kwargs,
+                    spec=obj.spec,
+                    name_prefix=obj.name_prefix,
+                )
+                _process_result(obj, obj_result)
+
+    return obj_result
 
 
 def _build_list(**kwargs):
@@ -136,7 +171,7 @@ def _build_dict(**kwargs):
     return kwargs
 
 
-def _is_basic(obj) -> bool:
+def _is_trivial(obj) -> bool:
     return (
         isinstance(obj, (int, float, bool, str, dict, list, tuple, BuilderPartial)) or obj is None
     )
@@ -154,7 +189,7 @@ def _parse_stages(spec: JsonSerializableValue, name_prefix: str, version: str) -
         name_prefix=name_prefix,
     )
     result = [stage_dict[k] for k in reversed(sorted(stage_dict.keys()))]
-    if _is_basic(final_obj) or isinstance(final_obj, BuilderPartial):
+    if _is_trivial(final_obj):
         result.append(
             Stage(
                 sequential_part=[
@@ -165,7 +200,7 @@ def _parse_stages(spec: JsonSerializableValue, name_prefix: str, version: str) -
     return result
 
 
-def _parse_stages_inner(  # pylint: disable=too-many-branches
+def _parse_stages_inner(  # pylint: disable=too-many-branches,too-many-statements
     spec: JsonSerializableValue,
     stages_dict: dict[int, Stage],
     level: int,
@@ -199,10 +234,12 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches
             for i, e in enumerate(spec)
         ]
 
-        if all(_is_basic(e) for e in args):
+        if all(_is_trivial(e) for e in args):
             result = type(spec)(cast(list[JsonSerializableValue], args))
         else:
-            this_obj.kwargs = {str(i): v for i, v in enumerate(args) if _is_basic(v)}
+            if any(not v.allow_parallel for v in args if isinstance(v, ObjectToBeBuilt)):
+                this_obj.allow_parallel = False
+            this_obj.kwargs = {str(i): v for i, v in enumerate(args) if _is_trivial(v)}
             stages_dict[level].sequential_part.append(this_obj)
             result = this_obj
 
@@ -227,11 +264,15 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches
             )
             for k, v in spec.items()
         }
-        all_basic = all(_is_basic(e) for e in kwargs.values())
+        all_basic = all(_is_trivial(e) for e in kwargs.values())
         if all_basic:
             result = cast(JsonSerializableValue, kwargs)
         else:
-            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_basic(v)}
+            if any(
+                not v.allow_parallel for v in kwargs.values() if isinstance(v, ObjectToBeBuilt)
+            ):
+                this_obj.allow_parallel = False
+            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_trivial(v)}
             stages_dict[level].sequential_part.append(this_obj)
             result = this_obj
     elif isinstance(spec, dict):
@@ -246,7 +287,7 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches
             if not entry.allow_partial:
                 raise ValueError(f'`"@mode": partial` not allowed for `"@type": {this_type}"`')
             assert isinstance(spec, dict)
-            result = BuilderPartial(spec=spec)
+            result = BuilderPartial(spec={k: v for k, v in spec.items() if k != "@mode"})
         else:
             if "@mode" in spec and spec["@mode"] != "regular":
                 raise ValueError(f"Unsupported mode {spec['@mode']}")
@@ -256,6 +297,7 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches
                 parent=parent,
                 parent_kwarg_name=parent_kwarg_name,
                 name_prefix=name_prefix,
+                allow_parallel=entry.allow_parallel,
             )
             kwargs = {
                 k: _parse_stages_inner(
@@ -270,7 +312,11 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches
                 for k, v in spec.items()
                 if not k.startswith("@")
             }
-            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_basic(v)}
+            this_obj.kwargs = {k: v for k, v in kwargs.items() if _is_trivial(v)}
+            if any(
+                not v.allow_parallel for v in kwargs.values() if isinstance(v, ObjectToBeBuilt)
+            ):
+                this_obj.allow_parallel = False
             if entry.allow_parallel:
                 stages_dict[level + 1].parallel_part.append(this_obj)
             else:

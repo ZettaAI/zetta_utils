@@ -14,7 +14,7 @@ from pytorch_lightning import seed_everything
 from zetta_utils import builder, convnet, distributions, viz
 
 
-@builder.register("MisalignmentDetectorAcedRegime", allow_parallel=False)
+@builder.register("MisalignmentDetectorAcedRegime")
 @attrs.mutable(eq=False)
 class MisalignmentDetectorAcedRegime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     model: torch.nn.Module

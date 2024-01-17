@@ -3,6 +3,8 @@
 from . import log, typing, parsing, builder, common
 from . import geometry, distributions, layer, ng
 
+builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
+builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
 log.add_supress_traceback_module(builder)
 
 

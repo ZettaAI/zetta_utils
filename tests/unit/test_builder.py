@@ -1,12 +1,14 @@
 # pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name,invalid-name, line-too-long
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any
 
+import dill
 import pytest
 
 from zetta_utils import builder
-from zetta_utils.builder import SPECIAL_KEYS
+from zetta_utils.builder import SPECIAL_KEYS, BuilderPartial
 
 
 @dataclass
@@ -35,6 +37,11 @@ class DummyC:
     cc: Any
 
 
+@dataclass
+class DummyNonparallel:
+    ...
+
+
 @pytest.fixture
 def register_dummy_a():
     builder.register("dummy_a", versions=">=0.0.0")(DummyA)
@@ -61,6 +68,17 @@ def register_dummy_a_v0():
     builder.register("dummy_a", allow_parallel=False, versions="==0.0.0")(DummyA)
     yield
     builder.unregister(name="dummy_a", fn=DummyA, allow_parallel=False, versions="==0.0.0")
+
+
+@pytest.fixture
+def register_dummy_nonparallel():
+    builder.register("dummy_nonparallel", allow_parallel=False, versions="==0.0.0")(
+        DummyNonparallel
+    )
+    yield
+    builder.unregister(
+        name="dummy_nonparallel", fn=DummyNonparallel, allow_parallel=False, versions="==0.0.0"
+    )
 
 
 @pytest.fixture
@@ -168,23 +186,35 @@ def test_register(register_dummy_a):
     "spec, expected",
     [
         [{"a": "b"}, {"a": "b"}],
-        [{SPECIAL_KEYS["type"]: "dummy_a", "a": 2}, DummyA(a=2)],
-        [{"k": {SPECIAL_KEYS["type"]: "dummy_a", "a": 2}}, {"k": DummyA(a=2)}],
-        [{SPECIAL_KEYS["type"]: "dummy_b", "b": 2}, DummyB(b=2)],
+        [{"@type": "dummy_a", "a": 2}, DummyA(a=2)],
+        [{"k": {"@type": "dummy_a", "a": 2}}, {"k": DummyA(a=2)}],
+        [{"k": {"kk": {"@type": "dummy_a", "a": 2}}}, {"k": {"kk": DummyA(a=2)}}],
+        [[[{"@type": "dummy_a", "a": 2}]], [[DummyA(a=2)]]],
         [
-            {SPECIAL_KEYS["type"]: "dummy_a", "a": [{SPECIAL_KEYS["type"]: "dummy_b", "b": 3}]},
+            [[{"@type": "dummy_a", "a": 2, "@mode": "partial"}]],
+            [[BuilderPartial(spec={"@type": "dummy_a", "a": 2})]],
+        ],
+        [{"@type": "dummy_b", "b": 2}, DummyB(b=2)],
+        [{"@type": "dummy_b", "b": {"@type": "dummy_nonparallel"}}, DummyB(b=DummyNonparallel())],
+        [{"k": {"@type": "dummy_nonparallel"}}, {"k": DummyNonparallel()}],
+        [[{"@type": "dummy_nonparallel"}], [DummyNonparallel()]],
+        [{"@type": "dummy_b", "b": [{"@type": "dummy_a", "a": 2}]}, DummyB(b=[DummyA(a=2)])],
+        [
+            {"@type": "dummy_a", "a": [{"@type": "dummy_b", "b": 3}]},
             DummyA(a=[DummyB(b=3)]),
         ],
         [
             {
-                SPECIAL_KEYS["type"]: "dummy_a",
-                "a": {SPECIAL_KEYS["type"]: "dummy_b", "b": 3},
+                "@type": "dummy_a",
+                "a": {"@type": "dummy_b", "b": 3},
             },
             DummyA(a=DummyB(b=3)),
         ],
     ],
 )
-def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register_dummy_b):
+def test_build_unversioned(
+    spec: dict, expected: Any, register_dummy_a, register_dummy_b, register_dummy_nonparallel
+):
     result_parallel = builder.build(spec, parallel=True)
     result_serial = builder.build(spec, parallel=False)
     assert result_parallel == expected
@@ -196,16 +226,16 @@ def test_build_unversioned(spec: dict, expected: Any, register_dummy_a, register
 @pytest.mark.parametrize(
     "spec, expected",
     [
-        [{SPECIAL_KEYS["type"]: "dummy_a", SPECIAL_KEYS["version"]: "0.0.0", "a": 2}, DummyA(a=2)],
+        [{"@type": "dummy_a", SPECIAL_KEYS["version"]: "0.0.0", "a": 2}, DummyA(a=2)],
         [
-            {SPECIAL_KEYS["type"]: "dummy_a", SPECIAL_KEYS["version"]: "0.0.2", "a": 2},
+            {"@type": "dummy_a", SPECIAL_KEYS["version"]: "0.0.2", "a": 2},
             DummyAV2(a=2),
         ],
         [
             {
-                SPECIAL_KEYS["type"]: "dummy_a",
+                "@type": "dummy_a",
                 SPECIAL_KEYS["version"]: "0.0.2",
-                "a": {SPECIAL_KEYS["type"]: "dummy_a", "a": 2},
+                "a": {"@type": "dummy_a", "a": 2},
             },
             DummyAV2(a=DummyAV2(a=2)),
         ],
@@ -220,7 +250,7 @@ def test_build_versioned(spec: dict, expected: Any, register_dummy_a_v0, registe
     assert builder.get_initial_builder_spec(result_serial) == spec
 
 
-def test_build_partial(register_dummy_a, register_dummy_c):
+def test_build_partial_invocation(register_dummy_a, register_dummy_c):
     partial = builder.build(
         {"@type": "dummy_c", "@mode": "partial", "c": {"@type": "dummy_a", "a": "yolo"}}
     )
@@ -271,3 +301,14 @@ def test_double_register_exc(register_dummy_a):
 def test_double_different_register_exc(register_dummy_a, register_dummy_a_v0):
     with pytest.raises(RuntimeError):
         builder.get_matching_entry("dummy_a", version="0.0.0")
+
+
+def test_unpickleable_dict():
+    obj = builder.UnpicklableDict()
+    obj["bad"] = ProcessPoolExecutor()  # not pickleable
+    recons = dill.loads(
+        dill.dumps(
+            obj, protocol=dill.DEFAULT_PROTOCOL, byref=False, recurse=True, fmode=dill.FILE_FMODE
+        )
+    )
+    assert len(recons) == 0

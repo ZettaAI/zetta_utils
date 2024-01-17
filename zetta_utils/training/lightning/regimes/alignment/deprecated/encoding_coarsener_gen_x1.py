@@ -13,7 +13,7 @@ from pytorch_lightning import seed_everything
 from zetta_utils import builder, distributions, tensor_ops, viz
 
 
-@builder.register("EncodingCoarsenerGenX1Regime", versions="==0.0.0", allow_parallel=False)
+@builder.register("EncodingCoarsenerGenX1Regime", versions="==0.0.0")
 @attrs.mutable(eq=False)
 class EncodingCoarsenerGenX1Regime(pl.LightningModule):  # pylint: disable=too-many-ancestors
     encoder: torch.nn.Module

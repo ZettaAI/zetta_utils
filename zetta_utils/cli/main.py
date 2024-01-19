@@ -7,6 +7,7 @@ import click
 import zetta_utils
 from zetta_utils import log
 from zetta_utils.parsing import json
+from zetta_utils.run import run_ctx_manager
 
 logger = log.get_logger("zetta_utils")
 
@@ -54,6 +55,12 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     "the `path` argument is not given.",
 )
 @click.option(
+    "--run_id",
+    type=str,
+    help="Provide a current `run_id` for auxiliary processes. Can also be "
+    "used to pass a custom `run_id` and prevent random id generation.",
+)
+@click.option(
     "--pdb",
     "-d",
     type=bool,
@@ -76,12 +83,20 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     callback=validate_py_path,
     help="Specify additional imports. Must end with `.py`.",
 )
+@click.option(
+    "--no_heartbeat",
+    type=bool,
+    is_flag=True,
+    help="Disable heartbeat. Use with caution.",
+)
 def run(
     path: Optional[str],
     str_spec: Optional[str],
+    run_id: Optional[str],
     pdb: bool,
     parallel_builder: bool,
     extra_imports: tuple[str],
+    no_heartbeat: bool,
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
@@ -103,10 +118,13 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
-    result = zetta_utils.builder.build(spec, parallel=parallel_builder)
-    logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
-    if pdb:
-        breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
+    if no_heartbeat:
+        _heartbeat_interval = -1
+    with run_ctx_manager(run_id=run_id, heartbeat_interval=_heartbeat_interval):
+        result = zetta_utils.builder.build(spec, parallel=parallel_builder)
+        logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
+        if pdb:
+            breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
 
 
 @click.command()

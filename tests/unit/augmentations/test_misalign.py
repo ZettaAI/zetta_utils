@@ -12,8 +12,10 @@ from ..helpers import assert_array_equal
 def test_write_exc(mocker):
     idx = mocker.MagicMock()
     data = mocker.MagicMock()
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1)
-    proc.prepared_disp = mocker.MagicMock()
+    proc = MisalignProcessor(
+        prob=1.0, disp_min_in_unit=1, disp_max_in_unit=1, disp_in_unit_must_be_divisible_by=1
+    )
+    proc.prepared_disp_fraction = mocker.MagicMock()
     with pytest.raises(RuntimeError):
         proc.process_index(idx, mode="write")
 
@@ -28,8 +30,14 @@ def test_tensor_process_data_slip_pos(mocker):
             for z in range(5):
                 data_padded[0, x, y, z] = 100 * z + 10 * y + x
 
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1, mode="slip")
-    proc.prepared_disp = (1, 2)
+    proc = MisalignProcessor(
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode="slip",
+    )
+    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
     mocker.patch("random.randint", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -49,8 +57,14 @@ def test_tensor_process_data_slip_neg(mocker):
             for z in range(5):
                 data_padded[0, x, y, z] = 100 * z + 10 * y + x
 
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1, mode="slip")
-    proc.prepared_disp = (-1, -2)
+    proc = MisalignProcessor(
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode="slip",
+    )
+    proc.prepared_disp_fraction = (-1 / 5, -2 / 5)
     chosen_z = 3
     mocker.patch("random.randint", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -70,8 +84,14 @@ def test_tensor_process_data_step_pos(mocker):
             for z in range(5):
                 data_padded[0, x, y, z] = 100 * z + 10 * y + x
 
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1, mode="step")
-    proc.prepared_disp = (1, 2)
+    proc = MisalignProcessor(
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode="step",
+    )
+    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
     mocker.patch("random.randint", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -98,9 +118,14 @@ def test_dict_process_data_slip_pos(mocker):
     }
     keys_to_apply = ["key1", "key2"]
     proc = MisalignProcessor[dict[str, torch.Tensor]](
-        prob=1.0, disp_min=1, disp_max=1, mode="slip", keys_to_apply=keys_to_apply
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode="slip",
+        keys_to_apply=keys_to_apply,
     )
-    proc.prepared_disp = (1, 2)
+    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
     mocker.patch("random.randint", return_value=chosen_z)
 
@@ -122,30 +147,43 @@ def test_dict_process_data_slip_pos(mocker):
 def test_dict_process_no_keys_exc():
     data = {"key": torch.ones((1, 5, 5, 5))}
     proc = MisalignProcessor[dict[str, torch.Tensor]](
-        prob=1.0, disp_min=1, disp_max=1, mode="slip"
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
     )
-    proc.prepared_disp = (1, 1)
+    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
     with pytest.raises(ValueError):
         proc.process_data(data, mode="read")
 
 
-def test_dict_process_diff_size_exc():
-    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 4, 4, 4))}
+def test_dict_process_diff_size():
+    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 10, 10, 5))}
     proc = MisalignProcessor[dict[str, torch.Tensor]](
-        prob=1.0, disp_min=1, disp_max=1, mode="slip", keys_to_apply=["key0", "key1"]
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode="slip",
+        keys_to_apply=["key0", "key1"],
     )
-    proc.prepared_disp = (1, 1)
-    with pytest.raises(ValueError):
-        proc.process_data(data, mode="read")
+    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    result = proc.process_data(data, mode="read")
+    assert result["key0"].shape == (1, 4, 4, 5)
+    assert result["key1"].shape == (1, 8, 8, 5)
 
 
 def test_process_index_pos(mocker):
     idx_in = VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 2), (10, 20), (100, 200)))
     )
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1)
+    proc = MisalignProcessor(
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+    )
     mocker.patch("random.choice", return_value=1)
-    mocker.patch("random.randint", return_value=1)
     idx_out = proc.process_index(idx_in, mode="read")
     assert idx_out == VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((0, 2), (9, 20), (100, 200)))
@@ -156,9 +194,10 @@ def test_process_index_neg(mocker):
     idx_in = VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 2), (10, 20), (100, 200)))
     )
-    proc = MisalignProcessor(prob=1.0, disp_min=1, disp_max=1)
+    proc = MisalignProcessor(
+        prob=1.0, disp_min_in_unit=1, disp_max_in_unit=1, disp_in_unit_must_be_divisible_by=1
+    )
     mocker.patch("random.choice", return_value=-1)
-    mocker.patch("random.randint", return_value=1)
     idx_out = proc.process_index(idx_in, mode="read")
     assert idx_out == VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 3), (10, 21), (100, 200)))

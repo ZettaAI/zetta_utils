@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import itertools
 import multiprocessing
 from copy import deepcopy
@@ -380,7 +382,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     def _make_task(
         self,
         arg: Tuple[
-            VolumetricIndex, VolumetricBasedLayerProtocol, dict[str, Any]
+            VolumetricIndex, VolumetricBasedLayerProtocol | None, dict[str, Any]
         ],  # cannot type with P.kwargs
     ) -> mazepa.tasks.Task[R_co]:
         return self.op.make_task(idx=arg[0], dst=arg[1], **arg[2])
@@ -388,7 +390,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     def make_tasks_without_checkerboarding(
         self,
         idx_chunks: List[VolumetricIndex],
-        dst: VolumetricBasedLayerProtocol,
+        dst: VolumetricBasedLayerProtocol | None,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
         if len(idx_chunks) > multiprocessing.cpu_count():
@@ -411,7 +413,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
         op_kwargs: P.kwargs,
-    ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol]:
+    ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol | None]:
         dst_temp = self._get_temp_dst(dst, idx, self.flow_id)
         idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
@@ -452,6 +454,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
+            assert dst is not None
             dst_temp = self._get_temp_dst(dst, idx, self.flow_id, chunker_idx)
             dst_temps.append(dst_temp)
             with suppress_type_checks():
@@ -542,7 +545,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     def flow(  # pylint:disable=too-many-branches, too-many-statements
         self,
         idx: VolumetricIndex,
-        dst: VolumetricBasedLayerProtocol,
+        dst: VolumetricBasedLayerProtocol | None,
         op_args: P.args,
         op_kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
@@ -563,6 +566,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
         elif not self.use_checkerboarding and self.force_intermediaries:
+            assert dst is not None
             tasks, dst_temp = self.make_tasks_with_intermediaries(idx, dst, op_kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
@@ -603,6 +607,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             delete_if_local(dst_temp)
         # case with checkerboarding
         else:
+            assert dst is not None
             if dst.backend.enforce_chunk_aligned_writes:
                 try:
                     dst.backend.assert_idx_is_chunk_aligned(idx)

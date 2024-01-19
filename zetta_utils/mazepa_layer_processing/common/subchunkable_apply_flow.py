@@ -79,7 +79,7 @@ class DelegatedSubchunkedOperation(Generic[P]):
 
 @builder.register("build_subchunkable_apply_flow")
 def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, too-many-locals, too-many-branches, too-many-statements
-    dst: VolumetricBasedLayerProtocol,
+    dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Sequence[float],
     processing_chunk_sizes: Sequence[Sequence[int]],
     processing_crop_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
@@ -114,8 +114,10 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     blending. Chunks are processed, written to an intermediary location temporarily, and then
     combined (``reduced``) with weights if necessary to produce the output.
 
-    :param dst: The destination VolumetricBasedLayerProtocol.
-    :param dst_resolution: The resolution of the destination VolumetricBasedLayerProtocol.
+    :param dst: The destination VolumetricBasedLayerProtocol.  May be None, in which case
+        `skip_intermediaries` must be True, and `expand_bbox_backend` must be False.
+    :param dst_resolution: The resolution of the destination VolumetricBasedLayerProtocol
+        (or resolution to use for computation, even if `dst` is None).
     :param processing_chunk_sizes: The base chunk size at each subchunking level in X, Y, Z,
         from the largest to the smallest. Subject to divisibility requirements (see bottom). When
         ``auto_divisibility`` is used, the chunk sizes other than the bottom level chunk size will
@@ -209,6 +211,12 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 " `coord_resolution` cannot be specified."
             )
         bbox_ = bbox
+
+    if dst is None:
+        if not skip_intermediaries:
+            raise ValueError("`skip_intermediaries` must be True when `dst` is None.")
+        if expand_bbox_backend:
+            raise ValueError("Cannot use `expand_bbox_backend` when `dst` is None.")
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -545,7 +553,7 @@ def _make_ng_link(
 
 
 def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-statements
-    dst: VolumetricBasedLayerProtocol,
+    dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
@@ -592,10 +600,14 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         summary += lrpad(f"Volume of ROI: {vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
     summary += lrpad(length=120) + "\n"
     summary += lrpad("Output location(s):", 1, length=120) + "\n"
-    layer_strs = dst.pformat().split("\n")
+    if dst is None:
+        summary += lrpad("`dst` is None\n")
+        layer_strs = []
+    else:
+        layer_strs = dst.pformat().split("\n")
     for layer_str in layer_strs:
         summary += lrpad(layer_str, 2, length=120) + "\n"
-    if generate_ng_link:
+    if generate_ng_link and dst is not None:
         ng_link = _make_ng_link(dst, bbox)
         if ng_link is not None:
             summary += lrpad(length=120) + "\n"
@@ -674,7 +686,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
 
 
 def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches, too-many-statements
-    dst: VolumetricBasedLayerProtocol,
+    dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
@@ -706,7 +718,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     if expand_bbox_resolution:
         bbox = _expand_bbox_resolution(bbox, dst_resolution)
 
-    if expand_bbox_backend:
+    if expand_bbox_backend and dst is not None:
         bbox = _expand_bbox_backend(bbox, dst, dst_resolution)
 
     if shrink_processing_chunk:
@@ -810,18 +822,21 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         use_checkerboard.append(False)
     else:
         use_checkerboard.append(True)
-    if skip_intermediaries is True:
-        logger.info(
-            "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
-            "required to be chunk-aligned."
-        )
-        dst = deepcopy(dst).with_changes(
-            backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
-        )
+    if dst is None:
+        logger.info("`dst` is None; skipping generation of standard output.")
     else:
-        dst = deepcopy(dst).with_changes(
-            backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
-        )
+        if skip_intermediaries is True:
+            logger.info(
+                "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
+                "required to be chunk-aligned."
+            )
+            dst = deepcopy(dst).with_changes(
+                backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
+            )
+        else:
+            dst = deepcopy(dst).with_changes(
+                backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
+            )
 
     if print_summary:
         _print_summary(

@@ -77,7 +77,7 @@ class VolumetricCallableOperation(Generic[P]):
     def __call__(  # pylint: disable=keyword-arg-before-vararg
         self,
         idx: VolumetricIndex,
-        dst: VolumetricLayer,
+        dst: VolumetricLayer | None,
         *args: P.args,
         **kwargs: P.kwargs,
     ) -> None:
@@ -94,15 +94,19 @@ class VolumetricCallableOperation(Generic[P]):
                     semaphore_stack.enter_context(semaphore(semaphore_type))
             result_raw = self.fn(**task_kwargs)
             torch.cuda.empty_cache()
-        # Data crop amount is determined by the index pad and the
-        # difference between the resolutions of idx and dst_idx.
-        # Padding was applied before the first read processor, so cropping
-        # should be done as last write processor.
-        dst_with_crop = dst.with_procs(
-            write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
-        )
-        with semaphore("write"):
-            dst_with_crop[idx] = result_raw
+
+        # If no destination layer, we can bail out now.  Possibly we
+        # could bail out a bit sooner.  ToDo: study this more.
+        if dst is not None:
+            # Data crop amount is determined by the index pad and the
+            # difference between the resolutions of idx and dst_idx.
+            # Padding was applied before the first read processor, so cropping
+            # should be done as last write processor.
+            dst_with_crop = dst.with_procs(
+                write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
+            )
+            with semaphore("write"):
+                dst_with_crop[idx] = result_raw
 
 
 # TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured

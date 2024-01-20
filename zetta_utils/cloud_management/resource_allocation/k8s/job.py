@@ -11,12 +11,8 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes import client as k8s_client  # type: ignore
 from kubernetes import watch  # type: ignore
 from zetta_utils import log
+from zetta_utils.run import Resource, ResourceTypes, register_resource
 
-from ..resource_tracker import (
-    ExecutionResource,
-    ExecutionResourceTypes,
-    register_execution_resource,
-)
 from .common import ClusterInfo, get_cluster_data
 from .secret import secrets_ctx_mngr
 
@@ -210,20 +206,20 @@ def wait_for_job_completion(
 
 @contextmanager
 def job_ctx_manager(
-    execution_id: str,
+    run_id: str,
     cluster_info: ClusterInfo,
     job: k8s_client.V1Job,
     secrets: List[k8s_client.V1Secret],
     namespace: Optional[str] = "default",
 ):
     batch_v1_api = _reset_batch_api(cluster_info)
-    with secrets_ctx_mngr(execution_id, secrets, cluster_info):
+    with secrets_ctx_mngr(run_id, secrets, cluster_info):
         logger.info(f"Creating k8s job `{job.metadata.name}`")
         batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
-        register_execution_resource(
-            ExecutionResource(
-                execution_id,
-                ExecutionResourceTypes.K8S_JOB.value,
+        register_resource(
+            Resource(
+                run_id,
+                ResourceTypes.K8S_JOB.value,
                 job.metadata.name,
             )
         )

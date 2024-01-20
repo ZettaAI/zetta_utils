@@ -12,8 +12,8 @@ from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, load_all_modules, log, mazepa
-from zetta_utils.cloud_management import execution_tracker, resource_allocation
+from zetta_utils import RUN_ID, builder, load_all_modules, log
+from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
@@ -110,10 +110,6 @@ def lightning_train(
     if resource_limits is None:
         raise ValueError("Must provide resource limits for remote training.")
 
-    execution_id = mazepa.id_generation.get_unique_id(
-        prefix="exec", slug_len=4, add_uuid=False, max_len=50
-    )
-
     cluster_info = resource_allocation.k8s.parse_cluster_info(
         cluster_name=cluster_name,
         cluster_region=cluster_region,
@@ -145,7 +141,6 @@ def lightning_train(
             train_args[k] = arg_spec
 
     _lightning_train_remote(
-        execution_id,
         cluster_info=cluster_info,
         image=image,
         num_nodes=num_nodes,
@@ -163,7 +158,7 @@ def lightning_train(
 @builder.register("_multinode_train_launch")
 @typeguard.typechecked
 def _multinode_train_launch(
-    execution_id: str,
+    run_id: str,
     num_nodes: int,
     nproc_per_node: int,
     rdzv_backend: str = "c10d",
@@ -172,7 +167,7 @@ def _multinode_train_launch(
     # worker pods have MY_ROLE env set to `worker`
     is_worker = os.environ.get("MY_ROLE") == "worker"
     config = torch_launcher_api.LaunchConfig(
-        run_id=execution_id,
+        run_id=run_id,
         min_nodes=num_nodes,
         max_nodes=num_nodes,
         max_restarts=1,
@@ -247,17 +242,16 @@ def _get_tolerations() -> List[k8s_client.V1Toleration]:
 
 
 def _spec_configmap_vol_and_ctx(
-    execution_id: str,
     cluster_info: resource_allocation.k8s.ClusterInfo,
     specs: Dict[str, Any],
 ):
     configmap = resource_allocation.k8s.get_configmap(
-        name=execution_id,
+        name=RUN_ID,
         data={f"{spec_name}.cue": json.dumps(spec) for spec_name, spec in specs.items()},
     )
 
     configmap_projection = k8s_client.V1ConfigMapProjection(
-        name=execution_id,
+        name=RUN_ID,
         items=[k8s_client.V1KeyToPath(key=f"{spec}.cue", path=f"{spec}.cue") for spec in specs],
     )
 
@@ -272,7 +266,7 @@ def _spec_configmap_vol_and_ctx(
     )
 
     ctx = resource_allocation.k8s.configmap_ctx_manager(
-        execution_id=execution_id,
+        run_id=RUN_ID,
         cluster_info=cluster_info,
         configmap=configmap,
     )
@@ -280,7 +274,6 @@ def _spec_configmap_vol_and_ctx(
 
 
 def _lightning_train_remote(
-    execution_id: str,
     *,
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
@@ -318,7 +311,7 @@ def _lightning_train_remote(
     # that remains the same for the duration of training
     node_selector = {"cloud.google.com/gke-provisioning": "standard"}
     if num_nodes > 1:
-        train_args["execution_id"] = execution_id
+        train_args["run_id"] = RUN_ID
         train_args["num_nodes"] = num_nodes
         train_args["nproc_per_node"] = num_devices
         train_args["trainer"]["num_nodes"] = num_nodes
@@ -328,9 +321,9 @@ def _lightning_train_remote(
         node_selector = {"cloud.google.com/gke-provisioning": provisioning_model}
 
     specs = {"train": train_spec}
-    vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(execution_id, cluster_info, specs)
+    vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
-        execution_id, REQUIRED_ENV_VARS
+        RUN_ID, REQUIRED_ENV_VARS
     )
 
     volumes = [vol] + resource_allocation.k8s.get_common_volumes()
@@ -350,12 +343,11 @@ def _lightning_train_remote(
     flags = ""
     if builder.PARALLEL_BUILD_ALLOWED:
         flags += " -p"
-    zetta_cmd = f"zetta run {flags} specs/train.cue"
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=execution_id,
+        name=RUN_ID,
         image=image,
         command=["/bin/bash"],
-        command_args=["-c", zetta_cmd],
+        command_args=["-c", f"zetta run {flags} specs/train.cue"],
         envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
@@ -382,20 +374,19 @@ def _lightning_train_remote(
         ]
     )
     train_job = resource_allocation.k8s.get_job(
-        execution_id,
+        name=RUN_ID,
         pod_spec=train_pod_spec,
         backoff_limit=retry_count,
         pod_failure_policy=train_job_failure_policy,
     )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
-        execution_id=execution_id,
+        run_id=RUN_ID,
         cluster_info=cluster_info,
         job=train_job,
         secrets=secrets,
     )
 
     with ExitStack() as stack:
-        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         stack.enter_context(spec_ctx)
         stack.enter_context(train_job_ctx)
 
@@ -411,7 +402,7 @@ def _lightning_train_remote(
                 name="workers",
                 image=image,
                 command=["/bin/bash"],
-                command_args=["-c", zetta_cmd],
+                command_args=["-c", f"zetta run --no-heartbeat {flags} specs/train.cue"],
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,
@@ -425,13 +416,13 @@ def _lightning_train_remote(
             )
 
             worker_deployment = resource_allocation.k8s.get_deployment(
-                name=f"{execution_id}-workers",
+                name=f"{RUN_ID}-workers",
                 pod_spec=worker_pod_spec,
                 replicas=num_nodes - 1,
             )
 
             workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(
-                execution_id=execution_id,
+                run_id=RUN_ID,
                 cluster_info=cluster_info,
                 deployment=worker_deployment,
                 secrets=[],

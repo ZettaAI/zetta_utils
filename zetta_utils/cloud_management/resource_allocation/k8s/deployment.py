@@ -10,12 +10,8 @@ from typing import Any, Dict, List, Literal, Optional
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log
 from zetta_utils.mazepa import SemaphoreType
+from zetta_utils.run import Resource, ResourceTypes, register_resource
 
-from ..resource_tracker import (
-    ExecutionResource,
-    ExecutionResourceTypes,
-    register_execution_resource,
-)
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr
@@ -82,7 +78,7 @@ def get_deployment_spec(
 
 
 def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
-    execution_id: str,
+    run_id: str,
     image: str,
     task_queue_spec: dict[str, Any],
     outcome_queue_spec: dict[str, Any],
@@ -96,7 +92,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     if labels is None:
-        labels_final = {"execution_id": execution_id}
+        labels_final = {"run_id": run_id}
     else:
         labels_final = labels
 
@@ -106,7 +102,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
     return get_deployment_spec(
-        name=execution_id,
+        name=run_id,
         image=image,
         replicas=replicas,
         command=worker_command,
@@ -151,7 +147,7 @@ def get_deployment(
 @builder.register("k8s_deployment_ctx_mngr")
 @contextmanager
 def deployment_ctx_mngr(
-    execution_id: str,
+    run_id: str,
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
     secrets: List[k8s_client.V1Secret],
@@ -161,13 +157,13 @@ def deployment_ctx_mngr(
     k8s_client.Configuration.set_default(configuration)
     k8s_apps_v1_api = k8s_client.AppsV1Api()
 
-    with secrets_ctx_mngr(execution_id, secrets, cluster_info):
+    with secrets_ctx_mngr(run_id, secrets, cluster_info):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
         k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=namespace)
-        register_execution_resource(
-            ExecutionResource(
-                execution_id,
-                ExecutionResourceTypes.K8S_DEPLOYMENT.value,
+        register_resource(
+            Resource(
+                run_id,
+                ResourceTypes.K8S_DEPLOYMENT.value,
                 deployment.metadata.name,
             )
         )

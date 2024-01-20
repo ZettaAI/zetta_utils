@@ -8,12 +8,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import log
+from zetta_utils.run import Resource, ResourceTypes, register_resource
 
-from ..resource_tracker import (
-    ExecutionResource,
-    ExecutionResourceTypes,
-    register_execution_resource,
-)
 from .common import ClusterInfo, get_cluster_data
 
 logger = log.get_logger("zetta_utils")
@@ -53,7 +49,7 @@ def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> 
 
 
 def get_secrets_and_mapping(
-    execution_id: str, share_envs: Iterable[str] = ()
+    run_id: str, share_envs: Iterable[str] = ()
 ) -> Tuple[List[k8s_client.V1Secret], Dict[str, str]]:
     env_secret_mapping: Dict[str, str] = {}
     secrets_kv: Dict[str, str] = {}
@@ -69,7 +65,7 @@ def get_secrets_and_mapping(
             raise ValueError(
                 f"Please set `{env_k}` environment variable in order to create a deployment."
             )
-        secret_name = f"{execution_id}-{env_k}".lower().replace("_", "-")
+        secret_name = f"{run_id}-{env_k}".lower().replace("_", "-")
         env_secret_mapping[env_k] = secret_name
         secrets_kv[secret_name] = env_v
 
@@ -85,7 +81,7 @@ def get_secrets_and_mapping(
 
 @contextmanager
 def secrets_ctx_mngr(
-    execution_id: str,
+    run_id: str,
     secrets: List[k8s_client.V1Secret],
     cluster_info: ClusterInfo,
     namespace: Optional[str] = "default",
@@ -96,10 +92,10 @@ def secrets_ctx_mngr(
     for secret in secrets:
         logger.info(f"Creating k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=namespace, body=secret)
-        register_execution_resource(
-            ExecutionResource(
-                execution_id,
-                ExecutionResourceTypes.K8S_SECRET.value,
+        register_resource(
+            Resource(
+                run_id,
+                ResourceTypes.K8S_SECRET.value,
                 secret.metadata.name,
             )
         )

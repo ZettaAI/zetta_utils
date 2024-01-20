@@ -2,6 +2,7 @@
 """Zetta AI Computational Connectomics Toolkit."""
 from . import log, typing, parsing, builder, common
 from . import geometry, distributions, layer, ng
+from .run import RUN_ID
 
 log.add_supress_traceback_module(builder)
 

@@ -164,8 +164,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             region=worker_cluster_region,
             project=worker_cluster_project,
         )
-    run.register_clusters([worker_cluster])
     assert run.RUN_ID, f"Invalid RUN_ID [{run.RUN_ID}], might not have been initialized properly."
+    run.register_clusters([worker_cluster])
     task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
         execution_id=run.RUN_ID,
         worker_image=worker_image,

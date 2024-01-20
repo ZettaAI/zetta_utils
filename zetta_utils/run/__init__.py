@@ -68,6 +68,7 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
 
     global RUN_ID  # pylint: disable=global-statement
     RUN_ID = run_id
+    status = None
     try:
         if heartbeat_interval > 0:
             heartbeat = RepeatTimer(heartbeat_interval, _send_heartbeat)
@@ -75,19 +76,26 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
 
             # Register run only when heartbeat is enabled.
             # Auxiliary processes should not modify the main process entry.
+            status = RunState.RUNNING.value
             info: DBRowDataT = {
                 RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
                 RunInfo.TIMESTAMP.value: datetime.utcnow().timestamp(),
-                RunInfo.STATE.value: RunState.RUNNING.value,
+                RunInfo.STATE.value: status,
                 RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
             }
             _update_run_info(info)
         yield
     except Exception as e:
-        _update_run_info({RunInfo.STATE.value: RunState.FAILED.value})
+        status = RunState.FAILED.value
         raise e from None
     finally:
-        _update_run_info({RunInfo.STATE.value: RunState.COMPLETED.value})
-        if heartbeat:
+        if heartbeat is not None:
+            _update_run_info(
+                {
+                    RunInfo.STATE.value: status
+                    if status == RunState.FAILED.value
+                    else RunState.COMPLETED.value
+                }
+            )
             heartbeat.cancel()
         RUN_ID = ""

@@ -12,7 +12,7 @@ from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import RUN_ID, builder, load_all_modules, log
+from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json
 
@@ -246,12 +246,12 @@ def _spec_configmap_vol_and_ctx(
     specs: Dict[str, Any],
 ):
     configmap = resource_allocation.k8s.get_configmap(
-        name=RUN_ID,
+        name=run.RUN_ID,
         data={f"{spec_name}.cue": json.dumps(spec) for spec_name, spec in specs.items()},
     )
 
     configmap_projection = k8s_client.V1ConfigMapProjection(
-        name=RUN_ID,
+        name=run.RUN_ID,
         items=[k8s_client.V1KeyToPath(key=f"{spec}.cue", path=f"{spec}.cue") for spec in specs],
     )
 
@@ -266,7 +266,7 @@ def _spec_configmap_vol_and_ctx(
     )
 
     ctx = resource_allocation.k8s.configmap_ctx_manager(
-        run_id=RUN_ID,
+        run_id=run.RUN_ID,
         cluster_info=cluster_info,
         configmap=configmap,
     )
@@ -311,7 +311,7 @@ def _lightning_train_remote(
     # that remains the same for the duration of training
     node_selector = {"cloud.google.com/gke-provisioning": "standard"}
     if num_nodes > 1:
-        train_args["run_id"] = RUN_ID
+        train_args["run_id"] = run.RUN_ID
         train_args["num_nodes"] = num_nodes
         train_args["nproc_per_node"] = num_devices
         train_args["trainer"]["num_nodes"] = num_nodes
@@ -323,7 +323,7 @@ def _lightning_train_remote(
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)
     secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
-        RUN_ID, REQUIRED_ENV_VARS
+        run.RUN_ID, REQUIRED_ENV_VARS
     )
 
     volumes = [vol] + resource_allocation.k8s.get_common_volumes()
@@ -344,7 +344,7 @@ def _lightning_train_remote(
     if builder.PARALLEL_BUILD_ALLOWED:
         flags += " -p"
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=RUN_ID,
+        name=run.RUN_ID,
         image=image,
         command=["/bin/bash"],
         command_args=["-c", f"zetta run {flags} specs/train.cue"],
@@ -374,13 +374,13 @@ def _lightning_train_remote(
         ]
     )
     train_job = resource_allocation.k8s.get_job(
-        name=RUN_ID,
+        name=run.RUN_ID,
         pod_spec=train_pod_spec,
         backoff_limit=retry_count,
         pod_failure_policy=train_job_failure_policy,
     )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
-        run_id=RUN_ID,
+        run_id=run.RUN_ID,
         cluster_info=cluster_info,
         job=train_job,
         secrets=secrets,
@@ -398,11 +398,12 @@ def _lightning_train_remote(
                 k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
             ]
 
+            flags += " --no-heartbeat"
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
                 command=["/bin/bash"],
-                command_args=["-c", f"zetta run --no-heartbeat {flags} specs/train.cue"],
+                command_args=["-c", f"zetta run -r {run.RUN_ID} {flags} specs/train.cue"],
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,
@@ -416,13 +417,13 @@ def _lightning_train_remote(
             )
 
             worker_deployment = resource_allocation.k8s.get_deployment(
-                name=f"{RUN_ID}-workers",
+                name=f"{run.RUN_ID}-workers",
                 pod_spec=worker_pod_spec,
                 replicas=num_nodes - 1,
             )
 
             workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(
-                run_id=RUN_ID,
+                run_id=run.RUN_ID,
                 cluster_info=cluster_info,
                 deployment=worker_deployment,
                 secrets=[],

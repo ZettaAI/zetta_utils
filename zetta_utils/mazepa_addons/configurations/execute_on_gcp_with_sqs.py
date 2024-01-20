@@ -5,14 +5,13 @@ import os
 from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Literal, Optional, Union
 
-from zetta_utils import RUN_ID, builder, log, mazepa
+from zetta_utils import builder, log, mazepa, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
-from zetta_utils.run import register_clusters
 
 from .execute_locally import execute_locally
 
@@ -165,10 +164,10 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             region=worker_cluster_region,
             project=worker_cluster_project,
         )
-    register_clusters([worker_cluster])
-    assert RUN_ID, "Invalid RUN_ID, run might not have been initialized properly."
+    run.register_clusters([worker_cluster])
+    assert run.RUN_ID, f"Invalid RUN_ID [{run.RUN_ID}], might not have been initialized properly."
     task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
-        execution_id=RUN_ID,
+        execution_id=run.RUN_ID,
         worker_image=worker_image,
         worker_cluster=worker_cluster,
         worker_labels=worker_labels,
@@ -187,7 +186,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         if local_test:
             execute_locally(
                 target=target,
-                execution_id=RUN_ID,
+                execution_id=run.RUN_ID,
                 max_batch_len=max_batch_len,
                 batch_gap_sleep_sec=batch_gap_sleep_sec,
                 show_progress=show_progress,
@@ -204,7 +203,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 target=target,
                 task_queue=task_queue,
                 outcome_queue=outcome_queue,
-                execution_id=RUN_ID,
+                execution_id=run.RUN_ID,
                 max_batch_len=max_batch_len,
                 batch_gap_sleep_sec=batch_gap_sleep_sec,
                 show_progress=show_progress,

@@ -7,7 +7,6 @@ from typing import Optional
 import attrs
 
 from zetta_utils import log
-from zetta_utils.cloud_management.resource_allocation.k8s import ClusterInfo
 from zetta_utils.common import RepeatTimer
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
@@ -37,7 +36,7 @@ class RunState(Enum):
     FAILED = "failed"
 
 
-def register(clusters: list[ClusterInfo]) -> None:  # pragma: no cover
+def register(clusters: list) -> None:  # pragma: no cover
     """
     Register run info to database, for the garbage collector.
     """

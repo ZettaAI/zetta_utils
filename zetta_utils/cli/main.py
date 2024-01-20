@@ -84,10 +84,12 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     help="Specify additional imports. Must end with `.py`.",
 )
 @click.option(
-    "--no_heartbeat",
+    "--heartbeat/--no-heartbeat",
     type=bool,
+    show_default=True,
+    default=True,
     is_flag=True,
-    help="Disable heartbeat. Use with caution.",
+    help="Enable/disable heartbeat. Disable with caution.",
 )
 def run(
     path: Optional[str],
@@ -96,7 +98,7 @@ def run(
     pdb: bool,
     parallel_builder: bool,
     extra_imports: tuple[str],
-    no_heartbeat: bool,
+    heartbeat: bool,
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
@@ -118,7 +120,7 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
-    if no_heartbeat:
+    if heartbeat is False:
         _heartbeat_interval = -1
     with run_ctx_manager(run_id=run_id, heartbeat_interval=_heartbeat_interval):
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)

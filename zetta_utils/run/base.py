@@ -20,7 +20,7 @@ DEFAULT_PROJECT = "zetta-research"
 RUN_DB_NAME = "run-info"
 RUN_INFO_PATH = "gs://zetta_utils_runs"
 RUN_DB = build_db_layer(DatastoreBackend(namespace=RUN_DB_NAME, project=DEFAULT_PROJECT))
-RUN_ID = None
+RUN_ID = ""
 
 
 class RunInfo(Enum):
@@ -85,6 +85,6 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
         _update_run_info({RunInfo.STATE.value: RunState.FAILED.value})
         raise e from None
     finally:
-        RUN_ID = None
+        RUN_ID = ""
         if heartbeat:
             heartbeat.cancel()

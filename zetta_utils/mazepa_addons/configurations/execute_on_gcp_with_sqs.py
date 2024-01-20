@@ -5,13 +5,14 @@ import os
 from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Literal, Optional, Union
 
-from zetta_utils import builder, log, mazepa
-from zetta_utils.cloud_management import execution_tracker, resource_allocation
+from zetta_utils import RUN_ID, builder, log, mazepa
+from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
 from zetta_utils.message_queues import sqs  # pylint: disable=unused-import
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
+from zetta_utils.run import register_clusters
 
 from .execute_locally import execute_locally
 
@@ -91,7 +92,7 @@ def get_gcp_with_sqs_config(
     )
 
     deployment = resource_allocation.k8s.get_mazepa_worker_deployment(
-        execution_id=execution_id,
+        execution_id,
         image=worker_image,
         task_queue_spec=task_queue_spec,
         outcome_queue_spec=outcome_queue_spec,
@@ -107,7 +108,7 @@ def get_gcp_with_sqs_config(
 
     ctx_managers.append(
         resource_allocation.k8s.deployment_ctx_mngr(
-            execution_id=execution_id,
+            execution_id,
             cluster_info=worker_cluster,
             deployment=deployment,
             secrets=secrets,
@@ -142,60 +143,51 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     provisioning_model: Literal["standard", "spot"] = "spot",
 ):
     _ensure_required_env_vars()
-    execution_id = mazepa.id_generation.get_unique_id(
-        prefix="exec", slug_len=4, add_uuid=False, max_len=50
-    )
-
-    execution_tracker.record_execution_run(execution_id)
-
     ctx_managers = copy.copy(list(extra_ctx_managers))
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
-    if local_test:
-        execution_tracker.register_execution(execution_id, [])
-    else:
-        if worker_cluster_name is None:
-            logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
-            worker_cluster = DEFAULT_GCP_CLUSTER
-            if worker_cluster_region is not None or worker_cluster_project is not None:
-                raise ValueError(
-                    "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
-                    "when `worker_cluster_name` is `None`"
-                )
-        else:
-            if worker_cluster_region is None or worker_cluster_project is None:
-                raise ValueError(
-                    "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
-                    "when `worker_cluster_name` is specified."
-                )
-            worker_cluster = resource_allocation.k8s.ClusterInfo(
-                name=worker_cluster_name,
-                region=worker_cluster_region,
-                project=worker_cluster_project,
+    if worker_cluster_name is None:
+        logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
+        worker_cluster = DEFAULT_GCP_CLUSTER
+        if worker_cluster_region is not None or worker_cluster_project is not None:
+            raise ValueError(
+                "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
+                "when `worker_cluster_name` is `None`"
             )
-        execution_tracker.register_execution(execution_id, [worker_cluster])
-        task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
-            execution_id=execution_id,
-            worker_image=worker_image,
-            worker_cluster=worker_cluster,
-            worker_labels=worker_labels,
-            worker_replicas=worker_replicas,
-            worker_resources=worker_resources if worker_resources else {},
-            ctx_managers=ctx_managers,
-            worker_resource_requests=worker_resource_requests,
-            num_procs=num_procs,
-            semaphores_spec=semaphores_spec,
-            provisioning_model=provisioning_model,
+    else:
+        if worker_cluster_region is None or worker_cluster_project is None:
+            raise ValueError(
+                "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
+                "when `worker_cluster_name` is specified."
+            )
+        worker_cluster = resource_allocation.k8s.ClusterInfo(
+            name=worker_cluster_name,
+            region=worker_cluster_region,
+            project=worker_cluster_project,
         )
+    register_clusters([worker_cluster])
+    assert RUN_ID, "Invalid RUN_ID, run might not have been initialized properly."
+    task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
+        execution_id=RUN_ID,
+        worker_image=worker_image,
+        worker_cluster=worker_cluster,
+        worker_labels=worker_labels,
+        worker_replicas=worker_replicas,
+        worker_resources=worker_resources if worker_resources else {},
+        ctx_managers=ctx_managers,
+        worker_resource_requests=worker_resource_requests,
+        num_procs=num_procs,
+        semaphores_spec=semaphores_spec,
+        provisioning_model=provisioning_model,
+    )
 
     with ExitStack() as stack:
-        stack.enter_context(execution_tracker.heartbeat_tracking_ctx_mngr(execution_id))
         for mngr in ctx_managers:
             stack.enter_context(mngr)
         if local_test:
             execute_locally(
                 target=target,
-                execution_id=execution_id,
+                execution_id=RUN_ID,
                 max_batch_len=max_batch_len,
                 batch_gap_sleep_sec=batch_gap_sleep_sec,
                 show_progress=show_progress,
@@ -212,7 +204,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 target=target,
                 task_queue=task_queue,
                 outcome_queue=outcome_queue,
-                execution_id=execution_id,
+                execution_id=RUN_ID,
                 max_batch_len=max_batch_len,
                 batch_gap_sleep_sec=batch_gap_sleep_sec,
                 show_progress=show_progress,

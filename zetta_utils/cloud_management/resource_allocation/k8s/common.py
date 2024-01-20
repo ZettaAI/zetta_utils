@@ -9,7 +9,7 @@ from typing import Any, Final, Optional, Tuple
 import attrs
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils import builder, log
+from zetta_utils import builder, log, run
 from zetta_utils.mazepa import SemaphoreType
 
 from .eks import eks_cluster_data
@@ -74,11 +74,9 @@ def get_mazepa_worker_command(
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
 
-    result = (
-        """
-    zetta -vv -l try run -p -s '{
-    """
-        + f'"@type": "{command}"\n'
+    result = f"zetta -vv -l try run -r {run.RUN_ID} --no-heartbeat -p -s '{{"
+    result += (
+        f'"@type": "{command}"\n'
         + f"task_queue: {json.dumps(task_queue_spec)}\n"
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
         + num_procs_line

@@ -1,6 +1,7 @@
 import os
-import time
+import sys
 from contextlib import contextmanager
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -27,6 +28,8 @@ class RunInfo(Enum):
     HEARTBEAT = "heartbeat"
     CLUSTERS = "clusters"
     STATE = "state"
+    TIMESTAMP = "timestamp"
+    PARAMS = "params"
 
 
 class RunState(Enum):
@@ -36,16 +39,12 @@ class RunState(Enum):
     FAILED = "failed"
 
 
-def register(clusters: list) -> None:  # pragma: no cover
+def register_clusters(clusters: list) -> None:  # pragma: no cover
     """
     Register run info to database, for the garbage collector.
     """
-    info: DBRowDataT = {
-        RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
-        RunInfo.HEARTBEAT.value: time.time(),
-        RunInfo.CLUSTERS.value: json.dumps([attrs.asdict(cluster) for cluster in clusters]),
-        RunInfo.STATE.value: RunState.RUNNING.value,
-    }
+    clusters_str = json.dumps([attrs.asdict(cluster) for cluster in clusters])
+    info: DBRowDataT = {RunInfo.CLUSTERS.value: clusters_str}
     _update_run_info(info)
 
 
@@ -58,7 +57,7 @@ def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover
 @contextmanager
 def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
     def _send_heartbeat():
-        info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
+        info: DBRowDataT = {RunInfo.HEARTBEAT.value: datetime.utcnow().timestamp()}
         _update_run_info(info)
 
     heartbeat = None
@@ -71,10 +70,19 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
         if heartbeat_interval > 0:
             heartbeat = RepeatTimer(heartbeat_interval, _send_heartbeat)
             heartbeat.start()
+
+            # Register run only when heartbeat is enabled.
+            # Auxiliary processes should not modify the main process entry.
+            info: DBRowDataT = {
+                RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
+                RunInfo.TIMESTAMP.value: datetime.utcnow().timestamp(),
+                RunInfo.STATE.value: RunState.RUNNING.value,
+                RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
+            }
+            _update_run_info(info)
         yield
     except Exception as e:
-        info: DBRowDataT = {RunInfo.STATE.value: RunState.FAILED.value}
-        _update_run_info(info)
+        _update_run_info({RunInfo.STATE.value: RunState.FAILED.value})
         raise e from None
     finally:
         RUN_ID = None

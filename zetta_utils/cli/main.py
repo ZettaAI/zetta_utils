@@ -56,6 +56,7 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
 )
 @click.option(
     "--run_id",
+    "-r",
     type=str,
     help="Provide a current `run_id` for auxiliary processes. Can also be "
     "used to pass a custom `run_id` and prevent random id generation.",
@@ -120,9 +121,10 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
+    run_ctx = run_ctx_manager(run_id=run_id)
     if heartbeat is False:
-        _heartbeat_interval = -1
-    with run_ctx_manager(run_id=run_id, heartbeat_interval=_heartbeat_interval):
+        run_ctx = run_ctx_manager(run_id=run_id, heartbeat_interval=-1)
+    with run_ctx:
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:

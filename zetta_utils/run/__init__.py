@@ -19,9 +19,8 @@ from .resource import Resource, register_resource, ResourceTypes, ResourceKeys, 
 logger = log.get_logger("zetta_utils")
 
 DEFAULT_PROJECT = "zetta-research"
+RUN_INFO_BUCKET = "gs://zetta_utils_runs"
 RUN_DB_NAME = "run-info"
-RUN_INFO_PATH = "gs://zetta_utils_runs"
-RUN_DB = build_db_layer(DatastoreBackend(namespace=RUN_DB_NAME, project=DEFAULT_PROJECT))
 RUN_ID = ""
 
 
@@ -32,6 +31,11 @@ class RunInfo(Enum):
     STATE = "state"
     TIMESTAMP = "timestamp"
     PARAMS = "params"
+
+
+RUN_DB_BACKEND = DatastoreBackend(namespace=RUN_DB_NAME, project=DEFAULT_PROJECT)
+RUN_DB_BACKEND.exclude_from_indexes = (RunInfo.CLUSTERS.value, RunInfo.PARAMS.value)
+RUN_DB = build_db_layer(RUN_DB_BACKEND)
 
 
 class RunState(Enum):

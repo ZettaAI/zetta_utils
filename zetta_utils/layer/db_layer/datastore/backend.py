@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import attrs
 from google.cloud.datastore import Client, Entity, Key
@@ -14,7 +14,7 @@ from zetta_utils import builder
 from .. import DBBackend, DBDataT, DBIndex
 
 
-def _get_data_from_entities(idx: DBIndex, entities: List[Entity]) -> DBDataT:
+def _get_data_from_entities(idx: DBIndex, entities: list[Entity]) -> DBDataT:
     data = []
     for i in range(idx.get_size()):
         col_keys = idx.col_keys[i]
@@ -45,10 +45,11 @@ class DatastoreBackend(DBBackend):
     namespace: str
     project: Optional[str] = None
     _client: Optional[Client] = None
+    _exclude_from_indexes: tuple[str, ...] = ()
 
     def _get_keys_or_entities(
         self, idx: DBIndex, data: Optional[DBDataT] = None
-    ) -> Union[List[Key], List[Entity]]:
+    ) -> Union[list[Key], list[Entity]]:
         keys = []
         entities = []
         for i, row_key in enumerate(idx.row_keys):
@@ -58,7 +59,7 @@ class DatastoreBackend(DBBackend):
                 if data is None:
                     keys.append(child_key)
                 else:
-                    entity = Entity(key=child_key)
+                    entity = Entity(key=child_key, exclude_from_indexes=self.exclude_from_indexes)
                     try:
                         entity[col_key] = data[i][col_key]
                         entities.append(entity)
@@ -96,3 +97,11 @@ class DatastoreBackend(DBBackend):
     @property
     def name(self) -> str:  # pragma: no cover
         return self.client.base_url
+
+    @property
+    def exclude_from_indexes(self) -> tuple[str, ...]:  # pragma: no cover
+        return self._exclude_from_indexes
+
+    @exclude_from_indexes.setter
+    def exclude_from_indexes(self, exclude: tuple[str, ...]) -> None:  # pragma: no cover
+        self._exclude_from_indexes = exclude

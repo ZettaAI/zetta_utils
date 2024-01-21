@@ -6,6 +6,8 @@ from enum import Enum
 from typing import Optional
 
 import attrs
+import fsspec
+from cloudfiles import paths
 
 from zetta_utils import log
 from zetta_utils.common import RepeatTimer
@@ -52,6 +54,28 @@ def register_clusters(clusters: list) -> None:  # pragma: no cover
     clusters_str = json.dumps([attrs.asdict(cluster) for cluster in clusters])
     info: DBRowDataT = {RunInfo.CLUSTERS.value: clusters_str}
     _update_run_info(info)
+
+
+def record_run(spec_path: str | None = None) -> None:  # pragma: no cover
+    """
+    Records run info in a bucket for archiving.
+    """
+    zetta_user = os.environ["ZETTA_USER"]
+    info_path = os.environ.get("RUN_INFO_BUCKET", RUN_INFO_BUCKET)
+    info_path_user = os.path.join(info_path, zetta_user)
+    run_info = {
+        "zetta_user": zetta_user,
+        "zetta_project": os.environ["ZETTA_PROJECT"],
+        "json_spec": json.loads(os.environ["ZETTA_RUN_SPEC"]),
+    }
+    with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.json"), "w") as f:
+        json.dump(run_info, f, indent=2)
+
+    if spec_path is not None:
+        with open(spec_path, "r", encoding="utf-8") as src:
+            content = src.read()
+            with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
+                dst.write(content)
 
 
 def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover

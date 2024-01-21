@@ -7,7 +7,12 @@ from typing import Dict, Optional
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import log
-from zetta_utils.run import Resource, ResourceTypes, register_resource
+from zetta_utils.run import (
+    Resource,
+    ResourceTypes,
+    deregister_resource,
+    register_resource,
+)
 
 from .common import ClusterInfo, get_cluster_data
 
@@ -37,7 +42,7 @@ def configmap_ctx_manager(
 
     logger.info(f"Creating k8s configmap `{configmap.metadata.name}`")
     k8s_core_v1_api.create_namespaced_config_map(body=configmap, namespace=namespace)
-    register_resource(
+    _id = register_resource(
         Resource(
             run_id,
             ResourceTypes.K8S_CONFIGMAP.value,
@@ -59,3 +64,4 @@ def configmap_ctx_manager(
             name=configmap.metadata.name,
             namespace=namespace,
         )
+        deregister_resource(_id)

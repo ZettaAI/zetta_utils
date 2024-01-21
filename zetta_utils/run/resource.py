@@ -30,6 +30,7 @@ class ResourceKeys(Enum):
     RUN_ID = "run_id"
     TYPE = "type"
     NAME = "name"
+    REGION = "region"
 
 
 @attrs.frozen
@@ -40,8 +41,21 @@ class Resource:
     region: str = ""
 
 
-def register_resource(resource: Resource) -> None:
+def register_resource(resource: Resource) -> str:
     _resource = attrs.asdict(resource)
     row_key = str(uuid.uuid4())
     col_keys = tuple(_resource.keys())
     RESOURCE_DB[(row_key, col_keys)] = _resource
+    return row_key
+
+
+def deregister_resource(resource_id: str):  # pragma: no cover
+    def _delete_db_entry(entry_id: str, columns: list[str]):
+        parent_key = client.key("Row", entry_id)
+        for column in columns:
+            col_key = client.key("Column", column, parent=parent_key)
+            client.delete(col_key)
+
+    client = RESOURCE_DB.backend.client  # type: ignore
+    columns = [key.value for key in list(ResourceKeys)]
+    _delete_db_entry(resource_id, columns)

@@ -16,7 +16,14 @@ from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.mazepa import id_generation
 from zetta_utils.parsing import json
 
-from .resource import Resource, register_resource, ResourceTypes, ResourceKeys, RESOURCE_DB
+from .resource import (
+    deregister_resource,
+    Resource,
+    register_resource,
+    ResourceTypes,
+    ResourceKeys,
+    RESOURCE_DB,
+)
 
 logger = log.get_logger("zetta_utils")
 

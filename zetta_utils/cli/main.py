@@ -7,7 +7,7 @@ import click
 import zetta_utils
 from zetta_utils import log
 from zetta_utils.parsing import json
-from zetta_utils.run import run_ctx_manager
+from zetta_utils.run import record_run, run_ctx_manager
 
 logger = log.get_logger("zetta_utils")
 
@@ -125,6 +125,7 @@ def run(
     if heartbeat is False:
         run_ctx = run_ctx_manager(run_id=run_id, heartbeat_interval=-1)
     with run_ctx:
+        record_run(path)
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:

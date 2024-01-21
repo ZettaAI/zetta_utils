@@ -11,7 +11,12 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes import client as k8s_client  # type: ignore
 from kubernetes import watch  # type: ignore
 from zetta_utils import log
-from zetta_utils.run import Resource, ResourceTypes, register_resource
+from zetta_utils.run import (
+    Resource,
+    ResourceTypes,
+    deregister_resource,
+    register_resource,
+)
 
 from .common import ClusterInfo, get_cluster_data
 from .secret import secrets_ctx_mngr
@@ -216,7 +221,7 @@ def job_ctx_manager(
     with secrets_ctx_mngr(run_id, secrets, cluster_info):
         logger.info(f"Creating k8s job `{job.metadata.name}`")
         batch_v1_api.create_namespaced_job(body=job, namespace=namespace)
-        register_resource(
+        _id = register_resource(
             Resource(
                 run_id,
                 ResourceTypes.K8S_JOB.value,
@@ -235,3 +240,4 @@ def job_ctx_manager(
                 namespace=namespace,
                 propagation_policy="Foreground",
             )
+            deregister_resource(_id)

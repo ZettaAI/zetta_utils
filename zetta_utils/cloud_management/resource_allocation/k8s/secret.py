@@ -8,7 +8,12 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import log
-from zetta_utils.run import Resource, ResourceTypes, register_resource
+from zetta_utils.run import (
+    Resource,
+    ResourceTypes,
+    deregister_resource,
+    register_resource,
+)
 
 from .common import ClusterInfo, get_cluster_data
 
@@ -89,16 +94,18 @@ def secrets_ctx_mngr(
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_core_v1_api = k8s_client.CoreV1Api()
+    secrets_resource_ids = []
     for secret in secrets:
         logger.info(f"Creating k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=namespace, body=secret)
-        register_resource(
+        _id = register_resource(
             Resource(
                 run_id,
                 ResourceTypes.K8S_SECRET.value,
                 secret.metadata.name,
             )
         )
+        secrets_resource_ids.append(_id)
 
     try:
         yield
@@ -109,8 +116,9 @@ def secrets_ctx_mngr(
 
         # need to create a new client for the above to take effect
         k8s_core_v1_api = k8s_client.CoreV1Api()
-        for secret in secrets:
+        for secret, _id in zip(secrets, secrets_resource_ids):
             logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
             k8s_core_v1_api.delete_namespaced_secret(
                 name=secret.metadata.name, namespace=namespace
             )
+            deregister_resource(_id)

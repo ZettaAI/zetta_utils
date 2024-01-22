@@ -62,7 +62,7 @@ def register_clusters(clusters: list) -> None:  # pragma: no cover
     _update_run_info(info)
 
 
-def record_run(spec_path: str | None = None) -> None:  # pragma: no cover
+def record_run(spec_path: Optional[str] = None) -> None:  # pragma: no cover
     """
     Records run info in a bucket for archiving.
     """

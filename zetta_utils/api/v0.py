@@ -42,15 +42,6 @@ from zetta_utils.builder.registry import (
     unregister,
 )
 from zetta_utils.cli.main import cli, run, show_registry
-from zetta_utils.cloud_management.execution_tracker import (
-    ExecutionInfoKeys,
-    heartbeat_tracking_ctx_mngr,
-    read_execution_clusters,
-    read_execution_run,
-    record_execution_run,
-    register_execution,
-    update_execution_heartbeat,
-)
 from zetta_utils.cloud_management.resource_allocation.aws_sqs import sqs_queue_ctx_mngr
 from zetta_utils.cloud_management.resource_allocation.gcloud.iam import (
     Role,
@@ -102,13 +93,6 @@ from zetta_utils.cloud_management.resource_allocation.k8s.service import (
     get_service,
     service_ctx_manager,
 )
-from zetta_utils.cloud_management.resource_allocation.resource_tracker import (
-    ExecutionResource,
-    ExecutionResourceKeys,
-    ExecutionResourceTypes,
-    register_execution_resource,
-)
-from zetta_utils.cloud_management.resource_cleanup import cleanup_execution
 from zetta_utils.common.ctx_managers import set_env_ctx_mngr
 from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.common.path import abspath

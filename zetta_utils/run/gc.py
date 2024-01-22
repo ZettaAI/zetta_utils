@@ -5,8 +5,8 @@ Garbage collection for run resources.
 import json
 import logging
 import os
-import time
-from typing import Any, Dict, List, Mapping
+from datetime import datetime
+from typing import Mapping
 
 import taskqueue
 from boto3.exceptions import Boto3Error
@@ -24,38 +24,18 @@ from zetta_utils.run import (
     RESOURCE_DB,
     RUN_DB,
     Resource,
-    ResourceKeys,
     ResourceTypes,
-    RunInfo,
+    deregister_resource,
 )
 
 logger = get_logger("zetta_utils")
-
-
-def _delete_db_entry(client: Any, entry_id: str, columns: List[str]):
-    parent_key = client.key("Row", entry_id)
-    for column in columns:
-        col_key = client.key("Column", column, parent=parent_key)
-        client.delete(col_key)
-
-
-def _delete_run_entry(run_id: str):  # pragma: no cover
-    client = RUN_DB.backend.client  # type: ignore
-    columns = [key.value for key in list(RunInfo)]
-    _delete_db_entry(client, run_id, columns)
-
-
-def _delete_resource_entry(resource_id: str):  # pragma: no cover
-    client = RESOURCE_DB.backend.client  # type: ignore
-    columns = [key.value for key in list(ResourceKeys)]
-    _delete_db_entry(client, resource_id, columns)
 
 
 def _get_stale_run_ids() -> list[str]:  # pragma: no cover
     client = RUN_DB.backend.client  # type: ignore
 
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
-    time_diff = time.time() - lookback
+    time_diff = datetime.utcnow().timestamp() - lookback
 
     filters = [("heartbeat", "<", time_diff)]
     query = client.query(kind="Column", filters=filters)
@@ -75,7 +55,7 @@ def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
     return [ClusterInfo(**cluster) for cluster in clusters]
 
 
-def _read_run_resources(run_id: str) -> Dict[str, Resource]:
+def _read_run_resources(run_id: str) -> dict[str, Resource]:
     client = RESOURCE_DB.backend.client  # type: ignore
 
     query = client.query(kind="Column")
@@ -83,15 +63,15 @@ def _read_run_resources(run_id: str) -> Dict[str, Resource]:
     query.keys_only()
 
     entities = list(query.fetch())
-    resouce_ids = [entity.key.parent.id_or_name for entity in entities]
+    resource_ids = [entity.key.parent.id_or_name for entity in entities]
 
     col_keys = ("type", "name")
-    resources = RESOURCE_DB[(resouce_ids, col_keys)]
+    resources = RESOURCE_DB[(resource_ids, col_keys)]
     resources = [Resource(run_id=run_id, **res) for res in resources]
-    return dict(zip(resouce_ids, resources))
+    return dict(zip(resource_ids, resources))
 
 
-def _delete_k8s_resources(run_id: str, resources: Dict[str, Resource]) -> bool:  # pragma: no cover
+def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool:  # pragma: no cover
     success = True
     logger.info(f"Deleting k8s resources from run {run_id}")
     clusters = _read_clusters(run_id)
@@ -99,10 +79,10 @@ def _delete_k8s_resources(run_id: str, resources: Dict[str, Resource]) -> bool: 
         try:
             configuration, _ = get_cluster_data(cluster)
         except GoogleAPICallError as exc:
-            # cluster does not exit, discard resource entries
+            # cluster does not exist, discard resource entries
             if exc.code == 404:
                 for resource_id in resources.keys():
-                    _delete_resource_entry(resource_id)
+                    deregister_resource(resource_id)
             continue
 
         k8s_client.Configuration.set_default(configuration)
@@ -125,7 +105,7 @@ def _delete_k8s_resources(run_id: str, resources: Dict[str, Resource]) -> bool: 
                 if exc.status == 404:
                     success = True
                     logger.info(f"Resource does not exist: `{resource.name}`: {exc}")
-                    _delete_resource_entry(resource_id)
+                    deregister_resource(resource_id)
                 else:
                     success = False
                     logger.warning(f"Failed to delete k8s resource `{resource.name}`: {exc}")
@@ -133,7 +113,7 @@ def _delete_k8s_resources(run_id: str, resources: Dict[str, Resource]) -> bool: 
     return success
 
 
-def _delete_sqs_queues(resources: Dict[str, Resource]) -> bool:  # pragma: no cover
+def _delete_sqs_queues(resources: dict[str, Resource]) -> bool:  # pragma: no cover
     success = True
     for resource_id, resource in resources.items():
         if resource.type != ResourceTypes.SQS_QUEUE.value:
@@ -148,7 +128,7 @@ def _delete_sqs_queues(resources: Dict[str, Resource]) -> bool:  # pragma: no co
             sqs_client.delete_queue(QueueUrl=queue_url)
         except sqs_client.exceptions.QueueDoesNotExist as exc:
             logger.info(f"Queue does not exist: `{resource.name}`: {exc}")
-            _delete_resource_entry(resource_id)
+            deregister_resource(resource_id)
         except Boto3Error as exc:
             success = False
             logger.warning(f"Failed to delete queue `{resource.name}`: {exc}")
@@ -162,10 +142,9 @@ def cleanup_run(run_id: str):
     success &= _delete_sqs_queues(resources)
 
     if success is True:
-        _delete_run_entry(run_id)
         logger.info(f"`{run_id}` run cleanup complete.")
     else:
-        logger.info(f"`{run_id}` run cleanup incomplete.")
+        logger.info(f"`{run_id}` run cleanup failed.")
 
 
 if __name__ == "__main__":  # pragma: no cover

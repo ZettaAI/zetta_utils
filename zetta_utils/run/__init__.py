@@ -7,7 +7,6 @@ from typing import Optional
 
 import attrs
 import fsspec
-from cloudfiles import paths
 
 from zetta_utils import log
 from zetta_utils.common import RepeatTimer

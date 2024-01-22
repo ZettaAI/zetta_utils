@@ -23,7 +23,7 @@ def register_dummy():
         {"@type": "dummy", "i": {"a": "b"}},
     ],
 )
-def test_zetta_run(spec, register_dummy, mocker):
+def test_zetta_run(spec, register_dummy, mocker, datastore_emulator):
     mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
     runner = CliRunner()
     result = runner.invoke(cli.run, ".")
@@ -44,7 +44,7 @@ def test_show_registry(register_dummy):
         {"@type": "dummy", "i": {"a": "b"}},
     ],
 )
-def test_zetta_run_str(spec, register_dummy):
+def test_zetta_run_str(spec, register_dummy, datastore_emulator):
     runner = CliRunner()
     result = runner.invoke(cli.run, ["-s", json.dumps(spec)])
     assert result.exit_code == 0
@@ -57,14 +57,14 @@ builder.register("registered_in_file")(lambda: None)
 SPEC_WITH_CUSTOM_IMPORT = {"@type": "registered_in_file"}
 
 
-def test_zetta_run_extra_import_fail(tmp_path):
+def test_zetta_run_extra_import_fail(tmp_path, datastore_emulator):
     runner = CliRunner()
     # make sure that it doesn't run without a file import
     should_fail = runner.invoke(cli.run, ["-s", json.dumps(SPEC_WITH_CUSTOM_IMPORT)])
     assert should_fail.exit_code != 0
 
 
-def test_zetta_run_extra_import_success(tmp_path):
+def test_zetta_run_extra_import_success(tmp_path, datastore_emulator):
     runner = CliRunner()
     my_file = tmp_path / "custom_import.py"
     my_file.write_text(CUSTOM_IMPORT_CONTENT)
@@ -74,7 +74,7 @@ def test_zetta_run_extra_import_success(tmp_path):
     assert should_succeed.exit_code == 0
 
 
-def test_zetta_run_extra_import_py_check_fail(tmp_path):
+def test_zetta_run_extra_import_py_check_fail(tmp_path, datastore_emulator):
     runner = CliRunner()
     my_file = tmp_path / "custom_import"
     my_file.write_text(CUSTOM_IMPORT_CONTENT)

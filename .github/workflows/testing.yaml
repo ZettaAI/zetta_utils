@@ -8,6 +8,8 @@ on:
 
 env:
   WANDB_MODE: offline
+  ZETTA_USER: test
+  ZETTA_PROJECT: test
   #SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:

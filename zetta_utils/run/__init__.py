@@ -91,6 +91,14 @@ def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover
     RUN_DB[(row_key, col_keys)] = info
 
 
+def _check_run_id_conflict(run_id: str):
+    row_key = f"run-{run_id}"
+    col_keys = tuple(e.value for e in RunInfo)
+    idx = (row_key, col_keys)
+    if RUN_DB_BACKEND.exists(RUN_DB._convert_idx(idx)):  # pylint: disable=protected-access
+        raise ValueError(f"RUN_ID {run_id} already exists in database.")
+
+
 @contextmanager
 def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
     def _send_heartbeat():
@@ -100,6 +108,7 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
     heartbeat = None
     if run_id is None:
         run_id = id_generation.get_unique_id(slug_len=4, add_uuid=False, max_len=50)
+    _check_run_id_conflict(run_id)
 
     global RUN_ID  # pylint: disable=global-statement
     RUN_ID = run_id

@@ -173,3 +173,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
     def __setitem__(self, idx, data):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
+
+    def exists(self, idx) -> bool:
+        idx_backend = self._convert_idx(idx)
+        return self.backend.exists(idx_backend)

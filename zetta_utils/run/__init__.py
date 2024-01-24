@@ -94,8 +94,7 @@ def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover
 def _check_run_id_conflict(run_id: str):
     row_key = f"run-{run_id}"
     col_keys = tuple(e.value for e in RunInfo)
-    idx = (row_key, col_keys)
-    if RUN_DB_BACKEND.exists(RUN_DB._convert_idx(idx)):  # pylint: disable=protected-access
+    if RUN_DB.exists((row_key, col_keys)):
         raise ValueError(f"RUN_ID {run_id} already exists in database.")
 
 

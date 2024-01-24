@@ -18,5 +18,9 @@ class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-me
         ...
 
     @abstractmethod
+    def exists(self, idx: DBIndex) -> bool:
+        ...
+
+    @abstractmethod
     def write(self, idx: DBIndex, data: DBDataT):
         ...

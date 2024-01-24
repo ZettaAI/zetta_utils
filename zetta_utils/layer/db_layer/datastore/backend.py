@@ -84,6 +84,13 @@ class DatastoreBackend(DBBackend):
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)
 
+    def exists(self, idx: DBIndex) -> bool:
+        keys = self._get_keys_or_entities(idx)
+        for _key in keys:
+            if self.client.get(_key):
+                return True
+        return False
+
     def with_changes(self, **kwargs) -> DatastoreBackend:
         """Currently not typed. See `Layer.with_backend_changes()` for the reason."""
         implemented_keys = ["namespace", "project"]

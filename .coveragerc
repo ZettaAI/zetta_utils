@@ -14,6 +14,8 @@ omit =
   zetta_utils/training/lightning/*.py
   zetta_utils/cloud_management/*.py
   zetta_utils/cloud_management/**/*.py
+  zetta_utils/run/*.py
+  zetta_utils/run/**/*.py
   setup.py
 
 [report]

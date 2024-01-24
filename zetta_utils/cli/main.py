@@ -123,7 +123,7 @@ def run(
 
     run_ctx = run_ctx_manager(run_id=run_id)
     if heartbeat is False:
-        run_ctx = run_ctx_manager(run_id=run_id, heartbeat_interval=-1)
+        run_ctx = run_ctx_manager(run_id=run_id, heartbeat_interval=-1)  # pragma: no cover
     with run_ctx:
         record_run(path)
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)

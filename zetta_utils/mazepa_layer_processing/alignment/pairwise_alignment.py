@@ -37,6 +37,7 @@ from zetta_utils.tensor_ops.common import (
 from zetta_utils.tensor_ops.mask import (
     kornia_opening,
     kornia_dilation,
+    kornia_erosion,
     filter_cc,
     kornia_closing,
 )
@@ -255,6 +256,7 @@ class EncodingFlowSchema:
             model_op_kwargs = op_kwargs | model.get("op_kwargs", {})
             dst_resolution = model["dst_resolution"]
             dst_path_ = model.get("dst_path", dst_path)
+            # model_dst_factory_kwargs = model.get("dst_factory_kwargs", {}) | dst_factory_kwargs
 
             flow = SubchunkableFnFlowSchema(
                 fn=fn,
@@ -265,6 +267,7 @@ class EncodingFlowSchema:
                 model_res_change_mult=model.get("res_change_mult", [1, 1, 1]),
                 model_max_processing_chunk_size=model.get("max_processing_chunk_size", None),
                 dst_path=dst_path_,
+                # dst_factory_kwargs=model_dst_factory_kwargs,
                 dst_factory_kwargs=dst_factory_kwargs,
                 subchunkable_kwargs=model_subchunkable_kwargs,
                 op_kwargs=model_op_kwargs,
@@ -327,13 +330,13 @@ def binarize_defect_prediction(
 
     return to_uint8(pred)
 
-import skimage.morphology
-from kornia import morphology
-import einops
+# import skimage.morphology
+# from kornia import morphology
+# import einops
 
-def _make_kernel(width):
-    # return convert.to_torch(square(width), device=device)
-    return torch.from_numpy(skimage.morphology.square(width))
+# def _make_kernel(width):
+#     # return convert.to_torch(square(width), device=device)
+#     return torch.from_numpy(skimage.morphology.square(width))
 
 
 # @builder.register("binarize_defect_prediction2")
@@ -397,6 +400,23 @@ class BinarizeDefectFlowSchema:
 def zero_out_src_with_mask(src, mask, grow_mask_width=0):
     if grow_mask_width > 0:
         mask = kornia_dilation(mask, width=grow_mask_width)
+    return torch.where(mask > 0, 0, src)  # where(cond, true, false)
+
+
+@builder.register("zero_out_src_with_mask2")
+def zero_out_src_with_mask2(src, mask, opening_width=0, dilation_width=0):
+    # opening_width=2 finds and removes >=2px wide masks
+    # opening_width=3 finds and removes >=3px wide masks
+    # dilation_width=2 grows mask by 1px
+    # dilation_width=3 grows mask by 2px
+    if opening_width > 0:
+        mask0 = mask
+        exclusion_from_dilation = kornia_opening(mask, width=opening_width)
+        mask = mask & torch.logical_not(exclusion_from_dilation)
+    if dilation_width > 0:
+        mask = kornia_dilation(mask, width=dilation_width)
+    if opening_width > 0:
+        mask |= mask0
     return torch.where(mask > 0, 0, src)  # where(cond, true, false)
 
 
@@ -508,6 +528,9 @@ class ComputeFieldFlowSchema:
         compute_field_multistage_kwargs: Mapping[str, Any] | None = None,
         compute_field_stage_kwargs: Mapping[str, Any] | None = None,
     ):
+        if len(stages) == 0:
+            raise RuntimeError("Input `stages` is empty")
+
         if compute_field_multistage_kwargs is None:
             compute_field_multistage_kwargs = {}
         if compute_field_stage_kwargs is None:
@@ -527,7 +550,6 @@ class ComputeFieldFlowSchema:
         if dst_factory is None:
             dst_factory = _default_layer_factory
 
-        # z_offset_resolution = set([stage["dst_resolution"][2] for stage in stages])
         z_offset_resolution = {stage["dst_resolution"][2] for stage in stages}
         if len(z_offset_resolution) > 1:
             raise RuntimeError("Inconsistent z resolutions between stages!")
@@ -975,10 +997,13 @@ def build_pairwise_alignment_flow(
     run_mask_encodings: bool = False,
     mask_encodings_flow_kwargs: Mapping[str, Any] | None = None,
     run_compute_field: bool = False,
+    compute_field_subproject: str | None = None,
     compute_field_flow_kwargs: Mapping[str, Any] | None = None,
     run_invert_field: bool = False,
+    invert_field_subproject: str | None = None,
     invert_field_flow_kwargs: Mapping[str, Any] | None = None,
     run_warp: bool = False,
+    warp_subproject: str | None = None,
     warp_flow_kwargs: Mapping[str, Any] | None = None,
     run_enc_warped_imgs: bool = False,
     enc_warped_imgs_flow_kwargs: Mapping[str, Any] | None = None,
@@ -995,7 +1020,9 @@ def build_pairwise_alignment_flow(
         # otherwise path is relative
         return os.path.join(project_folder, path)
 
-    def set_path(config, key, default):
+    def set_path(config, key, default, subproject=None):
+        if subproject is not None:
+            default = os.path.join(subproject, default)
         config[key] = resolve_path(config.get(key, None), default)
 
     encoding_flow = None
@@ -1027,7 +1054,7 @@ def build_pairwise_alignment_flow(
         mask_encodings_flow_kwargs = {}
     set_path(mask_encodings_flow_kwargs, "mask_path", default=binarize_defect_flow_kwargs["dst_path"])
     set_path(mask_encodings_flow_kwargs, "src_path", default=encoding_flow_kwargs["dst_path"])
-    set_path(mask_encodings_flow_kwargs, "dst_path", default="masked_encodings")
+    set_path(mask_encodings_flow_kwargs, "dst_path", default="encodings_masked")
     if run_mask_encodings:
         mask_encodings_flow = MaskEncodingsFlowSchema(**mask_encodings_flow_kwargs)
 
@@ -1037,7 +1064,7 @@ def build_pairwise_alignment_flow(
     cf_default_src = encoding_flow_kwargs["dst_path"] if skipped_defect else \
                      mask_encodings_flow_kwargs["dst_path"]
     set_path(compute_field_flow_kwargs, "src_path", default=cf_default_src)
-    set_path(compute_field_flow_kwargs, "dst_path", default="fields_fwd")
+    set_path(compute_field_flow_kwargs, "dst_path", "fields_fwd", compute_field_subproject)
     compute_field_flow_kwargs = {"z_offsets": z_offsets} | compute_field_flow_kwargs
     if run_compute_field:
         compute_field_flow = ComputeFieldFlowSchema(**compute_field_flow_kwargs)
@@ -1046,8 +1073,8 @@ def build_pairwise_alignment_flow(
     if invert_field_flow_kwargs is None:
         invert_field_flow_kwargs = {}
     set_path(invert_field_flow_kwargs, "src_path", default=compute_field_flow_kwargs["dst_path"])
-    set_path(invert_field_flow_kwargs, "dst_path", default="fields_inv")
-    if "stages" in compute_field_flow_kwargs:
+    set_path(invert_field_flow_kwargs, "dst_path", "fields_inv", invert_field_subproject)
+    if "stages" in compute_field_flow_kwargs and len(compute_field_flow_kwargs["stages"]):
         # try to get field_resolution from the previous step
         cf_dst_resolution = compute_field_flow_kwargs["stages"][-1]["dst_resolution"]
         invert_field_flow_kwargs = {"dst_resolution": cf_dst_resolution} | invert_field_flow_kwargs
@@ -1060,7 +1087,7 @@ def build_pairwise_alignment_flow(
         warp_flow_kwargs = {}
     set_path(warp_flow_kwargs, "src_path", default=src_image_path)
     set_path(warp_flow_kwargs, "field_path", default=invert_field_flow_kwargs["dst_path"])
-    set_path(warp_flow_kwargs, "dst_path", default="imgs_warped")
+    set_path(warp_flow_kwargs, "dst_path", "imgs_warped", warp_subproject)
     if "dst_resolution" in invert_field_flow_kwargs:
         # try to get field_resolution from the previous step
         warp_flow_kwargs = {"field_resolution": invert_field_flow_kwargs["dst_resolution"]} | warp_flow_kwargs

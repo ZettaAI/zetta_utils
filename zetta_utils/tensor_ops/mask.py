@@ -279,6 +279,8 @@ def kornia_dilation(
         data_torch,
         kernel=kernel_torch,
         max_val=kwargs.pop("max_val", kernel_torch.max()),
+        border_type=kwargs.pop("border_type", "constant"),
+        border_value=kwargs.pop("border_value", 0.0),
         **kwargs,
     )
 

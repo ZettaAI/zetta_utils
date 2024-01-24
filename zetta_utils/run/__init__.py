@@ -77,11 +77,12 @@ def record_run(spec_path: Optional[str] = None) -> None:  # pragma: no cover
     with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.json"), "w") as f:
         json.dump(run_info, f, indent=2)
 
-    if spec_path is not None:
+    if spec_path is not None and os.path.isfile(spec_path):
+        content = None
         with open(spec_path, "r", encoding="utf-8") as src:
             content = src.read()
-            with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
-                dst.write(content)
+        with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
+            dst.write(content)
 
 
 def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover

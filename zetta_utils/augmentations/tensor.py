@@ -210,7 +210,7 @@ def rand_perlin_2d(
             shape[0],
             res[0] + 1,
             res[1] + 1,
-            device=device,  # type: ignore # pytorch bug
+            device=device,
         )
     )  # ZCXY
     gradients = torch.stack((torch.cos(angles), torch.sin(angles)), dim=-1)
@@ -259,7 +259,7 @@ def rand_perlin_2d_octaves(
     if len(res) != 2:
         raise ValueError(f"'res' expected length 2, got {len(res)}")
 
-    noise = torch.zeros(*shape, device=device)  # type: ignore # pytorch bug
+    noise = torch.zeros(*shape, device=device)
     frequency = 1
     amplitude = 1.0
     for _ in range(octaves):

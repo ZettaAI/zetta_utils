@@ -29,7 +29,7 @@ jobs:
       - name: Checkout from GitHub
         uses: actions/checkout@v4
         with:
-          lfs: 'false'
+          lfs: true
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}

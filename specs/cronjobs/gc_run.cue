@@ -7,7 +7,7 @@ cluster: {
 }
 name: "gc-run"
 namespace: "default"
-image: "us.gcr.io/zetta-research/zetta_utils:gc_run_v0"
+image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:gc_run_v0"
 command: ["/bin/sh"]
 command_args: [
 	"-c",
@@ -28,4 +28,4 @@ spec_config: {
 	"@type": "mazepa.k8s.CronJobSpec"
 	schedule: "*/15 * * * *"
 }
-patch: false
+patch: true

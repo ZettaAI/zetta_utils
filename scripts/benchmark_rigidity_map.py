@@ -2,6 +2,7 @@ import math
 import timeit
 
 import torch
+import torchfields
 
 from zetta_utils.alignment import field
 
@@ -20,7 +21,7 @@ weight_map = None
 
 def setup(size=2048):
     # Create a displacement field, a 45° rotation, with one extreme element
-    fld = torch.Field.affine_field(rotation_tensor(45), size=(1, 2, size, size))
+    fld = torchfields.Field.affine_field(rotation_tensor(45), size=(1, 2, size, size))
     fld[0, 0, 7, 11] = 5
     fld[0, 1, 7, 11] = -1
 

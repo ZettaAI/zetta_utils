@@ -38,7 +38,7 @@ def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
 
     """
     if isinstance(data, torch.Tensor):
-        result = data.to(device=device)  # type: ignore # pytorch bug
+        result = data.to(device=device)
     else:
         assert isinstance(data, np.ndarray)
         if data.dtype == np.uint64:
@@ -52,7 +52,7 @@ def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
 
         if any(v < 0 for v in data.strides):  # torch.from_numpy does not support negative strides
             data = data.copy("K")
-        result = torch.from_numpy(data).to(device)  # type: ignore # pytorch bug
+        result = torch.from_numpy(data).to(device)
 
     return result
 

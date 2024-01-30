@@ -17,7 +17,7 @@ from .tools import (
     VolumetricIndexPadder,
     VolumetricIndexTranslator,
     VolumetricIndexChunker,
-    VolumetricIndexStartOffsetOverrider,
+    VolumetricIndexOverrider,
 )
 from .layer import (
     VolumetricLayer,

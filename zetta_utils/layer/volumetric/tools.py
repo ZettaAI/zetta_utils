@@ -44,21 +44,37 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
-@builder.register("VolumetricIndexStartOffsetOverrider")
+@builder.register("VolumetricIndexOverrider")
 @typechecked
 @attrs.mutable
-class VolumetricIndexStartOffsetOverrider:
-    override_offset: Sequence[int | None]
+class VolumetricIndexOverrider:
+    override_offset: Optional[Sequence[int | None]] = None
+    override_size: Optional[Sequence[int | None]] = None
+    override_resolution: Optional[Sequence[float | None]] = None
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        if self.override_offset is None:
+            self.override_offset = idx.start
+        if self.override_size is None:
+            self.override_size = idx.shape
+        if self.override_resolution is None:
+            self.override_resolution = idx.resolution
+
         start = IntVec3D(
             *[x if x is not None else y for x, y in zip(self.override_offset, idx.start)]
         )
-        stop = start + (idx.stop - idx.start)
+        size = IntVec3D(
+            *[x if x is not None else y for x, y in zip(self.override_size, idx.shape)]
+        )
+        resolution = Vec3D[float](
+            *[x if x is not None else y for x, y in zip(self.override_resolution, idx.resolution)]
+        )
+        stop = start + size
+
         return VolumetricIndex.from_coords(
             start_coord=start.vec,
             end_coord=stop.vec,
-            resolution=idx.resolution,
+            resolution=resolution,
         )
 
 

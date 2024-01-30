@@ -1,7 +1,7 @@
 import affine
 import einops
 import torch
-import torchfields  # pylint: disable=unused-import
+import torchfields
 
 from zetta_utils import builder
 
@@ -36,5 +36,5 @@ def get_affine_field(
         * affine.Affine.scale(1 / scale)
     )
     mat = torch.tensor([[aff.a, aff.b, aff.c], [aff.d, aff.e, aff.f]]).unsqueeze(0)
-    field = torch.Field.affine_field(mat, size=(1, 2, size, size))
+    field = torchfields.Field.affine_field(mat, size=(1, 2, size, size))
     return einops.rearrange(field, "Z C X Y -> C X Y Z")

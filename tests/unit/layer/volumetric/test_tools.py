@@ -6,7 +6,7 @@ from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
-    VolumetricIndexStartOffsetOverrider,
+    VolumetricIndexOverrider,
 )
 from zetta_utils.layer.volumetric.tools import ROIMaskProcessor
 
@@ -85,19 +85,38 @@ def test_volumetric_index_chunker(
 
 
 @pytest.mark.parametrize(
-    "override_offset, expected_start, expected_stop",
+    """override_offset, override_size, override_resolution,
+    expected_start, expected_stop, expected_resolution""",
     [
-        [[7, 8, 9], [7, 8, 9], [17, 18, 19]],
-        [[None, None, 10], [4, 5, 10], [14, 15, 20]],
-        [[None, None, None], [4, 5, 6], [14, 15, 16]],
+        [[7, 8, 9], None, None, [7, 8, 9], [17, 18, 19], [1, 1, 1]],
+        [[None, None, 10], None, None, [4, 5, 10], [14, 15, 20], [1, 1, 1]],
+        [[None, None, None], None, None, [4, 5, 6], [14, 15, 16], [1, 1, 1]],
+        [None, [7, 8, 9], None, [4, 5, 6], [11, 13, 15], [1, 1, 1]],
+        [None, [None, None, 8], None, [4, 5, 6], [14, 15, 14], [1, 1, 1]],
+        [None, [None, None, None], None, [4, 5, 6], [14, 15, 16], [1, 1, 1]],
+        [None, None, [2, 2, 2], [4, 5, 6], [14, 15, 16], [2, 2, 2]],
+        [None, None, [None, None, 2.1], [4, 5, 6], [14, 15, 16], [1, 1, 2.1]],
+        [None, None, [None, None, None], [4, 5, 6], [14, 15, 16], [1, 1, 1]],
     ],
 )
-def test_volumetric_index_offset_overrider(override_offset, expected_start, expected_stop):
+def test_volumetric_index_overrider(
+    override_offset,
+    override_size,
+    override_resolution,
+    expected_start,
+    expected_stop,
+    expected_resolution,
+):
     index = VolumetricIndex(resolution=Vec3D(1, 1, 1), bbox=BBox3D(((4, 14), (5, 15), (6, 16))))
-    visoo = VolumetricIndexStartOffsetOverrider(override_offset=override_offset)
-    index = visoo(index)
+    vio = VolumetricIndexOverrider(
+        override_offset=override_offset,
+        override_size=override_size,
+        override_resolution=override_resolution,
+    )
+    index = vio(index)
     assert index.start == Vec3D(*expected_start)
     assert index.stop == Vec3D(*expected_stop)
+    assert index.resolution == Vec3D(*expected_resolution)
 
 
 @pytest.mark.parametrize(

@@ -11,6 +11,7 @@ from typing import Mapping
 import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
+from google.cloud.datastore import query
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -25,7 +26,10 @@ from zetta_utils.run import (
     RUN_DB,
     Resource,
     ResourceTypes,
+    RunInfo,
+    RunState,
     deregister_resource,
+    update_run_info,
 )
 
 logger = get_logger("zetta_utils")
@@ -37,11 +41,17 @@ def _get_stale_run_ids() -> list[str]:  # pragma: no cover
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = datetime.utcnow().timestamp() - lookback
 
-    filters = [("heartbeat", "<", time_diff)]
-    query = client.query(kind="Column", filters=filters)
-    query.keys_only()
+    _query = client.query(kind="Column")
+    _filter = query.And(
+        [
+            query.PropertyFilter("heartbeat", "<", time_diff),
+            query.PropertyFilter("state", "IN", [RunState.RUNNING.value, RunState.FAILED.value]),
+        ]
+    )
+    _query.add_filter(filter=_filter)
+    _query.keys_only()
 
-    entities = list(query.fetch())
+    entities = list(_query.fetch())
     return [entity.key.parent.id_or_name for entity in entities]
 
 
@@ -58,11 +68,11 @@ def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
 def _read_run_resources(run_id: str) -> dict[str, Resource]:
     client = RESOURCE_DB.backend.client  # type: ignore
 
-    query = client.query(kind="Column")
-    query = query.add_filter("run_id", "=", run_id)
-    query.keys_only()
+    _query = client.query(kind="Column")
+    _query = _query.add_filter(filter=[query.PropertyFilter("run_id", "=", run_id)])
+    _query.keys_only()
 
-    entities = list(query.fetch())
+    entities = list(_query.fetch())
     resource_ids = [entity.key.parent.id_or_name for entity in entities]
 
     col_keys = ("type", "name")
@@ -143,6 +153,7 @@ def cleanup_run(run_id: str):
 
     if success is True:
         logger.info(f"`{run_id}` run cleanup complete.")
+        update_run_info({RunInfo.STATE.value: RunState.TIMEDOUT.value})
     else:
         logger.info(f"`{run_id}` run cleanup failed.")
 

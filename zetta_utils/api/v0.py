@@ -6,8 +6,6 @@ from zetta_utils.augmentations.imgaug import imgaug_augment, imgaug_readproc
 from zetta_utils.augmentations.tensor import (
     add_scalar_aug,
     clamp_values_aug,
-    rand_perlin_2d,
-    rand_perlin_2d_octaves,
     square_tile_pattern_aug,
 )
 from zetta_utils.builder.building import BuilderPartial, build

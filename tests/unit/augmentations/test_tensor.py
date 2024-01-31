@@ -2,7 +2,6 @@ from typing import Callable, Optional, Union
 
 import numpy as np
 import pytest
-import torch
 
 from zetta_utils import augmentations, distributions
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
@@ -265,57 +264,3 @@ def test_square_tile_pattern_aug(
         repeats=repeats,
     )
     assert_array_equal(result, expected)
-
-
-@pytest.mark.parametrize(
-    "shape, res, device, expected_shape, expected_device",
-    [
-        [(1, 16, 16, 3), [4, 4], "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
-        [[2, 16, 16, 2], [4, 4], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
-        [(3, 16, 16, 1), [4, 4], None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
-        [(2, 16, 24, 1), [4, 6], None, torch.Size([2, 16, 24, 1]), torch.device("cpu")],
-    ],
-)
-def test_rand_perlin_2d(shape, res, device, expected_shape, expected_device):
-    result = augmentations.tensor.rand_perlin_2d(shape, res, device=device)
-    assert result.shape == expected_shape
-    assert result.device == expected_device
-
-
-@pytest.mark.parametrize(
-    "shape, res, device, expected_shape, expected_device",
-    [
-        [(1, 16, 16, 3), [4, 4], "cpu", torch.Size([1, 16, 16, 3]), torch.device("cpu")],
-        [[2, 16, 16, 2], [4, 4], "cpu", torch.Size([2, 16, 16, 2]), torch.device("cpu")],
-        [(3, 16, 16, 1), [4, 4], None, torch.Size([3, 16, 16, 1]), torch.device("cpu")],
-        [(2, 16, 24, 1), [4, 6], None, torch.Size([2, 16, 24, 1]), torch.device("cpu")],
-    ],
-)
-def test_rand_perlin_2d_octaves(shape, res, device, expected_shape, expected_device):
-    result = augmentations.tensor.rand_perlin_2d_octaves(shape, res, octaves=2, device=device)
-    assert result.shape == expected_shape
-    assert result.device == expected_device
-
-
-@pytest.mark.parametrize(
-    "shape, res",
-    [
-        [(1, 16, 16), [8, 8]],
-        [[2, 16, 16, 2], (4,)],
-    ],
-)
-def test_rand_perlin_2d_failure(shape, res):
-    with pytest.raises(ValueError):
-        augmentations.tensor.rand_perlin_2d(shape, res)
-
-
-@pytest.mark.parametrize(
-    "shape, res",
-    [
-        [(1, 16, 16), [8, 8]],
-        [[2, 16, 16, 2], (4,)],
-    ],
-)
-def test_rand_perlin_2d_octaves_failure(shape, res):
-    with pytest.raises(ValueError):
-        augmentations.tensor.rand_perlin_2d_octaves(shape, res)

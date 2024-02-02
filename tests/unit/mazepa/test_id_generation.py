@@ -7,8 +7,12 @@ from typing import Any, Callable, Mapping
 import attrs
 
 from zetta_utils import mazepa
+from zetta_utils.builder.building import BuilderPartial
+from zetta_utils.geometry.bbox import BBox3D
+from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.mazepa import taskable_operation_cls
 from zetta_utils.mazepa.id_generation import generate_invocation_id as gen_id
+from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
 
 
 class ClassA:
@@ -101,6 +105,37 @@ class FlowSchema:
         return self.callable_fn(*args, **kwargs)
 
 
+def subchunkable_flow():
+    # Subchunkable is used so commonly that it warrants its own test
+    return build_subchunkable_apply_flow(
+        fn=BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": "lambda x: x"}),
+        dst_resolution=[1, 1, 1],
+        processing_chunk_sizes=[[1, 1, 1]],
+        dst=build_cv_layer(
+            path="/tmp/zutils/test/test_id_generation",
+            info_field_overrides={
+                "data_type": "int8",
+                "num_channels": 1,
+                "scales": [
+                    {
+                        "chunk_sizes": [[1, 1, 1]],
+                        "encoding": "raw",
+                        "key": "1_1_1",
+                        "resolution": [1, 1, 1],
+                        "size": [1, 1, 1],
+                        "voxel_offset": [0, 0, 0],
+                    }
+                ],
+                "type": "image",
+            },
+        ),
+        bbox=BBox3D.from_coords(start_coord=[0, 0, 0], end_coord=[1, 1, 1], resolution=[1, 1, 1]),
+        level_intermediaries_dirs=[
+            "/tmp/zutils/test/test_id_generation/tmp",
+        ],
+    )
+
+
 def test_generate_invocation_id_method() -> None:
     assert gen_id(ClassA().method, [], {}) != gen_id(ClassB().method, [], {})
     assert gen_id(ClassB().method, [], {}) != gen_id(ClassC().method, [], {})
@@ -183,6 +218,12 @@ def test_generate_invocation_id_flow_schema() -> None:
     )
 
 
+def test_generate_invocation_id_subchunkable_flow() -> None:
+    a = subchunkable_flow()
+    b = subchunkable_flow()
+    assert gen_id(a.fn, a.args, a.kwargs) == gen_id(b.fn, b.args, b.kwargs)
+
+
 def _gen_id_calls(_) -> dict[str, str]:
     gen_ids = {
         'gen_id(ClassA().method, [], {"a": 1})': gen_id(ClassA().method, [], {"a": 1}),
@@ -207,6 +248,9 @@ def _gen_id_calls(_) -> dict[str, str]:
         ),
         "gen_id(FlowSchema({}, ClassE(1).method).flow, [], {})": gen_id(
             FlowSchema({}, ClassE(1).method).flow, [], {}
+        ),
+        "gen_id(subchunkable_flow(), [], {})": gen_id(
+            subchunkable_flow().fn, subchunkable_flow().args, subchunkable_flow().kwargs
         ),
     }
     return gen_ids

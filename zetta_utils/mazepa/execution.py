@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import ExitStack
 from datetime import datetime
 from typing import Callable, Optional, Union
 
 import attrs
-from pebble import ProcessPool
 from typeguard import typechecked
 
 from zetta_utils import log
@@ -155,6 +155,7 @@ def _execute_from_state(
     show_progress: bool,
     checkpoint_interval_sec: Optional[float],
     raise_on_failed_checkpoint: bool,
+    num_procs: int = 8,
 ):
     if do_dryrun_estimation:
         expected_operation_counts = dryrun.get_expected_operation_counts(state.get_ongoing_flows())
@@ -169,27 +170,30 @@ def _execute_from_state(
         else:
             progress_updater = lambda *args, **kwargs: None
 
-        while True:
-            progress_updater(state.get_progress_reports())
-            if len(state.get_ongoing_flow_ids()) == 0:
-                logger.debug("No ongoing flows left.")
-                break
+        with ProcessPoolExecutor(max_workers=num_procs) as pool:
+            while True:
+                progress_updater(state.get_progress_reports())
+                if len(state.get_ongoing_flow_ids()) == 0:
+                    logger.debug("No ongoing flows left.")
+                    break
 
-            submit_ready_tasks(task_queue, outcome_queue, state, execution_id, max_batch_len)
-
-            if not isinstance(task_queue, AutoexecuteTaskQueue):
-                logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
-                time.sleep(batch_gap_sleep_sec)
-                logger.debug("Awake.")
-
-            if (
-                checkpoint_interval_sec is not None
-                and time.time() > last_backup_ts + checkpoint_interval_sec
-            ):
-                backup_completed_tasks(
-                    state, execution_id, raise_on_error=raise_on_failed_checkpoint
+                submit_ready_tasks(
+                    task_queue, outcome_queue, state, execution_id, max_batch_len, pool=pool
                 )
-                last_backup_ts = time.time()
+
+                if not isinstance(task_queue, AutoexecuteTaskQueue):
+                    logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
+                    time.sleep(batch_gap_sleep_sec)
+                    logger.debug("Awake.")
+
+                if (
+                    checkpoint_interval_sec is not None
+                    and time.time() > last_backup_ts + checkpoint_interval_sec
+                ):
+                    backup_completed_tasks(
+                        state, execution_id, raise_on_error=raise_on_failed_checkpoint
+                    )
+                    last_backup_ts = time.time()
 
 
 def backup_completed_tasks(state: ExecutionState, execution_id: str, raise_on_error: bool = False):
@@ -207,7 +211,7 @@ def submit_ready_tasks(
     state: ExecutionState,
     execution_id: str,
     max_batch_len: int,
-    num_procs: int = 8,
+    pool: ProcessPoolExecutor,
 ):
     logger.debug("Pulling task outcomes...")
     task_outcomes = outcome_queue.pull(max_num=100)
@@ -226,9 +230,10 @@ def submit_ready_tasks(
         for e in task_outcomes:
             e.acknowledge_fn()
     else:
-        with ProcessPool(max_workers=num_procs) as pool:
-            for e in task_outcomes:
-                pool.schedule(e.acknowledge_fn)
+        futures = [pool.submit(e.acknowledge_fn) for e in task_outcomes]
+
+        for fut in futures:
+            fut.result()
 
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)

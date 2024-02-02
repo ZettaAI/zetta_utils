@@ -846,11 +846,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_kwargs=op_kwargs,
         )
     """
-    Generate flow id for deconflicting intermediaries
+    Generate flow id for deconflicting intermediaries - must be deterministic for proper
+    identification across Python sessions
     """
-    flow_id = id_generation.get_unique_id(
-        prefix="subchunkable", slug_len=4, add_uuid=False, max_len=50
-    )
+    flow_id = id_generation.generate_invocation_id(kwargs=locals(), prefix="subchunkable")
 
     """
     Basic building blocks where the work gets done, at the very bottom

@@ -1,1 +1,1 @@
-from . import regimes, train, trainers
+from . import train, trainers

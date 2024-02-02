@@ -3,9 +3,15 @@ omit =
   *_tmp.py
   zetta_utils/log.py
   zetta_utils/mazepa_layer_processing/*.py
+  zetta_utils/mazepa_layer_processing/**/*.py
   zetta_utils/tensor_mapping/*.py
+  zetta_utils/tensor_mapping/**/*.py
   zetta_utils/convnet/architecture/deprecated/*.py
+  zetta_utils/convnet/architecture/deprecated/**/*.py
   zetta_utils/viz/*.py
+  zetta_utils/viz/**/*.py
+  zetta_utils/internal/*.py
+  zetta_utils/internal/**/*.py
   zetta_utils/mazepa_addons/*.py
   zetta_utils/mazepa_addons/**/*.py
   zetta_utils/alignment/*.py

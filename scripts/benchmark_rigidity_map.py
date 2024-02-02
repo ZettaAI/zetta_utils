@@ -4,7 +4,7 @@ import timeit
 import torch
 import torchfields
 
-from zetta_utils.alignment import field
+from zetta_utils.internal.alignment import field
 
 
 def rotation_tensor(degrees):

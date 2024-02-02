@@ -122,7 +122,7 @@ jobs:
         run: pylint ${{ steps.changed-py-files.outputs.all_changed_files }}
       - name: Run isort
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: isort --check-only --df --verbose --profile black .
+        run: isort --check-only --df --verbose --om --profile black .
   mypy:
     strategy:
       matrix:

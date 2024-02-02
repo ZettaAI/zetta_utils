@@ -1,26 +1,6 @@
 # pylint: disable=unused-import
 
 
-from zetta_utils.alignment.aced_relaxation import (
-    compute_aced_loss_new,
-    get_aced_match_offsets,
-    get_aced_match_offsets_naive,
-    perform_aced_relaxation,
-)
-from zetta_utils.alignment.base_coarsener import BaseCoarsener
-from zetta_utils.alignment.base_encoder import BaseEncoder
-from zetta_utils.alignment.encoding_coarsener import EncodingCoarsener
-from zetta_utils.alignment.field import (
-    gen_biased_perlin_noise_field,
-    get_rigidity_map,
-    get_rigidity_map_zcxy,
-    invert_field,
-    invert_field_opti,
-    percentile,
-    profile_field2d_percentile,
-)
-from zetta_utils.alignment.misalignment_detector import MisalignmentDetector, naive_misd
-from zetta_utils.alignment.online_finetuner import align_with_online_finetuner
 from zetta_utils.augmentations.common import prob_aug
 from zetta_utils.augmentations.imgaug import imgaug_augment, imgaug_readproc
 from zetta_utils.augmentations.tensor import (
@@ -134,6 +114,37 @@ from zetta_utils.distributions.common import (
 from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.geometry.bbox_strider import BBoxStrider
 from zetta_utils.geometry.vec import Vec3D, allclose, is_int_vec, is_raw_vec3d, isclose
+from zetta_utils.internal.alignment.aced_relaxation import (
+    compute_aced_loss_new,
+    get_aced_match_offsets,
+    get_aced_match_offsets_naive,
+    perform_aced_relaxation,
+)
+from zetta_utils.internal.alignment.base_coarsener import BaseCoarsener
+from zetta_utils.internal.alignment.base_encoder import BaseEncoder
+from zetta_utils.internal.alignment.encoding_coarsener import EncodingCoarsener
+from zetta_utils.internal.alignment.field import (
+    gen_biased_perlin_noise_field,
+    get_rigidity_map,
+    get_rigidity_map_zcxy,
+    invert_field,
+    invert_field_opti,
+    percentile,
+    profile_field2d_percentile,
+)
+from zetta_utils.internal.alignment.misalignment_detector import (
+    MisalignmentDetector,
+    naive_misd,
+)
+from zetta_utils.internal.alignment.online_finetuner import align_with_online_finetuner
+from zetta_utils.internal.regimes.alignment.base_encoder import BaseEncoderRegime
+from zetta_utils.internal.regimes.alignment.misalignment_detector_aced import (
+    MisalignmentDetectorAcedRegime,
+)
+from zetta_utils.internal.regimes.common import is_2d_image, log_results
+from zetta_utils.internal.regimes.naive_supervised import NaiveSupervisedRegime
+from zetta_utils.internal.regimes.noop import NoOpRegime
+from zetta_utils.internal.segmentation.inference import run_affinities_inference_onnx
 from zetta_utils.layer.backend_base import Backend
 from zetta_utils.layer.db_layer.backend import DBBackend
 from zetta_utils.layer.db_layer.build import build_db_layer
@@ -352,7 +363,6 @@ from zetta_utils.parsing.ngl_state import (
     read_remote_annotations,
     write_remote_annotations,
 )
-from zetta_utils.segmentation.inference import run_affinities_inference_onnx
 from zetta_utils.tensor_mapping.tensor_mapping import TensorMapping
 from zetta_utils.tensor_ops.common import (
     add,
@@ -382,7 +392,8 @@ from zetta_utils.tensor_ops.mask import (
     kornia_opening,
     skip_on_empty_data,
 )
-from zetta_utils.tensor_ops.transform import get_affine_field
+
+# from zetta_utils.tensor_ops.generators import get_affine_field
 from zetta_utils.training.datasets.joint_dataset import JointDataset
 from zetta_utils.training.datasets.layer_dataset import LayerDataset
 from zetta_utils.training.datasets.sample_indexers.base import SampleIndexer
@@ -395,17 +406,6 @@ from zetta_utils.training.datasets.sample_indexers.volumetric_ngl_indexer import
 from zetta_utils.training.datasets.sample_indexers.volumetric_strided_indexer import (
     VolumetricStridedIndexer,
 )
-from zetta_utils.training.lightning.regimes.alignment.base_encoder import (
-    BaseEncoderRegime,
-)
-from zetta_utils.training.lightning.regimes.alignment.misalignment_detector_aced import (
-    MisalignmentDetectorAcedRegime,
-)
-from zetta_utils.training.lightning.regimes.common import is_2d_image, log_results
-from zetta_utils.training.lightning.regimes.naive_supervised import (
-    NaiveSupervisedRegime,
-)
-from zetta_utils.training.lightning.regimes.noop import NoOpRegime
 from zetta_utils.training.lightning.train import lightning_train
 from zetta_utils.training.lightning.trainers.default import (
     ConfigureTraceCallback,

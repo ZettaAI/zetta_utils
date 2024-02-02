@@ -5,8 +5,9 @@ from typing import Literal, Optional, Sequence
 import attrs
 import torch
 
-from zetta_utils import alignment, builder, mazepa, tensor_ops
+from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.internal import alignment
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,

@@ -22,9 +22,7 @@ if __name__ == "__main__":
 
     EXP_VERSION = f"1.0.0_M3_M8_C{CHANNELS}_lr{LR}_locality{LOCALITY_WEIGHT}_similarity{SIMILARITY_WEIGHT}_l1{L1_WEIGHT_START_VAL}-{L1_WEIGHT_END_VAL}_N1x4"
 
-    START_EXP_VERSION = (
-        f"1.2.0_M3_M7_C1_lr2e-05_locality1.0_similarity0.0_l10.12-0.12_N1x4"
-    )
+    START_EXP_VERSION = f"1.2.0_M3_M7_C1_lr2e-05_locality1.0_similarity0.0_l10.12-0.12_N1x4"
     MODEL_CKPT = None  # f"gs://zetta-research-nico/training_artifacts/general_coarsener_loss/{START_EXP_VERSION}/last.ckpt"
 
     BASE_PATH = "gs://zetta-research-nico/encoder/"

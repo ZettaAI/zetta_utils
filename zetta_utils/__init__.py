@@ -35,7 +35,7 @@ def try_load_train_inference():  # pragma: no cover
 
 def try_load_submodules():  # pragma: no cover
     try:
-        from . import alignment
+        from . import internal
     except ImportError:
         ...
 
@@ -46,7 +46,6 @@ def load_inference_modules():
         convnet,
         mazepa,
         mazepa_layer_processing,
-        segmentation,
         tensor_ops,
         tensor_typing,
         tensor_mapping,

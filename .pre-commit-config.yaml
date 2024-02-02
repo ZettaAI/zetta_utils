@@ -23,6 +23,15 @@ repos:
     entry: jupyter nbconvert --to notebook --ClearOutputPreprocessor.enabled=True --inplace
 - repo: local
   hooks:
+  - id: internal-is-on-main
+    name:  internal-is-on-main
+    stages: [commit]
+    language: system
+    entry: ./check_submodule_version.sh
+    always_run: true
+
+- repo: local
+  hooks:
   - id: reveal_type
     name: revel_type check
     entry: reveal_type

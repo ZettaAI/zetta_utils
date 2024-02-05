@@ -223,6 +223,40 @@ class ROIMaskProcessor(JointIndexDataProcessor):
 @attrs.mutable
 # TODO: Refacter the offset part into a separate subclass
 class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
+    """
+    Chunker for dividing a VolumetricIndex into smaller chunks.
+
+    Attributes:
+        chunk_size (Vec3D[int]): Size of each chunk in three dimensions.
+        max_superchunk_size (Optional[Vec3D[int]]): Maximum size of superchunks, if applicable.
+        stride (Optional[Vec3D[int]]): Stride for chunking, if different from chunk_size.
+        resolution (Optional[Vec3D]): Resolution of the chunks; if None, resolution will
+           be taken from the VolumetricIndex.
+        offset (Vec3D[int]): Offset for chunking; default is (0, 0, 0).
+
+    Methods:
+        __call__(idx, stride_start_offset_in_unit=None, mode="expand"):
+            Divides a VolumetricIndex into chunks based on specified parameters.
+
+        get_shape(idx, stride_start_offset_in_unit=None, mode="expand"):
+            Returns the shape of the division (i.e., how many chunks the volume
+            would be divided into in x, y, and z) without actually creating them.
+
+        split_into_nonoverlapping_chunkers(pad=Vec3D[int](0, 0, 0)):
+            Returns 8 chunkers related to this one in the following way: each one
+            has the same chunk_size and resolution as this one, but with
+            stride and offset set so that the chunks they generate will not
+            overlap.  This is used to for checkerboarding.  If you call each
+            of these 8 chunkers on an index, you'll get the same chunks you
+            would have gotten from calling this one, but divided into 8 non-
+            overlapping sets.
+
+    Note:
+        This class divides a VolumetricIndex into chunks, according to chunk_size,
+        stride, and offset.  It can also produce 8 related chunkers that would return
+        the same chunks, but in 8 non-overlapping sets (for checkerboarding).
+    """
+
     chunk_size: Vec3D[int]
     max_superchunk_size: Optional[Vec3D[int]] = None
     stride: Optional[Vec3D[int]] = None

@@ -59,6 +59,32 @@ SAVED_LEVEL = "ERROR"
 
 
 def configure_logger(level=None, third_party_level="ERROR"):
+    """
+    Configures the logging system with customizable settings.
+
+    Args:
+        level (int or str, optional): The logging level to set for the root logger.
+            If None, uses the previously saved logging level. If an integer is provided,
+            it will be interpreted as a custom logging level. If a string is provided,
+            it should be one of the logging level names (e.g., 'DEBUG', 'INFO', 'WARNING',
+            'ERROR', 'CRITICAL'). Defaults to None; saved level defaults to 'ERROR'
+            unless changed via the `set_verbosity` function.
+        third_party_level (str, optional): The logging level to set for third-party
+            libraries. Defaults to 'ERROR', meaning only error-level logs from third-party
+            libraries will be displayed.
+
+    Notes:
+        - The logging levels for specific third-party libraries can be further configured
+          within this function.
+        - The logging configuration includes settings for rich traceback formatting,
+          injecting context-specific information into logs, and selecting appropriate
+          logging handlers (stream handler for local execution or rich handler for
+          Kubernetes execution).
+
+    Returns:
+        None
+    """
+
     for _ in (
         "python_jsonschema_objects",
         "pytorch_lightning",
@@ -113,11 +139,39 @@ def configure_logger(level=None, third_party_level="ERROR"):
 
 
 def get_logger(name):
+    """
+    Get a logger with the specified name, creating it if necessary.
+
+    Args:
+        name (str): An identifying name (channel) for the logger to get.  Use is up to the
+        caller, but typically you would use the name of your project or code module.
+        Zetta utils code uses "zetta_utils".
+
+    Notes:
+        - Each uniquely-named logger can have its own configuration settings (such
+          as log level).
+        - Call this method rather than calling getLogger directly to ensure that the logging
+          system is properly initialized.
+
+    Returns:
+        Logger instance
+    """
+
     configure_logger()
     return logging.getLogger(name)
 
 
 def set_verbosity(verbosity_level):
+    """
+    Set the log level of the zetta_utils and mazepa loggers, as well as the default
+    verbosity for any subsequently-created loggers.
+
+    Args:
+        verbosity_level (name or integer): The logging level to set. If an integer is provided,
+        it will be interpreted as a custom logging level. If a string is provided,
+        it should be one of the logging level names (e.g., 'DEBUG', 'INFO', 'WARNING',
+        'ERROR', 'CRITICAL').
+    """
     global SAVED_LEVEL
     SAVED_LEVEL = verbosity_level
     logging.getLogger("zetta_utils").setLevel(verbosity_level)

@@ -48,7 +48,7 @@ RUN_DB = build_db_layer(RUN_DB_BACKEND)
 
 class RunState(Enum):
     RUNNING = "running"
-    TIMEOUT = "timeout"
+    TIMEDOUT = "timedout"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -59,7 +59,7 @@ def register_clusters(clusters: list) -> None:  # pragma: no cover
     """
     clusters_str = json.dumps([attrs.asdict(cluster) for cluster in clusters])
     info: DBRowDataT = {RunInfo.CLUSTERS.value: clusters_str}
-    _update_run_info(info)
+    update_run_info(info)
 
 
 def record_run(spec_path: Optional[str] = None) -> None:  # pragma: no cover
@@ -85,7 +85,7 @@ def record_run(spec_path: Optional[str] = None) -> None:  # pragma: no cover
             dst.write(content)
 
 
-def _update_run_info(info: DBRowDataT) -> None:  # pragma: no cover
+def update_run_info(info: DBRowDataT) -> None:  # pragma: no cover
     row_key = f"run-{RUN_ID}"
     col_keys = tuple(info.keys())
     RUN_DB[(row_key, col_keys)] = info
@@ -102,7 +102,7 @@ def _check_run_id_conflict():
 def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
     def _send_heartbeat():
         info: DBRowDataT = {RunInfo.HEARTBEAT.value: datetime.utcnow().timestamp()}
-        _update_run_info(info)
+        update_run_info(info)
 
     heartbeat = None
     if run_id is None:
@@ -126,14 +126,14 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
                 RunInfo.STATE.value: status,
                 RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
             }
-            _update_run_info(info)
+            update_run_info(info)
         yield
     except Exception as e:
         status = RunState.FAILED.value
         raise e from None
     finally:
         if heartbeat is not None:
-            _update_run_info(
+            update_run_info(
                 {
                     RunInfo.STATE.value: status
                     if status == RunState.FAILED.value

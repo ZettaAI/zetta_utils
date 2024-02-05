@@ -11,6 +11,7 @@ from typing import Mapping
 import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
+from google.cloud.datastore import query
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -25,24 +26,32 @@ from zetta_utils.run import (
     RUN_DB,
     Resource,
     ResourceTypes,
+    RunInfo,
+    RunState,
     deregister_resource,
+    update_run_info,
 )
 
 logger = get_logger("zetta_utils")
 
 
 def _get_stale_run_ids() -> list[str]:  # pragma: no cover
-    client = RUN_DB.backend.client  # type: ignore
-
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = datetime.utcnow().timestamp() - lookback
 
-    filters = [("heartbeat", "<", time_diff)]
-    query = client.query(kind="Column", filters=filters)
-    query.keys_only()
+    resourcedb_client = RESOURCE_DB.backend.client  # type: ignore
+    _query = resourcedb_client.query(kind="Column")
+    _query.projection = ["run_id"]
+    run_ids = list(set(f"run-{x['run_id']}" for x in _query.fetch()))
 
-    entities = list(query.fetch())
-    return [entity.key.parent.id_or_name for entity in entities]
+    idx_user = (run_ids, ("heartbeat",))
+    heartbeats = [x["heartbeat"] for x in RUN_DB[idx_user]]
+
+    result = []
+    for run_id, heartbeat in zip(run_ids, heartbeats):
+        if heartbeat < time_diff:
+            result.append(run_id)
+    return result
 
 
 def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
@@ -58,11 +67,11 @@ def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
 def _read_run_resources(run_id: str) -> dict[str, Resource]:
     client = RESOURCE_DB.backend.client  # type: ignore
 
-    query = client.query(kind="Column")
-    query = query.add_filter("run_id", "=", run_id)
-    query.keys_only()
+    _query = client.query(kind="Column")
+    _query.add_filter(filter=query.PropertyFilter("run_id", "=", run_id))
+    _query.keys_only()
 
-    entities = list(query.fetch())
+    entities = list(_query.fetch())
     resource_ids = [entity.key.parent.id_or_name for entity in entities]
 
     col_keys = ("type", "name")
@@ -74,12 +83,13 @@ def _read_run_resources(run_id: str) -> dict[str, Resource]:
 def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool:  # pragma: no cover
     success = True
     logger.info(f"Deleting k8s resources from run {run_id}")
-    clusters = _read_clusters(run_id)
+    clusters = _read_clusters(f"run-{run_id}")
     for cluster in clusters:
         try:
             configuration, _ = get_cluster_data(cluster)
         except GoogleAPICallError as exc:
             # cluster does not exist, discard resource entries
+            logger.info(f"Could not connect to {cluster}: ERROR CODE {exc.code}")
             if exc.code == 404:
                 for resource_id in resources.keys():
                     deregister_resource(resource_id)
@@ -143,13 +153,14 @@ def cleanup_run(run_id: str):
 
     if success is True:
         logger.info(f"`{run_id}` run cleanup complete.")
+        update_run_info({RunInfo.STATE.value: RunState.TIMEDOUT.value})
     else:
         logger.info(f"`{run_id}` run cleanup failed.")
 
 
 if __name__ == "__main__":  # pragma: no cover
-    run_ids = _get_stale_run_ids()
     logger.setLevel(logging.INFO)
-    for _id in run_ids:
+    for _id in _get_stale_run_ids():
+        _id = _id[4:]
         logger.info(f"Cleaning up run `{_id}`")
         cleanup_run(_id)

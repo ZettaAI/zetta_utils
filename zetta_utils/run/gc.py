@@ -151,7 +151,7 @@ def cleanup_run(run_id: str):
 
     if success is True:
         logger.info(f"`{run_id}` run cleanup complete.")
-        update_run_info({RunInfo.STATE.value: RunState.TIMEDOUT.value})
+        update_run_info(run_id, {RunInfo.STATE.value: RunState.TIMEDOUT.value})
     else:
         logger.info(f"`{run_id}` run cleanup failed.")
 

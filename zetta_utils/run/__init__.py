@@ -1,7 +1,7 @@
 import os
 import sys
+import time
 from contextlib import contextmanager
-from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -101,7 +101,7 @@ def _check_run_id_conflict():
 @contextmanager
 def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
     def _send_heartbeat():
-        info: DBRowDataT = {RunInfo.HEARTBEAT.value: datetime.utcnow().timestamp()}
+        info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
         update_run_info(info)
 
     heartbeat = None
@@ -122,7 +122,7 @@ def run_ctx_manager(run_id: Optional[str] = None, heartbeat_interval: int = 5):
             status = RunState.RUNNING.value
             info: DBRowDataT = {
                 RunInfo.ZETTA_USER.value: os.environ["ZETTA_USER"],
-                RunInfo.TIMESTAMP.value: datetime.utcnow().timestamp(),
+                RunInfo.TIMESTAMP.value: time.time(),
                 RunInfo.STATE.value: status,
                 RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
             }

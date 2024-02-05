@@ -5,7 +5,7 @@ Garbage collection for run resources.
 import json
 import logging
 import os
-from datetime import datetime
+import time
 from typing import Mapping
 
 import taskqueue
@@ -37,15 +37,13 @@ logger = get_logger("zetta_utils")
 
 def _get_stale_run_ids() -> list[str]:  # pragma: no cover
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
-    time_diff = datetime.utcnow().timestamp() - lookback
+    time_diff = time.time() - lookback
 
     resourcedb_client = RESOURCE_DB.backend.client  # type: ignore
     _query = resourcedb_client.query(kind="Column")
     _query.projection = ["run_id"]
     run_ids = list(set(f"run-{x['run_id']}" for x in _query.fetch()))
-
-    idx_user = (run_ids, ("heartbeat",))
-    heartbeats = [x["heartbeat"] for x in RUN_DB[idx_user]]
+    heartbeats = [x["heartbeat"] for x in RUN_DB[(run_ids, ("heartbeat",))]]
 
     result = []
     for run_id, heartbeat in zip(run_ids, heartbeats):

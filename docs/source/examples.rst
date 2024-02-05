@@ -5,12 +5,14 @@ Examples
 Logging
 -------
 
-Import ``logger`` object from ``zetta_utils.log`` and use it instead of ``print`` and ``warnings.warn`` statements.
+Import the ``get_logger`` method from ``zetta_utils.log`` and use it to obtain a logger object.
+Then use this instead of ``print`` and ``warnings.warn`` statements.
 
 .. code-block:: python
 
-   >>> from zetta_utils.log import logger
-   >>> logger.warn("This is a warning")
+   >>> from zetta_utils.log import get_logger
+   >>> logger = get_logger('test')
+   >>> logger.warning("This is a warning")
    >>> logger.info("Info message")
    >>> logger.exception(RuntimeError)
 

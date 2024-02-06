@@ -7,7 +7,7 @@ import click
 import zetta_utils
 from zetta_utils import log
 from zetta_utils.parsing import json
-from zetta_utils.run import record_run, run_ctx_manager
+from zetta_utils.run import run_ctx_manager
 
 logger = log.get_logger("zetta_utils")
 
@@ -85,7 +85,7 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     help="Specify additional imports. Must end with `.py`.",
 )
 @click.option(
-    "--heartbeat/--no-heartbeat",
+    "--main-run-process/--no-main-run-process",
     type=bool,
     show_default=True,
     default=True,
@@ -99,7 +99,7 @@ def run(
     pdb: bool,
     parallel_builder: bool,
     extra_imports: tuple[str],
-    heartbeat: bool,
+    main_run_process: bool,
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
@@ -121,11 +121,9 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
-    run_ctx = run_ctx_manager(run_id=run_id)
-    if heartbeat is False:
-        run_ctx = run_ctx_manager(run_id=run_id, heartbeat_interval=-1)  # pragma: no cover
+    run_ctx = run_ctx_manager(spec_path=path, run_id=run_id, main_run_process=main_run_process)
+
     with run_ctx:
-        record_run(path)
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:

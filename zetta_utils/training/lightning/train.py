@@ -245,6 +245,7 @@ def _spec_configmap_vol_and_ctx(
     cluster_info: resource_allocation.k8s.ClusterInfo,
     specs: Dict[str, Any],
 ):
+    assert run.RUN_ID is not None
     configmap = resource_allocation.k8s.get_configmap(
         name=run.RUN_ID,
         data={f"{spec_name}.cue": json.dumps(spec) for spec_name, spec in specs.items()},
@@ -292,6 +293,8 @@ def _lightning_train_remote(
     Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
     Runs the command `zetta run specs/train.cue` on one or more worker pods.
     """
+    assert run.RUN_ID is not None
+
     if train_args["trainer"]["accelerator"] in ("gpu", "cuda", "auto"):
         num_devices = int(resource_limits["nvidia.com/gpu"])  # type: ignore
         trainer_devices = train_args["trainer"]["devices"]
@@ -398,7 +401,7 @@ def _lightning_train_remote(
                 k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
             ]
 
-            flags += " --no-heartbeat"
+            flags += " --no-main-run-process"
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,

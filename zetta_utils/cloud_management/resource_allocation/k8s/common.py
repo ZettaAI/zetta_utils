@@ -74,7 +74,7 @@ def get_mazepa_worker_command(
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
 
-    result = f"zetta -vv -l try run -r {run.RUN_ID} --no-heartbeat -p -s '{{"
+    result = f"zetta -vv -l try run -r {run.RUN_ID} --no-main-run-process -p -s '{{"
     result += (
         f'"@type": "{command}"\n'
         + f"task_queue: {json.dumps(task_queue_spec)}\n"

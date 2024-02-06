@@ -141,64 +141,69 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
 ):
-    _ensure_required_env_vars()
-    ctx_managers = copy.copy(list(extra_ctx_managers))
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
-    if worker_cluster_name is None:
-        logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
-        worker_cluster = DEFAULT_GCP_CLUSTER
-        if worker_cluster_region is not None or worker_cluster_project is not None:
-            raise ValueError(
-                "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
-                "when `worker_cluster_name` is `None`"
-            )
-    else:
-        if worker_cluster_region is None or worker_cluster_project is None:
-            raise ValueError(
-                "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
-                "when `worker_cluster_name` is specified."
-            )
-        worker_cluster = resource_allocation.k8s.ClusterInfo(
-            name=worker_cluster_name,
-            region=worker_cluster_region,
-            project=worker_cluster_project,
-        )
-    assert run.RUN_ID, f"Invalid RUN_ID [{run.RUN_ID}], might not have been initialized properly."
-    run.register_clusters([worker_cluster])
-    task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
-        execution_id=run.RUN_ID,
-        worker_image=worker_image,
-        worker_cluster=worker_cluster,
-        worker_labels=worker_labels,
-        worker_replicas=worker_replicas,
-        worker_resources=worker_resources if worker_resources else {},
-        ctx_managers=ctx_managers,
-        worker_resource_requests=worker_resource_requests,
-        num_procs=num_procs,
-        semaphores_spec=semaphores_spec,
-        provisioning_model=provisioning_model,
-    )
 
-    with ExitStack() as stack:
-        for mngr in ctx_managers:
-            stack.enter_context(mngr)
-        if local_test:
-            execute_locally(
-                target=target,
-                execution_id=run.RUN_ID,
-                max_batch_len=max_batch_len,
-                batch_gap_sleep_sec=batch_gap_sleep_sec,
-                show_progress=show_progress,
-                do_dryrun_estimation=do_dryrun_estimation,
-                checkpoint=checkpoint,
-                checkpoint_interval_sec=checkpoint_interval_sec,
-                raise_on_failed_checkpoint=raise_on_failed_checkpoint,
-                num_procs=num_procs,
-                semaphores_spec=semaphores_spec,
-                debug=debug,
-            )
+    if local_test:
+        execute_locally(
+            target=target,
+            execution_id=run.RUN_ID,
+            max_batch_len=max_batch_len,
+            batch_gap_sleep_sec=batch_gap_sleep_sec,
+            show_progress=show_progress,
+            do_dryrun_estimation=do_dryrun_estimation,
+            checkpoint=checkpoint,
+            checkpoint_interval_sec=checkpoint_interval_sec,
+            raise_on_failed_checkpoint=raise_on_failed_checkpoint,
+            num_procs=num_procs,
+            semaphores_spec=semaphores_spec,
+            debug=debug,
+        )
+    else:
+        _ensure_required_env_vars()
+        ctx_managers = copy.copy(list(extra_ctx_managers))
+
+        if worker_cluster_name is None:
+            logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")
+            worker_cluster = DEFAULT_GCP_CLUSTER
+            if worker_cluster_region is not None or worker_cluster_project is not None:
+                raise ValueError(
+                    "Both `worker_cluster_region` and `worker_cluster_project` must be `None` "
+                    "when `worker_cluster_name` is `None`"
+                )
         else:
+            if worker_cluster_region is None or worker_cluster_project is None:
+                raise ValueError(
+                    "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
+                    "when `worker_cluster_name` is specified."
+                )
+            worker_cluster = resource_allocation.k8s.ClusterInfo(
+                name=worker_cluster_name,
+                region=worker_cluster_region,
+                project=worker_cluster_project,
+            )
+        assert (
+            run.RUN_ID
+        ), f"Invalid RUN_ID [{run.RUN_ID}], might not have been initialized properly."
+        run.register_clusters([worker_cluster])
+        task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
+            execution_id=run.RUN_ID,
+            worker_image=worker_image,
+            worker_cluster=worker_cluster,
+            worker_labels=worker_labels,
+            worker_replicas=worker_replicas,
+            worker_resources=worker_resources if worker_resources else {},
+            ctx_managers=ctx_managers,
+            worker_resource_requests=worker_resource_requests,
+            num_procs=num_procs,
+            semaphores_spec=semaphores_spec,
+            provisioning_model=provisioning_model,
+        )
+
+        with ExitStack() as stack:
+            for mngr in ctx_managers:
+                stack.enter_context(mngr)
+
             execute(
                 target=target,
                 task_queue=task_queue,

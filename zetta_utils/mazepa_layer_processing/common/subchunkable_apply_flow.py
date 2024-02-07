@@ -107,6 +107,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     start_coord: Sequence[int] | None = None,
     end_coord: Sequence[int] | None = None,
     coord_resolution: Sequence | None = None,
+    gap: Sequence[int] = (0, 0, 0),
 ) -> mazepa.Flow:
     """
     The helper constructor for a flow that applies any function or operation with a `Tensor`
@@ -194,6 +195,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         and ``coord_resolution``; cannot be used with ``bbox``.
     :param coord_resolution: The resolution in which the coordinates are given for the bounding
         box. Must be used with ``start_coord`` and ``end_coord``; cannot be used with ``bbox``.
+    :param gap: Extra unprocessed space to be skipped between chunks at the top level.
     """
     if bbox is None:
         if start_coord is None or end_coord is None or coord_resolution is None:
@@ -330,6 +332,18 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     else:
         allow_cache_up_to_level_ = allow_cache_up_to_level
 
+    if gap is not None and Vec3D(*gap) != Vec3D[int](0, 0, 0):
+        if any(v % 2 != 0 for v in gap):
+            raise ValueError("`gap` must be divisible by 2 in all dimensions.")
+        if any(v != 0 for v in processing_blend_pads_[0]):
+            raise ValueError("`blend_pads` at top level must be zero when `gap` is used.")
+        if shrink_processing_chunk:
+            raise ValueError("`shrink_processing_chunk` cannot be used with nonzero `gap`.")
+        if expand_bbox_backend:
+            raise ValueError("`expand_bbox_backend` cannot be used with nonzero `gap`.")
+        if expand_bbox_resolution:
+            raise ValueError("`expand_bbox_resolution` cannot be used with nonzero `gap`.")
+
     assert len(list(op_args)) == 0
     return _build_subchunkable_apply_flow(
         dst=dst,
@@ -353,6 +367,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
         op_kwargs=op_kwargs_,
+        gap=Vec3D(*gap),
     )
 
 
@@ -462,6 +477,7 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     bbox: BBox3D,
     dst_resolution: Vec3D,
     processing_chunk_sizes: Sequence[Vec3D[int]],
+    gap: Vec3D[int],
 ) -> BBox3D:
     bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = bbox.shape / dst_resolution
@@ -473,12 +489,14 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
             f"{dst_resolution.pformat()}. You may set `expand_bbox_resolution = True` to "
             "automatically expand the bbox to the nearest integral pixel."
         )
-    translation_end = (processing_chunk_sizes[0] - bbox_shape_in_res) % processing_chunk_sizes[0]
     bbox_old = bbox
+    chunk_size_top = processing_chunk_sizes[0]
+    translation_end = (chunk_size_top - bbox_shape_in_res) % (chunk_size_top + gap)
     bbox = bbox.translated_end(translation_end, dst_resolution)
     if translation_end != Vec3D[int](0, 0, 0):
         logger.info(
-            f"`expand_bbox_processing` was set and the `bbox` was not aligned to the top level `processing_chunk_size` in at least one dimension, "
+            f"`expand_bbox_processing` was set and the `bbox` was not aligned to the top level "
+            f"`processing_chunk_size` (with `gap`s if applicable) in at least one dimension, "
             f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
             f"Received bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
             f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
@@ -572,6 +590,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     generate_ng_link: bool,
     op_args: Iterable,
     op_kwargs: Mapping[str, Any],
+    gap: Vec3D[int],
 ) -> None:  # pragma: no cover
     summary = ""
     summary += (
@@ -621,6 +640,8 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         lrpad(f"Processing crop pad: {processing_crop_pad.pformat()}  ", level=2, length=120)
         + "\n"
     )
+    summary += lrpad(f"Gap: {gap.pformat()}  ", level=2, length=120) + "\n"
+
     summary += lrpad(f"# of op_args supplied: {len(list(op_args))}", level=2, length=120) + "\n"
     summary += lrpad("op_kwargs supplied:", level=2, length=120) + "\n"
     for k, v in op_kwargs.items():
@@ -707,6 +728,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op: VolumetricOpProtocol[P, None, Any],
     op_args: P.args,
     op_kwargs: P.kwargs,
+    gap: Vec3D[int],
 ) -> mazepa.Flow:
     num_levels = len(processing_chunk_sizes)
 
@@ -726,7 +748,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             bbox, dst_resolution, processing_chunk_sizes
         )
     elif expand_bbox_processing:
-        bbox = _expand_bbox_processing(bbox, dst_resolution, processing_chunk_sizes)
+        bbox = _expand_bbox_processing(bbox, dst_resolution, processing_chunk_sizes, gap)
 
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
     level0_op = op.with_added_crop_pad(processing_crop_pads[-1])
@@ -749,10 +771,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             processing_chunk_size_higher = idx.shape
             processing_blend_pad_higher = Vec3D[int](0, 0, 0)
             processing_crop_pad_higher = Vec3D[int](0, 0, 0)
+            gap_higher = gap
         else:
             processing_chunk_size_higher = processing_chunk_sizes[i - 1]
             processing_blend_pad_higher = processing_blend_pads[i - 1]
             processing_crop_pad_higher = processing_crop_pads[i - 1]
+            gap_higher = Vec3D[int](0, 0, 0)
         processing_chunk_size = processing_chunk_sizes[i]
         processing_blend_pad = processing_blend_pads[i]
 
@@ -762,12 +786,14 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             + 2 * processing_blend_pad_higher
         )
 
-        n_region_chunks = processing_region / processing_chunk_size
+        n_region_chunks = (processing_region + gap_higher) / (processing_chunk_size + gap_higher)
         n_region_chunks_rounded = Vec3D[int](*(max(1, round(e)) for e in n_region_chunks))
         num_chunks.append(math.prod(n_region_chunks_rounded))
-        if processing_region % processing_chunk_size != Vec3D[int](0, 0, 0):
-            if processing_region % n_region_chunks_rounded == Vec3D(0, 0, 0):
-                rec_processing_chunk_size = (processing_region / n_region_chunks_rounded).int()
+        if n_region_chunks != n_region_chunks_rounded:
+            if (processing_region + gap_higher) % n_region_chunks_rounded == Vec3D(0, 0, 0):
+                rec_processing_chunk_size = (
+                    (processing_region + gap) / n_region_chunks_rounded
+                ).int()
                 rec_str = f"Recommendation for `processing_chunk_size[level]`:\t\t\t\t{rec_processing_chunk_size}"
             else:
                 rec_str = (
@@ -776,9 +802,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 )
             error_str = (
                 "At each level (where the 0-th level is the smallest), the"
-                " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]` must be"
-                f" evenly divisible by the `processing_chunk_size[level]`.\n\nAt level {level}, received:\n"
+                " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]`"
+                " + gap must be"
+                f" evenly divisible by the `processing_chunk_size[level]` + gap (gap applies only on top level).\n"
+                f"\nAt level {level}, received:\n"
                 f"`processing_chunk_size[level+1]`:\t\t\t\t\t\t{processing_chunk_size_higher}\n"
+                f"`applicable gap`:\t\t\t\t\t\t\t\t{gap_higher}\n"
                 f"`processing_crop_pad[level+1]` ((0, 0, 0) for the top level):\t\t\t{processing_crop_pad_higher}\n"
                 f"`processing_blend_pad[level+1]`:\t\t\t\t\t\t{processing_blend_pad_higher}\n"
                 f"Size of the region to be processed for the level:\t\t\t\t{processing_region}\n"
@@ -859,6 +888,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_name=op_name,
             op_args=op_args,
             op_kwargs=op_kwargs,
+            gap=gap,
         )
     """
     Generate flow id for deconflicting intermediaries - must be deterministic for proper
@@ -877,6 +907,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         roi_crop_pad=roi_crop_pads[-1],
         processing_blend_pad=processing_blend_pads[-1],
         processing_blend_mode=processing_blend_modes[-1],
+        gap=None,
         intermediaries_dir=_path_join_if_not_none(level_intermediaries_dirs[-1], "chunks_level_0"),
         allow_cache=(allow_cache_up_to_level >= 1),
         clear_cache_on_return=(allow_cache_up_to_level == 1),
@@ -900,6 +931,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             roi_crop_pad=roi_crop_pads[-level - 1],
             processing_blend_pad=processing_blend_pads[-level - 1],
             processing_blend_mode=processing_blend_modes[-level - 1],
+            gap=gap if level == num_levels - 1 else None,
             intermediaries_dir=_path_join_if_not_none(
                 level_intermediaries_dirs[-level - 1], f"chunks_level_{level}"
             ),

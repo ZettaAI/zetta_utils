@@ -292,7 +292,7 @@ Logging and Exceptions
 
 ``logger`` is backed by Python's built-in logger, and supports a number of different message levels such as: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and ``critical``. To use the logger, you can use ``logger.info("string")`` for instance. Any exceptions raised will automatically be collected and output by the logger, so you should not have to write ``logger.exception`` yourself.
 
-The verbosity level for the logger in stdout can be set using ``zetta run -v``, ``zetta run -vv``, or ``zetta run -vvv``, corresponding to ``WARNING``, ``INFO``, and ``DEBUG``, respectively. The default is ``DEBUG``.
+The verbosity level for the logger in stdout can be set using ``zetta -v run``, ``zetta -vv run``, or ``zetta -vvv run``, corresponding to ``WARNING``, ``INFO``, and ``DEBUG``, respectively. The default is ``DEBUG``.
 
 If you need to output information to the user in your code, you should **NEVER** use ``print``, and use ``logger`` instead.
 

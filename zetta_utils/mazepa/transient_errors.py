@@ -43,4 +43,13 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=Exception,
         text_signature="We encountered an internal error. Please try again",
     ),
+    TransientErrorCondition(
+        # Transient GCS error
+        exception_type=Exception,
+        text_signature="Compute Engine Metadata server unavailable",
+    ),
+    TransientErrorCondition(
+        exception_type=OSError,
+        text_signature="Input/output error",
+    ),
 )

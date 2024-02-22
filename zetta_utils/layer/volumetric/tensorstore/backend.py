@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ast
 from copy import deepcopy
-from typing import Any, Dict, Literal, Optional, Union, overload
+from typing import Any, Dict, Optional, Union, overload
 
 import attrs
 import cachetools
@@ -51,7 +51,11 @@ def _get_ts_at_resolution(
     return result
 
 
-def _clear_ts_cache(path: str) -> None:
+def _clear_ts_cache(path: str | None = None) -> None:  # pragma: no cover
+    if path is None:
+        _ts_cached.clear()
+        _ts_cache.clear()
+        return
     resolutions = _ts_cached.pop(abspath(path), None)
     if resolutions is not None:
         for resolution in resolutions:
@@ -70,6 +74,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         info is assumed to exist.
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
         the layer info already exists.
+    :param enforce_chunk_aligned_writes: Whether to allow non-chunk-aligned writes.
 
     """
 
@@ -77,6 +82,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     info_spec: Optional[PrecomputedInfoSpec] = None
     on_info_exists: InfoExistsModes = "expect_same"
     cache_bytes_limit: Optional[int] = None
+    _enforce_chunk_aligned_writes: bool = True
 
     def __attrs_post_init__(self):
         if self.info_spec is None:
@@ -151,12 +157,13 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def enforce_chunk_aligned_writes(self) -> bool:  # pragma: no cover
-        return False
+        return self._enforce_chunk_aligned_writes
 
     @enforce_chunk_aligned_writes.setter
     def enforce_chunk_aligned_writes(self, value: bool) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `enforce_chunk_aligned_writes` for TSBackend; can only be set to `False`"
+            "cannot set `enforce_chunk_aligned_writes` for TSBackend directly;"
+            " use `backend.with_changes(non_aligned_writes=value:bool)` instead."
         )
 
     @property
@@ -206,6 +213,9 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return result
 
     def write(self, idx: VolumetricIndex, data: torch.Tensor):
+        if self._enforce_chunk_aligned_writes:
+            self.assert_idx_is_chunk_aligned(idx)
+
         # Data in: cxyz
         # Write format: xyzc (b == 1)
         data_np = tensor_ops.convert.to_np(data)
@@ -238,7 +248,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "name" = value: str
         "allow_cache" = value: Union[bool, str] - must be False for TensorStoreBackend, ignored
         "use_compression" = Value: bool - must be False for TensorStoreBackend, ignored
-        "enforce_chunk_aligned_writes" = value: bool - must be False for TensorStoreBackend
+        "enforce_chunk_aligned_writes" = value: bool
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
@@ -257,13 +267,15 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "dataset_size_res",
             "use_compression",
         ]
-        keys_to_kwargs = {"name": "path"}
+        keys_to_kwargs = {
+            "name": "path",
+            "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
+        }
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,
             "dataset_size_res": info_spec.set_dataset_size,
         }
-        keys_to_assert = {"enforce_chunk_aligned_writes": False}
         evolve_kwargs = {}
         for k, v in kwargs.items():
             if k not in implemented_keys:
@@ -272,12 +284,6 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 evolve_kwargs[keys_to_kwargs[k]] = v
             if k in keys_to_infospec_fn:
                 keys_to_infospec_fn[k](v)
-            if k in keys_to_assert:
-                if v != keys_to_assert[k]:
-                    raise ValueError(
-                        f"key `{k}` received with value `{v}`, but is required to be "
-                        f"`{keys_to_assert[k]}`"
-                    )
         # must clear the TS cache since the TS cache is separate from the info cache
         _clear_ts_cache(self.path)
         if "name" in kwargs:
@@ -306,35 +312,6 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         offset = self.get_voxel_offset(resolution)
         size = self.get_dataset_size(resolution)
         return VolumetricIndex.from_coords(offset, offset + size, resolution)
-
-    def get_chunk_aligned_index(  # pragma: no cover
-        self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
-    ) -> VolumetricIndex:
-        offset = self.get_voxel_offset(idx.resolution) * idx.resolution
-        chunk_size = self.get_chunk_size(idx.resolution) * idx.resolution
-        if mode != "expand" and mode != "shrink":  # pylint:disable=consider-using-in
-            raise NotImplementedError(
-                f"TensorStore backend only supports 'expand' or 'shrink' modes; received '{mode}'"
-            )
-        bbox_aligned = idx.bbox.snapped(offset, chunk_size, mode)
-        return VolumetricIndex(resolution=idx.resolution, bbox=bbox_aligned)
-
-    def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:  # pragma: no cover
-        """check that the idx given is chunk_aligned, and give suggestions"""
-        idx_expanded = self.get_chunk_aligned_index(idx, mode="expand")
-        idx_shrunk = self.get_chunk_aligned_index(idx, mode="shrink")
-
-        if idx != idx_expanded:
-            raise ValueError(
-                "The specified BBox3D is not chunk-aligned with the VolumetricLayer at"
-                + f" `{self.name}`;\nin {tuple(idx.resolution)} {idx.bbox.unit} voxels:"
-                + f" offset: {self.get_voxel_offset(idx.resolution)},"
-                + f" chunk_size: {self.get_chunk_size(idx.resolution)}\n"
-                + f"Received BBox3D: {idx.pformat()}\n"
-                + "Nearest chunk-aligned BBox3Ds:\n"
-                + f" - expanded : {idx_expanded.pformat()}\n"
-                + f" - shrunk   : {idx_shrunk.pformat()}"
-            )
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name

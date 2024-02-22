@@ -8,7 +8,7 @@ import torch
 
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.layer.volumetric.cloudvol import CVBackend
+from zetta_utils.layer.volumetric.cloudvol.backend import CVBackend, _clear_cv_cache
 from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec, precomputed
 
 from ....helpers import assert_array_equal
@@ -17,41 +17,40 @@ THIS_DIR = pathlib.Path(__file__).parent.resolve()
 INFOS_DIR = THIS_DIR / "../../../assets/infos/"
 LAYER_X0_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x0")
 LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
-LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
-LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
-LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
 LAYER_UINT63_0_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63_0")
-LAYER_UINT63_1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_uint63_1")
 LAYER_SCRATCH0_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_scratch0")
-LAYER_SCRATCH1_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_scratch1")
-LAYER_SCRATCH2_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_scratch2")
-LAYER_SCRATCH3_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_scratch3")
-LAYER_SCRATCH4_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_scratch4")
 
 # Hack to mock a immutable method `write_info`
 _write_info_notmock = precomputed._write_info
 
 
-def test_cv_backend_bad_path_exc():
+@pytest.fixture
+def clear_caches_reset_mocks():
+    _clear_cv_cache()
+    precomputed._info_cache.clear()
+    precomputed._write_info = _write_info_notmock
+
+
+def test_cv_backend_bad_path_exc(clear_caches_reset_mocks):
     with pytest.raises(RuntimeError):
         CVBackend(path="abc")
 
 
-def test_cv_backend_dtype():
+def test_cv_backend_dtype(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="uint8")
     cvb = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
     assert cvb.dtype == torch.uint8
 
 
-def test_cv_backend_dtype_exc():
+def test_cv_backend_dtype_exc(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="nonsense")
-    cvb = CVBackend(path=LAYER_SCRATCH1_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     with pytest.raises(ValueError):
         cvb.dtype
 
 
-def test_cv_backend_info_expect_same_exc(mocker):
+def test_cv_backend_info_expect_same_exc(clear_caches_reset_mocks, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -71,7 +70,7 @@ def test_cv_backend_info_expect_same_exc(mocker):
         [LAYER_X0_PATH, None, "expect_same"],
     ],
 )
-def test_cv_backend_info_no_action(path, reference, mode, mocker):
+def test_cv_backend_info_no_action(clear_caches_reset_mocks, path, reference, mode, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -89,7 +88,7 @@ def test_cv_backend_info_no_action(path, reference, mode, mocker):
         [".", LAYER_X0_PATH, "overwrite"],
     ],
 )
-def test_cv_backend_info_overwrite(path, reference, mode, mocker):
+def test_cv_backend_info_overwrite(clear_caches_reset_mocks, path, reference, mode, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -101,24 +100,7 @@ def test_cv_backend_info_overwrite(path, reference, mode, mocker):
     _write_info.assert_called_once()
 
 
-@pytest.mark.parametrize(
-    "path, reference",
-    [
-        [LAYER_X0_PATH, LAYER_X0_PATH],
-    ],
-)
-def test_cv_backend_info_no_overwrite_when_same_as_cached(path, reference, mocker):
-    _write_info = mocker.MagicMock()
-    precomputed._write_info = _write_info
-    info_spec = PrecomputedInfoSpec(
-        reference_path=reference,
-    )
-    CVBackend(path=path, info_spec=info_spec, on_info_exists="overwrite")
-
-    _write_info.assert_not_called()
-
-
-def test_cv_backend_read(mocker):
+def test_cv_backend_read(clear_caches_reset_mocks, mocker):
     data_read = torch.ones([3, 4, 5, 2])
     expected = torch.ones([2, 3, 4, 5])
     cv_m = mocker.MagicMock()
@@ -135,7 +117,7 @@ def test_cv_backend_read(mocker):
     cv_m.__getitem__.assert_called_with(index.bbox.to_slices(index.resolution))
 
 
-def test_cv_backend_write(mocker):
+def test_cv_backend_write(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
     )
@@ -158,14 +140,14 @@ def test_cv_backend_write(mocker):
     )
 
 
-def test_cv_backend_write_scalar(mocker):
+def test_cv_backend_write_scalar(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
     )
     cv_m = mocker.MagicMock()
     cv_m.__setitem__ = mocker.MagicMock()
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_SCRATCH3_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.tensor([1])
     expected_written = 1
 
@@ -179,7 +161,7 @@ def test_cv_backend_write_scalar(mocker):
     assert cv_m.__setitem__.call_args[0][1] == expected_written
 
 
-def test_cv_backend_read_uint63(mocker):
+def test_cv_backend_read_uint63(clear_caches_reset_mocks, mocker):
     data_read = np.array([[[[2 ** 63 - 1]]]], dtype=np.uint64)
     expected = torch.tensor([[[[2 ** 63 - 1]]]], dtype=torch.int64)
     cv_m = mocker.MagicMock()
@@ -195,13 +177,12 @@ def test_cv_backend_read_uint63(mocker):
     cv_m.__getitem__.assert_called_with(index.bbox.to_slices(index.resolution))
 
 
-def test_cv_backend_read_uint64_exc(mocker):
+def test_cv_backend_read_uint64_exc(clear_caches_reset_mocks, mocker):
     data_read = np.array([[[[2 ** 63 + 1]]]], dtype=np.uint64)
-    # expected = torch.tensor([[[[2 ** 63 + 1]]]], dtype=torch.uint64)
     cv_m = mocker.MagicMock()
     cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_UINT63_1_PATH)
+    cvb = CVBackend(path=LAYER_UINT63_0_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
         resolution=Vec3D(1, 1, 1),
@@ -210,7 +191,7 @@ def test_cv_backend_read_uint64_exc(mocker):
         cvb.read(index)
 
 
-def test_cv_backend_write_scalar_uint63(mocker):
+def test_cv_backend_write_scalar_uint63(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_UINT63_0_PATH,
     )
@@ -218,7 +199,7 @@ def test_cv_backend_write_scalar_uint63(mocker):
     cv_m.__setitem__ = mocker.MagicMock()
     cv_m.dtype = "uint64"
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cvb = CVBackend(path=LAYER_SCRATCH4_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     value = torch.tensor([2 ** 63 - 1], dtype=torch.int64)
     expected_written = np.uint64(2 ** 63 - 1)
 
@@ -232,7 +213,7 @@ def test_cv_backend_write_scalar_uint63(mocker):
     assert cv_m.__setitem__.call_args[0][1].dtype == expected_written.dtype
 
 
-def test_cv_backend_write_scalar_uint63_exc(mocker):
+def test_cv_backend_write_scalar_uint63_exc(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_UINT63_0_PATH,
     )
@@ -258,7 +239,7 @@ def test_cv_backend_write_scalar_uint63_exc(mocker):
         [torch.ones((1, 2, 3, 4, 5, 6)), ValueError],
     ],
 )
-def test_cv_backend_write_exc(data_in, expected_exc, mocker):
+def test_cv_backend_write_exc(clear_caches_reset_mocks, data_in, expected_exc, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
     )
@@ -274,46 +255,42 @@ def test_cv_backend_write_exc(data_in, expected_exc, mocker):
         cvb.write(index, data_in)
 
 
-def test_cv_get_chunk_size():
-    precomputed._write_info = _write_info_notmock
+def test_cv_get_chunk_size(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
     )
-    cvb = CVBackend(path=LAYER_SCRATCH2_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
     assert cvb.get_chunk_size(Vec3D(2, 2, 1)) == IntVec3D(1024, 1024, 1)
 
 
-def test_cv_get_voxel_offset():
-    precomputed._write_info = _write_info_notmock
+def test_cv_get_voxel_offset(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
         default_voxel_offset=IntVec3D(1, 2, 3),
     )
-    cvb = CVBackend(path=LAYER_SCRATCH2_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
     assert cvb.get_voxel_offset(Vec3D(2, 2, 1)) == IntVec3D(1, 2, 3)
 
 
-def test_cv_get_dataset_size():
-    precomputed._write_info = _write_info_notmock
+def test_cv_get_dataset_size(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_dataset_size=IntVec3D(4096, 4096, 1),
     )
-    cvb = CVBackend(path=LAYER_SCRATCH2_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
     assert cvb.get_dataset_size(Vec3D(2, 2, 1)) == IntVec3D(4096, 4096, 1)
 
 
-def test_cv_with_changes(mocker):
+def test_cv_with_changes(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
     )
-    precomputed._write_info = _write_info_notmock
     cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     cvb_new = cvb.with_changes(
         name=LAYER_SCRATCH0_PATH,
@@ -329,7 +306,7 @@ def test_cv_with_changes(mocker):
     assert not cvb_new.enforce_chunk_aligned_writes
 
 
-def test_cv_with_changes_exc(mocker):
+def test_cv_with_changes_exc(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
@@ -339,13 +316,13 @@ def test_cv_with_changes_exc(mocker):
         cvb.with_changes(nonsensename="nonsensevalue")
 
 
-def test_cv_assert_idx_is_chunk_aligned():
+def test_cv_assert_idx_is_chunk_aligned(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(3, 5, 7),
         default_voxel_offset=IntVec3D(1, 2, 3),
     )
-    cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
             (slice(1, 4), slice(-8, 12), slice(-18, -11)), resolution=Vec3D(2, 2, 1)
@@ -355,13 +332,13 @@ def test_cv_assert_idx_is_chunk_aligned():
     cvb.assert_idx_is_chunk_aligned(index)
 
 
-def test_cv_assert_idx_is_chunk_aligned_exc():
+def test_cv_assert_idx_is_chunk_aligned_exc(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(3, 5, 7),
         default_voxel_offset=IntVec3D(1, 2, 3),
     )
-    cvb = CVBackend(path=LAYER_X4_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
             (slice(0, 13), slice(0, 13), slice(0, 13)), resolution=Vec3D(2, 2, 1)

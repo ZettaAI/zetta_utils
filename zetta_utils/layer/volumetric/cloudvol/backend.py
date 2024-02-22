@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import attrs
 import cachetools
@@ -10,11 +10,10 @@ import cloudvolume as cv
 import numpy as np
 import torch
 from cloudvolume import CloudVolume
-from cloudvolume.lib import Bbox
 
 from zetta_utils import tensor_ops
 from zetta_utils.common import abspath, is_local
-from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
 from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
@@ -63,7 +62,11 @@ def _get_cv_cached(
     return result
 
 
-def _clear_cv_cache(path: str) -> None:
+def _clear_cv_cache(path: str | None = None) -> None:  # pragma: no cover
+    if path is None:
+        _cv_cached.clear()
+        _cv_cache.clear()
+        return
     path_ = abspath(path)
     resolutions = _cv_cached.pop(path_, None)
     if resolutions is not None:
@@ -86,6 +89,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         info is assumed to exist.
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
         the layer info already exists.
+
 
     """
 
@@ -308,47 +312,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         offset = self.get_voxel_offset(resolution)
         size = self.get_dataset_size(resolution)
         return VolumetricIndex.from_coords(offset, offset + size, resolution)
-
-    def get_chunk_aligned_index(  # pragma: no cover
-        self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
-    ) -> VolumetricIndex:
-        cvol = _get_cv_cached(self.path, resolution=idx.resolution, **self.cv_kwargs)
-        bbox = Bbox(*tuple(zip(*((s.start, s.stop) for s in idx.to_slices()))))
-        if mode == "expand":
-            bbox_aligned = bbox.expand_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
-        elif mode == "shrink":
-            bbox_aligned = bbox.shrink_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
-        elif mode == "round":
-            bbox_aligned = bbox.round_to_chunk_size(cvol.chunk_size, cvol.voxel_offset)
-        else:
-            raise NotImplementedError(
-                f"mode must be set to 'expand', 'shrink', or 'round'; received '{mode}'"
-            )
-        return VolumetricIndex(
-            resolution=idx.resolution,
-            bbox=BBox3D.from_coords(
-                Vec3D[int](*bbox_aligned.minpt), Vec3D[int](*bbox_aligned.maxpt), idx.resolution
-            ),
-        )
-
-    def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:
-        """check that the idx given is chunk_aligned, and give suggestions"""
-        idx_expanded = self.get_chunk_aligned_index(idx, mode="expand")
-        idx_rounded = self.get_chunk_aligned_index(idx, mode="round")
-        idx_shrunk = self.get_chunk_aligned_index(idx, mode="shrink")
-
-        if idx != idx_expanded:
-            raise ValueError(
-                "The specified BBox3D is not chunk-aligned with the VolumetricLayer at"
-                + f" `{self.name}`;\nin {tuple(idx.resolution)} {idx.bbox.unit} voxels:"
-                + f" offset: {self.get_voxel_offset(idx.resolution)},"
-                + f" chunk_size: {self.get_chunk_size(idx.resolution)}\n"
-                + f"Received BBox3D: {idx.pformat()}\n"
-                + "Nearest chunk-aligned BBox3Ds:\n"
-                + f" - expanded : {idx_expanded.pformat()}\n"
-                + f" - rounded  : {idx_rounded.pformat()}\n"
-                + f" - shrunk   : {idx_shrunk.pformat()}"
-            )
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name

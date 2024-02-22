@@ -149,7 +149,7 @@ class VolumetricSetBackend(
         return list(dataset_sizes.values())[0]
 
     def get_chunk_aligned_index(
-        self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
+        self, idx: VolumetricIndex, mode: Literal["expand", "shrink"]
     ) -> VolumetricIndex:  # pragma: no cover
         chunk_aligned_indexs = {
             k: v.backend.get_chunk_aligned_index(idx=idx, mode=mode)

@@ -15,12 +15,7 @@ THIS_DIR = pathlib.Path(__file__).parent.resolve()
 INFOS_DIR = os.path.abspath(THIS_DIR / "../../../assets/infos/")
 LAYER_X0_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x0")
 LAYER_X1_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x1")
-LAYER_X2_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x2")
-LAYER_X3_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x3")
-LAYER_X4_PATH = "file://" + os.path.join(INFOS_DIR, "layer_x4")
-LAYER_X5_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x5")
-LAYER_X6_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x6")
-LAYER_X7_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x7")
+LAYER_SCRATCH0_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "layer_x0")
 NONEXISTENT_LAYER_PATH = "file://" + os.path.join(INFOS_DIR, "scratch", "nonexistent_layer")
 
 EXAMPLE_INFO = '{"data_type": "uint8", "num_channels": 1, "scales": [{"chunk_sizes": [[1024, 1024, 1]], "encoding": "raw", "key": "4_4_40", "resolution": [4, 4, 40], "size": [16384, 16384, 16384], "voxel_offset": [0, 0, 0]}, {"chunk_sizes": [[2048, 2048, 1]], "encoding": "raw", "key": "8_8_40", "resolution": [8, 8, 40], "size": [8192, 8192, 8192], "voxel_offset": [0, 0, 0]}], "type": "raw"}'
@@ -29,16 +24,17 @@ _write_info_notmock = precomputed._write_info
 
 
 @pytest.fixture
-def clear_caches():
+def clear_caches_reset_mocks():
     precomputed._info_cache.clear()
+    precomputed._write_info = _write_info_notmock
 
 
-def test_nonexistent_info():
+def test_nonexistent_info(clear_caches_reset_mocks):
     with pytest.raises(FileNotFoundError):
         precomputed.get_info(NONEXISTENT_LAYER_PATH)
 
 
-def test_infospec_expect_same_exc(mocker):
+def test_infospec_expect_same_exc(clear_caches_reset_mocks, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -58,7 +54,7 @@ def test_infospec_expect_same_exc(mocker):
         [LAYER_X0_PATH, None, "expect_same"],
     ],
 )
-def test_infospec_no_action(path, reference, mode, mocker):
+def test_infospec_no_action(clear_caches_reset_mocks, path, reference, mode, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -76,7 +72,7 @@ def test_infospec_no_action(path, reference, mode, mocker):
         [".", LAYER_X0_PATH, "overwrite"],
     ],
 )
-def test_infospec_overwrite(clear_caches, path, reference, mode, mocker):
+def test_infospec_overwrite(clear_caches_reset_mocks, path, reference, mode, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -88,8 +84,7 @@ def test_infospec_overwrite(clear_caches, path, reference, mode, mocker):
     _write_info.assert_called_once()
 
 
-def test_ts_set_voxel_set_voxel_offset_chunk_and_data(clear_caches, mocker):
-    precomputed._write_info = _write_info_notmock
+def test_ts_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
@@ -97,8 +92,8 @@ def test_ts_set_voxel_set_voxel_offset_chunk_and_data(clear_caches, mocker):
     info_spec.set_chunk_size((IntVec3D(3, 2, 1), Vec3D(2, 2, 1)))
     info_spec.set_voxel_offset((IntVec3D(1, 2, 3), Vec3D(2, 2, 1)))
     info_spec.set_dataset_size((IntVec3D(10, 20, 30), Vec3D(2, 2, 1)))
-    info_spec.update_info(LAYER_X5_PATH, on_info_exists="overwrite")
-    scales = get_info(LAYER_X5_PATH)["scales"]
+    info_spec.update_info(LAYER_SCRATCH0_PATH, on_info_exists="overwrite")
+    scales = get_info(LAYER_SCRATCH0_PATH)["scales"]
     for scale in scales:
         if scale["resolution"] == [2, 2, 1]:
             assert scale["voxel_offset"] == [1, 2, 3]
@@ -127,8 +122,7 @@ def make_tmp_layer(tmpdir, info_text=None):
         [[{"resolution": [16, 16, 40]}, [32, 32, 40]], ["16_16_40", "32_32_40"]],
     ],
 )
-def test_add_scale(clear_caches, tmpdir, in_scales, expects):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale(clear_caches_reset_mocks, tmpdir, in_scales, expects):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -147,8 +141,7 @@ def test_add_scale(clear_caches, tmpdir, in_scales, expects):
         ["replace", ["16_16_40"]],
     ],
 )
-def test_add_scale_modes(clear_caches, tmpdir, mode, expects):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_modes(clear_caches_reset_mocks, tmpdir, mode, expects):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -161,8 +154,7 @@ def test_add_scale_modes(clear_caches, tmpdir, mode, expects):
         assert expect in [e["key"] for e in scales]
 
 
-def test_add_scale_modes_error(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_modes_error(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     with pytest.raises(RuntimeError):
         info_spec = PrecomputedInfoSpec(
@@ -173,8 +165,7 @@ def test_add_scale_modes_error(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_full_entry(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_full_entry(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -197,9 +188,8 @@ def test_add_scale_full_entry(clear_caches, tmpdir):
             assert scale["chunk_sizes"] == [[7, 8, 9]]
 
 
-def test_add_scale_unsupported_keys(clear_caches, tmpdir):
+def test_add_scale_unsupported_keys(clear_caches_reset_mocks, tmpdir):
     """Throw error if key does not match resolution"""
-    precomputed._write_info = _write_info_notmock
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -218,8 +208,7 @@ def test_add_scale_unsupported_keys(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_with_ref(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_with_ref(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -231,8 +220,7 @@ def test_add_scale_with_ref(clear_caches, tmpdir):
     assert "16_16_40" in [e["key"] for e in scales]
 
 
-def test_add_scale_error_non_multiple(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_error_non_multiple(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -242,8 +230,7 @@ def test_add_scale_error_non_multiple(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_error_no_ref_scales(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_error_no_ref_scales(clear_caches_reset_mocks, tmpdir):
     info = '{"data_type": "uint8", "num_channels": 1, "type": "raw"}'
     tmp_layer = make_tmp_layer(tmpdir, info_text=info)
     info_spec = PrecomputedInfoSpec(
@@ -254,8 +241,7 @@ def test_add_scale_error_no_ref_scales(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_with_overrides_okay(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_with_overrides_okay(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -265,8 +251,7 @@ def test_add_scale_with_overrides_okay(clear_caches, tmpdir):
     info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_with_overrides_error(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_with_overrides_error(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -288,8 +273,7 @@ def test_add_scale_with_overrides_error(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_with_custom_ref(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_with_custom_ref(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -308,8 +292,7 @@ def test_add_scale_with_custom_ref(clear_caches, tmpdir):
     assert "6_6_82" in [e["key"] for e in scales]
 
 
-def test_add_scale_error_offset_scaling(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_error_offset_scaling(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,
@@ -327,8 +310,7 @@ def test_add_scale_error_offset_scaling(clear_caches, tmpdir):
         info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
-def test_add_scale_with_non_existing_ref(clear_caches, tmpdir):
-    precomputed._write_info = _write_info_notmock
+def test_add_scale_with_non_existing_ref(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(
         reference_path=tmp_layer,

@@ -29,6 +29,7 @@ class Vec3D(abc.Sequence[T]):
     y: T
     z: T
 
+    # TODO: Support type inference for np.generic types
     def __init__(self, x: T | np.generic, y: T | np.generic, z: T | np.generic):
         if isinstance(x, np.generic):
             object.__setattr__(self, "x", x.item())
@@ -125,7 +126,17 @@ class Vec3D(abc.Sequence[T]):
     def __abs__(self) -> Vec3D[T]:
         return Vec3D[T](*(abs(e) for e in self))
 
-    def __round__(self, ndigits: int = 0) -> Vec3D[T]:
+    @overload
+    def __round__(self) -> Vec3D[BuiltinInt]:
+        ...
+
+    @overload
+    def __round__(self, ndigits: int) -> Vec3D[T]:
+        ...
+
+    def __round__(self, ndigits: int | None = None):
+        if ndigits is None:
+            return Vec3D[BuiltinInt](*(round(e) for e in self))
         return Vec3D[T](*(round(e, ndigits) for e in self))
 
     def __floor__(self) -> Vec3D[BuiltinInt]:

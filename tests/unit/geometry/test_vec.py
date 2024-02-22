@@ -13,12 +13,14 @@ some_float = 42.42
 some_int = 42
 
 vec3d = Vec3D(1.0, 2.0, 3.0)
+vec3d_np = Vec3D[float](*np.array((1.0, 2.0, 3.0)))
 vec3d_fp1 = Vec3D(0.1, 0.6 / 3.0, 0.1 + 0.2)
 vec3d_fp2 = Vec3D(0.1, 0.2, 0.3)
 vec3d_neg = Vec3D(-1.0, -2.0, -3.0)
 vec3d_lg = Vec3D(1.5, 2.5, 3.5)
 vec3d_mx = Vec3D(0.5, 2.5, 3.0)
 intvec3d = Vec3D[int](1, 2, 3)
+intvec3d_np = Vec3D[int](*np.array((1, 2, 3)))
 
 intvec3d_from_float = vec3d.int()
 vec3d_from_int = intvec3d.float()
@@ -74,6 +76,7 @@ def test_iter(arg, val):
         # [intvec2d, vec3d, False],
         # [intvec2d, intvec3d, False],
         # [intvec2d, vec3d_diff, False],
+        [vec3d, vec3d_np, True],
         [vec3d, intvec3d, True],
         [vec3d, vec3d_diff, False],
         [intvec3d, vec3d_diff, False],
@@ -372,9 +375,11 @@ def test_subtyping() -> None:
         some_int % intvec3d,
         abs(intvec3d),
         round(intvec3d),
+        round(vec3d),
         floor(intvec3d),
         trunc(intvec3d),
         ceil(intvec3d),
+        intvec3d_np,
     ]:
 
         test_inference_return_int3d(x)
@@ -432,7 +437,8 @@ def test_subtyping() -> None:
         some_float / intvec3d,
         some_float % intvec3d,
         abs(vec3d),
-        round(vec3d),
+        round(vec3d, 1),
+        vec3d_np,
     ]:
         test_inference_return_vec3d(y)
 

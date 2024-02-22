@@ -262,7 +262,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
     processing_blend_mode: Literal["linear", "quadratic"] = "quadratic"
-    gap: Optional[Vec3D[int]] = None
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
     clear_cache_on_return: bool = False
@@ -280,7 +279,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         assert self.processing_blend_pad is not None
         backend_chunk_size = deepcopy(self.processing_chunk_size)
         dst_backend_chunk_size = dst.backend.get_chunk_size(self.dst_resolution)
-
         for i in range(3):
             if backend_chunk_size[i] == 1 or self.processing_blend_pad[i] == 0:
                 continue
@@ -315,7 +313,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         return backend_chunk_size
 
-    def __attrs_post_init__(self):  # pylint: disable=too-many-branches
+    def __attrs_post_init__(self):
         if self.roi_crop_pad is None:
             self.roi_crop_pad = Vec3D[int](0, 0, 0)
         if self.processing_blend_pad is None:
@@ -326,8 +324,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             self.use_checkerboarding = True
         else:
             self.use_checkerboarding = False
-        if self.gap is None:
-            self.gap = Vec3D[int](0, 0, 0)
 
         if self.use_checkerboarding:
             if not self.processing_blend_pad <= self.processing_chunk_size // 2:
@@ -347,11 +343,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 )
 
         self.processing_chunker = VolumetricIndexChunker(
-            chunk_size=self.processing_chunk_size,
-            resolution=self.dst_resolution,
-            stride=self.processing_chunk_size + self.gap,
+            chunk_size=self.processing_chunk_size, resolution=self.dst_resolution
         )
-
         if self.max_reduction_chunk_size is None:
             self.max_reduction_chunk_size_final = self.processing_chunk_size
         else:
@@ -422,9 +415,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         op_kwargs: P.kwargs,
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol | None]:
         dst_temp = self._get_temp_dst(dst, idx, self.flow_id)
-        have_gap = self.gap is not None and self.gap != Vec3D[int](0, 0, 0)
-        # TODO: remove "expand"; see https://github.com/ZettaAI/zetta_utils/issues/648
-        idx_chunks = self.processing_chunker(idx, mode="expand" if have_gap else "exact")
+        idx_chunks = self.processing_chunker(idx, mode="exact")
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
         return tasks, dst_temp
 
@@ -580,22 +571,16 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks
             yield mazepa.Dependency()
-            if self.gap is None:
-                self.gap = Vec3D[int](0, 0, 0)
-            if self.gap != Vec3D[int](0, 0, 0):
-                copy_chunk_size = dst.backend.get_chunk_size(self.dst_resolution) - self.gap // 2
-            elif not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
+            if not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
                 self.dst_resolution
             ):
                 copy_chunk_size = dst.backend.get_chunk_size(self.dst_resolution)
             else:
                 copy_chunk_size = self.max_reduction_chunk_size_final
-
             reduction_chunker = VolumetricIndexChunker(
-                chunk_size=dst.backend.get_chunk_size(self.dst_resolution) - self.gap // 2,
+                chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
                 resolution=self.dst_resolution,
                 max_superchunk_size=copy_chunk_size,
-                offset=-self.gap // 2,
             )
             logger.info(
                 f"Breaking {idx} into chunks to be copied from the intermediary layer"

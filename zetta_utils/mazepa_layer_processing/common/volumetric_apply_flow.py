@@ -376,6 +376,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             enforce_chunk_aligned_writes=False,
             allow_cache=allow_cache,
             use_compression=False,
+            no_sharding=True,
         )
         return dst.with_procs(read_procs=()).with_changes(backend=backend_temp)
 

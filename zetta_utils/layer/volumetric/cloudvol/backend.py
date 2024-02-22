@@ -241,6 +241,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
         "allow_cache" = value: Union[bool, str]
+        "no_sharding" = value: bool
         """
         assert self.info_spec is not None
 
@@ -255,12 +256,14 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
+            "no_sharding",
         ]
         keys_to_kwargs = {"name": "path"}
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,
             "dataset_size_res": info_spec.set_dataset_size,
+            "no_sharding": info_spec.set_no_sharding,
         }
         keys_to_cv_kwargs = {
             "use_compression": "compress",
@@ -278,7 +281,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             if k in keys_to_kwargs:
                 evolve_kwargs[keys_to_kwargs[k]] = v
             if k in keys_to_infospec_fn:
-                keys_to_infospec_fn[k](v)
+                keys_to_infospec_fn[k](v)  # type: ignore
 
         if "name" in kwargs:
             _clear_cv_cache(kwargs["name"])

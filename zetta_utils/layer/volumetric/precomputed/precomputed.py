@@ -19,6 +19,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
+
 # wrapper to cache using absolute paths with '/info'.
 # invalidates the cached infofile if the infofile is local and has since been deleted.
 def get_info(path: str) -> Dict[str, Any]:
@@ -109,6 +110,8 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
         ret["chunk_sizes"] = ref["chunk_sizes"]
     if "encoding" not in ret:
         ret["encoding"] = ref["encoding"]
+    if "sharding" in ref:
+        ret["sharding"] = ref["sharding"]
 
     # check and convert values to int
     errored = _check_seq_is_int(ret["size"])
@@ -140,13 +143,16 @@ class PrecomputedInfoSpec:
     default_chunk_size: Sequence[int] | None = None
     default_voxel_offset: Sequence[int] | None = None
     default_dataset_size: Sequence[int] | None = None
+    default_sharding: dict[str, Any] | None = None
     chunk_size_map: dict[str, Sequence[int]] | None = None
     voxel_offset_map: dict[str, Sequence[int]] | None = None
     dataset_size_map: dict[str, Sequence[int]] | None = None
+    sharding_map: dict[str, dict[str, Any]] | None = None
     data_type: str | None = None
     add_scales: Sequence[Sequence[int] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
     add_scales_mode: str = "merge"
+    no_sharding: bool = False
     # ensure_scales: Optional[Iterable[int]] = None
 
     def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
@@ -170,6 +176,9 @@ class PrecomputedInfoSpec:
         if self.dataset_size_map is None:
             self.dataset_size_map = {}
         self.dataset_size_map[key] = dataset_size
+
+    def set_no_sharding(self, val: bool) -> None:
+        self.no_sharding = val
 
     def make_info(  # pylint: disable=too-many-branches, consider-iterating-dictionary
         self,
@@ -227,9 +236,23 @@ class PrecomputedInfoSpec:
                 for e in result["scales"]:
                     if e["key"] in self.dataset_size_map.keys():
                         e["size"] = [*self.dataset_size_map[e["key"]]]
+            if self.default_sharding is not None:
+                for e in result["scales"]:
+                    e["sharding"] = self.default_sharding
+            if self.sharding_map is not None:
+                for e in result["scales"]:
+                    if e["key"] in self.sharding_map.keys():
+                        e["sharding"] = self.sharding_map[e["key"]]
             if self.data_type is not None:
                 result["data_type"] = self.data_type
-
+            if self.no_sharding:
+                for e in result["scales"]:
+                    e.pop("sharding", None)
+            else:
+                # make sure that "@type" is present
+                for e in result["scales"]:
+                    if "sharding" in e and "@type" not in e["sharding"]:
+                        e["sharding"] = {"@type": "neuroglancer_uint64_sharded_v1"} | e["sharding"]
             # if self.ensure_scales is not None:  # pragma: no cover
             #    raise NotImplementedError()
 

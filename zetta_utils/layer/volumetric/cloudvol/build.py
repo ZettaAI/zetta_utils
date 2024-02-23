@@ -34,6 +34,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_dataset_size_map: dict[str, Sequence[int]] | None = None,
     info_voxel_offset: Sequence[int] | None = None,
     info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
+    info_sharding: dict[str, Any] | None = None,
+    info_sharding_map: dict[str, dict[str, Any]] | None = None,
     info_add_scales: Sequence[Sequence[int] | dict[str, Any]] | None = None,
     info_add_scales_ref: str | dict[str, Any] | None = None,
     info_add_scales_mode: Literal["merge", "replace"] = "merge",
@@ -74,6 +76,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param info_dataset_size_map: Precomputed dataset size for each resolution.
     :param info_voxel_offset: Precomputed voxel offset for all scales.
     :param info_voxel_offset_map: Precomputed voxel offset for each resolution.
+    :param info_sharding: Precomputed sharding spec for all scales.
+    :param info_sharding_map: Precomputed sharding spec for each resolution.
     :param info_add_scales: List of scales to be added based on ``info_add_scales_ref``
         Each entry can be either a resolution (e.g., [4, 4, 40]) or a partially filled
         Precomputed scale. By default, ``size`` and ``voxel_offset`` will be scaled
@@ -115,6 +119,8 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             dataset_size_map=info_dataset_size_map,
             default_voxel_offset=info_voxel_offset,
             voxel_offset_map=info_voxel_offset_map,
+            default_sharding=info_sharding,
+            sharding_map=info_sharding_map,
             add_scales=info_add_scales,
             add_scales_ref=info_add_scales_ref,
             add_scales_mode=info_add_scales_mode,

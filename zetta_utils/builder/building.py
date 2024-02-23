@@ -167,6 +167,10 @@ def _build_list(**kwargs):
     return list(kwargs.values())
 
 
+def _build_tuple(**kwargs):
+    return tuple(kwargs.values())
+
+
 def _build_dict(**kwargs):
     return kwargs
 
@@ -212,10 +216,10 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches,too-many-statement
     result: ObjectToBeBuilt | JsonSerializableValue | BuilderPartial
     if isinstance(spec, (int, float, bool, str)) or spec is None:
         result = spec
-    elif isinstance(spec, list):
+    elif isinstance(spec, (list, tuple)):
         this_obj = ObjectToBeBuilt(
             spec=spec,
-            fn=_build_list,
+            fn=_build_list if isinstance(spec, list) else _build_tuple,
             parent=parent,
             parent_kwarg_name=parent_kwarg_name,
             name_prefix=name_prefix,

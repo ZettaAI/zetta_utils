@@ -153,6 +153,7 @@ def test_sleeper_parallel(register_sleeper_func):
         "abc",
         {"k": "v"},
         ["a", 1, None],
+        ("a", 1, None),
         {"int": 1, "str": "abc", "dict": {"yes": "sir"}},
     ],
 )

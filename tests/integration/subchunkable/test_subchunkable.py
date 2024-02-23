@@ -89,6 +89,7 @@ def are_dir_trees_equal(dir1, dir2):
 @pytest.mark.parametrize(
     "cue_name",
     [
+        "test_float32_copy_defer",
         "test_uint8_copy_bbox",
         "test_uint8_copy_no_op_kwargs",
         "test_uint8_copy_coords",

@@ -26,7 +26,11 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, log, mazepa
 from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
+from zetta_utils.layer.volumetric import (
+    VolumetricBasedLayerProtocol,
+    VolumetricIndex,
+    VolumetricLayer,
+)
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer
 from zetta_utils.mazepa import SemaphoreType, id_generation
@@ -85,7 +89,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_crop_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
     processing_blend_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
     processing_blend_modes: Union[
-        Literal["linear", "quadratic"], Sequence[Literal["linear", "quadratic"]]
+        Literal["linear", "quadratic", "defer"], Sequence[Literal["linear", "quadratic", "defer"]]
     ] = "quadratic",
     level_intermediaries_dirs: Sequence[str | None] | None = None,
     skip_intermediaries: bool = False,
@@ -136,7 +140,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         than or equal to half of the ``processing_chunk_size`` in each dimension.
     :param processing_blend_modes: Which blend mode to use at each subchunking level. ``linear``
         sums the blended areas weighted linearly by the position. ``quadaratic`` sums the
-        blended areas weighted quadratically by the position.
+        blended areas weighted quadratically by the position.  ``defer`` skips the final
+        reduction stage, leaving the final intermediate files for the user to handle.
     :param max_reduction_chunk_sizes: The upper bounds of the sizes chunks to be used for the
         reduction step. During the reduction step, backend chunks in the area to be reduced will
         be reduced in larger chunks that have been combined up to this limit. Reduction chunks
@@ -214,11 +219,30 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             )
         bbox_ = bbox
 
+    defer_blend = processing_blend_modes == "defer" or processing_blend_modes[-1] == "defer"
+
     if dst is None:
+        if defer_blend:
+            raise ValueError('`dst` cannot be None when `processing_blend_modes` is "defer".')
         if not skip_intermediaries:
-            raise ValueError("`skip_intermediaries` must be True when `dst` is None.")
+            raise ValueError(
+                "`skip_intermediaries` must be True when `dst` is None and "
+                '`processing_blend_modes` is not "defer".'
+            )
         if expand_bbox_backend:
             raise ValueError("Cannot use `expand_bbox_backend` when `dst` is None.")
+
+    if defer_blend:
+        logger.warning(
+            'Because `processing_blend_modes` is "defer", `dst` will NOT '
+            "contain final output of subchunkable."
+        )
+        if isinstance(dst, VolumetricLayer) and dst.write_procs:
+            logger.warning(
+                "Unblended intermediaries will already have the write_procs applied "
+                "to them; another Flow, Operation, or Task that writes to `dst`, such "
+                "as a naive copy, may apply the write_procs a second time."
+            )
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -577,7 +601,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
-    processing_blend_modes: Sequence[Literal["linear", "quadratic"]],
+    processing_blend_modes: Sequence[Literal["linear", "quadratic", "defer"]],
     processing_crop_pad: Vec3D[int],
     roi_crop_pads: Sequence[Vec3D[int]],
     max_reduction_chunk_sizes: Sequence[Vec3D[int]],
@@ -714,7 +738,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_crop_pads: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
-    processing_blend_modes: Sequence[Literal["linear", "quadratic"]],
+    processing_blend_modes: Sequence[Literal["linear", "quadratic", "defer"]],
     max_reduction_chunk_sizes: Sequence[Vec3D[int]],
     allow_cache_up_to_level: int,
     bbox: BBox3D,

@@ -261,7 +261,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
-    processing_blend_mode: Literal["linear", "quadratic"] = "quadratic"
+    processing_blend_mode: Literal["linear", "quadratic", "defer"] = "quadratic"
     gap: Optional[Vec3D[int]] = None
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
@@ -463,8 +463,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             backend chunk size to half of the processing chunk size. Furthermore, skip caching
             if the temporary destination happens to be local.
             """
-            assert dst is not None
-            dst_temp = self._get_temp_dst(dst, idx, self.flow_id, chunker_idx)
+            dst_temp = self._get_temp_dst(
+                dst, idx, self.flow_id, "_".join(str(i) for i in chunker_idx)
+            )
             dst_temps.append(dst_temp)
             with suppress_type_checks():
                 # assert that the idx passed in is in fact exactly divisible by the chunk size
@@ -568,7 +569,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         logger.info(f"Breaking {idx} into chunks with {self.processing_chunker}.")
 
-        # case without checkerboarding
+        # cases without checkerboarding
         if not self.use_checkerboarding and not self.force_intermediaries:
             idx_chunks = self.processing_chunker(idx, mode="exact")
             tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, op_kwargs)
@@ -620,7 +621,22 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             yield mazepa.Dependency()
             clear_cache(dst_temp)
             delete_if_local(dst_temp)
-        # case with checkerboarding
+        # cases with checkerboarding
+        elif self.processing_blend_mode == "defer":
+            assert dst is not None
+            stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
+            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
+            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
+                idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
+            )
+            logger.info(
+                "Writing to intermediate destinations:\n"
+                f" Submitting {len(tasks)} processing tasks from operation {self.op}.\n"
+                f"Note that because blending is deferred, {dst.pformat()} will NOT "
+                f"contain the final output."
+            )
+            yield tasks
+            yield mazepa.Dependency()
         else:
             assert dst is not None
             if dst.backend.enforce_chunk_aligned_writes:

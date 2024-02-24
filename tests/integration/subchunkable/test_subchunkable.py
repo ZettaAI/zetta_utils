@@ -57,9 +57,11 @@ def are_dir_trees_equal(dir1, dir2):
 
     @return: True if the directory trees are the same and
         there were no errors while accessing the directories or files,
+        or if the directory does not exist for both paths.
         False otherwise.
     """
-
+    if not os.path.exists(dir1) and not os.path.exists(dir2):
+        return True
     dirs_cmp = filecmp.dircmp(dir1, dir2)
     if len(dirs_cmp.left_only) > 0:
         print(f"File list mismatch: {dir1} has {dirs_cmp.left_only} files not found in {dir2}.")
@@ -92,7 +94,7 @@ def are_dir_trees_equal(dir1, dir2):
 @pytest.mark.parametrize(
     "cue_name",
     [
-        "test_float32_copy_defer",
+        "test_uint8_no_dst",
         "test_uint8_copy_bbox",
         "test_uint8_copy_no_op_kwargs",
         "test_uint8_copy_coords",
@@ -101,6 +103,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_expand_bbox_processing",
         "test_uint8_copy_expand_bbox_backend",
         "test_uint8_copy_expand_bbox_resolution_backend_processing_do_nothing",
+        "test_uint8_copy_processing_gap",
         "test_uint8_copy_shrink_processing_chunk",
         "test_uint8_copy_op",
         "test_uint8_copy_auto_divisibility",
@@ -111,6 +114,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_multilevel_checkerboard_cache_up_to_l0",
         "test_uint8_copy_blend",
         "test_uint8_copy_crop",
+        "test_uint8_copy_defer",
         "test_uint8_copy_top_level_checkerboard",
         "test_uint8_copy_writeproc",
         "test_uint8_copy_writeproc_multilevel_no_checkerboard",
@@ -153,6 +157,7 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_skip_intermediaries_but_level_intermediaries_dirs",
         "test_uint8_exc_skip_intermediaries_but_blend_pad",
         "test_uint8_exc_skip_intermediaries_but_crop_pad",
+        "test_uint8_exc_skip_intermediaries_but_defer",
         "test_uint8_exc_not_skip_intermediaries_but_no_level_intermediaries_dirs",
         "test_uint8_exc_shrink_processing_chunk_and_expand_bbox_processing",
         "test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution",
@@ -161,7 +166,22 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_auto_divisibility_and_shrink_processing_chunk",
         "test_uint8_exc_auto_divisibility_but_no_expand_bbox_processing",
         "test_uint8_exc_auto_divisibility_and_expand_bbox_backend",
+        "test_uint8_exc_processing_gap_but_auto_divisibility",
+        "test_uint8_exc_processing_gap_but_blend_pad_toplevel",
+        "test_uint8_exc_processing_gap_but_expand_bbox_backend",
+        "test_uint8_exc_processing_gap_but_expand_bbox_resolution",
+        "test_uint8_exc_processing_gap_but_shrink_processing_chunk",
+        "test_uint8_exc_processing_gap_but_uneven",
+        "test_uint8_exc_max_reduction_chunk_size_too_small_for_backend_chunk",
+        "test_uint8_exc_max_reduction_chunk_size_too_small_for_processing_chunk",
+        "test_uint8_exc_defer_on_not_toplevel",
+        "test_uint8_exc_no_dst_but_defer",
+        "test_uint8_exc_no_dst_but_max_reduction_chunk_size",
+        "test_uint8_exc_no_dst_but_not_skip_intermediaries",
+        "test_uint8_exc_no_dst_but_expand_bbox_backend",
         "test_uint8_exc_blend_too_large",
+        "test_uint8_exc_defer_on_not_toplevel",
+        "test_uint8_exc_defer_but_skip_intermediaries",
         "test_uint8_exc_nondivisible_but_recommendable",
         "test_uint8_exc_nondivisible_and_not_recommendable",
     ],

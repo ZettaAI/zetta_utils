@@ -16,7 +16,7 @@
 	}
 	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
 	processing_blend_pads: [[256, 256, 0], [128, 128, 0]]
-	max_reduction_chunk_sizes: [1024, 1024, 1]
+	max_reduction_chunk_size: [1024, 1024, 1]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
 	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]

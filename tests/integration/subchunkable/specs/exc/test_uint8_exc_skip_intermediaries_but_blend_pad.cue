@@ -17,9 +17,8 @@
 	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
 	processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	processing_blend_pads: [[256, 256, 0], [16, 16, 0]]
-    skip_intermediaries: true
-	expand_bbox_processing:  true
-	shrink_processing_chunk: true
+	skip_intermediaries:    true
+	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	op_kwargs: {

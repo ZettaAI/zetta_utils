@@ -17,7 +17,7 @@
 	processing_chunk_sizes: [[820, 938, 1], [234, 192, 1]]
 	processing_crop_pads: [[3, 5, 0], [0, 0, 0]]
 	processing_blend_pads: [[7, 11, 0], [13, 17, 0]]
-	max_reduction_chunk_sizes: [1024, 1024, 1]
+	max_reduction_chunk_size: [1024, 1024, 1]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
 	auto_divisibility: true
 	expand_bbox_processing: true

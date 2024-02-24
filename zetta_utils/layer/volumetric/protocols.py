@@ -18,6 +18,22 @@ class VolumetricBasedLayerProtocol(Protocol[DataT, IndexT]):
     def backend(self) -> VolumetricBackend:
         ...
 
+    @property
+    def index_procs(self) -> Iterable[IndexProcessor[IndexT]]:
+        ...
+
+    @property
+    def read_procs(
+        self,
+    ) -> Iterable[Union[DataProcessor[DataT], JointIndexDataProcessor[DataT, IndexT]]]:
+        ...
+
+    @property
+    def write_procs(
+        self,
+    ) -> Iterable[Union[DataProcessor[DataT], JointIndexDataProcessor[DataT, IndexT]]]:
+        ...
+
     def __setitem__(self, idx: IndexT, data: DataT):
         ...
 

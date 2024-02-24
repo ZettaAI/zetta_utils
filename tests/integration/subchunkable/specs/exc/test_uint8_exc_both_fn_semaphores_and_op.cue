@@ -11,8 +11,7 @@
 	"@type": "build_subchunkable_apply_flow"
 	fn_semaphores: ["cpu"]
 	op: {
-		"@type": "WarpOperation"
-		mode:    "mask"
+		"@type": "OnlyCopyTempOp"
 	}
 	processing_chunk_sizes: [[1024, 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]

@@ -1,5 +1,5 @@
-#SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_float32"
-#DST_PATH: "assets/outputs/test_gap"
+#SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
+#DST_PATH: "assets/outputs/test_uint8_exc_processing_gap_but_blend_toplevel"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -14,18 +14,18 @@
 		"@type":    "lambda"
 		lambda_str: "lambda src: src * 0 + 42"
 	}
-    // A 1024 punk + 128 crop_pad + 512 gap means "I want my output to be 1024 px
-    // separated by 512 px of gap, and when the processing happens I want to run it
-    // on 1280 px before cropping to the 1024".
-    // Bounding box in this case should be divisible by (1024 + 2*256) = 1536.
+	// A 1024 punk + 128 crop_pad + 512 processing_gap means "I want my output to be 1024 px
+	// separated by 512 px of gap, and when the processing happens I want to run it
+	// on 1280 px before cropping to the 1024".
+	// Bounding box in this case should be divisible by (1024 + 2*256) = 1536.
 	processing_chunk_sizes: [[1024, 1024, 1], [512, 512, 1]]
 	//processing_crop_pads: [[128, 128, 0], [0, 0, 0]]
-	//processing_blend_pads: [[0, 0, 0], [64, 64, 0]]
-    gap: [512, 512, 0]
+	processing_blend_pads: [[64, 64, 0], [64, 64, 0]]
+	processing_gap: [512, 512, 0]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp2/"]
 	expand_bbox_processing: true
-    auto_divisibility: true
-	dst_resolution: [4, 4, 40]
+	auto_divisibility:      false
+	dst_resolution: [128, 128, 40]
 	bbox: #BBOX
 	op_kwargs: {
 		src: {

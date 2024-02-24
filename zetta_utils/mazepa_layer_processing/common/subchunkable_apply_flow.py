@@ -123,6 +123,9 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         from the largest to the smallest. Subject to divisibility requirements (see bottom). When
         ``auto_divisibility`` is used, the chunk sizes other than the bottom level chunk size will
         be treated as an upper bound, and rounded down to satisfy divisibility. Must be even.
+    :param gap: Extra unprocessed space to be skipped between chunks at the top level. When used,
+        blend_pad cannot be used at the top level. Cannot be used with ``auto_divisibility``,
+        ``expand_bbox_backend``, ``expand_bbox_resolution``, or ``shrink_processing_chunk``.
     :param processing_crop_pads: Pixels to crop per processing chunk at each subchunking
         level in X, Y, Z, from the largest to the smallest. Affects divisibility requirements
         (see bottom). Given as a padding: ``(10, 10, 0)`` ``crop_pad`` with a ``(1024, 1024, 1)``
@@ -154,11 +157,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         is aligned to the backend chunk yourself when this option is used.
     :param expand_bbox_resolution: Expands ``bbox`` (whether given as a ``bbox`` or
         ``start_coord``, ``end_coord``, and ``coord_resolution``) to be integral in the
-        ``dst_resolution``.
+        ``dst_resolution``. Cannot be used with ``gap``.
     :param expand_bbox_backend: Expands ``bbox`` (whether given as a ``bbox`` or ``start_coord``,
         ``end_coord``, and ``coord_resolution``) to be aligned to the ``dst`` layer's backend
         chunk size and offset at ``dst_resolution``.  Requires ``bbox`` to be integral in
-        ``dst_resolution``. Cannot be used with ``expand_bbox_processing`` or
+        ``dst_resolution``. Cannot be used with ``gap``, ``expand_bbox_processing``, or
         ``auto_divisibility``.
     :param expand_bbox_processing: Expands ``bbox`` (whether given as a ``bbox`` or
         ``start_coord``, ``end_coord``, and ``coord_resolution``) to be an integer multiple of
@@ -167,14 +170,14 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         ``expand_bbox_backend`` or ``shrink_processing_chunk``.
     :param shrink_processing_chunk: Shrinks the top level ``processing_chunk_size`` to fit the
         ``bbox``. Does not affect other levels, so divisibility requirements may be affected.
-        Requires ``bbox`` to be integral in ``dst_resolution``. Cannot be used with
+        Requires ``bbox`` to be integral in ``dst_resolution``. Cannot be used with ``gap``,
         ``expand_bbox_processing``, or ``auto_divisiblity``.
     :param auto_divisibility: Automatically chooses ``processing_chunk_sizes`` that are divisible,
         while respecting the bottom level ``processing_chunk_size`` as well as every level's
-        ``processing_corp_pads`` and ``processing_blend_pads``. The user-provided
+        ``processing_crop_pads`` and ``processing_blend_pads``. The user-provided
         ``processing_chunk_sizes`` are treated as an upper bound.  Requires ``bbox`` to be
         integral in ``dst_resolution``. Requires ``expand_bbox_prosessing``. Cannot be used with
-        ``expand_bbox_backend`` and ``shrink_processing_chunk``.
+        ``gap``, ``expand_bbox_backend``, ``shrink_processing_chunk``.
     :param allow_cache_up_to_level: The subchunking level (smallest is 0) where the cache for
         different remote layers should be cleared after the processing is done. Recommended to
         keep this at the level of the largest subchunks (default).
@@ -195,7 +198,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         and ``coord_resolution``; cannot be used with ``bbox``.
     :param coord_resolution: The resolution in which the coordinates are given for the bounding
         box. Must be used with ``start_coord`` and ``end_coord``; cannot be used with ``bbox``.
-    :param gap: Extra unprocessed space to be skipped between chunks at the top level.
     """
     if bbox is None:
         if start_coord is None or end_coord is None or coord_resolution is None:
@@ -337,6 +339,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             raise ValueError("`gap` must be divisible by 2 in all dimensions.")
         if any(v != 0 for v in processing_blend_pads_[0]):
             raise ValueError("`blend_pads` at top level must be zero when `gap` is used.")
+        if auto_divisibility:
+            raise ValueError("`auto_divisibility` cannot be used with nonzero `gap`.")
         if shrink_processing_chunk:
             raise ValueError("`shrink_processing_chunk` cannot be used with nonzero `gap`.")
         if expand_bbox_backend:

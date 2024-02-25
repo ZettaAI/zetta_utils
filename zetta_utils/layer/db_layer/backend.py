@@ -8,7 +8,7 @@ from .. import Backend
 from . import DBIndex
 
 DBValueT = Union[bool, int, float, str]
-DBRowDataT = Mapping[str, DBValueT]
+DBRowDataT = Mapping[str, DBValueT | list[DBValueT]]
 DBDataT = Sequence[DBRowDataT]
 
 

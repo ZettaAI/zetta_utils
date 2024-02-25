@@ -1,6 +1,8 @@
 """gcloud datastore backend"""
+
 from __future__ import annotations
 
+from collections import defaultdict
 from copy import deepcopy
 from typing import Any, Optional, Union
 
@@ -15,17 +17,15 @@ from .. import DBBackend, DBDataT, DBIndex
 
 
 def _get_data_from_entities(idx: DBIndex, entities: list[Entity]) -> DBDataT:
+    row_entities = defaultdict(list)
+    for entity in entities:
+        row_entities[entity.key.parent.id_or_name].append(entity)
+
     data = []
-    for i in range(idx.get_size()):
-        col_keys = idx.col_keys[i]
-        start = i * len(col_keys)
-        end = start + len(col_keys)
-        _entities = {entity.key.id_or_name: entity for entity in entities[start:end]}
-
+    for row_key in idx.row_keys:
         row_data = {}
-        for col_key, entity in _entities.items():
-            row_data[col_key] = entity[col_key]
-
+        for entity in row_entities[row_key]:
+            row_data[entity.key.id_or_name] = entity[entity.key.id_or_name]
         data.append(row_data)
     return data
 
@@ -44,6 +44,7 @@ class DatastoreBackend(DBBackend):
 
     namespace: str
     project: Optional[str] = None
+    database: Optional[str] = None
     _client: Optional[Client] = None
     _exclude_from_indexes: tuple[str, ...] = ()
 
@@ -94,7 +95,9 @@ class DatastoreBackend(DBBackend):
     @property
     def client(self) -> Client:
         if self._client is None:
-            self._client = Client(project=self.project, namespace=self.namespace)
+            self._client = Client(
+                project=self.project, namespace=self.namespace, database=self.database
+            )
         return self._client
 
     @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=1, min=4, max=10))

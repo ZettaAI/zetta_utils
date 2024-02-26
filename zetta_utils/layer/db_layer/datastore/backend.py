@@ -7,7 +7,7 @@ from copy import deepcopy
 from typing import Any, Optional, Union
 
 import attrs
-from google.cloud.datastore import Client, Entity, Key
+from google.cloud.datastore import Client, Entity, Key, query
 from tenacity import retry, stop_after_attempt, wait_exponential
 from typeguard import typechecked
 
@@ -100,13 +100,27 @@ class DatastoreBackend(DBBackend):
             )
         return self._client
 
-    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=1, min=4, max=10))
+    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
+        """
+        Fetch list of keys that match given filters.
+        `column_filter` is a dict of column names with list of values to filter.
+        """
+        _query = self.client.query(kind="Column")
+        _query.keys_only()
+        if column_filter:
+            for _key, _values in column_filter.items():
+                _filters = [query.PropertyFilter(_key, "=", v) for v in _values]
+                _query.add_filter(filter=query.Or(_filters))
+        entities = list(_query.fetch())
+        return [entity.key.parent.id_or_name for entity in entities]
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def read(self, idx: DBIndex) -> DBDataT:
         keys = self._get_keys_or_entities(idx)
         entities = self.client.get_multi(keys)
         return _get_data_from_entities(idx, entities)
 
-    @retry(stop=stop_after_attempt(7), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def write(self, idx: DBIndex, data: DBDataT):
         entities = self._get_keys_or_entities(idx, data=data)
         self.client.put_multi(entities)

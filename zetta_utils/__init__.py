@@ -1,6 +1,6 @@
 # pylint: disable=unused-import, import-outside-toplevel
 """Zetta AI Computational Connectomics Toolkit."""
-from . import log, typing, parsing, builder, common
+from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
 
 builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")

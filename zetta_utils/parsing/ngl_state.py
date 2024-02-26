@@ -33,6 +33,8 @@ class AnnotationKeys(Enum):
     POINT = "point"
     POINT_A = "pointA"
     POINT_B = "pointB"
+    CENTER = "center"
+    RADII = "radii"
     TYPE = "type"
 
 

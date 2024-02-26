@@ -1,5 +1,7 @@
 """Manage layer groups in a DB Layer."""
 
+from __future__ import annotations
+
 import uuid
 
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer

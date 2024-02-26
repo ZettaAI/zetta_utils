@@ -10,7 +10,7 @@ from typing import Optional
 import attrs
 import fsspec
 
-from zetta_utils import log
+from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
@@ -28,7 +28,6 @@ from .resource import (
 
 logger = log.get_logger("zetta_utils")
 
-DEFAULT_PROJECT = "zetta-research"
 RUN_INFO_BUCKET = "gs://zetta_utils_runs"
 RUN_DB_NAME = "run-info"
 RUN_ID: str | None = None
@@ -43,7 +42,7 @@ class RunInfo(Enum):
     PARAMS = "params"
 
 
-RUN_DB_BACKEND = DatastoreBackend(namespace=RUN_DB_NAME, project=DEFAULT_PROJECT)
+RUN_DB_BACKEND = DatastoreBackend(namespace=RUN_DB_NAME, project=constants.DEFAULT_PROJECT)
 RUN_DB_BACKEND.exclude_from_indexes = (RunInfo.CLUSTERS.value, RunInfo.PARAMS.value)
 RUN_DB = build_db_layer(RUN_DB_BACKEND)
 
@@ -154,9 +153,9 @@ def run_ctx_manager(
             update_run_info(
                 RUN_ID,
                 {
-                    RunInfo.STATE.value: status
-                    if status == RunState.FAILED.value
-                    else RunState.COMPLETED.value
+                    RunInfo.STATE.value: (
+                        status if status == RunState.FAILED.value else RunState.COMPLETED.value
+                    )
                 },
             )
             assert heartbeat_sender is not None

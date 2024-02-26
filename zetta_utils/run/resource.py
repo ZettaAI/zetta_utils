@@ -3,17 +3,14 @@ from enum import Enum
 
 import attrs
 
+from zetta_utils import constants
 from zetta_utils.layer.db_layer import build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 
-DEFAULT_PROJECT = "zetta-research"
 RESOURCE_DB_NAME = "run-resource"
 
 RESOURCE_DB = build_db_layer(
-    DatastoreBackend(
-        namespace=RESOURCE_DB_NAME,
-        project=DEFAULT_PROJECT,  # all resources must be tracked in the default project
-    )
+    DatastoreBackend(namespace=RESOURCE_DB_NAME, project=constants.DEFAULT_PROJECT)
 )
 
 

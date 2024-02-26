@@ -1,5 +1,7 @@
 """Manage annotations in a DB Layer."""
 
+from __future__ import annotations
+
 from typing import cast
 
 from neuroglancer.viewer_state import (

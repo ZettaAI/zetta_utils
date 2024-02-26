@@ -1,5 +1,7 @@
 """Manage annotation collections in a DB Layer."""
 
+from __future__ import annotations
+
 import time
 import uuid
 

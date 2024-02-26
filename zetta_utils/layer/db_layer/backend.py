@@ -7,7 +7,9 @@ from typing import MutableMapping, Sequence, Union
 from .. import Backend
 from . import DBIndex
 
-DBValueT = Union[bool, int, float, str, list[bool | int | float | str]]
+DBScalarValueT = Union[bool, int, float, str]
+DBArrayValueT = list[DBScalarValueT]
+DBValueT = Union[DBScalarValueT, DBArrayValueT]
 DBRowDataT = MutableMapping[str, DBValueT]
 DBDataT = Sequence[DBRowDataT]
 

@@ -6,6 +6,9 @@ from .compute_field_multistage_flow import (
     ComputeFieldMultistageFlowSchema,
     build_compute_field_multistage_flow,
 )
+from .pairwise_alignment import (
+    build_pairwise_alignment_flow,
+)
 
 from . import warp_operation
 from . import aced_relaxation_flow

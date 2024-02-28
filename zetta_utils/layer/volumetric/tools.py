@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Literal, Optional, Sequence, Tuple
 
 import attrs
+import cv2
 import torch
 from typeguard import typechecked
 
@@ -10,7 +11,7 @@ from zetta_utils import builder, log, tensor_ops
 from zetta_utils.geometry import BBoxStrider, IntVec3D, Vec3D
 from zetta_utils.geometry.bbox import Slices3D
 
-from .. import IndexChunker, JointIndexDataProcessor
+from .. import DataProcessor, IndexChunker, JointIndexDataProcessor
 from . import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
@@ -87,6 +88,28 @@ class VolumetricIndexPadder:  # pragma: no cover
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = idx.padded(pad=self.pad)
         return result
+
+
+@builder.register("CLAHEProcessor")
+@attrs.mutable
+class CLAHEProcessor(DataProcessor):  # pragma: no cover
+    clahe = cv2.createCLAHE(clipLimit=80, tileGridSize=(16, 16))
+
+    def __call__(self, __data):
+        if not __data.dtype == torch.int8:
+            raise NotImplementedError("CLAHEProcessor is only supported for (signed) Int8 layers.")
+        device = __data.device
+        shape = __data.shape
+        data = __data.squeeze()
+        zero_mask = data == 0
+        zeros = torch.zeros_like(data)
+        clahed_data = (
+            torch.tensor((self.clahe.apply((data + 128).byte().cpu().numpy())))
+            .type(torch.int8)
+            .to(device)
+            - 128
+        )
+        return torch.where(zero_mask, zeros, clahed_data).reshape(shape)
 
 
 @builder.register("DataResolutionInterpolator")

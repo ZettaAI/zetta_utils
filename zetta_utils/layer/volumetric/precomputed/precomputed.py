@@ -60,6 +60,10 @@ def _str(n: float) -> str:  # pragma: no cover
     return str(n)
 
 
+def res_to_key(resolution: Vec3D) -> str:  # pragma: no cover
+    return "_".join([_str(v) for v in resolution])
+
+
 def _check_seq_is_int(seq: Sequence[int | float]) -> bool:
     return not all(float(k).is_integer() for k in seq)
 
@@ -92,7 +96,7 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
     multiplier = [k / v for k, v in zip(ret["resolution"], ref["resolution"])]
 
     # fill missing values if necessary
-    expected_key = "_".join([str(k) for k in ret["resolution"]])
+    expected_key = res_to_key(ret["resolution"])
     if "key" not in ret:
         ret["key"] = expected_key
     else:
@@ -151,7 +155,7 @@ class PrecomputedInfoSpec:
 
     def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
         voxel_offset, resolution = voxel_offset_and_res
-        key = "_".join([_str(v) for v in resolution])
+        key = res_to_key(resolution)
         if self.voxel_offset_map is None:
             self.voxel_offset_map = {}
 
@@ -159,14 +163,14 @@ class PrecomputedInfoSpec:
 
     def set_chunk_size(self, chunk_size_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
         chunk_size, resolution = chunk_size_and_res
-        key = "_".join([_str(v) for v in resolution])
+        key = res_to_key(resolution)
         if self.chunk_size_map is None:
             self.chunk_size_map = {}
         self.chunk_size_map[key] = chunk_size
 
     def set_dataset_size(self, dataset_size_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
         dataset_size, resolution = dataset_size_and_res
-        key = "_".join([_str(v) for v in resolution])
+        key = res_to_key(resolution)
         if self.dataset_size_map is None:
             self.dataset_size_map = {}
         self.dataset_size_map[key] = dataset_size

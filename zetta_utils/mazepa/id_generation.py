@@ -11,6 +11,9 @@ from coolname import generate_slug
 from zetta_utils import log
 
 logger = log.get_logger("mazepa")
+import sys
+
+sys.setrecursionlimit(10000)
 
 
 def get_unique_id(
@@ -58,14 +61,13 @@ def generate_invocation_id(
                 (fn, args, kwargs),
                 protocol=dill.DEFAULT_PROTOCOL,
                 byref=False,
-                recurse=True,
+                recurse=False,  # TODO Fix this
                 fmode=dill.FILE_FMODE,
             )
         )
     except dill.PicklingError as e:
         logger.warning(f"Failed to pickle {fn} with args {args} and kwargs {kwargs}: {e}")
         x.update(str(uuid.uuid4()))
-
     if prefix is not None:
         return f"{prefix}-{x.hexdigest()}"
     else:

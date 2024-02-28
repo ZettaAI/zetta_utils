@@ -313,7 +313,7 @@ def interpolate(  # pylint: disable=too-many-locals
     mode: InterpolationMode = "img",
     mask_value_thr: float = 0,
     allow_slice_rounding: bool = False,
-    unsqueeze_input_to: Optional[int] = 5,
+    unsqueeze_input_to: Optional[int] = None,
 ) -> TensorTypeVar:
     """
     Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
@@ -411,7 +411,7 @@ def interpolate(  # pylint: disable=too-many-locals
 CompareMode = Literal[
     "eq",
     "==",
-    "noeq",
+    "neq",
     "!=",
     "gt",
     ">",

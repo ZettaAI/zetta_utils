@@ -472,7 +472,7 @@ def _interpolate_segmentation_with_tinybrain(
 CompareMode = Literal[
     "eq",
     "==",
-    "noeq",
+    "neq",
     "!=",
     "gt",
     ">",

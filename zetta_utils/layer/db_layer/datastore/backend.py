@@ -15,6 +15,8 @@ from zetta_utils import builder
 
 from .. import DBBackend, DBDataT, DBIndex
 
+MAX_KEYS_PER_REQUEST = 1000
+
 
 def _get_data_from_entities(idx: DBIndex, entities: list[Entity]) -> DBDataT:
     row_entities = defaultdict(list)
@@ -120,7 +122,12 @@ class DatastoreBackend(DBBackend):
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def read(self, idx: DBIndex) -> DBDataT:
         keys = self._get_keys_or_entities(idx)
-        entities = self.client.get_multi(keys)
+        keys_splits = [
+            keys[i : i + MAX_KEYS_PER_REQUEST] for i in range(0, len(keys), MAX_KEYS_PER_REQUEST)
+        ]
+        entities = [
+            entity for keys_split in keys_splits for entity in self.client.get_multi(keys_split)
+        ]
         return _get_data_from_entities(idx, entities)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))

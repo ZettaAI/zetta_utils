@@ -26,3 +26,7 @@ class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-me
     @abstractmethod
     def write(self, idx: DBIndex, data: DBDataT):
         ...
+
+    @abstractmethod
+    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
+        ...

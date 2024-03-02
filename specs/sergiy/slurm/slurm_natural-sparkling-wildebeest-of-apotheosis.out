@@ -1,0 +1,87 @@
+/usr/people/popovych/.conda/envs/zetta-x1-p310/lib/python3.10/site-packages/python_jsonschema_objects/__init__.py:113: UserWarning: Schema id not specified. Defaulting to 'self'
+  warnings.warn("Schema id not specified. Defaulting to 'self'")
+2024-03-06 12:29:58.502 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:58.512 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.024 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.51sec.
+2024-03-06 12:29:59.226 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.71sec).
+2024-03-06 12:29:59.241 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.242 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.284 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.319 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.08sec).
+2024-03-06 12:29:59.333 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.334 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.373 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.403 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.07sec).
+2024-03-06 12:29:59.417 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.419 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.457 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.483 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.06sec).
+2024-03-06 12:29:59.496 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.498 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.542 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.584 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.08sec).
+2024-03-06 12:29:59.598 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.600 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.653 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.05sec.
+2024-03-06 12:29:59.678 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.08sec).
+2024-03-06 12:29:59.691 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.693 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.733 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.758 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.06sec).
+2024-03-06 12:29:59.778 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.780 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.820 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:29:59.846 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.06sec).
+2024-03-06 12:29:59.865 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.867 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:29:59.921 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.05sec.
+2024-03-06 12:29:59.948 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.08sec).
+2024-03-06 12:29:59.966 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 1 tasks.
+2024-03-06 12:29:59.968 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  72
+                                 STARTING: task batch execution.
+2024-03-06 12:30:00.013 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/tasks.py: 113
+                                 Task done in: 0.04sec.
+2024-03-06 12:30:00.041 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  92
+                                 DONE: task batch execution (0.07sec).
+2024-03-06 12:30:01.053 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  66
+                                 Got 0 tasks.
+2024-03-06 12:30:01.055 INFO     mazepa /mnt/cup/people/popovych/code/zetta_utils/zetta_utils/mazepa/worker.py:  69
+                                 Sleeping for 5 secs.
+slurmstepd: error: *** JOB 494098 ON sarek05 CANCELLED AT 2024-03-06T12:30:02 ***

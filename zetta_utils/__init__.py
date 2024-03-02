@@ -11,14 +11,12 @@ log.add_supress_traceback_module(builder)
 def load_all_modules():
     load_inference_modules()
     load_training_modules()
-    from . import mazepa_addons
-    from . import message_queues
-    from . import cloud_management
 
 
 def try_load_train_inference():  # pragma: no cover
     try:
         load_inference_modules()
+
     except ImportError:
         ...
 
@@ -54,6 +52,10 @@ def load_inference_modules():
     from .layer.volumetric import cloudvol
     from .message_queues import sqs
 
+    from . import mazepa_addons
+    from . import message_queues
+    from . import cloud_management
+
     try_load_submodules()
 
 
@@ -69,6 +71,10 @@ def load_training_modules():
     )
     from .layer import volumetric
     from .layer.volumetric import cloudvol
+
+    from . import mazepa_addons
+    from . import message_queues
+    from . import cloud_management
 
     try_load_submodules()
 

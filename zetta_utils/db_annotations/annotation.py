@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast
+from typing import cast, overload
 
 from neuroglancer.viewer_state import (
     AxisAlignedBoundingBoxAnnotation,
@@ -44,7 +44,20 @@ def read_annotation(annotation_id: str) -> DBRowDataT:
     return ANNOTATIONS_DB[idx]
 
 
+@overload
+def read_annotations(*, annotation_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
+@overload
 def read_annotations(
+    *, collection_ids: list[str], layer_group_ids: list[str], tags: list[str]
+) -> list[DBRowDataT]:
+    ...
+
+
+def read_annotations(
+    *,
     annotation_ids: list[str] | None = None,
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,

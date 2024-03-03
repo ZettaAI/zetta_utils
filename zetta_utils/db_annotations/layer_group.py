@@ -10,7 +10,7 @@ from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from . import constants
 
 DB_NAME = "layer_groups"
-INDEXED_COLS = ("name", "layers", "created_by", "modified_by")
+INDEXED_COLS = ("name", "layers", "collection", "created_by", "modified_by")
 NON_INDEXED_COLS = ("comment",)
 
 DB_BACKEND = DatastoreBackend(DB_NAME, project=constants.PROJECT, database=constants.DATABASE)
@@ -29,11 +29,15 @@ def read_layer_groups(layer_group_ids: list[str]) -> list[DBRowDataT]:
 
 
 def add_layer_group(
-    name: str, user: str, layers: list[str] | None = None, comment: str | None = None
+    name: str,
+    collection_id: str,
+    user: str,
+    layers: list[str] | None = None,
+    comment: str | None = None,
 ) -> str:
     layer_group_id = str(uuid.uuid4())
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    row: DBRowDataT = {"name": name, "created_by": user}
+    row: DBRowDataT = {"name": name, "collection": collection_id, "created_by": user}
     if layers:
         row["layers"] = list(set(layers))
     if comment:
@@ -45,18 +49,21 @@ def add_layer_group(
 def update_layer_group(
     layer_group_id: str,
     user: str,
+    collection_id: str | None = None,
     name: str | None = None,
     layers: list[str] | None = None,
     comment: str | None = None,
 ):
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {"modified_by": user}
+    if collection_id:
+        row["collection"] = collection_id
     if name:
         row["name"] = name
-    if comment:
-        row["comment"] = comment
     if layers:
         row["layers"] = list(set(layers))
+    if comment:
+        row["comment"] = comment
     LAYER_GROUPS_DB[(layer_group_id, col_keys)] = row
 
 

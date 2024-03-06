@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import cast, overload
+from typing import Union, cast, overload
 
 from neuroglancer.viewer_state import (
     AxisAlignedBoundingBoxAnnotation,
@@ -10,7 +10,6 @@ from neuroglancer.viewer_state import (
     LineAnnotation,
     PointAnnotation,
 )
-from typing_extensions import TypeAlias
 
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
@@ -18,9 +17,10 @@ from zetta_utils.parsing.ngl_state import AnnotationKeys
 
 from . import constants
 
-NgAnnotation: TypeAlias = (
-    AxisAlignedBoundingBoxAnnotation | EllipsoidAnnotation | LineAnnotation | PointAnnotation
-)
+NgAnnotation = Union[
+    AxisAlignedBoundingBoxAnnotation, EllipsoidAnnotation, LineAnnotation, PointAnnotation
+]
+
 
 INDEXED_COLS = ("collection", "layer_group", "tags")
 NON_INDEXED_COLS = (
@@ -51,7 +51,10 @@ def read_annotations(*, annotation_ids: list[str]) -> list[DBRowDataT]:
 
 @overload
 def read_annotations(
-    *, collection_ids: list[str], layer_group_ids: list[str], tags: list[str]
+    *,
+    collection_ids: list[str] | None = None,
+    layer_group_ids: list[str] | None = None,
+    tags: list[str] | None = None,
 ) -> list[DBRowDataT]:
     ...
 
@@ -81,11 +84,12 @@ def read_annotations(
 
 def add_annotation(
     annotation: NgAnnotation,
+    *,
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
     tags: list[str] | None = None,
-) -> None:
+) -> str:
     row = annotation.to_json()
     row["collection"] = collection_id
     row["layer_group"] = layer_group_id
@@ -95,15 +99,17 @@ def add_annotation(
     row_key = str(annotation.id)
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     ANNOTATIONS_DB[(row_key, col_keys)] = row
+    return row_key
 
 
 def add_annotations(
     annotations: list[NgAnnotation],
+    *,
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
     tags: list[str] | None = None,
-):
+) -> list[str]:
     rows = []
     row_keys = []
     for ann in annotations:
@@ -117,10 +123,12 @@ def add_annotations(
         row_keys.append(str(ann.id))
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     ANNOTATIONS_DB[(row_keys, col_keys)] = rows
+    return row_keys
 
 
 def update_annotation(
     annotation_id: str,
+    *,
     collection_id: str | None = None,
     layer_group_id: str | None = None,
     comment: str | None = None,
@@ -141,6 +149,7 @@ def update_annotation(
 
 def update_annotations(
     annotation_ids: list[str],
+    *,
     collection_id: str | None = None,
     layer_group_id: str | None = None,
     comment: str | None = None,
@@ -168,3 +177,18 @@ def delete_annotation(annotation_id: str):
 
 def delete_annotations(annotation_ids: list[str]):
     raise NotImplementedError()
+
+
+def parse_ng_annotations(annotations_raw: list[dict]) -> list[NgAnnotation]:
+    annotations = []
+    for ann in annotations_raw:
+        _type = ann.pop("type")
+        if _type == "line":
+            annotations.append(LineAnnotation(**ann))
+        elif _type == "ellipsoid":
+            annotations.append(EllipsoidAnnotation(**ann))
+        elif _type == "point":
+            annotations.append(PointAnnotation(**ann))
+        else:
+            annotations.append(AxisAlignedBoundingBoxAnnotation(**ann))
+    return annotations

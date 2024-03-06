@@ -81,7 +81,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         if isinstance(idx_user, tuple):
             row_keys, col_keys = idx_user
             if isinstance(row_keys, str):
-                return {col_key: data[0][col_key] for col_key in col_keys}
+                return {col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]}
         return data
 
     @overload

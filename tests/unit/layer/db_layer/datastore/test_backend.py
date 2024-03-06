@@ -5,6 +5,7 @@ from typing import cast
 
 import pytest
 
+from zetta_utils.layer.db_layer import DBDataT
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
 
 
@@ -36,7 +37,7 @@ def test_read_write(datastore_emulator) -> None:
     row_keys = ["key0", "key1"]
     idx_user = (row_keys, ("col0", "col1"))
 
-    data_user = [
+    data_user: DBDataT = [
         {"col0": "val0", "col1": "val1"},
         {"col0": "val0"},
     ]

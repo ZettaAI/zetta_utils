@@ -29,6 +29,7 @@ def read_layer_groups(layer_group_ids: list[str]) -> list[DBRowDataT]:
 
 
 def add_layer_group(
+    *,
     name: str,
     collection_id: str,
     user: str,
@@ -48,6 +49,7 @@ def add_layer_group(
 
 def update_layer_group(
     layer_group_id: str,
+    *,
     user: str,
     collection_id: str | None = None,
     name: str | None = None,

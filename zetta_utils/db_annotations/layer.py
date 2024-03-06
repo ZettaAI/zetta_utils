@@ -39,7 +39,11 @@ def add_layer(name: str, source: str, comment: str | None = None) -> str:
 
 
 def update_layer(
-    layer_id: str, name: str | None = None, source: str | None = None, comment: str | None = None
+    layer_id: str,
+    *,
+    name: str | None = None,
+    source: str | None = None,
+    comment: str | None = None,
 ):
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {}

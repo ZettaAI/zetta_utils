@@ -2,7 +2,7 @@
 
 import pytest
 
-from zetta_utils.layer.db_layer import DBLayer, build_db_layer
+from zetta_utils.layer.db_layer import DBDataT, DBLayer, DBRowDataT, build_db_layer
 
 
 def test_write_scalar(mocker) -> None:
@@ -36,7 +36,7 @@ def test_write_single_row(mocker) -> None:
     col_keys = ("col0", "col1")
     idx_user = (row_key, col_keys)
 
-    data_user = {
+    data_user: DBRowDataT = {
         "col0": "val0",
         "col1": "val1",
     }
@@ -53,7 +53,7 @@ def test_write_rows(mocker) -> None:
     row_keys = ["key0", "key1"]
     idx_user = (row_keys, ("col0", "col1"))
 
-    data_user = [
+    data_user: DBDataT = [
         {"col0": "val0", "col1": "val1"},
         {"col0": "val0"},
     ]

@@ -110,7 +110,10 @@ class DatastoreBackend(DBBackend):
         if column_filter:
             for _key, _values in column_filter.items():
                 _filters = [query.PropertyFilter(_key, "=", v) for v in _values]
-                _query.add_filter(filter=query.Or(_filters))
+                if len(_filters) == 1:
+                    _query.add_filter(filter=_filters[0])
+                else:  # pragma: no cover
+                    _query.add_filter(filter=query.Or(_filters))
         entities = list(_query.fetch())
         return [entity.key.parent.id_or_name for entity in entities]
 

@@ -33,7 +33,7 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
     prob: float
     disp_min_in_unit: float
     disp_max_in_unit: float
-    disp_in_unit_must_be_divisible_by: float
+    disp_in_unit_must_be_divisible_by: float | None = None
     mode: Literal["slip", "step"] = "slip"
     keys_to_apply: list[str] | None = None
 
@@ -46,14 +46,15 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
             raise NotImplementedError()
         disp_x_in_unit_magn = random.uniform(self.disp_min_in_unit, self.disp_max_in_unit)
         disp_y_in_unit_magn = random.uniform(self.disp_min_in_unit, self.disp_max_in_unit)
-        disp_x_in_unit_magn_rounded = math.floor(
-            disp_x_in_unit_magn / self.disp_in_unit_must_be_divisible_by
-        )
-        disp_y_in_unit_magn_rounded = math.floor(
-            disp_y_in_unit_magn / self.disp_in_unit_must_be_divisible_by
-        )
-        disp_x_in_unit = disp_x_in_unit_magn_rounded * random.choice([1, -1])
-        disp_y_in_unit = disp_y_in_unit_magn_rounded * random.choice([1, -1])
+        if self.disp_in_unit_must_be_divisible_by is not None:
+            disp_x_in_unit_magn = math.floor(
+                disp_x_in_unit_magn / self.disp_in_unit_must_be_divisible_by
+            )
+            disp_y_in_unit_magn = math.floor(
+                disp_y_in_unit_magn / self.disp_in_unit_must_be_divisible_by
+            )
+        disp_x_in_unit = disp_x_in_unit_magn * random.choice([1, -1])
+        disp_y_in_unit = disp_y_in_unit_magn * random.choice([1, -1])
 
         disp_x_in_idx_res = disp_x_in_unit / idx.resolution[0]
         disp_y_in_idx_res = disp_y_in_unit / idx.resolution[1]
@@ -89,12 +90,24 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         else:
             if not self.keys_to_apply:
                 raise ValueError(
-                    "`keys_to_apply` must be a non-empty list of springs when "
+                    "`keys_to_apply` must be a non-empty list of strings when "
                     "applying to data of type `dict`"
                 )
-            z_sizes = [data[k].shape[-1] for k in self.keys_to_apply]
-            assert all(e == z_sizes[0] for e in z_sizes)
-            z_size = z_sizes[0]
+            sizes = [data[k].shape for k in self.keys_to_apply]
+            if not all(e[-1] == sizes[0][-1] for e in sizes):
+                raise ValueError(
+                    "Z sizes of all keys affected by misalignmnet augmentation "
+                    f"must be identical. Got: {sizes}"
+                )
+            if self.disp_in_unit_must_be_divisible_by is None and not all(
+                e[0:2] == sizes[0][0:2] for e in sizes
+            ):
+                raise ValueError(
+                    "When `disp_in_unit_must_be_divisible_by` is not specified, "
+                    "XY sizes of all keys affected by misalignmnet augmentation "
+                    f"must be identical. Got: {sizes}"
+                )
+            z_size = sizes[0][-1]
 
         z_chosen = random.randint(0, z_size - 1)
 

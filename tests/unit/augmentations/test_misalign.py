@@ -173,6 +173,34 @@ def test_dict_process_diff_size():
     assert result["key1"].shape == (1, 8, 8, 5)
 
 
+def test_dict_process_diff_xy_size_exc():
+    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 10, 10, 5))}
+    proc = MisalignProcessor[dict[str, torch.Tensor]](
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        mode="slip",
+        keys_to_apply=["key0", "key1"],
+    )
+    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    with pytest.raises(ValueError):
+        proc.process_data(data, mode="read")
+
+
+def test_dict_process_diff_z_size_exc():
+    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 5, 5, 6))}
+    proc = MisalignProcessor[dict[str, torch.Tensor]](
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        mode="slip",
+        keys_to_apply=["key0", "key1"],
+    )
+    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    with pytest.raises(ValueError):
+        proc.process_data(data, mode="read")
+
+
 def test_process_index_pos(mocker):
     idx_in = VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 2), (10, 20), (100, 200)))

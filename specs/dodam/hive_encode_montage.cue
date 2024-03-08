@@ -1,6 +1,6 @@
-#IMG_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp18_0"
-#DST_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp18_0"
-#INTERMEDIARY_PATH: "gs://tmp_2w/hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp18_0"
+#IMG_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp21_0"
+#DST_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp21_0"
+#INTERMEDIARY_PATH: "gs://tmp_2w/hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp21_0"
 
 #IMG_RES: [1, 1, 1]
 
@@ -14,12 +14,15 @@
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, 5]
+	start_coord: [0, 0, -5]
 	end_coord: [786432, 262144, 6]
 	resolution: [1, 1, 1]
 }
 
-#XY_COPY_RES: [4]
+//#XY_CLAHE_RES: [4, 8, 16, 32, 64, 128, 256, 512]
+
+//#XY_ENC_RES: []
+#XY_CLAHE_RES: [4]
 #XY_ENC_RES: [8, 16, 32, 64, 128, 256, 512]
 
 #PROCESS_CROP_PAD: [16, 16, 0] // 16 pix was okay for 1um model
@@ -49,7 +52,7 @@ if #TEST_LOCAL {
 #GCP_FLOW: {
 	"@type":               "mazepa.execute_on_gcp_with_sqs"
 	worker_cluster_region: "us-east1"
-	worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-29"
+	worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-65"
 	worker_resources: {
 		memory:           "18560Mi" // sized for n1-highmem-4
 		"nvidia.com/gpu": "1"
@@ -93,13 +96,14 @@ if #TEST_LOCAL {
 					dst_resolution: [xy, xy, #IMG_RES[2]]
 				}
 			},
-			for offset in #OFFSETS for xy in #XY_COPY_RES {
+			for offset in #OFFSETS for xy in #XY_CLAHE_RES {
 				"@type": "build_subchunkable_apply_flow"
 				level_intermediaries_dirs: [#INTERMEDIARY_PATH, "file://."]
 				bbox: #BBOX
 				fn: {
-					"@type":    "lambda"
-					lambda_str: "lambda src:torch.where(src==0,torch.zeros_like(src),src-128).type(torch.int8)"
+					"@type": "lambda"
+					//lambda_str: "lambda src:torch.where(src==0,torch.zeros_like(src),src-128).type(torch.int8)"
+					lambda_str: "lambda src:src"
 				}
 				fn_semaphores: ["cpu"]
 				op_kwargs: {
@@ -111,7 +115,7 @@ if #TEST_LOCAL {
 				dst: #DST_TMPL
 				dst: path: "\(#DST_PATH_BASE)/\(offset)"
 				processing_chunk_sizes: [[4096, 4096, 1], [2048, 2048, 1]]
-				processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
+				processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 				dst_resolution: [xy, xy, #IMG_RES[2]]
 			},
 		]
@@ -200,7 +204,7 @@ if #TEST_LOCAL {
 		for xy in #XY_ENC_RES {
 			[xy, xy, #IMG_RES[2]]
 		},
-		for xy in #XY_COPY_RES {
+		for xy in #XY_CLAHE_RES {
 			[xy, xy, #IMG_RES[2]]
 		},
 	]

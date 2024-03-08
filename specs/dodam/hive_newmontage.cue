@@ -10,8 +10,8 @@ import ( "math"
 #ENCODED_PATH10: "\(#ENCODED_PATH_BASE)/1_0"
 #ENCODED_PATH11: "\(#ENCODED_PATH_BASE)/1_1"
 
-#IMG_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp18_0"
-#ENCODED_PATH_BASE: "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp18_0"
+#IMG_PATH_BASE:     "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp21_0"
+#ENCODED_PATH_BASE: "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_enc_exp21_0"
 
 #IMG_PATH00: "\(#IMG_PATH_BASE)/0_0"
 #IMG_PATH01: "\(#IMG_PATH_BASE)/0_1"
@@ -22,7 +22,8 @@ import ( "math"
 
 #IMG_SIZE: [786432, 262144, 1]
 
-#FOLDER: "gs://hive-tomography/pilot11-montage/exp30"
+//#FOLDER2: "gs://hive-tomography/pilot11-montage/exp32-500-100c4-100"
+#FOLDER: "gs://hive-tomography/pilot11-montage/exp33-500-100r1d1k5-100"
 
 #SKIP_ENCODE: true
 #SKIP_MISD:   true
@@ -31,17 +32,17 @@ import ( "math"
 
 #CLUSTER_NUM_WORKERS: 1000
 
-#NUM_ITER: 100
+#NUM_ITER: 500
 
-#NUM_ITER_RELAX: 250
+#NUM_ITER_RELAX: 100
 //#NUM_ITER: 0
 
 // OUTPUTS
+
 #COMBINED_FIELDS_PATH01: "\(#FOLDER)/fields_fwd_01"
 #COMBINED_FIELDS_PATH11: "\(#FOLDER)/fields_fwd_11"
 #COMBINED_FIELDS_PATH10: "\(#FOLDER)/fields_fwd_10"
 #COMBINED_FIELDS_PATH00: "\(#FOLDER)/fields_fwd_00"
-#FIELDS_INV_PATH:        "\(#FOLDER)/fields_inv"
 
 #COMBINED_FIELDS_RELAXED_PATH00: "\(#FOLDER)/fields_relaxed_00"
 #COMBINED_FIELDS_RELAXED_PATH01: "\(#FOLDER)/fields_relaxed_01"
@@ -92,7 +93,7 @@ import ( "math"
 		resolution: #IMG_RES
 	}
 	if #TEST_SMALL == true {
-		start_coord: [0, 0, 5]
+		start_coord: [0, 0, -5]
 		end_coord: [786432, 262144, 6]
 		//  start_coord: [327680, 65536, 5]
 		//  end_coord: [327680 + 65536, 131072, 6]
@@ -103,7 +104,7 @@ import ( "math"
 {
 	"@type":               "mazepa.execute_on_gcp_with_sqs"
 	worker_cluster_region: "us-east1"
-	worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-48"
+	worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-65"
 	worker_resources: {
 		memory:           "18560Mi" // sized for n1-highmem-4
 		"nvidia.com/gpu": "1"
@@ -158,34 +159,34 @@ import ( "math"
 		for z_offset in #Z_OFFSETS {
 			"@type": "mazepa.sequential_flow"
 			stages: [
-				//    {"@type": "mazepa.concurrent_flow"
-				//     stages: [
-				//      #COMBINED_FLOW_TMPL & {
-				//       _bbox_:       _bbox
-				//       _encoded_src: #ENCODED_PATH00
-				//       _encoded_tgt: #ENCODED_PATH01
-				//       _src_field:   #COMBINED_FIELDS_PATH00
-				//      },
-				//      #COMBINED_FLOW_TMPL & {
-				//       _bbox_:       _bbox
-				//       _encoded_src: #ENCODED_PATH01
-				//       _encoded_tgt: #ENCODED_PATH11
-				//       _src_field:   #COMBINED_FIELDS_PATH01
-				//      },
-				//      #COMBINED_FLOW_TMPL & {
-				//       _bbox_:       _bbox
-				//       _encoded_src: #ENCODED_PATH11
-				//       _encoded_tgt: #ENCODED_PATH10
-				//       _src_field:   #COMBINED_FIELDS_PATH11
-				//      },
-				//      #COMBINED_FLOW_TMPL & {
-				//       _bbox_:       _bbox
-				//       _encoded_src: #ENCODED_PATH10
-				//       _encoded_tgt: #ENCODED_PATH00
-				//       _src_field:   #COMBINED_FIELDS_PATH10
-				//      },
-				//     ]
-				//    },
+				{"@type": "mazepa.concurrent_flow"
+					stages: [
+						//      #COMBINED_FLOW_TMPL & {
+						//       _bbox_:       _bbox
+						//       _encoded_src: #ENCODED_PATH00
+						//       _encoded_tgt: #ENCODED_PATH01
+						//       _src_field:   #COMBINED_FIELDS_PATH00
+						//      },
+						//      #COMBINED_FLOW_TMPL & {
+						//       _bbox_:       _bbox
+						//       _encoded_src: #ENCODED_PATH01
+						//       _encoded_tgt: #ENCODED_PATH11
+						//       _src_field:   #COMBINED_FIELDS_PATH01
+						//      },
+						//      #COMBINED_FLOW_TMPL & {
+						//       _bbox_:       _bbox
+						//       _encoded_src: #ENCODED_PATH11
+						//       _encoded_tgt: #ENCODED_PATH10
+						//       _src_field:   #COMBINED_FIELDS_PATH11
+						//      },
+						//      #COMBINED_FLOW_TMPL & {
+						//       _bbox_:       _bbox
+						//       _encoded_src: #ENCODED_PATH10
+						//       _encoded_tgt: #ENCODED_PATH00
+						//       _src_field:   #COMBINED_FIELDS_PATH10
+						//      },
+					]
+				},
 				#MR_FLOW_TMPL & {
 					bbox: _bbox
 					dst_resolution: [4, 4, 1]
@@ -238,9 +239,9 @@ import ( "math"
 				#COMBINE_IMAGE_FLOW_TMPL & {
 					bbox: _bbox
 					dst: layers: output: path:                #IMG_WARPED_PATH_FINAL
-					dst: layers: output: info_reference_path: #IMG_WARPED_PATH00
+					dst: layers: output: info_reference_path: #IMG_PATH00
 					dst: layers: errors: path:                #ERRORS_PATH_FINAL
-					dst: layers: errors: info_reference_path: #IMG_WARPED_PATH00
+					dst: layers: errors: info_reference_path: #IMG_PATH00
 					dst_resolution: [4, 4, 1]
 					op_kwargs: data1: path: #IMG_WARPED_PATH00
 					op_kwargs: data2: path: #IMG_WARPED_PATH01
@@ -256,8 +257,10 @@ import ( "math"
 									#DOWNSAMPLE_FLOW_TMPL & {
 										bbox: _bbox
 										op: mode: "img"
-										op_kwargs: src: path: #IMG_WARPED_PATH_FINAL
-										dst: path: #IMG_WARPED_PATH_FINAL
+										op_kwargs: src: path:                #IMG_WARPED_PATH_FINAL
+										op_kwargs: src: info_reference_path: #IMG_PATH00
+										dst: path:                #IMG_WARPED_PATH_FINAL
+										dst: info_reference_path: #IMG_PATH00
 										dst_resolution: [res, res, #IMG_RES[2]]
 									}
 								},
@@ -271,8 +274,10 @@ import ( "math"
 									#DOWNSAMPLE_FLOW_TMPL & {
 										bbox: _bbox
 										op: mode: "img"
-										op_kwargs: src: path: #ERRORS_PATH_FINAL
-										dst: path: #ERRORS_PATH_FINAL
+										op_kwargs: src: path:                #ERRORS_PATH_FINAL
+										op_kwargs: src: info_reference_path: #IMG_PATH00
+										dst: path:                #ERRORS_PATH_FINAL
+										dst: info_reference_path: #IMG_PATH00
 										dst_resolution: [res, res, #IMG_RES[2]]
 									}
 								},
@@ -310,7 +315,8 @@ import ( "math"
 		"@type": "MontagingRelaxOperation"
 	}
 	processing_chunk_sizes: [[1024 * 2, 1024 * 2, 1], [1024 * 1, 1024 * 1, 1]]
-	processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
+	processing_crop_pads: [[0, 0, 0], [256, 256, 0]]
+	// processing_crop_pads: [[0, 0, 0], [512, 512, 0]]
 	// processing_blend_pads: [[512, 512, 0], [128, 128, 0]]
 	//                   processing_crop_pads: [[0, 0, 0], [0, 0, 0]]
 	skip_intermediaries: true
@@ -366,7 +372,11 @@ import ( "math"
 			},
 		]
 		num_iter:        #NUM_ITER_RELAX
-		rigidity_weight: 1000.0
+		rigidity_weight: 100.0
+		rigidity_scales: [1]
+		scales_to_relax: [1]
+		src_mask_gaussian_blur_sigma: 5
+		// for generating lens correction: rigidity_weight: 1000.0
 	}
 	dst: {
 		"@type": "build_volumetric_layer_set"
@@ -628,14 +638,16 @@ import ( "math"
 	bbox: _
 	op_kwargs: {
 		src: {
-			"@type":    "build_cv_layer"
-			path:       _
-			read_procs: _ | *[]
+			"@type":             "build_cv_layer"
+			path:                _
+			read_procs:          _ | *[]
+			info_reference_path: _
 		}
 	}
 	dst: {
-		"@type": "build_cv_layer"
-		path:    _
+		"@type":             "build_cv_layer"
+		path:                _
+		info_reference_path: _
 	}
 	dst_resolution: _
 } //   

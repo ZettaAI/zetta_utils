@@ -93,22 +93,30 @@ class VolumetricIndexPadder:  # pragma: no cover
 @builder.register("CLAHEProcessor")
 @attrs.mutable
 class CLAHEProcessor(DataProcessor):  # pragma: no cover
-    clahe = cv2.createCLAHE(clipLimit=80, tileGridSize=(16, 16))
+    clahe = cv2.createCLAHE(clipLimit=80, tileGridSize=(64, 64))
 
     def __call__(self, __data):
-        if not __data.dtype == torch.int8:
-            raise NotImplementedError("CLAHEProcessor is only supported for (signed) Int8 layers.")
+        if not __data.dtype in (torch.int8, torch.uint8):
+            raise NotImplementedError("CLAHEProcessor is only supported for Int8 / UInt8 layers.")
         device = __data.device
         shape = __data.shape
         data = __data.squeeze()
         zero_mask = data == 0
-        zeros = torch.zeros_like(data)
-        clahed_data = (
-            torch.tensor((self.clahe.apply((data + 128).byte().cpu().numpy())))
-            .type(torch.int8)
-            .to(device)
-            - 128
-        )
+        zeros = torch.zeros_like(data, dtype=torch.int8)
+        if __data.dtype == torch.int8:
+            clahed_data = (
+                torch.tensor((self.clahe.apply((data + 128).byte().cpu().numpy())))
+                .type(torch.int8)
+                .to(device)
+                - 128
+            )
+        elif __data.dtype == torch.uint8:
+            clahed_data = (
+                torch.tensor((self.clahe.apply((data).cpu().numpy())))
+                .type(torch.int8)
+                .to(device)
+                - 128
+            )
         return torch.where(zero_mask, zeros, clahed_data).reshape(shape)
 
 

@@ -1,6 +1,6 @@
 "@type":               "mazepa.execute_on_gcp_with_sqs"
 worker_cluster_region: "us-east1"
-worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-51"
+worker_image:          "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:dodam-montaging-internal-65"
 worker_resources: {
 	memory: "18560Mi" // sized for n1-highmem-4
 }
@@ -61,15 +61,18 @@ semaphores_spec: {
 	"write": 1
 }
 do_dryrun_estimation: false
-#BASE_FOLDER:         "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp19_0"
-#INFO_TEMPLATE_PATH:  "gs://hive-tomography/pilot11-tiles"
+#BASE_FOLDER:         "gs://hive-tomography/pilot11-tiles/rough_montaged_nocrop_tilts_exp21_0"
 
-#Z: 5
+#INFO_TEMPLATE_PATH: "gs://hive-tomography/pilot11-tiles"
+
+//#Z: -5
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
-	start_coord: [0, 0, #Z]
-	end_coord: [786432, 262144, start_coord[2] + 1]
+	//start_coord: [0, 0, #Z]
+	//end_coord: [786432, 262144, start_coord[2] + 1]
+	start_coord: [0, 0, -5]
+	end_coord: [786432, 262144, 6]
 	resolution: [1, 1, 1]
 
 }

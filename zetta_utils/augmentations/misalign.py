@@ -77,7 +77,7 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         )
         self.prepared_disp_fraction = (
             disp_x_in_idx_res / idx.shape[0],
-            disp_y_in_idx_res / idx.shape[0],
+            disp_y_in_idx_res / idx.shape[1],
         )
         return idx
 
@@ -94,11 +94,6 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
                     "applying to data of type `dict`"
                 )
             sizes = [data[k].shape for k in self.keys_to_apply]
-            if not all(e[-1] == sizes[0][-1] for e in sizes):
-                raise ValueError(
-                    "Z sizes of all keys affected by misalignmnet augmentation "
-                    f"must be identical. Got: {sizes}"
-                )
             if self.disp_in_unit_must_be_divisible_by is None and not all(
                 e[0:2] == sizes[0][0:2] for e in sizes
             ):
@@ -107,16 +102,24 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
                     "XY sizes of all keys affected by misalignmnet augmentation "
                     f"must be identical. Got: {sizes}"
                 )
-            z_size = sizes[0][-1]
+            z_size = max(size[-1] for size in sizes)
 
         z_chosen = random.randint(0, z_size - 1)
 
-        if self.mode == "slip":
-            z_misal_slice = slice(z_chosen, z_chosen + 1)
-        else:
-            z_misal_slice = slice(z_chosen, z_size)
-
         def _process_tensor(tensor: torch.Tensor) -> torch.Tensor:
+            if tensor.size(-1) < z_size:
+                z_diff = z_size - tensor.size(-1)
+                assert z_diff > 0
+                assert z_diff % 2 == 0
+                this_z_chosen = z_chosen - (z_diff // 2)
+            else:
+                this_z_chosen = z_chosen
+
+            if self.mode == "slip":
+                z_misal_slice = slice(this_z_chosen, this_z_chosen + 1)
+            else:
+                z_misal_slice = slice(this_z_chosen, z_size)
+
             assert self.prepared_disp_fraction is not None
             x_offset = int(tensor.shape[-3] * self.prepared_disp_fraction[0])
             y_offset = int(tensor.shape[-2] * self.prepared_disp_fraction[1])

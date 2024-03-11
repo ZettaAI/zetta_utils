@@ -187,8 +187,8 @@ def test_dict_process_diff_xy_size_exc():
         proc.process_data(data, mode="read")
 
 
-def test_dict_process_diff_z_size_exc():
-    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 5, 5, 6))}
+def test_dict_process_diff_z_size():
+    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 5, 5, 7))}
     proc = MisalignProcessor[dict[str, torch.Tensor]](
         prob=1.0,
         disp_min_in_unit=1,
@@ -197,8 +197,9 @@ def test_dict_process_diff_z_size_exc():
         keys_to_apply=["key0", "key1"],
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
-    with pytest.raises(ValueError):
-        proc.process_data(data, mode="read")
+    result = proc.process_data(data, mode="read")
+    assert result["key0"].shape == (1, 4, 4, 5)
+    assert result["key1"].shape == (1, 4, 4, 7)
 
 
 def test_process_index_pos(mocker):

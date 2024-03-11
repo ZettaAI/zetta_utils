@@ -538,3 +538,14 @@ def crop_center(
             slices.append(slice(0, None))
     result = data[tuple(slices)]
     return result
+
+
+@builder.register("clone")
+@typechecked
+def clone(
+    data: TensorTypeVar,
+) -> TensorTypeVar:  # pragma: no cover; delegation
+    if isinstance(data, torch.Tensor):
+        return data.clone()
+    else:
+        return data.copy()

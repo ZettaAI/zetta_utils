@@ -26,12 +26,12 @@ target: {
 	}
 	lens_correction_model:
 	{
-		"@type":        "LensCorrectionModel"
-		path:           "gs://hive-tomography/pilot11-montage/exp30/lens_distortion_estimate"
-		model_res:      4
-		full_res:       1
-		pad_in_res:     64
-		tile_size_full: 5496
+		"@type":          "LensCorrectionModel"
+		path:             "gs://hive-tomography/pilot11-montage/exp30/lens_distortion_estimate"
+		model_res:        4
+		full_res:         1
+		pad_in_model_res: 64
+		tile_size_full:   5496
 	}
 }
 num_procs: 1

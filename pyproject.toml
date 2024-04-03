@@ -12,7 +12,7 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
 ]
 dependencies = [
-  "attrs >= 21.3",
+  "attrs >= 23.2.0",
   "typeguard == 4.1.5",
   "cachetools >= 5.2.0",
   "fsspec >= 2022.8.2",

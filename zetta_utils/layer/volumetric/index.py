@@ -14,6 +14,7 @@ from zetta_utils.geometry.bbox import Slices3D
 class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
     resolution: Vec3D
     bbox: BBox3D
+    chunk_id: int = 0
     allow_slice_rounding: bool = False
 
     @property
@@ -34,11 +35,13 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         start_coord: Sequence[int],
         end_coord: Sequence[int],
         resolution: Vec3D,
+        chunk_id: int = 0,
         allow_slice_rounding: bool = False,
     ) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=BBox3D.from_coords(start_coord, end_coord, resolution),
             resolution=resolution,
+            chunk_id=chunk_id,
             allow_slice_rounding=allow_slice_rounding,
         )
 
@@ -49,6 +52,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.padded(pad=pad, resolution=self.resolution),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -56,6 +60,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.cropped(crop=crop, resolution=self.resolution),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -63,6 +68,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.translated(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -70,6 +76,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.translated_start(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -77,6 +84,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.translated_end(offset=offset, resolution=self.resolution),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -84,6 +92,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.transposed(dim0, dim1, local),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -110,6 +119,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return VolumetricIndex(
             bbox=self.bbox.intersection(other.bbox),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
@@ -138,5 +148,6 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
                 mode=mode,
             ),
             resolution=self.resolution,
+            chunk_id=self.chunk_id,
             allow_slice_rounding=self.allow_slice_rounding,
         )

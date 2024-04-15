@@ -234,6 +234,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
         idx: VolumetricIndex,
         stride_start_offset_in_unit: Optional[Vec3D] = None,
         mode: Literal["shrink", "expand", "exact"] = "expand",
+        chunk_id_increment: int = 0,
     ) -> List[VolumetricIndex]:
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:
@@ -243,8 +244,9 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
             VolumetricIndex(
                 resolution=idx.resolution,
                 bbox=bbox_chunk,
+                chunk_id=idx.chunk_id + i * chunk_id_increment,
             )
-            for bbox_chunk in bbox_chunks
+            for i, bbox_chunk in enumerate(bbox_chunks)
         ]
         return result
 

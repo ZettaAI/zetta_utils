@@ -845,8 +845,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 f"`processing_blend_pad[level]`: {processing_blend_pad}\n"
                 f"`processing_chunk_size[level]`: {processing_chunk_size}"
             )
+    num_chunks_below = deepcopy(num_chunks)
+    num_chunks_below.append(1)
     for i in range(1, num_levels):
         num_chunks[i] *= num_chunks[i - 1]
+    for i in range(num_levels - 1, -1, -1):
+        num_chunks_below[i] *= num_chunks_below[i + 1]
 
     """
     Append the zero roi_crop pad for the top level, and remove the bottom level baked into the operation
@@ -937,8 +941,8 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         clear_cache_on_return=(allow_cache_up_to_level == 1),
         force_intermediaries=not (skip_intermediaries),
         flow_id=flow_id,
+        l0_chunks_per_task=num_chunks_below[-1],
     )
-
     """
     Iteratively build the hierarchy of schemas
     """
@@ -963,6 +967,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             clear_cache_on_return=(allow_cache_up_to_level == level + 1),
             force_intermediaries=not (skip_intermediaries),
             flow_id=flow_id,
+            l0_chunks_per_task=num_chunks_below[-level - 1],
         )
-
     return flow_schema(idx, dst, op_args, op_kwargs)

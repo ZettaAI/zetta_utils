@@ -272,6 +272,31 @@ def test_lambda(spec: dict, arg: Any, expected: Any):
 
 
 @pytest.mark.parametrize(
+    "spec, arg, expected",
+    [
+        [
+            {
+                "ordered_read_procs": [
+                    {"@type": "lambda", "lambda_str": "lambda a: a*2"},
+                    {"@type": "add", "@mode": "partial", "value": 1},
+                ]
+            },
+            1,
+            3,
+        ],
+    ],
+)
+def test_order_preserving_lambda(spec: dict, arg: Any, expected: Any):
+    # when `lambda` gets substituted with `invoke_lambda_str`, its oriignal
+    # position within structs, such as `read_procs` must be preserved
+    spec = builder.build(spec)
+    result = arg
+    for proc in spec["ordered_read_procs"]:
+        result = proc(result)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
     "value, expected_exc",
     [
         [{"@type": "lambda", "lambda_str": 3}, TypeError],

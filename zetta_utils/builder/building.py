@@ -292,6 +292,8 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches,too-many-statement
                 raise ValueError(f'`"@mode": partial` not allowed for `"@type": {this_type}"`')
             assert isinstance(spec, dict)
             result = BuilderPartial(spec={k: v for k, v in spec.items() if k != "@mode"})
+        elif spec["@type"] == "lambda" and spec.get("@mode", "regular") == "regular":
+            result = BuilderPartial(spec=spec)()
         else:
             if "@mode" in spec and spec["@mode"] != "regular":
                 raise ValueError(f"Unsupported mode {spec['@mode']}")

@@ -194,9 +194,14 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
     raise_on_failed_checkpoint: bool = True,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
-    message_queue: Literal["sqs", "fs"] = "sqs",
+    message_queue: Literal["sqs", "fq"] = "sqs",
 ):
     slurm_worker_resources = SlurmWorkerResources.from_dict(worker_resources)
+
+    if semaphores_spec is not None:
+        semaphores_spec_final = semaphores_spec
+    else:
+        semaphores_spec_final = {}
 
     if local_test:
         execute_locally(
@@ -210,7 +215,7 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
             num_procs=num_procs,
-            semaphores_spec=semaphores_spec,
+            semaphores_spec=semaphores_spec_final,
             debug=debug,
         )
     else:
@@ -230,7 +235,7 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
             ctx_managers=ctx_managers,
             init_command=init_command,
             num_procs=num_procs,
-            semaphores_spec=semaphores_spec,
+            semaphores_spec=semaphores_spec_final,
             slurm_worker_resources=slurm_worker_resources,
             debug=debug,
             message_queue=message_queue,

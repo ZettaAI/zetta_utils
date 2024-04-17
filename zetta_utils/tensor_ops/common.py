@@ -12,6 +12,7 @@ from typing import (
 
 import einops
 import numpy as np
+import tinybrain
 import torch
 from typeguard import typechecked
 from typing_extensions import Concatenate, ParamSpec
@@ -25,7 +26,7 @@ T = TypeVar("T")
 
 def supports_dict(func: Callable[Concatenate[T, P], T]):
     def wrapper(data, *args: P.args, **kwargs: P.kwargs):
-        if isinstance(data, Mapping):
+        if isinstance(data, Mapping):  # pylint: disable=all # p311
             return {k: func(v, *args, **kwargs) for k, v in data.items()}
         else:
             return func(data, *args, **kwargs)
@@ -318,7 +319,7 @@ def interpolate(  # pylint: disable=too-many-locals
     """
     Interpolate the given tensor to the given ``size`` or by the given ``scale_factor``.
 
-    :param data: Input tensor with batch and channel dimensions.
+    :param data: Input tensor.
     :param size: Desired result shape.
     :param scale_factor: Interpolation scale factor.
         When provided as ``float``, applied to all spatial dimensions of the data.
@@ -327,14 +328,16 @@ def interpolate(  # pylint: disable=too-many-locals
         value will be considered as ``True``.
     :param allow_slice_rounding: Whether to allow interpolation with scale factors that
         result in non-integer tensor shapes.
-    :param unsqueeze_to: If provided, the tensor will be unsqueezed to the given number
+    :param unsqueeze_input_to: If provided, the tensor will be unsqueezed to the given number
         of dimensions before interpolating. New dimensions are alwyas added to the front
         (dim 0). Result is squeezed back to the original number of dimensions before
-        returning.
+        returning. IMPORTANT: The unsqueezed number of dimension must be in B C X (Y? Z?)
+        format.
     :return: Interpolated tensor of the same type as the input tensor_ops.
     """
     original_ndim = data.ndim
-    # breakpoint()
+
+    # data is assumed to be unsqueezed to have a batch and channel dimensions
     data = unsqueeze_to(data, unsqueeze_input_to)
 
     scale_factor_tuple = _standardize_scale_factor(
@@ -349,6 +352,42 @@ def interpolate(  # pylint: disable=too-many-locals
         allow_slice_rounding=allow_slice_rounding,
     )
 
+    if mode == "segmentation" and (
+        scale_factor_tuple is not None
+        and (
+            tuple(scale_factor_tuple)
+            in (
+                [(0.5 ** i, 0.5 ** i) for i in range(1, 5)]  # 2D factors of 2
+                + [(0.5 ** i, 0.5 ** i, 1) for i in range(1, 5)]
+                + [(0.5 ** i, 0.5 ** i, 0.5 ** i) for i in range(1, 5)]  # #D factors of 2
+            )
+        )
+        and data.shape[0] == 1
+    ):  # use tinybrain
+        result_raw = _interpolate_segmentation_with_tinybrain(
+            data=data, scale_factor_tuple=scale_factor_tuple
+        )
+    else:
+        result_raw = _interpolate_with_torch(
+            data=data,
+            scale_factor_tuple=scale_factor_tuple,
+            size=size,
+            mode=mode,
+            mask_value_thr=mask_value_thr,
+        )
+
+    result_final = squeeze_to(result_raw, original_ndim)
+
+    return result_final
+
+
+def _interpolate_with_torch(
+    data: TensorTypeVar,
+    scale_factor_tuple: Sequence[float] | None,
+    size: Optional[Sequence[int]],
+    mode: InterpolationMode,
+    mask_value_thr: float,
+) -> TensorTypeVar:
     torch_interp_mode = _get_torch_interp_mode(
         spatial_ndim=data.ndim - 2,
         mode=mode,
@@ -401,10 +440,32 @@ def interpolate(  # pylint: disable=too-many-locals
     elif mode == "mask":
         result_raw = result_raw > mask_value_thr
 
-    result = result_raw.to(data_torch.dtype)
-    result_final = tensor_ops.convert.astype(result, data)
-    result_final = squeeze_to(result_final, original_ndim)
+    result_raw = result_raw.to(data_torch.dtype)
+    result = tensor_ops.convert.astype(result_raw, data)
+    return result
 
+
+def _interpolate_segmentation_with_tinybrain(
+    data: TensorTypeVar, scale_factor_tuple: Sequence[float]
+) -> TensorTypeVar:
+    """
+    Interpolate the given segmentation tensor by the given ``scale_factor_tuple`` using
+    the algorithm implemented ``tinybrain``.
+
+    :param data: Input tensor with batch and channel dimensions (B C X Y Z?).
+    :param scale_factor_tuple: Interpolation scale factors for each spatial dim.
+    """
+    assert all(e < 1 for e in scale_factor_tuple)
+    assert data.shape[0] == 1
+    data_np = tensor_ops.convert.to_np(data)
+    data_np = data_np.squeeze(0)  # cut the B dim
+    data_np = np.moveaxis(data_np, 0, -1)  # put C dim to the end for tinybrain
+    result_raw = tinybrain.downsample_segmentation(
+        img=data_np, factor=[1.0 / e for e in scale_factor_tuple]
+    )[0]
+    result_raw = np.moveaxis(result_raw, -1, 0)  # put C dim to front again
+    result_raw = result_raw[np.newaxis, ...]  # add the B dim
+    result_final = tensor_ops.convert.astype(result_raw, data)
     return result_final
 
 

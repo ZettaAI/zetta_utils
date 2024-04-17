@@ -455,7 +455,7 @@ def _interpolate_segmentation_with_tinybrain(
     :param data: Input tensor with batch and channel dimensions (B C X Y Z?).
     :param scale_factor_tuple: Interpolation scale factors for each spatial dim.
     """
-    assert all(e < 1 for e in scale_factor_tuple)
+    assert all(e <= 1 for e in scale_factor_tuple)
     assert data.shape[0] == 1
     data_np = tensor_ops.convert.to_np(data)
     data_np = data_np.squeeze(0)  # cut the B dim

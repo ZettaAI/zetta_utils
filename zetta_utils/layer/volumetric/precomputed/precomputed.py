@@ -19,6 +19,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
+
 # wrapper to cache using absolute paths with '/info'.
 # invalidates the cached infofile if the infofile is local and has since been deleted.
 def get_info(path: str) -> Dict[str, Any]:
@@ -109,6 +110,8 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
         ret["chunk_sizes"] = ref["chunk_sizes"]
     if "encoding" not in ret:
         ret["encoding"] = ref["encoding"]
+    if "compressed_segmentation_block_size" not in ret:
+        ret["compressed_segmentation_block_size"] = ref["compressed_segmentation_block_size"]
 
     # check and convert values to int
     errored = _check_seq_is_int(ret["size"])

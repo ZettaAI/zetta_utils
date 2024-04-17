@@ -196,9 +196,11 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 
-    def exists(self, idx) -> bool:
+    def exists(self, idx) -> bool:  # pragma: no cover # no logic
         idx_backend = self._convert_idx(idx)
         return self.backend.exists(idx_backend)
 
-    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def query(
+        self, column_filter: dict[str, list] | None = None
+    ) -> list[str]:  # pragma: no cover # no logic
         return self.backend.query(column_filter)

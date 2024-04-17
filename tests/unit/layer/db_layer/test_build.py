@@ -45,6 +45,24 @@ def test_write_single_row(mocker) -> None:
     assert backend.write.call_args.kwargs["data"] == [{"col0": "val0", "col1": "val1"}]
 
 
+def test_write_single_col(mocker) -> None:
+    backend = mocker.MagicMock()
+    backend.write = mocker.MagicMock()
+
+    layer = build_db_layer(backend)
+
+    row_key = "key"
+    col_keys = "col0"
+    idx_user = (row_key, col_keys)
+
+    data_user: DBRowDataT = {
+        "col0": "val0",
+    }
+
+    layer[idx_user] = data_user
+    assert backend.write.call_args.kwargs["data"] == [{"col0": "val0"}]
+
+
 def test_write_rows(mocker) -> None:
     backend = mocker.MagicMock()
     backend.write = mocker.MagicMock()
@@ -101,6 +119,16 @@ def test_write_exc(mocker):
             (["key1", "key2"], ("col0", "col1")),
             [{"col0": "val0", "col1": "val1"}, {"col0": None, "col1": "val2"}],
             [{"col0": "val0", "col1": "val1"}, {"col0": None, "col1": "val2"}],
+        ],
+        [
+            ("key0", "col0"),
+            [{"col0": "val0"}],
+            "val0",
+        ],
+        [
+            (["key1", "key2"], "col0"),
+            [{"col0": "val0"}, {"col0": "val1"}],
+            ["val0", "val1"],
         ],
     ],
 )

@@ -167,7 +167,7 @@ def _build_list(**kwargs):
     return list(kwargs.values())
 
 
-def _build_tuple(**kwargs):
+def _build_tuple(**kwargs):  # pragma: no cover
     return tuple(kwargs.values())
 
 

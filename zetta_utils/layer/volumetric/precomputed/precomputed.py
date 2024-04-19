@@ -106,12 +106,9 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
         ret["size"] = [k / m for k, m in zip(ref["size"], multiplier)]
     if "voxel_offset" not in ret:
         ret["voxel_offset"] = [k / m for k, m in zip(ref["voxel_offset"], multiplier)]
-    if "chunk_sizes" not in ret:
-        ret["chunk_sizes"] = ref["chunk_sizes"]
-    if "encoding" not in ret:
-        ret["encoding"] = ref["encoding"]
-    if "compressed_segmentation_block_size" not in ret:
-        ret["compressed_segmentation_block_size"] = ref["compressed_segmentation_block_size"]
+    for k in ref:
+        if k not in ret:
+            ret[k] = ref[k]
 
     # check and convert values to int
     errored = _check_seq_is_int(ret["size"])

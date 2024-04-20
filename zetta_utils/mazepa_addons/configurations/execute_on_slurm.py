@@ -57,13 +57,19 @@ def is_job_running(job_id: int) -> bool:
 def slurm_job_ctx_manager(
     slurm_obj: Slurm,
 ):
+    job_id = None
     try:
         job_id = slurm_obj.sbatch()
         logger.info(f"Started SLURM job {job_id}")
         yield
+    except AssertionError as e:
+        raise ProcessLookupError(
+            "SLURM job failed to start. Check stderr for additional info from `sbatch` command"
+        ) from e
     finally:
-        logger.info(f"Cancelling SLURM job {job_id}")
-        subprocess.run(["scancel", f"{job_id}"], capture_output=True, text=True, check=True)
+        if job_id is not None:
+            logger.info(f"Cancelling SLURM job {job_id}")
+            subprocess.run(["scancel", f"{job_id}"], capture_output=True, text=True, check=True)
 
 
 def check_cpus_per_task(_, __, value):

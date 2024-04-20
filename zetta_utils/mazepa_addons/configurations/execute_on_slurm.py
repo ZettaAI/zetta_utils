@@ -121,7 +121,7 @@ def get_slurm_contex_managers(
     ctx_managers: list[AbstractContextManager],
     debug: bool,
     num_procs: int,
-    semaphores_spec: dict[SemaphoreType, int],
+    semaphores_spec: dict[SemaphoreType, int] | None,
     message_queue: Literal["sqs", "fq"],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"zzz-{execution_id}-work"
@@ -204,11 +204,6 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
 ):
     slurm_worker_resources = SlurmWorkerResources.from_dict(worker_resources)
 
-    if semaphores_spec is not None:
-        semaphores_spec_final = semaphores_spec
-    else:
-        semaphores_spec_final = {}
-
     if local_test:
         execute_locally(
             target=target,
@@ -221,7 +216,7 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
             num_procs=num_procs,
-            semaphores_spec=semaphores_spec_final,
+            semaphores_spec=semaphores_spec,
             debug=debug,
         )
     else:
@@ -241,7 +236,7 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
             ctx_managers=ctx_managers,
             init_command=init_command,
             num_procs=num_procs,
-            semaphores_spec=semaphores_spec_final,
+            semaphores_spec=semaphores_spec,
             slurm_worker_resources=slurm_worker_resources,
             debug=debug,
             message_queue=message_queue,

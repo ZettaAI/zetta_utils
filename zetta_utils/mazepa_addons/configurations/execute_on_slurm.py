@@ -180,7 +180,7 @@ def get_slurm_contex_managers(
         task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
     )
     slurm_obj.add_cmd(init_command)
-    slurm_obj.add_cmd(worker_command)
+    slurm_obj.add_cmd(f"srun {worker_command}")
 
     ctx_managers.append(slurm_job_ctx_manager(slurm_obj=slurm_obj))
     return task_queue, outcome_queue, ctx_managers

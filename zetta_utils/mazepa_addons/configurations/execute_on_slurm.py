@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from typing import Any, Final, Iterable, Literal, Optional, Union
+from typing import Any, Final, Iterable, Literal, Optional, Sequence, Union
 
 import attrs
 from simple_slurm import Slurm
@@ -83,8 +83,12 @@ def check_mem_per_cpu(_, __, value):
 
 
 def check_gres(_, __, value):
-    if value is not None and not isinstance(value, str):
-        raise ValueError("gres must be a string or None")
+    if not (
+        value is None
+        or isinstance(value, str)
+        or (isinstance(value, Sequence) and all(isinstance(v, str) for v in value))
+    ):
+        raise ValueError("gres must be a (list of) string or None")
 
 
 @contextmanager

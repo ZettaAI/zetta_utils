@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from typing import Any, Final, Iterable, Literal, Optional, Sequence, Union
+from typing import Any, Final, Iterable, Literal, Optional, Union
 
 import attrs
 from simple_slurm import Slurm
@@ -86,7 +86,7 @@ def check_gres(_, __, value):
     if not (
         value is None
         or isinstance(value, str)
-        or (isinstance(value, Sequence) and all(isinstance(v, str) for v in value))
+        or (isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value))
     ):
         raise ValueError("gres must be a (list of) string or None")
 

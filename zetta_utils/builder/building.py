@@ -164,14 +164,15 @@ def _execute_build_stages(stages: list[Stage], parallel: bool):
 
 
 def _build_list(**kwargs):
-    return list(kwargs.values())
+    return [value for key, value in sorted(kwargs.items())]
 
 
 def _build_tuple(**kwargs):
-    return tuple(kwargs.values())
+    return tuple(value for key, value in sorted(kwargs.items()))
 
 
 def _build_dict(**kwargs):
+
     return kwargs
 
 
@@ -292,8 +293,6 @@ def _parse_stages_inner(  # pylint: disable=too-many-branches,too-many-statement
                 raise ValueError(f'`"@mode": partial` not allowed for `"@type": {this_type}"`')
             assert isinstance(spec, dict)
             result = BuilderPartial(spec={k: v for k, v in spec.items() if k != "@mode"})
-        elif spec["@type"] == "lambda" and spec.get("@mode", "regular") == "regular":
-            result = BuilderPartial(spec=spec)()
         else:
             if "@mode" in spec and spec["@mode"] != "regular":
                 raise ValueError(f"Unsupported mode {spec['@mode']}")

@@ -214,11 +214,16 @@ def test_register(register_dummy_a):
         [
             {
                 "key": [
-                    {"@type": "dummy_a", "a": 1},
+                    *({"@type": "dummy_a", "a": i} for i in range(11)),
                     {"@type": "dummy_a", "@mode": "partial"},
                 ]
             },
-            {"key": [DummyA(a=1), BuilderPartial(spec={"@type": "dummy_a"})]},
+            {
+                "key": [
+                    *(DummyA(a=i) for i in range(11)),
+                    BuilderPartial(spec={"@type": "dummy_a"}),
+                ]
+            },
         ],
     ],
 )

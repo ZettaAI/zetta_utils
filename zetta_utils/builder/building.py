@@ -167,7 +167,7 @@ def _build_list(**kwargs):
     return [value for key, value in sorted(kwargs.items())]
 
 
-def _build_tuple(**kwargs):
+def _build_tuple(**kwargs): # pragma: no cover
     return tuple(value for key, value in sorted(kwargs.items()))
 
 

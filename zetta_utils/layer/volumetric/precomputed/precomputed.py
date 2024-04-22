@@ -19,6 +19,7 @@ InfoExistsModes = Literal["expect_same", "overwrite"]
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
+
 # wrapper to cache using absolute paths with '/info'.
 # invalidates the cached infofile if the infofile is local and has since been deleted.
 def get_info(path: str) -> Dict[str, Any]:
@@ -105,10 +106,9 @@ def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> 
         ret["size"] = [k / m for k, m in zip(ref["size"], multiplier)]
     if "voxel_offset" not in ret:
         ret["voxel_offset"] = [k / m for k, m in zip(ref["voxel_offset"], multiplier)]
-    if "chunk_sizes" not in ret:
-        ret["chunk_sizes"] = ref["chunk_sizes"]
-    if "encoding" not in ret:
-        ret["encoding"] = ref["encoding"]
+    for k in ref:
+        if k not in ret:
+            ret[k] = ref[k]
 
     # check and convert values to int
     errored = _check_seq_is_int(ret["size"])

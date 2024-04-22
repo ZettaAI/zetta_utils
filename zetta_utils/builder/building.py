@@ -164,11 +164,11 @@ def _execute_build_stages(stages: list[Stage], parallel: bool):
 
 
 def _build_list(**kwargs):
-    return list(kwargs.values())
+    return [value for key, value in sorted(kwargs.items())]
 
 
 def _build_tuple(**kwargs):  # pragma: no cover
-    return tuple(kwargs.values())
+    return tuple(value for key, value in sorted(kwargs.items()))
 
 
 def _build_dict(**kwargs):

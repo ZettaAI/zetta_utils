@@ -211,6 +211,15 @@ def test_register(register_dummy_a):
             },
             DummyA(a=DummyB(b=3)),
         ],
+        [
+            {
+                "key": [
+                    {"@type": "dummy_a", "a": 1},
+                    {"@type": "dummy_a", "@mode": "partial"},
+                ]
+            },
+            {"key": [DummyA(a=1), BuilderPartial(spec={"@type": "dummy_a"})]},
+        ],
     ],
 )
 def test_build_unversioned(

@@ -3,6 +3,7 @@ import filecmp
 import os
 import shutil
 
+import attrs
 import pytest
 
 import zetta_utils
@@ -11,6 +12,7 @@ from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
+from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
 from zetta_utils.typing import check_type
 
 zetta_utils.load_all_modules()
@@ -169,3 +171,52 @@ def test_subchunkable_val_exc(cue_name, clear_temp_dir_and_info_cache):
     with pytest.raises(ValueError):
         zetta_utils.builder.build(spec)
     del spec
+
+
+COLLECTED_CHUNK_IDS = []
+
+
+@mazepa.taskable_operation_cls
+@attrs.frozen()
+class CollectChunkIDsOp:
+    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]):
+        return self
+
+    def __call__(
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        **kwargs,
+    ) -> None:
+        COLLECTED_CHUNK_IDS.append(idx.chunk_id)
+
+
+@pytest.mark.skipif(
+    "not config.getoption('--run-integration')",
+    reason="Only run when `--run-integration` is given",
+)
+def test_subchunkable_chunk_ids(clear_temp_dir_and_info_cache):
+    global COLLECTED_CHUNK_IDS  # pylint: disable=global-statement
+    COLLECTED_CHUNK_IDS = []
+    dst = None
+    dst_resolution = [4, 4, 40]
+    processing_chunk_sizes = [[512, 512, 1], [256, 256, 1], [64, 64, 1]]
+    bbox = BBox3D.from_coords(
+        start_coord=Vec3D(0, 00, 100), end_coord=Vec3D(512, 512, 101), resolution=dst_resolution
+    )
+    flow = build_subchunkable_apply_flow(
+        dst,
+        dst_resolution,
+        processing_chunk_sizes,
+        bbox=bbox,
+        skip_intermediaries=True,
+        op=CollectChunkIDsOp(),  # type: ignore
+    )
+
+    mazepa.execute(flow)
+
+    COLLECTED_CHUNK_IDS.sort()
+    assert COLLECTED_CHUNK_IDS == list(range(0, 64))

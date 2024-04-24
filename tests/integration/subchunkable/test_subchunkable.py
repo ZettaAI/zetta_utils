@@ -1,4 +1,6 @@
 # pylint: disable=line-too-long, unused-import, too-many-return-statements, unused-argument, redefined-outer-name
+from __future__ import annotations
+
 import filecmp
 import os
 import shutil
@@ -13,7 +15,6 @@ from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
 from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
-from zetta_utils.typing import check_type
 
 zetta_utils.load_all_modules()
 
@@ -177,20 +178,15 @@ COLLECTED_CHUNK_IDS = []
 
 
 @mazepa.taskable_operation_cls
-@attrs.frozen()
+@attrs.frozen
 class CollectChunkIDsOp:
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
         return dst_resolution
 
-    def with_added_crop_pad(self, crop_pad: Vec3D[int]):
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> CollectChunkIDsOp:
         return self
 
-    def __call__(
-        self,
-        idx: VolumetricIndex,
-        dst: VolumetricLayer,
-        **kwargs,
-    ) -> None:
+    def __call__(self, idx: VolumetricIndex, dst: VolumetricLayer, *args, **kwargs) -> None:
         COLLECTED_CHUNK_IDS.append(idx.chunk_id)
 
 
@@ -213,7 +209,7 @@ def test_subchunkable_chunk_ids(clear_temp_dir_and_info_cache):
         processing_chunk_sizes,
         bbox=bbox,
         skip_intermediaries=True,
-        op=CollectChunkIDsOp(),  # type: ignore
+        op=CollectChunkIDsOp(),
     )
 
     mazepa.execute(flow)

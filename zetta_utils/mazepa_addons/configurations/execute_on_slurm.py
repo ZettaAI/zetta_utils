@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from typing import Any, Final, Iterable, Literal, Optional, Union
+from typing import Any, Final, Iterable, Literal, Optional, Union, cast
 
 import attrs
 from simple_slurm import Slurm
@@ -78,7 +78,11 @@ def _robust_sbatch(
         temp_file.write(slurm_obj.script(shell, convert))
         temp_file.flush()
         result = subprocess.run(
-            [sbatch_cmd, temp_file.name], shell=False, stdout=subprocess.PIPE, check=False
+            [sbatch_cmd, temp_file.name],
+            shell=False,
+            stdout=subprocess.PIPE,
+            check=False,
+            env=cast(dict[str, str], {}),
         )
 
     success_msg = "Submitted batch job"

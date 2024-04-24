@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import collections
 import math
 import random
-from typing import Callable, Optional, Union, overload
+from typing import Callable, Optional, Sequence, Union, overload
 
 import torch
 from torchvision.transforms.functional import rotate
@@ -196,7 +197,9 @@ def apply_to_random_sections(
 def apply_to_random_boxes(
     data: TensorTypeVar,
     fn: Callable[[TensorTypeVar], TensorTypeVar],
-    box_size: Union[distributions.Distribution, float],
+    box_size_px: Union[
+        distributions.Distribution, int, Sequence[distributions.Distribution], Sequence[int]
+    ],
     num_boxes: Union[distributions.Distribution, int] = ...,
     density: None = ...,
     vary_box_sizes: bool = ...,
@@ -209,7 +212,9 @@ def apply_to_random_boxes(
 def apply_to_random_boxes(
     data: TensorTypeVar,
     fn: Callable[[TensorTypeVar], TensorTypeVar],
-    box_size: Union[distributions.Distribution, float],
+    box_size_px: Union[
+        distributions.Distribution, int, Sequence[distributions.Distribution], Sequence[int]
+    ],
     num_boxes: None = ...,
     density: Union[distributions.Distribution, float] = ...,
     vary_box_sizes: bool = ...,
@@ -224,7 +229,7 @@ def apply_to_random_boxes(
 def apply_to_random_boxes(
     data,
     fn,
-    box_size,
+    box_size_px,
     num_boxes=1,
     density=None,
     vary_box_sizes=True,
@@ -234,16 +239,24 @@ def apply_to_random_boxes(
     result = data.clone()
 
     chosen_regions: list[tuple[slice, ...]] = []
-    box_size_distr = distributions.to_distribution(box_size)
+    if isinstance(box_size_px, collections.abc.Sequence):
+        box_size_px_seq = box_size_px
+    else:
+        box_size_px_seq = [box_size_px] * 3  # X Y Z
+
+    box_size_distrs = [
+        distributions.to_distribution(bs) if isinstance(bs, int) else bs for bs in box_size_px_seq
+    ]
 
     def _get_box_size() -> tuple[int, ...]:
-        result = tuple(int(box_size_distr() * data.shape[i + 1]) for i in range(3))
+        result = tuple(int(box_size_distrs[i]()) for i in range(3))
         assert min(*result) > 0
         return result
 
     box_size = _get_box_size()
 
     def _choose_box() -> tuple[slice, ...]:
+        nonlocal box_size
         if vary_box_sizes:
             box_size = _get_box_size()
         if allow_partial_boxes:
@@ -268,7 +281,7 @@ def apply_to_random_boxes(
         assert density is not None
         chosen_density = distributions.to_distribution(density)()
         current_density = 0
-        total_px = math.prod(data.shape)
+        total_px = math.prod(data.shape[1:])
 
         while current_density < chosen_density:
             this_region = _choose_box()

@@ -283,7 +283,7 @@ def test_appl_to_random_boxes_num():
     result = apply_to_random_boxes(
         data,
         fn=torch.zeros_like,
-        box_size=0.2,
+        box_size_px=1,
         allow_partial_boxes=False,
     )
     assert (result == 0).sum() == 1  # one fifth along each dim
@@ -295,7 +295,7 @@ def test_appl_to_random_boxes_not_full():
     not_full_bbox = False
     for _ in range(10):
         result = apply_to_random_boxes(
-            data, fn=torch.zeros_like, box_size=1.0, allow_partial_boxes=True
+            data, fn=torch.zeros_like, box_size_px=data.shape[1:], allow_partial_boxes=True
         )
         if (result == 1).sum() != 0:
             not_full_bbox = True
@@ -317,7 +317,7 @@ def test_appl_to_random_boxes_density():
     apply_to_random_boxes(
         data,
         fn=_toucher_funciton,
-        box_size=0.5,
+        box_size_px=[16, 16, 10],
         allow_partial_boxes=False,
         num_boxes=None,
         density=1.0,

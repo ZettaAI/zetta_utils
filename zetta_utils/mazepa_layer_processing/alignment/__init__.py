@@ -9,4 +9,5 @@ from .compute_field_multistage_flow import (
 
 from . import warp_operation
 from . import aced_relaxation_flow
+from . import pairwise_align_flow
 from . import annotated_section_copy

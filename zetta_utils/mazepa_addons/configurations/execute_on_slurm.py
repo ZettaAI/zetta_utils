@@ -5,9 +5,8 @@ import datetime
 import os
 import shutil
 import subprocess
-import tempfile
 from contextlib import AbstractContextManager, ExitStack, contextmanager
-from typing import Any, Final, Iterable, Literal, Optional, Union, cast
+from typing import Any, Final, Iterable, Literal, Optional, Union
 
 import attrs
 from simple_slurm import Slurm
@@ -17,6 +16,7 @@ from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.cloud_management.resource_allocation.k8s.common import (
     get_mazepa_worker_command,
 )
+from zetta_utils.common.ctx_managers import set_env_ctx_mngr
 from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
@@ -54,53 +54,15 @@ def is_job_running(job_id: int) -> bool:
     return len(result.stdout) == 0
 
 
-def _robust_sbatch(
-    slurm_obj: Slurm,
-    *run_cmd: str,
-    convert: bool = True,
-    verbose: bool = True,
-    sbatch_cmd: str = "sbatch",
-    shell: str = "/bin/sh",
-) -> int:
-    """
-    Adapted from  `simple_slurm/core.py`, but improved to write a file
-    instead of running as a single shell command.
-
-    Run the sbatch command with all the (previously) set arguments and
-    the provided command in 'run_cmd' alongside with the previously set
-    commands using 'add_cmd'.
-
-    Note that 'run_cmd' can accept multiple arguments. Thus, any of the
-    other arguments must be given as key-value pairs.
-    """
-    slurm_obj.add_cmd(*run_cmd)
-    with tempfile.NamedTemporaryFile(mode="w+", delete=True) as temp_file:
-        temp_file.write(slurm_obj.script(shell, convert))
-        temp_file.flush()
-        result = subprocess.run(
-            [sbatch_cmd, temp_file.name],
-            shell=False,
-            stdout=subprocess.PIPE,
-            check=False,
-            env=cast(dict[str, str], {}),
-        )
-
-    success_msg = "Submitted batch job"
-    stdout = result.stdout.decode("utf-8")
-    assert success_msg in stdout, result.stderr
-    if verbose:
-        logger.info(f"Sbatch stdout: {stdout}")
-    job_id = int(stdout.split(" ")[3])
-    return job_id
-
-
 @contextmanager
 def slurm_job_ctx_manager(
     slurm_obj: Slurm,
 ):
     job_id = None
     try:
-        job_id = _robust_sbatch(slurm_obj)
+        with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC=""):
+            job_id = slurm_obj.sbatch()
+
         logger.info(f"Started SLURM job {job_id}")
         yield
     except AssertionError as e:
@@ -110,7 +72,10 @@ def slurm_job_ctx_manager(
     finally:
         if job_id is not None:
             logger.info(f"Cancelling SLURM job {job_id}")
-            subprocess.run(["scancel", f"{job_id}"], capture_output=True, text=True, check=True)
+            with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC=""):
+                subprocess.run(
+                    ["scancel", f"{job_id}"], capture_output=True, text=True, check=True
+                )
 
 
 def check_cpus_per_task(_, __, value):

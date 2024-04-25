@@ -15,7 +15,7 @@ from zetta_utils.common import RepeatTimer
 from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend
 from zetta_utils.mazepa import id_generation
-from zetta_utils.parsing import json
+from zetta_utils.parsing import cue, json
 
 from .resource import (
     deregister_resource,
@@ -75,7 +75,7 @@ def _record_run(spec_path: str | None = None) -> None:
     run_info = {
         "zetta_user": zetta_user,
         "zetta_project": os.environ["ZETTA_PROJECT"],
-        "json_spec": json.loads(os.environ["ZETTA_RUN_SPEC"]),
+        "json_spec": cue.load(os.environ["ZETTA_RUN_SPEC_PATH"]),
     }
     with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.json"), "w") as f:
         json.dump(run_info, f, indent=2)

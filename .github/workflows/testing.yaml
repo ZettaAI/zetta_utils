@@ -46,6 +46,9 @@ jobs:
           files: |
             **/*.py
 
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -107,6 +110,9 @@ jobs:
         with:
           files: |
             **/*.py
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -155,6 +161,9 @@ jobs:
         with:
           files: |
             **/*.py
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -207,6 +216,9 @@ jobs:
         with:
           files: |
             **/*.rst
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         uses: actions/setup-python@v4

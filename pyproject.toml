@@ -118,6 +118,8 @@ segmentation = [
   "onnx >= 1.13.0",
   "onnxruntime-gpu >= 1.13.1",
   "scikit-learn >= 1.2.2",
+  "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
+  "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
 ]
 tensor-ops = [
   "zetta_utils[tensor_typing]",

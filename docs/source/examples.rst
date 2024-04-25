@@ -138,7 +138,7 @@ Layer sets for grouping layers together:
 Datasets
 --------
 
-You can wrap any layer (include layer set) as a Pytorch dataset.
+You can wrap any layer (include layer set) as a PyTorch dataset.
 In this example we will make a dataset out of the following layer set:
 
 .. doctest::
@@ -153,7 +153,7 @@ In this example we will make a dataset out of the following layer set:
 To form a layer dataset, we need to specify both the layer and a mapping from sample number to an index that the layer understands.
 Such mapping, referred to as sample indexer, will determine what bounding cube is used to fetch training sample #0, #1, etc, as
 well as specify how many training samples there will be in total.
-In this example, we will be using ``VolumetricStridedIndexer``:
+In this example, we will be using ``VolumetricStridedIndexer`` (the ``chunk_id`` is unused in this example):
 
 .. doctest::
 
@@ -180,11 +180,11 @@ In this example, we will be using ``VolumetricStridedIndexer``:
    >>> print(len(indexer)) # total number of samples
    78400
    >>> print(indexer(0))
-   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((64000.0, 72192.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((64000.0, 72192.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> print(indexer(1))
-   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((66048.0, 74240.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((66048.0, 74240.0), (64000.0, 72192.0), (80000.0, 80040.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> print(indexer(78399))
-   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((119296.0, 127488.0), (119296.0, 127488.0), (83960.0, 84000.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(64, 64, 40), bbox=BBox3D(bounds=((119296.0, 127488.0), (119296.0, 127488.0), (83960.0, 84000.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> dset = training.datasets.LayerDataset(
    ...    layer=lset,
    ...    sample_indexer=indexer,

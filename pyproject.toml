@@ -136,7 +136,7 @@ test = [
   "zetta_utils[types]",
   "pdbpp >= 0.10.3",
   "docker == 6.0.0",
-  "black == 21.9b0",
+  "black == 24.4.1",
   "click == 8.0.1", # for black to work
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",
@@ -146,7 +146,7 @@ test = [
   "pytest-cov == 3.0.0",
   "coverage == 6.5.0",
   "pytest-mock == 3.8.2",
-  "pylint == 2.13.9",
+  "pylint == 3.1.0",
   "isort == 5.10.1",
   "pre-commit == 2.19.0",
   "moto == 4.1.0",
@@ -183,7 +183,7 @@ py-modules = ["zetta_utils"]
 
 [tool.black]
 line-length = 99
-target-version = ["py38", "py39"]
+target-version = ["py310", "py311"]
 
 [tool.pylint.format]
 max-line-length = 99
@@ -207,6 +207,7 @@ min-similarity-lines = 4
 
 [tool.pylint.main]
 extension-pkg-whitelist = "numpy,cc3d,fastremap"
+load-plugins="pylint.extensions.no_self_use"
 ignore-paths = ["^docs/*"]
 
 [tool.pylint.options]

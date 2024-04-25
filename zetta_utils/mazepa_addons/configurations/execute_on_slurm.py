@@ -60,7 +60,7 @@ def slurm_job_ctx_manager(
 ):
     job_id = None
     try:
-        with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC=""):
+        with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC_PATH=""):
             job_id = slurm_obj.sbatch()
 
         logger.info(f"Started SLURM job {job_id}")
@@ -72,7 +72,7 @@ def slurm_job_ctx_manager(
     finally:
         if job_id is not None:
             logger.info(f"Cancelling SLURM job {job_id}")
-            with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC=""):
+            with set_env_ctx_mngr(CURRENT_BUILD_SPEC="", ZETTA_RUN_SPEC_PATH=""):
                 subprocess.run(
                     ["scancel", f"{job_id}"], capture_output=True, text=True, check=True
                 )

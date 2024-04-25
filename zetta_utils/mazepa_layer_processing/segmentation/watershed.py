@@ -52,6 +52,7 @@ def _run_watershed_lsd(
     affs: torch.Tensor,
     fragments_in_xy: bool = False,
     min_seed_distance: int = 10,
+    affs_in_xyz: bool = True,
 ) -> torch.Tensor:
     """
     Args:
@@ -69,15 +70,18 @@ def _run_watershed_lsd(
     - add supervoxel filtering based on average aff value
     - add option to also perform agglomeration
     """
-    affs = einops.rearrange(affs, "C X Y Z -> C Z Y X").numpy()
-    if affs.dtype == np.uint8:
+    affs_np = einops.rearrange(affs, "C X Y Z -> C Z Y X").numpy()
+    if affs_in_xyz:
+        # aff needs to be zyx
+        affs_np = np.flip(affs_np, 0)
+    if affs_np.dtype == np.uint8:
         max_affinity_value = 255.0
-        affs = affs.astype(np.float32)  # type: ignore
+        affs_np = affs_np.astype(np.float32)
     else:
         max_affinity_value = 1.0
 
     ret, _ = _watershed_lsd(
-        affs=affs,
+        affs=affs_np,
         max_affinity_value=max_affinity_value,
         fragments_in_xy=fragments_in_xy,
         min_seed_distance=min_seed_distance,

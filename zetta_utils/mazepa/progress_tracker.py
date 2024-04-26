@@ -68,7 +68,9 @@ def progress_ctx_mngr(
             return None
         # else if the value is an empty string, invoke the default pdb debugger
         elif val is not None and val != "pdb.set_trace":
-            raise Exception("Custom debuggers are not allowed when `rich.progress is in use.`")
+            raise Exception(  # pylint: disable=broad-exception-raised
+                "Custom debuggers are not allowed when `rich.progress is in use.`"
+            )
 
         progress_bar.stop()
         try:

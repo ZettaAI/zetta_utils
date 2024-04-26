@@ -93,21 +93,23 @@ def rand_perlin_2d(
         .repeat_interleave(tiles[0], -3)
         .repeat_interleave(tiles[1], -2)
     )
-    dot = lambda grad, shift: (
-        torch.stack(
-            (
-                grid[: shape[1], : shape[2], 0] + shift[0],
-                grid[: shape[1], : shape[2], 1] + shift[1],
-            ),
-            dim=-1,
-        )
-        * grad[..., : shape[1], : shape[2], :]
-    ).sum(dim=-1)
 
-    n00 = dot(tile_grads(slice(0, -1), slice(0, -1)), [0, 0])
-    n10 = dot(tile_grads(slice(1, None), slice(0, -1)), [-1, 0])
-    n01 = dot(tile_grads(slice(0, -1), slice(1, None)), [0, -1])
-    n11 = dot(tile_grads(slice(1, None), slice(1, None)), [-1, -1])
+    def _dot(grad, shift):
+        return (
+            torch.stack(
+                (
+                    grid[: shape[1], : shape[2], 0] + shift[0],
+                    grid[: shape[1], : shape[2], 1] + shift[1],
+                ),
+                dim=-1,
+            )
+            * grad[..., : shape[1], : shape[2], :]
+        ).sum(dim=-1)
+
+    n00 = _dot(tile_grads(slice(0, -1), slice(0, -1)), [0, 0])
+    n10 = _dot(tile_grads(slice(1, None), slice(0, -1)), [-1, 0])
+    n01 = _dot(tile_grads(slice(0, -1), slice(1, None)), [0, -1])
+    n11 = _dot(tile_grads(slice(1, None), slice(1, None)), [-1, -1])
     weights = fade(grid[: shape[1], : shape[2]])
     return math.sqrt(2) * torch.lerp(
         torch.lerp(n00, n10, weights[..., 0]),

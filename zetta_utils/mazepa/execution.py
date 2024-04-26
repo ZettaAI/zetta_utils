@@ -168,8 +168,7 @@ def _execute_from_state(
         if show_progress:
             progress_updater = stack.enter_context(progress_ctx_mngr(expected_operation_counts))
         else:
-            progress_updater = lambda *args, **kwargs: None
-
+            progress_updater = lambda *args, **kwargs: None  # pylint: disable=C3001
         with ThreadPoolExecutor(max_workers=num_procs) as pool:
             while True:
                 progress_updater(state.get_progress_reports())

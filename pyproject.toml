@@ -137,7 +137,7 @@ test = [
   "zetta_utils[types]",
   "pdbpp >= 0.10.3",
   "docker == 6.0.0",
-  "black == 24.4.1",
+  "black == 21.9b0",
   "click == 8.0.1", # for black to work
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",

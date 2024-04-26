@@ -86,7 +86,7 @@ def _get_ref_scale(
     return matched[0]
 
 
-def _make_scale(ref: dict[str, Any], target: Sequence[int] | dict[str, Any]) -> dict[str, Any]:
+def _make_scale(ref: dict[str, Any], target: Sequence[float] | dict[str, Any]) -> dict[str, Any]:
     """Make a single scale based on the reference scale"""
     ret = {}
     if isinstance(target, dict):
@@ -148,7 +148,7 @@ class PrecomputedInfoSpec:
     voxel_offset_map: dict[str, Sequence[int]] | None = None
     dataset_size_map: dict[str, Sequence[int]] | None = None
     data_type: str | None = None
-    add_scales: Sequence[Sequence[int] | dict[str, Any]] | None = None
+    add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
     add_scales_mode: str = "merge"
     # ensure_scales: Optional[Iterable[int]] = None

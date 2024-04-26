@@ -262,39 +262,6 @@ from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
     get_gcp_with_sqs_config,
 )
 from zetta_utils.mazepa_addons.misc import test_gcs_access
-from zetta_utils.mazepa_layer_processing.alignment.aced_relaxation_flow import (
-    AcedMatchOffsetOp,
-    AcedRelaxationOp,
-    build_aced_relaxation_flow,
-    build_get_match_offsets_naive_flow,
-)
-from zetta_utils.mazepa_layer_processing.alignment.annotated_section_copy import (
-    AnnotatedSectionCopyFlowSchema,
-    build_annotated_section_copy_flow,
-)
-from zetta_utils.mazepa_layer_processing.alignment.common import (
-    translation_adjusted_download,
-)
-from zetta_utils.mazepa_layer_processing.alignment.compute_alignment_quality import (
-    compute_alignment_quality,
-    compute_misalignment_stats,
-)
-from zetta_utils.mazepa_layer_processing.alignment.compute_field_flow import (
-    ComputeFieldFlowSchema,
-    ComputeFieldFn,
-    ComputeFieldOperation,
-)
-from zetta_utils.mazepa_layer_processing.alignment.compute_field_multistage_flow import (
-    ComputeFieldMultistageFlowSchema,
-    ComputeFieldStage,
-    build_compute_field_multistage_flow,
-)
-from zetta_utils.mazepa_layer_processing.alignment.warp_operation import WarpOperation
-from zetta_utils.mazepa_layer_processing.common.apply_mask_fn import apply_mask_fn
-from zetta_utils.mazepa_layer_processing.common.callable_operation import (
-    CallableOperation,
-    build_chunked_callable_flow_schema,
-)
 from zetta_utils.mazepa_layer_processing.common.chunked_apply_flow import (
     ChunkedApplyFlowSchema,
     build_chunked_apply_flow,
@@ -327,14 +294,6 @@ from zetta_utils.mazepa_layer_processing.operation_protocols import (
     ComputeFieldOpProtocol,
     MultiresOpProtocol,
     VolumetricOpProtocol,
-)
-from zetta_utils.mazepa_layer_processing.segmentation.masks.affinities import (
-    AdjustAffinitiesOp,
-    adjust_affinities_across_mask_boundary,
-    adjust_thresholded_affinities_in_mask,
-)
-from zetta_utils.mazepa_layer_processing.segmentation.masks.masks import (
-    detect_consecutive_masks,
 )
 from zetta_utils.message_queues.base import (
     MessageQueue,

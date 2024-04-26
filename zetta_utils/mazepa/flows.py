@@ -174,8 +174,7 @@ def flow_schema_cls(cls: Type[RawFlowSchemaCls]):
 
 @flow_schema
 def concurrent_flow(stages: list[Union[Flow, Task]]):
-    for e in stages:
-        yield e
+    yield from stages
 
 
 @flow_schema

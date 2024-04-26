@@ -78,7 +78,7 @@ def _set_up_offsets(
     if not all(e == 0 for e in tgt_offset) or not all(e == 0 for e in src_offset):
         stages = copy.deepcopy(stages)
         if offset_resolution is None:
-            raise Exception(
+            raise ValueError(
                 "Must provide `offset_resolution` when either `src_offset` or `tgt_offset` "
                 "are given."
             )

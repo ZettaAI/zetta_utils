@@ -599,3 +599,15 @@ def crop_center(
             slices.append(slice(0, None))
     result = data[tuple(slices)]
     return result
+
+
+@builder.register("tensor_op_chain")
+@typechecked
+@supports_dict
+def tensor_op_chain(
+    data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
+) -> TensorTypeVar:
+    result = data
+    for step in steps:
+        result = step(result)
+    return result

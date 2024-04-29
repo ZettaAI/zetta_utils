@@ -1,5 +1,6 @@
 import copy
-from typing import Callable, Literal, Protocol, TypeVar, Union
+from functools import reduce
+from typing import Callable, Literal, Protocol, Sequence, TypeVar, Union
 
 import cc3d
 import einops
@@ -300,4 +301,18 @@ def mask_out_with_fn(
     mask_t = convert.to_torch(fn(data))
     data_masked_t = torch.where(mask_t, torch.zeros_like(data_t), data_t)
     result = convert.astype(data_masked_t, data)
+    return result
+
+
+@builder.register("combine_mask_fns")  # type: ignore
+@supports_dict
+@skip_on_empty_data
+@typechecked
+def combine_mask_fns(
+    data: TensorTypeVar, fns: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
+) -> TensorTypeVar:  # pragma: no cover # no logic
+    assert len(fns) > 0
+    masks_t = [convert.to_torch(fn(data)) for fn in fns]
+    result_t = reduce(torch.Tensor.add_, masks_t, torch.zeros_like(masks_t[0]))
+    result = convert.astype(result_t, data)
     return result

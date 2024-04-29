@@ -1,5 +1,5 @@
 import copy
-from typing import Literal, Protocol, TypeVar, Union
+from typing import Callable, Literal, Protocol, TypeVar, Union
 
 import cc3d
 import einops
@@ -286,4 +286,18 @@ def kornia_dilation(
 
     result_torch = result_torch.to(data_torch.dtype)
     result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("mask_out_with_fn")  # type: ignore
+@supports_dict
+@skip_on_empty_data
+@typechecked
+def mask_out_with_fn(
+    data: TensorTypeVar, fn: Callable[[TensorTypeVar], TensorTypeVar]
+) -> TensorTypeVar:  # pragma: no cover # no logic
+    data_t = convert.to_torch(data)
+    mask_t = convert.to_torch(fn(data))
+    data_masked_t = torch.where(mask_t, torch.zeros_like(data_t), data_t)
+    result = convert.astype(data_masked_t, data)
     return result

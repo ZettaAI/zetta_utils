@@ -304,15 +304,16 @@ def mask_out_with_fn(
     return result
 
 
-@builder.register("combine_mask_fns")  # type: ignore
+@builder.register("combine_mask_fns")
 @supports_dict
-@skip_on_empty_data
 @typechecked
 def combine_mask_fns(
     data: TensorTypeVar, fns: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
-) -> TensorTypeVar:  # pragma: no cover # no logic
-    assert len(fns) > 0
-    masks_t = [convert.to_torch(fn(data)) for fn in fns]
-    result_t = reduce(torch.Tensor.add_, masks_t, torch.zeros_like(masks_t[0]))
+) -> TensorTypeVar:
+    if len(fns) == 0:
+        raise ValueError("Length of `fns` passed to `combine_mask_fns` cannot be 0. ")
+
+    masks_t = [convert.to_torch(fn(data) != 0).bool() for fn in fns]
+    result_t = reduce(torch.Tensor.logical_or_, masks_t, torch.zeros_like(masks_t[0]).bool())
     result = convert.astype(result_t, data)
     return result

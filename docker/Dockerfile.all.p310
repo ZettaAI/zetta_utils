@@ -25,7 +25,7 @@ ADD pyproject.toml /opt/zetta_utils/
 RUN pip install '.[modules]'
 COPY . /opt/zetta_utils/
 
-RUN apt-get --purge autoremove -y build-essential \
+RUN apt-get --purge autoremove -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 

@@ -260,14 +260,16 @@ def apply_to_random_boxes(
         if vary_box_sizes:
             box_size = _get_box_size()
         if allow_partial_boxes:
-            box_start = [random.choice(range(0, data.shape[i + 1])) for i in range(3)]
+            box_start = [
+                random.choice(range(-box_size[i] + 1, data.shape[i + 1])) for i in range(3)
+            ]
         else:
             box_start = [
                 random.choice(range(0, data.shape[i + 1] - box_size[i])) for i in range(3)
             ]
         result = tuple(
             [slice(None, None)]
-            + [slice(box_start[i], box_start[i] + box_size[i]) for i in range(3)]
+            + [slice(max(box_start[i], 0), box_start[i] + box_size[i]) for i in range(3)]
         )
         return result
 

@@ -20,6 +20,8 @@ class IndexProcessor(Protocol[T]):
 
 
 class JointIndexDataProcessor(ABC, Generic[DataT, IndexT]):
+    prob: float = 1.0
+
     @abstractmethod
     def process_index(
         self,

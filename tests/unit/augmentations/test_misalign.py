@@ -1,3 +1,5 @@
+from typing import Literal
+
 import pytest
 import torch
 
@@ -39,7 +41,7 @@ def test_tensor_process_data_slip_pos(mocker):
     )
     proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
-    mocker.patch("random.randint", return_value=chosen_z)
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
     for x in range(4):
         for y in range(3):
@@ -66,7 +68,7 @@ def test_tensor_process_data_slip_neg(mocker):
     )
     proc.prepared_disp_fraction = (-1 / 5, -2 / 5)
     chosen_z = 3
-    mocker.patch("random.randint", return_value=chosen_z)
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
     for x in range(4):
         for y in range(3):
@@ -93,7 +95,7 @@ def test_tensor_process_data_step_pos(mocker):
     )
     proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
-    mocker.patch("random.randint", return_value=chosen_z)
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
     for x in range(4):
         for y in range(3):
@@ -127,7 +129,7 @@ def test_dict_process_data_slip_pos(mocker):
     )
     proc.prepared_disp_fraction = (1 / 5, 2 / 5)
     chosen_z = 3
-    mocker.patch("random.randint", return_value=chosen_z)
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
 
     result = proc.process_data(data, mode="read")
     assert result.keys() == data.keys()
@@ -144,33 +146,75 @@ def test_dict_process_data_slip_pos(mocker):
                 assert result[k] == v
 
 
-def test_dict_process_no_keys_exc():
+def test_dict_process_slip_no_keys_exc():
     data = {"key": torch.ones((1, 5, 5, 5))}
     proc = MisalignProcessor[dict[str, torch.Tensor]](
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
         disp_in_unit_must_be_divisible_by=1,
+        mode="slip",
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
     with pytest.raises(ValueError):
         proc.process_data(data, mode="read")
 
 
-def test_dict_process_diff_size():
-    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 10, 10, 5))}
+def test_dict_process_step_no_keys():
+    data = {"key": torch.ones((1, 5, 5, 5))}
     proc = MisalignProcessor[dict[str, torch.Tensor]](
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
         disp_in_unit_must_be_divisible_by=1,
-        mode="slip",
-        keys_to_apply=["key0", "key1"],
+        mode="step",
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
     result = proc.process_data(data, mode="read")
-    assert result["key0"].shape == (1, 4, 4, 5)
-    assert result["key1"].shape == (1, 8, 8, 5)
+    assert result["key"].shape == [1, 4, 4, 5]
+
+
+@pytest.mark.parametrize(
+    "misalign_mode, cropped_region, expect_change",
+    [
+        ["slip", "upper", False],
+        ["slip", "lower", False],
+        ["step", "upper", False],
+        ["step", "lower", True],
+    ],
+)
+def test_dict_process_diff_size(
+    misalign_mode: Literal["slip", "step"],
+    cropped_region: Literal["upper", "lower"],
+    expect_change: bool,
+    mocker,
+):
+    data_in = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.rand((1, 5, 5, 3))}
+    proc = MisalignProcessor[dict[str, torch.Tensor]](
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        disp_in_unit_must_be_divisible_by=1,
+        mode=misalign_mode,
+        keys_to_apply=["key0", "key1"],
+    )
+    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    mocker.patch(
+        "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=1
+    )
+    if cropped_region == "lower":
+        mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=0)
+    else:
+        assert cropped_region == "upper"
+        mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=4)
+
+    result = proc.process_data({k: v.clone() for k, v in data_in.items()}, mode="read")
+
+    diff = (result["key1"] != data_in["key1"][:, 1:, 1:]).sum() != 0
+    if expect_change:
+        assert diff
+    else:
+        assert not diff
 
 
 def test_dict_process_diff_xy_size_exc():
@@ -187,21 +231,6 @@ def test_dict_process_diff_xy_size_exc():
         proc.process_data(data, mode="read")
 
 
-def test_dict_process_diff_z_size():
-    data = {"key0": torch.ones((1, 5, 5, 5)), "key1": torch.ones((1, 5, 5, 7))}
-    proc = MisalignProcessor[dict[str, torch.Tensor]](
-        prob=1.0,
-        disp_min_in_unit=1,
-        disp_max_in_unit=1,
-        mode="slip",
-        keys_to_apply=["key0", "key1"],
-    )
-    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
-    result = proc.process_data(data, mode="read")
-    assert result["key0"].shape == (1, 4, 4, 5)
-    assert result["key1"].shape == (1, 4, 4, 7)
-
-
 def test_process_index_pos(mocker):
     idx_in = VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 2), (10, 20), (100, 200)))
@@ -212,7 +241,9 @@ def test_process_index_pos(mocker):
         disp_max_in_unit=1,
         disp_in_unit_must_be_divisible_by=1,
     )
-    mocker.patch("random.choice", return_value=1)
+    mocker.patch(
+        "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=1
+    )
     idx_out = proc.process_index(idx_in, mode="read")
     assert idx_out == VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((0, 2), (9, 20), (100, 200)))
@@ -226,7 +257,9 @@ def test_process_index_neg(mocker):
     proc = MisalignProcessor(
         prob=1.0, disp_min_in_unit=1, disp_max_in_unit=1, disp_in_unit_must_be_divisible_by=1
     )
-    mocker.patch("random.choice", return_value=-1)
+    mocker.patch(
+        "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=-1
+    )
     idx_out = proc.process_index(idx_in, mode="read")
     assert idx_out == VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 3), (10, 21), (100, 200)))

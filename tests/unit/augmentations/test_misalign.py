@@ -171,7 +171,7 @@ def test_dict_process_step_no_keys():
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
     result = proc.process_data(data, mode="read")
-    assert result["key"].shape == [1, 4, 4, 5]
+    assert list(result["key"].shape) == [1, 4, 4, 5]
 
 
 @pytest.mark.parametrize(

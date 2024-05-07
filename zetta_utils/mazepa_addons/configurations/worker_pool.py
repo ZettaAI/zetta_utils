@@ -24,6 +24,9 @@ class DummyBuffer:
     def write(self, data):
         pass
 
+    def flush(self):
+        pass
+
 
 def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing.FileIO
     sys.stdin = DummyBuffer()  # type: ignore

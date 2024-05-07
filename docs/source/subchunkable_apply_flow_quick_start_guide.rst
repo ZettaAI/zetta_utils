@@ -119,13 +119,13 @@ In the previous subsection, we directly used the resolution and slice to specify
    ...     resolution = Vec3D(4, 4, 30)
    ... )
    >>> idx
-   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((0, 20), (0, 28), (0, 330)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((0, 20), (0, 28), (0, 330)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> print(idx.pformat())
    (0.0, 0.0, 0.0) - (5.0, 7.0, 11.0)
    >>> idx.shape
    Vec3D(5, 7, 11)
 
-As you can see, ``VolumetricIndex.from_coords`` has automatically calculated the start and end coordinates in physical space from the provided resolution.
+As you can see, ``VolumetricIndex.from_coords`` has automatically calculated the start and end coordinates in physical space from the provided resolution. The ``VolumetricIndex`` also carries a ``chunk_id``, which is a unique integer that is assigned sequentially to the task indices during some operations (including subchunkable). This is unused in most cases, though, and defaults to 0.
 
 .. collapse:: BBox3D
 
@@ -138,14 +138,14 @@ Let's try padding and cropping our new ``VolumetricIndex``:
 
    >>> idx_c = idx.cropped(Vec3D(1,2,3)) # cropping
    >>> idx_c
-   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((4.0, 16.0), (8.0, 20.0), (90.0, 240.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((4.0, 16.0), (8.0, 20.0), (90.0, 240.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> print(idx_c.pformat())
    (1.0, 2.0, 3.0) - (4.0, 5.0, 8.0)
    >>> idx_c.shape
    Vec3D(3, 3, 5)
    >>> idx_p = idx.padded(Vec3D(1,2,3)) # padding
    >>> idx_p
-   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((-4.0, 24.0), (-8.0, 36.0), (-90.0, 420.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+   VolumetricIndex(resolution=Vec3D(4, 4, 30), bbox=BBox3D(bounds=((-4.0, 24.0), (-8.0, 36.0), (-90.0, 420.0)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
    >>> print(idx_p.pformat())
    (-1.0, -2.0, -3.0) - (6.0, 9.0, 14.0)
    >>> idx_p.shape
@@ -199,7 +199,7 @@ Precomputed volumes require an *infofile* that contains information about things
    In ``zetta_utils``, infofiles are handled by ``zetta_utils.layer.volumetric.precomputed`` module, which is used by ``zetta_utils.layer.volumetric.cloudvol`` and ``zetta_utils.layer.volumetric.tensorstore`` (both instances of ``VolumetricBackend``). While changing the contents of the infofiles within Python (rather than passing in arguments into `build_cv_layer`) is outside the scope of this guide and is something that you shouldn't need to do, here is the example code for reading the content (with ``cvl`` as before):
 
      >>> cvl.backend.get_bounds(Vec3D(4, 4, 40)) # get bound at resolution
-     VolumetricIndex(resolution=Vec3D(4, 4, 40), bbox=BBox3D(bounds=((0, 1048576), (0, 524288), (0, 282560)), unit='nm', pprint_px_resolution=(1, 1, 1)), allow_slice_rounding=False)
+     VolumetricIndex(resolution=Vec3D(4, 4, 40), bbox=BBox3D(bounds=((0, 1048576), (0, 524288), (0, 282560)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)
      >>> cvl.backend.get_chunk_size(Vec3D(4, 4, 40)) # get chunk size at resolution
      Vec3D(1024, 1024, 1)
      >>> cvl.backend.get_voxel_offset(Vec3D(4, 4, 40)) # get voxel offset at resolution
@@ -540,7 +540,7 @@ Introduction
 **SubchunkableApplyFlow** is the main way that the end users are expected to run inference with ``zetta_utils``. Given an arbitrary chunkwise function or an operation, ``SubchunkableApplyFlow`` provides two key functionalities:
 
 #. The ability to recursively split the provided bounding box into chunks, subchunks, subsubchunks, and so forth, with global parallelisation at the chunk level. (Local parallelisation, which happens at the smallest level, is handled by ``mazepa``.)
-#. The ability to specify (subject to divisibility requirements discussed below) arbitrary blending (either linear or quadratic) or cropping at each level.
+#. The ability to specify (subject to divisibility requirements discussed below) arbitrary number of pixels to blend (linear or quadratic) or crop in each dimension at each level.
 
 Chunking with cropping and blending is an absolute necessity for running inference or any other volumetric task in the context of connectomics: because a dataset can be at petascale or even larger, there is no hope of running anything without splitting the dataset into chunks. To mitigate the edge artifacts from chunkwise processing, we can use either cropping or blending. Cropping refers to padding the area to be processed and only writing in the middle of the area; blending refers to padding the areas to be processed and writing out a weighted sum of the outputs from different chunks in the area that overlaps.
 

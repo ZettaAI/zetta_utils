@@ -1,6 +1,6 @@
 from . import generators, traceback_supress
 
-from . import common, convert, label, mask
+from . import common, convert, label, mask, multitensor, normalization
 from .common import (
     InterpolationMode,
     compare,

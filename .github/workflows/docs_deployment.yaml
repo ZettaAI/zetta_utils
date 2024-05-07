@@ -38,9 +38,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.9.14
+          python-version: 3.10.9
           architecture: x64
           cache: 'pip'
+
+      - name: Install libboost
+        run: sudo apt install libboost-dev
       - name: Install Python dependencies
         run: pip install -e '.[modules, docs]'
       - name: Build Docs

@@ -13,8 +13,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.9"
           - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App
@@ -25,7 +25,6 @@ jobs:
           private-key: ${{ secrets.APP_PEM }}
           # owner is required, otherwise the creds will fail the checkout step
           owner: ${{ github.repository_owner }}
-
       - name: Checkout from GitHub
         uses: actions/checkout@v4
         with:
@@ -33,6 +32,8 @@ jobs:
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Install libboost
+        run: sudo apt install libboost-dev
       - name: Setup Python
         uses: actions/setup-python@v4
         with:

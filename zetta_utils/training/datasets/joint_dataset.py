@@ -35,7 +35,7 @@ class JointDataset(torch.utils.data.Dataset):
 
     def __attrs_post_init__(self):
         if self.mode == "horizontal":
-            num_samples = min([len(d) for d in self.datasets.values()])
+            num_samples = min(len(d) for d in self.datasets.values())
             for key in self.datasets.keys():
                 if num_samples == len(self.datasets[key]):
                     logger.warning(
@@ -51,10 +51,10 @@ class JointDataset(torch.utils.data.Dataset):
 
     def __len__(self) -> int:
         if self.mode == "horizontal":
-            num_samples = min([len(d) for d in self.datasets.values()])
+            num_samples = min(len(d) for d in self.datasets.values())
 
         elif self.mode == "vertical":
-            num_samples = sum([len(d) for d in self.datasets.values()])
+            num_samples = sum(len(d) for d in self.datasets.values())
         else:
             assert False, "Type checker error."  # pragma: no cover
 

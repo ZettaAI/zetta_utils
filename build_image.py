@@ -23,8 +23,8 @@ def main():
         "--python",
         "-p",
         type=str,
-        default="3.9",
-        choices=["3.9", "3.10"],
+        default="3.10",
+        choices=["3.11", "3.10"],
         help="Which python version to use for the image.",
     )
     parser.add_argument("--region", type=str, default="us-east1", help="Artifact Registry region.")

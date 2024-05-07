@@ -153,6 +153,7 @@ def test_sleeper_parallel(register_sleeper_func):
         "abc",
         {"k": "v"},
         ["a", 1, None],
+        ("a", 1, None),
         {"int": 1, "str": "abc", "dict": {"yes": "sir"}},
     ],
 )
@@ -209,6 +210,20 @@ def test_register(register_dummy_a):
                 "a": {"@type": "dummy_b", "b": 3},
             },
             DummyA(a=DummyB(b=3)),
+        ],
+        [
+            {
+                "key": [
+                    *({"@type": "dummy_a", "a": i} for i in range(11)),
+                    {"@type": "dummy_a", "@mode": "partial"},
+                ]
+            },
+            {
+                "key": [
+                    *(DummyA(a=i) for i in range(11)),
+                    BuilderPartial(spec={"@type": "dummy_a"}),
+                ]
+            },
         ],
     ],
 )

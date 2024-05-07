@@ -10,7 +10,7 @@ from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from . import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT
 
 RowIndex = Union[str, List[str]]
-ColIndex = Tuple[str, ...]
+ColIndex = Union[str, Tuple[str, ...]]
 RowColIndex = Tuple[RowIndex, ColIndex]
 
 RawDBIndex = Union[RowIndex, RowColIndex]
@@ -52,6 +52,8 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         row_keys, col_keys = idx_user
         if isinstance(row_keys, str):
             row_keys = [row_keys]
+        if isinstance(col_keys, str):
+            col_keys = (col_keys,)
         row_col_keys = {row_key: col_keys for row_key in row_keys}  # type: ignore
         return DBIndex(row_col_keys)
 
@@ -64,11 +66,25 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: Tuple[str, ColIndex], data: DBDataT) -> DBRowDataT:
+    def _convert_read_data(self, idx_user: Tuple[str, str], data: DBDataT) -> DBValueT:
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: Tuple[List[str], ColIndex], data: DBDataT) -> DBDataT:
+    def _convert_read_data(
+        self, idx_user: Tuple[List[str], str], data: DBDataT
+    ) -> Sequence[DBValueT]:
+        ...
+
+    @overload
+    def _convert_read_data(
+        self, idx_user: Tuple[str, Tuple[str, ...]], data: DBDataT
+    ) -> DBRowDataT:
+        ...
+
+    @overload
+    def _convert_read_data(
+        self, idx_user: Tuple[List[str], Tuple[str, ...]], data: DBDataT
+    ) -> DBDataT:
         ...
 
     def _convert_read_data(self, idx_user: UserDBIndex, data: DBDataT):
@@ -77,11 +93,17 @@ class DBLayer(Layer[DBIndex, DBDataT]):
 
         if isinstance(idx_user, list):
             return [d["value"] for d in data]
-
         if isinstance(idx_user, tuple):
             row_keys, col_keys = idx_user
             if isinstance(row_keys, str):
-                return {col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]}
+                if isinstance(col_keys, str):
+                    return data[0][col_keys]
+                else:
+                    return {
+                        col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]
+                    }
+            elif isinstance(col_keys, str):
+                return [row[col_keys] for row in data]
         return data
 
     @overload
@@ -174,6 +196,11 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 
-    def exists(self, idx) -> bool:
+    def exists(self, idx) -> bool:  # pragma: no cover # no logic
         idx_backend = self._convert_idx(idx)
         return self.backend.exists(idx_backend)
+
+    def query(
+        self, column_filter: dict[str, list] | None = None
+    ) -> list[str]:  # pragma: no cover # no logic
+        return self.backend.query(column_filter)

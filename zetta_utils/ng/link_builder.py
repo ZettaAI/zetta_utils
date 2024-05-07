@@ -69,6 +69,7 @@ def make_ng_link(
                 os.path.join(state_server_url, "post"),
                 json=json_state,
                 headers={"Authorization": f"Bearer {token}"},
+                timeout=300,
             )
             if not response.ok:
                 logger.warning(

@@ -4,7 +4,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu20.04
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN apt-get update \
-  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common unixodbc-dev \
+  && apt-get install -y git build-essential wget curl vim ffmpeg libsm6 libxext6 software-properties-common unixodbc-dev libboost-dev \
   && add-apt-repository ppa:deadsnakes/ppa -y \
   && apt-get update \
   && apt-get install -y --no-install-recommends python3.10 python3-pip  python3.10-dev \
@@ -13,9 +13,6 @@ RUN apt-get update \
   && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
   && python3.10 get-pip.py \
   && pip install posix-ipc \
-  && apt-get --purge autoremove -y build-essential \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/* \
   && mkdir /opt/cue \
   && cd /opt/cue \
   && wget https://github.com/cue-lang/cue/releases/download/v0.4.3/cue_v0.4.3_linux_amd64.tar.gz \
@@ -27,4 +24,9 @@ WORKDIR /opt/zetta_utils
 ADD pyproject.toml /opt/zetta_utils/
 RUN pip install '.[modules]'
 COPY . /opt/zetta_utils/
+
+RUN apt-get --purge autoremove -y \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 RUN zetta --help

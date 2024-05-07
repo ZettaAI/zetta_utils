@@ -248,3 +248,22 @@ def test_normalize_kernel(kernel, width, expected_kernel):
 def test_normalize_kernel_exc(kernel, width, expected_exc):
     with pytest.raises(expected_exc):
         mask._normalize_kernel(kernel, width, device=None)  # pylint: disable=protected-access
+
+
+def test_combine_mask_fns():
+    data = torch.Tensor([0, 1, 2, 3])
+    expected = torch.Tensor([1, 1, 1, 0]).bool()
+
+    result = mask.combine_mask_fns(
+        data,
+        fns=[
+            lambda x: x % 2 == 0,
+            lambda x: x == 1,
+        ],
+    )
+    assert_array_equal(result, expected)
+
+
+def test_combine_mask_fns_exc():
+    with pytest.raises(ValueError):
+        mask.combine_mask_fns(data=torch.zeros((10, 10)), fns=[])

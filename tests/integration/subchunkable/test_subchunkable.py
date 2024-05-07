@@ -1,8 +1,11 @@
 # pylint: disable=line-too-long, unused-import, too-many-return-statements, unused-argument, redefined-outer-name
+from __future__ import annotations
+
 import filecmp
 import os
 import shutil
 
+import attrs
 import pytest
 
 import zetta_utils
@@ -11,7 +14,7 @@ from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
-from zetta_utils.typing import check_type
+from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
 
 zetta_utils.load_all_modules()
 
@@ -54,9 +57,11 @@ def are_dir_trees_equal(dir1, dir2):
 
     @return: True if the directory trees are the same and
         there were no errors while accessing the directories or files,
+        or if the directory does not exist for both paths.
         False otherwise.
     """
-
+    if not os.path.exists(dir1) and not os.path.exists(dir2):
+        return True
     dirs_cmp = filecmp.dircmp(dir1, dir2)
     if len(dirs_cmp.left_only) > 0:
         print(f"File list mismatch: {dir1} has {dirs_cmp.left_only} files not found in {dir2}.")
@@ -89,7 +94,7 @@ def are_dir_trees_equal(dir1, dir2):
 @pytest.mark.parametrize(
     "cue_name",
     [
-        "test_float32_copy_defer",
+        "test_uint8_no_dst",
         "test_uint8_copy_bbox",
         "test_uint8_copy_no_op_kwargs",
         "test_uint8_copy_coords",
@@ -98,6 +103,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_expand_bbox_processing",
         "test_uint8_copy_expand_bbox_backend",
         "test_uint8_copy_expand_bbox_resolution_backend_processing_do_nothing",
+        "test_uint8_copy_processing_gap",
         "test_uint8_copy_shrink_processing_chunk",
         "test_uint8_copy_op",
         "test_uint8_copy_auto_divisibility",
@@ -108,6 +114,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_multilevel_checkerboard_cache_up_to_l0",
         "test_uint8_copy_blend",
         "test_uint8_copy_crop",
+        "test_uint8_copy_defer",
         "test_uint8_copy_top_level_checkerboard",
         "test_uint8_copy_writeproc",
         "test_uint8_copy_writeproc_multilevel_no_checkerboard",
@@ -150,6 +157,7 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_skip_intermediaries_but_level_intermediaries_dirs",
         "test_uint8_exc_skip_intermediaries_but_blend_pad",
         "test_uint8_exc_skip_intermediaries_but_crop_pad",
+        "test_uint8_exc_skip_intermediaries_but_defer",
         "test_uint8_exc_not_skip_intermediaries_but_no_level_intermediaries_dirs",
         "test_uint8_exc_shrink_processing_chunk_and_expand_bbox_processing",
         "test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution",
@@ -158,7 +166,22 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_auto_divisibility_and_shrink_processing_chunk",
         "test_uint8_exc_auto_divisibility_but_no_expand_bbox_processing",
         "test_uint8_exc_auto_divisibility_and_expand_bbox_backend",
+        "test_uint8_exc_processing_gap_but_auto_divisibility",
+        "test_uint8_exc_processing_gap_but_blend_pad_toplevel",
+        "test_uint8_exc_processing_gap_but_expand_bbox_backend",
+        "test_uint8_exc_processing_gap_but_expand_bbox_resolution",
+        "test_uint8_exc_processing_gap_but_shrink_processing_chunk",
+        "test_uint8_exc_processing_gap_but_uneven",
+        "test_uint8_exc_max_reduction_chunk_size_too_small_for_backend_chunk",
+        "test_uint8_exc_max_reduction_chunk_size_too_small_for_processing_chunk",
+        "test_uint8_exc_defer_on_not_toplevel",
+        "test_uint8_exc_no_dst_but_defer",
+        "test_uint8_exc_no_dst_but_max_reduction_chunk_size",
+        "test_uint8_exc_no_dst_but_not_skip_intermediaries",
+        "test_uint8_exc_no_dst_but_expand_bbox_backend",
         "test_uint8_exc_blend_too_large",
+        "test_uint8_exc_defer_on_not_toplevel",
+        "test_uint8_exc_defer_but_skip_intermediaries",
         "test_uint8_exc_nondivisible_but_recommendable",
         "test_uint8_exc_nondivisible_and_not_recommendable",
     ],
@@ -169,3 +192,47 @@ def test_subchunkable_val_exc(cue_name, clear_temp_dir_and_info_cache):
     with pytest.raises(ValueError):
         zetta_utils.builder.build(spec)
     del spec
+
+
+COLLECTED_CHUNK_IDS = []
+
+
+@mazepa.taskable_operation_cls
+@attrs.frozen
+class CollectChunkIDsOp:
+    def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:  # pylint: disable=no-self-use
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> CollectChunkIDsOp:
+        return self
+
+    def __call__(self, idx: VolumetricIndex, dst: VolumetricLayer, *args, **kwargs) -> None:
+        COLLECTED_CHUNK_IDS.append(idx.chunk_id)
+
+
+@pytest.mark.skipif(
+    "not config.getoption('--run-integration')",
+    reason="Only run when `--run-integration` is given",
+)
+def test_subchunkable_chunk_ids(clear_temp_dir_and_info_cache):
+    global COLLECTED_CHUNK_IDS  # pylint: disable=global-statement
+    COLLECTED_CHUNK_IDS = []
+    dst = None
+    dst_resolution = [4, 4, 40]
+    processing_chunk_sizes = [[512, 512, 1], [256, 256, 1], [64, 64, 1]]
+    bbox = BBox3D.from_coords(
+        start_coord=Vec3D(0, 00, 100), end_coord=Vec3D(512, 512, 101), resolution=dst_resolution
+    )
+    flow = build_subchunkable_apply_flow(
+        dst,
+        dst_resolution,
+        processing_chunk_sizes,
+        bbox=bbox,
+        skip_intermediaries=True,
+        op=CollectChunkIDsOp(),
+    )
+
+    mazepa.execute(flow)
+
+    COLLECTED_CHUNK_IDS.sort()
+    assert COLLECTED_CHUNK_IDS == list(range(0, 64))

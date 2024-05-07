@@ -336,6 +336,19 @@ def torch_seg_x0():
 
 
 @pytest.fixture
+def torch_seg_x0_downs():
+    return torch.tensor(
+        [
+            [
+                [
+                    [0],
+                ]
+            ]
+        ]
+    ).int()
+
+
+@pytest.fixture
 def torch_seg_x0_ups():
     return torch.tensor(
         [
@@ -517,6 +530,12 @@ def array_x1_avg_pool():
             "segmentation",
             {"scale_factor": 2.0, "unsqueeze_input_to": 4},
             "torch_seg_x0_ups",
+        ],
+        [
+            "torch_seg_x0",
+            "segmentation",
+            {"scale_factor": 0.5, "unsqueeze_input_to": 4},
+            "torch_seg_x0_downs",
         ],
         [
             "seg_uint63",

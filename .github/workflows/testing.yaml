@@ -19,8 +19,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.9"
           - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App
@@ -46,6 +46,9 @@ jobs:
           files: |
             **/*.py
 
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -81,8 +84,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.9"
           - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App
@@ -107,6 +110,9 @@ jobs:
         with:
           files: |
             **/*.py
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -129,8 +135,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.9"
           - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App
@@ -155,6 +161,9 @@ jobs:
         with:
           files: |
             **/*.py
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -175,8 +184,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.9"
           - "3.10"
+          - "3.11"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App
@@ -207,6 +216,9 @@ jobs:
         with:
           files: |
             **/*.rst
+      - name: Install libboost
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
+        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         uses: actions/setup-python@v4

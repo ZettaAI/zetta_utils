@@ -1,5 +1,6 @@
 import copy
-from typing import Literal, Protocol, TypeVar, Union
+from functools import reduce
+from typing import Callable, Literal, Protocol, Sequence, TypeVar, Union
 
 import cc3d
 import einops
@@ -286,4 +287,33 @@ def kornia_dilation(
 
     result_torch = result_torch.to(data_torch.dtype)
     result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
+    return result
+
+
+@builder.register("mask_out_with_fn")  # type: ignore
+@supports_dict
+@skip_on_empty_data
+@typechecked
+def mask_out_with_fn(
+    data: TensorTypeVar, fn: Callable[[TensorTypeVar], TensorTypeVar]
+) -> TensorTypeVar:  # pragma: no cover # no logic
+    data_t = convert.to_torch(data)
+    mask_t = convert.to_torch(fn(data))
+    data_masked_t = torch.where(mask_t, torch.zeros_like(data_t), data_t)
+    result = convert.astype(data_masked_t, data)
+    return result
+
+
+@builder.register("combine_mask_fns")
+@supports_dict
+@typechecked
+def combine_mask_fns(
+    data: TensorTypeVar, fns: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
+) -> TensorTypeVar:
+    if len(fns) == 0:
+        raise ValueError("Length of `fns` passed to `combine_mask_fns` cannot be 0. ")
+
+    masks_t = [convert.to_torch(fn(data) != 0).bool() for fn in fns]
+    result_t = reduce(torch.Tensor.logical_or_, masks_t, torch.zeros_like(masks_t[0]).bool())
+    result = convert.astype(result_t, data)
     return result

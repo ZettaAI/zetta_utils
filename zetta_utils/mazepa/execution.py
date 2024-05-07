@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from datetime import datetime
 from typing import Callable, Optional, Union
@@ -168,9 +168,8 @@ def _execute_from_state(
         if show_progress:
             progress_updater = stack.enter_context(progress_ctx_mngr(expected_operation_counts))
         else:
-            progress_updater = lambda *args, **kwargs: None
-
-        with ProcessPoolExecutor(max_workers=num_procs) as pool:
+            progress_updater = lambda *args, **kwargs: None  # pylint: disable=C3001
+        with ThreadPoolExecutor(max_workers=num_procs) as pool:
             while True:
                 progress_updater(state.get_progress_reports())
                 if len(state.get_ongoing_flow_ids()) == 0:
@@ -211,7 +210,7 @@ def submit_ready_tasks(
     state: ExecutionState,
     execution_id: str,
     max_batch_len: int,
-    pool: ProcessPoolExecutor,
+    pool: ThreadPoolExecutor,
 ):
     logger.debug("Pulling task outcomes...")
     task_outcomes = outcome_queue.pull(max_num=100)
@@ -219,21 +218,22 @@ def submit_ready_tasks(
     if len(task_outcomes) > 0:
         logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
         logger.debug("Updating execution state with task outcomes.")
+        # breakpoint()
         state.update_with_task_outcomes(
             task_outcomes={e.payload.task_id: e.payload.outcome for e in task_outcomes}
         )
 
-    # only acknowledge in parallel if task_queue is remote; else do so serially.
-    # the timing of acknowledgements don't matter since
-    # only the single manager node pulls from the outcome queue
-    if isinstance(task_queue, AutoexecuteTaskQueue):
-        for e in task_outcomes:
-            e.acknowledge_fn()
-    else:
-        futures = [pool.submit(e.acknowledge_fn) for e in task_outcomes]
+        # only acknowledge in parallel if task_queue is remote; else do so serially.
+        # the timing of acknowledgements don't matter since
+        # only the single manager node pulls from the outcome queue
+        if isinstance(task_queue, AutoexecuteTaskQueue):
+            for e in task_outcomes:
+                e.acknowledge_fn()
+        else:
+            futures = [pool.submit(e.acknowledge_fn) for e in task_outcomes]
 
-        for fut in futures:
-            fut.result()
+            for fut in futures:
+                fut.result()
 
     logger.debug("Getting next ready task batch.")
     task_batch = state.get_task_batch(max_batch_len=max_batch_len)

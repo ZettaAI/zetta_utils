@@ -2,6 +2,9 @@
 """Zetta AI Computational Connectomics Toolkit."""
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
+from .log import get_logger
+
+logger = get_logger("zetta_utils")
 
 builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
 builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
@@ -17,25 +20,22 @@ def try_load_train_inference():  # pragma: no cover
     try:
         load_inference_modules()
 
-    except ImportError:
-        ...
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception(e)
 
     try:
         load_training_modules()
-    except ImportError:
-        ...
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception(e)
 
     try:
         from . import mazepa_addons
-    except ImportError:
-        ...
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception(e)
 
 
-def try_load_submodules():  # pragma: no cover
-    try:
-        from . import internal
-    except ImportError:
-        ...
+def load_submodules():  # pragma: no cover
+    from . import internal
 
 
 def load_inference_modules():
@@ -56,7 +56,7 @@ def load_inference_modules():
     from . import message_queues
     from . import cloud_management
 
-    try_load_submodules()
+    load_submodules()
 
 
 def load_training_modules():
@@ -76,7 +76,4 @@ def load_training_modules():
     from . import message_queues
     from . import cloud_management
 
-    try_load_submodules()
-
-
-try_load_train_inference()
+    load_submodules()

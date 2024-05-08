@@ -122,9 +122,7 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
-    run_ctx = run_ctx_manager(spec_path=path, run_id=run_id, main_run_process=main_run_process)
-
-    with run_ctx:
+    with run_ctx_manager(spec=spec, run_id=run_id, main_run_process=main_run_process):
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:

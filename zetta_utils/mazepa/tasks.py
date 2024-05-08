@@ -130,50 +130,10 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         return outcome
 
 
-@runtime_checkable
-class TaskableOperation(Protocol[P, R_co]):
-    """
-    Wraps a callable to add a ``make_task`` method,
-    ``make_task`` method creates a mazepa task corresponding to execution of
-    the callable with the given parameters.
-    """
-
-    def __call__(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...
-
-    def make_task(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> Task[R_co]:
-        ...
-
-
-@runtime_checkable
-class RawTaskableOperationCls(Protocol[P, R_co]):
-    """
-    Interface of a class that can be wrapped by `@taskable_operation_cls`.
-    """
-
-    def __call__(
-        self,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> R_co:
-        ...
-
-
-@attrs.mutable
-class _TaskableOperation(Generic[P, R_co]):
-    """
-    TaskableOperation wrapper
-    """
-
+@attrs.frozen
+class TaskableOperation(Generic[P, R_co]):
     fn: Callable[P, R_co]
+    
     operation_name: str = "Unclassified Task"
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
@@ -196,7 +156,7 @@ class _TaskableOperation(Generic[P, R_co]):
     ) -> Task[R_co]:
         id_ = self.id_fn(self.fn, list(args), kwargs)
         upkeep_settings = TaskUpkeepSettings(
-            perform_upkeep=True,  # All tasks perform upkeep now
+            perform_upkeep=True, 
             interval_sec=self.upkeep_interval_sec,
         )
         result = Task[R_co](
@@ -209,6 +169,35 @@ class _TaskableOperation(Generic[P, R_co]):
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result
+
+P1 = ParamSpec('P1')
+P2 = ParamSpec('P2')
+
+@attrs.mutable
+class TaskableOperationCls(Generic[P1, P2, R_co]):
+    cls: Type[RawTaskableOperationCls[P1, P2, R_co]]
+    
+    def __call__(self, *args: P1.args, **kwargs: P1.kwargs) -> TaskableOperation[P2, R_co]:
+        return TaskableOperation[P2, R_co](self.cls(*args, **kwargs))
+
+@runtime_checkable
+class RawTaskableOperationCls(Protocol[P1, P2, R_co]):
+    """
+    Interface of a class that can be wrapped by `@taskable_operation_cls`.
+    """
+
+    def __init__(
+        self,
+        *args: P1.args,
+        **kwargs: P1.kwargs,
+    ):
+        ...
+    def __call__(
+        self,
+        *args: P2.args,
+        **kwargs: P2.kwargs,
+    ) -> R_co:
+        ...
 
 
 @overload
@@ -223,6 +212,7 @@ def taskable_operation(
 
 @overload
 def taskable_operation(
+    fn: None = None,
     *,
     runtime_limit_sec: float | None = ...,
     operation_name: str | None = ...,
@@ -231,56 +221,63 @@ def taskable_operation(
 
 
 def taskable_operation(
-    fn=None,
+    fn: Callable[P, R_co] | None = None,
     *,
     runtime_limit_sec: float | None = None,
     operation_name: str | None = None,
 ):
     if fn is not None:
         if operation_name is None:
-            operation_name = fn.__name__
-        return _TaskableOperation(
+            operation_name_final = fn.__name__
+        else:
+            operation_name_final = operation_name 
+        return TaskableOperation[P, R_co](
             fn=fn,
             runtime_limit_sec=runtime_limit_sec,
-            operation_name=operation_name,
+            operation_name=operation_name_final,
         )
     else:
+        if operation_name is None:
+            operation_name_final = "Unnamed Task" 
+        else:
+            operation_name_final = operation_name
         return cast(
             Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]],
             functools.partial(
-                _TaskableOperation,
+                TaskableOperation,
                 runtime_limit_sec=runtime_limit_sec,
-                operation_name=operation_name,
+                operation_name=operation_name_final,
             ),
         )
 
 
+# @overload
+# def taskable_operation_cls(
+#     fn: Callable[P, R_co],
+#     *,
+#     runtime_limit_sec: float | None = ...,
+#     operation_name: str | None = ...,
+# ) -> TaskableOperation[P, R_co]:
+#     ...
+
+
+# @overload
+# def taskable_operation_cls(
+#     cls: None = None,
+#     *,
+#     runtime_limit_sec: float | None = ...,
+#     operation_name: str | None = ...,
+# ) -> Callable[[Callable[P, R_co]], TaskableOperation[P, R_co]]:
+#     ...
+
 def taskable_operation_cls(
-    cls: Type[RawTaskableOperationCls] | None = None,
+    cls: Type[RawTaskableOperationCls[P1, P2, R_co]] | None = None,
     *,
     operation_name: str | None = None,
 ):
-    def _make_task(self, *args, **kwargs):
-        if operation_name is None:
-            if hasattr(self, "get_operation_name"):
-                operation_name_final = self.get_operation_name()  # pragma: no cover
-            else:
-                operation_name_final = type(self).__name__
-        else:
-            operation_name_final = operation_name
-        task = _TaskableOperation(  # pylint: disable=protected-access
-            self,
-            operation_name=operation_name_final,
-            # TODO: Other params passed to decorator
-        ).make_task(
-            *args, **kwargs
-        )  # pylint: disable=protected-access
-        return task
-
     if cls is not None:
         # can't override __new__ because it doesn't combine well with attrs/dataclass
-        setattr(cls, "make_task", _make_task)
-        return cls
+        return TaskableOperationCls[P1, P2, R_co](cls=cls) 
     else:
         return cast(
             Callable[

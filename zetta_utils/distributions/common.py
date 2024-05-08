@@ -23,7 +23,7 @@ class Distribution(Protocol):  # pragma: no cover
         ...
 
     @overload
-    def __call__(self, size: Optional[NoneType] = None) -> float:
+    def __call__(self, size: None = None) -> float:
         ...
 
 

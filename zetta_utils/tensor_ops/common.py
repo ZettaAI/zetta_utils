@@ -1,15 +1,20 @@
 # pylint: disable=missing-docstring
+from collections.abc import Mapping
 from typing import (
+    Any,
     Callable,
+    Generic,
     Literal,
-    Mapping,
     Optional,
     Sequence,
     SupportsIndex,
     TypeVar,
     Union,
+    cast,
+    overload,
 )
 
+import attrs
 import einops
 import numpy as np
 import tinybrain
@@ -23,15 +28,29 @@ from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 P = ParamSpec("P")
 T = TypeVar("T")
 
-
-def supports_dict(func: Callable[Concatenate[T, P], T]):
-    def wrapper(data, *args: P.args, **kwargs: P.kwargs):
-        if isinstance(data, Mapping):  # pylint: disable=all # p311
-            return {k: func(v, *args, **kwargs) for k, v in data.items()}
+@attrs.frozen
+class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
+    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+    
+    @overload 
+    def __call__(self, data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
+        ...
+        
+    @overload
+    def __call__(self, data: Mapping[Any, TensorTypeVar], *args: P.args, **kwargs: P.kwargs) -> dict[Any, TensorTypeVar]:
+        ...
+        
+    def __call__(self, data, *args: P.args, **kwargs: P.kwargs):
+        if isinstance(data, Mapping):  
+            return {k: self.fn(v, *args, **kwargs) for k, v in data.items()}
         else:
-            return func(data, *args, **kwargs)
+            return self.fn(data, *args, **kwargs)
+    
 
-    return wrapper
+def supports_dict(
+    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+) -> DictSupportingTensorOp[P, TensorTypeVar]:
+    return DictSupportingTensorOp[P, TensorTypeVar](fn) 
 
 
 @builder.register("rearrange")
@@ -509,11 +528,11 @@ def compare(
     :param fill: when set, will return a new tensor with values that pass the comparison
     replaced by `fill`, and `binarize` must be `False`.
     """
-
+    mask: TensorTypeVar
     if mode in ["eq", "=="]:
-        mask = data == value
+        mask = cast(TensorTypeVar, data == value)
     elif mode in ["neq", "!="]:
-        mask = data != value
+        mask = cast(TensorTypeVar, data != value)
     elif mode in ["gt", ">"]:
         mask = data > value
     elif mode in ["gte", ">="]:

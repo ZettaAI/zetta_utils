@@ -1,11 +1,12 @@
 import copy
 from functools import reduce
-from typing import Callable, Literal, Protocol, Sequence, TypeVar, Union
+from typing import Callable, Literal, Protocol, Sequence, TypeVar, Union, cast
 
 import cc3d
 import einops
 import fastremap
 import numpy as np
+import numpy.typing as npt
 import torch
 from kornia import morphology
 from skimage.morphology import diamond, disk, square, star
@@ -23,7 +24,7 @@ MaskFilteringModes = Literal["keep_large", "keep_small"]
 P = ParamSpec("P")
 
 
-class TensorOp(Protocol[P]):
+class TensorOp(Protocol[P, TensorTypeVar]):
     """
     Protocol which defines what it means for a function to be a tensor_op:
     it must take a `data` argument of TensorTypeVar type, and return a
@@ -98,15 +99,15 @@ def filter_cc(
 
 
 def _normalize_kernel(
-    kernel: Union[Tensor, str], width: int, device: torch.types.Device
+    kernel: Union[Tensor, str], width: int, device: torch.device | None
 ) -> torch.Tensor:
     if isinstance(kernel, str):
         if kernel == "square":
-            return convert.to_torch(square(width), device=device)
+            return convert.to_torch(cast(npt.NDArray, square(width)), device=device)
         if kernel == "diamond":
-            return convert.to_torch(diamond(width), device=device)
+            return convert.to_torch(cast(npt.NDArray,diamond(width)), device=device)
         if kernel == "disk":
-            return convert.to_torch(disk(width), device=device)
+            return convert.to_torch(cast(npt.NDArray,disk(width)), device=device)
         if kernel == "star":
             return convert.to_torch(star(width), device=device)
         else:
@@ -123,7 +124,7 @@ def _normalize_kernel(
 def kornia_opening(
     data: TensorTypeVar,
     kernel: Union[Tensor, str] = "square",
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
     width: int = 3,
     **kwargs,
 ) -> TensorTypeVar:
@@ -166,7 +167,7 @@ def kornia_opening(
 def kornia_closing(
     data: TensorTypeVar,
     kernel: Union[Tensor, str] = "square",
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
     width: int = 3,
     **kwargs,
 ) -> TensorTypeVar:
@@ -209,7 +210,7 @@ def kornia_closing(
 def kornia_erosion(
     data: TensorTypeVar,
     kernel: Union[Tensor, str] = "square",
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
     width: int = 3,
     **kwargs,
 ) -> TensorTypeVar:
@@ -244,6 +245,9 @@ def kornia_erosion(
     result = convert.astype(einops.rearrange(result_torch, "Z C X Y -> C X Y Z"), data)
     return result
 
+kornia_erosion(data=torch.ones(10, 10))
+kornia_erosion(data={"k": torch.ones(10, 10)})
+
 
 @builder.register("kornia_dilation")  # type: ignore
 @supports_dict
@@ -252,7 +256,7 @@ def kornia_erosion(
 def kornia_dilation(
     data: TensorTypeVar,
     kernel: Union[Tensor, str] = "square",
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
     width: int = 3,
     **kwargs,
 ) -> TensorTypeVar:

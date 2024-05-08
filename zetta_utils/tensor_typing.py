@@ -7,6 +7,6 @@ import numpy.typing as npt
 import torch
 
 TensorTypeVar = TypeVar(
-    "TensorTypeVar", torch.Tensor, npt.NDArray, Union[torch.Tensor, npt.NDArray]
+    "TensorTypeVar", torch.Tensor, npt.NDArray, #Union[torch.Tensor, npt.NDArray]
 )
 Tensor = Union[torch.Tensor, npt.NDArray]

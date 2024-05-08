@@ -121,7 +121,8 @@ def _execute_build_stages(stages: list[Stage], parallel: bool):
         if obj.parent is not None:
             assert obj.parent_kwarg_name is not None
             obj.parent.kwargs[obj.parent_kwarg_name] = result
-
+            
+    obj_result = None
     for stage in stages:
         for obj in stage.sequential_part:
             obj_result = _build_object(
@@ -159,7 +160,7 @@ def _execute_build_stages(stages: list[Stage], parallel: bool):
                     name_prefix=obj.name_prefix,
                 )
                 _process_result(obj, obj_result)
-
+    assert obj_result is not None
     return obj_result
 
 

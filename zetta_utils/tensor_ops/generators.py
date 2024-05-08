@@ -1,5 +1,5 @@
 import math
-from typing import Callable, Sequence
+from typing import Callable, Sequence, cast
 
 import affine
 import einops
@@ -33,7 +33,8 @@ def get_affine_field(
     :param shear_y_deg: Y shear degrees.
     :return: The torch tensor in CXYZ.
     """
-    aff = (
+    aff = cast(
+        affine.Affine, 
         affine.Affine.translation(-trans_x_px * 2 / size, -trans_y_px * 2 / size)
         * affine.Affine.rotation(-rot_deg)
         * affine.Affine.shear(-shear_x_deg, -shear_y_deg)
@@ -53,7 +54,7 @@ def rand_perlin_2d(
     fade: Callable[[torch.Tensor], torch.Tensor] = lambda t: 6 * t ** 5
     - 15 * t ** 4
     + 10 * t ** 3,
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
 ) -> torch.Tensor:
     if len(shape) != 4:
         raise ValueError(f"'shape' expected length 4 (CXYZ), got {len(shape)}")
@@ -127,7 +128,7 @@ def rand_perlin_2d_octaves(
     res: Sequence[int],
     octaves: int = 1,
     persistence: float = 0.5,
-    device: torch.types.Device = None,
+    device: torch.device | None = None,
 ) -> torch.Tensor:
     if len(shape) != 4:
         raise ValueError(f"'shape' expected length 4 (CXYZ), got {len(shape)}")

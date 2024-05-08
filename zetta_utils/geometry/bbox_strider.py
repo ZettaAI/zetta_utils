@@ -216,6 +216,8 @@ class BBoxStrider:
                     f" {self.stride_in_unit}{self.bbox.unit} with chunk size"
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
+        else:
+            step_limits = step_limits_raw
         # Use `__setattr__` to keep the object frozen.
         object.__setattr__(self, "step_limits", step_limits)
         object.__setattr__(self, "bbox_snapped", bbox_snapped)

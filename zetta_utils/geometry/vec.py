@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from collections import abc
-from typing import Any, Sequence, Tuple, TypeVar, Union, overload
+from typing import Any, Sequence, Tuple, TypeVar, Union, cast, overload, reveal_type
 
 import attrs
 import numpy as np
@@ -13,7 +13,7 @@ from typing_extensions import TypeGuard
 BuiltinInt = int
 BuiltinFloat = float
 
-T = TypeVar("T", bound=float)
+T = TypeVar("T", int, float, contravariant=True)
 
 VEC3D_PRECISION = 10
 
@@ -121,7 +121,9 @@ class Vec3D(abc.Sequence[T]):
         return Vec3D[BuiltinFloat](*(other / e for e in self))
 
     def __neg__(self) -> Vec3D[T]:
-        return Vec3D[T](*(-e for e in self))
+        for e in self.vec:
+            reveal_type(-e)
+        return Vec3D[T](*(-e for e in self.vec))
 
     def __abs__(self) -> Vec3D[T]:
         return Vec3D[T](*(abs(e) for e in self))
@@ -134,10 +136,10 @@ class Vec3D(abc.Sequence[T]):
     def __round__(self, ndigits: int) -> Vec3D[T]:
         ...
 
-    def __round__(self, ndigits: int | None = None):
+    def __round__(self, ndigits = None):
         if ndigits is None:
             return Vec3D[BuiltinInt](*(round(e) for e in self))
-        return Vec3D[T](*(round(e, ndigits) for e in self))
+        return Vec3D[T](*(cast(T, round(e, ndigits)) for e in self))
 
     def __floor__(self) -> Vec3D[BuiltinInt]:
         return Vec3D[BuiltinInt](*(math.floor(e) for e in self))

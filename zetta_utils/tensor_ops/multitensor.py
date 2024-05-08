@@ -12,7 +12,7 @@ from .mask import kornia_erosion
 P = ParamSpec("P")
 
 
-class MultiTensorOp(Protocol[P]):
+class MultiTensorOp(Protocol[P, TensorTypeVar]):
     """
     Protocol which defines what it means for a function to be a MultiTensorOp:
     it must take a `data1` and 'data2' arguments of TensorTypeVar type, and return a
@@ -64,11 +64,11 @@ def compute_pixel_error(
     data1_torch = convert.to_torch(data1)
     data2_torch = convert.to_torch(data2)
     dilated_mask = torch.logical_or(
-        kornia_erosion(  # type: ignore
+        kornia_erosion(  
             data1_torch, kernel="square", device=data1_torch.device, width=erosion, **kwargs
         )
         == 0,
-        kornia_erosion(  # type: ignore
+        kornia_erosion( 
             data2_torch, kernel="square", device=data2_torch.device, width=erosion, **kwargs
         )
         == 0,
@@ -82,7 +82,7 @@ def compute_pixel_error(
     return convert.astype(result, data1)
 
 
-@builder.register("erode_combine")  # type: ignore
+@builder.register("erode_combine")  
 @skip_on_empty_datas
 def erode_combine(
     data1: TensorTypeVar, data2: TensorTypeVar, erosion: int = 5, **kwargs
@@ -100,13 +100,13 @@ def erode_combine(
     data1_torch = convert.to_torch(data1)
     data2_torch = convert.to_torch(data2)
     mask1 = (
-        kornia_erosion(  # type: ignore
+        kornia_erosion(  
             data1_torch, kernel="square", device=data1_torch.device, width=erosion, **kwargs
         )
         != 0
     )
     mask2 = (
-        kornia_erosion(  # type: ignore
+        kornia_erosion( 
             data2_torch, kernel="square", device=data2_torch.device, width=erosion, **kwargs
         )
         != 0

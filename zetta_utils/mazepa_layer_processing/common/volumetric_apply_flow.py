@@ -461,6 +461,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         red_chunks_temps: List[List[VolumetricBasedLayerProtocol]] = [[] for _ in red_chunks]
         dst_temps: List[VolumetricBasedLayerProtocol] = []
 
+        next_chunk_id = idx.chunk_id
         for chunker, chunker_idx in self.processing_chunker.split_into_nonoverlapping_chunkers(
             self.processing_blend_pad
         ):
@@ -486,6 +487,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     )
                 # expand to allow for processing_blend_pad around the edges
                 idx_expanded = idx.padded(self.processing_blend_pad)
+                idx_expanded.chunk_id = next_chunk_id
 
                 task_idxs = chunker(
                     idx_expanded,
@@ -497,7 +499,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 if len(task_idxs) == 0:
                     continue
 
-                idx_expanded.chunk_id = task_idxs[-1].chunk_id + self.l0_chunks_per_task
+                next_chunk_id = task_idxs[-1].chunk_id + self.l0_chunks_per_task
 
                 # get offsets in terms of index inds
                 red_chunk_offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))

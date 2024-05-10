@@ -9,7 +9,7 @@ from itertools import repeat
 
 import pebble
 
-from zetta_utils import builder, log
+from zetta_utils import builder, log, try_load_train_inference
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
@@ -32,6 +32,11 @@ def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing
     sys.stdin = DummyBuffer()  # type: ignore
     sys.stdout = DummyBuffer()  # type: ignore
     sys.stderr = DummyBuffer()  # type: ignore
+
+
+def worker_init() -> None:
+    redirect_buffers()
+    try_load_train_inference()
 
 
 def run_local_worker(
@@ -60,7 +65,7 @@ def setup_local_worker_pool(
         pool = pebble.ProcessPool(
             max_workers=num_procs,
             context=multiprocessing.get_context("spawn"),
-            initializer=redirect_buffers,
+            initializer=worker_init,
         )
         pool.map(
             run_local_worker,

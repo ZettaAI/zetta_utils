@@ -12,6 +12,7 @@ import zetta_utils
 from zetta_utils import builder, mazepa, parsing
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
 from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
@@ -236,3 +237,58 @@ def test_subchunkable_chunk_ids(clear_temp_dir_and_info_cache):
 
     COLLECTED_CHUNK_IDS.sort()
     assert COLLECTED_CHUNK_IDS == list(range(0, 64))
+
+
+@pytest.mark.skipif(
+    "not config.getoption('--run-integration')",
+    reason="Only run when `--run-integration` is given",
+)
+def test_subchunkable_padded_chunk_ids(clear_temp_dir_and_info_cache):
+    global COLLECTED_CHUNK_IDS  # pylint: disable=global-statement
+    COLLECTED_CHUNK_IDS = []
+    dst_resolution = [16, 16, 42]
+    bbox = BBox3D.from_coords(
+        start_coord=Vec3D(14250, 9800, 3060),
+        end_coord=Vec3D(14762, 10312, 3092),
+        resolution=dst_resolution,
+    )
+    dst = build_cv_layer(
+        path="file://assets/temp/",
+        on_info_exists="overwrite",
+        info_field_overrides={
+            "type": "image",
+            "data_type": "int32",
+            "num_channels": 1,
+            "scales": [
+                {
+                    "encoding": "raw",
+                    "resolution": dst_resolution,
+                    "size": list(bbox.shape),
+                    "chunk_sizes": [[256, 256, 32]],
+                    "voxel_offset": list(bbox.start),
+                    "key": "16_16_42",
+                }
+            ],
+        },
+    )
+    processing_chunk_sizes = [[512, 512, 32], [320, 320, 32], [224, 224, 32]]
+    flow = build_subchunkable_apply_flow(
+        dst,
+        dst_resolution,
+        processing_chunk_sizes,
+        bbox=bbox,
+        processing_blend_pads=[[64, 64, 0], [64, 64, 0], [64, 64, 0]],
+        skip_intermediaries=False,
+        level_intermediaries_dirs=[
+            "assets/temp/",
+            "assets/temp/",
+            "assets/temp/",
+        ],
+        max_reduction_chunk_size=[512, 512, 40],
+        op=CollectChunkIDsOp(),
+    )
+
+    mazepa.execute(flow)
+
+    COLLECTED_CHUNK_IDS.sort()
+    assert COLLECTED_CHUNK_IDS == list(range(0, 16))

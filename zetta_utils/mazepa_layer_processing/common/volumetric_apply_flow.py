@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import multiprocessing
+from abc import ABC
 from copy import deepcopy
 from os import path
 from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
@@ -50,7 +51,23 @@ class Copy:
 
 @mazepa.taskable_operation_cls
 @attrs.mutable
-class ReduceByWeightedSum:
+class ReduceOperation(ABC):
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricBasedLayerProtocol],
+        red_idx: VolumetricIndex,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        processing_blend_pad: Vec3D[int],
+        processing_blend_mode: Literal["linear", "quadratic"],
+    ) -> None:
+        pass
+
+
+@mazepa.taskable_operation_cls
+@attrs.mutable
+class ReduceByWeightedSum(ReduceOperation):
     def __call__(
         self,
         src_idxs: List[VolumetricIndex],
@@ -97,6 +114,40 @@ class ReduceByWeightedSum:
 
                 if not dst.backend.dtype.is_floating_point:
                     res = res.round().to(dtype=dst.backend.dtype)
+            else:
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = layer[intscn]
+            with semaphore("write"):
+                dst[red_idx] = res
+
+
+@mazepa.taskable_operation_cls
+@attrs.mutable
+class ReduceByMaxValue(ReduceOperation):
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricBasedLayerProtocol],
+        red_idx: VolumetricIndex,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        processing_blend_pad: Vec3D[int],
+        processing_blend_mode: Literal["linear", "quadratic"],
+    ) -> None:
+        with suppress_type_checks():
+            if len(src_layers) == 0:
+                return
+            res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+            assert len(src_layers) > 0
+            if processing_blend_pad != Vec3D[int](0, 0, 0):
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = torch.maximum(res[subidx_channels], layer[intscn])
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
@@ -261,7 +312,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
-    processing_blend_mode: Literal["linear", "quadratic", "defer"] = "quadratic"
+    processing_blend_mode: Literal["linear", "quadratic", "max", "defer"] = "quadratic"
     processing_gap: Optional[Vec3D[int]] = None
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
@@ -715,8 +766,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
             yield tasks
             yield mazepa.Dependency()
+            reducer: ReduceOperation
+            if self.processing_blend_mode == "max":
+                reducer = ReduceByMaxValue()
+            else:
+                reducer = ReduceByWeightedSum()
             tasks_reduce = [
-                ReduceByWeightedSum().make_task(
+                reducer.make_task(
                     src_idxs=red_chunk_task_idxs,
                     src_layers=red_chunk_temps,
                     red_idx=red_chunk,

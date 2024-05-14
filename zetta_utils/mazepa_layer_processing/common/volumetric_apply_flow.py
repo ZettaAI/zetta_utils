@@ -52,6 +52,9 @@ class Copy:
 @mazepa.taskable_operation_cls
 @attrs.mutable
 class ReduceOperation(ABC):
+    """Base class for Reduce operations, which combine values from different
+    chunks where they overlap."""
+
     def __call__(
         self,
         src_idxs: List[VolumetricIndex],
@@ -60,14 +63,15 @@ class ReduceOperation(ABC):
         roi_idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
         processing_blend_pad: Vec3D[int],
-        processing_blend_mode: Literal["linear", "quadratic"],
     ) -> None:
         pass
 
 
 @mazepa.taskable_operation_cls
 @attrs.mutable
-class ReduceByWeightedSum(ReduceOperation):
+class ReduceNaive(ReduceOperation):
+    """A reducer that simply takes the maximum value at each location in the overlap area."""
+
     def __call__(
         self,
         src_idxs: List[VolumetricIndex],
@@ -76,7 +80,47 @@ class ReduceByWeightedSum(ReduceOperation):
         roi_idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
         processing_blend_pad: Vec3D[int],
-        processing_blend_mode: Literal["linear", "quadratic"],
+    ) -> None:
+        with suppress_type_checks():
+            if len(src_layers) == 0:
+                return
+            res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+            assert len(src_layers) > 0
+            if processing_blend_pad != Vec3D[int](0, 0, 0):
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = torch.maximum(res[subidx_channels], layer[intscn])
+            else:
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = layer[intscn]
+            with semaphore("write"):
+                dst[red_idx] = res
+
+
+@mazepa.taskable_operation_cls
+@attrs.mutable
+class ReduceByWeightedSum(ReduceOperation):
+    """Reducer that combines the values in the overlap area by a linear or
+    quadratic function of the distance from the edge."""
+
+    processing_blend_mode: Literal["linear", "quadratic"] = "linear"
+
+    def __init__(self, processing_blend_mode: Literal["linear", "quadratic"]):
+        self.processing_blend_mode = processing_blend_mode
+
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricBasedLayerProtocol],
+        red_idx: VolumetricIndex,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        processing_blend_pad: Vec3D[int],
     ) -> None:
         with suppress_type_checks():
             if len(src_layers) == 0:
@@ -99,7 +143,7 @@ class ReduceByWeightedSum(ReduceOperation):
                         idx_roi=roi_idx,
                         idx_red=red_idx,
                         processing_blend_pad=processing_blend_pad,
-                        processing_blend_mode=processing_blend_mode,
+                        processing_blend_mode=self.processing_blend_mode,
                     )
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
@@ -114,40 +158,6 @@ class ReduceByWeightedSum(ReduceOperation):
 
                 if not dst.backend.dtype.is_floating_point:
                     res = res.round().to(dtype=dst.backend.dtype)
-            else:
-                for src_idx, layer in zip(src_idxs, src_layers):
-                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    with semaphore("read"):
-                        res[subidx_channels] = layer[intscn]
-            with semaphore("write"):
-                dst[red_idx] = res
-
-
-@mazepa.taskable_operation_cls
-@attrs.mutable
-class ReduceByMaxValue(ReduceOperation):
-    def __call__(
-        self,
-        src_idxs: List[VolumetricIndex],
-        src_layers: List[VolumetricBasedLayerProtocol],
-        red_idx: VolumetricIndex,
-        roi_idx: VolumetricIndex,
-        dst: VolumetricBasedLayerProtocol,
-        processing_blend_pad: Vec3D[int],
-        processing_blend_mode: Literal["linear", "quadratic"],
-    ) -> None:
-        with suppress_type_checks():
-            if len(src_layers) == 0:
-                return
-            res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
-            assert len(src_layers) > 0
-            if processing_blend_pad != Vec3D[int](0, 0, 0):
-                for src_idx, layer in zip(src_idxs, src_layers):
-                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    with semaphore("read"):
-                        res[subidx_channels] = torch.maximum(res[subidx_channels], layer[intscn])
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
@@ -768,9 +778,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             yield mazepa.Dependency()
             reducer: ReduceOperation
             if self.processing_blend_mode == "max":
-                reducer = ReduceByMaxValue()
+                reducer = ReduceNaive()
             else:
-                reducer = ReduceByWeightedSum()
+                reducer = ReduceByWeightedSum(self.processing_blend_mode)
             tasks_reduce = [
                 reducer.make_task(
                     src_idxs=red_chunk_task_idxs,
@@ -779,7 +789,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     roi_idx=idx.padded(self.roi_crop_pad + self.processing_blend_pad),
                     dst=dst.with_procs(read_procs=(), write_procs=()),
                     processing_blend_pad=self.processing_blend_pad,
-                    processing_blend_mode=self.processing_blend_mode,
                 )
                 for (
                     red_chunk_task_idxs,

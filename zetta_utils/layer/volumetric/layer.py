@@ -4,6 +4,7 @@ from typing import Union
 
 import attrs
 import torch
+from numpy import typing as npt
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from . import (
@@ -32,7 +33,9 @@ class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
         idx_backend = self.frontend.convert_idx(idx)
         return self.read_with_procs(idx=idx_backend)
 
-    def __setitem__(self, idx: UserVolumetricIndex, data: torch.Tensor | float | int | bool):
+    def __setitem__(
+        self, idx: UserVolumetricIndex, data: npt.NDArray | torch.Tensor | float | int | bool
+    ):
         idx_backend, data_backend = self.frontend.convert_write(idx, data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 

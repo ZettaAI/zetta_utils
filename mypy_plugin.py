@@ -25,54 +25,46 @@ except ImportError:
     pass
 
 
-def supports_dict_callback(ctx):
-    original_function_type = ctx.arg_types[0][0]
+# def supports_dict_callback(ctx):
+#     original_function_type = ctx.arg_types[0][0]
 
-    if not isinstance(original_function_type, CallableType):
-        ctx.api.fail("Argument to 'supports_dict' must be callable", ctx.context)
-        return original_function_type
+#     if not isinstance(original_function_type, CallableType):
+#         ctx.api.fail("Argument to 'supports_dict' must be callable", ctx.context)
+#         return original_function_type
 
-    if not original_function_type.arg_types:
-        ctx.api.fail("Function must have at least one argument", ctx.context)
-        return original_function_type
+#     if not original_function_type.arg_types:
+#         ctx.api.fail("Function must have at least one argument", ctx.context)
+#         return original_function_type
 
-    original_arg_type = original_function_type.arg_types[0]
+#     original_arg_type = original_function_type.arg_types[0]
 
-    if isinstance(original_arg_type, AnyType):
-        ctx.api.fail("The first argument must be annotated", ctx.context)
-        return original_function_type
+#     if isinstance(original_arg_type, AnyType):
+#         ctx.api.fail("The first argument must be annotated", ctx.context)
+#         return original_function_type
 
-    # if (
-    #     original_arg_type.type.fullname == "builtins.dict"
-    #     or original_arg_type.type.fullname == "typing.Mapping"
-    # ):
-    #     ctx.api.fail(
-    #         "The first argument must not be of type 'dict' or 'Mapping'", ctx.context
-    #     )
-    #     return True
 
-    original_ret_type = original_function_type.ret_type
+# original_ret_type = original_function_type.ret_type
 
-    str_type = ctx.api.named_type("builtins.str")
-    dict_type = ctx.api.named_type("builtins.dict")
-    mapping_type = ctx.api.named_type("typing.Mapping")
+# str_type = ctx.api.named_type("builtins.str")
+# dict_type = ctx.api.named_type("builtins.dict")
+# mapping_type = ctx.api.named_type("typing.Mapping")
 
-    dict_instance = Instance(
-        dict_type.type,
-        args=[str_type, original_arg_type],
-    )
-    mapping_instance = Instance(mapping_type.type, args=[str_type, original_ret_type])
+# dict_instance = Instance(
+#     dict_type.type,
+#     args=[str_type, original_arg_type],
+# )
+# mapping_instance = Instance(mapping_type.type, args=[str_type, original_ret_type])
 
-    overload_2 = original_function_type.copy_modified(
-        arg_types=[mapping_instance] + original_function_type.arg_types[1:],
-        arg_kinds=[ARG_POS] + original_function_type.arg_kinds[1:],
-        arg_names=["data"] + original_function_type.arg_names[1:],
-        ret_type=dict_instance,
-    )
+# overload_2 = original_function_type.copy_modified(
+#     arg_types=[mapping_instance] + original_function_type.arg_types[1:],
+#     arg_kinds=[ARG_POS] + original_function_type.arg_kinds[1:],
+#     arg_names=["data"] + original_function_type.arg_names[1:],
+#     ret_type=dict_instance,
+# )
 
-    overloaded_type = Overloaded([original_function_type, overload_2])
+# overloaded_type = Overloaded([original_function_type, overload_2])
 
-    return overloaded_type
+# return overloaded_type
 
 
 def task_maker_cls_callback(ctx):  # pragma: no cover # type: ignore
@@ -161,10 +153,10 @@ class ZettaPlugin(Plugin):
                 return flow_schema_cls_callback
         return None
 
-    def get_function_hook(self, fullname: str):
-        if fullname == "zetta_utils.tensor_ops.common.supports_dict":
-            return supports_dict_callback
-        return None
+    # def get_function_hook(self, fullname: str):
+    #     if fullname == "zetta_utils.tensor_ops.common.supports_dict":
+    #         return supports_dict_callback
+    #     return None
 
 
 def plugin(version):  # pragma: no cover

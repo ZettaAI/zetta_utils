@@ -8,7 +8,7 @@ import attrs
 import cachetools
 import cloudvolume as cv
 import numpy as np
-import torch
+from numpy import typing as npt
 from cloudvolume import CloudVolume
 
 from zetta_utils import tensor_ops
@@ -78,8 +78,8 @@ def _clear_cv_cache(path: str | None = None) -> None:  # pragma: no cover
 class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
-    Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
-    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
+    Read data will be a ``npt.NDArray`` in ``CXYZ`` dimension order.
+    Write data is expected to be a ``npt.NDArray`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
     :param path: CloudVolume path. Can be given as relative or absolute.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
@@ -137,12 +137,12 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         )
 
     @property
-    def dtype(self) -> torch.dtype:
+    def dtype(self) -> np.dtype:
         result = _get_cv_cached(self.path, **self.cv_kwargs)
 
         dtype = result.data_type
         try:
-            return getattr(torch, dtype)
+            return getattr(np, dtype)
         except Exception as e:
             raise ValueError(  # pylint: disable=raise-missing-from
                 f"CVBackend has data_type '{dtype}',"
@@ -200,16 +200,15 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_cv_cache(self.path)
 
-    def read(self, idx: VolumetricIndex) -> torch.Tensor:
+    def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
         cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
         data_raw = cvol[idx.to_slices()]
 
-        result_np = np.transpose(data_raw, (3, 0, 1, 2))
-        result = tensor_ops.to_torch(result_np)
+        result = np.transpose(data_raw, (3, 0, 1, 2))
         return result
 
-    def write(self, idx: VolumetricIndex, data: torch.Tensor):
+    def write(self, idx: VolumetricIndex, data: npt.NDArray):
         # Data in: cxyz
         # Write format: xyzc (b == 1)
 

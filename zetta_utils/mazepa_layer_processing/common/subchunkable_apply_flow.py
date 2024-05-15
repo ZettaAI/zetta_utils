@@ -19,7 +19,8 @@ from typing import (
 )
 
 import attrs
-from torch import Tensor
+import numpy as np 
+from numpy import typing as npt
 from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
@@ -97,7 +98,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     allow_cache_up_to_level: int | None = None,
     print_summary: bool = True,
     generate_ng_link: bool = False,
-    fn: Callable[P, Tensor] | None = None,
+    fn: Callable[P, npt.NDArray] | None = None,
     fn_semaphores: Sequence[SemaphoreType] | None = None,
     op: VolumetricOpProtocol[P, None, Any] | None = None,
     op_args: Iterable = (),

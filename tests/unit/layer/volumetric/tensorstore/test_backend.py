@@ -6,7 +6,6 @@ from copy import deepcopy
 import numpy as np
 import pytest
 import tensorstore
-import torch
 
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
@@ -48,7 +47,7 @@ def test_ts_backend_dtype(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="uint8")
     tsb = TSBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="overwrite")
 
-    assert tsb.dtype == torch.uint8
+    assert tsb.dtype == np.dtype('uint8')
 
 
 def test_ts_backend_dtype_exc(clear_caches_reset_mocks):
@@ -148,8 +147,8 @@ def test_ts_backend_read_partial(clear_caches_reset_mocks, mocker):
         resolution=Vec3D(1, 1, 1),
     )
     result = tsb.read(index)
-    assert result[:, 0:1, :, :] == torch.zeros((1, 1, 1, 1), dtype=torch.uint8)
-    assert result[:, 1:2, :, :] == torch.ones((1, 1, 1, 1), dtype=torch.uint8)
+    assert result[:, 0:1, :, :] == np.zeros((1, 1, 1, 1), dtype=np.uint8)
+    assert result[:, 1:2, :, :] == np.ones((1, 1, 1, 1), dtype=np.uint8)
 
 
 def test_ts_backend_write_idx(clear_caches_reset_mocks, mocker):
@@ -160,7 +159,7 @@ def test_ts_backend_write_idx(clear_caches_reset_mocks, mocker):
         default_voxel_offset=IntVec3D(1, 2, 3),
     )
     tsb = TSBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
-    value = torch.ones([1, 3, 5, 7], dtype=torch.uint8)
+    value = np.ones([1, 3, 5, 7], dtype=np.uint8)
 
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(1, 4), slice(2, 7), slice(3, 10))),
@@ -185,7 +184,7 @@ def test_ts_backend_write_idx_partial(clear_caches_reset_mocks, mocker):
         on_info_exists="overwrite",
         enforce_chunk_aligned_writes=False,
     )
-    value = torch.ones([1, 3, 4, 5], dtype=torch.uint8)
+    value = np.ones([1, 3, 4, 5], dtype=np.uint8)
 
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(-2, 1), slice(-3, 1), slice(-4, 1))),
@@ -205,7 +204,7 @@ def test_ts_backend_write_scalar_idx(clear_caches_reset_mocks, mocker):
         default_voxel_offset=IntVec3D(1, 2, 3),
     )
     tsb = TSBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
-    value = torch.tensor([1], dtype=torch.uint8)
+    value = np.array([1], dtype=np.uint8)
 
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(1, 4), slice(2, 7), slice(3, 10))),
@@ -221,7 +220,7 @@ def test_ts_backend_write_scalar_idx(clear_caches_reset_mocks, mocker):
     "data_in,expected_exc",
     [
         # Too many dims
-        [torch.ones((1, 2, 3, 4, 5, 6)), ValueError],
+        [np.ones((1, 2, 3, 4, 5, 6)), ValueError],
     ],
 )
 def test_ts_backend_write_exc_dims(data_in, expected_exc, clear_caches_reset_mocks, mocker):
@@ -243,7 +242,7 @@ def test_ts_backend_write_exc_dims(data_in, expected_exc, clear_caches_reset_moc
     "data_in,expected_exc",
     [
         # idx not chunk aligned
-        [torch.ones((3, 3, 3, 3), dtype=torch.uint8), ValueError],
+        [np.ones((3, 3, 3, 3), dtype=np.uint8), ValueError],
     ],
 )
 def test_ts_backend_write_exc_chunks(data_in, expected_exc, clear_caches_reset_mocks, mocker):

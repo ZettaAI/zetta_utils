@@ -6,6 +6,7 @@ from functools import partial
 from typing import Callable, Generic, Sequence, TypeVar
 
 import attrs
+from numpy import typing as npt
 import torch
 from typing_extensions import ParamSpec
 
@@ -37,7 +38,7 @@ class VolumetricCallableOperation(Generic[P]):
         `fn` does either of these things.
     """
 
-    fn: Callable[P, torch.Tensor]
+    fn: Callable[P, npt.NDArray]
     fn_semaphores: Sequence[SemaphoreType] | None = None
     crop_pad: Sequence[int] = (0, 0, 0)
     res_change_mult: Sequence[float] = (1, 1, 1)
@@ -111,7 +112,7 @@ class VolumetricCallableOperation(Generic[P]):
 # TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured
 # to use subchunkable
 def build_chunked_volumetric_callable_flow_schema(
-    fn: Callable[P, torch.Tensor],
+    fn: Callable[P, npt.NDArray],
     chunker: IndexChunker[IndexT],
     crop_pad: Vec3D[int] = Vec3D[int](0, 0, 0),
     res_change_mult: Vec3D = Vec3D(1, 1, 1),

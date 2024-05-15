@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import Literal, TypeVar
 
 import attrs
-import torch
+import numpy as np
 
 from zetta_utils.geometry import Vec3D
 
@@ -24,7 +24,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
 
     @property
     @abstractmethod
-    def dtype(self) -> torch.dtype:
+    def dtype(self) -> np.dtype:
         ...
 
     @property

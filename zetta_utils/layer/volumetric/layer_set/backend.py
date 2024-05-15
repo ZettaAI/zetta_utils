@@ -4,16 +4,17 @@ from __future__ import annotations
 from typing import Literal
 
 import attrs
-import torch
+import numpy as np
+from numpy import typing as npt
 
 from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex, VolumetricLayer
 
 
-@attrs.frozen
+@attrs.mutable
 class VolumetricSetBackend(
-    VolumetricBackend[dict[str, torch.Tensor]]
+    VolumetricBackend[dict[str, npt.NDArray]]
 ):  # pylint: disable=too-few-public-methods
     layers: dict[str, VolumetricLayer]
 
@@ -30,7 +31,7 @@ class VolumetricSetBackend(
         )
 
     @property
-    def dtype(self) -> torch.dtype:  # pragma: no cover
+    def dtype(self) -> np.dtype:  # pragma: no cover
         dtypes = {k: v.backend.dtype for k, v in self.layers.items()}
         if not len(set(dtypes.values())) == 1:
             raise ValueError(
@@ -166,10 +167,10 @@ class VolumetricSetBackend(
         for e in self.layers.values():
             e.backend.assert_idx_is_chunk_aligned(idx=idx)
 
-    def read(self, idx: VolumetricIndex) -> dict[str, torch.Tensor]:
+    def read(self, idx: VolumetricIndex) -> dict[str, npt.NDArray]:
         return {k: v.read_with_procs(idx) for k, v in self.layers.items()}
 
-    def write(self, idx: VolumetricIndex, data: dict[str, torch.Tensor]):
+    def write(self, idx: VolumetricIndex, data: dict[str, npt.NDArray]):
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Optional, Union
 
 import attrs
-import torch
+import numpy as np
+from numpy import typing as npt
 
 from zetta_utils.geometry import BBox3D, Vec3D
 
@@ -104,17 +105,17 @@ class VolumetricFrontend:
         return result
 
     def convert_write(
-        self, idx_user: UserVolumetricIndex, data_user: Union[torch.Tensor, float, int, bool]
-    ) -> tuple[VolumetricIndex, torch.Tensor]:
+        self, idx_user: UserVolumetricIndex, data_user: Union[npt.NDArray, float, int, bool]
+    ) -> tuple[VolumetricIndex, npt.NDArray]:
         idx = self.convert_idx(idx_user)
         if isinstance(data_user, (float, int)):
             dtype_mapping = {
-                float: torch.float32,
-                int: torch.int32,
-                bool: torch.int32,
+                float: np.float32,
+                int: np.int32,
+                bool: np.int32,
             }
             dtype = dtype_mapping[type(data_user)]
-            data = torch.Tensor([data_user]).to(dtype)
+            data = np.array([data_user]).astype(dtype)
         else:
             data = data_user
 

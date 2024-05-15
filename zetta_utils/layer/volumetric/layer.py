@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Union
 
 import attrs
-import torch
+from numpy import typing as npt
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from . import (
@@ -14,13 +14,13 @@ from . import (
 )
 
 VolumetricDataProcT = Union[
-    DataProcessor[torch.Tensor], JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+    DataProcessor[npt.NDArray], JointIndexDataProcessor[npt.NDArray, VolumetricIndex]
 ]
 
 
 @attrs.frozen
-class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
-    backend: VolumetricBackend[torch.Tensor]
+class VolumetricLayer(Layer[VolumetricIndex, npt.NDArray]):
+    backend: VolumetricBackend[npt.NDArray]
     frontend: VolumetricFrontend
     readonly: bool = False
 
@@ -28,11 +28,11 @@ class VolumetricLayer(Layer[VolumetricIndex, torch.Tensor]):
     read_procs: tuple[VolumetricDataProcT, ...] = ()
     write_procs: tuple[VolumetricDataProcT, ...] = ()
 
-    def __getitem__(self, idx: UserVolumetricIndex) -> torch.Tensor:
+    def __getitem__(self, idx: UserVolumetricIndex) -> npt.NDArray:
         idx_backend = self.frontend.convert_idx(idx)
         return self.read_with_procs(idx=idx_backend)
 
-    def __setitem__(self, idx: UserVolumetricIndex, data: torch.Tensor | float | int | bool):
+    def __setitem__(self, idx: UserVolumetricIndex, data: npt.NDArray | float | int | bool):
         idx_backend, data_backend = self.frontend.convert_write(idx, data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 

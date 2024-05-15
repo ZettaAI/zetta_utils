@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence, Union
 
-import torch
+from numpy import typing as npt 
 
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.common import ComparablePartial
@@ -17,11 +17,11 @@ from . import VolumetricCallableOperation, build_chunked_volumetric_callable_flo
 
 
 def _interpolate(
-    src: torch.Tensor,
+    src: npt.NDArray,
     scale_factor: Union[float, Sequence[float]],
     mode: tensor_ops.InterpolationMode,
     mask_value_thr: float = 0,
-) -> torch.Tensor:
+) -> npt.NDArray:
     # This dummy function is necessary to rename `src` to `data` arg
     result = tensor_ops.interpolate(
         data=src,

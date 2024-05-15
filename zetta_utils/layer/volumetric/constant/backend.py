@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Literal, Union
 
 import attrs
-import torch
+import numpy as np 
+from numpy import typing as npt
 
 from zetta_utils.geometry import Vec3D
 
@@ -33,8 +34,8 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
         raise NotImplementedError("cannot set `name` for `ConstantVolumetricBackend` directly;")
 
     @property
-    def dtype(self) -> torch.dtype:  # pragma: no cover
-        return torch.float
+    def dtype(self) -> np.dtype:  # pragma: no cover
+        return np.dtype('float32')
 
     @property
     def is_local(self) -> bool:  # pragma: no cover
@@ -73,11 +74,11 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
     def clear_cache(self) -> None:  # pragma: no cover
         pass
 
-    def read(self, idx: VolumetricIndex) -> torch.Tensor:
+    def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
         slices = idx.to_slices()
         result = (
-            torch.ones(
+            np.ones(
                 (
                     self.num_channels,
                     slices[0].stop - slices[0].start,
@@ -89,7 +90,7 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
         )
         return result
 
-    def write(self, idx: VolumetricIndex, data: torch.Tensor):  # pragma: no cover
+    def write(self, idx: VolumetricIndex, data: npt.NDArray):  # pragma: no cover
         raise RuntimeError("cannot perform `write` operation on a ConstantVolumetricBackend")
 
     def with_changes(self, **kwargs) -> ConstantVolumetricBackend:  # pragma: no cover

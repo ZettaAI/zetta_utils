@@ -4,7 +4,8 @@ from __future__ import annotations
 import copy
 from typing import Iterable, Sequence
 
-import torch
+from numpy import typing as npt
+
 from typeguard import typechecked
 
 from zetta_utils.geometry import Vec3D
@@ -31,10 +32,10 @@ def build_volumetric_layer(
     readonly: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
-        DataProcessor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+        DataProcessor[npt.NDArray] | JointIndexDataProcessor[npt.NDArray, VolumetricIndex]
     ] = (),
     write_procs: Iterable[
-        DataProcessor[torch.Tensor] | JointIndexDataProcessor[torch.Tensor, VolumetricIndex]
+        DataProcessor[npt.NDArray] | JointIndexDataProcessor[npt.NDArray, VolumetricIndex]
     ] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.

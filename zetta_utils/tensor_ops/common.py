@@ -606,7 +606,7 @@ def crop_center(
 @supports_dict
 def tensor_op_chain(
     data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
-) -> TensorTypeVar:
+) -> TensorTypeVar: # pragma: no cover
     result = data
     for step in steps:
         result = step(result)

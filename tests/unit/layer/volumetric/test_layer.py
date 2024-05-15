@@ -1,9 +1,10 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object
 from __future__ import annotations
 
+import numpy as np
 import pytest
-import torch
 
+from ...helpers import assert_array_equal
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricIndex,
@@ -14,7 +15,7 @@ from zetta_utils.layer.volumetric import (
 
 def test_data_resolution_read_interp(mocker):
     backend = mocker.MagicMock()
-    backend.read = mocker.MagicMock(return_value=torch.ones((2, 2, 2, 2)) * 2)
+    backend.read = mocker.MagicMock(return_value=np.ones((2, 2, 2, 2)) * 2)
 
     layer = build_volumetric_layer(
         backend,
@@ -32,9 +33,9 @@ def test_data_resolution_read_interp(mocker):
             bbox=BBox3D.from_slices((slice(0, 3), slice(0, 3), slice(0, 3))),
         )
     )
-    assert torch.equal(
+    assert_array_equal(
         read_data,
-        torch.ones((2, 1, 1, 1)),
+        np.ones((2, 1, 1, 1)),
     )
 
 
@@ -60,11 +61,11 @@ def test_data_resolution_write_interp(mocker):
         bbox=BBox3D.from_slices((slice(0, 4), slice(0, 4), slice(0, 4))),
     )
 
-    layer[0:4, 0:4, 0:4] = torch.ones((2, 1, 1, 1))
+    layer[0:4, 0:4, 0:4] = np.ones((2, 1, 1, 1))
     assert backend.write.call_args.kwargs["idx"] == idx
-    assert torch.equal(
+    assert_array_equal(
         backend.write.call_args.kwargs["data"],
-        torch.ones((2, 2, 2, 2)) * 2,
+        np.ones((2, 2, 2, 2)) * 2,
     )
 
 
@@ -79,9 +80,9 @@ def test_write_scalar(mocker):
     )
 
     layer[0:1, 0:1, 0:1] = 1.0
-    assert torch.equal(
+    assert_array_equal(
         backend.write.call_args.kwargs["data"],
-        torch.Tensor([1]),
+        np.array([1]),
     )
 
 
@@ -97,16 +98,16 @@ def test_write_scalar_with_processor(mocker):
     )
 
     layer[0:1, 0:1, 0:1] = 1.0
-    assert torch.equal(
+    assert_array_equal(
         backend.write.call_args.kwargs["data"],
-        torch.Tensor([2]),
+        np.array([2]),
     )
 
 
 def test_read_write_with_idx_processor(mocker):
     backend = mocker.MagicMock()
     backend.write = mocker.MagicMock()
-    backend.read = mocker.MagicMock(return_value=torch.ones((2, 1, 1, 1)))
+    backend.read = mocker.MagicMock(return_value=np.ones((2, 1, 1, 1)))
 
     layer = build_volumetric_layer(
         backend,
@@ -122,14 +123,14 @@ def test_read_write_with_idx_processor(mocker):
         bbox=BBox3D.from_slices((slice(2, 4), slice(4, 6), slice(8, 10))),
     )
     layer[0:1, 0:1, 0:1] = 1.0
-    assert torch.equal(
+    assert_array_equal(
         backend.write.call_args.kwargs["data"],
-        torch.Tensor([2]),
+        np.array([2]),
     )
     assert backend.write.call_args.kwargs["idx"] == expected_idx
 
     data_read = layer[0:1, 0:1, 0:1]
-    assert torch.equal(data_read, torch.zeros((2, 1, 1, 1)))
+    assert_array_equal(data_read, np.zeros((2, 1, 1, 1)))
     assert backend.write.call_args.kwargs["idx"] == expected_idx
 
 

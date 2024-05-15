@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Mapping, Union
 
 import attrs
-import torch
+from numpy import typing as npt
 from typeguard import typechecked
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
@@ -11,14 +11,14 @@ from .. import UserVolumetricIndex, VolumetricFrontend, VolumetricIndex
 from . import VolumetricSetBackend
 
 VolumetricSetDataProcT = Union[
-    DataProcessor[dict[str, torch.Tensor]],
-    JointIndexDataProcessor[dict[str, torch.Tensor], VolumetricIndex],
+    DataProcessor[dict[str, npt.NDArray]],
+    JointIndexDataProcessor[dict[str, npt.NDArray], VolumetricIndex],
 ]
 
 
 @typechecked
 @attrs.frozen
-class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
+class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, npt.NDArray]]):
     backend: VolumetricSetBackend
     frontend: VolumetricFrontend
 
@@ -28,12 +28,12 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
     read_procs: tuple[VolumetricSetDataProcT, ...] = ()
     write_procs: tuple[VolumetricSetDataProcT, ...] = ()
 
-    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, npt.NDArray]:
         idx_backend = self.frontend.convert_idx(idx)
         return self.read_with_procs(idx=idx_backend)
 
     def __setitem__(
-        self, idx: UserVolumetricIndex, data: Mapping[str, Union[torch.Tensor, int, float, bool]]
+        self, idx: UserVolumetricIndex, data: Mapping[str, Union[npt.NDArray, int, float, bool]]
     ):
         idx_backend: VolumetricIndex | None = None
         idx_last: VolumetricIndex | None = None

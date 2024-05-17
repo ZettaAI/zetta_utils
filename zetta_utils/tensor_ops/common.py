@@ -629,7 +629,7 @@ def crop_center(
 @supports_dict
 def tensor_op_chain(
     data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
-) -> TensorTypeVar:
+) -> TensorTypeVar:  # pragma: no cover
     result = data
     for step in steps:
         result = step(result)
@@ -639,9 +639,9 @@ def tensor_op_chain(
 @builder.register("abs")
 @typechecked
 @supports_dict
-def abs(  # pragma: no cover # pylint: disable=redefined-builtin
+def abs(  # pylint: disable=redefined-builtin
     data: TensorTypeVar,
-) -> TensorTypeVar:
+) -> TensorTypeVar:  # pragma: no cover
     if isinstance(data, torch.Tensor):
         return data.abs()
     else:

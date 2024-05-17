@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Literal, Sequence, Union
 
 import torch
+from numpy import typing as npt
 
 from zetta_utils import builder
 from zetta_utils.tensor_ops import InterpolationMode
@@ -42,14 +43,14 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
         Union[
-            DataProcessor[torch.Tensor],
-            JointIndexDataProcessor[torch.Tensor, VolumetricIndex],
+            DataProcessor[npt.NDArray],
+            JointIndexDataProcessor[npt.NDArray, VolumetricIndex],
         ]
     ] = (),
     write_procs: Iterable[
         Union[
-            DataProcessor[torch.Tensor],
-            JointIndexDataProcessor[torch.Tensor, VolumetricIndex],
+            DataProcessor[npt.NDArray | torch.Tensor],
+            JointIndexDataProcessor[npt.NDArray | torch.Tensor, VolumetricIndex],
         ]
     ] = (),
 ) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only

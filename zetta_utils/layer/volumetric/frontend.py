@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Optional, Union
 
 import attrs
+import numpy as np
 import torch
 from numpy import typing as npt
 
@@ -109,17 +110,17 @@ class VolumetricFrontend:
         self,
         idx_user: UserVolumetricIndex,
         data_user: npt.NDArray | torch.Tensor | float | int | bool,
-    ) -> tuple[VolumetricIndex, torch.Tensor]:
+    ) -> tuple[VolumetricIndex, npt.NDArray]:
         idx = self.convert_idx(idx_user)
         if isinstance(data_user, (float, int)):
             dtype_mapping = {
-                float: torch.float32,
-                int: torch.int32,
-                bool: torch.int32,
+                float: np.dtype("float32"),
+                int: np.dtype("int32"),
+                bool: np.dtype("int32"),
             }
             dtype = dtype_mapping[type(data_user)]
-            data = torch.Tensor([data_user]).to(dtype)
+            data = np.array([data_user]).astype(dtype)
         else:
-            data = tensor_ops.convert.to_torch(data_user)
+            data = tensor_ops.convert.to_np(data_user)
 
         return idx, data

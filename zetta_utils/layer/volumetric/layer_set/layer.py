@@ -4,6 +4,7 @@ from typing import Mapping, Union
 
 import attrs
 import torch
+from numpy import typing as npt
 from typeguard import typechecked
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
@@ -11,14 +12,20 @@ from .. import UserVolumetricIndex, VolumetricFrontend, VolumetricIndex
 from . import VolumetricSetBackend
 
 VolumetricSetDataProcT = Union[
-    DataProcessor[dict[str, torch.Tensor]],
-    JointIndexDataProcessor[dict[str, torch.Tensor], VolumetricIndex],
+    DataProcessor[dict[str, npt.NDArray]],
+    JointIndexDataProcessor[dict[str, npt.NDArray], VolumetricIndex],
+]
+VolumetricSetDataWriteProcT = Union[
+    DataProcessor[Mapping[str, npt.NDArray | torch.Tensor]],
+    JointIndexDataProcessor[Mapping[str, npt.NDArray | torch.Tensor], VolumetricIndex],
 ]
 
 
 @typechecked
 @attrs.frozen
-class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
+class VolumetricLayerSet(
+    Layer[VolumetricIndex, dict[str, npt.NDArray], Mapping[str, npt.NDArray | torch.Tensor]]
+):
     backend: VolumetricSetBackend
     frontend: VolumetricFrontend
 
@@ -26,14 +33,16 @@ class VolumetricLayerSet(Layer[VolumetricIndex, dict[str, torch.Tensor]]):
 
     index_procs: tuple[IndexProcessor[VolumetricIndex], ...] = ()
     read_procs: tuple[VolumetricSetDataProcT, ...] = ()
-    write_procs: tuple[VolumetricSetDataProcT, ...] = ()
+    write_procs: tuple[VolumetricSetDataWriteProcT, ...] = ()
 
-    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, torch.Tensor]:
+    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, npt.NDArray]:
         idx_backend = self.frontend.convert_idx(idx)
         return self.read_with_procs(idx=idx_backend)
 
     def __setitem__(
-        self, idx: UserVolumetricIndex, data: Mapping[str, Union[torch.Tensor, int, float, bool]]
+        self,
+        idx: UserVolumetricIndex,
+        data: Mapping[str, Union[npt.NDArray, torch.Tensor, int, float, bool]],
     ):
         idx_backend: VolumetricIndex | None = None
         idx_last: VolumetricIndex | None = None

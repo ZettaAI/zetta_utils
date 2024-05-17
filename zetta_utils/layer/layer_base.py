@@ -10,13 +10,14 @@ from . import Backend, DataProcessor, IndexProcessor, JointIndexDataProcessor
 
 BackendIndexT = TypeVar("BackendIndexT")
 BackendDataT = TypeVar("BackendDataT")
+BackendDataWriteT = TypeVar("BackendDataWriteT")
 BackendT = TypeVar("BackendT", bound=Backend)
 LayerT = TypeVar("LayerT", bound="Layer")
 
 
 @attrs.frozen
-class Layer(Generic[BackendIndexT, BackendDataT]):
-    backend: Backend[BackendIndexT, BackendDataT]
+class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
+    backend: Backend[BackendIndexT, BackendDataT, BackendDataWriteT]
     readonly: bool = False
 
     index_procs: tuple[IndexProcessor[BackendIndexT], ...] = ()
@@ -25,7 +26,10 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
         ...,
     ] = ()
     write_procs: tuple[
-        Union[DataProcessor[BackendDataT], JointIndexDataProcessor[BackendDataT, BackendIndexT]],
+        Union[
+            DataProcessor[BackendDataWriteT],
+            JointIndexDataProcessor[BackendDataWriteT, BackendIndexT],
+        ],
         ...,
     ] = ()
 
@@ -55,7 +59,7 @@ class Layer(Generic[BackendIndexT, BackendDataT]):
     def write_with_procs(
         self,
         idx: BackendIndexT,
-        data: BackendDataT,
+        data: BackendDataWriteT,
     ):
         if self.readonly:
             raise IOError(f"Attempting to write to a read only layer {self}")

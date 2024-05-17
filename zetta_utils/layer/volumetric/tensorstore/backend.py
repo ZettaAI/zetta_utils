@@ -10,6 +10,7 @@ import cachetools
 import numpy as np
 import tensorstore
 import torch
+from numpy import typing as npt
 from typeguard import suppress_type_checks
 
 from zetta_utils import tensor_ops
@@ -66,8 +67,8 @@ def _clear_ts_cache(path: str | None = None) -> None:  # pragma: no cover
 class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using TensorStore library.
-    Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
-    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
+    Read data will be a ``npt.NDArray`` in ``CXYZ`` dimension order.
+    Write data is expected to be a ``npt.NDArray`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
     :param path: Precomputed path. Can be given as relative or absolute.
     :param info_spec: Specification for the info file for the layer. If None, the
@@ -137,13 +138,9 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         )
 
     @property
-    def dtype(self) -> torch.dtype:
-        try:
-            result = _get_ts_at_resolution(self.path, self.cache_bytes_limit)
-            dtype = result.dtype.name
-            return getattr(torch, dtype)
-        except Exception as e:
-            raise e
+    def dtype(self) -> np.dtype:
+        result = _get_ts_at_resolution(self.path, self.cache_bytes_limit)
+        return result.dtype.name
 
     @property
     # TODO: Figure out a way to access 'multiscale metadata' directly
@@ -190,7 +187,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_ts_cache(self.path)
 
-    def read(self, idx: VolumetricIndex) -> torch.Tensor:
+    def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(idx.resolution)))
 
@@ -208,11 +205,10 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         else:
             data_final = data_raw
 
-        result_np = np.transpose(data_final, (3, 0, 1, 2))
-        result = tensor_ops.to_torch(result_np)
+        result = np.transpose(data_final, (3, 0, 1, 2))
         return result
 
-    def write(self, idx: VolumetricIndex, data: torch.Tensor):
+    def write(self, idx: VolumetricIndex, data: torch.Tensor | npt.NDArray):
         if self._enforce_chunk_aligned_writes:
             self.assert_idx_is_chunk_aligned(idx)
 

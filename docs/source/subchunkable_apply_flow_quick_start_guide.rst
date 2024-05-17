@@ -49,7 +49,7 @@ For this guide, we will use FAFB v15, which is a ``precomputed`` dataset, and us
    ... )
    >>> data = cvl[Vec3D(64, 64, 40), 13000:13100, 4000:4100, 2000:2001]
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 100, 100, 1])
+   (1, 100, 100, 1)
 
 .. collapse:: Vec3D
 
@@ -89,7 +89,7 @@ For instance, suppose that you were looking at the FAFB v15 in neuroglancer, and
    ... )
    >>> data = cvl[211200:216000, 64800:69600, 2000:2002] # (4, 4, 40) indexing
    >>> data.shape # channel, x, y, z at (192, 192, 80) resolution
-   torch.Size([1, 100, 100, 1])
+   (1, 100, 100, 1)
 
 This feature can be used to:
 
@@ -171,7 +171,7 @@ Using ``VolumetricIndex``, the first example above becomes:
    ... )
    >>> data = cvl[idx]
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 100, 100, 1])
+   (1, 100, 100, 1)
 
 .. note::
    Since ``VolumetricIndex`` already contains the resolution information, the ``index_resolution`` provided at the initialisation of ``VolumetricLayer`` is overridden when indexing into it using a ``VolumetricIndex``.
@@ -273,9 +273,9 @@ We initialise the ``VolumetricLayer`` with this ``DataProcessor``, and compare t
    ...     resolution = Vec3D(64, 64, 40)
    ... )
    >>> cvl_without_proc[idx].min()
-   tensor(-2.9492)
+   -2.9491823
    >>> cvl_with_proc[idx].min()
-   tensor(0.)
+   0.0
 
 This ``VolumetricLayer`` will now apply the ``__call__`` from the ``ThresholdProcessor`` before returning the output for each read.
 

@@ -16,11 +16,15 @@ DBDataT = Sequence[DBRowDataT]
 
 class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
-    def read(self, idx: DBIndex) -> DBDataT:
+    def __contains__(self, idx: str) -> bool:
         ...
 
     @abstractmethod
-    def exists(self, idx: DBIndex) -> bool:
+    def __len__(self) -> int:
+        ...
+
+    @abstractmethod
+    def read(self, idx: DBIndex) -> DBDataT:
         ...
 
     @abstractmethod

@@ -96,8 +96,7 @@ def update_run_info(run_id: str, info: DBRowDataT) -> None:
 def _check_run_id_conflict():
     assert RUN_ID is not None
     row_key = f"run-{RUN_ID}"
-    col_keys = tuple(e.value for e in RunInfo)
-    if RUN_DB.exists((row_key, col_keys)):
+    if row_key in RUN_DB:
         raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
 
 

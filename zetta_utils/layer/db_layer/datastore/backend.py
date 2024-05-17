@@ -83,7 +83,7 @@ class DatastoreBackend(DBBackend):
         parent_key = self.client.key("Row", idx)
         return self.client.get(parent_key) is not None
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # pragma: no cover # no emulator support
         count_query = self.client.aggregation_query(self.client.query(kind="Row")).count()
         for aggregation_results in count_query.fetch():
             for aggregation in aggregation_results:

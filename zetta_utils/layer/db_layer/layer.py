@@ -196,7 +196,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
     def __contains__(self, idx: str) -> bool:  # pragma: no cover # no logic
         return idx in self.backend
 
-    def __len__(self) -> int:
+    def __len__(self) -> int:  # pragma: no cover # no logic
         return len(self.backend)
 
     def get(self, idx: str, default=None):

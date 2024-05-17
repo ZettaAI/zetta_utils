@@ -58,7 +58,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         return DBIndex(row_col_keys)
 
     @overload
-    def _convert_read_data(self, idx_user: str, data: DBDataT) -> DBValueT:
+    def _convert_read_data(self, idx_user: str, data: DBDataT) -> DBValueT | DBRowDataT:
         ...
 
     @overload
@@ -89,7 +89,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
 
     def _convert_read_data(self, idx_user: UserDBIndex, data: DBDataT):
         if isinstance(idx_user, str):
-            return data[0]["value"]
+            return data[0]["value"] if "value" in data[0] else data[0]
 
         if isinstance(idx_user, list):
             return [d["value"] for d in data]
@@ -98,10 +98,7 @@ class DBLayer(Layer[DBIndex, DBDataT]):
             if isinstance(row_keys, str):
                 if isinstance(col_keys, str):
                     return data[0][col_keys]
-                else:
-                    return {
-                        col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]
-                    }
+                return {col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]}
             elif isinstance(col_keys, str):
                 return [row[col_keys] for row in data]
         return data
@@ -196,9 +193,17 @@ class DBLayer(Layer[DBIndex, DBDataT]):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 
-    def exists(self, idx) -> bool:  # pragma: no cover # no logic
-        idx_backend = self._convert_idx(idx)
-        return self.backend.exists(idx_backend)
+    def __contains__(self, idx: str) -> bool:  # pragma: no cover # no logic
+        return idx in self.backend
+
+    def __len__(self) -> int:
+        return len(self.backend)
+
+    def get(self, idx: str, default=None):
+        """Read a single key from the database."""
+        if idx in self.backend:
+            return self[idx]
+        return default
 
     def query(
         self, column_filter: dict[str, list] | None = None

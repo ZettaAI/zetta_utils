@@ -21,5 +21,8 @@ class DBIndex:
     def col_keys(self) -> List[Tuple[str, ...]]:
         return list(self.row_col_keys.values())
 
+    def __len__(self) -> int:
+        return len(self.row_col_keys)
+
     def get_size(self):  # pragma: no cover
         return len(self.row_col_keys)

@@ -74,13 +74,34 @@ class DatastoreBackend(DBBackend):
         for field in attrs.fields_dict(self.__class__):
             setattr(self, field, state[field])
 
+    def __contains__(self, idx: str) -> bool:
+        parent_key = self.client.key("Row", idx)
+        return self.client.get(parent_key) is not None
+
+    def __len__(self) -> int:
+        count_query = self.client.aggregation_query(self.client.query(kind="Row")).count()
+        for aggregation_results in count_query.fetch():
+            for aggregation in aggregation_results:
+                return int(aggregation.value)
+        return 0
+
+    def _read_single_entity(self, idx: DBIndex):
+        row_key = self.client.key("Row", idx.row_keys[0])
+        _query = self.client.query(kind="Column", ancestor=row_key)
+        entities = list(_query.fetch())
+        return _get_data_from_entities(idx, entities)
+
     def _get_keys_or_entities(
         self, idx: DBIndex, data: Optional[DBDataT] = None
-    ) -> Union[list[Key], list[Entity]]:
+    ) -> Union[tuple[list[Key], list[Key]], tuple[list[Entity], list[Entity]]]:
         keys = []
+        parent_keys = []
         entities = []
+        parent_entities = []
         for i, row_key in enumerate(idx.row_keys):
             parent_key = self.client.key("Row", row_key)
+            parent_keys.append(parent_key)
+            parent_entities.append(Entity(key=parent_key))
             for col_key in idx.col_keys[i]:
                 child_key = self.client.key("Column", col_key, parent=parent_key)
                 if data is None:
@@ -92,7 +113,7 @@ class DatastoreBackend(DBBackend):
                         entities.append(entity)
                     except KeyError:
                         ...
-        return keys if data is None else entities
+        return (keys, parent_keys) if data is None else (entities, parent_entities)
 
     @property
     def client(self) -> Client:
@@ -121,7 +142,9 @@ class DatastoreBackend(DBBackend):
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def read(self, idx: DBIndex) -> DBDataT:
-        keys = self._get_keys_or_entities(idx)
+        if len(idx) == 1:
+            return self._read_single_entity(idx)
+        keys, _ = self._get_keys_or_entities(idx)
         keys_splits = [
             keys[i : i + MAX_KEYS_PER_REQUEST] for i in range(0, len(keys), MAX_KEYS_PER_REQUEST)
         ]
@@ -132,15 +155,9 @@ class DatastoreBackend(DBBackend):
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     def write(self, idx: DBIndex, data: DBDataT):
-        entities = self._get_keys_or_entities(idx, data=data)
-        self.client.put_multi(entities)
-
-    def exists(self, idx: DBIndex) -> bool:
-        keys = self._get_keys_or_entities(idx)
-        for _key in keys:
-            if self.client.get(_key):
-                return True
-        return False
+        entities, parent_entities = self._get_keys_or_entities(idx, data=data)
+        # must write parent entities for aggregation query to work on `Row` entities
+        self.client.put_multi(parent_entities + entities)
 
     def with_changes(self, **kwargs) -> DatastoreBackend:
         """Currently not typed. See `Layer.with_backend_changes()` for the reason."""

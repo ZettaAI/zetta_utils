@@ -91,7 +91,10 @@ class DatastoreBackend(DBBackend):
         return 0
 
     def _read_single_entity(self, idx: DBIndex):
-        row_key = self.client.key("Row", idx.row_keys[0])
+        row_key_str = idx.row_keys[0]
+        if row_key_str not in self:
+            raise KeyError(row_key_str)
+        row_key = self.client.key("Row", row_key_str)
         _query = self.client.query(kind="Column", ancestor=row_key)
         entities = list(_query.fetch())
         return _get_data_from_entities(idx, entities)
@@ -146,7 +149,7 @@ class DatastoreBackend(DBBackend):
         return [entity.key.parent.id_or_name for entity in entities]
 
     @retry(
-        retry=retry_if_not_exception_type((RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -163,7 +166,7 @@ class DatastoreBackend(DBBackend):
         return _get_data_from_entities(idx, entities)
 
     @retry(
-        retry=retry_if_not_exception_type((RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )

@@ -29,6 +29,9 @@ def test_read_write_simple(datastore_emulator) -> None:
 
     entity = layer.backend.client.get(child_key)  # type: ignore
     assert entity["value"] == "val"
+    assert layer.get("key") == "val"
+    assert layer.get("non_existent_key") is None
+    assert layer.get("non_existent_key", "default_val") == "default_val"
 
 
 def test_read_write(datastore_emulator) -> None:
@@ -46,6 +49,7 @@ def test_read_write(datastore_emulator) -> None:
 
     data = layer[idx_user]
     assert data == data_user
+    assert layer[("key0", "col1")] == "val1"
 
 
 def test_with_changes(datastore_emulator) -> None:

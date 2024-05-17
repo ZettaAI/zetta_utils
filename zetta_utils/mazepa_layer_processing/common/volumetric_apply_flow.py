@@ -50,7 +50,6 @@ class Copy:
 
 
 @mazepa.taskable_operation_cls
-@attrs.mutable
 class ReduceOperation(ABC):
     """Base class for Reduce operations, which combine values from different
     chunks where they overlap."""
@@ -68,7 +67,7 @@ class ReduceOperation(ABC):
 
 
 @mazepa.taskable_operation_cls
-@attrs.mutable
+@attrs.frozen
 class ReduceNaive(ReduceOperation):
     """A reducer that simply takes the maximum value at each location in the overlap area."""
 

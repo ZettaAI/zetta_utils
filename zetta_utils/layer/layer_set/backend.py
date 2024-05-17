@@ -9,16 +9,19 @@ from .. import Backend, Layer
 
 IndexT = TypeVar("IndexT")
 DataT = TypeVar("DataT")
+DataWriteT = TypeVar("DataWriteT")
 
 
 @attrs.frozen
-class LayerSetBackend(Backend[IndexT, dict[str, DataT]]):  # pylint: disable=too-few-public-methods
-    layers: dict[str, Layer[IndexT, DataT]]
+class LayerSetBackend(
+    Backend[IndexT, dict[str, DataT], dict[str, DataWriteT]]
+):  # pylint: disable=too-few-public-methods
+    layers: dict[str, Layer[IndexT, DataT, DataWriteT]]
 
     def read(self, idx: IndexT) -> dict[str, DataT]:
         return {k: v.read_with_procs(idx) for k, v in self.layers.items()}
 
-    def write(self, idx: IndexT, data: dict[str, DataT]):
+    def write(self, idx: IndexT, data: dict[str, DataWriteT]):
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
 
@@ -26,5 +29,5 @@ class LayerSetBackend(Backend[IndexT, dict[str, DataT]]):  # pylint: disable=too
     def name(self) -> str:
         return f"LayerSet[f{'_'.join(self.layers.keys())}]"  # pragma: no cover
 
-    def with_changes(self, **kwargs) -> LayerSetBackend[IndexT, DataT]:
+    def with_changes(self, **kwargs) -> LayerSetBackend[IndexT, DataT, DataWriteT]:
         return attrs.evolve(self, **kwargs)  # pragma: no cover

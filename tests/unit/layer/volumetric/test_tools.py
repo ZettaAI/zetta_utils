@@ -1,6 +1,6 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
+import numpy as np
 import pytest
-import torch
 
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import (
@@ -166,9 +166,11 @@ def test_roi_mask_processor_read(
     )
     processor.process_index(idx, "read")
 
-    data = {target: torch.rand(*data_shape) for target in targets}
+    data = {target: np.random.rand(*data_shape).astype(np.float32) for target in targets}
     for target in existing_masks:
-        data[target + "_mask"] = torch.ones(*data_shape)  # Pre-existing mask for the target
+        data[target + "_mask"] = np.ones(data_shape).astype(
+            np.float32
+        )  # Pre-existing mask for the target
 
     processed_data = processor.process_data(data, "read")
 
@@ -176,13 +178,13 @@ def test_roi_mask_processor_read(
         assert target in processed_data
 
         if target in existing_masks:
-            assert torch.all(processed_data[target + "_mask"] == data[target + "_mask"])
+            assert np.all(processed_data[target + "_mask"] == data[target + "_mask"])
         else:
             mask = processed_data[target + "_mask"]
             inside_roi = mask[
                 0, expected_mask_region[0], expected_mask_region[1], expected_mask_region[2]
             ]
-            assert torch.all(inside_roi == 1)
+            assert np.all(inside_roi == 1)
 
             full_slice = slice(None)
             outside_roi_slices = tuple(
@@ -192,4 +194,4 @@ def test_roi_mask_processor_read(
             outside_roi = mask[
                 0, outside_roi_slices[0], outside_roi_slices[1], outside_roi_slices[2]
             ]
-            assert torch.all(outside_roi == 0)
+            assert np.all(outside_roi == 0)

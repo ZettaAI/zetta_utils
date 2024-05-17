@@ -10,6 +10,29 @@ from zetta_utils import builder, tensor_ops
 from zetta_utils.tensor_ops.common import supports_dict
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
+TORCH_TO_NP_DTYPE_MAP: dict[torch.dtype, np.dtype] = {
+    torch.float32: np.dtype("float32"),
+    torch.float64: np.dtype("float64"),
+    torch.float16: np.dtype("float16"),
+    torch.int32: np.dtype("int32"),
+    torch.int64: np.dtype("int64"),
+    torch.int16: np.dtype("int16"),
+    torch.int8: np.dtype("int8"),
+    torch.uint8: np.dtype("uint8"),
+    torch.bool: np.dtype("bool"),
+}
+NP_TO_TORCH_DTYPE_MAP: dict[np.dtype, torch.dtype] = {
+    v: k for k, v in TORCH_TO_NP_DTYPE_MAP.items()
+}
+
+
+def dtype_to_np_dtype(dtype: torch.dtype) -> np.dtype:  # pragma: no cover
+    return TORCH_TO_NP_DTYPE_MAP[dtype]
+
+
+def to_torch_dtype(dtype: np.dtype) -> torch.dtype:  # pragma: no cover
+    return NP_TO_TORCH_DTYPE_MAP[dtype]
+
 
 @typechecked
 def to_np(data: Tensor) -> npt.NDArray:

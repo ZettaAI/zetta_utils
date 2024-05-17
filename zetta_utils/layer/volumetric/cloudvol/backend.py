@@ -8,10 +8,9 @@ import attrs
 import cachetools
 import cloudvolume as cv
 import numpy as np
-import torch
 from cloudvolume import CloudVolume
+from numpy import typing as npt
 
-from zetta_utils import tensor_ops
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
@@ -78,8 +77,8 @@ def _clear_cv_cache(path: str | None = None) -> None:  # pragma: no cover
 class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     """
     Backend for peforming IO on Neuroglancer datasts using CloudVolume library.
-    Read data will be a ``torch.Tensor`` in ``CXYZ`` dimension order.
-    Write data is expected to be a ``torch.Tensor`` or ``np.ndarray`` in ``CXYZ``
+    Read data will be a ``npt.NDArray`` in ``CXYZ`` dimension order.
+    Write data is expected to be a ``npt.NDArray`` or ``np.ndarray`` in ``CXYZ``
     dimension order.
     :param path: CloudVolume path. Can be given as relative or absolute.
     :param cv_kwargs: Parameters that will be passed to the CloudVolume constructor.
@@ -137,17 +136,10 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         )
 
     @property
-    def dtype(self) -> torch.dtype:
+    def dtype(self) -> np.dtype:
         result = _get_cv_cached(self.path, **self.cv_kwargs)
 
-        dtype = result.data_type
-        try:
-            return getattr(torch, dtype)
-        except Exception as e:
-            raise ValueError(  # pylint: disable=raise-missing-from
-                f"CVBackend has data_type '{dtype}',"
-                " which cannot be parsed as a valid torch dtype."
-            ) from e
+        return result.data_type
 
     @property
     def num_channels(self) -> int:  # pragma: no cover
@@ -200,28 +192,26 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_cv_cache(self.path)
 
-    def read(self, idx: VolumetricIndex) -> torch.Tensor:
+    def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
         cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
         data_raw = cvol[idx.to_slices()]
 
-        result_np = np.transpose(data_raw, (3, 0, 1, 2))
-        result = tensor_ops.to_torch(result_np)
-        return result
+        result = np.transpose(data_raw, (3, 0, 1, 2))
+        return np.array(result)
 
-    def write(self, idx: VolumetricIndex, data: torch.Tensor):
+    def write(self, idx: VolumetricIndex, data: npt.NDArray):
         # Data in: cxyz
         # Write format: xyzc (b == 1)
 
-        data_np = tensor_ops.convert.to_np(data)
-        if data_np.size == 1 and len(data_np.shape) == 1:
-            data_final = data_np[0]
-        elif len(data_np.shape) == 4:
-            data_final = np.transpose(data_np, (1, 2, 3, 0))
+        if data.size == 1 and len(data.shape) == 1:
+            data_final = data[0]
+        elif len(data.shape) == 4:
+            data_final = np.transpose(data, (1, 2, 3, 0))
         else:
             raise ValueError(
                 "Data written to CloudVolume backend must be in `cxyz` dimension format, "
-                f"but got a tensor of with ndim == {data_np.ndim}"
+                f"but got a tensor of with ndim == {data.ndim}"
             )
 
         cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)

@@ -10,6 +10,7 @@ from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
 import attrs
 import cachetools
 import fsspec
+import numpy as np
 import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
@@ -22,6 +23,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndexChunker,
 )
 from zetta_utils.mazepa import semaphore
+from zetta_utils.tensor_ops import convert
 
 from ..operation_protocols import VolumetricOpProtocol
 
@@ -83,7 +85,10 @@ class ReduceNaive(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
-            res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype)
+            res = torch.zeros(
+                (dst.backend.num_channels, *red_idx.shape),
+                dtype=convert.to_torch_dtype(dst.backend.dtype),
+            )
             assert len(src_layers) > 0
             if processing_blend_pad != Vec3D[int](0, 0, 0):
                 for src_idx, layer in zip(src_idxs, src_layers):
@@ -99,6 +104,10 @@ class ReduceNaive(ReduceOperation):
                         res[subidx_channels] = layer[intscn]
             with semaphore("write"):
                 dst[red_idx] = res
+
+
+def is_floating_point_dtype(dtype: np.dtype) -> bool:
+    return np.issubdtype(dtype, np.floating)
 
 
 @mazepa.taskable_operation_cls
@@ -124,15 +133,16 @@ class ReduceByWeightedSum(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
-            if not dst.backend.dtype.is_floating_point and processing_blend_pad != Vec3D[int](
-                0, 0, 0
-            ):
+            if not is_floating_point_dtype(dst.backend.dtype) and processing_blend_pad != Vec3D[
+                int
+            ](0, 0, 0):
                 # backend is integer, but blending is requested - need to use float to avoid
                 # rounding errors
                 res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=torch.float)
             else:
                 res = torch.zeros(
-                    (dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype
+                    (dst.backend.num_channels, *red_idx.shape),
+                    dtype=convert.to_torch_dtype(dst.backend.dtype),
                 )
             assert len(src_layers) > 0
             if processing_blend_pad != Vec3D[int](0, 0, 0):
@@ -147,7 +157,7 @@ class ReduceByWeightedSum(ReduceOperation):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
                     with semaphore("read"):
-                        if not dst.backend.dtype.is_floating_point:
+                        if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[subidx_channels] = (
                                 res[subidx_channels] + layer[intscn].float() * weight
@@ -155,8 +165,8 @@ class ReduceByWeightedSum(ReduceOperation):
                         else:
                             res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
 
-                if not dst.backend.dtype.is_floating_point:
-                    res = res.round().to(dtype=dst.backend.dtype)
+                if not is_floating_point_dtype(dst.backend.dtype):
+                    res = res.round().to(dtype=convert.to_torch_dtype(dst.backend.dtype))
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)

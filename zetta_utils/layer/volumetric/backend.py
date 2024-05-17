@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import Literal, TypeVar
 
 import attrs
-import torch
+import numpy as np
 
 from zetta_utils.geometry import Vec3D
 
@@ -13,10 +13,13 @@ from .. import Backend
 from . import VolumetricIndex
 
 DataT = TypeVar("DataT")
+DataWriteT = TypeVar("DataWriteT")
 
 
 @attrs.mutable
-class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too-few-public-methods
+class VolumetricBackend(
+    Backend[VolumetricIndex, DataT, DataWriteT]
+):  # pylint: disable=too-few-public-methods
     @property
     @abstractmethod
     def is_local(self) -> bool:
@@ -24,7 +27,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
 
     @property
     @abstractmethod
-    def dtype(self) -> torch.dtype:
+    def dtype(self) -> np.dtype:
         ...
 
     @property
@@ -75,7 +78,7 @@ class VolumetricBackend(Backend[VolumetricIndex, DataT]):  # pylint: disable=too
     "dataest_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
 
-    def with_changes(self, **kwargs) -> VolumetricBackend[DataT]:
+    def with_changes(self, **kwargs) -> VolumetricBackend[DataT, DataWriteT]:
         return attrs.evolve(self, **kwargs)  # pragma: no cover
 
     @abstractmethod

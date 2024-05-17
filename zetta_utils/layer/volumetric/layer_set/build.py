@@ -7,6 +7,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.volumetric.layer_set.layer import VolumetricSetDataWriteProcT
 
 from ... import IndexProcessor
 from .. import VolumetricFrontend, VolumetricIndex, VolumetricLayer
@@ -23,7 +24,7 @@ def build_volumetric_layer_set(
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[VolumetricSetDataProcT] = (),
-    write_procs: Iterable[VolumetricSetDataProcT] = (),
+    write_procs: Iterable[VolumetricSetDataWriteProcT] = (),
 ) -> VolumetricLayerSet:
     """Build a set of volumetric layers.
     :param layers: Mapping from layer names to layers.

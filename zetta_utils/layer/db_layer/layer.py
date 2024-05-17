@@ -29,7 +29,7 @@ def is_rowdata_seq(values: Sequence[Any]) -> TypeGuard[Sequence[DBRowDataT]]:
 
 
 @attrs.mutable
-class DBLayer(Layer[DBIndex, DBDataT]):
+class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     backend: DBBackend
     readonly: bool = False
 

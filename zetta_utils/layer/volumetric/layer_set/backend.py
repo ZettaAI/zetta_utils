@@ -1,10 +1,12 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Mapping
 
 import attrs
+import numpy as np
 import torch
+from numpy import typing as npt
 
 from zetta_utils.geometry import Vec3D
 
@@ -13,7 +15,7 @@ from .. import VolumetricBackend, VolumetricIndex, VolumetricLayer
 
 @attrs.frozen
 class VolumetricSetBackend(
-    VolumetricBackend[dict[str, torch.Tensor]]
+    VolumetricBackend[dict[str, npt.NDArray], Mapping[str, npt.NDArray | torch.Tensor]]
 ):  # pylint: disable=too-few-public-methods
     layers: dict[str, VolumetricLayer]
 
@@ -30,7 +32,7 @@ class VolumetricSetBackend(
         )
 
     @property
-    def dtype(self) -> torch.dtype:  # pragma: no cover
+    def dtype(self) -> np.dtype:  # pragma: no cover
         dtypes = {k: v.backend.dtype for k, v in self.layers.items()}
         if not len(set(dtypes.values())) == 1:
             raise ValueError(
@@ -166,10 +168,10 @@ class VolumetricSetBackend(
         for e in self.layers.values():
             e.backend.assert_idx_is_chunk_aligned(idx=idx)
 
-    def read(self, idx: VolumetricIndex) -> dict[str, torch.Tensor]:
+    def read(self, idx: VolumetricIndex) -> dict[str, npt.NDArray]:
         return {k: v.read_with_procs(idx) for k, v in self.layers.items()}
 
-    def write(self, idx: VolumetricIndex, data: dict[str, torch.Tensor]):
+    def write(self, idx: VolumetricIndex, data: Mapping[str, npt.NDArray | torch.Tensor]):
         for k, v in data.items():
             self.layers[k].write_with_procs(idx, v)
 

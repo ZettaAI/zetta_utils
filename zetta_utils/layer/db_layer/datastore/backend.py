@@ -8,7 +8,12 @@ from typing import Any, Optional, Union
 
 import attrs
 from google.cloud.datastore import Client, Entity, Key, query
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import (
+    retry,
+    retry_if_not_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 from typeguard import typechecked
 
 from zetta_utils import builder
@@ -140,7 +145,11 @@ class DatastoreBackend(DBBackend):
         entities = list(_query.fetch())
         return [entity.key.parent.id_or_name for entity in entities]
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        retry=retry_if_not_exception_type((RuntimeError, TypeError, ValueError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
     def read(self, idx: DBIndex) -> DBDataT:
         if len(idx) == 1:
             return self._read_single_entity(idx)
@@ -153,7 +162,11 @@ class DatastoreBackend(DBBackend):
         ]
         return _get_data_from_entities(idx, entities)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        retry=retry_if_not_exception_type((RuntimeError, TypeError, ValueError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
     def write(self, idx: DBIndex, data: DBDataT):
         entities, parent_entities = self._get_keys_or_entities(idx, data=data)
         # must write parent entities for aggregation query to work on `Row` entities

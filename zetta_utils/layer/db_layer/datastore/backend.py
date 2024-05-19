@@ -18,8 +18,7 @@ from tenacity import (
 from typeguard import typechecked
 
 from zetta_utils import builder
-
-from .. import DBBackend, DBDataT, DBIndex, DBRowDataT
+from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT, RowKey
 
 MAX_KEYS_PER_REQUEST = 1000
 
@@ -86,7 +85,7 @@ class DatastoreBackend(DBBackend):
         for field in attrs.fields_dict(self.__class__):
             setattr(self, field, state[field])
 
-    def __contains__(self, idx: str) -> bool:
+    def __contains__(self, idx: RowKey) -> bool:
         parent_key = self.client.key("Row", idx)
         return self.client.get(parent_key) is not None
 
@@ -98,10 +97,10 @@ class DatastoreBackend(DBBackend):
         return 0
 
     def _read_single_entity(self, idx: DBIndex):
-        row_key_str = idx.row_keys[0]
-        if row_key_str not in self:
-            raise KeyError(row_key_str)
-        row_key = self.client.key("Row", row_key_str)
+        _row_key = idx.row_keys[0]
+        if _row_key not in self:
+            raise KeyError(_row_key)
+        row_key = self.client.key("Row", _row_key)
         _query = self.client.query(kind="Column", ancestor=row_key)
         entities = list(_query.fetch())
         return _get_data_from_entities(idx.row_keys, entities)
@@ -157,16 +156,19 @@ class DatastoreBackend(DBBackend):
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
-    def _get_row_col_keys(self, row_keys: list[str], str_keys: bool = True) -> dict:
+    def _get_row_col_keys(self, row_keys: list[RowKey], ds_keys: bool = False) -> dict:
+        """
+        `ds_keys` if True, use self.client.key keys, else use str|int.
+        """
         result = {}
-        for row_key_str in row_keys:
-            row_key = self.client.key("Row", row_key_str)
+        for _row_key in row_keys:
+            row_key = self.client.key("Row", _row_key)
             _query = self.client.query(kind="Column", ancestor=row_key)
             _query.keys_only()
-            if str_keys:
-                result[row_key_str] = tuple(ent.key.id_or_name for ent in _query.fetch())
-            else:
+            if ds_keys:
                 result[row_key] = tuple(ent.key for ent in _query.fetch())
+            else:
+                result[_row_key] = tuple(ent.key.id_or_name for ent in _query.fetch())
         return result
 
     @retry(
@@ -182,7 +184,7 @@ class DatastoreBackend(DBBackend):
         """
         if idx:
             keys: list[Key] = []
-            for _key, col_keys in self._get_row_col_keys(idx.row_keys, str_keys=False).items():
+            for _key, col_keys in self._get_row_col_keys(idx.row_keys, ds_keys=True).items():
                 keys.extend(col_keys)
                 keys.append(_key)
             self.client.delete_multi(keys=keys)
@@ -195,7 +197,7 @@ class DatastoreBackend(DBBackend):
             row_iter = row_query.fetch()
             self.client.delete_multi(keys=[ent.key for ent in chain(col_iter, row_iter)])
 
-    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[RowKey]:
         """
         Fetch list of row keys that match given filters.
         `column_filter` is a dict of column names with list of values to filter.
@@ -214,7 +216,7 @@ class DatastoreBackend(DBBackend):
     def query(
         self,
         column_filter: dict[str, list] | None = None,
-    ) -> dict[str, DBRowDataT]:
+    ) -> dict[RowKey, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
         `column_filter` is a dict of column names with list of values to filter.
@@ -234,7 +236,7 @@ class DatastoreBackend(DBBackend):
         )
 
 
-def _get_data_from_entities(row_keys: list[str], entities: list[Entity]) -> DBDataT:
+def _get_data_from_entities(row_keys: list[RowKey], entities: list[Entity]) -> DBDataT:
     row_entities = defaultdict(list)
     for entity in entities:
         row_entities[entity.key.parent.id_or_name].append(entity)

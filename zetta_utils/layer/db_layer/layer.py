@@ -7,9 +7,9 @@ import attrs
 from typing_extensions import TypeGuard
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
-from . import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT
+from . import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT, RowKey
 
-RowIndex = Union[str, List[str]]
+RowIndex = Union[RowKey, List[RowKey]]
 ColIndex = Union[str, Tuple[str, ...]]
 RowColIndex = Tuple[RowIndex, ColIndex]
 
@@ -41,7 +41,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         if isinstance(idx_user, DBIndex):
             return idx_user
 
-        if isinstance(idx_user, str):
+        if isinstance(idx_user, (str, int)):
             row_col_keys = {idx_user: ("value",)}
             return DBIndex(row_col_keys)
 
@@ -50,7 +50,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
             return DBIndex(row_col_keys)
 
         row_keys, col_keys = idx_user
-        if isinstance(row_keys, str):
+        if isinstance(row_keys, (str, int)):
             row_keys = [row_keys]
         if isinstance(col_keys, str):
             col_keys = (col_keys,)
@@ -58,44 +58,44 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         return DBIndex(row_col_keys)
 
     @overload
-    def _convert_read_data(self, idx_user: str, data: DBDataT) -> DBValueT | DBRowDataT:
+    def _convert_read_data(self, idx_user: RowKey, data: DBDataT) -> DBValueT | DBRowDataT:
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: List[str], data: DBDataT) -> Sequence[DBValueT]:
+    def _convert_read_data(self, idx_user: List[RowKey], data: DBDataT) -> Sequence[DBValueT]:
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: Tuple[str, str], data: DBDataT) -> DBValueT:
+    def _convert_read_data(self, idx_user: Tuple[RowKey, str], data: DBDataT) -> DBValueT:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[List[str], str], data: DBDataT
+        self, idx_user: Tuple[List[RowKey], str], data: DBDataT
     ) -> Sequence[DBValueT]:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[str, Tuple[str, ...]], data: DBDataT
+        self, idx_user: Tuple[RowKey, Tuple[str, ...]], data: DBDataT
     ) -> DBRowDataT:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[List[str], Tuple[str, ...]], data: DBDataT
+        self, idx_user: Tuple[List[RowKey], Tuple[str, ...]], data: DBDataT
     ) -> DBDataT:
         ...
 
     def _convert_read_data(self, idx_user: UserDBIndex, data: DBDataT):
-        if isinstance(idx_user, str):
+        if isinstance(idx_user, (str, int)):
             return data[0]["value"] if "value" in data[0] else data[0]
 
         if isinstance(idx_user, list):
             return [d["value"] for d in data]
         if isinstance(idx_user, tuple):
             row_keys, col_keys = idx_user
-            if isinstance(row_keys, str):
+            if isinstance(row_keys, (str, int)):
                 if isinstance(col_keys, str):
                     return data[0][col_keys]
                 return {col_key: data[0][col_key] for col_key in col_keys if col_key in data[0]}
@@ -216,11 +216,11 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
 
     def keys(
         self, column_filter: dict[str, list] | None = None
-    ) -> list[str]:  # pragma: no cover # no logic
+    ) -> list[RowKey]:  # pragma: no cover # no logic
         return self.backend.keys(column_filter)
 
     def query(
         self,
         column_filter: dict[str, list] | None = None,
-    ) -> dict[str, DBRowDataT]:  # pragma: no cover # no logic
+    ) -> dict[RowKey, DBRowDataT]:  # pragma: no cover # no logic
         return self.backend.query(column_filter)

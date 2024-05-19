@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import MutableMapping, Sequence, Union
 
 from .. import Backend
-from . import DBIndex
+from . import DBIndex, RowKey
 
 DBScalarValueT = Union[bool, int, float, str]
 DBArrayValueT = list[DBScalarValueT]
@@ -16,7 +16,7 @@ DBDataT = Sequence[DBRowDataT]
 
 class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
-    def __contains__(self, idx: str) -> bool:
+    def __contains__(self, idx: RowKey) -> bool:
         ...
 
     @abstractmethod
@@ -36,12 +36,12 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         ...
 
     @abstractmethod
-    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[RowKey]:
         ...
 
     @abstractmethod
     def query(
         self,
         column_filter: dict[str, list] | None = None,
-    ) -> dict[str, DBRowDataT]:
+    ) -> dict[RowKey, DBRowDataT]:
         ...

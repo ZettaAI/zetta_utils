@@ -7,14 +7,16 @@ import attrs
 
 from zetta_utils import builder
 
+RowKey = str | int
+
 
 @builder.register("DBIndex")
 @attrs.frozen
 class DBIndex:
-    row_col_keys: Mapping[str, tuple[str, ...]]
+    row_col_keys: Mapping[RowKey, tuple[str, ...]]
 
     @property
-    def row_keys(self) -> list[str]:
+    def row_keys(self) -> list[RowKey]:
         return list(self.row_col_keys.keys())
 
     @property

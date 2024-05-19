@@ -1,6 +1,4 @@
-from .index import (
-    DBIndex,
-)
+from .index import DBIndex, RowKey
 from .backend import DBDataT, DBBackend, DBArrayValueT, DBValueT, DBRowDataT
 
 from .layer import DBLayer, UserDBIndex, ColIndex, DBDataProcT

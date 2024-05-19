@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from copy import deepcopy
+from itertools import chain
 from typing import Any, Optional, Union
 
 import attrs
@@ -18,23 +19,9 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 
-from .. import DBBackend, DBDataT, DBIndex
+from .. import DBBackend, DBDataT, DBIndex, DBRowDataT
 
 MAX_KEYS_PER_REQUEST = 1000
-
-
-def _get_data_from_entities(idx: DBIndex, entities: list[Entity]) -> DBDataT:
-    row_entities = defaultdict(list)
-    for entity in entities:
-        row_entities[entity.key.parent.id_or_name].append(entity)
-
-    data = []
-    for row_key in idx.row_keys:
-        row_data = {}
-        for entity in row_entities[row_key]:
-            row_data[entity.key.id_or_name] = entity[entity.key.id_or_name]
-        data.append(row_data)
-    return data
 
 
 @builder.register("DatastoreBackend")
@@ -54,6 +41,26 @@ class DatastoreBackend(DBBackend):
     database: Optional[str] = None
     _client: Optional[Client] = None
     _exclude_from_indexes: tuple[str, ...] = ()
+
+    @property
+    def client(self) -> Client:
+        if self._client is None:
+            self._client = Client(
+                project=self.project, namespace=self.namespace, database=self.database
+            )
+        return self._client
+
+    @property
+    def name(self) -> str:  # pragma: no cover
+        return self.client.base_url
+
+    @property
+    def exclude_from_indexes(self) -> tuple[str, ...]:  # pragma: no cover
+        return self._exclude_from_indexes
+
+    @exclude_from_indexes.setter
+    def exclude_from_indexes(self, exclude: tuple[str, ...]) -> None:  # pragma: no cover
+        self._exclude_from_indexes = exclude
 
     def __deepcopy__(self, memo) -> DatastoreBackend:
         cls = self.__class__
@@ -97,7 +104,7 @@ class DatastoreBackend(DBBackend):
         row_key = self.client.key("Row", row_key_str)
         _query = self.client.query(kind="Column", ancestor=row_key)
         entities = list(_query.fetch())
-        return _get_data_from_entities(idx, entities)
+        return _get_data_from_entities(idx.row_keys, entities)
 
     def _get_keys_or_entities(
         self, idx: DBIndex, data: Optional[DBDataT] = None
@@ -123,31 +130,6 @@ class DatastoreBackend(DBBackend):
                         ...
         return (keys, parent_keys) if data is None else (entities, parent_entities)
 
-    @property
-    def client(self) -> Client:
-        if self._client is None:
-            self._client = Client(
-                project=self.project, namespace=self.namespace, database=self.database
-            )
-        return self._client
-
-    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
-        """
-        Fetch list of keys that match given filters.
-        `column_filter` is a dict of column names with list of values to filter.
-        """
-        _query = self.client.query(kind="Column")
-        _query.keys_only()
-        if column_filter:
-            for _key, _values in column_filter.items():
-                _filters = [query.PropertyFilter(_key, "=", v) for v in _values]
-                if len(_filters) == 1:
-                    _query.add_filter(filter=_filters[0])
-                else:  # pragma: no cover
-                    _query.add_filter(filter=query.Or(_filters))
-        entities = list(_query.fetch())
-        return [entity.key.parent.id_or_name for entity in entities]
-
     @retry(
         retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
         stop=stop_after_attempt(3),
@@ -163,7 +145,7 @@ class DatastoreBackend(DBBackend):
         entities = [
             entity for keys_split in keys_splits for entity in self.client.get_multi(keys_split)
         ]
-        return _get_data_from_entities(idx, entities)
+        return _get_data_from_entities(idx.row_keys, entities)
 
     @retry(
         retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
@@ -175,6 +157,72 @@ class DatastoreBackend(DBBackend):
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
+    def _get_row_col_keys(self, row_keys: list[str], str_keys: bool = True) -> dict:
+        result = {}
+        for row_key_str in row_keys:
+            row_key = self.client.key("Row", row_key_str)
+            _query = self.client.query(kind="Column", ancestor=row_key)
+            _query.keys_only()
+            if str_keys:
+                result[row_key_str] = tuple(ent.key.id_or_name for ent in _query.fetch())
+            else:
+                result[row_key] = tuple(ent.key for ent in _query.fetch())
+        return result
+
+    @retry(
+        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+    )
+    def clear(self, idx: DBIndex | None = None):
+        """
+        Delete rows from the database.
+        If index provided, delete rows from the index.
+        Else delete all rows.
+        """
+        if idx:
+            keys: list[Key] = []
+            for _key, col_keys in self._get_row_col_keys(idx.row_keys, str_keys=False).items():
+                keys.extend(col_keys)
+                keys.append(_key)
+            self.client.delete_multi(keys=keys)
+        else:
+            col_query = self.client.query(kind="Column")
+            col_query.keys_only()
+            row_query = self.client.query(kind="Row")
+            row_query.keys_only()
+            col_iter = col_query.fetch()
+            row_iter = row_query.fetch()
+            self.client.delete_multi(keys=[ent.key for ent in chain(col_iter, row_iter)])
+
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+        """
+        Fetch list of row keys that match given filters.
+        `column_filter` is a dict of column names with list of values to filter.
+        """
+        _query = self.client.query(kind="Column")
+        _query.keys_only()
+        if column_filter:
+            for _key, _values in column_filter.items():
+                _filters = [query.PropertyFilter(_key, "=", v) for v in _values]
+                if len(_filters) == 1:
+                    _query.add_filter(filter=_filters[0])
+                else:  # pragma: no cover # no emulator support for composite queries
+                    _query.add_filter(filter=query.Or(_filters))
+        return list(set(entity.key.parent.id_or_name for entity in _query.fetch()))
+
+    def query(
+        self,
+        column_filter: dict[str, list] | None = None,
+    ) -> dict[str, DBRowDataT]:
+        """
+        Fetch list of rows that match given filters.
+        `column_filter` is a dict of column names with list of values to filter.
+        """
+        row_keys = self.keys(column_filter=column_filter)
+        idx = DBIndex(self._get_row_col_keys(row_keys))
+        return dict(zip(idx.row_keys, self.read(idx)))
+
     def with_changes(self, **kwargs) -> DatastoreBackend:
         """Currently not typed. See `Layer.with_backend_changes()` for the reason."""
         implemented_keys = ["namespace", "project"]
@@ -185,14 +233,16 @@ class DatastoreBackend(DBBackend):
             deepcopy(self), namespace=kwargs["namespace"], project=kwargs.get("project")
         )
 
-    @property
-    def name(self) -> str:  # pragma: no cover
-        return self.client.base_url
 
-    @property
-    def exclude_from_indexes(self) -> tuple[str, ...]:  # pragma: no cover
-        return self._exclude_from_indexes
+def _get_data_from_entities(row_keys: list[str], entities: list[Entity]) -> DBDataT:
+    row_entities = defaultdict(list)
+    for entity in entities:
+        row_entities[entity.key.parent.id_or_name].append(entity)
 
-    @exclude_from_indexes.setter
-    def exclude_from_indexes(self, exclude: tuple[str, ...]) -> None:  # pragma: no cover
-        self._exclude_from_indexes = exclude
+    data = []
+    for row_key in row_keys:
+        row_data = {}
+        for entity in row_entities[row_key]:
+            row_data[entity.key.id_or_name] = entity[entity.key.id_or_name]
+        data.append(row_data)
+    return data

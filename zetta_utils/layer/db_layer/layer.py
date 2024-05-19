@@ -193,6 +193,11 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
         self.write_with_procs(idx=idx_backend, data=data_backend)
 
+    def __delitem__(self, idx):
+        """Deletes all rows from the given index, columns from the index are ignored."""
+        idx_backend = self._convert_idx(idx)
+        self.backend.clear(idx_backend)
+
     def __contains__(self, idx: str) -> bool:  # pragma: no cover # no logic
         return idx in self.backend
 
@@ -205,7 +210,17 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
             return self[idx]
         return default
 
-    def query(
+    def clear(self) -> None:  # pragma: no cover # no logic
+        """Deletes all rows."""
+        return self.backend.clear()
+
+    def keys(
         self, column_filter: dict[str, list] | None = None
     ) -> list[str]:  # pragma: no cover # no logic
+        return self.backend.keys(column_filter)
+
+    def query(
+        self,
+        column_filter: dict[str, list] | None = None,
+    ) -> dict[str, DBRowDataT]:  # pragma: no cover # no logic
         return self.backend.query(column_filter)

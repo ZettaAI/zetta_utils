@@ -43,8 +43,7 @@ def _get_stale_run_ids() -> list[str]:  # pragma: no cover
     _query = resourcedb_client.query(kind="Column")
     _query.projection = ["run_id"]
     run_ids = list(set(f"run-{x['run_id']}" for x in _query.fetch()))
-    heartbeats = [x["heartbeat"] for x in RUN_DB[(run_ids, ("heartbeat",))]]
-
+    heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
     result = []
     for run_id, heartbeat in zip(run_ids, heartbeats):
         if heartbeat < time_diff:

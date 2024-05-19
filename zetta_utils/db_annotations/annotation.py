@@ -77,9 +77,8 @@ def read_annotations(
         _filter["layer_group"] = layer_group_ids
     if tags:
         _filter["tags"] = tags
-    annotation_ids = cast(DatastoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
-    idx = (annotation_ids, INDEXED_COLS + NON_INDEXED_COLS)
-    return ANNOTATIONS_DB[idx]
+    result = cast(DatastoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
+    return list(result.values())
 
 
 def add_annotation(

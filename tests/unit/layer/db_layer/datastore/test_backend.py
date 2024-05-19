@@ -5,7 +5,7 @@ from typing import cast
 
 import pytest
 
-from zetta_utils.layer.db_layer import DBDataT
+from zetta_utils.layer.db_layer import DBDataT, DBLayer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
 
 
@@ -34,22 +34,50 @@ def test_read_write_simple(datastore_emulator) -> None:
     assert layer.get("non_existent_key", "default_val") == "default_val"
 
 
+def _write_some_data(layer: DBLayer):
+    layer.clear()
+    row_keys = ["key0", "key1", "key2"]
+    idx_user = (row_keys, ("col0", "col1"))
+    data_user: DBDataT = [
+        {"col0": "val0", "col1": "val0"},
+        {"col0": "val0"},
+        {"col1": "val1"},
+    ]
+    layer[idx_user] = data_user
+    return idx_user, data_user
+
+
 def test_read_write(datastore_emulator) -> None:
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
-
-    row_keys = ["key0", "key1"]
-    idx_user = (row_keys, ("col0", "col1"))
-
-    data_user: DBDataT = [
-        {"col0": "val0", "col1": "val1"},
-        {"col0": "val0"},
-    ]
-
-    layer[idx_user] = data_user
-
+    idx_user, data_user = _write_some_data(layer)
     data = layer[idx_user]
     assert data == data_user
-    assert layer[("key0", "col1")] == "val1"
+    assert layer[("key0", "col1")] == "val0"
+
+
+def test_query_and_keys(datastore_emulator) -> None:
+    layer = build_datastore_layer(datastore_emulator, datastore_emulator)
+    _write_some_data(layer)
+    col_filter = {"col1": ["val0"]}
+    result = layer.query(column_filter=col_filter)
+    assert "key0" in result and len(result) == 1
+
+    col_filter = {"col1": ["val1"]}
+    result = layer.query(column_filter=col_filter)
+    assert "key2" in result and len(result) == 1
+    assert len(layer.keys()) == 3
+
+
+def test_delete_and_clear(datastore_emulator) -> None:
+    layer = build_datastore_layer(datastore_emulator, datastore_emulator)
+    _write_some_data(layer)
+    assert len(layer.keys()) == 3
+
+    del layer["key0"]
+    assert len(layer.keys()) == 2
+
+    layer.clear()
+    assert len(layer.keys()) == 0
 
 
 def test_with_changes(datastore_emulator) -> None:

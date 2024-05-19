@@ -32,5 +32,16 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         ...
 
     @abstractmethod
-    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def clear(self, idx: DBIndex | None = None) -> None:
+        ...
+
+    @abstractmethod
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+        ...
+
+    @abstractmethod
+    def query(
+        self,
+        column_filter: dict[str, list] | None = None,
+    ) -> dict[str, DBRowDataT]:
         ...

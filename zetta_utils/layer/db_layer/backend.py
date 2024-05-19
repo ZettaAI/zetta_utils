@@ -43,5 +43,6 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
     def query(
         self,
         column_filter: dict[str, list] | None = None,
+        return_columns: tuple[str, ...] = (),
     ) -> dict[RowKey, DBRowDataT]:
         ...

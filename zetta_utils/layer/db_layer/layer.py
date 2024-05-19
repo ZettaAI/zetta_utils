@@ -222,5 +222,12 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     def query(
         self,
         column_filter: dict[str, list] | None = None,
+        return_columns: tuple[str, ...] = (),
     ) -> dict[RowKey, DBRowDataT]:  # pragma: no cover # no logic
-        return self.backend.query(column_filter)
+        """
+        Fetch list of rows that match given filters.
+        `column_filter` is a dict of column names with list of values to filter.
+        `return_columns` is a tuple of column names to read from matched rows.
+            If provided, this can signifincantly improve performance based on the backend used.
+        """
+        return self.backend.query(column_filter, return_columns=return_columns)

@@ -14,6 +14,7 @@ RowKey = str | int
 @attrs.frozen
 class DBIndex:
     row_col_keys: Mapping[RowKey, tuple[str, ...]]
+    return_columns: tuple[str, ...] = ()
 
     @property
     def row_keys(self) -> list[RowKey]:

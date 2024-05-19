@@ -8,6 +8,7 @@ from itertools import chain
 from typing import Any, Optional, Union
 
 import attrs
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud.datastore import Client, Entity, Key, query
 from tenacity import (
     retry,
@@ -21,6 +22,7 @@ from zetta_utils import builder
 from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT, RowKey
 
 MAX_KEYS_PER_REQUEST = 1000
+TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
 
 
 @builder.register("DatastoreBackend")
@@ -130,7 +132,7 @@ class DatastoreBackend(DBBackend):
         return (keys, parent_keys) if data is None else (entities, parent_entities)
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -147,7 +149,7 @@ class DatastoreBackend(DBBackend):
         return _get_data_from_entities(idx.row_keys, entities)
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -158,7 +160,8 @@ class DatastoreBackend(DBBackend):
 
     def _get_row_col_keys(self, row_keys: list[RowKey], ds_keys: bool = False) -> dict:
         """
-        `ds_keys` if True, use self.client.key keys, else use str|int.
+        `ds_keys` if True, use datastore self.client.key keys, else use str|int.
+        This is an expensive operation.
         """
         result = {}
         for _row_key in row_keys:
@@ -172,7 +175,7 @@ class DatastoreBackend(DBBackend):
         return result
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -216,13 +219,20 @@ class DatastoreBackend(DBBackend):
     def query(
         self,
         column_filter: dict[str, list] | None = None,
+        return_columns: tuple[str, ...] = (),
     ) -> dict[RowKey, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
         `column_filter` is a dict of column names with list of values to filter.
+        `return_columns` is a tuple of column names to read from matched rows.
+            This is operation is significantly faster if this is provided.
+            Else the reader has to iterate over all rows and find their columns.
         """
         row_keys = self.keys(column_filter=column_filter)
-        idx = DBIndex(self._get_row_col_keys(row_keys))
+        if len(return_columns) > 0:
+            idx = DBIndex({row_key: return_columns for row_key in row_keys})
+        else:
+            idx = DBIndex(self._get_row_col_keys(row_keys))
         return dict(zip(idx.row_keys, self.read(idx)))
 
     def with_changes(self, **kwargs) -> DatastoreBackend:

@@ -46,3 +46,9 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         return_columns: tuple[str, ...] = (),
     ) -> dict[RowKey, DBRowDataT]:
         ...
+
+    @abstractmethod
+    def get_batch(
+        self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
+    ) -> dict[RowKey, DBRowDataT]:
+        ...

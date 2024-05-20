@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from collections import defaultdict
 from copy import deepcopy
 from itertools import chain
@@ -108,13 +109,16 @@ class DatastoreBackend(DBBackend):
         entities = list(_query.fetch())
         return _get_data_from_entities(idx.row_keys, entities)
 
-    def _get_max_row_x(self) -> int:
+    def _get_row_minmax_x(self) -> tuple[int, int]:
         if len(self) == 0:
-            return 0
+            return (0, 0)
+        _query = self.client.query(kind="Row")
+        _query.order = ["x"]
+        min_row = list(_query.fetch(limit=1))[0]
         _query = self.client.query(kind="Row")
         _query.order = ["-x"]
-        entity = list(_query.fetch(limit=1))[0]
-        return entity["x"]
+        max_row = list(_query.fetch(limit=1))[0]
+        return (min_row["x"], max_row["x"])
 
     @overload
     def _get_keys_or_entities(self, idx: DBIndex) -> tuple[list[Key], list[Key]]:
@@ -172,16 +176,15 @@ class DatastoreBackend(DBBackend):
     )
     def write(self, idx: DBIndex, data: DBDataT):
         entities, parent_entities = self._get_keys_or_entities(idx, data=data)
-        max_x = self._get_max_row_x()
-        lim = max_x + len(idx)
         for parent in parent_entities:
-            parent["x"] = np.random.randint(1, lim + 1)
+            parent["x"] = np.random.randint(sys.maxsize)
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
     def _get_row_col_keys(self, row_keys: list[RowKey], ds_keys: bool = False) -> dict:
         """
         `ds_keys` if True, use datastore self.client.key keys, else use str|int.
+
         This is an expensive operation.
         """
         result = {}
@@ -224,6 +227,7 @@ class DatastoreBackend(DBBackend):
     def keys(self, column_filter: dict[str, list] | None = None) -> list[RowKey]:
         """
         Fetch list of row keys that match given filters.
+
         `column_filter` is a dict of column names with list of values to filter.
         """
         _query = self.client.query(kind="Column")
@@ -244,12 +248,60 @@ class DatastoreBackend(DBBackend):
     ) -> dict[RowKey, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
+
         `column_filter` is a dict of column names with list of values to filter.
+
         `return_columns` is a tuple of column names to read from matched rows.
             This is operation is significantly faster if this is provided.
             Else the reader has to iterate over all rows and find their columns.
         """
         row_keys = self.keys(column_filter=column_filter)
+        if len(return_columns) > 0:
+            idx = DBIndex({row_key: return_columns for row_key in row_keys})
+        else:
+            idx = DBIndex(self._get_row_col_keys(row_keys))
+        return dict(zip(idx.row_keys, self.read(idx)))
+
+    def get_batch(
+        self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
+    ) -> dict[RowKey, DBRowDataT]:
+        """
+        Fetch a batch of rows from the db layer. Rows are assigned a uniform random int.
+
+        `batch_number` used to determine the starting offset of the batch to return.
+
+        `avg_rows_per_batch` approximate number of rows returned per batch.
+            Also used to determine the total number of batches.
+
+        `return_columns` is a tuple of column names to read from rows.
+            If provided, this can signifincantly improve performance based on the backend used.
+        """
+        if len(self) == 0:
+            return {}
+
+        if len(self) < avg_rows_per_batch:
+            return self.query(column_filter=None, return_columns=return_columns)
+
+        if batch_number * avg_rows_per_batch >= len(self):
+            start = batch_number * avg_rows_per_batch
+            raise IndexError(f"{start} is out of bounds [0 {len(self)}).")
+
+        min_x, max_x = self._get_row_minmax_x()
+        dist_range = max_x - min_x
+        scale = avg_rows_per_batch / len(self)
+        scaled_batch_size = int(scale * dist_range)
+
+        offset_start = min_x + batch_number * scaled_batch_size
+        offset_end = min_x + (batch_number + 1) * scaled_batch_size
+        offset_end = sys.maxsize if offset_end > sys.maxsize else offset_end
+
+        _query = self.client.query(kind="Row")
+        _query.add_filter(filter=query.PropertyFilter("x", ">=", offset_start))
+        _query.add_filter(filter=query.PropertyFilter("x", "<=", offset_end))
+        _query.keys_only()
+        row_entities = list(_query.fetch())
+        row_keys = [entity.key.id_or_name for entity in row_entities]
+
         if len(return_columns) > 0:
             idx = DBIndex({row_key: return_columns for row_key in row_keys})
         else:

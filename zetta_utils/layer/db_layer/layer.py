@@ -226,8 +226,28 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     ) -> dict[RowKey, DBRowDataT]:  # pragma: no cover # no logic
         """
         Fetch list of rows that match given filters.
+
         `column_filter` is a dict of column names with list of values to filter.
+
         `return_columns` is a tuple of column names to read from matched rows.
             If provided, this can signifincantly improve performance based on the backend used.
         """
         return self.backend.query(column_filter, return_columns=return_columns)
+
+    def get_batch(
+        self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
+    ):
+        """
+        Fetch a batch of rows from the db layer. Rows are assigned a uniform random int.
+
+        `batch_number` used to determine the starting offset of the batch to return.
+
+        `avg_rows_per_batch` approximate number of rows returned per batch.
+            Also used to determine the total number of batches - `len(layer) / avg_rows_per_batch`.
+
+        `return_columns` is a tuple of column names to read from rows.
+            If provided, this can signifincantly improve performance based on the backend used.
+        """
+        return self.backend.get_batch(
+            batch_number, avg_rows_per_batch, return_columns=return_columns
+        )

@@ -140,7 +140,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     @property
     def dtype(self) -> np.dtype:
         result = _get_ts_at_resolution(self.path, self.cache_bytes_limit)
-        return result.dtype.name
+        return np.dtype(result.dtype.name)
 
     @property
     # TODO: Figure out a way to access 'multiscale metadata' directly

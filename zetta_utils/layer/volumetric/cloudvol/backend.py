@@ -139,7 +139,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def dtype(self) -> np.dtype:
         result = _get_cv_cached(self.path, **self.cv_kwargs)
 
-        return result.data_type
+        return np.dtype(result.data_type)
 
     @property
     def num_channels(self) -> int:  # pragma: no cover

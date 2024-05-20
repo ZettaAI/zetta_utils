@@ -37,6 +37,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
     info_add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None,
     info_add_scales_ref: str | dict[str, Any] | None = None,
+    info_add_scales_exclude_fields: Sequence[str] = (),
     info_add_scales_mode: Literal["merge", "replace"] = "merge",
     on_info_exists: InfoExistsModes = "expect_same",
     allow_slice_rounding: bool = False,
@@ -119,6 +120,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             add_scales=info_add_scales,
             add_scales_ref=info_add_scales_ref,
             add_scales_mode=info_add_scales_mode,
+            add_scales_exclude_fields=info_add_scales_exclude_fields,
         ),
     )
 

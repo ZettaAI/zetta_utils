@@ -151,6 +151,7 @@ class PrecomputedInfoSpec:
     add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
     add_scales_mode: str = "merge"
+    add_scales_exclude_fields: Sequence[str] = ()
     # ensure_scales: Optional[Iterable[int]] = None
 
     def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
@@ -191,7 +192,6 @@ class PrecomputedInfoSpec:
             reference_info = {}  # type: Dict[str, Any]
             if self.reference_path is not None:
                 reference_info = get_info(self.reference_path)
-
             result = deepcopy(reference_info)
 
             if self.add_scales is not None:
@@ -200,6 +200,9 @@ class PrecomputedInfoSpec:
                         "`scales` must not be in `field_overrides` if `add_scales` is used"
                     )
                 ref_scale = _get_ref_scale(self.add_scales_ref, reference_info)
+                for field in self.add_scales_exclude_fields:
+                    ref_scale.pop(field, None)
+
                 new_scales = [_make_scale(ref=ref_scale, target=e) for e in self.add_scales]
                 if self.add_scales_mode == "replace" or "scales" not in result:
                     result["scales"] = _merge_and_sort_scales([], new_scales)

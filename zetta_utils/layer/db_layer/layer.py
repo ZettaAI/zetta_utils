@@ -1,15 +1,15 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, List, Sequence, Tuple, Union, overload
+from typing import Any, Sequence, Tuple, Union, overload
 
 import attrs
 from typing_extensions import TypeGuard
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
-from . import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT, RowKey
+from . import DBBackend, DBDataT, DBIndex, DBRowDataT, DBValueT
 
-RowIndex = Union[RowKey, List[RowKey]]
+RowIndex = Union[str, list[str]]
 ColIndex = Union[str, Tuple[str, ...]]
 RowColIndex = Tuple[RowIndex, ColIndex]
 
@@ -45,7 +45,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
             row_col_keys = {idx_user: ("value",)}
             return DBIndex(row_col_keys)
 
-        if isinstance(idx_user, List):
+        if isinstance(idx_user, list):
             row_col_keys = {row_key: ("value",) for row_key in idx_user}
             return DBIndex(row_col_keys)
 
@@ -58,32 +58,32 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         return DBIndex(row_col_keys)
 
     @overload
-    def _convert_read_data(self, idx_user: RowKey, data: DBDataT) -> DBValueT | DBRowDataT:
+    def _convert_read_data(self, idx_user: str, data: DBDataT) -> DBValueT | DBRowDataT:
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: List[RowKey], data: DBDataT) -> Sequence[DBValueT]:
+    def _convert_read_data(self, idx_user: list[str], data: DBDataT) -> Sequence[DBValueT]:
         ...
 
     @overload
-    def _convert_read_data(self, idx_user: Tuple[RowKey, str], data: DBDataT) -> DBValueT:
+    def _convert_read_data(self, idx_user: Tuple[str, str], data: DBDataT) -> DBValueT:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[List[RowKey], str], data: DBDataT
+        self, idx_user: Tuple[list[str], str], data: DBDataT
     ) -> Sequence[DBValueT]:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[RowKey, Tuple[str, ...]], data: DBDataT
+        self, idx_user: Tuple[str, Tuple[str, ...]], data: DBDataT
     ) -> DBRowDataT:
         ...
 
     @overload
     def _convert_read_data(
-        self, idx_user: Tuple[List[RowKey], Tuple[str, ...]], data: DBDataT
+        self, idx_user: Tuple[list[str], Tuple[str, ...]], data: DBDataT
     ) -> DBDataT:
         ...
 
@@ -114,7 +114,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     @overload
     def _convert_write(
         self,
-        idx_user: List[str],
+        idx_user: list[str],
         data_user: Sequence[DBValueT],
     ) -> Tuple[DBIndex, DBDataT]:
         ...
@@ -130,7 +130,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     @overload
     def _convert_write(
         self,
-        idx_user: Tuple[List[str], ColIndex],
+        idx_user: Tuple[list[str], ColIndex],
         data_user: DBDataT,
     ) -> Tuple[DBIndex, DBDataT]:
         ...
@@ -168,7 +168,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     @overload
     def __setitem__(
         self,
-        idx_user: List[str],
+        idx_user: list[str],
         data_user: Sequence[DBValueT],
     ):
         ...
@@ -184,7 +184,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
     @overload
     def __setitem__(
         self,
-        idx_user: Tuple[List[str], ColIndex],
+        idx_user: Tuple[list[str], ColIndex],
         data_user: DBDataT,
     ):
         ...
@@ -216,14 +216,14 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
 
     def keys(
         self, column_filter: dict[str, list] | None = None
-    ) -> list[RowKey]:  # pragma: no cover # no logic
+    ) -> list[str]:  # pragma: no cover # no logic
         return self.backend.keys(column_filter)
 
     def query(
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
-    ) -> dict[RowKey, DBRowDataT]:  # pragma: no cover # no logic
+    ) -> dict[str, DBRowDataT]:  # pragma: no cover # no logic
         """
         Fetch list of rows that match given filters.
 
@@ -236,7 +236,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
 
     def get_batch(
         self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
-    ):
+    ):  # pragma: no cover # no logic
         """
         Fetch a batch of rows from the db layer. Rows are assigned a uniform random int.
 

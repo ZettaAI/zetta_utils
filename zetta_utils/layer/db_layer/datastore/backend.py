@@ -21,7 +21,7 @@ from tenacity import (
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT, RowKey
+from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
 
 MAX_KEYS_PER_REQUEST = 1000
 TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
@@ -89,7 +89,7 @@ class DatastoreBackend(DBBackend):
         for field in attrs.fields_dict(self.__class__):
             setattr(self, field, state[field])
 
-    def __contains__(self, idx: RowKey) -> bool:
+    def __contains__(self, idx: str) -> bool:
         parent_key = self.client.key("Row", idx)
         return self.client.get(parent_key) is not None
 
@@ -108,17 +108,6 @@ class DatastoreBackend(DBBackend):
         _query = self.client.query(kind="Column", ancestor=row_key)
         entities = list(_query.fetch())
         return _get_data_from_entities(idx.row_keys, entities)
-
-    def _get_row_minmax_x(self) -> tuple[int, int]:
-        if len(self) == 0:
-            return (0, 0)
-        _query = self.client.query(kind="Row")
-        _query.order = ["x"]
-        min_row = list(_query.fetch(limit=1))[0]
-        _query = self.client.query(kind="Row")
-        _query.order = ["-x"]
-        max_row = list(_query.fetch(limit=1))[0]
-        return (min_row["x"], max_row["x"])
 
     @overload
     def _get_keys_or_entities(self, idx: DBIndex) -> tuple[list[Key], list[Key]]:
@@ -181,7 +170,7 @@ class DatastoreBackend(DBBackend):
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
-    def _get_row_col_keys(self, row_keys: list[RowKey], ds_keys: bool = False) -> dict:
+    def _get_row_col_keys(self, row_keys: list[str], ds_keys: bool = False) -> dict:
         """
         `ds_keys` if True, use datastore self.client.key keys, else use str|int.
 
@@ -224,7 +213,7 @@ class DatastoreBackend(DBBackend):
             row_iter = row_query.fetch()
             self.client.delete_multi(keys=[ent.key for ent in chain(col_iter, row_iter)])
 
-    def keys(self, column_filter: dict[str, list] | None = None) -> list[RowKey]:
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
         """
         Fetch list of row keys that match given filters.
 
@@ -245,7 +234,7 @@ class DatastoreBackend(DBBackend):
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
-    ) -> dict[RowKey, DBRowDataT]:
+    ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
 
@@ -264,7 +253,7 @@ class DatastoreBackend(DBBackend):
 
     def get_batch(
         self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
-    ) -> dict[RowKey, DBRowDataT]:
+    ) -> dict[str, DBRowDataT]:
         """
         Fetch a batch of rows from the db layer. Rows are assigned a uniform random int.
 
@@ -286,18 +275,16 @@ class DatastoreBackend(DBBackend):
             start = batch_number * avg_rows_per_batch
             raise IndexError(f"{start} is out of bounds [0 {len(self)}).")
 
-        min_x, max_x = self._get_row_minmax_x()
-        dist_range = max_x - min_x
         scale = avg_rows_per_batch / len(self)
-        scaled_batch_size = int(scale * dist_range)
+        scaled_batch_size = int(scale * sys.maxsize)
 
-        offset_start = min_x + batch_number * scaled_batch_size
-        offset_end = min_x + (batch_number + 1) * scaled_batch_size
+        offset_start = batch_number * scaled_batch_size
+        offset_end = (batch_number + 1) * scaled_batch_size
         offset_end = sys.maxsize if offset_end > sys.maxsize else offset_end
 
         _query = self.client.query(kind="Row")
         _query.add_filter(filter=query.PropertyFilter("x", ">=", offset_start))
-        _query.add_filter(filter=query.PropertyFilter("x", "<=", offset_end))
+        _query.add_filter(filter=query.PropertyFilter("x", "<", offset_end))
         _query.keys_only()
         row_entities = list(_query.fetch())
         row_keys = [entity.key.id_or_name for entity in row_entities]
@@ -319,7 +306,7 @@ class DatastoreBackend(DBBackend):
         )
 
 
-def _get_data_from_entities(row_keys: list[RowKey], entities: list[Entity]) -> DBDataT:
+def _get_data_from_entities(row_keys: list[str], entities: list[Entity]) -> DBDataT:
     row_entities = defaultdict(list)
     for entity in entities:
         row_entities[entity.key.parent.id_or_name].append(entity)

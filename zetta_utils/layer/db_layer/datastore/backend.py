@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections import defaultdict
 from copy import deepcopy
 from itertools import chain
-from typing import Any, Optional, Union
+from typing import Any, Optional, overload
 
 import attrs
+import numpy as np
 from google.api_core.exceptions import GoogleAPICallError
 from google.cloud.datastore import Client, Entity, Key, query
 from tenacity import (
@@ -107,9 +108,25 @@ class DatastoreBackend(DBBackend):
         entities = list(_query.fetch())
         return _get_data_from_entities(idx.row_keys, entities)
 
+    def _get_max_row_x(self) -> int:
+        if len(self) == 0:
+            return 0
+        _query = self.client.query(kind="Row")
+        _query.order = ["-x"]
+        entity = list(_query.fetch(limit=1))[0]
+        return entity["x"]
+
+    @overload
+    def _get_keys_or_entities(self, idx: DBIndex) -> tuple[list[Key], list[Key]]:
+        ...
+
+    @overload
     def _get_keys_or_entities(
-        self, idx: DBIndex, data: Optional[DBDataT] = None
-    ) -> Union[tuple[list[Key], list[Key]], tuple[list[Entity], list[Entity]]]:
+        self, idx: DBIndex, data: DBDataT
+    ) -> tuple[list[Entity], list[Entity]]:
+        ...
+
+    def _get_keys_or_entities(self, idx: DBIndex, data: Optional[DBDataT] = None):
         keys = []
         parent_keys = []
         entities = []
@@ -155,6 +172,10 @@ class DatastoreBackend(DBBackend):
     )
     def write(self, idx: DBIndex, data: DBDataT):
         entities, parent_entities = self._get_keys_or_entities(idx, data=data)
+        max_x = self._get_max_row_x()
+        lim = max_x + len(idx)
+        for parent in parent_entities:
+            parent["x"] = np.random.randint(1, lim + 1)
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 

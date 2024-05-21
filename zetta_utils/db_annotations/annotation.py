@@ -11,8 +11,8 @@ from neuroglancer.viewer_state import (
     PointAnnotation,
 )
 
-from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
-from zetta_utils.layer.db_layer.datastore import DatastoreBackend
+from zetta_utils.layer.db_layer import DBRowDataT
+from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
 from zetta_utils.parsing.ngl_state import AnnotationKeys
 
 from . import constants
@@ -34,9 +34,12 @@ NON_INDEXED_COLS = (
 )
 
 DB_NAME = "annotations"
-DB_BACKEND = DatastoreBackend(DB_NAME, project=constants.PROJECT, database=constants.DATABASE)
-DB_BACKEND.exclude_from_indexes = NON_INDEXED_COLS
-ANNOTATIONS_DB = build_db_layer(DB_BACKEND)
+ANNOTATIONS_DB = build_datastore_layer(
+    DB_NAME,
+    project=constants.PROJECT,
+    database=constants.DATABASE,
+    exclude_from_indexes=NON_INDEXED_COLS,
+)
 
 
 def read_annotation(annotation_id: str) -> DBRowDataT:

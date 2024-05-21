@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from collections import defaultdict
 from copy import deepcopy
 from itertools import chain
-from typing import Any, Optional, Union
+from typing import Any, Optional, overload
 
 import attrs
+import numpy as np
+from google.api_core.exceptions import GoogleAPICallError
 from google.cloud.datastore import Client, Entity, Key, query
 from tenacity import (
     retry,
@@ -18,10 +21,10 @@ from tenacity import (
 from typeguard import typechecked
 
 from zetta_utils import builder
-
-from .. import DBBackend, DBDataT, DBIndex, DBRowDataT
+from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
 
 MAX_KEYS_PER_REQUEST = 1000
+TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
 
 
 @builder.register("DatastoreBackend")
@@ -98,17 +101,25 @@ class DatastoreBackend(DBBackend):
         return 0
 
     def _read_single_entity(self, idx: DBIndex):
-        row_key_str = idx.row_keys[0]
-        if row_key_str not in self:
-            raise KeyError(row_key_str)
-        row_key = self.client.key("Row", row_key_str)
+        _row_key = idx.row_keys[0]
+        if _row_key not in self:
+            raise KeyError(_row_key)
+        row_key = self.client.key("Row", _row_key)
         _query = self.client.query(kind="Column", ancestor=row_key)
         entities = list(_query.fetch())
         return _get_data_from_entities(idx.row_keys, entities)
 
+    @overload
+    def _get_keys_or_entities(self, idx: DBIndex) -> tuple[list[Key], list[Key]]:
+        ...
+
+    @overload
     def _get_keys_or_entities(
-        self, idx: DBIndex, data: Optional[DBDataT] = None
-    ) -> Union[tuple[list[Key], list[Key]], tuple[list[Entity], list[Entity]]]:
+        self, idx: DBIndex, data: DBDataT
+    ) -> tuple[list[Entity], list[Entity]]:
+        ...
+
+    def _get_keys_or_entities(self, idx: DBIndex, data: Optional[DBDataT] = None):
         keys = []
         parent_keys = []
         entities = []
@@ -131,7 +142,7 @@ class DatastoreBackend(DBBackend):
         return (keys, parent_keys) if data is None else (entities, parent_entities)
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -148,29 +159,36 @@ class DatastoreBackend(DBBackend):
         return _get_data_from_entities(idx.row_keys, entities)
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
     def write(self, idx: DBIndex, data: DBDataT):
         entities, parent_entities = self._get_keys_or_entities(idx, data=data)
+        for parent in parent_entities:
+            parent["x"] = np.random.randint(sys.maxsize)
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
-    def _get_row_col_keys(self, row_keys: list[str], str_keys: bool = True) -> dict:
+    def _get_row_col_keys(self, row_keys: list[str], ds_keys: bool = False) -> dict:
+        """
+        `ds_keys` if True, use datastore self.client.key keys, else use str|int.
+
+        This is an expensive operation.
+        """
         result = {}
-        for row_key_str in row_keys:
-            row_key = self.client.key("Row", row_key_str)
+        for _row_key in row_keys:
+            row_key = self.client.key("Row", _row_key)
             _query = self.client.query(kind="Column", ancestor=row_key)
             _query.keys_only()
-            if str_keys:
-                result[row_key_str] = tuple(ent.key.id_or_name for ent in _query.fetch())
-            else:
+            if ds_keys:
                 result[row_key] = tuple(ent.key for ent in _query.fetch())
+            else:
+                result[_row_key] = tuple(ent.key.id_or_name for ent in _query.fetch())
         return result
 
     @retry(
-        retry=retry_if_not_exception_type((KeyError, RuntimeError, TypeError, ValueError)),
+        retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
     )
@@ -182,7 +200,7 @@ class DatastoreBackend(DBBackend):
         """
         if idx:
             keys: list[Key] = []
-            for _key, col_keys in self._get_row_col_keys(idx.row_keys, str_keys=False).items():
+            for _key, col_keys in self._get_row_col_keys(idx.row_keys, ds_keys=True).items():
                 keys.extend(col_keys)
                 keys.append(_key)
             self.client.delete_multi(keys=keys)
@@ -198,6 +216,7 @@ class DatastoreBackend(DBBackend):
     def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
         """
         Fetch list of row keys that match given filters.
+
         `column_filter` is a dict of column names with list of values to filter.
         """
         _query = self.client.query(kind="Column")
@@ -214,13 +233,66 @@ class DatastoreBackend(DBBackend):
     def query(
         self,
         column_filter: dict[str, list] | None = None,
+        return_columns: tuple[str, ...] = (),
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
+
         `column_filter` is a dict of column names with list of values to filter.
+
+        `return_columns` is a tuple of column names to read from matched rows.
+            This is operation is significantly faster if this is provided.
+            Else the reader has to iterate over all rows and find their columns.
         """
         row_keys = self.keys(column_filter=column_filter)
-        idx = DBIndex(self._get_row_col_keys(row_keys))
+        if len(return_columns) > 0:
+            idx = DBIndex({row_key: return_columns for row_key in row_keys})
+        else:
+            idx = DBIndex(self._get_row_col_keys(row_keys))
+        return dict(zip(idx.row_keys, self.read(idx)))
+
+    def get_batch(
+        self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
+    ) -> dict[str, DBRowDataT]:
+        """
+        Fetch a batch of rows from the db layer. Rows are assigned a uniform random int.
+
+        `batch_number` used to determine the starting offset of the batch to return.
+
+        `avg_rows_per_batch` approximate number of rows returned per batch.
+            Also used to determine the total number of batches.
+
+        `return_columns` is a tuple of column names to read from rows.
+            If provided, this can signifincantly improve performance based on the backend used.
+        """
+        if len(self) == 0:
+            return {}
+
+        if len(self) < avg_rows_per_batch:
+            return self.query(column_filter=None, return_columns=return_columns)
+
+        if batch_number * avg_rows_per_batch >= len(self):
+            start = batch_number * avg_rows_per_batch
+            raise IndexError(f"{start} is out of bounds [0 {len(self)}).")
+
+        scale = avg_rows_per_batch / len(self)
+        scaled_batch_size = int(scale * sys.maxsize)
+
+        offset_start = batch_number * scaled_batch_size
+        offset_end = (batch_number + 1) * scaled_batch_size
+        offset_end = sys.maxsize if offset_end > sys.maxsize else offset_end
+
+        _query = self.client.query(kind="Row")
+        _query.add_filter(filter=query.PropertyFilter("x", ">=", offset_start))
+        _query.add_filter(filter=query.PropertyFilter("x", "<", offset_end))
+        _query.keys_only()
+        row_entities = list(_query.fetch())
+        row_keys = [entity.key.id_or_name for entity in row_entities]
+
+        if len(return_columns) > 0:
+            idx = DBIndex({row_key: return_columns for row_key in row_keys})
+        else:
+            idx = DBIndex(self._get_row_col_keys(row_keys))
         return dict(zip(idx.row_keys, self.read(idx)))
 
     def with_changes(self, **kwargs) -> DatastoreBackend:

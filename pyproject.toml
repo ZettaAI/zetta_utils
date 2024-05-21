@@ -21,7 +21,7 @@ dependencies = [
   "neuroglancer >= 2.32",
   "dill >= 0.3.6",
   "pyyaml ~= 6.0.1",
-  "requests==2.31.0", # version conflicts otherwise
+  "requests==2.32.0", # version conflicts otherwise
   "requests-oauthlib==1.3.1", # version conflicts otherwise
   "cloud-files == 4.20.1",
   "packaging >= 23.2",

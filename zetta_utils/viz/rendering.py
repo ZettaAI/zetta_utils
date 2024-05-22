@@ -6,9 +6,12 @@ from __future__ import annotations
 import copy
 import gc
 import io
+import random
+from typing import Final
 
 import cv2
 import matplotlib
+from matplotlib.colors import LinearSegmentedColormap
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -120,8 +123,41 @@ def render_img(
     return result
 
 
+# Function to generate a random color in RGB format
+def random_color():
+    return [random.random() for _ in range(3)]
+
+
+LOCAL_RANDOM = random.Random()
+LOCAL_RANDOM.seed(42)
+NUM_COLORS = 2048
+RANDOM_COLORS = [random_color() for _ in range(NUM_COLORS - 1)]
+RANDOM_COLORS.insert(0, [0, 0, 0])
+RANDOM_CMAP: Final = LinearSegmentedColormap.from_list("RandomCMap", RANDOM_COLORS, N=NUM_COLORS)
+
+
+@typechecked
+def render_seg(
+    img: Tensor,
+    figsize: tuple[int, int] = (8, 8),
+    dpi: int = 80,
+) -> npt.NDArray:  # pragma: no cover
+    fig = plt.figure(figsize=figsize)
+    plt.tight_layout()
+    plt.axis("off")
+    plt.imshow(img, cmap=RANDOM_CMAP)
+    result = get_img_from_fig(fig, dpi=dpi)
+    plt.cla()
+    plt.clf()
+    plt.close(fig)
+    plt.close()
+    del fig
+    gc.collect()
+    return result
+
+
 render_msk = render_img
-render_seg = render_img
+# render_seg = render_img
 
 
 @typechecked

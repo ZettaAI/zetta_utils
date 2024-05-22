@@ -106,8 +106,8 @@ def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
 
 
 @builder.register("unsqueeze")
-@typechecked
 @supports_dict
+@typechecked
 def unsqueeze(
     data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
 ) -> TensorTypeVar:
@@ -131,8 +131,8 @@ def unsqueeze(
 
 
 @builder.register("squeeze")
-@typechecked
 @supports_dict
+@typechecked
 def squeeze(
     data: TensorTypeVar,
     dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None,
@@ -279,8 +279,8 @@ def _validate_interpolation_setting(
 
 
 @builder.register("unsqueeze_to")
-@typechecked
 @supports_dict
+@typechecked
 def unsqueeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -301,8 +301,8 @@ def unsqueeze_to(
 
 
 @builder.register("squeeze_to")
-@typechecked
 @supports_dict
+@typechecked
 def squeeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -328,8 +328,8 @@ def squeeze_to(
 
 
 @builder.register("interpolate")
-@typechecked
 @supports_dict
+@typechecked
 def interpolate(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
     size: Optional[Sequence[int]] = None,
@@ -509,8 +509,8 @@ CompareMode = Literal[
 
 
 @builder.register("compare")
-@typechecked
 @supports_dict
+@typechecked
 def compare(
     data: TensorTypeVar,
     mode: CompareMode,
@@ -565,8 +565,8 @@ def compare(
 
 
 @builder.register("crop")
-@typechecked
 @supports_dict
+@typechecked
 def crop(
     data: TensorTypeVar,
     crop: Sequence[int],  # pylint: disable=redefined-outer-name
@@ -593,8 +593,8 @@ def crop(
 
 
 @builder.register("crop_center")
-@typechecked
 @supports_dict
+@typechecked
 def crop_center(
     data: TensorTypeVar,
     size: Sequence[int],  # pylint: disable=redefined-outer-name
@@ -625,8 +625,8 @@ def crop_center(
 
 
 @builder.register("tensor_op_chain")
-@typechecked
 @supports_dict
+@typechecked
 def tensor_op_chain(
     data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
 ) -> TensorTypeVar:  # pragma: no cover
@@ -637,8 +637,8 @@ def tensor_op_chain(
 
 
 @builder.register("abs")
-@typechecked
 @supports_dict
+@typechecked
 def abs(  # pylint: disable=redefined-builtin
     data: TensorTypeVar,
 ) -> TensorTypeVar:  # pragma: no cover
@@ -646,3 +646,15 @@ def abs(  # pylint: disable=redefined-builtin
         return data.abs()
     else:
         return np.abs(data)
+
+
+@builder.register("unique")
+@supports_dict
+@typechecked
+def unique(
+    data: TensorTypeVar,
+) -> TensorTypeVar:  # pragma: no cover
+    if isinstance(data, torch.Tensor):
+        return data.unique()
+    else:
+        return np.unique(data)

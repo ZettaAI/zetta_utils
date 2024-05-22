@@ -88,27 +88,30 @@ def load_weights_file(
 ) -> torch.nn.Module:  # pragma: no cover
     if ckpt_path is None:
         return model
+    try:
+        with fsspec.open(ckpt_path) as f:
+            # Scheduler might not have GPU, but will still attempt to load model weights
+            map_location = "cpu" if not torch.cuda.is_available() else None
+            loaded_state_raw = torch.load(f, map_location=map_location)["state_dict"]
+            if component_names is None:
+                loaded_state = loaded_state_raw
+            elif remove_component_prefix:
+                loaded_state = {}
+                for e in component_names:
+                    for k, x in loaded_state_raw.items():
+                        if k.startswith(f"{e}."):
+                            new_k = k[len(f"{e}.") :]
+                            loaded_state[new_k] = x
+            else:
+                loaded_state = {
+                    k: v
+                    for k, v in loaded_state_raw.items()
+                    if k.startswith(tuple(f"{e}." for e in component_names))
+                }
+            model.load_state_dict(loaded_state, strict=strict)
+    except FileNotFoundError:
+        ...
 
-    with fsspec.open(ckpt_path) as f:
-        # Scheduler might not have GPU, but will still attempt to load model weights
-        map_location = "cpu" if not torch.cuda.is_available() else None
-        loaded_state_raw = torch.load(f, map_location=map_location)["state_dict"]
-        if component_names is None:
-            loaded_state = loaded_state_raw
-        elif remove_component_prefix:
-            loaded_state = {}
-            for e in component_names:
-                for k, x in loaded_state_raw.items():
-                    if k.startswith(f"{e}."):
-                        new_k = k[len(f"{e}.") :]
-                        loaded_state[new_k] = x
-        else:
-            loaded_state = {
-                k: v
-                for k, v in loaded_state_raw.items()
-                if k.startswith(tuple(f"{e}." for e in component_names))
-            }
-        model.load_state_dict(loaded_state, strict=strict)
     return model
 
 

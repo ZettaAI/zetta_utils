@@ -166,7 +166,7 @@ class DatastoreBackend(DBBackend):
     def write(self, idx: DBIndex, data: DBDataT):
         entities, parent_entities = self._get_keys_or_entities(idx, data=data)
         for parent in parent_entities:
-            parent["x"] = np.random.randint(sys.maxsize)
+            parent["_id_nonunique"] = np.random.randint(sys.maxsize)
         # must write parent entities for aggregation query to work on `Row` entities
         self.client.put_multi(parent_entities + entities)
 
@@ -283,8 +283,8 @@ class DatastoreBackend(DBBackend):
         offset_end = sys.maxsize if offset_end > sys.maxsize else offset_end
 
         _query = self.client.query(kind="Row")
-        _query.add_filter(filter=query.PropertyFilter("x", ">=", offset_start))
-        _query.add_filter(filter=query.PropertyFilter("x", "<", offset_end))
+        _query.add_filter(filter=query.PropertyFilter("_id_nonunique", ">=", offset_start))
+        _query.add_filter(filter=query.PropertyFilter("_id_nonunique", "<", offset_end))
         _query.keys_only()
         row_entities = list(_query.fetch())
         row_keys = [entity.key.id_or_name for entity in row_entities]

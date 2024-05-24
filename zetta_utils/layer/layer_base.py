@@ -2,6 +2,7 @@
 """Common Layer Properties."""
 from __future__ import annotations
 
+import random
 from typing import Any, Generic, Iterable, TypeVar, Union
 
 import attrs
@@ -41,16 +42,21 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
         for proc_idx in self.index_procs:
             idx_proced = proc_idx(idx_proced)
 
-        for e in reversed(self.read_procs):
+        applied_joint_processors_idxs: set[int] = set()
+        for i, e in reversed(list(enumerate(self.read_procs))):
             if isinstance(e, JointIndexDataProcessor):
-                idx_proced = e.process_index(idx=idx_proced, mode="read")
+                should_apply = random.uniform(0, 1) <= e.prob
+                if should_apply:
+                    idx_proced = e.process_index(idx=idx_proced, mode="read")
+                    applied_joint_processors_idxs.add(i)
 
         data_backend = self.backend.read(idx=idx_proced)
 
         data_proced = data_backend
-        for e in self.read_procs:
+        for i, e in enumerate(self.read_procs):
             if isinstance(e, JointIndexDataProcessor):
-                data_proced = e.process_data(data=data_proced, mode="read")
+                if i in applied_joint_processors_idxs:
+                    data_proced = e.process_data(data=data_proced, mode="read")
             else:
                 data_proced = e(data_proced)
 
@@ -68,14 +74,19 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
         for proc_idx in self.index_procs:
             idx_proced = proc_idx(idx_proced)
 
-        for e in self.write_procs:
+        applied_joint_processors_idxs: set[int] = set()
+        for i, e in enumerate(self.write_procs):
             if isinstance(e, JointIndexDataProcessor):
-                idx_proced = e.process_index(idx=idx_proced, mode="write")
+                should_apply = random.uniform(0, 1) <= e.prob
+                if should_apply:
+                    idx_proced = e.process_index(idx=idx_proced, mode="write")
+                    applied_joint_processors_idxs.add(i)
 
         data_proced = data
-        for e in self.write_procs:
+        for i, e in enumerate(self.write_procs):
             if isinstance(e, JointIndexDataProcessor):
-                data_proced = e.process_data(data=data_proced, mode="write")
+                if i in applied_joint_processors_idxs:
+                    data_proced = e.process_data(data=data_proced, mode="write")
             else:
                 data_proced = e(data_proced)
 

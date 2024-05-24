@@ -2,30 +2,31 @@
 #TRAINING_ROOT: "gs://sergiy_exp/training_artifacts"
 #LR:            16e-5
 #CLIP:          0e-5
-#MAXBATCH: 200
-#EXP_VERSION:   "lr\(#LR)_cl\(#CLIP)_enc\(#SEG_ENC_DIM)_rescale_maxbatch\(#MAXBATCH)_x8"
+#MAXBATCH: 40 
+#EXP_VERSION:   "lr\(#LR)_cl\(#CLIP)_enc\(#SEG_ENC_DIM)_rescale_maxbatch\(#MAXBATCH)_shift\(#SHIFT_MAGN)_noval_x13"
 #K: 3
 #FOV_Z: 5
-#SEG_ENC_DIM:   0
-#CHUNK_SIZE:    [96, 96, 5 + #FOV_Z * 2]
+#SEG_ENC_DIM:0 
+#SHIFT_MAGN:  5
+#CHUNK_SIZE:    [90, 90, 5 + #FOV_Z * 2]
 
 #MODEL_CKPT: "\(#TRAINING_ROOT)/\(#EXP_NAME)/\(#EXP_VERSION)/last.ckpt" 
 
 "@type": "lightning_train"
-image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:sergiy_x0009"
+image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:sergiy_x0013"
 resource_limits: {
     memory:           "18560Mi"
     "nvidia.com/gpu": "1"
 }
 num_nodes: 1
-local_run:      true 
-
+local_run:      false 
+ 
 regime: #REGIME 
 trainer: {
     "@type":                 "ZettaDefaultTrainer"
     accelerator:             "gpu"
     devices:                 1
-    max_epochs:              1000
+    max_epochs:              1000 
     default_root_dir:        #TRAINING_ROOT
     experiment_name:         #EXP_NAME
     experiment_version:      #EXP_VERSION
@@ -43,14 +44,14 @@ train_dataloader: {
     "@type":     "TorchDataLoader"
     batch_size:  1
     shuffle:     true
-    num_workers: 16 
+    num_workers: 4 
     dataset:     #TRAIN_DSET
 }
 val_dataloader: {
     "@type":     "TorchDataLoader"
     batch_size:  1
     shuffle:     false
-    num_workers: 8 
+    num_workers: 2 
     dataset:     #VAL_DSET
 }
 #ENCODER: {
@@ -128,6 +129,16 @@ val_dataloader: {
     min_crossection: 6
     min_seg_size: 20
     seg_enc_dim: #SEG_ENC_DIM
+    x_shift: {
+        "@type": "uniform_distr"
+        low:     -#SHIFT_MAGN
+        high:    #SHIFT_MAGN 
+    }
+    y_shift: {
+        "@type": "uniform_distr"
+        low:     -#SHIFT_MAGN
+        high:    #SHIFT_MAGN 
+    }
 
     encoder: {
         "@type": "load_weights_file"

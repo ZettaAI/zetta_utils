@@ -36,7 +36,6 @@ def test_tensor_process_data_slip_pos(mocker):
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="slip",
     )
     proc.prepared_disp_fraction = (1 / 5, 2 / 5)
@@ -63,7 +62,6 @@ def test_tensor_process_data_slip_neg(mocker):
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="slip",
     )
     proc.prepared_disp_fraction = (-1 / 5, -2 / 5)
@@ -90,7 +88,6 @@ def test_tensor_process_data_step_pos(mocker):
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="step",
     )
     proc.prepared_disp_fraction = (1 / 5, 2 / 5)
@@ -123,7 +120,6 @@ def test_dict_process_data_slip_pos(mocker):
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="slip",
         keys_to_apply=keys_to_apply,
     )
@@ -152,7 +148,6 @@ def test_dict_process_slip_no_keys_exc():
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="slip",
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
@@ -166,7 +161,6 @@ def test_dict_process_step_no_keys():
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode="step",
     )
     proc.prepared_disp_fraction = (1 / 5, 1 / 5)
@@ -194,7 +188,6 @@ def test_dict_process_diff_size(
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
         mode=misalign_mode,
         keys_to_apply=["key0", "key1"],
     )
@@ -239,7 +232,6 @@ def test_process_index_pos(mocker):
         prob=1.0,
         disp_min_in_unit=1,
         disp_max_in_unit=1,
-        disp_in_unit_must_be_divisible_by=1,
     )
     mocker.patch(
         "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=1
@@ -255,7 +247,9 @@ def test_process_index_neg(mocker):
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 2), (10, 20), (100, 200)))
     )
     proc = MisalignProcessor(
-        prob=1.0, disp_min_in_unit=1, disp_max_in_unit=1, disp_in_unit_must_be_divisible_by=1
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
     )
     mocker.patch(
         "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=-1

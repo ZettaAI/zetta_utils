@@ -20,6 +20,9 @@ from zetta_utils.cloud_management.resource_allocation.k8s import (
     get_cluster_data,
 )
 from zetta_utils.log import get_logger
+from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
+    DEFAULT_GCP_CLUSTER,
+)
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.run import (
     RESOURCE_DB,
@@ -36,15 +39,15 @@ logger = get_logger("zetta_utils")
 
 
 def _get_stale_run_ids() -> list[str]:  # pragma: no cover
-    lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
-    time_diff = time.time() - lookback
-
     resourcedb_client = RESOURCE_DB.backend.client  # type: ignore
     _query = resourcedb_client.query(kind="Column")
     _query.projection = ["run_id"]
     run_ids = list(set(f"run-{x['run_id']}" for x in _query.fetch()))
-    heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
+
     result = []
+    heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
+    lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
+    time_diff = time.time() - lookback
     for run_id, heartbeat in zip(run_ids, heartbeats):
         if heartbeat < time_diff:
             result.append(run_id)
@@ -52,11 +55,10 @@ def _get_stale_run_ids() -> list[str]:  # pragma: no cover
 
 
 def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
-    col_keys = ("clusters",)
     try:
-        clusters_str = RUN_DB[(run_id_key, col_keys)][col_keys[0]]
+        clusters_str = RUN_DB[run_id_key]["clusters"]
     except KeyError:
-        return []
+        return [DEFAULT_GCP_CLUSTER]
     clusters: list[Mapping] = json.loads(clusters_str)
     return [ClusterInfo(**cluster) for cluster in clusters]
 
@@ -73,7 +75,7 @@ def _read_run_resources(run_id: str) -> dict[str, Resource]:
 
     col_keys = ("type", "name")
     resources = RESOURCE_DB[(resource_ids, col_keys)]
-    resources = [Resource(run_id=run_id, **res) for res in resources]
+    resources = [Resource(run_id=res.pop("run_id", run_id), **res) for res in resources]
     return dict(zip(resource_ids, resources))
 
 
@@ -96,6 +98,7 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
 
         k8s_apps_v1_api = k8s_client.AppsV1Api()
         k8s_core_v1_api = k8s_client.CoreV1Api()
+        k8s_batch_v1_api = k8s_client.BatchV1Api()
         for resource_id, resource in resources.items():
             try:
                 if resource.type == ResourceTypes.K8S_DEPLOYMENT.value:
@@ -107,6 +110,19 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
                     logger.info(f"Deleting k8s secret `{resource.name}`")
                     k8s_core_v1_api.delete_namespaced_secret(
                         name=resource.name, namespace="default"
+                    )
+                elif resource.type == ResourceTypes.K8S_CONFIGMAP.value:
+                    logger.info(f"Deleting k8s configmap `{resource.name}`")
+                    k8s_core_v1_api.delete_namespaced_config_map(
+                        name=resource.name,
+                        namespace="default",
+                    )
+                elif resource.type == ResourceTypes.K8S_JOB.value:
+                    logger.info(f"Deleting k8s job `{resource.name}`")
+                    k8s_batch_v1_api.delete_namespaced_job(
+                        name=resource.name,
+                        namespace="default",
+                        propagation_policy="Foreground",
                     )
             except K8sApiException as exc:
                 if exc.status == 404:

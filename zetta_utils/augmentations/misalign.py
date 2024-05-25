@@ -47,7 +47,6 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
     prob: float
     disp_min_in_unit: float
     disp_max_in_unit: float
-    disp_in_unit_must_be_divisible_by: float | None = None
     mode: Literal["slip", "step"] = "step"
     keys_to_apply: list[str] | None = None
 
@@ -60,20 +59,12 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
             raise NotImplementedError()
         disp_x_in_unit_magn = _choose_displacement(self.disp_min_in_unit, self.disp_max_in_unit)
         disp_y_in_unit_magn = _choose_displacement(self.disp_min_in_unit, self.disp_max_in_unit)
-        if self.disp_in_unit_must_be_divisible_by is not None:
-            disp_x_in_unit_magn = (
-                disp_x_in_unit_magn // self.disp_in_unit_must_be_divisible_by
-            ) * self.disp_in_unit_must_be_divisible_by
-            disp_y_in_unit_magn = (
-                disp_y_in_unit_magn // self.disp_in_unit_must_be_divisible_by
-            ) * self.disp_in_unit_must_be_divisible_by
+
         disp_x_in_unit = disp_x_in_unit_magn * _choose_pos_or_neg_misalignent()
         disp_y_in_unit = disp_y_in_unit_magn * _choose_pos_or_neg_misalignent()
 
-        disp_x_in_idx_res = disp_x_in_unit / idx.resolution[0]
-        disp_y_in_idx_res = disp_y_in_unit / idx.resolution[1]
-
-        # self.prepared_disp = (disp_x, disp_y)
+        disp_x_in_idx_res = disp_x_in_unit // idx.resolution[0]
+        disp_y_in_idx_res = disp_y_in_unit // idx.resolution[1]
 
         start_offset = [0, 0, 0]
         end_offset = [0, 0, 0]
@@ -113,7 +104,9 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         self, tensor: torch.Tensor, z_size: int, z_chosen: int
     ) -> int | None:
         """
-        `None` result means no change of data needs to be done
+        `None` result means no change of data needs to be done.
+        int result means that the data _after_ the indicated Z
+        will be misaligned.
         """
         if tensor.size(-1) < z_size:
             z_diff = z_size - tensor.size(-1)
@@ -121,7 +114,7 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
             assert z_diff % 2 == 0
 
             if z_chosen > tensor.size(-1) + z_diff // 2 - 1:
-                # the chosen Z fall in the upper cropped out region,
+                # the chosen Z fall in the higher cropped out region,
                 # so none of the tensor needs to be shifted
                 result = None
             elif z_chosen < z_diff // 2 and self.mode == "slip":
@@ -132,7 +125,7 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
                 result = z_chosen - z_diff // 2
                 if result < 0:
                     assert self.mode == "step"
-                    # "step" when the chosen Z falls in the lowwer cropped
+                    # "step" when the chosen Z falls in the lower cropped
                     # out region, shift the whole tensor
                     result = 0
         else:
@@ -195,14 +188,6 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         else:
             keys_to_apply_final = self._get_keys_to_apply_final(data)
             sizes = [data[k].shape for k in keys_to_apply_final]
-            if self.disp_in_unit_must_be_divisible_by is None and not all(
-                e[0:2] == sizes[0][0:2] for e in sizes
-            ):
-                raise ValueError(
-                    "When `disp_in_unit_must_be_divisible_by` is not specified, "
-                    "XY sizes of all keys affected by misalignmnet augmentation "
-                    f"must be identical. Got: {sizes}"
-                )
             z_size = max(size[-1] for size in sizes)
 
         z_chosen = _select_z(0, z_size - 1)

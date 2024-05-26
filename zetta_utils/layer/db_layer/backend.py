@@ -14,13 +14,17 @@ DBRowDataT = MutableMapping[str, DBValueT]
 DBDataT = Sequence[DBRowDataT]
 
 
-class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-methods
+class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
-    def read(self, idx: DBIndex) -> DBDataT:
+    def __contains__(self, idx: str) -> bool:
         ...
 
     @abstractmethod
-    def exists(self, idx: DBIndex) -> bool:
+    def __len__(self) -> int:
+        ...
+
+    @abstractmethod
+    def read(self, idx: DBIndex) -> DBDataT:
         ...
 
     @abstractmethod
@@ -28,5 +32,23 @@ class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-me
         ...
 
     @abstractmethod
-    def query(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def clear(self, idx: DBIndex | None = None) -> None:
+        ...
+
+    @abstractmethod
+    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+        ...
+
+    @abstractmethod
+    def query(
+        self,
+        column_filter: dict[str, list] | None = None,
+        return_columns: tuple[str, ...] = (),
+    ) -> dict[str, DBRowDataT]:
+        ...
+
+    @abstractmethod
+    def get_batch(
+        self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()
+    ) -> dict[str, DBRowDataT]:
         ...

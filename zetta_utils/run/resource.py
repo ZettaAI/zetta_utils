@@ -47,12 +47,4 @@ def register_resource(resource: Resource) -> str:
 
 
 def deregister_resource(resource_id: str):  # pragma: no cover
-    def _delete_db_entry(entry_id: str, columns: list[str]):
-        parent_key = client.key("Row", entry_id)
-        for column in columns:
-            col_key = client.key("Column", column, parent=parent_key)
-            client.delete(col_key)
-
-    client = RESOURCE_DB.backend.client  # type: ignore
-    columns = [key.value for key in list(ResourceKeys)]
-    _delete_db_entry(resource_id, columns)
+    del RESOURCE_DB[resource_id]

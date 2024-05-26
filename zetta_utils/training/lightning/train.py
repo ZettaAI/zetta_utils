@@ -115,6 +115,7 @@ def lightning_train(
         cluster_region=cluster_region,
         cluster_project=cluster_project,
     )
+    run.register_clusters([cluster_info])
 
     args_mapping = {
         "regime": regime,

@@ -7,6 +7,7 @@ from . import VolumetricBackend, VolumetricIndex
 
 IndexT = TypeVar("IndexT", bound=VolumetricIndex)
 DataT = TypeVar("DataT")
+
 VolumetricBasedLayerProtocolT = TypeVar(
     "VolumetricBasedLayerProtocolT", bound="VolumetricBasedLayerProtocol"
 )

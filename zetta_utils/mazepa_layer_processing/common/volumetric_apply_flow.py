@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 import multiprocessing
+from abc import ABC
 from copy import deepcopy
 from os import path
 from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
@@ -9,6 +10,7 @@ from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
 import attrs
 import cachetools
 import fsspec
+import numpy as np
 import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
@@ -21,6 +23,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndexChunker,
 )
 from zetta_utils.mazepa import semaphore
+from zetta_utils.tensor_ops import convert
 
 from ..operation_protocols import VolumetricOpProtocol
 
@@ -49,8 +52,10 @@ class Copy:
 
 
 @mazepa.taskable_operation_cls
-@attrs.mutable
-class ReduceByWeightedSum:
+class ReduceOperation(ABC):
+    """Base class for Reduce operations, which combine values from different
+    chunks where they overlap."""
+
     def __call__(
         self,
         src_idxs: List[VolumetricIndex],
@@ -59,20 +64,85 @@ class ReduceByWeightedSum:
         roi_idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
         processing_blend_pad: Vec3D[int],
-        processing_blend_mode: Literal["linear", "quadratic"],
+    ) -> None:
+        pass
+
+
+@mazepa.taskable_operation_cls
+@attrs.frozen
+class ReduceNaive(ReduceOperation):
+    """A reducer that simply takes the maximum value at each location in the overlap area."""
+
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricBasedLayerProtocol],
+        red_idx: VolumetricIndex,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        processing_blend_pad: Vec3D[int],
     ) -> None:
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
-            if not dst.backend.dtype.is_floating_point and processing_blend_pad != Vec3D[int](
-                0, 0, 0
-            ):
+            res = torch.zeros(
+                (dst.backend.num_channels, *red_idx.shape),
+                dtype=convert.to_torch_dtype(dst.backend.dtype),
+            )
+            assert len(src_layers) > 0
+            if processing_blend_pad != Vec3D[int](0, 0, 0):
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = torch.maximum(res[subidx_channels], layer[intscn])
+            else:
+                for src_idx, layer in zip(src_idxs, src_layers):
+                    intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
+                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    with semaphore("read"):
+                        res[subidx_channels] = layer[intscn]
+            with semaphore("write"):
+                dst[red_idx] = res
+
+
+def is_floating_point_dtype(dtype: np.dtype) -> bool:
+    return np.issubdtype(dtype, np.floating)
+
+
+@mazepa.taskable_operation_cls
+@attrs.mutable
+class ReduceByWeightedSum(ReduceOperation):
+    """Reducer that combines the values in the overlap area by a linear or
+    quadratic function of the distance from the edge."""
+
+    processing_blend_mode: Literal["linear", "quadratic"] = "linear"
+
+    def __init__(self, processing_blend_mode: Literal["linear", "quadratic"]):
+        self.processing_blend_mode = processing_blend_mode
+
+    def __call__(
+        self,
+        src_idxs: List[VolumetricIndex],
+        src_layers: List[VolumetricBasedLayerProtocol],
+        red_idx: VolumetricIndex,
+        roi_idx: VolumetricIndex,
+        dst: VolumetricBasedLayerProtocol,
+        processing_blend_pad: Vec3D[int],
+    ) -> None:
+        with suppress_type_checks():
+            if len(src_layers) == 0:
+                return
+            if not is_floating_point_dtype(dst.backend.dtype) and processing_blend_pad != Vec3D[
+                int
+            ](0, 0, 0):
                 # backend is integer, but blending is requested - need to use float to avoid
                 # rounding errors
                 res = torch.zeros((dst.backend.num_channels, *red_idx.shape), dtype=torch.float)
             else:
                 res = torch.zeros(
-                    (dst.backend.num_channels, *red_idx.shape), dtype=dst.backend.dtype
+                    (dst.backend.num_channels, *red_idx.shape),
+                    dtype=convert.to_torch_dtype(dst.backend.dtype),
                 )
             assert len(src_layers) > 0
             if processing_blend_pad != Vec3D[int](0, 0, 0):
@@ -82,12 +152,12 @@ class ReduceByWeightedSum:
                         idx_roi=roi_idx,
                         idx_red=red_idx,
                         processing_blend_pad=processing_blend_pad,
-                        processing_blend_mode=processing_blend_mode,
+                        processing_blend_mode=self.processing_blend_mode,
                     )
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
                     with semaphore("read"):
-                        if not dst.backend.dtype.is_floating_point:
+                        if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[subidx_channels] = (
                                 res[subidx_channels] + layer[intscn].float() * weight
@@ -95,8 +165,8 @@ class ReduceByWeightedSum:
                         else:
                             res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
 
-                if not dst.backend.dtype.is_floating_point:
-                    res = res.round().to(dtype=dst.backend.dtype)
+                if not is_floating_point_dtype(dst.backend.dtype):
+                    res = res.round().to(dtype=convert.to_torch_dtype(dst.backend.dtype))
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
@@ -261,7 +331,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
-    processing_blend_mode: Literal["linear", "quadratic", "defer"] = "quadratic"
+    processing_blend_mode: Literal["linear", "quadratic", "max", "defer"] = "quadratic"
     processing_gap: Optional[Vec3D[int]] = None
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
@@ -461,6 +531,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         red_chunks_temps: List[List[VolumetricBasedLayerProtocol]] = [[] for _ in red_chunks]
         dst_temps: List[VolumetricBasedLayerProtocol] = []
 
+        next_chunk_id = idx.chunk_id
         for chunker, chunker_idx in self.processing_chunker.split_into_nonoverlapping_chunkers(
             self.processing_blend_pad
         ):
@@ -486,6 +557,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     )
                 # expand to allow for processing_blend_pad around the edges
                 idx_expanded = idx.padded(self.processing_blend_pad)
+                idx_expanded.chunk_id = next_chunk_id
 
                 task_idxs = chunker(
                     idx_expanded,
@@ -497,7 +569,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 if len(task_idxs) == 0:
                     continue
 
-                idx_expanded.chunk_id = task_idxs[-1].chunk_id + self.l0_chunks_per_task
+                next_chunk_id = task_idxs[-1].chunk_id + self.l0_chunks_per_task
 
                 # get offsets in terms of index inds
                 red_chunk_offsets = list(itertools.product([0, 1, 2], [0, 1, 2], [0, 1, 2]))
@@ -713,15 +785,19 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
             yield tasks
             yield mazepa.Dependency()
+            reducer: ReduceOperation
+            if self.processing_blend_mode == "max":
+                reducer = ReduceNaive()
+            else:
+                reducer = ReduceByWeightedSum(self.processing_blend_mode)
             tasks_reduce = [
-                ReduceByWeightedSum().make_task(
+                reducer.make_task(
                     src_idxs=red_chunk_task_idxs,
                     src_layers=red_chunk_temps,
                     red_idx=red_chunk,
                     roi_idx=idx.padded(self.roi_crop_pad + self.processing_blend_pad),
                     dst=dst.with_procs(read_procs=(), write_procs=()),
                     processing_blend_pad=self.processing_blend_pad,
-                    processing_blend_mode=self.processing_blend_mode,
                 )
                 for (
                     red_chunk_task_idxs,

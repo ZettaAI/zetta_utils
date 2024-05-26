@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Iterable, Sequence, Union
 
-import torch
+from numpy import typing as npt
 
 from zetta_utils import builder
 from zetta_utils.tensor_ops import InterpolationMode
@@ -27,8 +27,8 @@ def build_constant_volumetric_layer(  # pylint: disable=too-many-locals
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
         Union[
-            DataProcessor[torch.Tensor],
-            JointIndexDataProcessor[torch.Tensor, VolumetricIndex],
+            DataProcessor[npt.NDArray],
+            JointIndexDataProcessor[npt.NDArray, VolumetricIndex],
         ]
     ] = (),
 ) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only

@@ -98,7 +98,7 @@ Layers for CloudVolume IO:
    ... )
    >>> data = cvl[Vec3D(64, 64, 40), 7500:7564, 2250:2314, 2000:2001]
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 64, 64, 1])
+   (1, 64, 64, 1)
 
 
    >>> from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
@@ -114,7 +114,7 @@ Layers for CloudVolume IO:
    ... )
    >>> data = cvl[120000:121024, 36000:37024, 2000:2001] # (4, 4, 40) indexing
    >>> data.shape # channel, x, y, z
-   torch.Size([1, 64, 64, 1])
+   (1, 64, 64, 1)
 
 Layer sets for grouping layers together:
 

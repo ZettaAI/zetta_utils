@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import List, Literal, Optional, Sequence, Tuple
 
 import attrs
-import torch
+import numpy as np
+from numpy import typing as npt
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
@@ -114,7 +115,7 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
         )
         return result
 
-    def process_data(self, data: torch.Tensor, mode: Literal["read", "write"]) -> torch.Tensor:
+    def process_data(self, data: npt.NDArray, mode: Literal["read", "write"]) -> npt.NDArray:
         assert self.prepared_scale_factor is not None
 
         result = tensor_ops.interpolate(
@@ -139,11 +140,11 @@ class InvertProcessor(JointIndexDataProcessor):  # pragma: no cover
     ) -> VolumetricIndex:
         return idx
 
-    def process_data(self, data: torch.Tensor, mode: Literal["read", "write"]) -> torch.Tensor:
+    def process_data(self, data: npt.NDArray, mode: Literal["read", "write"]) -> npt.NDArray:
         if self.invert:
-            if not data.dtype == torch.uint8:
+            if not data.dtype == np.uint8:
                 raise NotImplementedError("InvertProcessor is only supported for UInt8 layers.")
-            result = torch.bitwise_not(data) + 2
+            result = np.bitwise_not(data) + 2
         else:
             result = data
         return result
@@ -201,15 +202,15 @@ class ROIMaskProcessor(JointIndexDataProcessor):
         return idx
 
     def process_data(
-        self, data: dict[str, torch.Tensor], mode: Literal["read", "write"]
-    ) -> dict[str, torch.Tensor]:
+        self, data: dict[str, npt.NDArray], mode: Literal["read", "write"]
+    ) -> dict[str, npt.NDArray]:
         assert self.prepared_subidx is not None
 
         for target in self.targets:
             assert target in data
             if target + "_mask" in data:
                 continue
-            roi_mask = torch.zeros_like(data[target])
+            roi_mask = np.zeros_like(data[target])
             extra_dims = roi_mask.ndim - len(self.prepared_subidx)
             slices = [slice(0, None) for _ in range(extra_dims)]
             slices += list(self.prepared_subidx)

@@ -113,11 +113,14 @@ public = [
   "zetta_utils[datastore]",
 ]
 segmentation = [
+  "zetta_utils[tensor_ops]",
   "onnx >= 1.13.0",
   "onnxruntime-gpu >= 1.13.1",
   "scikit-learn >= 1.2.2",
+  "networkx",
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
+  "waterz @ git+https://github.com/ZettaAI/waterz.git@c61190d",
 ]
 slurm = [
   "simple_slurm",

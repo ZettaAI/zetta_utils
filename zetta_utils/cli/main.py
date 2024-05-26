@@ -1,12 +1,12 @@
 import os
 import pprint
+from tempfile import NamedTemporaryFile
 from typing import Optional
 
 import click
 
 import zetta_utils
 from zetta_utils import log
-from zetta_utils.parsing import json
 from zetta_utils.run import run_ctx_manager
 
 logger = log.get_logger("zetta_utils")
@@ -109,8 +109,9 @@ def run(
     else:
         assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
         spec = zetta_utils.parsing.cue.loads(str_spec)
-
-    os.environ["ZETTA_RUN_SPEC"] = json.dumps(spec)
+        with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
+            f.write(str_spec)
+            os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
 
     for import_path in extra_imports:
         assert import_path.endswith(".py")
@@ -121,9 +122,7 @@ def run(
     if parallel_builder:
         zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
 
-    run_ctx = run_ctx_manager(spec_path=path, run_id=run_id, main_run_process=main_run_process)
-
-    with run_ctx:
+    with run_ctx_manager(spec=spec, run_id=run_id, main_run_process=main_run_process):
         result = zetta_utils.builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:

@@ -1,6 +1,8 @@
 # pylint: disable=missing-docstring
 from typing import (
+    Any,
     Callable,
+    Generic,
     Literal,
     Mapping,
     Optional,
@@ -8,8 +10,10 @@ from typing import (
     SupportsIndex,
     TypeVar,
     Union,
+    overload,
 )
 
+import attrs
 import einops
 import numpy as np
 import tinybrain
@@ -24,20 +28,39 @@ P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def supports_dict(func: Callable[Concatenate[T, P], T]):
-    def wrapper(data, *args: P.args, **kwargs: P.kwargs):
-        if isinstance(data, Mapping):  # pylint: disable=all # p311
-            return {k: func(v, *args, **kwargs) for k, v in data.items()}
-        else:
-            return func(data, *args, **kwargs)
+@attrs.frozen
+class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
+    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
 
-    return wrapper
+    @overload
+    def __call__(self, data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
+        ...
+
+    @overload
+    def __call__(
+        self, data: Mapping[Any, TensorTypeVar], *args: P.args, **kwargs: P.kwargs
+    ) -> dict[Any, TensorTypeVar]:
+        ...
+
+    def __call__(self, data, *args: P.args, **kwargs: P.kwargs):
+        if isinstance(data, Mapping):
+            return {k: self.fn(v, *args, **kwargs) for k, v in data.items()}
+        else:
+            return self.fn(data, *args, **kwargs)
+
+
+def supports_dict(
+    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+) -> DictSupportingTensorOp[P, TensorTypeVar]:
+    return DictSupportingTensorOp[P, TensorTypeVar](fn)
 
 
 @builder.register("rearrange")
 @supports_dict
-def rearrange(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.rearrange(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+def rearrange(data: TensorTypeVar, pattern: str, **kwargs) -> TensorTypeVar:  # pragma: no cover
+    return einops.rearrange(  # type: ignore # bad typing by einops
+        tensor=data, pattern=pattern, **kwargs
+    )
 
 
 @builder.register("reduce")
@@ -617,8 +640,20 @@ def clone(
 @supports_dict
 def tensor_op_chain(
     data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
-) -> TensorTypeVar:
+) -> TensorTypeVar:  # pragma: no cover
     result = data
     for step in steps:
         result = step(result)
     return result
+
+
+@builder.register("abs")
+@typechecked
+@supports_dict
+def abs(  # pylint: disable=redefined-builtin
+    data: TensorTypeVar,
+) -> TensorTypeVar:  # pragma: no cover
+    if isinstance(data, torch.Tensor):
+        return data.abs()
+    else:
+        return np.abs(data)

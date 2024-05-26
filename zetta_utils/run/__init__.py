@@ -5,7 +5,6 @@ import sys
 import time
 from contextlib import contextmanager
 from enum import Enum
-from typing import Optional
 
 import attrs
 import fsspec
@@ -64,7 +63,7 @@ def register_clusters(clusters: list) -> None:
     update_run_info(RUN_ID, info)
 
 
-def _record_run(spec_path: str | None = None) -> None:
+def _record_run(spec: dict | list | None = None) -> None:
     """
     Records run info in a bucket for archiving.
     """
@@ -75,14 +74,14 @@ def _record_run(spec_path: str | None = None) -> None:
     run_info = {
         "zetta_user": zetta_user,
         "zetta_project": os.environ["ZETTA_PROJECT"],
-        "json_spec": json.loads(os.environ["ZETTA_RUN_SPEC"]),
+        "json_spec": json.dumps(spec),
     }
     with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.json"), "w") as f:
         json.dump(run_info, f, indent=2)
 
-    if spec_path is not None and os.path.isfile(spec_path):
+    if os.path.isfile(os.environ["ZETTA_RUN_SPEC_PATH"]):
         content = None
-        with open(spec_path, "r", encoding="utf-8") as src:
+        with open(os.environ["ZETTA_RUN_SPEC_PATH"], "r", encoding="utf-8") as src:
             content = src.read()
         with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
             dst.write(content)
@@ -97,8 +96,7 @@ def update_run_info(run_id: str, info: DBRowDataT) -> None:
 def _check_run_id_conflict():
     assert RUN_ID is not None
     row_key = f"run-{RUN_ID}"
-    col_keys = tuple(e.value for e in RunInfo)
-    if RUN_DB.exists((row_key, col_keys)):
+    if row_key in RUN_DB:
         raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
 
 
@@ -106,7 +104,7 @@ def _check_run_id_conflict():
 def run_ctx_manager(
     main_run_process: bool,
     run_id: str | None = None,
-    spec_path: str | None = None,
+    spec: dict | list | None = None,
     heartbeat_interval: int = 5,
 ):
     def _send_heartbeat():
@@ -136,7 +134,7 @@ def run_ctx_manager(
             RunInfo.STATE.value: status,
             RunInfo.PARAMS.value: " ".join(sys.argv[1:]),
         }
-        _record_run(spec_path)
+        _record_run(spec)
         update_run_info(RUN_ID, info)
 
         assert heartbeat_interval > 0

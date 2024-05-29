@@ -773,3 +773,105 @@ def test_supports_dict():
     expected_dict = {"ndarray": expected_np, "torch": torch.Tensor(expected_np)}
 
     assert f(in_dict, 1) == expected_dict
+
+
+@pytest.mark.parametrize(
+    "data, shape, mode, value, expected",
+    [
+        [
+            np.ones((1, 3, 3)),
+            (2, 5, 5),
+            "constant",
+            1.0,
+            np.ones((2, 5, 5)),
+        ],
+        [
+            np.ones((1, 3, 3)),
+            (2, 4, 4),
+            "constant",
+            1.0,
+            np.ones((2, 4, 4)),
+        ],
+        [
+            np.ones((1, 3, 3)),
+            (1, 3, 3),
+            "constant",
+            1.0,
+            np.ones((1, 3, 3)),
+        ],
+        [
+            np.array([1, 2, 3]),
+            (4,),
+            "constant",
+            42,
+            np.array([42, 1, 2, 3]),
+        ],
+        [
+            np.array([1, 2, 3]),
+            (5,),
+            "constant",
+            42,
+            np.array([42, 1, 2, 3, 42]),
+        ],
+        [
+            np.array([1, 2, 3]),
+            (6,),
+            "constant",
+            42,
+            np.array([42, 42, 1, 2, 3, 42]),
+        ],
+        [
+            np.array([1, 2, 3]),
+            (6,),
+            "constant",
+            None,
+            np.array([0, 0, 1, 2, 3, 0]),
+        ],
+    ],
+)
+def test_pad_center_to_simple(data, shape, mode, value, expected):
+    result = common.pad_center_to(data, shape=shape, mode=mode, value=value)
+    assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize(
+    "data, shape, mode, value, expected",
+    [
+        [
+            np.array(
+                [[[1, 2, 3], [4, 5, 6]]],
+            ),
+            (4, 6),
+            "replicate",
+            None,
+            np.array(
+                [[[1, 1, 1, 2, 3, 3], [1, 1, 1, 2, 3, 3], [4, 4, 4, 5, 6, 6], [4, 4, 4, 5, 6, 6]]]
+            ),
+        ],
+        [
+            np.array(
+                [[[1, 2, 3], [4, 5, 6]]],
+            ),
+            (4, 6),
+            "reflect",
+            None,
+            np.array(
+                [[[6, 5, 4, 5, 6, 5], [3, 2, 1, 2, 3, 2], [6, 5, 4, 5, 6, 5], [3, 2, 1, 2, 3, 2]]]
+            ),
+        ],
+        [
+            np.array(
+                [[[1, 2, 3], [4, 5, 6]]],
+            ),
+            (4, 6),
+            "circular",
+            None,
+            np.array(
+                [[[5, 6, 4, 5, 6, 4], [2, 3, 1, 2, 3, 1], [5, 6, 4, 5, 6, 4], [2, 3, 1, 2, 3, 1]]]
+            ),
+        ],
+    ],
+)
+def test_pad_center_to_complex(data, shape, mode, value, expected):
+    result = common.pad_center_to(data, shape=shape, mode=mode, value=value)
+    assert_array_equal(result, expected)

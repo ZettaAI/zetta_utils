@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring
+from typing import Sequence
+
 import pytest
 
 from zetta_utils.geometry import BBox3D, Vec3D
@@ -221,6 +223,74 @@ def test_pad(bbox: BBox3D, pad, resolution: Vec3D, expected: BBox3D):
 def test_pad_exc(bbox: BBox3D, pad, resolution: Vec3D, expected_exc):
     with pytest.raises(expected_exc):
         bbox.padded(pad=pad, resolution=resolution)
+
+
+@pytest.mark.parametrize(
+    "bbox, num_splits, expected",
+    [
+        [
+            BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 2, 3),
+            [
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            ],
+        ],
+        [
+            BBox3D(bounds=((0, 3), (0, 4), (0, 5))),
+            (3, 1, 5),
+            [
+                BBox3D(bounds=((0, 1), (0, 4), (0, 1))),
+                BBox3D(bounds=((0, 1), (0, 4), (1, 2))),
+                BBox3D(bounds=((0, 1), (0, 4), (2, 3))),
+                BBox3D(bounds=((0, 1), (0, 4), (3, 4))),
+                BBox3D(bounds=((0, 1), (0, 4), (4, 5))),
+                BBox3D(bounds=((1, 2), (0, 4), (0, 1))),
+                BBox3D(bounds=((1, 2), (0, 4), (1, 2))),
+                BBox3D(bounds=((1, 2), (0, 4), (2, 3))),
+                BBox3D(bounds=((1, 2), (0, 4), (3, 4))),
+                BBox3D(bounds=((1, 2), (0, 4), (4, 5))),
+                BBox3D(bounds=((2, 3), (0, 4), (0, 1))),
+                BBox3D(bounds=((2, 3), (0, 4), (1, 2))),
+                BBox3D(bounds=((2, 3), (0, 4), (2, 3))),
+                BBox3D(bounds=((2, 3), (0, 4), (3, 4))),
+                BBox3D(bounds=((2, 3), (0, 4), (4, 5))),
+            ],
+        ],
+        [
+            BBox3D(bounds=((0, 2), (-3, 0), (0, 0))),
+            (2, 2, 1),
+            [
+                BBox3D(bounds=((0, 1), (-3, -1.5), (0, 0))),
+                BBox3D(bounds=((0, 1), (-1.5, 0), (0, 0))),
+                BBox3D(bounds=((1, 2), (-3, -1.5), (0, 0))),
+                BBox3D(bounds=((1, 2), (-1.5, 0), (0, 0))),
+            ],
+        ],
+    ],
+)
+def test_split(bbox: BBox3D, num_splits: Sequence[int], expected: BBox3D):
+    result = bbox.split(num_splits=num_splits)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, num_splits, expected_exc",
+    [
+        [
+            BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 3, 5, 3),
+            ValueError,
+        ],
+    ],
+)
+def test_num_splits_exc(bbox: BBox3D, num_splits: Sequence[int], expected_exc):
+    with pytest.raises(expected_exc):
+        bbox.split(num_splits=num_splits)
 
 
 @pytest.mark.parametrize(

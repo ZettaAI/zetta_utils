@@ -150,6 +150,17 @@ class VolumetricSetBackend(
             )
         return list(dataset_sizes.values())[0]
 
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
+        dataset_bounds = {
+            k: v.backend.get_bounds(resolution=resolution) for k, v in self.layers.items()
+        }
+        if not len(set(dataset_bounds.values())) == 1:
+            raise ValueError(
+                "Cannot determine consistent `bounds` for the "
+                f"volumetric layer set backend. Got: {dataset_bounds}"
+            )
+        return list(dataset_bounds.values())[0]
+
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink"]
     ) -> VolumetricIndex:  # pragma: no cover
@@ -159,7 +170,7 @@ class VolumetricSetBackend(
         }
         if not len(set(chunk_aligned_indexs.values())) == 1:
             raise ValueError(
-                "Cannot determine consistent `get_chunk_aligned_index` for the "
+                "Cannot determine consistent `chunk_aligned_index` for the "
                 f"volumetric layer set backend. Got: {chunk_aligned_indexs}"
             )
         return list(chunk_aligned_indexs.values())[0]

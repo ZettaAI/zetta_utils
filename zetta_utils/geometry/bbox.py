@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring, no-else-raise
 from __future__ import annotations
 
+from itertools import product
 from math import floor
 from typing import Literal, Optional, Sequence, Union, cast
 
@@ -274,6 +275,33 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         )
 
         return result
+
+    def split(
+        self,
+        num_splits: Sequence[int],
+    ) -> list[BBox3D]:
+        """Create a list of bounding boxes formed by splitting this bounding box
+        evenly by the vector ``num_splits`` in each dimension.
+
+        :param num_splits: How many bounding boxes to divide into along each
+            dimension.
+        :return: List of split bounding boxes.
+
+        """
+        if len(num_splits) != 3:
+            raise ValueError("Number of splits must be 3-dimensional.")
+
+        num_splits = Vec3D(*num_splits)
+        stride = self.shape / num_splits
+        splits: list[Vec3D] = [Vec3D(*k) for k in product(*(range(n) for n in num_splits))]
+        return [
+            BBox3D.from_coords(
+                start_coord=self.start + split * stride,
+                end_coord=self.start + (split + 1) * stride,
+                unit=self.unit,
+            )
+            for split in splits
+        ]
 
     def translated(
         self,

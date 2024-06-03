@@ -66,6 +66,10 @@ class VolumetricBackend(
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
         ...
 
+    @abstractmethod
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:
+        ...
+
     """
     TODO: Turn this into a ParamSpec.
     The .with_changes for VolumetricBackend

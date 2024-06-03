@@ -105,6 +105,9 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
         return Vec3D[int](0, 0, 0)
 
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
+        return VolumetricIndex.from_coords((0, 0, 0), (0, 0, 0), Vec3D[int](1, 1, 1))
+
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]
     ) -> VolumetricIndex:

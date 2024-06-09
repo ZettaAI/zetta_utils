@@ -624,6 +624,17 @@ def crop_center(
     return result
 
 
+
+@builder.register("clone")
+@typechecked
+def clone(
+    data: TensorTypeVar,
+) -> TensorTypeVar:  # pragma: no cover; delegation
+    if isinstance(data, torch.Tensor):
+        return data.clone()
+    else:
+        return data.copy()
+
 @builder.register("tensor_op_chain")
 @typechecked
 @supports_dict

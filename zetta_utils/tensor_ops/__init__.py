@@ -10,6 +10,7 @@ from .common import (
     squeeze,
     unsqueeze,
     unsqueeze_to,
+    pad_center_to,
 )
 from .convert import astype, to_np, to_torch
 from .label import get_disp_pair, seg_to_aff, seg_to_rgb

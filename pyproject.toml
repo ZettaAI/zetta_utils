@@ -95,6 +95,14 @@ mazepa-addons = [
   "google-api-python-client",
   "google-cloud-compute",
 ]
+meshing = [
+  "zetta_utils[cloudvol, datastore, mazepa]",
+  "mapbuffer >= 0.7.2",
+  "pyfqmr >= 0.2.0",
+  "shard-computer >= 1.1.1",
+  "trimesh >= 4.4.0",
+  "zmesh >= 1.7.1",
+]
 modules = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
@@ -102,7 +110,13 @@ modules = [
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
   "zetta_utils[datastore]",
+  "zetta_utils[montaging]",
   "zetta_utils[segmentation]",
+  "zetta_utils[meshing]",
+]
+montaging = [
+  "zetta_utils[cloudvol, datastore, mazepa]",
+  "torch >= 2.0",
 ]
 public = [
   # put them in order of dependencies

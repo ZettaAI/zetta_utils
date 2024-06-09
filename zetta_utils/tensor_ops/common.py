@@ -657,3 +657,36 @@ def abs(  # pylint: disable=redefined-builtin
         return data.abs()
     else:
         return np.abs(data)
+
+
+@builder.register("pad_center_to")
+@typechecked
+@supports_dict
+def pad_center_to(
+    data: TensorTypeVar,
+    shape: Sequence[int],
+    mode: Literal["constant", "reflect", "replicate", "circular"] = "constant",
+    value: float | None = None,
+) -> TensorTypeVar:
+    """
+    Pad data to the given shape.
+    :param data: Input tensor
+    :param shape: Shape to pad input to. Must be bigger than data.shape.
+    :param mode: torch.nn.functional.pad's padding kwarg.
+    :param value: torch.nn.functional.pad's value kwarg.
+    :return: Padded tensor
+    """
+    ndim = len(shape)
+    pad = []
+    for insz, outsz in zip(data.shape[-ndim:], shape):
+        if isinstance(insz, torch.Tensor):  # pragma: no cover # only occurs for JIT
+            insz = insz.item()
+        assert outsz >= insz
+        lpad = (outsz - insz) // 2
+        rpad = (outsz - insz) - lpad
+        pad.extend([lpad, rpad])
+
+    # TODO: maybe use numpy instead - torch supports only float data currently
+    data_torch = tensor_ops.convert.to_torch(data)
+    result = torch.nn.functional.pad(data_torch, tuple(reversed(pad)), mode=mode, value=value)
+    return tensor_ops.convert.astype(result, data)

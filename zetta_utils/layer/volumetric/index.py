@@ -64,6 +64,17 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
+    def split(self, num_splits: Sequence[int]) -> list[VolumetricIndex]:
+        return [
+            VolumetricIndex(
+                bbox=split_bbox,
+                resolution=self.resolution,
+                chunk_id=self.chunk_id,
+                allow_slice_rounding=self.allow_slice_rounding,
+            )
+            for split_bbox in self.bbox.split(num_splits)
+        ]
+
     def translated(self, offset: Sequence[float]) -> VolumetricIndex:
         return VolumetricIndex(
             bbox=self.bbox.translated(offset=offset, resolution=self.resolution),

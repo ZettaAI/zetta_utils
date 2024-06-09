@@ -5,6 +5,9 @@ from unittest import mock
 import pytest
 
 import docker
+from zetta_utils import constants
+
+constants.RUN_DATABASE = None
 
 
 def pytest_addoption(parser):

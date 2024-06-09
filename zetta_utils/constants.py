@@ -1,4 +1,4 @@
 """Common project-wide constants."""
 
 DEFAULT_PROJECT = "zetta-research"
-RUN_DATABASE = "run-db"
+RUN_DATABASE: str | None = "run-db"

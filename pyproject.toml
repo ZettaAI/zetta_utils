@@ -55,7 +55,7 @@ cloudvol = [
   "zetta_utils[tensor_ops]",
 ]
 convnet = ["torch >= 2.0", "artificery >= 0.0.3.3"]
-datastore = ["google-cloud-datastore"]
+databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.11.1",
   "sphinx-autodoc-typehints == 1.14.1",
@@ -96,7 +96,7 @@ mazepa-addons = [
   "google-cloud-compute",
 ]
 meshing = [
-  "zetta_utils[cloudvol, datastore, mazepa]",
+  "zetta_utils[cloudvol, databackends, mazepa]",
   "mapbuffer >= 0.7.2",
   "pyfqmr >= 0.2.0",
   "shard-computer >= 1.1.1",
@@ -109,13 +109,13 @@ modules = [
   "zetta_utils[cloudvol,alignment]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
-  "zetta_utils[datastore]",
+  "zetta_utils[databackends]",
   "zetta_utils[montaging]",
   "zetta_utils[segmentation]",
   "zetta_utils[meshing]",
 ]
 montaging = [
-  "zetta_utils[cloudvol, datastore, mazepa]",
+  "zetta_utils[cloudvol, databackends, mazepa]",
   "torch >= 2.0",
 ]
 public = [
@@ -124,7 +124,7 @@ public = [
   "zetta_utils[cloudvol]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
-  "zetta_utils[datastore]",
+  "zetta_utils[databackends]",
 ]
 segmentation = [
   "zetta_utils[tensor_ops]",

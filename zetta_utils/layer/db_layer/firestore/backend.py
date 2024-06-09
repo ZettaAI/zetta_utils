@@ -79,9 +79,7 @@ class FirestoreBackend(DBBackend):
             setattr(self, field, state[field])
 
     def __contains__(self, idx: str) -> bool:
-        print(idx)
         doc_ref = self.client.collection(self.collection).document(idx)
-        print(doc_ref)
         return doc_ref.get().exists
 
     def __len__(self) -> int:  # pragma: no cover # no emulator support
@@ -100,10 +98,10 @@ class FirestoreBackend(DBBackend):
             if idx.row_keys[0] not in self:
                 raise KeyError(idx.row_keys[0])
         refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
-        snapshots = self.client.get_all(refs)
+        snapshots = self.client.get_all(refs, field_paths=idx.col_keys)
         results = [snapshot.to_dict() if snapshot.exists else {} for snapshot in snapshots]
         for r in results:
-            r.pop("_id_nonunique")
+            r.pop("_id_nonunique", None)
         return results
 
     @retry(
@@ -153,13 +151,16 @@ class FirestoreBackend(DBBackend):
     def query(
         self,
         column_filter: dict[str, list] | None = None,
-        return_columns: tuple[str, ...] = (),  # pylint: disable=unused-argument
+        return_columns: tuple[str, ...] = (),
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
 
         `column_filter` is a dict of column names with list of values to filter.
             If None, all rows are returned.
+
+        `return_columns` is a tuple of column names to read from matched rows.
+            If None, all columns are returned.
         """
         collection_ref = self.client.collection(self.collection)
         if column_filter:
@@ -173,11 +174,13 @@ class FirestoreBackend(DBBackend):
             snapshots = list(_q.stream())
         else:
             refs = collection_ref.list_documents()
-            snapshots = self.client.get_all(refs)
+            snapshots = self.client.get_all(
+                refs, field_paths=return_columns if len(return_columns) > 0 else None
+            )
         result = {}
         for snapshot in snapshots:
             result[snapshot.id] = snapshot.to_dict()
-            result[snapshot.id].pop("_id_nonunique")
+            result[snapshot.id].pop("_id_nonunique", None)
         return result
 
     def get_batch(
@@ -220,7 +223,7 @@ class FirestoreBackend(DBBackend):
         result = {}
         for snapshot in snapshots:
             result[snapshot.id] = snapshot.to_dict()
-            result[snapshot.id].pop("_id_nonunique")
+            result[snapshot.id].pop("_id_nonunique", None)
         return result
 
     def with_changes(self, **kwargs) -> FirestoreBackend:

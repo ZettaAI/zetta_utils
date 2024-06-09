@@ -6,12 +6,12 @@ import json
 import logging
 import os
 import time
+from collections import defaultdict
 from typing import Mapping
 
 import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
-from google.cloud.datastore import query
 from kubernetes.client.exceptions import ApiException as K8sApiException
 
 from kubernetes import client as k8s_client  # type: ignore
@@ -38,20 +38,23 @@ from zetta_utils.run import (
 logger = get_logger("zetta_utils")
 
 
-def _get_stale_run_ids() -> list[str]:  # pragma: no cover
-    resourcedb_client = RESOURCE_DB.backend.client  # type: ignore
-    _query = resourcedb_client.query(kind="Column")
-    _query.projection = ["run_id"]
-    run_ids = list(set(f"run-{x['run_id']}" for x in _query.fetch()))
+def _get_current_resources_and_stale_run_ids() -> (
+    tuple[dict[str, dict], list[str]]
+):  # pragma: no cover
+    run_resources: dict[str, dict] = defaultdict(dict)
+    _resources = RESOURCE_DB.query()
+    for _resource_id, _resource in _resources.items():
+        run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
-    result = []
+    run_ids = [f"run-{x}" for x in run_resources.keys()]
+    stale_ids = []
     heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
     time_diff = time.time() - lookback
     for run_id, heartbeat in zip(run_ids, heartbeats):
         if heartbeat < time_diff:
-            result.append(run_id)
-    return result
+            stale_ids.append(run_id)
+    return run_resources, stale_ids
 
 
 def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
@@ -61,22 +64,6 @@ def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
         return [DEFAULT_GCP_CLUSTER]
     clusters: list[Mapping] = json.loads(clusters_str)
     return [ClusterInfo(**cluster) for cluster in clusters]
-
-
-def _read_run_resources(run_id: str) -> dict[str, Resource]:
-    client = RESOURCE_DB.backend.client  # type: ignore
-
-    _query = client.query(kind="Column")
-    _query.add_filter(filter=query.PropertyFilter("run_id", "=", run_id))
-    _query.keys_only()
-
-    entities = list(_query.fetch())
-    resource_ids = [entity.key.parent.id_or_name for entity in entities]
-
-    col_keys = ("type", "name")
-    resources = RESOURCE_DB[(resource_ids, col_keys)]
-    resources = [Resource(run_id=res.pop("run_id", run_id), **res) for res in resources]
-    return dict(zip(resource_ids, resources))
 
 
 def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool:  # pragma: no cover
@@ -158,12 +145,14 @@ def _delete_sqs_queues(resources: dict[str, Resource]) -> bool:  # pragma: no co
     return success
 
 
-def cleanup_run(run_id: str):
+def cleanup_run(run_id: str, resources_raw: dict):
     success = True
-    resources = _read_run_resources(run_id)
+    resource_ids = resources_raw.keys()
+    _resources = [Resource(**resource) for resource in resources_raw.values()]
+    resources = dict(zip(resource_ids, _resources))
+
     success &= _delete_k8s_resources(run_id, resources)
     success &= _delete_sqs_queues(resources)
-
     if success is True:
         logger.info(f"`{run_id}` run cleanup complete.")
         update_run_info(run_id, {RunInfo.STATE.value: RunState.TIMEDOUT.value})
@@ -173,7 +162,7 @@ def cleanup_run(run_id: str):
 
 if __name__ == "__main__":  # pragma: no cover
     logger.setLevel(logging.INFO)
-    for _id in _get_stale_run_ids():
-        _id = _id[4:]
+    _resources, stale_run_ids = _get_current_resources_and_stale_run_ids()
+    for _id in stale_run_ids:
         logger.info(f"Cleaning up run `{_id}`")
-        cleanup_run(_id)
+        cleanup_run(_id, _resources[_id])

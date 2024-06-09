@@ -4,13 +4,11 @@ from enum import Enum
 import attrs
 
 from zetta_utils import constants
-from zetta_utils.layer.db_layer import build_db_layer
-from zetta_utils.layer.db_layer.datastore import DatastoreBackend
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 
-RESOURCE_DB_NAME = "run-resource"
-
-RESOURCE_DB = build_db_layer(
-    DatastoreBackend(namespace=RESOURCE_DB_NAME, project=constants.DEFAULT_PROJECT)
+COLLECTION_NAME = "run-resource"
+RESOURCE_DB = build_firestore_layer(
+    COLLECTION_NAME, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
 )
 
 

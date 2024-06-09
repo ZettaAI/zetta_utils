@@ -12,7 +12,7 @@
 
 // Execution parameters
 "@type":                "mazepa.execute_on_gcp_with_sqs"
-worker_image:           "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:akhilesh_copy_x0"
+worker_image:           "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:akhilesh_copy_x1"
 worker_cluster_name:    "zutils-x3"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-research"
@@ -61,6 +61,6 @@ target: {
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
-		//on_info_exists:      "overwrite"
+		on_info_exists:      "overwrite"
 	}
 }

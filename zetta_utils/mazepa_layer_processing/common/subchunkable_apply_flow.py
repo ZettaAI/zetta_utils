@@ -107,6 +107,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     start_coord: Sequence[int] | None = None,
     end_coord: Sequence[int] | None = None,
     coord_resolution: Sequence | None = None,
+    auto_bbox: bool = False,
+    dst_tighten_bounds: bool = False,
 ) -> mazepa.Flow:
     """
     The helper constructor for a flow that applies any function or operation with a `Tensor`
@@ -119,6 +121,11 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         "defer" may not be used in `processing_blend_modes`.
     :param dst_resolution: The resolution of the destination VolumetricBasedLayerProtocol
         (or resolution to use for computation, even if `dst` is None).
+    :param dst_tighten_bounds: Tighten the VolumetricBasedLayerProtocol's bounds to the
+        given ``bbox`` after all expansions (whether given as a ``bbox`` or  ``start_coord``,
+        ``end_coord``, and ``coord_resolution``). Note that this only happens for the
+        ``dst_resolution``, and may result in odd behaviour if the bounds at multiple resolutions
+        are used in a subsequent processes. Requires ``dst``.
     :param processing_chunk_sizes: The base chunk size at each subchunking level in X, Y, Z,
         from the largest to the smallest. Subject to divisibility requirements (see bottom). When
         ``auto_divisibility`` is used, the chunk sizes other than the bottom level chunk size will
@@ -197,31 +204,23 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     :param op: The operation to be run on each chunk. Cannot be used with ``fn``.
     :param op_args: Only used for typing. Do not use: will raise an exception if nonempty.
     :param op_kwargs: Any kwarguments taken by the ``fn`` or the ``op``.
-    :param bbox: The bounding box for the operation. Cannot be used with ``start_coord``,
         ``end_coord``, and ``coord_resolution``.
+    :param bbox: The bounding box for the operation. Cannot be used with ``start_coord``,
+        ``end_coord``, and ``coord_resolution``, or ``auto_bbox``.
     :param start_coord: The start coordinate for the bounding box. Must be used with
-        ``end_coord`` and ``coord_resolution``; cannot be used with ``bbox``.
+        ``end_coord`` and ``coord_resolution``; cannot be used with ``bbox`` or ``auto_bbox.
     :param end_coord: The end coordinate for the bounding box. Must be used with ``start_coord``
-        and ``coord_resolution``; cannot be used with ``bbox``.
+        and ``coord_resolution``; cannot be used with ``bbox`` or ``auto_bbox.
     :param coord_resolution: The resolution in which the coordinates are given for the bounding
         box. Must be used with ``start_coord`` and ``end_coord``; cannot be used with ``bbox``.
+    :param auto_bbox: Sets the ``bbox`` to the bounds of ``dst`` at ``dst_resolution``. Note
+        that this may result in a significant overhead if the ``dst`` bounds have not been
+        tightened. Requires ``dst``. Cannot be used with ``bbox`` or ``start_coord``,
+        ``end_coord``, and ``coord_resolution``.
+
     """
-    if bbox is None:
-        if start_coord is None or end_coord is None or coord_resolution is None:
-            raise ValueError(
-                "`bbox` was not supplied, so `start_coord`, end_coord`, and"
-                " `coord_resolution` has to be specified."
-            )
-        bbox_ = BBox3D.from_coords(
-            start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
-        )
-    else:
-        if start_coord is not None or end_coord is not None or coord_resolution is not None:
-            raise ValueError(
-                "`bbox` was supplied, so `start_coord`, end_coord`, and"
-                " `coord_resolution` cannot be specified."
-            )
-        bbox_ = bbox
+
+    dst_resolution_ = Vec3D(*dst_resolution)
 
     if dst is None:
         if not skip_intermediaries:
@@ -230,6 +229,41 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             raise ValueError("Cannot use `expand_bbox_backend` when `dst` is None.")
         if max_reduction_chunk_size is not None:
             raise ValueError("`max_reduction_chunk_size` is unused when `dst` is None.")
+        if dst_tighten_bounds:
+            raise ValueError("`dst_tighten_bounds` cannot be used when `dst` is None.")
+        if auto_bbox:
+            raise ValueError("`auto_bbox` cannot be used when `dst` is None.")
+
+    if auto_bbox:
+        if (
+            start_coord is not None
+            or end_coord is not None
+            or coord_resolution is not None
+            or bbox is not None
+        ):
+            raise ValueError(
+                "`auto_bbox` was supplied, so `bbox`, `start_coord`, end_coord`, and"
+                " `coord_resolution` cannot be specified."
+            )
+        assert dst is not None
+        bbox_ = dst.backend.get_bounds(dst_resolution_).bbox
+    else:
+        if bbox is None:
+            if start_coord is None or end_coord is None or coord_resolution is None:
+                raise ValueError(
+                    "`bbox` and `auto_bbox` were not supplied, so `start_coord`, "
+                    "end_coord`, and `coord_resolution` has to be specified."
+                )
+            bbox_ = BBox3D.from_coords(
+                start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
+            )
+        else:
+            if start_coord is not None or end_coord is not None or coord_resolution is not None:
+                raise ValueError(
+                    "`bbox` was supplied, so `start_coord`, end_coord`, and"
+                    " `coord_resolution` cannot be specified."
+                )
+            bbox_ = bbox
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -320,13 +354,13 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         if dst and not Vec3D(
             *max_reduction_chunk_size
         ) >= dst.backend.get_chunk_size(  # pylint: disable=unneeded-not
-            Vec3D(*dst_resolution)
+            dst_resolution_
         ):
             raise ValueError(
                 "`max_reduction_chunk_size` must be larger than or equal to the `dst` backend's"
                 f"`chunk_size` at `dst_resolution`; received {max_reduction_chunk_size}, which "
                 "is smaller than the chunk size "
-                f"{dst.backend.get_chunk_size(Vec3D(*dst_resolution))} at resolution "
+                f"{dst.backend.get_chunk_size(dst_resolution_)} at resolution "
                 f"{dst_resolution}."
             )
 
@@ -410,8 +444,9 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     assert len(list(op_args)) == 0
     return _build_subchunkable_apply_flow(
         dst=dst,
-        dst_resolution=Vec3D(*dst_resolution),
+        dst_resolution=dst_resolution_,
         level_intermediaries_dirs=level_intermediaries_dirs_,
+        dst_tighten_bounds=dst_tighten_bounds,
         skip_intermediaries=skip_intermediaries,
         processing_chunk_sizes=[Vec3D(*v) for v in processing_chunk_sizes],
         processing_gap=Vec3D(*processing_gap),
@@ -636,6 +671,7 @@ def _make_ng_link(
 def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-statements
     dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
+    dst_tighten_bounds: bool,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
@@ -680,6 +716,8 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         summary += lrpad(f"Volume of ROI: {vol*1e-9:10.3f} um^3", 1, length=120) + "\n"
     else:
         summary += lrpad(f"Volume of ROI: {vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
+    summary += lrpad(length=120) + "\n"
+    summary += lrpad(f"`dst` bounds tightened to BBox: {dst_tighten_bounds}", length=120) + "\n"
     summary += lrpad(length=120) + "\n"
     summary += lrpad("Output location(s):", 1, length=120) + "\n"
     if dst is None:
@@ -772,6 +810,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
 def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches, too-many-statements
     dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
+    dst_tighten_bounds: bool,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
@@ -903,7 +942,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     roi_crop_pads = [Vec3D[int](0, 0, 0)] + list(processing_crop_pads[:-1])
 
     """
-    Check for no checkerboarding
+    Check for no checkerboarding and tighten bounds if specifed
     """
     use_checkerboard = []
     for i in range(0, num_levels - 1):
@@ -939,11 +978,19 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
             )
+        if dst_tighten_bounds is True:
+            dst = deepcopy(dst).with_changes(
+                backend=dst.backend.with_changes(
+                    voxel_offset_res=((bbox.start / dst_resolution).int(), dst_resolution),
+                    dataset_size_res=((bbox.shape / dst_resolution).int(), dst_resolution),
+                )
+            )
 
     if print_summary:
         _print_summary(
             dst=dst,
             dst_resolution=dst_resolution,
+            dst_tighten_bounds=dst_tighten_bounds,
             level_intermediaries_dirs=level_intermediaries_dirs,
             skip_intermediaries=skip_intermediaries,
             processing_chunk_sizes=processing_chunk_sizes,

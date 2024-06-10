@@ -97,6 +97,8 @@ def are_dir_trees_equal(dir1, dir2):
     [
         "test_uint8_no_dst",
         "test_uint8_copy_bbox",
+        "test_uint8_copy_auto_bbox",
+        "test_uint8_copy_dst_tighten_bounds",
         "test_uint8_copy_no_op_kwargs",
         "test_uint8_copy_coords",
         "test_uint8_copy_fn_semaphores",
@@ -147,8 +149,10 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
 @pytest.mark.parametrize(
     "cue_name",
     [
-        "test_uint8_exc_no_bbox_or_coords",
+        "test_uint8_exc_no_bbox_or_coords_or_auto_bbox",
         "test_uint8_exc_both_bbox_and_coords",
+        "test_uint8_exc_both_bbox_and_auto_bbox",
+        "test_uint8_exc_both_coords_and_auto_bbox",
         "test_uint8_exc_no_fn_or_op",
         "test_uint8_exc_both_fn_and_op",
         "test_uint8_exc_both_fn_semaphores_and_op",

@@ -160,10 +160,12 @@ class ReduceByWeightedSum(ReduceOperation):
                         if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[subidx_channels] = (
-                                res[subidx_channels] + layer[intscn].float() * weight
+                                res[subidx_channels] + layer[intscn].astype(float) * weight.numpy()
                             )
                         else:
-                            res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
+                            res[subidx_channels] = (
+                                res[subidx_channels] + layer[intscn] * weight.numpy()
+                            )
 
                 if not is_floating_point_dtype(dst.backend.dtype):
                     res = res.round().to(dtype=convert.to_torch_dtype(dst.backend.dtype))
@@ -172,7 +174,7 @@ class ReduceByWeightedSum(ReduceOperation):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
                     with semaphore("read"):
-                        res[subidx_channels] = layer[intscn]
+                        res.numpy()[tuple(subidx_channels)] = layer[intscn]
             with semaphore("write"):
                 dst[red_idx] = res
 

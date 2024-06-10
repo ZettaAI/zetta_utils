@@ -1,5 +1,11 @@
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_exc_no_bbox_or_coords"
+#DST_PATH: "assets/outputs/test_uint8_exc_both_bbox_and_auto_bbox"
+#BBOX: {
+	"@type": "BBox3D.from_coords"
+	start_coord: [64 * 1024, 64 * 1024, 2000]
+	end_coord: [96 * 1024, 96 * 1024, 2005]
+	resolution: [4, 4, 40]
+}
 
 #FLOW: {
 	"@type": "build_subchunkable_apply_flow"
@@ -12,6 +18,8 @@
     level_intermediaries_dirs: ["assets/temp/"]
 	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
+	bbox: #BBOX
+    auto_bbox: true
 	op_kwargs: {
 		src: {
 			"@type": "build_cv_layer"

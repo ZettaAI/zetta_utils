@@ -99,9 +99,14 @@ class FirestoreBackend(DBBackend):
                 raise KeyError(idx.row_keys[0])
         refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         snapshots = self.client.get_all(refs, field_paths=idx.col_keys)
-        results = [snapshot.to_dict() if snapshot.exists else {} for snapshot in snapshots]
-        for r in results:
-            r.pop("_id_nonunique", None)
+        results_map = {}
+        for snapshot in snapshots:
+            if snapshot.exists:
+                results_map[snapshot.id] = snapshot.to_dict()
+                results_map[snapshot.id].pop("_id_nonunique", None)
+        results = []
+        for rkey in idx.row_keys:
+            results.append(results_map.get(rkey, {}))
         return results
 
     @retry(

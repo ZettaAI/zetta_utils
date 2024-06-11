@@ -24,7 +24,7 @@ def _init_collection_and_layer_group() -> tuple[str, str]:
 
 
 def test_add_update_annotation(
-    datastore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
     collection_id, layer_group_id = _init_collection_and_layer_group()
     annotation_raw = {
@@ -59,7 +59,7 @@ def test_add_update_annotation(
 
 
 def test_add_update_annotations(
-    datastore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
     collection_id, layer_group_id = _init_collection_and_layer_group()
     annotations_raw = [
@@ -113,7 +113,7 @@ def test_add_update_annotations(
     assert len(cast(list, _annotations[1]["tags"])) == 1
 
 
-def test_read_annotations(datastore_emulator, annotations_db):
+def test_read_annotations(firestore_emulator, annotations_db):
     collection_id, layer_group_id = _init_collection_and_layer_group()
     ng_annotations = annotation.parse_ng_annotations(
         [

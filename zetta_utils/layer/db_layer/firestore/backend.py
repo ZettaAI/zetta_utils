@@ -164,6 +164,8 @@ class FirestoreBackend(DBBackend):
         `column_filter` is a dict of column names with list of values to filter.
             If None, all rows are returned.
 
+            For array value types, add `-` prefix to the column name.
+
         `return_columns` is a tuple of column names to read from matched rows.
             If None, all columns are returned.
         """
@@ -171,7 +173,11 @@ class FirestoreBackend(DBBackend):
         if column_filter:
             _filters = []
             for _key, _values in column_filter.items():
-                _filters.extend([FieldFilter(_key, "==", v) for v in _values])
+                if _key[0] == "-":  # represents a column with array value type
+                    _key = _key[1:]
+                    _filters.append(FieldFilter(_key, "array_contains_any", _values))
+                else:
+                    _filters.extend([FieldFilter(_key, "==", v) for v in _values])
             if len(_filters) == 1:
                 _q = collection_ref.where(filter=_filters[0])
             else:  # pragma: no cover # no emulator support for composite queries

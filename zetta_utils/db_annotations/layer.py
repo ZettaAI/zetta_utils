@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 
 from . import constants
 
@@ -13,11 +13,10 @@ DB_NAME = "layers"
 INDEXED_COLS = ("name", "source")
 NON_INDEXED_COLS = ("comment",)
 
-LAYERS_DB = build_datastore_layer(
+LAYERS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 

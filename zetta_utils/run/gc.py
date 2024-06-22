@@ -53,7 +53,7 @@ def _get_current_resources_and_stale_run_ids() -> (
     time_diff = time.time() - lookback
     for run_id, heartbeat in zip(run_ids, heartbeats):
         if heartbeat < time_diff:
-            stale_ids.append(run_id)
+            stale_ids.append(run_id[4:])
     return run_resources, stale_ids
 
 

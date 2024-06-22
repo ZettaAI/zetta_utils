@@ -20,6 +20,7 @@ def gke_cluster_data(name: str, region: str, project: str) -> Tuple[Cluster, str
         ca_cert.write(base64.b64decode(cluster_data.master_auth.cluster_ca_certificate))
         cert_name = ca_cert.name
 
-    creds, _ = google_auth.default()
+    # creds, _ = google_auth.default()
+    creds, _ = google_auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
     creds.refresh(google_auth.transport.requests.Request())
     return cluster_data, cert_name, creds.token

@@ -12,7 +12,7 @@ from neuroglancer.viewer_state import (
 )
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import FirestoreBackend, build_firestore_layer
 from zetta_utils.parsing.ngl_state import AnnotationKeys
 
 from . import constants
@@ -34,11 +34,10 @@ NON_INDEXED_COLS = (
 )
 
 DB_NAME = "annotations"
-ANNOTATIONS_DB = build_datastore_layer(
+ANNOTATIONS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 
@@ -79,8 +78,8 @@ def read_annotations(
     if layer_group_ids:
         _filter["layer_group"] = layer_group_ids
     if tags:
-        _filter["tags"] = tags
-    result = cast(DatastoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
+        _filter["-tags"] = tags
+    result = cast(FirestoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
     return list(result.values())
 
 

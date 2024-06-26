@@ -51,6 +51,9 @@ augmentations = [
 cli = ["click == 8.0.1"]
 cloudvol = [
   "cloud-volume == 8.27.0",
+  "zetta_utils[tensor_ops]",
+]
+tensorstore = [
   "tensorstore == 0.1.33",
   "zetta_utils[tensor_ops]",
 ]
@@ -106,7 +109,7 @@ meshing = [
 modules = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
-  "zetta_utils[cloudvol,alignment]",
+  "zetta_utils[cloudvol,tensorstore,alignment]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
   "zetta_utils[databackends]",
@@ -149,10 +152,12 @@ tensor-ops = [
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
 ]
+
 tensor-typing = [
   "torch >= 2.0",
   "numpy >= 1.23.4, < 2"   # tensorstore currently broken with 2.0
 ]
+
 test = [
   "zetta_utils[types]",
   "pdbpp >= 0.10.3",

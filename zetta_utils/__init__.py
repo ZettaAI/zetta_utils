@@ -69,7 +69,8 @@ def load_training_modules():
         training,
         tensor_mapping,
     )
-    from .layer import volumetric
+    from .layer import volumetric, db_layer
+    from .layer.db_layer import datastore, firestore
     from .layer.volumetric import cloudvol
 
     from . import mazepa_addons

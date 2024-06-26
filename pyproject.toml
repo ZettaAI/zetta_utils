@@ -31,7 +31,7 @@ keywords = ["neuroscience connectomics EM"]
 license = {text = "MIT"}
 name = "zetta_utils"
 readme = "README.md"
-requires-python = ">3.9,<3.12"
+requires-python = ">3.9,<3.13"
 urls = {Homepage = "https://github.com/zettaai/zetta_utils"}
 version = "0.0.2"
 
@@ -152,7 +152,12 @@ tensor-ops = [
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
 ]
-tensor-typing = ["torch >= 2.0", "numpy < 2"]
+
+tensor-typing = [
+  "torch >= 2.0",
+  "numpy >= 1.23.4, < 2"   # tensorstore currently broken with 2.0
+]
+
 test = [
   "zetta_utils[types]",
   "pdbpp >= 0.10.3",

@@ -96,7 +96,7 @@ def astype(
 
     """
     if isinstance(reference, torch.Tensor):
-        data_tc = tensor_ops.convert.to_torch(data)
+        data_tc = tensor_ops.convert.to_torch(data, device=reference.device)
         return data_tc.to(reference.dtype) if cast else data_tc
     else:
         assert isinstance(reference, np.ndarray)

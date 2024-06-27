@@ -87,7 +87,8 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
                     slices[0].stop - slices[0].start,
                     slices[1].stop - slices[1].start,
                     slices[2].stop - slices[2].start,
-                )
+                ),
+                dtype=self.dtype,
             )
             * self.value
         )

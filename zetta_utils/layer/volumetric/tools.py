@@ -19,12 +19,16 @@ logger = log.get_logger("zetta_utils")
 
 @typechecked
 def translate_volumetric_index(
-    idx: VolumetricIndex, offset: Sequence[float], resolution: Sequence[float]
+    idx: VolumetricIndex,
+    offset: Sequence[float],
+    resolution: Sequence[float],
+    allow_slice_rounding: bool,
 ):  # pragma: no cover # under 3 statements, no conditionals
     bbox = idx.bbox.translated(offset, resolution)
     result = VolumetricIndex(
         bbox=bbox,
         resolution=Vec3D(*idx.resolution),
+        allow_slice_rounding=allow_slice_rounding,
     )
     return result
 
@@ -35,12 +39,14 @@ def translate_volumetric_index(
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
     offset: Sequence[float]
     resolution: Sequence[float]
+    allow_slice_rounding: bool = False
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
             idx=idx,
             offset=self.offset,
             resolution=self.resolution,
+            allow_slice_rounding=self.allow_slice_rounding,
         )
         return result
 

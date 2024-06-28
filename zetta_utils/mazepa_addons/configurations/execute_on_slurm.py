@@ -134,8 +134,8 @@ def get_slurm_contex_managers(
     semaphores_spec: dict[SemaphoreType, int] | None,
     message_queue: Literal["sqs", "fq"],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
-    work_queue_name = f"zzz-{execution_id}-work"
-    outcome_queue_name = f"zzz-{execution_id}-outcome"
+    work_queue_name = f"run-{execution_id}-work"
+    outcome_queue_name = f"run-{execution_id}-outcome"
 
     if message_queue == "fq":
         task_queue_spec = {

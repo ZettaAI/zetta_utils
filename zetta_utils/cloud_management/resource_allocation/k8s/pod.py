@@ -34,7 +34,7 @@ def get_pod_spec(
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
 ) -> k8s_client.V1PodSpec:
-
+    name = f"run-{name}"
     envs = envs or []
     host_aliases = host_aliases or []
     tolerations = tolerations or []

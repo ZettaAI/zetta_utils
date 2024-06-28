@@ -64,8 +64,8 @@ def get_gcp_with_sqs_config(
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
-    work_queue_name = f"zzz-{execution_id}-work"
-    outcome_queue_name = f"zzz-{execution_id}-outcome"
+    work_queue_name = f"run-{execution_id}-work"
+    outcome_queue_name = f"run-{execution_id}-outcome"
 
     task_queue_spec = {
         "@type": "SQSQueue",

@@ -60,6 +60,7 @@ def get_job_template(
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ) -> k8s_client.V1JobTemplateSpec:
+    name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
     job_spec = _get_job_spec(
         pod_spec=pod_spec,
@@ -83,6 +84,7 @@ def get_job(
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
 ) -> k8s_client.V1Job:
+    name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
     job_spec = _get_job_spec(
         pod_spec=pod_spec,

@@ -27,6 +27,7 @@ def get_service(
     selector: Optional[Dict[str, str]] = None,
     service_type: Optional[str] = None,
 ):
+    name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(annotations=annotations, labels=labels, name=name)
     service_spec = k8s_client.V1ServiceSpec(ports=ports, selector=selector, type=service_type)
     return k8s_client.V1Service(metadata=meta, spec=service_spec)

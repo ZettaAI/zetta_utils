@@ -38,6 +38,8 @@ class Resource:
 
 def register_resource(resource: Resource) -> str:
     _resource = attrs.asdict(resource)
+    resource_name = _resource.get("name", "")
+    _resource["name"] = f"run-{resource_name}"
     row_key = str(uuid.uuid4())
     col_keys = tuple(_resource.keys())
     RESOURCE_DB[(row_key, col_keys)] = _resource

@@ -86,15 +86,13 @@ def _record_run(spec: dict | list | None = None) -> None:
 
 
 def update_run_info(run_id: str, info: DBRowDataT) -> None:
-    row_key = f"run-{run_id}"
     col_keys = tuple(info.keys())
-    RUN_DB[(row_key, col_keys)] = info
+    RUN_DB[(run_id, col_keys)] = info
 
 
 def _check_run_id_conflict():
     assert RUN_ID is not None
-    row_key = f"run-{RUN_ID}"
-    if row_key in RUN_DB:
+    if RUN_ID in RUN_DB:
         raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
 
 

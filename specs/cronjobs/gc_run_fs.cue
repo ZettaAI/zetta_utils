@@ -7,7 +7,7 @@ cluster: {
 }
 name: "gc-run-fs"
 namespace: "default"
-image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:gc_run_v8"
+image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:gc_run_v9"
 command: ["/bin/sh"]
 command_args: [
 	"-c",

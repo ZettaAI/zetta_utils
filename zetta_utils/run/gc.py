@@ -46,7 +46,7 @@ def _get_current_resources_and_stale_run_ids() -> (
     for _resource_id, _resource in _resources.items():
         run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
-    run_ids = [f"run-{x}" for x in run_resources.keys()]
+    run_ids = list(run_resources.keys())
     stale_ids = []
     heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
@@ -69,7 +69,7 @@ def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
 def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool:  # pragma: no cover
     success = True
     logger.info(f"Deleting k8s resources from run {run_id}")
-    clusters = _read_clusters(f"run-{run_id}")
+    clusters = _read_clusters(run_id)
     for cluster in clusters:
         try:
             configuration, _ = get_cluster_data(cluster)

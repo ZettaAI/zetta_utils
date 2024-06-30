@@ -39,7 +39,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     info_add_scales_ref: str | dict[str, Any] | None = None,
     info_add_scales_exclude_fields: Sequence[str] = (),
     info_add_scales_mode: Literal["merge", "replace"] = "merge",
-    on_info_exists: InfoExistsModes = "expect_same",
+    on_info_exists: InfoExistsModes = "extend",
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[

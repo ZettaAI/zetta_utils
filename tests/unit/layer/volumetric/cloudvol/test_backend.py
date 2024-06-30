@@ -53,6 +53,34 @@ def test_cv_backend_info_expect_same_exc(clear_caches_reset_mocks, mocker):
     _write_info.assert_not_called()
 
 
+def test_cv_backend_info_extend_exc_scales(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH, add_scales=[(4, 4, 1)], add_scales_mode="replace"
+    )
+    with pytest.raises(RuntimeError):
+        CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="extend")
+    _write_info.assert_not_called()
+
+
+def test_cv_backend_info_extend_exc_nonscales(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="float32")
+    with pytest.raises(RuntimeError):
+        CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="extend")
+    _write_info.assert_not_called()
+
+
+def test_cv_backend_info_extend(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, add_scales=[[4, 4, 1]])
+    CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="extend")
+    _write_info.assert_called()
+
+
 @pytest.mark.parametrize(
     "path, reference, mode",
     [

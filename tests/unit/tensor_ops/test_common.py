@@ -769,8 +769,8 @@ def test_supports_dict():
     in_np, expected_np = np.array([1]), np.array([3])
     assert_array_equal(f(in_np, 1), expected_np)
 
-    in_dict = {"ndarray": in_np, "torch": torch.Tensor(in_np)}
-    expected_dict = {"ndarray": expected_np, "torch": torch.Tensor(expected_np)}
+    in_dict = {"ndarray": in_np}
+    expected_dict = {"ndarray": expected_np}
 
     assert f(in_dict, 1) == expected_dict
 

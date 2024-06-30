@@ -105,8 +105,8 @@ def astype(
 
 
 @builder.register("to_float32")
-@typechecked
 @supports_dict
+@typechecked
 def to_float32(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to fp32.
 

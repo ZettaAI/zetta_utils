@@ -64,11 +64,11 @@ def compute_pixel_error(
     data1_torch = convert.to_torch(data1)
     data2_torch = convert.to_torch(data2)
     dilated_mask = torch.logical_or(
-        kornia_erosion(  # type: ignore
+        kornia_erosion(
             data1_torch, kernel="square", device=data1_torch.device, width=erosion, **kwargs
         )
         == 0,
-        kornia_erosion(  # type: ignore
+        kornia_erosion(
             data2_torch, kernel="square", device=data2_torch.device, width=erosion, **kwargs
         )
         == 0,
@@ -100,13 +100,13 @@ def erode_combine(
     data1_torch = convert.to_torch(data1)
     data2_torch = convert.to_torch(data2)
     mask1 = (
-        kornia_erosion(  # type: ignore
+        kornia_erosion(
             data1_torch, kernel="square", device=data1_torch.device, width=erosion, **kwargs
         )
         != 0
     )
     mask2 = (
-        kornia_erosion(  # type: ignore
+        kornia_erosion(
             data2_torch, kernel="square", device=data2_torch.device, width=erosion, **kwargs
         )
         != 0

@@ -96,7 +96,7 @@ def astype(
 
     """
     if isinstance(reference, torch.Tensor):
-        data_tc = tensor_ops.convert.to_torch(data, device=reference.device)
+        data_tc = tensor_ops.convert.to_torch(data)
         return data_tc.to(reference.dtype) if cast else data_tc
     else:
         assert isinstance(reference, np.ndarray)
@@ -105,8 +105,8 @@ def astype(
 
 
 @builder.register("to_float32")
-@typechecked
 @supports_dict
+@typechecked
 def to_float32(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to fp32.
 
@@ -123,8 +123,8 @@ def to_float32(data: TensorTypeVar) -> TensorTypeVar:
 
 
 @builder.register("to_uint8")
-@typechecked
 @supports_dict
+@typechecked
 def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to uint8.
 

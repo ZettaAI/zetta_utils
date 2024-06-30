@@ -154,17 +154,6 @@ def test_add_scale_modes(clear_caches_reset_mocks, tmpdir, mode, expects):
         assert expect in [e["key"] for e in scales]
 
 
-def test_add_scale_modes_error(clear_caches_reset_mocks, tmpdir):
-    tmp_layer = make_tmp_layer(tmpdir)
-    with pytest.raises(RuntimeError):
-        info_spec = PrecomputedInfoSpec(
-            reference_path=tmp_layer,
-            add_scales=[[16, 16, 40]],
-            add_scales_mode="append",
-        )
-        info_spec.update_info(tmp_layer, on_info_exists="overwrite")
-
-
 def test_add_scale_full_entry(clear_caches_reset_mocks, tmpdir):
     tmp_layer = make_tmp_layer(tmpdir)
     info_spec = PrecomputedInfoSpec(

@@ -58,21 +58,14 @@ def _ensure_cxyn(x: Sequence[Tensor], ref: Sequence[TensorTypeVar]) -> list[Tens
     ...
 
 
-def _ensure_cxyn(
-    x: Tensor | Sequence[Tensor], ref: TensorTypeVar | Sequence[TensorTypeVar]
-) -> TensorTypeVar | list[TensorTypeVar]:
+def _ensure_cxyn(x, ref):
     if isinstance(ref, Sequence):
-        assert isinstance(x, Sequence)
         return [
-            convert.astype(
-                common.rearrange(v, pattern="X Y C -> C X Y 1"), reference=ref[i]  # type: ignore
-            )
+            convert.astype(common.rearrange(v, pattern="X Y C -> C X Y 1"), reference=ref[i])
             for i, v in enumerate(x)
         ]
     else:
-        return convert.astype(
-            common.rearrange(x, pattern="N X Y C -> C X Y N"), reference=ref  # type: ignore
-        )
+        return convert.astype(common.rearrange(x, pattern="N X Y C -> C X Y N"), reference=ref)
 
 
 def _group_kwargs(

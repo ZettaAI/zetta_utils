@@ -29,8 +29,8 @@ T = TypeVar("T")
 
 
 @attrs.frozen
-class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
-    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+class DictSupportingTensorOp(Generic[P]):
+    fn: Callable  # [Concatenate[TensorTypeVar, P], TensorTypeVar]
 
     @overload
     def __call__(self, data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
@@ -51,8 +51,8 @@ class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
 
 def supports_dict(
     fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
-) -> DictSupportingTensorOp[P, TensorTypeVar]:
-    return DictSupportingTensorOp[P, TensorTypeVar](fn)
+) -> DictSupportingTensorOp[P]:
+    return DictSupportingTensorOp[P](fn)
 
 
 @builder.register("rearrange")
@@ -624,7 +624,6 @@ def crop_center(
     return result
 
 
-
 @builder.register("clone")
 @typechecked
 def clone(
@@ -634,6 +633,7 @@ def clone(
         return data.clone()
     else:
         return data.copy()
+
 
 @builder.register("tensor_op_chain")
 @typechecked

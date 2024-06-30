@@ -1,6 +1,6 @@
 //
 // Handy variables
-#SRC_PATH: "gs://zetta_lee_fly_cns_001_alignment_temp/rigid"
+#SRC_PATH: "gs://zheng_mouse_hippocampus_production/v1/img_aligned_18nm"
 #DST_PATH: "gs://tmp_2w/tmp_data_x0"
 
 #BBOX: {
@@ -12,7 +12,7 @@
 
 // Execution parameters
 "@type":                "mazepa.execute_on_gcp_with_sqs"
-worker_image:           "us.gcr.io/zetta-research/zetta_utils:sergiy_all_p310_x214"
+worker_image:           "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:portal_prod_x1"
 worker_cluster_name:    "zutils-x3"
 worker_cluster_region:  "us-east1"
 worker_cluster_project: "zetta-research"
@@ -35,7 +35,8 @@ target: {
 	processing_chunk_sizes: [[2 * 1024, 2 * 1024, 1]]
 	processing_crop_pads: [[0, 0, 0]]
 	processing_blend_pads: [[0, 0, 0]]
-	skip_intermediaries: true
+	level_intermediaries_dirs: ["~/.tmp"]
+	skip_intermediaries: false
 
 	// We want to expand the input bbox to be evenly divisible
 	// by chunk size

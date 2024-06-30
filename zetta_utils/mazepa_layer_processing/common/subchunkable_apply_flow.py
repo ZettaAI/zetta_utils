@@ -25,6 +25,7 @@ from typing_extensions import ParamSpec
 from zetta_utils import builder, log, mazepa
 from zetta_utils.common.pprint import lrpad, utcnow_ISO8601
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry.vec import VEC3D_PRECISION
 from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.mazepa import SemaphoreType, id_generation
@@ -578,7 +579,7 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     processing_gap: Vec3D[int],
 ) -> BBox3D:
     bbox_shape_in_res = round(bbox.shape / dst_resolution)
-    bbox_shape_in_res_raw = bbox.shape / dst_resolution
+    bbox_shape_in_res_raw = round(bbox.shape / dst_resolution, VEC3D_PRECISION)
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(
             "To use `expand_bbox_processing`, the `bbox` must be integral in the "
@@ -616,7 +617,7 @@ def _shrink_processing_chunk(  # pylint: disable=line-too-long
     processing_chunk_sizes: Sequence[Vec3D[int]],
 ) -> Sequence[Vec3D[int]]:
     bbox_shape_in_res = round(bbox.shape / dst_resolution)
-    bbox_shape_in_res_raw = bbox.shape / dst_resolution
+    bbox_shape_in_res_raw = round(bbox.shape / dst_resolution, VEC3D_PRECISION)
     if bbox_shape_in_res != bbox_shape_in_res_raw:
         raise ValueError(
             "To use `shrink_processing_chunk`, the `bbox` must be integral in the "

@@ -123,8 +123,8 @@ def to_float32(data: TensorTypeVar) -> TensorTypeVar:
 
 
 @builder.register("to_uint8")
-@typechecked
 @supports_dict
+@typechecked
 def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
     """Convert the given tensor to uint8.
 

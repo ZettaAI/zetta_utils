@@ -23,6 +23,11 @@ ENV PYTHONPATH /opt/zetta_utils
 WORKDIR /opt/zetta_utils
 ADD pyproject.toml /opt/zetta_utils/
 RUN pip install '.[modules]'
+
+#onnxruntime-gpu documentation claims cudnn8 is required - not true
+RUN apt-get install libcudnn9-cuda-12 -y
+RUN pip install --no-cache-dir onnxruntime-gpu --force-reinstall --no-deps --extra-index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
+
 COPY . /opt/zetta_utils/
 
 RUN apt-get --purge autoremove -y \

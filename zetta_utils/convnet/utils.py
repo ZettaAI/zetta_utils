@@ -14,6 +14,7 @@ from onnxruntime.capi.onnxruntime_inference_collection import (
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
+from zetta_utils.tensor_typing import TensorTypeVar
 
 logger = log.get_logger("zetta_utils")
 
@@ -115,10 +116,10 @@ def load_weights_file(
 @typechecked
 def load_and_run_model(
     path: str,
-    data_in: torch.Tensor,
+    data_in: TensorTypeVar,
     device: Union[Literal["cpu", "cuda"], torch.device, None] = None,
     use_cache: bool = True,
-) -> torch.Tensor:  # pragma: no cover
+) -> TensorTypeVar:  # pragma: no cover
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -130,11 +131,11 @@ def load_and_run_model(
         model = load_model(path=path, device=device, use_cache=use_cache)
 
     if path.endswith(".onnx"):
-        data_in_np = data_in.numpy()
+        data_in_np = tensor_ops.convert.to_np(data_in)
         output_np = model.run(None, {"input": data_in_np})[0]
-        output = tensor_ops.convert.to_torch(output_np)
+        output = tensor_ops.convert.astype(output_np, reference=data_in)
     else:
         autocast_device = device.type if isinstance(device, torch.device) else str(device)
         with torch.autocast(device_type=autocast_device):
-            output = model(data_in.to(device))
+            output = model(tensor_ops.convert.to_torch(data_in, device=device))
     return output

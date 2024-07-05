@@ -21,6 +21,7 @@ from .tools import (
     VolumetricIndexTranslator,
     VolumetricIndexChunker,
     VolumetricIndexOverrider,
+    VolumetricIndexScaler
 )
 from .layer import (
     VolumetricLayer,

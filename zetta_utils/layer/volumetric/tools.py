@@ -51,6 +51,22 @@ class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no co
         return result
 
 
+@builder.register("VolumetricIndexScaler")
+@typechecked
+@attrs.mutable
+class VolumetricIndexScaler:  # pragma: no cover # under 3 statements, no conditionals
+    res_change_mult: Sequence[int]
+    allow_slice_rounding: bool = False
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        result = VolumetricIndex(
+            bbox=idx.bbox,
+            resolution=idx.resolution * Vec3D(*self.res_change_mult),
+            allow_slice_rounding=self.allow_slice_rounding,
+        )
+        return result
+
+
 @builder.register("VolumetricIndexOverrider")
 @typechecked
 @attrs.mutable

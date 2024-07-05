@@ -7,6 +7,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricIndexChunker,
     VolumetricIndexOverrider,
+    VolumetricIndexScaler,
 )
 from zetta_utils.layer.volumetric.tools import ROIMaskProcessor
 
@@ -117,6 +118,36 @@ def test_volumetric_index_overrider(
     assert index.start == Vec3D(*expected_start)
     assert index.stop == Vec3D(*expected_stop)
     assert index.resolution == Vec3D(*expected_resolution)
+
+
+@pytest.mark.parametrize(
+    """res_change_mult,
+    expected_start, expected_stop, expected_resolution""",
+    [
+        [[2, 2, 1], [2, 3, 6], [7, 7, 16], [2, 2, 1]],
+        [[1, 2, 3], [4, 3, 2], [14, 7, 5], [1, 2, 3]],
+    ],
+)
+def test_volumetric_index_scaler(
+    res_change_mult,
+    expected_start,
+    expected_stop,
+    expected_resolution,
+):
+    index = VolumetricIndex(resolution=Vec3D(1, 1, 1), bbox=BBox3D(((4, 14), (6, 14), (6, 16))))
+    vis = VolumetricIndexScaler(res_change_mult=res_change_mult, allow_slice_rounding=True)
+    index = vis(index)
+    assert index.start == Vec3D(*expected_start)
+    assert index.stop == Vec3D(*expected_stop)
+    assert index.resolution == Vec3D(*expected_resolution)
+
+
+def test_volumetric_index_scaler_error():
+    index = VolumetricIndex(resolution=Vec3D(1, 1, 1), bbox=BBox3D(((4, 14), (6, 14), (6, 16))))
+    vis = VolumetricIndexScaler(res_change_mult=[1, 2, 3])
+    index = vis(index)
+    with pytest.raises(ValueError):
+        index.stop
 
 
 @pytest.mark.parametrize(

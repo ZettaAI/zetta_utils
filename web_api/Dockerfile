@@ -5,7 +5,7 @@ WORKDIR /opt/http
 
 COPY pyproject.toml web_api/requirements.txt /opt/http/
 RUN apt update && apt install libboost-dev -y
-RUN pip install --no-cache-dir -r requirements.txt && pip install '.[modules]'
+RUN pip install --no-cache-dir -r requirements.txt && pip install '.[all]'
 
 COPY . /opt/http
 RUN zetta --help

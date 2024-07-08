@@ -118,7 +118,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("non_aligned_writes", False)
         self.cv_kwargs.setdefault("cache", False)
         self.cv_kwargs.setdefault("compress_cache", False)
-        self.cv_kwargs.setdefault("compress", True)
+        self.cv_kwargs.setdefault("compress", None)
         self.cv_kwargs.setdefault("cdn_cache", False)
         self.cv_kwargs.setdefault("fill_missing", True)
         self.cv_kwargs.setdefault("delete_black_uploads", True)

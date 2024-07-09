@@ -15,9 +15,9 @@ async def read_cutout(
     path: Annotated[str, Query()],
     bbox_start: Annotated[tuple[int, int, int], Query()],
     bbox_end: Annotated[tuple[int, int, int], Query()],
-    resolution: Annotated[Vec3D, Query()],
+    resolution: Annotated[tuple[float, float, float], Query()],
 ):
-    index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution)
+    index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     layer = build_cv_layer(path, readonly=True)
     return layer[index].tobytes()
 
@@ -27,11 +27,10 @@ async def write_cutout(
     path: Annotated[str, Query()],
     bbox_start: Annotated[tuple[int, int, int], Query()],
     bbox_end: Annotated[tuple[int, int, int], Query()],
-    resolution: Annotated[Vec3D, Query()],
+    resolution: Annotated[tuple[float, float, float], Query()],
     data: bytes,
-    dtype: str,
-    shape: tuple[int, ...],
 ):
-    index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution)
+    index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     layer = build_cv_layer(path)
-    layer[index] = np.frombuffer(data, dtype=dtype).reshape(shape)
+    shape = np.array(bbox_end) - np.array(bbox_start)
+    layer[index] = np.frombuffer(data, dtype=layer.backend.dtype).reshape(shape)

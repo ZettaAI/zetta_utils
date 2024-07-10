@@ -2,6 +2,7 @@ from typing import Annotated
 
 import numpy as np
 from fastapi import FastAPI, Query
+from fastapi.responses import Response
 
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
@@ -19,7 +20,7 @@ async def read_cutout(
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     layer = build_cv_layer(path, readonly=True)
-    return layer[index].tobytes()
+    return Response(content=layer[index].tobytes())
 
 
 @api.post("/cutout")

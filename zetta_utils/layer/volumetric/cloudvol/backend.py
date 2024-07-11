@@ -9,6 +9,7 @@ import cachetools
 import cloudvolume as cv
 import numpy as np
 from cloudvolume import CloudVolume
+from cloudvolume.exceptions import ScaleUnavailableError
 from numpy import typing as npt
 
 from zetta_utils.common import abspath, is_local
@@ -38,14 +39,17 @@ def _get_cv_cached(
     if (path_, resolution) in _cv_cache:
         return _cv_cache[(path_, resolution)]
     if resolution is not None:
-        result = CloudVolume(
-            path_,
-            info=get_info(path_),
-            provenance={},
-            mip=tuple(resolution),
-            lru_bytes=cache_bytes_limit,
-            **kwargs,
-        )
+        try:
+            result = CloudVolume(
+                path_,
+                info=get_info(path_),
+                provenance={},
+                mip=tuple(resolution),
+                lru_bytes=cache_bytes_limit,
+                **kwargs,
+            )
+        except ScaleUnavailableError as e:
+            raise ScaleUnavailableError(f"{path_} - {e}") from e
     else:
         result = CloudVolume(
             path_,

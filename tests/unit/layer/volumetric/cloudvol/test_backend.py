@@ -4,7 +4,9 @@ import pathlib
 
 import numpy as np
 import pytest
+from cloudvolume.exceptions import ScaleUnavailableError
 
+from zetta_utils.common import abspath
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol.backend import CVBackend, _clear_cv_cache
@@ -33,6 +35,11 @@ def clear_caches_reset_mocks():
 def test_cv_backend_bad_path_exc(clear_caches_reset_mocks):
     with pytest.raises(RuntimeError):
         CVBackend(path="abc")
+
+
+def test_cv_backend_bad_scale_exc(clear_caches_reset_mocks):
+    with pytest.raises(ScaleUnavailableError, match=abspath(LAYER_X0_PATH)):
+        CVBackend(path=LAYER_X0_PATH).get_bounds(Vec3D(0, 0, 0))
 
 
 def test_cv_backend_dtype(clear_caches_reset_mocks):

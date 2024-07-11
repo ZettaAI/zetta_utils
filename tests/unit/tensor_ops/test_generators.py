@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring,invalid-name
 import einops
+import numpy as np
 import pytest
 import torch
 
@@ -143,3 +144,89 @@ def test_rand_perlin_2d_failure(shape, res):
 def test_rand_perlin_2d_octaves_failure(shape, res):
     with pytest.raises(ValueError):
         generators.rand_perlin_2d_octaves(shape, res)
+
+
+@pytest.mark.parametrize(
+    "mat, size, expected_shape, expected_dtype",
+    [
+        [
+            torch.tensor(
+                [[1, 0, 0], [0, 1, 0]],
+                dtype=torch.float,
+            ),
+            16,
+            (1, 2, 16, 16),
+            torch.float,
+        ],
+        [
+            np.array(
+                [
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                ],
+                dtype=np.float32,
+            ),
+            (16, 16),
+            (2, 2, 16, 16),
+            torch.float,
+        ],
+        [
+            torch.tensor(
+                [
+                    [[1, 0, 0], [0, 1, 0]],
+                    [[1, 0, 0], [0, 1, 0]],
+                    [[1, 0, 0], [0, 1, 0]],
+                ],
+                dtype=torch.double,
+            ),
+            torch.Size((16, 16)),
+            (3, 2, 16, 16),
+            torch.double,
+        ],
+        [
+            torch.tensor(
+                [
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                ],
+                dtype=torch.float16,
+            ),
+            [16, 16],
+            (3, 2, 16, 16),
+            torch.float16,
+        ],
+    ],
+)
+def test_get_field_from_matrix(mat, size, expected_shape, expected_dtype):
+    result = generators.get_field_from_matrix(mat, size)
+    assert result.shape == expected_shape
+    assert result.dtype == expected_dtype
+
+
+@pytest.mark.parametrize(
+    "mat, size",
+    [
+        [
+            torch.tensor(
+                [
+                    [[[1, 0, 0], [0, 1, 0]]],
+                ],
+                dtype=torch.float,
+            ),
+            (16, 16),
+        ],
+        [
+            torch.tensor(
+                [
+                    [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                ],
+                dtype=torch.float,
+            ),
+            (3, 16, 16),
+        ],
+    ],
+)
+def test_get_field_from_matrix_exceptions(mat, size):
+    with pytest.raises(ValueError):
+        generators.get_field_from_matrix(mat, size)

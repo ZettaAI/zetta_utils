@@ -189,7 +189,7 @@ def get_slurm_contex_managers(
     pathlib.Path(f"slurm_{execution_id}").mkdir()
     slurm_obj = Slurm(
         output=f"slurm_{execution_id}/{Slurm.JOB_ARRAY_ID}.out",
-        time=datetime.timedelta(days=0, hours=0, minutes=10, seconds=4),
+        time=datetime.timedelta(days=2, hours=0, minutes=0, seconds=0),
         ntasks=worker_replicas,
         partition="highpri",
         job_name=f"slurm-worker-{execution_id}",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import datetime
 import os
+import pathlib
 import shutil
 import subprocess
 from contextlib import AbstractContextManager, ExitStack, contextmanager
@@ -97,6 +98,17 @@ def check_gres(_, __, value):
         raise ValueError("gres must be a (list of) string or None")
 
 
+def check_array(_, __, value):
+    if not (
+        value is None
+        or isinstance(value, (str, range))  # "0-31", "1,3,5,7", "1-7:2" are valid strings
+        or (isinstance(value, Iterable) and all(isinstance(v, int) for v in value))
+    ):
+        raise ValueError(
+            'array must be a list or range of int, a str ("0-31", "1,3,5,7", "1-7:2"), or None'
+        )
+
+
 @contextmanager
 def fq_ctx_manager(
     queue_name: str,
@@ -113,6 +125,7 @@ class SlurmWorkerResources:
     cpus_per_task: int = attrs.field(validator=check_cpus_per_task)
     mem_per_cpu: str = attrs.field(validator=check_mem_per_cpu)
     gres: str | None = attrs.field(validator=check_gres, default=None)
+    array: Any = attrs.field(validator=check_array, default=None)
 
     def to_dict(self) -> dict:
         return dict(attrs.asdict(self, filter=lambda attr, value: value is not None).items())
@@ -173,8 +186,9 @@ def get_slurm_contex_managers(
             resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue)
         )
 
+    pathlib.Path(f"slurm_{execution_id}").mkdir()
     slurm_obj = Slurm(
-        output=f"slurm_{execution_id}.out",
+        output=f"slurm_{execution_id}/{Slurm.JOB_ARRAY_ID}.out",
         time=datetime.timedelta(days=0, hours=0, minutes=10, seconds=4),
         ntasks=worker_replicas,
         partition="highpri",

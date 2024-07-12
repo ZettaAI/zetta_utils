@@ -1,3 +1,5 @@
+import "list"
+
 #SRC_PATH: "tigerdata://sseung-test1/ca3-alignment-temp/full_section_imap4"
 #DST_PATH: "tigerdata://sseung-test1/sergiy-temp/tmp_x0"
 
@@ -9,13 +11,14 @@
 }
 
 "@type":                "mazepa.execute_on_slurm"
-worker_replicas: 10
+worker_replicas: 1
 worker_resources: {
 	cpus_per_task: 4,
 	mem_per_cpu: "8G"
 	// sres: ...
+	array: list.Range(0,4)
 }
-init_command:  "module load  anacondapy/2023.03; conda activate zetta-x1-p310"
+init_command:  "module load  anacondapy/2024.02; conda activate zetta-x1-p310"
 local_test:    false // set to `false` execute remotely
 message_queue: "sqs"
 

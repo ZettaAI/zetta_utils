@@ -46,7 +46,7 @@ def _write_info(
     info: Dict[str, Any], path: str
 ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
     info_path = _to_info_path(path)
-    CloudFile(info_path).put_json(info)
+    CloudFile(info_path).put_json(info, cache_control="no-cache")
 
 
 def _to_info_path(path: str) -> str:

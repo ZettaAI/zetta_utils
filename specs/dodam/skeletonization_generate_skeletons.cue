@@ -3,7 +3,7 @@
 #SEG_PATH: "gs://dodam_exp/seg_bigcutout"
 
 // Read the `mesh`dir` requirement in mesh_generation.py
-#MESH_DIR: "mesh_mip_1_err_40"
+#SKELETON_DIR: "skeletons_mip_0_test0"
 #BBOX: {
 	"@type": "BBox3D.from_coords"
 	start_coord: [1024 * 5, 1024 * 5, 1995]
@@ -11,8 +11,8 @@
 	resolution: [20, 20, 50]
 }
 
-#SEG_DB_PATH:  "dodam-med-seg-512-512-256v3"
-#FRAG_DB_PATH: "dodam-med-frag-512-512-256v3"
+#SEG_DB_PATH:  "dodam-skel-med-seg-512-512-256v2"
+#FRAG_DB_PATH: "dodam-skel-med-frag-512-512-256v2"
 #PROJECT:      "zetta-research"
 
 // Execution parameters
@@ -26,7 +26,7 @@ worker_resources: {
 	//"nvidia.com/gpu": "1"
 }
 worker_replicas: 100
-num_procs:       8
+num_procs:       16
 semaphores_spec: {
 	"read":  1
 	"write": 1
@@ -38,7 +38,7 @@ local_test:           true // set to `false` execute remotely
 do_dryrun_estimation: false
 
 target: {
-	"@type": "build_generate_meshes_flow"
+	"@type": "build_generate_skeletons_flow"
 	bbox:    #BBOX
 	seg_resolution: [20, 20, 50]
 	frag_chunk_size: [512, 512, 256]
@@ -56,9 +56,7 @@ target: {
 		namespace: #FRAG_DB_PATH
 		project:   #PROJECT
 	}
-	mesh_dir: #MESH_DIR
-	frag_num_splits: [2, 2, 1]
-	num_lods:           5
-	min_shards:         1
+	skeleton_dir:       #SKELETON_DIR
+	min_shards:         8
 	num_shard_no_tasks: 16
 }

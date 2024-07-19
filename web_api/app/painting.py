@@ -32,6 +32,7 @@ async def write_cutout(
     data: bytes,
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
-    layer = build_cv_layer(path)
+    cv_kwargs = {"non_aligned_writes": True}
+    layer = build_cv_layer(path, cv_kwargs=cv_kwargs)
     shape = np.array(bbox_end) - np.array(bbox_start)
     layer[index] = np.frombuffer(data, dtype=layer.backend.dtype).reshape(shape)

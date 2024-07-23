@@ -79,7 +79,7 @@ class VolumetricBackend(
     "enforce_chunk_aligned_writes" = value: bool
     "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
     "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
-    "dataest_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
+    "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
 
     def with_changes(self, **kwargs) -> VolumetricBackend[DataT, DataWriteT]:
@@ -101,18 +101,24 @@ class VolumetricBackend(
         )
 
     def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:
-        idx_expanded = self.get_chunk_aligned_index(idx, mode="expand")
-        idx_shrunk = self.get_chunk_aligned_index(idx, mode="shrink")
+        idx_expanded_full = self.get_chunk_aligned_index(idx, mode="expand")
+        idx_shrunk_full = self.get_chunk_aligned_index(idx, mode="shrink")
+        idx_expanded_cropped = idx_expanded_full.intersection(self.get_bounds(idx.resolution))
+        idx_shrunk_cropped = idx_shrunk_full.intersection(self.get_bounds(idx.resolution))
 
-        if idx != idx_expanded:
+        if idx not in (idx_expanded_full, idx_expanded_cropped):
             raise ValueError(
                 "The BBox3D of the specified VolumetricIndex is not chunk-aligned with"
                 + f" the VolumetricLayer at `{self.name}`;\n"
                 + f"in {tuple(idx.resolution)} {idx.bbox.unit} voxels:"
                 + f" offset: {self.get_voxel_offset(idx.resolution)},"
                 + f" chunk_size: {self.get_chunk_size(idx.resolution)}\n"
+                + f" dataset bounds: {self.get_bounds(idx.resolution)}\n"
                 + f"Received BBox3D: {idx.pformat()}\n"
-                + "Nearest chunk-aligned BBox3Ds:\n"
-                + f" - expanded : {idx_expanded.pformat()}\n"
-                + f" - shrunk   : {idx_shrunk.pformat()}"
+                + "Nearest chunk-aligned BBox3Ds before cropping to bounds:\n"
+                + f" - expanded : {idx_expanded_full.pformat()}\n"
+                + f" - shrunk   : {idx_shrunk_full.pformat()}\n"
+                + "Nearest chunk-aligned BBox3Ds after cropping to bounds:\n"
+                + f" - expanded : {idx_expanded_cropped.pformat()}\n"
+                + f" - shrunk   : {idx_shrunk_cropped.pformat()}"
             )

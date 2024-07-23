@@ -20,7 +20,8 @@ async def read_cutout(
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     layer = build_cv_layer(path, readonly=True)
-    return Response(content=layer[index].tobytes())
+    data = np.ascontiguousarray(layer[index])
+    return Response(content=data.tobytes())
 
 
 @api.post("/cutout")

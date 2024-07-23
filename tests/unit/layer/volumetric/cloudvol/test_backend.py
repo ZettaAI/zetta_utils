@@ -395,3 +395,21 @@ def test_cv_assert_idx_is_chunk_aligned_crop_exc(clear_caches_reset_mocks):
 
     with pytest.raises(ValueError):
         cvb.assert_idx_is_chunk_aligned(index)
+
+
+def test_cv_assert_idx_is_chunk_aligned_crop_preorigin_exc(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+        default_chunk_size=IntVec3D(3, 5, 7),
+        default_voxel_offset=IntVec3D(1, 2, 3),
+    )
+    cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
+    index = VolumetricIndex(
+        bbox=BBox3D.from_slices(
+            (slice(1, 16384), slice(2, 16386), slice(0, 16387)), resolution=Vec3D(2, 2, 1)
+        ),
+        resolution=Vec3D(2, 2, 1),
+    )
+
+    with pytest.raises(ValueError):
+        cvb.assert_idx_is_chunk_aligned(index)

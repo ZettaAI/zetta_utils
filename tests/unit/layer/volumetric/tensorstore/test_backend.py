@@ -417,7 +417,7 @@ def test_ts_assert_idx_is_chunk_crop_aligned_exc(clear_caches_reset_mocks):
     tsb = TSBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
-            (slice(1, 16384), slice(2, 16386), slice(3, -11)), resolution=Vec3D(2, 2, 1)
+            (slice(1, 16384), slice(2, 16386), slice(0, 16387)), resolution=Vec3D(2, 2, 1)
         ),
         resolution=Vec3D(2, 2, 1),
     )

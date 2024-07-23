@@ -136,6 +136,8 @@ def load_and_run_model(
         output = tensor_ops.convert.astype(output_np, reference=data_in)
     else:
         autocast_device = device.type if isinstance(device, torch.device) else str(device)
-        with torch.autocast(device_type=autocast_device):
-            output = model(tensor_ops.convert.to_torch(data_in, device=device))
+        with torch.inference_mode():  # uses less memory when used with JITs
+            with torch.autocast(device_type=autocast_device):
+                output = model(tensor_ops.convert.to_torch(data_in, device=device))
+                output = tensor_ops.convert.astype(output, reference=data_in)
     return output

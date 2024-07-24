@@ -2,7 +2,7 @@ from typing import Annotated
 
 import einops
 import numpy as np
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, Query
 from fastapi.responses import Response
 
 from zetta_utils.geometry import Vec3D
@@ -30,7 +30,7 @@ async def read_cutout(
 
 @api.post("/cutout")
 async def write_cutout(
-    data: bytes,
+    data: Annotated[bytes, Body()],
     path: Annotated[str, Query()],
     bbox_start: Annotated[tuple[int, int, int], Query()],
     bbox_end: Annotated[tuple[int, int, int], Query()],

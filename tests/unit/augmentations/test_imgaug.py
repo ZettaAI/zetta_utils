@@ -173,3 +173,100 @@ def test_imgaug_builder():
     arr = np.zeros((1, 128, 128, 1), dtype=np.uint8)
     assert spec({"images": arr}).keys() == {"images"}
     assert_array_equal(spec(arr), arr)
+
+
+def test_imgaug_basic_tensor_3d():
+    image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
+    segmap = torch.randint(0, 2 ** 15, (3, 128, 128, 2), dtype=torch.int16)
+
+    aug = iaa.Rot90()
+    augmented = imgaug_augment(
+        augmenters=aug,
+        images=image,
+        segmentation_maps=segmap,
+        mode="3d",
+    )
+
+    assert augmented.keys() == {"images", "segmentation_maps"}
+    assert augmented["images"].shape == (3, 128, 128, 2)
+    assert augmented["segmentation_maps"].shape == (3, 128, 128, 2)
+    assert_array_equal(augmented["images"], torch.rot90(image, dims=(2, 1)))
+    assert_array_equal(augmented["segmentation_maps"], torch.rot90(segmap, dims=(2, 1)))
+
+
+def test_imgaug_basic_tensor_3d_2():
+    image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
+    segmap = torch.randint(0, 2 ** 15, (3, 64, 64, 2), dtype=torch.int16)
+
+    aug = iaa.Rot90()
+    augmented = imgaug_augment(
+        augmenters=aug,
+        mode="3d",
+        in_img=image,
+        out_seg=segmap,
+    )
+
+    assert augmented.keys() == {"in_img", "out_seg"}
+    assert augmented["in_img"].shape == (3, 128, 128, 2)
+    assert augmented["out_seg"].shape == (3, 64, 64, 2)
+    assert_array_equal(augmented["in_img"], torch.rot90(image, dims=(2, 1)))
+    assert_array_equal(augmented["out_seg"], torch.rot90(segmap, dims=(2, 1)))
+
+
+def test_imgaug_basic_tensor_3d_3():
+    image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
+    hmmap = torch.rand((8, 64, 64, 2), dtype=torch.float32)
+
+    aug = iaa.Rot90()
+    augmented = imgaug_augment(
+        augmenters=aug,
+        mode="3d",
+        in_img=image,
+        out_hm=hmmap,
+    )
+
+    assert augmented.keys() == {"in_img", "out_hm"}
+    assert augmented["in_img"].shape == (3, 128, 128, 2)
+    assert augmented["out_hm"].shape == (8, 64, 64, 2)
+    assert_array_equal(augmented["in_img"], torch.rot90(image, dims=(2, 1)))
+    assert_array_equal(augmented["out_hm"], torch.rot90(hmmap, dims=(2, 1)))
+
+
+def test_imgaug_basic_tensor_3d_4():
+    image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
+    hmmap = torch.rand((8, 64, 64, 2), dtype=torch.float32)
+    segmap = torch.randint(0, 2 ** 15, (1, 64, 64, 2), dtype=torch.int16)
+
+    aug = iaa.Rot90()
+    augmented = imgaug_augment(
+        augmenters=aug,
+        mode="3d",
+        in_img=image,
+        out_hm=hmmap,
+        out_seg=segmap,
+    )
+
+    assert augmented.keys() == {"in_img", "out_hm", "out_seg"}
+    assert augmented["in_img"].shape == (3, 128, 128, 2)
+    assert augmented["out_hm"].shape == (8, 64, 64, 2)
+    assert augmented["out_seg"].shape == (1, 64, 64, 2)
+    assert_array_equal(augmented["in_img"], torch.rot90(image, dims=(2, 1)))
+    assert_array_equal(augmented["out_hm"], torch.rot90(hmmap, dims=(2, 1)))
+    assert_array_equal(augmented["out_seg"], torch.rot90(segmap, dims=(2, 1)))
+
+
+def test_imgaug_exceptions_3d():
+    image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
+    segmap = torch.randint(0, 2 ** 15, (3, 64, 64, 2), dtype=torch.int16)
+    keypoints = [[(0.0, 0.0), (0.0, 128.0)], [(128.0, 128.0), (64.0, 64.0)]]
+
+    aug = iaa.Rot90()
+
+    with pytest.raises(ValueError):
+        imgaug_augment(
+            augmenters=aug,
+            mode="3d",
+            in_img=image,
+            out_seg=segmap,
+            keypoints=keypoints,
+        )

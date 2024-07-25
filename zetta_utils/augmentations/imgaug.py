@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, Final, Sequence, Sized, Tuple, TypeVar, overload
+import collections
+from typing import Any, Final, Literal, Sequence, Sized, Tuple, TypeVar, overload
 
+import numpy as np
+import torch
 from imgaug import augmenters as iaa
 from imgaug.augmenters.meta import Augmenter
 from numpy.typing import NDArray
 
 from zetta_utils import builder
-from zetta_utils.tensor_ops import common, convert
+from zetta_utils.tensor_ops import common, convert, crop_center
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 SizedTypeVar = TypeVar("SizedTypeVar", bound=Sized)
@@ -25,6 +28,10 @@ SUFFIX_MAPPING: Final = {
     "poly": "polygons",
     "ls": "line_strings",
 }
+
+FakeResult = collections.namedtuple(
+    "FakeResult", ["images_aug", "segmentation_maps_aug", "heatmaps_aug"]
+)
 
 
 def _ensure_list(augmenter: Augmenter | Sequence[Augmenter]) -> Sequence[Augmenter]:
@@ -118,8 +125,9 @@ def imgaug_readproc(
         return imgaug_augment(augmenters, images=args[0], **kwargs)["images"]
 
 
-def imgaug_augment(
+def imgaug_augment(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     augmenters: Augmenter | Sequence[Augmenter],
+    mode: Literal["2d", "3d"] = "2d",
     *,
     images: Tensor | Sequence[Tensor] | None = None,
     heatmaps: Tensor | Sequence[Tensor] | None = None,
@@ -162,26 +170,121 @@ def imgaug_augment(
         **kwargs,
     )
 
-    if not any("images" in group for group in augmentables.values()):
+    if mode == "3d":
+        unsupported_keys = set(["keypoints", "bounding_boxes", "polygons", "line_strings"])
+        for group in augmentables.values():
+            unsupported_present = unsupported_keys & set(group.keys())
+            if len(unsupported_present):
+                raise ValueError("3d mode does not support {unsupported_present}")
+
+    # since imgaug always require an image input, we find a ref in case some inputs don't have one
+    ref_images = None
+    for group in augmentables.values():
+        if "images" in group:
+            images_ = group["images"]
+            assert isinstance(images_, np.ndarray | torch.Tensor | Sequence)
+            # mypy seems to have a bug where checking against a union_object doesn't work
+            # e.g., the below will not pass checks
+            # a = np.ndarray | torch.Tensor | Sequence[np.ndarray | torch.Tensor]
+            # assert isinstance(images_, a)
+            ref_images = _ensure_nxyc(images_)
+            break
+    if ref_images is None:
         raise ValueError("Expected at least one image in `images` or `kwargs`")
 
-    for aug_group in augmentables.values():
-        res = augmenter.augment(
-            images=_ensure_nxyc(aug_group["images"]),  # type: ignore
-            heatmaps=_ensure_nxyc(aug_group["heatmaps"])  # type: ignore
-            if "heatmaps" in aug_group
-            else None,
-            segmentation_maps=_ensure_nxyc(aug_group["segmentation_maps"])  # type: ignore
-            if "segmentation_maps" in aug_group
-            else None,
-            keypoints=aug_group.get("keypoints", None),
-            bounding_boxes=aug_group.get("bounding_boxes", None),
-            polygons=aug_group.get("polygons", None),
-            line_strings=aug_group.get("line_strings", None),
-            return_batch=True,
-        )
+    for _, aug_group in augmentables.items():
+        if "images" in aug_group:
+            images = _ensure_nxyc(aug_group["images"])  # type: ignore
+        else:
+            images = ref_images
 
-        aug_group["images"] = _ensure_cxyn(res.images_aug, aug_group["images"])  # type: ignore
+        if mode == "2d":
+            res = augmenter.augment(
+                images=images,
+                heatmaps=_ensure_nxyc(aug_group["heatmaps"])  # type: ignore
+                if "heatmaps" in aug_group
+                else None,
+                segmentation_maps=_ensure_nxyc(aug_group["segmentation_maps"])  # type: ignore
+                if "segmentation_maps" in aug_group
+                else None,
+                keypoints=aug_group.get("keypoints", None),
+                bounding_boxes=aug_group.get("bounding_boxes", None),
+                polygons=aug_group.get("polygons", None),
+                line_strings=aug_group.get("line_strings", None),
+                return_batch=True,
+            )
+
+        elif mode == "3d":
+            # Process the stack one at a time while making sure the same transformation
+            # is being applied. See https://github.com/aleju/imgaug/issues/51
+            assert images is not None
+            assert isinstance(images, np.ndarray | torch.Tensor)
+
+            segmentation_maps = None
+            if "segmentation_maps" in aug_group:
+                assert isinstance(aug_group["segmentation_maps"], np.ndarray | torch.Tensor)
+                segmentation_maps = _ensure_nxyc(aug_group["segmentation_maps"])
+                # if segmentation_maps.dtype != np.uint8:
+                #     raise ValueError(
+                #         f"{key} is a `segmentation_maps` which is {segmentation_maps.dtype} "
+                #         "but needs to be uint8"
+                #     )
+                #     # TODO: checking dtype would also be useful for 2d mode
+
+            heatmaps = None
+            if "heatmaps" in aug_group:
+                assert isinstance(aug_group["heatmaps"], np.ndarray | torch.Tensor)
+                heatmaps = _ensure_nxyc(aug_group["heatmaps"])
+
+            ## Crop `ref_images` if necessary
+            if (
+                segmentation_maps is not None
+                and images.shape[-4:-1] != segmentation_maps.shape[-4:-1]
+            ):
+                assert images is ref_images, "Possible bug if image is actually used"
+                images = crop_center(images, segmentation_maps.shape[-4:-1] + (images.shape[-1],))
+            if heatmaps is not None and images.shape[-4:-1] != heatmaps.shape[-4:-1]:
+                assert images is ref_images, "Possible bug if image is actually used"
+                images = crop_center(images, heatmaps.shape[-4:-1] + (images.shape[-1],))
+            if heatmaps is not None and segmentation_maps is not None:
+                assert segmentation_maps.shape[-4:-1] == heatmaps.shape[-4:-1]
+
+            images_list = [x[np.newaxis, :] for x in images]
+            seg_list: Sequence[None] | Sequence[np.ndarray | torch.Tensor]
+            heat_list: Sequence[None] | Sequence[np.ndarray | torch.Tensor]
+            if segmentation_maps is None:
+                seg_list = [None for _ in images]
+            else:
+                seg_list = [x[np.newaxis, :] for x in segmentation_maps]
+            if heatmaps is None:
+                heat_list = [None for _ in images]
+            else:
+                heat_list = [x[np.newaxis, :] for x in heatmaps]
+
+            res_images = []
+            res_seg = []
+            res_heat = []
+            for i, s, h in zip(images_list, seg_list, heat_list):
+                res_ = augmenter.augment(
+                    images=i,
+                    heatmaps=h,
+                    segmentation_maps=s,
+                    return_batch=True,
+                )
+                res_images.append(np.squeeze(res_.images_aug, axis=0))
+                if s is not None:
+                    res_seg.append(np.squeeze(res_.segmentation_maps_aug, axis=0))
+                if h is not None:
+                    res_heat.append(np.squeeze(res_.heatmaps_aug, axis=0))
+
+            res = FakeResult(
+                np.stack(res_images, axis=0) if res_images else None,
+                np.stack(res_seg, axis=0) if res_seg else None,
+                np.stack(res_heat, axis=0) if res_heat else None,
+            )
+
+        if "images" in aug_group:
+            aug_group["images"] = _ensure_cxyn(res.images_aug, aug_group["images"])  # type: ignore
         if "heatmaps" in aug_group:
             aug_group["heatmaps"] = _ensure_cxyn(
                 res.heatmaps_aug, aug_group["heatmaps"]  # type: ignore

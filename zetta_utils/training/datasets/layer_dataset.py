@@ -31,16 +31,22 @@ class LayerDataset(torch.utils.data.Dataset):
     :param layer: Layer which will be used as a source of data.
     :param sample_indexer: Indexer which will be used to translate integer sample
         index to a corresponding index understood by the layer backend.
-
+    :param length_override: Overide `len()` to return a specific value. Useful
+        when used in a JointDataset to weigh `LayerDataset`s differently.
+        Caution: typically to be useful the `sample_indexer` must return random
+        sample when given the same index (i.e., use RandomIndexer).
     """
 
     layer: Layer
     sample_indexer: SampleIndexer
+    length_override: int | None = None
 
     def __attrs_pre_init__(self):
         super().__init__()
 
     def __len__(self) -> int:
+        if self.length_override is not None:
+            return self.length_override
         return len(self.sample_indexer)
 
     def __getitem__(self, idx: int) -> Any:

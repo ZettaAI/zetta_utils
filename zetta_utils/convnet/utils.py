@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import io
-from typing import Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Sequence, Union, overload
 
 import cachetools
 import fsspec
 import onnx
 import onnxruntime as ort
 import torch
+from numpy import typing as npt
 from onnxruntime.capi.onnxruntime_inference_collection import (
     InferenceSession as OrtInferenceSession,
 )
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
-from zetta_utils.tensor_typing import TensorTypeVar
 
 logger = log.get_logger("zetta_utils")
 
@@ -113,14 +113,30 @@ def load_weights_file(
     return model
 
 
+@overload
 @typechecked
 def load_and_run_model(
     path: str,
-    data_in: TensorTypeVar,
-    device: Union[Literal["cpu", "cuda"], torch.device, None] = None,
-    use_cache: bool = True,
-) -> TensorTypeVar:  # pragma: no cover
+    data_in: npt.NDArray,
+    device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
+    use_cache: bool = ...,
+) -> npt.NDArray:
+    ...
 
+
+@overload
+@typechecked
+def load_and_run_model(
+    path: str,
+    data_in: torch.Tensor,
+    device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
+    use_cache: bool = ...,
+) -> torch.Tensor:
+    ...
+
+
+@typechecked
+def load_and_run_model(path, data_in, device=None, use_cache=False):  # pragma: no cover
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 

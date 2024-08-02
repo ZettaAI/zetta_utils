@@ -5,7 +5,6 @@ from typing import Mapping, Union
 import attrs
 import torch
 from numpy import typing as npt
-from typeguard import typechecked
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from .. import UserVolumetricIndex, VolumetricFrontend, VolumetricIndex
@@ -21,7 +20,6 @@ VolumetricSetDataWriteProcT = Union[
 ]
 
 
-@typechecked
 @attrs.frozen
 class VolumetricLayerSet(
     Layer[VolumetricIndex, dict[str, npt.NDArray], Mapping[str, npt.NDArray | torch.Tensor]]

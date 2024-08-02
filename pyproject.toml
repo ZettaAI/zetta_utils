@@ -41,7 +41,7 @@ alignment = [
   "metroem @ git+https://github.com/ZettaAI/metroem.git",
   "torch >= 2.0",
 ]
-all_cpu = ["zetta_utils[modules,docs,test,cpu]"]
+all-cpu = ["zetta_utils[modules,docs,test,cpu]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",

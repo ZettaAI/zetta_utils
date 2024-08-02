@@ -35,7 +35,7 @@ class VolumetricLayerSet(
     read_procs: tuple[VolumetricSetDataProcT, ...] = ()
     write_procs: tuple[VolumetricSetDataWriteProcT, ...] = ()
 
-    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, npt.NDArray]:
+    def __getitem__(self, idx: UserVolumetricIndex) -> dict[str, npt.NDArray] | npt.NDArray:
         idx_backend = self.frontend.convert_idx(idx)
         return self.read_with_procs(idx=idx_backend)
 

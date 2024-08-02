@@ -13,7 +13,7 @@ from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 api = FastAPI()
 
 
-@app.get("/cutout")
+@api.get("/cutout")
 async def read_cutout(
     path: Annotated[str, Query()],
     bbox_start: Annotated[tuple[int, int, int], Query()],
@@ -27,13 +27,13 @@ async def read_cutout(
     data = np.ascontiguousarray(layer[index])
     if is_fortran:
         data = einops.rearrange(data, "C X Y Z -> Z Y X C")
-    data = data.tobytes()
-    compressed_data = gzip.compress(data)
+    data_bytes = data.tobytes()
+    compressed_data = gzip.compress(data_bytes)
 
     return Response(content=compressed_data)
 
 
-@app.post("/cutout")
+@api.post("/cutout")
 async def write_cutout(
     request: Request,
     path: Annotated[str, Query()],

@@ -18,6 +18,7 @@ import einops
 import numpy as np
 import tinybrain
 import torch
+from numpy import typing as npt
 from typeguard import typechecked
 from typing_extensions import Concatenate, ParamSpec
 
@@ -49,10 +50,22 @@ class DictSupportingTensorOp(Generic[P]):
             return self.fn(data, *args, **kwargs)
 
 
+@overload
 def supports_dict(
-    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+    fn: Callable[Concatenate[npt.NDArray, P], npt.NDArray]
 ) -> DictSupportingTensorOp[P]:
-    return DictSupportingTensorOp[P](fn)
+    ...
+
+
+@overload
+def supports_dict(
+    fn: Callable[Concatenate[torch.Tensor, P], torch.Tensor]
+) -> DictSupportingTensorOp[P]:
+    ...
+
+
+def supports_dict(fn):
+    return DictSupportingTensorOp(fn)
 
 
 @builder.register("rearrange")

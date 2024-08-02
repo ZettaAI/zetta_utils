@@ -99,6 +99,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_uint8_copy_bbox",
         "test_uint8_copy_auto_bbox",
         "test_uint8_copy_dst_tighten_bounds",
+        "test_uint8_copy_dst_tighten_bounds_oddsize",
         "test_uint8_copy_no_op_kwargs",
         "test_uint8_copy_coords",
         "test_uint8_copy_fn_semaphores",

@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
+import copy
 import math
 import os
 from copy import deepcopy
@@ -14,7 +15,7 @@ from cloudfiles import CloudFile
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
-InfoExistsModes = Literal["expect_same", "overwrite"]
+InfoExistsModes = Literal["expect_same", "overwrite", "extend"]
 
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
@@ -45,7 +46,7 @@ def _write_info(
     info: Dict[str, Any], path: str
 ) -> None:  # pylint: disable=too-many-branches, consider-iterating-dictionary
     info_path = _to_info_path(path)
-    CloudFile(info_path).put_json(info)
+    CloudFile(info_path).put_json(info, cache_control="no-cache")
 
 
 def _to_info_path(path: str) -> str:
@@ -150,7 +151,7 @@ class PrecomputedInfoSpec:
     data_type: str | None = None
     add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
-    add_scales_mode: str = "merge"
+    add_scales_mode: Literal["merge", "replace"] = "merge"
     add_scales_exclude_fields: Sequence[str] = ()
     # ensure_scales: Optional[Iterable[int]] = None
 
@@ -206,10 +207,9 @@ class PrecomputedInfoSpec:
                 new_scales = [_make_scale(ref=ref_scale, target=e) for e in self.add_scales]
                 if self.add_scales_mode == "replace" or "scales" not in result:
                     result["scales"] = _merge_and_sort_scales([], new_scales)
-                elif self.add_scales_mode == "merge":
-                    result["scales"] = _merge_and_sort_scales(result["scales"], new_scales)
                 else:
-                    raise RuntimeError(f"Unknown `add_scales_mode` {self.add_scales_mode}")
+                    assert self.add_scales_mode == "merge"
+                    result["scales"] = _merge_and_sort_scales(result["scales"], new_scales)
 
             result.update(field_overrides)
 
@@ -261,16 +261,38 @@ class PrecomputedInfoSpec:
             )
 
         if new_info is not None:
-            if (
-                existing_info is not None
-                and on_info_exists == "expect_same"
-                and new_info != existing_info
-            ):
-                raise RuntimeError(
-                    f"Info created by the info_spec {self} is not equal to "
-                    f"info existing at '{path}' "
-                    "while `on_info_exists` is set to 'expect_same'"
-                )
+            if existing_info is not None:
+                if on_info_exists == "expect_same" and new_info != existing_info:
+                    raise RuntimeError(
+                        f"Info created by the info_spec {self} is not equal to "
+                        f"info existing at '{path}' "
+                        "while `on_info_exists` is set to 'expect_same'"
+                    )
+                if on_info_exists == "extend":
+                    scales_unchanged = all(
+                        e in new_info["scales"] for e in existing_info["scales"]
+                    )
+                    if not scales_unchanged:
+                        raise RuntimeError(
+                            f"Info created by the info_spec {self} is not a pure extension "
+                            f"of the info existing at '{path}' "
+                            "while `on_info_exists` is set to 'extend'. Some scales present "
+                            f"in `{path}` would be overwritten."
+                        )
+
+                    existing_info_no_scales = copy.deepcopy(existing_info)
+                    del existing_info_no_scales["scales"]
+                    new_info_no_scales = copy.deepcopy(new_info)
+                    del new_info_no_scales["scales"]
+
+                    if existing_info_no_scales != new_info_no_scales:
+                        raise RuntimeError(
+                            f"Info created by the info_spec {self} is not a pure extension "
+                            f"of the info existing at '{path}' "
+                            "while `on_info_exists` is set to 'extend'. Some non-scale keys "
+                            f"in `{path}` would be overwritten."
+                        )
+
             if existing_info != new_info:
                 _write_info(new_info, path)
                 _info_cache[_info_hash_key(_to_info_path(path))] = new_info

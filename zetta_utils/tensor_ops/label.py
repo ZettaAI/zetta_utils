@@ -47,7 +47,7 @@ def get_disp_pair(
 
 
 @overload
-def seg_to_aff(
+def seg_to_aff(  # type: ignore # fixed in mypy 1.11.1, but waiting for 1.12
     data: TensorTypeVar,
     edge: Sequence[int],
     mask: TensorTypeVar = ...,

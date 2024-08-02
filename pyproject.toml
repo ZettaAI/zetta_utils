@@ -245,7 +245,7 @@ min-similarity-lines = 4
 
 [tool.pylint.main]
 extension-pkg-whitelist = "numpy,cc3d,fastremap"
-ignore-paths = ["^docs/*"]
+ignore-paths = ["^docs/*", "^scripts/*", "^specs/*"]
 load-plugins = "pylint.extensions.no_self_use"
 
 [tool.pylint.options]

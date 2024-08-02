@@ -48,15 +48,14 @@ class VolumetricFrontend:
             idx_slice: SliceUserVolumetricIndex = idx_user
             # MyPy is on very aware of length checks, leading to the following type ignores
             if len(idx_slice) == 4:  # Tuple[Optional[Vec3D], slice, slice, sclie]
-                specified_resolution: Optional[Vec3D] = idx_slice[0]  # type: ignore
-                slices_user: Slices3D = idx_slice[1:]  # type: ignore
+                specified_resolution: Optional[Vec3D] = idx_slice[0]
+                slices_user: Slices3D = idx_slice[1:]
             elif len(idx_slice) == 3:  # Tuple[slice, slice, sclie]
                 specified_resolution = None
-                slices_user = idx_slice  # type: ignore
+                slices_user = idx_slice
             else:  # Tuple[Optional[Vec3D], Tuple[slice, slice, sclie]]
-                specified_resolution = idx_slice[0]  # type: ignore
+                specified_resolution = idx_slice[0]
                 slices_user = idx_slice[1]  # type: ignore
-
             if self.index_resolution is not None:
                 slice_resolution = self.index_resolution
             elif specified_resolution is None:
@@ -77,7 +76,7 @@ class VolumetricFrontend:
     ) -> Vec3D:
         specified_resolution: Optional[Vec3D] = None
         if isinstance(idx_user, tuple) and len(idx_user) != 3:  # not Tuple[slice, slice, sclie]
-            specified_resolution = idx_user[0]  # type: ignore # mypy unaware of length
+            specified_resolution = idx_user[0]
 
         if specified_resolution is not None:
             result = specified_resolution

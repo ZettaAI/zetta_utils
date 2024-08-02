@@ -52,7 +52,7 @@ def skip_on_empty_data(fn: OpT) -> OpT:
     return wrapped  # type: ignore
 
 
-@builder.register("filter_cc")  # type: ignore # TODO: pyright
+@builder.register("filter_cc")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -97,7 +97,7 @@ def filter_cc(
     return result
 
 
-@builder.register("filter_cc3d")  # type: ignore # TODO: pyright
+@builder.register("filter_cc3d")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -160,7 +160,7 @@ def _normalize_kernel(
     return convert.to_torch(kernel, device=device)
 
 
-@builder.register("kornia_opening")  # type: ignore
+@builder.register("kornia_opening")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -203,7 +203,7 @@ def kornia_opening(
     return result
 
 
-@builder.register("kornia_closing")  # type: ignore
+@builder.register("kornia_closing")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -246,7 +246,7 @@ def kornia_closing(
     return result
 
 
-@builder.register("kornia_erosion")  # type: ignore
+@builder.register("kornia_erosion")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -289,7 +289,7 @@ def kornia_erosion(
     return result
 
 
-@builder.register("kornia_dilation")  # type: ignore
+@builder.register("kornia_dilation")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -334,7 +334,7 @@ def kornia_dilation(
     return result
 
 
-@builder.register("mask_out_with_fn")  # type: ignore
+@builder.register("mask_out_with_fn")
 @supports_dict
 @skip_on_empty_data
 @typechecked

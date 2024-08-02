@@ -46,7 +46,7 @@ def skip_on_empty_datas(fn: OpT) -> OpT:
     return wrapped  # type: ignore
 
 
-@builder.register("compute_pixel_error")  # type: ignore
+@builder.register("compute_pixel_error")
 @skip_on_empty_datas
 def compute_pixel_error(
     data1: TensorTypeVar, data2: TensorTypeVar, erosion: int = 5, **kwargs
@@ -82,7 +82,7 @@ def compute_pixel_error(
     return convert.astype(result, data1)
 
 
-@builder.register("erode_combine")  # type: ignore
+@builder.register("erode_combine")
 @skip_on_empty_datas
 def erode_combine(
     data1: TensorTypeVar, data2: TensorTypeVar, erosion: int = 5, **kwargs

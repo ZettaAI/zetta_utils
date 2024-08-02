@@ -59,7 +59,7 @@ class CallableOperation(Generic[P, IndexT, R]):
 # "Callable[
 #   [Arg(Callable[P, R], 'fn'), Arg(IndexChunker[IndexT], 'chunker')],
 #   ChunkedApplyFlowSchema[[LayerWithIndexT[IndexT], **P], IndexT, None]]"
-@builder.register("build_chunked_callable_flow_schema")  # type: ignore
+@builder.register("build_chunked_callable_flow_schema")
 def build_chunked_callable_flow_schema(
     fn: Callable[P, R], chunker: IndexChunker[IndexT]
 ) -> ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None,]:
@@ -67,5 +67,5 @@ def build_chunked_callable_flow_schema(
 
     return ChunkedApplyFlowSchema[Concatenate[LayerWithIndexT[IndexT], P], IndexT, None](
         chunker=chunker,
-        operation=operation,  # type: ignore
+        operation=operation,
     )

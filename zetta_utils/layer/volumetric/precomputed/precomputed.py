@@ -65,8 +65,8 @@ def res_to_key(resolution: Vec3D) -> str:  # pragma: no cover
     return "_".join([_str(v) for v in resolution])
 
 
-def _check_seq_is_int(seq: Sequence[int | float]) -> bool:
-    return not all(float(k).is_integer() for k in seq)
+# def _check_seq_is_int(seq: Sequence[int | float]) -> bool:
+#     return not all(float(k).is_integer() for k in seq)
 
 
 def _get_ref_scale(
@@ -85,6 +85,10 @@ def _get_ref_scale(
     if len(matched) == 0:
         raise RuntimeError(f'`reference_info` does not have scale "{add_scales_ref}"')
     return matched[0]
+
+
+def is_integer_within_eps(value: float, eps: float = 1e-5) -> bool:
+    return abs(value - round(value)) < eps
 
 
 def _make_scale(ref: dict[str, Any], target: Sequence[float] | dict[str, Any]) -> dict[str, Any]:
@@ -108,20 +112,19 @@ def _make_scale(ref: dict[str, Any], target: Sequence[float] | dict[str, Any]) -
                 f" {ret['resolution']}"
             )
     if "size" not in ret:
-        ret["size"] = [k / m for k, m in zip(ref["size"], multiplier)]
+        ret["size"] = [math.ceil(k / m) for k, m in zip(ref["size"], multiplier)]
+
     if "voxel_offset" not in ret:
         ret["voxel_offset"] = [k / m for k, m in zip(ref["voxel_offset"], multiplier)]
+        for i in range(len(ret["voxel_offset"])):
+            if not is_integer_within_eps(ret["voxel_offset"][i]):
+                ret["voxel_offset"][i] = math.floor(ret["voxel_offset"][i])
+                ret["size"][i] += 1
+
     for k in ref:
         if k not in ret:
             ret[k] = ref[k]
 
-    # check and convert values to int
-    errored = _check_seq_is_int(ret["size"])
-    errored |= _check_seq_is_int(ret["voxel_offset"])
-    if errored:
-        raise RuntimeError(f"Computed scale {ret} does not have integer size and offsets")
-    ret["voxel_offset"] = [int(k) for k in ret["voxel_offset"]]
-    ret["size"] = [int(k) for k in ret["size"]]
     return ret
 
 
@@ -140,7 +143,9 @@ def _merge_and_sort_scales(
 
 @attrs.mutable
 class PrecomputedInfoSpec:
+    type: Literal["image", "segmentation"] | None = None
     reference_path: str | None = None
+    extend_if_exists_path: str | None = None
     field_overrides: dict[str, Any] | None = None
     default_chunk_size: Sequence[int] | None = None
     default_voxel_offset: Sequence[int] | None = None
@@ -151,7 +156,7 @@ class PrecomputedInfoSpec:
     data_type: str | None = None
     add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
-    add_scales_mode: Literal["merge", "replace"] = "merge"
+    add_scales_mode: Literal["merge", "replace", "extend"] = "merge"
     add_scales_exclude_fields: Sequence[str] = ()
     # ensure_scales: Optional[Iterable[int]] = None
 
@@ -177,11 +182,12 @@ class PrecomputedInfoSpec:
             self.dataset_size_map = {}
         self.dataset_size_map[key] = dataset_size
 
-    def make_info(  # pylint: disable=too-many-branches, consider-iterating-dictionary
+    def make_info(  # pylint: disable=too-many-branches, consider-iterating-dictionary, disable=too-many-statements
         self,
     ) -> Optional[Dict[str, Any]]:
         if (
             self.reference_path is None
+            and self.extend_if_exists_path is None
             and self.field_overrides is None
             and self.add_scales is None
         ):
@@ -191,9 +197,19 @@ class PrecomputedInfoSpec:
             if field_overrides is None:
                 field_overrides = {}
             reference_info = {}  # type: Dict[str, Any]
-            if self.reference_path is not None:
+
+            add_scales_mode = self.add_scales_mode
+            if self.extend_if_exists_path is not None:
+                try:
+                    reference_info = get_info(self.extend_if_exists_path)
+                    add_scales_mode = "extend"
+                except FileNotFoundError:
+                    reference_info = {}
+
+            if self.reference_path is not None and reference_info == {}:
                 reference_info = get_info(self.reference_path)
             result = deepcopy(reference_info)
+            result.update(field_overrides)
 
             if self.add_scales is not None:
                 if "scales" in field_overrides:
@@ -205,40 +221,46 @@ class PrecomputedInfoSpec:
                     ref_scale.pop(field, None)
 
                 new_scales = [_make_scale(ref=ref_scale, target=e) for e in self.add_scales]
-                if self.add_scales_mode == "replace" or "scales" not in result:
+                if add_scales_mode == "replace" or "scales" not in result:
                     result["scales"] = _merge_and_sort_scales([], new_scales)
-                else:
-                    assert self.add_scales_mode == "merge"
+                elif add_scales_mode == "merge":
                     result["scales"] = _merge_and_sort_scales(result["scales"], new_scales)
+                else:
+                    assert add_scales_mode == "extend"
+                    existing_scale_keys = {e["key"] for e in result["scales"]}
+                    brand_new_scales = [
+                        e for e in new_scales if e["key"] not in existing_scale_keys
+                    ]
+                    result["scales"] = _merge_and_sort_scales(result["scales"], brand_new_scales)
 
-            result.update(field_overrides)
+            if "scales" in result:
+                if self.default_chunk_size is not None:
+                    for e in result["scales"]:
+                        e["chunk_sizes"] = [[*self.default_chunk_size]]
+                if self.chunk_size_map is not None:
+                    for e in result["scales"]:
+                        if e["key"] in self.chunk_size_map.keys():
+                            e["chunk_sizes"] = [[*self.chunk_size_map[e["key"]]]]
+                if self.default_voxel_offset is not None:
+                    for e in result["scales"]:
+                        e["voxel_offset"] = [*self.default_voxel_offset]
+                if self.voxel_offset_map is not None:
+                    for e in result["scales"]:
+                        if e["key"] in self.voxel_offset_map.keys():
+                            e["voxel_offset"] = [*self.voxel_offset_map[e["key"]]]
+                if self.default_dataset_size is not None:
+                    for e in result["scales"]:
+                        e["size"] = [*self.default_dataset_size]
+                if self.dataset_size_map is not None:
+                    for e in result["scales"]:
+                        if e["key"] in self.dataset_size_map.keys():
+                            e["size"] = [*self.dataset_size_map[e["key"]]]
 
-            if self.default_chunk_size is not None:
-                for e in result["scales"]:
-                    e["chunk_sizes"] = [[*self.default_chunk_size]]
-            if self.chunk_size_map is not None:
-                for e in result["scales"]:
-                    if e["key"] in self.chunk_size_map.keys():
-                        e["chunk_sizes"] = [[*self.chunk_size_map[e["key"]]]]
-            if self.default_voxel_offset is not None:
-                for e in result["scales"]:
-                    e["voxel_offset"] = [*self.default_voxel_offset]
-            if self.voxel_offset_map is not None:
-                for e in result["scales"]:
-                    if e["key"] in self.voxel_offset_map.keys():
-                        e["voxel_offset"] = [*self.voxel_offset_map[e["key"]]]
-            if self.default_dataset_size is not None:
-                for e in result["scales"]:
-                    e["size"] = [*self.default_dataset_size]
-            if self.dataset_size_map is not None:
-                for e in result["scales"]:
-                    if e["key"] in self.dataset_size_map.keys():
-                        e["size"] = [*self.dataset_size_map[e["key"]]]
             if self.data_type is not None:
                 result["data_type"] = self.data_type
 
-            # if self.ensure_scales is not None:  # pragma: no cover
-            #    raise NotImplementedError()
+            if self.type:
+                result["type"] = self.type
 
         return result
 

@@ -203,7 +203,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             data_final = np.zeros_like(data_raw, shape=list(idx.shape) + [data_raw.shape[-1]])
             data_final[subindex] = data_raw[:, :, :]
         else:
-            data_final = data_raw
+            data_final = data_raw  # pragma: no cover
 
         result = np.transpose(data_final, (3, 0, 1, 2))
         return result
@@ -220,7 +220,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         elif len(data_np.shape) == 4:
             data_final = np.transpose(data_np, (1, 2, 3, 0))
         else:
-            raise ValueError(
+            raise ValueError(  # pragma: no cover
                 "Data written to CloudVolume backend must be in cxyz` dimension format, "
                 f"but got a tensor of with ndim == {data_np.ndim}"
             )

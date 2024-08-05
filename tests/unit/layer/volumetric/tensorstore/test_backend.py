@@ -46,7 +46,6 @@ def test_ts_backend_bad_path_exc(clear_caches_reset_mocks):
 def test_ts_backend_dtype(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="uint8")
     tsb = TSBackend(path=LAYER_X0_PATH, info_spec=info_spec, on_info_exists="overwrite")
-
     assert tsb.dtype == np.dtype("uint8")
 
 
@@ -130,8 +129,10 @@ def test_ts_backend_read_idx(clear_caches_reset_mocks, mocker):
     expected_shape = (1, 3, 4, 5)
     tsb = TSBackend(path=LAYER_X0_PATH)
     index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(0, 3), slice(1, 5), slice(2, 7))),
-        resolution=Vec3D(1, 1, 1),
+        bbox=BBox3D.from_slices(
+            (slice(0, 3), slice(1, 5), slice(2, 7)), resolution=Vec3D(2, 2, 1)
+        ),
+        resolution=Vec3D(2, 2, 1),
     )
     result = tsb.read(index)
     assert result.shape == expected_shape
@@ -143,8 +144,11 @@ def test_ts_backend_read_partial(clear_caches_reset_mocks, mocker):
     )
     tsb = TSBackend(path=LAYER_X0_PATH)
     index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(-1, 1), slice(0, 1), slice(0, 1))),
-        resolution=Vec3D(1, 1, 1),
+        bbox=BBox3D.from_slices(
+            (slice(0, 2), slice(0, 1), slice(0, 1)),
+            resolution=Vec3D(2, 2, 1),
+        ),
+        resolution=Vec3D(2, 2, 1),
     )
     result = tsb.read(index)
     assert result[:, 0:1, :, :] == np.zeros((1, 1, 1, 1), dtype=np.uint8)
@@ -162,8 +166,11 @@ def test_ts_backend_write_idx(clear_caches_reset_mocks, mocker):
     value = np.ones([1, 3, 5, 7], dtype=np.uint8)
 
     index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(1, 4), slice(2, 7), slice(3, 10))),
-        resolution=Vec3D(1, 1, 1),
+        bbox=BBox3D.from_slices(
+            (slice(1, 4), slice(2, 7), slice(3, 10)),
+            resolution=Vec3D(2, 2, 1),
+        ),
+        resolution=Vec3D(2, 2, 1),
     )
     tsb.write(index, value)
     tensorstore.TensorStore.__setitem__.call_args_list[0] = mocker.call(
@@ -187,8 +194,11 @@ def test_ts_backend_write_idx_partial(clear_caches_reset_mocks, mocker):
     value = np.ones([1, 3, 4, 5], dtype=np.uint8)
 
     index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(-2, 1), slice(-3, 1), slice(-4, 1))),
-        resolution=Vec3D(1, 1, 1),
+        bbox=BBox3D.from_slices(
+            (slice(-2, 1), slice(-3, 1), slice(-4, 1)),
+            resolution=Vec3D(2, 2, 1),
+        ),
+        resolution=Vec3D(2, 2, 1),
     )
     tsb.write(index, value)
     tensorstore.TensorStore.__setitem__.assert_called_with(
@@ -207,8 +217,11 @@ def test_ts_backend_write_scalar_idx(clear_caches_reset_mocks, mocker):
     value = np.array([1], dtype=np.uint8)
 
     index = VolumetricIndex(
-        bbox=BBox3D.from_slices((slice(1, 4), slice(2, 7), slice(3, 10))),
-        resolution=Vec3D(1, 1, 1),
+        bbox=BBox3D.from_slices(
+            (slice(1, 4), slice(2, 7), slice(3, 10)),
+            resolution=Vec3D(2, 2, 1),
+        ),
+        resolution=Vec3D(2, 2, 1),
     )
     tsb.write(index, value)
     tensorstore.TensorStore.__setitem__.assert_called_with(
@@ -383,7 +396,7 @@ def test_ts_assert_idx_is_chunk_aligned_crop(clear_caches_reset_mocks):
     tsb = TSBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
-            (slice(1, 16384), slice(2, 16386), slice(3, 16387)), resolution=Vec3D(2, 2, 1)
+            (slice(1, 16384), slice(2, 16387), slice(3, 16390)), resolution=Vec3D(2, 2, 1)
         ),
         resolution=Vec3D(2, 2, 1),
     )

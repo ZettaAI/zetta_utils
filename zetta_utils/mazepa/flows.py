@@ -12,6 +12,7 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Sequence,
     Set,
     Type,
     Union,
@@ -173,12 +174,12 @@ def flow_schema_cls(cls: Type[RawFlowSchemaCls]):
 
 
 @flow_schema
-def concurrent_flow(stages: list[Union[Flow, Task]]):
+def concurrent_flow(stages: Sequence[Flow | Task]):
     yield from stages
 
 
 @flow_schema
-def sequential_flow(stages: list[Union[Flow, Task]]):
+def sequential_flow(stages: Sequence[Flow | Task]):
     for e in stages:
         yield e
         yield Dependency()

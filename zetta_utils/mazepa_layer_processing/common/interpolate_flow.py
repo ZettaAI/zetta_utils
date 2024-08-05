@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional, Sequence, Union
+from typing import Sequence, Union, cast
 
 from numpy import typing as npt
 
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.common import ComparablePartial
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric import (
-    VolumetricIndex,
-    VolumetricIndexChunker,
-    VolumetricLayer,
+from zetta_utils.layer.volumetric.protocols import VolumetricBasedLayerProtocol
+from zetta_utils.mazepa.flows import sequential_flow
+from zetta_utils.mazepa_layer_processing.common.subchunkable_apply_flow import (
+    build_subchunkable_apply_flow,
 )
 
-from . import VolumetricCallableOperation, build_chunked_volumetric_callable_flow_schema
+from . import VolumetricCallableOperation
 
 
 def _interpolate(
@@ -52,36 +52,68 @@ def make_interpolate_operation(
     return op
 
 
-# TODO: remove as soon as subchunkable can support `res_change_mult`
 @builder.register("build_interpolate_flow")
 def build_interpolate_flow(
-    chunk_size: Sequence[int],
-    bbox: BBox3D,
+    src: VolumetricBasedLayerProtocol,
+    dst: VolumetricBasedLayerProtocol | None,
     src_resolution: Sequence[float],
-    dst_resolution: Sequence[float],
-    src: VolumetricLayer,
+    dst_resolutions: Sequence[Sequence[float]] | Sequence[float],
     mode: tensor_ops.InterpolationMode,
-    dst: Optional[VolumetricLayer] = None,
-    mask_value_thr: float = 0,
+    processing_chunk_sizes: Sequence[Sequence[int]],
+    level_intermediaries_dirs: Sequence[str | None] | None = None,
+    expand_bbox_resolution: bool = False,
+    expand_bbox_backend: bool = False,
+    expand_bbox_processing: bool = True,
+    shrink_processing_chunk: bool = False,
+    auto_divisibility: bool = False,
+    bbox: BBox3D | None = None,
+    auto_bbox: bool = False,
+    dst_tighten_bounds: bool = False,
 ) -> mazepa.Flow:
-
     if dst is None:
         dst = src
 
-    scale_factor = Vec3D(*src_resolution) / Vec3D(*dst_resolution)
-    res_change_mult = Vec3D(*dst_resolution) / Vec3D(*src_resolution)
+    if isinstance(dst_resolutions[0], float):
+        dst_resolutions_list = cast(Sequence[Sequence[float]], [dst_resolutions])
+    else:
+        dst_resolutions_list = cast(Sequence[Sequence[float]], dst_resolutions)
 
-    flow_schema = build_chunked_volumetric_callable_flow_schema(
-        fn=_interpolate,
-        res_change_mult=res_change_mult,
-        chunker=VolumetricIndexChunker(chunk_size=Vec3D[int](*chunk_size)),
-    )
-    flow = flow_schema(
-        idx=VolumetricIndex(bbox=bbox, resolution=Vec3D(*dst_resolution)),
-        dst=dst,
-        src=src,
-        scale_factor=scale_factor,
-        mode=mode,
-        mask_value_thr=mask_value_thr,
-    )
-    return flow
+    dst_resolutions_vec = [Vec3D(*e) for e in dst_resolutions_list]
+
+    dst_resolutions_vec_sorted = sorted(dst_resolutions_vec, key=tuple)
+
+    for i in range(len(dst_resolutions_vec_sorted) - 1):
+        a = dst_resolutions_vec_sorted[i]
+        b = dst_resolutions_vec_sorted[i + 1]
+        if not a <= b:
+            raise RuntimeError(
+                "Cannot find a strictly increasing order for the given resolutions: " f"{a} {b}"
+            )
+
+    stages = []
+    last_res = Vec3D(*src_resolution)
+    for i, dst_res in enumerate(dst_resolutions_vec_sorted):
+        stages.append(
+            build_subchunkable_apply_flow(
+                op=make_interpolate_operation(
+                    res_change_mult=dst_res / last_res,
+                    mode=mode,
+                ),
+                dst=dst,
+                dst_resolution=dst_res,
+                processing_chunk_sizes=processing_chunk_sizes,
+                level_intermediaries_dirs=level_intermediaries_dirs,
+                expand_bbox_resolution=expand_bbox_resolution,
+                expand_bbox_backend=expand_bbox_backend,
+                expand_bbox_processing=expand_bbox_processing,
+                shrink_processing_chunk=shrink_processing_chunk,
+                auto_divisibility=auto_divisibility,
+                bbox=bbox,
+                auto_bbox=auto_bbox,
+                dst_tighten_bounds=dst_tighten_bounds,
+                op_kwargs={"src": src},
+            )
+        )
+        last_res = dst_res
+    result = sequential_flow(stages=stages)
+    return result

@@ -354,7 +354,7 @@ def test_cv_assert_idx_is_chunk_aligned_crop(clear_caches_reset_mocks):
     cvb = CVBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, on_info_exists="overwrite")
     index = VolumetricIndex(
         bbox=BBox3D.from_slices(
-            (slice(1, 16384), slice(2, 16386), slice(3, 16387)), resolution=Vec3D(2, 2, 1)
+            (slice(1, 16384), slice(2, 16387), slice(3, 16390)), resolution=Vec3D(2, 2, 1)
         ),
         resolution=Vec3D(2, 2, 1),
     )

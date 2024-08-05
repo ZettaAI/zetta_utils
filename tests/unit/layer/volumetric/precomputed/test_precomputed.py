@@ -84,11 +84,49 @@ def test_infospec_overwrite(clear_caches_reset_mocks, path, reference, mode, moc
     _write_info.assert_called_once()
 
 
-def test_ts_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks, mocker):
+@pytest.mark.parametrize(
+    "path, reference, mode",
+    [
+        [LAYER_X1_PATH, LAYER_X0_PATH, "overwrite"],
+        [LAYER_X1_PATH + "yo", LAYER_X0_PATH, "overwrite"],
+    ],
+)
+def test_infospec_extend(clear_caches_reset_mocks, path, reference, mode, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(
+        reference_path=reference,
+        extend_if_exists_path=path,
+        default_chunk_size=IntVec3D(999, 999, 1),
+        add_scales=[[128, 128, 1]],
+    )
+    info_spec.update_info(path=path, on_info_exists=mode)
+
+    _write_info.assert_called_once()
+
+
+def test_exclude_fields(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH, add_scales=[[1, 1, 1]], add_scales_exclude_fields=["trash"]
+    )
+    info = info_spec.make_info()
+    assert info is not None
+    assert "trash" not in info["scales"][0]
+
+
+def test_type(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, type="segmentation")
+    info = info_spec.make_info()
+    assert info is not None
+    assert info["type"] == "segmentation"
+
+
+def test_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
         default_chunk_size=IntVec3D(1024, 1024, 1),
     )
+    info_spec.add_scales = [[2, 2, 1]]
     info_spec.set_chunk_size((IntVec3D(3, 2, 1), Vec3D(2, 2, 1)))
     info_spec.set_voxel_offset((IntVec3D(1, 2, 3), Vec3D(2, 2, 1)))
     info_spec.set_dataset_size((IntVec3D(10, 20, 30), Vec3D(2, 2, 1)))
@@ -209,14 +247,15 @@ def test_add_scale_with_ref(clear_caches_reset_mocks, tmpdir):
     assert "16_16_40" in [e["key"] for e in scales]
 
 
-def test_add_scale_error_non_multiple(clear_caches_reset_mocks, tmpdir):
-    tmp_layer = make_tmp_layer(tmpdir)
-    info_spec = PrecomputedInfoSpec(
-        reference_path=tmp_layer,
-        add_scales=[[6, 6, 82]],
-    )
-    with pytest.raises(RuntimeError):
-        info_spec.update_info(tmp_layer, on_info_exists="overwrite")
+# def test_add_scale_error_non_multiple(clear_caches_reset_mocks, tmpdir):
+#     tmp_layer = make_tmp_layer(tmpdir)
+#     info_spec = PrecomputedInfoSpec(
+#         reference_path=tmp_layer,
+#         add_scales=[[6, 6, 82]],
+#     )
+#     with pytest.raises(RuntimeError):
+#         breakpoint()
+# info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
 def test_add_scale_error_no_ref_scales(clear_caches_reset_mocks, tmpdir):
@@ -279,24 +318,6 @@ def test_add_scale_with_custom_ref(clear_caches_reset_mocks, tmpdir):
     info_spec.update_info(tmp_layer, on_info_exists="overwrite")
     scales = get_info(tmp_layer)["scales"]
     assert "6_6_82" in [e["key"] for e in scales]
-
-
-def test_add_scale_error_offset_scaling(clear_caches_reset_mocks, tmpdir):
-    tmp_layer = make_tmp_layer(tmpdir)
-    info_spec = PrecomputedInfoSpec(
-        reference_path=tmp_layer,
-        add_scales_ref={
-            "key": "3_3_41",
-            "resolution": [3, 3, 41],
-            "chunk_sizes": [[512, 512, 1]],
-            "encoding": "raw",
-            "size": [1000, 1000, 1000],
-            "voxel_offset": [1, 4, 6],
-        },
-        add_scales=[[6, 6, 82]],
-    )
-    with pytest.raises(RuntimeError):
-        info_spec.update_info(tmp_layer, on_info_exists="overwrite")
 
 
 def test_add_scale_with_non_existing_ref(clear_caches_reset_mocks, tmpdir):

@@ -22,13 +22,18 @@ async def read_cutout(
     is_fortran: Annotated[bool, Query()] = True,
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
+    print(index)
     layer = build_cv_layer(path, readonly=True)
 
     data = np.ascontiguousarray(layer[index])
+    print(data.shape)
     if is_fortran:
         data = einops.rearrange(data, "C X Y Z -> Z Y X C")
+    print(data.shape)
     data_bytes = data.tobytes()
+    print(len(data_bytes))
     compressed_data = gzip.compress(data_bytes)
+    print(len(compressed_data))
 
     return Response(content=compressed_data)
 
@@ -45,6 +50,7 @@ async def write_cutout(
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     cv_kwargs = {"non_aligned_writes": True}
     layer = build_cv_layer(path, cv_kwargs=cv_kwargs)
+    print(layer.backend.enforce_chunk_aligned_writes())
     shape = [layer.backend.num_channels, *(np.array(bbox_end) - np.array(bbox_start))]
 
     data = await request.body()

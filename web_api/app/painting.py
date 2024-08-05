@@ -50,7 +50,7 @@ async def write_cutout(
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     cv_kwargs = {"non_aligned_writes": True}
     layer = build_cv_layer(path, cv_kwargs=cv_kwargs)
-    print(layer.backend.enforce_chunk_aligned_writes())
+    print(layer.backend.enforce_chunk_aligned_writes)
     shape = [layer.backend.num_channels, *(np.array(bbox_end) - np.array(bbox_start))]
 
     data = await request.body()

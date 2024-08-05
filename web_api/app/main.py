@@ -46,15 +46,17 @@ async def check_authorized_user(request: Request, call_next):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             return Response(content=str(exc), status_code=401)
 
-        user = f"user:{idinfo['email']}"
-        client = iap_v1.IdentityAwareProxyAdminServiceClient()
-
-        iap_resource = os.environ["IAP_RESOURCE"]
-        request = iam_policy_pb2.GetIamPolicyRequest(resource=iap_resource)
-        policy = client.get_iam_policy(request=request)
-        members = set(policy.bindings[0].members)
-        if user not in members:
+        if not idinfo["email"].endswith("@zetta.ai"):
             return Response(content="User not authorized.", status_code=401)
+        #  user = f"user:{idinfo['email']}"
+        # client = iap_v1.IdentityAwareProxyAdminServiceClient()
+
+        # iap_resource = os.environ["IAP_RESOURCE"]
+        # request = iam_policy_pb2.GetIamPolicyRequest(resource=iap_resource)
+        # policy = client.get_iam_policy(request=request)
+        # members = set(policy.bindings[0].members)
+        # if user not in members:
+        #     return Response(content="User not authorized.", status_code=401)
 
     response = await call_next(request)
     return response

@@ -26,6 +26,7 @@ dependencies = [
   "cloud-files == 4.20.1",
   "packaging >= 23.2",
   "pdbp >= 1.5.3",
+  "boto3 == 1.28.4",
 ]
 description = "Zetta AI Connectomics Toolkit"
 keywords = ["neuroscience connectomics EM"]
@@ -42,7 +43,7 @@ alignment = [
   "metroem @ git+https://github.com/ZettaAI/metroem.git",
   "torch >= 2.0",
 ]
-all-cpu = ["zetta_utils[modules,docs,test,cpu]"]
+all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
@@ -56,6 +57,7 @@ cloudvol = [
   "zetta_utils[tensor_ops]",
 ]
 tensorstore = [
+  "boto3 == 1.28.4",
   "tensorstore == 0.1.33",
   "zetta_utils[tensor_ops]",
 ]

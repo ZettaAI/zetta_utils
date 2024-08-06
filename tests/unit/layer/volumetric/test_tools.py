@@ -151,7 +151,7 @@ def test_volumetric_index_scaler_error():
 
 
 @pytest.mark.parametrize(
-    "start_coord, end_coord, resolution, targets, data_shape, expected_mask_region, existing_masks",
+    "start_coord, end_coord, resolution, targets, data_shape, expected_mask_region, existing_masks, upstream_pad",
     [
         (
             [0, 0, 0],
@@ -161,6 +161,7 @@ def test_volumetric_index_scaler_error():
             (1, 10, 10, 10),
             (slice(0, 5), slice(0, 5), slice(0, 5)),
             [],
+            None,
         ),
         (
             [0, 0, 0],
@@ -170,6 +171,7 @@ def test_volumetric_index_scaler_error():
             (1, 10, 10, 10),
             (slice(0, 5), slice(0, 5), slice(0, 5)),
             ["target1"],
+            None,
         ),
         (
             [0, 0, 0],
@@ -179,17 +181,46 @@ def test_volumetric_index_scaler_error():
             (1, 10, 10, 10),
             (slice(0, 5), slice(0, 5), slice(0, 5)),
             ["target1", "target3"],
+            None,
+        ),
+        (
+            [0, 0, 0],
+            [5, 5, 5],
+            [1.0, 1.0, 1.0],
+            ["target1", "target2"],
+            (1, 10, 10, 10),
+            (slice(0, 5), slice(0, 5), slice(0, 5)),
+            [],
+            [0, 0, 0],
+        ),
+        (
+            [0, 0, 0],
+            [5, 5, 5],
+            [1.0, 1.0, 1.0],
+            ["target1", "target2"],
+            (1, 10, 10, 10),
+            (slice(1, 6), slice(2, 7), slice(3, 8)),
+            [],
+            [1, 2, 3],
         ),
     ],
 )
 def test_roi_mask_processor_read(
-    start_coord, end_coord, resolution, targets, data_shape, expected_mask_region, existing_masks
+    start_coord,
+    end_coord,
+    resolution,
+    targets,
+    data_shape,
+    expected_mask_region,
+    existing_masks,
+    upstream_pad,
 ):
     processor = ROIMaskProcessor(
         start_coord=start_coord,
         end_coord=end_coord,
         resolution=resolution,
         targets=targets,
+        upstream_pad=upstream_pad,
     )
 
     idx = VolumetricIndex.from_coords(

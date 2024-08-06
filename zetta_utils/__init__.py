@@ -3,6 +3,9 @@
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
 from .log import get_logger
+import pdbp  # noqa
+
+PYTHONBREAKPOINT = pdbp.set_trace
 
 logger = get_logger("zetta_utils")
 

@@ -25,6 +25,7 @@ dependencies = [
   "requests-oauthlib==1.3.1", # version conflicts otherwise
   "cloud-files == 4.20.1",
   "packaging >= 23.2",
+  "pdbp >= 1.5.3",
 ]
 description = "Zetta AI Connectomics Toolkit"
 keywords = ["neuroscience connectomics EM"]
@@ -41,7 +42,7 @@ alignment = [
   "metroem @ git+https://github.com/ZettaAI/metroem.git",
   "torch >= 2.0",
 ]
-all_cpu = ["zetta_utils[modules,docs,test,cpu]"]
+all-cpu = ["zetta_utils[modules,docs,test,cpu]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
@@ -74,6 +75,7 @@ docs = [
   "sphinxcontrib-htmlhelp == 2.0.1",
   "sphinxcontrib-qthelp == 1.0.3",
   "sphinxcontrib-serializinghtml == 1.1.5",
+  "pdbp >= 1.5.3",
 ]
 gcfs-exceptions = [
   "gcsfs >= 2023.3.0",
@@ -173,7 +175,6 @@ tensor-typing = [
 
 test = [
   "zetta_utils[types]",
-  "pdbpp >= 0.10.3",
   "docker == 6.0.0",
   "black == 21.9b0",
   "click == 8.0.1", # for black to work
@@ -245,7 +246,7 @@ min-similarity-lines = 4
 
 [tool.pylint.main]
 extension-pkg-whitelist = "numpy,cc3d,fastremap"
-ignore-paths = ["^docs/*", "^specs/*"]
+ignore-paths = ["^docs/*", "^scripts/*", "^specs/*"]
 load-plugins = "pylint.extensions.no_self_use"
 
 [tool.pylint.options]
@@ -271,4 +272,4 @@ warn_unused_ignores = true
 [tool.isort]
 known_third_party = "wandb"
 profile = "black"
-skip = ["__init__.py"]
+skip = ["__init__.py", "specs"]

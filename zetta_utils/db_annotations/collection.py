@@ -6,7 +6,7 @@ import time
 import uuid
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 
 from . import constants
 
@@ -14,11 +14,10 @@ DB_NAME = "collections"
 INDEXED_COLS = ("name", "created_by", "created_at", "modified_by", "modified_at")
 NON_INDEXED_COLS = ("comment",)
 
-COLLECTIONS_DB = build_datastore_layer(
+COLLECTIONS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 

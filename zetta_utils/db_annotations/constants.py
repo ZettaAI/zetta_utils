@@ -1,6 +1,7 @@
 """Some constants."""
+import os
 
 from zetta_utils import constants
 
 PROJECT = constants.DEFAULT_PROJECT
-DATABASE = "annotations"
+DATABASE = os.environ.get("ANNOTATIONS_DB_NAME", "annotations-fs")

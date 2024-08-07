@@ -38,11 +38,11 @@ def test_read_write_simple(firestore_emulator) -> None:
 def _write_some_data(layer: DBLayer):
     layer.clear()
     row_keys = ["key0", "key1", "key2"]
-    idx_user = (row_keys, ("col0", "col1"))
+    idx_user = (row_keys, ("col0", "col1", "tags"))
     data_user: DBDataT = [
         {"col0": "val0", "col1": "val0"},
-        {"col0": "val0"},
-        {"col1": "val1"},
+        {"col0": "val0", "tags": ["tag1"]},
+        {"col1": "val1", "tags": ["tag0", "tag1"]},
     ]
     layer[idx_user] = data_user
     return idx_user, data_user
@@ -52,8 +52,6 @@ def test_read_write(firestore_emulator) -> None:
     layer = build_firestore_layer("test", project=firestore_emulator)
     idx_user, data_user = _write_some_data(layer)
     data = layer[idx_user]
-    print(data)
-    print(data_user)
     assert data == data_user
     assert layer[("key0", "col1")] == "val0"
 
@@ -68,6 +66,10 @@ def test_query_and_keys(firestore_emulator) -> None:
     col_filter = {"col1": ["val1"]}
     result = layer.query(column_filter=col_filter)
     assert "key2" in result and len(result) == 1
+
+    col_filter = {"-tags": ["tag1"]}
+    result = layer.query(column_filter=col_filter)
+    assert "key1" in result and "key2" in result and len(result) == 2
 
 
 def test_delete_and_clear(firestore_emulator) -> None:

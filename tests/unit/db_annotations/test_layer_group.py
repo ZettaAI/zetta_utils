@@ -5,7 +5,7 @@ from typing import cast
 from zetta_utils.db_annotations import collection, layer, layer_group
 
 
-def test_add_update_layer_group(datastore_emulator, layer_groups_db):
+def test_add_update_layer_group(firestore_emulator, layer_groups_db):
     user = "john_doe"
     collection_name = "test_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
@@ -38,7 +38,7 @@ def test_add_update_layer_group(datastore_emulator, layer_groups_db):
     assert _layer["name"] != old_name
 
 
-def test_read_layer_groups(datastore_emulator, layer_groups_db):
+def test_read_layer_groups(firestore_emulator, layer_groups_db):
     user = "john_doe"
     collection_name = "test_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")

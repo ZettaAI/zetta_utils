@@ -3,7 +3,7 @@
 from zetta_utils.db_annotations import collection
 
 
-def test_add_update_collection(datastore_emulator, collections_db):
+def test_add_update_collection(firestore_emulator, collections_db):
     old_user = "john_doe"
     old_name = "test_collection0"
     _id = collection.add_collection(old_name, old_user, "this is a test")
@@ -18,7 +18,7 @@ def test_add_update_collection(datastore_emulator, collections_db):
     assert _collection["modified_by"] == new_user
 
 
-def test_read_collections(datastore_emulator, collections_db):
+def test_read_collections(firestore_emulator, collections_db):
     collection_id0 = collection.add_collection("test_collection0", "john_doe", "this is a test")
     collection_id1 = collection.add_collection("test_collection1", "jane_doe", "this is a test")
     _collections = collection.read_collections([collection_id0, collection_id1])

@@ -24,9 +24,20 @@ Tuple2D = tuple[float, float]
 @typechecked
 class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
     """
-    3-Dimentional cuboid in space.
-    :param bounds: Bounds along X, Y, Z dimensions.
-    :param unit: Unit name (for decorative purposes only).
+    3-Dimensional axis-aligned cuboid in space.
+
+    By convention, values in a BBox3D always represent nm (the "unit" property
+    used only as a sanity check in methods like `intersects`).  In particular,
+    do not use a BBox3D to represent a bounding box in voxel space; see
+    VolumetricIndex for that.  When a BBox3D is created with a 'resolution'
+    argument, the values of the other arguments are immediately multiplied by
+    resolution, resulting in values in nm.  To convert from a BBox3D (in nm)
+    back to voxels at some resolution, you can use get_slice or from_slices.
+
+    :param bounds: (Min, max) values along X, Y, Z dimensions.
+    :param unit: Unit name (for decorative or validation purposes only).
+    :param pprint_px_resolution: Resolution used ONLY by the pformat method
+    (for pretty-printed coordinates suitable for use with Neuroglancer).
     """
 
     bounds: tuple[Tuple2D, Tuple2D, Tuple2D]
@@ -59,7 +70,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         resolution: Sequence[float] = (1, 1, 1),
         unit: str = DEFAULT_UNIT,
     ) -> BBox3D:
-        """Create a `BBoxND` from slices at the given resolution.
+        """Create a `BBox3D` from slices at the given resolution.
 
         :param slices: Tuple of slices representing a bounding box.
         :param resolution: Resolution at which the slices are given.
@@ -108,6 +119,40 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
 
         result = cls(bounds=bounds, unit=unit)
         return result
+
+    @classmethod
+    def from_points(
+        cls,
+        points: Sequence[Sequence[float]],
+        resolution: Sequence[float] = (1, 1, 1),
+        unit: str = DEFAULT_UNIT,
+        epsilon: float = EPS,
+    ) -> BBox3D:
+        """Create a `BBox3D` tightly enclosing a set of points.  Note that
+        since bounds are considered semi-inclusive, a small epsilon is
+        added to the upper bounds; otherwise, the resulting box would not
+        contain points lying on the upper bound of any dimension.
+
+        :param points: sequence of 3D points to enclose.
+        :param resolution: Resolution at which point coordinates are given.
+            If not given, assumed to be unit resolution.
+        :param unit: Unit name (decorative purposes only).
+        :param epsilon: extra amount (in nm) added to upper bound to cause
+        resulting box to actually contain all points.
+        """
+        if not points or len(points[0]) != 3 or len(resolution) != 3:
+            raise ValueError("Only 3-dimensional points and resolution are supported.")
+
+        # Calculate min and max bounds for each dimension using zip
+        min_bounds = [min(p[i] * r for p in points) for i, r in enumerate(resolution)]
+        max_bounds = [max(p[i] * r + epsilon for p in points) for i, r in enumerate(resolution)]
+
+        bounds = cast(
+            tuple[Tuple2D, Tuple2D, Tuple2D],
+            tuple((min_b, max_b) for min_b, max_b in zip(min_bounds, max_bounds)),
+        )
+
+        return cls(bounds=bounds, unit=unit)
 
     def get_slice(
         self,
@@ -235,7 +280,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         pad: Sequence[float | tuple[float, float]],
         resolution: Sequence[float],
     ) -> BBox3D:
-        """Create a padded version of this bounding box.
+        """Create a padded (i.e. expanded) version of this bounding box.
 
         :param pad: Specification of how much to pad along each dimension.
         :param resolution: Resolution at which ``pad`` specification was given.
@@ -341,7 +386,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         offset: Sequence[float],
         resolution: Sequence[float],
     ) -> BBox3D:
-        """Create a version of the bounding box where the start (and not the stop)
+        """Create a version of the bounding box where the start (and not the end)
         has been moved by the given offset.
 
         :param offset: Specification of how much to translate along each dimension.
@@ -408,8 +453,8 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
 
         :param dim0: The first dimension to be transposed
         :param dim1: The second dimension to be transposed
-        :param local: Whether to transpose with respect to the local/global
-        coordinate system.
+        :param local: Whether to transpose with respect to the local coordinate
+        system (i.e., relative to self.start)
         :return: Transposed bounding box.
 
         """
@@ -457,7 +502,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         :param grid_offset: The offset of the grid to snap to.
         :param grid_size: The size of the grid to snap to.
         :param mode: Whether to ``shrink`` to the given grid (discard partial boxes) or
-            to ``expand`` to the given grid(fill partial boxes).
+            to ``expand`` to the given grid (fill partial boxes).
         """
         if len(grid_offset) != 3 or len(grid_size) != 3:  # pragma: no cover
             raise ValueError("Only 3-dimensional inputs are supported.")
@@ -490,7 +535,11 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
     def pformat(self, resolution: Optional[Sequence[float]] = None) -> str:  # pragma: no cover
         """Returns a pretty formatted string for this bounding box at the given
         resolution that is suitable for copying into neuroglancer. For a 3D bbox, the
-        string is of the form ``(x_start, y_start, z_start) - (x_end, y_end, z_end)``."""
+        string is of the form ``(x_start, y_start, z_start) - (x_end, y_end, z_end)``.
+
+        :param resolution: optional resolution to use; if omitted, uses
+        self.pprint_px_resolution.
+        """
 
         if resolution is not None:
             if len(resolution) != 3:
@@ -508,7 +557,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         )
 
     def get_size(self) -> Union[int, float]:  # pragma: no cover
-        """Returns the size of the volume in N-D space, in `self.unit^N`."""
+        """Returns the volume of the box, in base units (i.e. `nm^3`)."""
         resolution = (1, 1, 1)
         slices = self.to_slices(resolution, round_to_int=False)
         size = 1
@@ -518,37 +567,70 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
 
     def aligned(self, other: BBox3D) -> tuple[bool, ...]:
         assert self.unit == other.unit
-        """Returns whether two BoundingBoxNDs are aligned, in
+        """Returns whether two BBox3Ds are aligned, in
         x_start, x_stop, y_start, y_stop, z_start, z_stop order."""
         return tuple(s[i] == o[i] for s, o in zip(self.bounds, other.bounds) for i in range(2))
 
     def contained_in(self: BBox3D, other: BBox3D) -> bool:
         assert self.unit == other.unit
-        """Returns whether the other BoundingBoxND contains self."""
+        """Returns whether the other BBox3D contains this one."""
         return all(
             (self_b[0] >= other_b[0] and other_b[1] >= self_b[1])
             for self_b, other_b in zip(self.bounds, other.bounds)
         )
 
     def intersects(self: BBox3D, other: BBox3D) -> bool:
+        """Returns whether the other BBox3D intersects this one.
+        Note that the `unit` property must match."""
         assert self.unit == other.unit
-        """Returns whether two BoundingBoxNDs intersect."""
         return all(
             (self_b[1] > other_b[0] and other_b[1] > self_b[0])
             for self_b, other_b in zip(self.bounds, other.bounds)
         )
 
     def intersection(self: BBox3D, other: BBox3D) -> BBox3D:
+        """Returns the intersection of another BBox3D with this one.
+        The `unit` property must match, but pprint_px_resolution is ignored.
+        The resulting bounds will be all `0` if they do not intersect.
+        """
         assert self.unit == other.unit
         if not self.intersects(other):
             return BBox3D(((0, 0), (0, 0), (0, 0)), unit=self.unit)
-        """Returns the intersection of two BoundingBoxNDs."""
         bounds = cast(
             tuple[Tuple2D, Tuple2D, Tuple2D],
             tuple((max(s[0], o[0]), min(s[1], o[1])) for s, o in zip(self.bounds, other.bounds)),
         )
         return BBox3D(bounds=bounds, unit=self.unit)
 
+    def supremum(self: BBox3D, other: BBox3D) -> BBox3D:
+        """Returns the the smallest bounding box which contains both self
+        and other (equivalent to the union if the two BBox3Ds are edge-aligned
+        in two dimensions, and are contiguous or overlap).
+
+        The `unit` property must match, but pprint_px_resolution is ignored.
+        """
+        assert self.unit == other.unit
+        bounds = cast(
+            tuple[Tuple2D, Tuple2D, Tuple2D],
+            tuple((min(s[0], o[0]), max(s[1], o[1])) for s, o in zip(self.bounds, other.bounds)),
+        )
+        return BBox3D(bounds=bounds, unit=self.unit)
+
+    def contains(self: BBox3D, point: Sequence[float], resolution: Sequence[float]) -> bool:
+        """Returns whether the given point is within the bounds of this BBox3D.
+        Note that bounds in each dimension are semi-inclusive, so this method will
+        return True for a point directly on a minimum bound, but not for a point
+        on a maximum bound.
+
+        :param point: point of interest.
+        :param resolution: Resolution at which ``point`` was given.
+        """
+        if len(point) != 3 or len(resolution) != 3:
+            raise ValueError("Only 3-dimensional points and resolution are supported.")
+        point_in_nm = [p * r for p, r in zip(point, resolution)]
+        return all(self.bounds[i][0] <= point_in_nm[i] < self.bounds[i][1] for i in range(3))
+
 
 builder.register("BBox3D.from_slices")(BBox3D.from_slices)
 builder.register("BBox3D.from_coords")(BBox3D.from_coords)
+builder.register("BBox3D.from_points")(BBox3D.from_points)

@@ -131,6 +131,7 @@ def are_dir_trees_equal(dir1, dir2):
         "test_float32_copy_writeproc_multilevel_no_checkerboard",
         "test_float32_copy_writeproc_multilevel_checkerboard",
         "test_float32_copy_writeproc_multilevel_checkerboard_parallel",
+        "test_uint8_copy_postpad",
     ],
 )
 def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):

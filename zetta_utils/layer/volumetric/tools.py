@@ -299,7 +299,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     ) -> List[VolumetricIndex]:
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:
-            logger.info(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
+            logger.debug(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
         bbox_chunks = bbox_strider.get_all_chunk_bboxes()
         result = [
             VolumetricIndex(

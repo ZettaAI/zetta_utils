@@ -658,7 +658,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         if self.allow_cache:
             op_args, op_kwargs = set_allow_cache(*op_args, **op_kwargs)
 
-        logger.info(f"Breaking {idx} into chunks with {self.processing_chunker}.")
+        logger.debug(f"Breaking {idx} into chunks with {self.processing_chunker}.")
 
         # cases without checkerboarding
         if not self.use_checkerboarding and not self.force_intermediaries:
@@ -694,7 +694,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 max_superchunk_size=copy_chunk_size,
                 offset=-self.processing_gap // 2,
             )
-            logger.info(
+            logger.debug(
                 f"Breaking {idx} into chunks to be copied from the intermediary layer"
                 f" with {reduction_chunker}."
             )
@@ -760,7 +760,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 resolution=self.dst_resolution,
                 max_superchunk_size=self.max_reduction_chunk_size_final,
             )
-            logger.info(
+            logger.debug(
                 f"Breaking {idx} into reduction chunks with checkerboarding"
                 f" with {reduction_chunker}. Processing chunks will use the padded index"
                 f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."

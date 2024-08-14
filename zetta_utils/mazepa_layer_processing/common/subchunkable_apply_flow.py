@@ -76,6 +76,126 @@ class DelegatedSubchunkedOperation(Generic[P]):
         )(self.flow_schema(idx, dst, op_args, op_kwargs))
 
 
+@builder.register("build_postpad_subchunkable_apply_flow")
+def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, too-many-locals, too-many-branches, too-many-statements
+    dst: VolumetricBasedLayerProtocol,
+    dst_resolution: Sequence[float],
+    processing_input_sizes: Sequence[Sequence[int]],
+    processing_crop: Sequence[int] = (0, 0, 0),
+    processing_blend: Sequence[int] = (0, 0, 0),
+    processing_blend_mode: Literal["linear", "quadratic", "max", "defer"] = "quadratic",
+    level_intermediaries_dirs: Sequence[str | None] | None = None,
+    max_reduction_chunk_size: Sequence[int] | None = None,
+    expand_bbox_processing: bool = True,
+    expand_bbox_resolution: bool = False,
+    allow_cache_up_to_level: int | None = None,
+    print_summary: bool = True,
+    generate_ng_link: bool = False,
+    fn: Callable[P, Tensor] | None = None,
+    fn_semaphores: Sequence[SemaphoreType] | None = None,
+    op: VolumetricOpProtocol[P, None, Any] | None = None,
+    op_args: Iterable = (),
+    op_kwargs: Mapping[str, Any] | None = None,
+    bbox: BBox3D | None = None,
+    start_coord: Sequence[int] | None = None,
+    end_coord: Sequence[int] | None = None,
+    coord_resolution: Sequence | None = None,
+    auto_bbox: bool = False,
+    dst_tighten_bounds: bool = False,
+) -> mazepa.Flow:
+    """
+    Wrapper for SubchunkableApplyFlow that treats the chunk sizes as post padding for
+    blend and crop. The bottom level chunk is preserved, but all upper level chunk sizes are
+    treated as upper bounds. Crop is only applied at the bottom level, and blend at all
+    levels are identical.
+
+    See main SubchunkableApplyFlow documentation for behaviour of most other arguments; the
+    differences are highlighted here. Note that with this wrapper, the following arguments are
+    always set, and ``dst`` is not optional:
+    - auto_divisibility: True
+    - processing_gap: (0,0,0)
+    - expand_bbox_processing: True
+    - expand_bbox_backend: False
+    - shrink_processing_chunk: False
+    - skip_intermediaries: False
+
+    :param processing_input_sizes: The input size after padding for blending and cropping,
+        at each subchunking level in X, Y, Z, from the largest to the smallest. Must be even.
+        All upper levels are treated as upper bounds.
+    :param processing_crop: Pixels to crop from the processing input at the bottom level.
+    :param processing_blend: Pixels to crop and blend per processing chunk at each subchunking
+        level, from each side. If the input size is ``1024, 1024, 1`` with no crop and
+        ``4, 4, 0`` blend, then the unpadded outputs will be ``1016, 1016, 1`` for each chunk,
+        and the 4 pixels at the edges will be blended with the 4 pixels from the neighbouring
+        chunk. Must be smaller than or equal to quarter of the ``processing_chunk_input`` minus
+        2 x crop in each dimension.
+    :param processing_blend_mode: Which blend mode to use at each subchunking level. ``linear``
+        sums the blended areas weighted linearly by the position. ``quadratic`` sums the
+        blended areas weighted quadratically by the position.  ``max`` takes the maximum value
+        of any layer in the overlap area.  ``defer`` can only be supplied as the
+        blend mode for the top level, and skips the final reduction stage, leaving the
+        final intermediary files for the user to handle. If ``defer`` is used, then
+        ``skip_intermediaries`` cannot be used.
+
+    """
+    processing_crop_vec3d = Vec3D(*processing_crop)
+    processing_blend_vec3d = Vec3D(*processing_blend)
+
+    processing_chunk_sizes = [
+        Vec3D(*size) - 2 * processing_blend_vec3d for size in processing_input_sizes
+    ]
+    processing_chunk_sizes[-1] -= 2 * processing_crop_vec3d
+    processing_crop_pads = [Vec3D(0, 0, 0) for _ in processing_input_sizes]
+    processing_crop_pads[-1] = processing_crop_vec3d
+    processing_blend_pads = [processing_blend_vec3d for _ in processing_input_sizes]
+
+    logger.info(
+        "Converted from given post-pad input sizes and padding to pre-pad core chunk sizes:\n"
+        "Received:\n\t`processing_input_sizes`:"
+        f"\t{', '.join(str(tuple(size)) for size in processing_input_sizes)}\n"
+        f"\t`processing_crop`:\t\t{tuple(processing_crop)}\t(at the bottom level)\n"
+        f"\t`processing_blend`:\t\t{tuple(processing_blend)}\t(at all levels)\n"
+        "As core chunk sizes, before padding for crop and blend:\n"
+        f"\t`processing_chunk_sizes`:"
+        "\t{', '.join(size.pformat() for size in processing_chunk_sizes)}\n"
+        "The bottom level chunk size will be respected to maintain the input size of "
+        f"{tuple(processing_input_sizes[-1])} while the other levels will be "
+        "treated as upper bounds, fitting in as many chunks as possible."
+    )
+
+    return build_subchunkable_apply_flow(
+        dst=dst,
+        dst_resolution=dst_resolution,
+        processing_chunk_sizes=processing_chunk_sizes,
+        processing_gap=(0, 0, 0),
+        processing_crop_pads=processing_crop_pads,
+        processing_blend_pads=processing_blend_pads,
+        processing_blend_modes=processing_blend_mode,
+        level_intermediaries_dirs=level_intermediaries_dirs,
+        skip_intermediaries=False,
+        max_reduction_chunk_size=max_reduction_chunk_size,
+        expand_bbox_resolution=expand_bbox_resolution,
+        expand_bbox_backend=False,
+        expand_bbox_processing=expand_bbox_processing,
+        shrink_processing_chunk=False,
+        auto_divisibility=True,
+        allow_cache_up_to_level=allow_cache_up_to_level,
+        print_summary=print_summary,
+        generate_ng_link=generate_ng_link,
+        fn=fn,
+        fn_semaphores=fn_semaphores,
+        op=op,
+        op_args=op_args,
+        op_kwargs=op_kwargs,
+        bbox=bbox,
+        start_coord=start_coord,
+        end_coord=end_coord,
+        coord_resolution=coord_resolution,
+        auto_bbox=auto_bbox,
+        dst_tighten_bounds=dst_tighten_bounds,
+    )
+
+
 @builder.register("build_subchunkable_apply_flow")
 def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, too-many-locals, too-many-branches, too-many-statements
     dst: VolumetricBasedLayerProtocol | None,
@@ -188,7 +308,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     :param shrink_processing_chunk: Shrinks the top level ``processing_chunk_size`` to fit the
         ``bbox``. Does not affect other levels, so divisibility requirements may be affected.
         Requires ``bbox`` to be integral in ``dst_resolution``. Cannot be used with
-        ``processing_gap``, ``expand_bbox_processing``, or ``auto_divisiblity``.
+        ``processing_gap``, ``expand_bbox_processing``, or ``auto_divisibility``.
     :param auto_divisibility: Automatically chooses ``processing_chunk_sizes`` that are divisible,
         while respecting the bottom level ``processing_chunk_size`` as well as every level's
         ``processing_crop_pads`` and ``processing_blend_pads``. The user-provided
@@ -531,12 +651,13 @@ def _auto_divisibility(  # pylint: disable=line-too-long
             )
         )
 
+    # TODO FIX
     if processing_chunk_sizes_new != processing_chunk_sizes:
         logger.info(
             f"`auto_divisibility` was set and the divisibility requirements were not satisfied, "
             "so `processing_chunk_sizes` has been modified:\n"
-            f"original:\t{processing_chunk_sizes}\n"
-            f"modified:\t{processing_chunk_sizes_new}\n"
+            f"original:\t{', '.join(size.pformat() for size in processing_chunk_sizes)}\n"
+            f"modified:\t{', '.join(size.pformat() for size in processing_chunk_sizes_new)}\n"
             f"Please note that this may affect the expected performance."
         )
     return processing_chunk_sizes_new
@@ -685,7 +806,10 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     max_reduction_chunk_size: Vec3D[int],
     allow_cache_up_to_level: int,
     bbox: BBox3D,
-    dst_bounds: BBox3D,
+    original_bbox: BBox3D,
+    expand_bbox_resolution: bool,
+    expand_bbox_backend: bool,
+    expand_bbox_processing: bool,
     num_levels: int,
     num_chunks: Sequence[int],
     use_checkerboard: Sequence[bool],
@@ -705,28 +829,76 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     summary += lrpad(length=120) + "\n"
     summary += lrpad(" Dataset Information ", bounds="|", filler="=", length=120) + "\n"
     summary += lrpad(length=120) + "\n"
-    if dst_tighten_bounds:
-        summary += lrpad("BBox bounds for writing and tightening:", 1, length=120) + "\n"
-        summary += lrpad(f"in {dst_bounds.unit}:", 2, length=120) + "\n"
-        summary += lrpad(f"{dst_bounds.pformat()} {dst_bounds.unit}", 3, length=120) + "\n"
+    original_vol = 0.0
+    if original_bbox != bbox:
         summary += (
-            lrpad(f"shape: {dst_bounds.shape.pformat()} {dst_bounds.unit}", 3, length=120) + "\n"
+            lrpad("Original BBox bounds, before requested modifications:", 1, length=120) + "\n"
+        )
+        if dst_tighten_bounds:
+            summary += (
+                lrpad(
+                    "(Output(s) will be tightened to this BBox, after expansion to resolution if requested)",
+                    2,
+                    length=120,
+                )
+                + "\n"
+            )
+        summary += lrpad(f"in {original_bbox.unit}:", 2, length=120) + "\n"
+        summary += lrpad(f"{original_bbox.pformat()} {original_bbox.unit}", 3, length=120) + "\n"
+        summary += (
+            lrpad(f"shape: {original_bbox.shape.pformat()} {original_bbox.unit}", 3, length=120)
+            + "\n"
         )
         summary += lrpad(f"in {dst_resolution.pformat()} nm voxels:", 2, length=120) + "\n"
-        summary += lrpad(f"{dst_bounds.pformat(dst_resolution)} px", 3, length=120) + "\n"
+        summary += lrpad(f"{original_bbox.pformat(dst_resolution)} px", 3, length=120) + "\n"
         summary += (
             lrpad(
-                f"shape: {(dst_bounds.shape // dst_resolution).int().pformat()} px", 3, length=120
+                f"shape: {(original_bbox.shape // dst_resolution).int().pformat()} px",
+                3,
+                length=120,
             )
             + "\n"
         )
         summary += lrpad(length=120) + "\n"
-        vol = dst_bounds.get_size()
-        if vol < 1e18:
-            summary += lrpad(f"Volume of ROI: {vol*1e-9:10.3f} um^3", 1, length=120) + "\n"
+        original_vol = original_bbox.get_size()
+        if original_vol < 1e18:
+            summary += (
+                lrpad(f"Volume of ROI: {original_vol*1e-9:10.3f} um^3", 1, length=120) + "\n"
+            )
         else:
-            summary += lrpad(f"Volume of ROI: {vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
+            summary += (
+                lrpad(f"Volume of ROI: {original_vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
+            )
         summary += lrpad(length=120) + "\n"
+
+        summary += lrpad("Requested modifications to the BBox:", 1, length=120) + "\n"
+        if expand_bbox_resolution:
+            summary += (
+                lrpad(
+                    "`expand_bbox_resolution`: expand to be integral in the resolution provided",
+                    2,
+                    length=120,
+                )
+                + "\n"
+            )
+        if expand_bbox_backend:
+            summary += (
+                lrpad(
+                    "`expand_bbox_backend`: expand to align to the backend chunks", 2, length=120
+                )
+                + "\n"
+            )
+        if expand_bbox_processing:
+            summary += (
+                lrpad(
+                    "`expand_bbox_processing`: expand to align to the top level processing chunks",
+                    2,
+                    length=120,
+                )
+                + "\n"
+            )
+        summary += lrpad(length=120) + "\n"
+
     summary += lrpad("BBox bounds for processing:", 1, length=120) + "\n"
     summary += lrpad(f"in {bbox.unit}:", 2, length=120) + "\n"
     summary += lrpad(f"{bbox.pformat()} {bbox.unit}", 3, length=120) + "\n"
@@ -743,6 +915,12 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     else:
         summary += lrpad(f"Volume of ROI: {vol*1e-18:10.3f} mm^3", 1, length=120) + "\n"
     summary += lrpad(length=120) + "\n"
+    if original_vol != 0.0:
+        summary += (
+            lrpad(f"Overhead from BBox modification: {vol/original_vol:10.3f} X", 1, length=120)
+            + "\n"
+        )
+        summary += lrpad(length=120) + "\n"
     summary += lrpad("Output location(s):", 1, length=120) + "\n"
     if dst is None:
         summary += lrpad("`dst` is None\n")
@@ -762,7 +940,25 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     summary += lrpad("", length=120) + "\n"
     summary += lrpad(f"Operation: {op_name}  ", length=120) + "\n"
     summary += (
-        lrpad(f"Processing crop pad: {processing_crop_pad.pformat()}  ", level=2, length=120)
+        lrpad(
+            f"Post-pad input size:     {(processing_chunk_sizes[-1] + 2*processing_crop_pad + 2*processing_blend_pads[-1]).pformat()}  ",
+            level=2,
+            length=120,
+        )
+        + "\n"
+    )
+    summary += (
+        lrpad(
+            f"Pre-pad chunk size:  {processing_chunk_sizes[-1].pformat()}  ", level=3, length=120
+        )
+        + "\n"
+    )
+    summary += (
+        lrpad(f"Crop pad:            {processing_crop_pad.pformat()}  ", level=3, length=120)
+        + "\n"
+    )
+    summary += (
+        lrpad(f"Blend pad:           {processing_blend_pads[-1].pformat()}  ", level=3, length=120)
         + "\n"
     )
     summary += lrpad(f"Processing gap: {processing_gap.pformat()}  ", level=2, length=120) + "\n"
@@ -863,10 +1059,12 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             processing_chunk_sizes, processing_crop_pads, processing_blend_pads
         )
 
+    original_bbox = deepcopy(bbox)
+
     if expand_bbox_resolution:
         bbox = _expand_bbox_resolution(bbox, dst_resolution)
 
-    dst_bounds = deepcopy(bbox)
+    original_bbox_resolution = deepcopy(bbox)
 
     if expand_bbox_backend and dst is not None:
         bbox = _expand_bbox_backend(bbox, dst, dst_resolution)
@@ -1007,8 +1205,14 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         if dst_tighten_bounds is True:
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(
-                    voxel_offset_res=((dst_bounds.start / dst_resolution).int(), dst_resolution),
-                    dataset_size_res=((dst_bounds.shape / dst_resolution).int(), dst_resolution),
+                    voxel_offset_res=(
+                        (original_bbox_resolution.start / dst_resolution).int(),
+                        dst_resolution,
+                    ),
+                    dataset_size_res=(
+                        (original_bbox_resolution.shape / dst_resolution).int(),
+                        dst_resolution,
+                    ),
                 )
             )
 
@@ -1027,7 +1231,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             max_reduction_chunk_size=max_reduction_chunk_size,
             allow_cache_up_to_level=allow_cache_up_to_level,
             bbox=bbox,
-            dst_bounds=dst_bounds,
+            original_bbox=original_bbox,
+            expand_bbox_resolution=expand_bbox_resolution,
+            expand_bbox_backend=expand_bbox_resolution,
+            expand_bbox_processing=expand_bbox_processing,
             num_levels=num_levels,
             num_chunks=num_chunks,
             use_checkerboard=use_checkerboard,

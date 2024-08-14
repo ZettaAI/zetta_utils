@@ -10,7 +10,7 @@ from .log import get_logger
 if "sphinx" not in sys.modules:
     import pdbp  # noqa
 
-      os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
+    os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
 
 logger = get_logger("zetta_utils")
 

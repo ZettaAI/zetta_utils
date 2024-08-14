@@ -79,6 +79,32 @@ def test_from_slices(slices: Slices3D, resolution: Vec3D, expected_bounds: Slice
 
 
 @pytest.mark.parametrize(
+    "points, resolution, expected_bounds",
+    [
+        [
+            [(1, 2, 5), (4, 6, 3), (11, 8, 8), (5, 12, 13)],
+            (1, 1, 1),
+            ((1, 11.0001), (2, 12.0001), (3, 13.0001)),
+        ],
+    ],
+)
+def test_from_points(points: Sequence[Vec3D], resolution: Vec3D, expected_bounds: Slices3D):
+    result = BBox3D.from_points(points=points, resolution=resolution)
+    assert result.bounds == expected_bounds
+
+
+def test_from_points_exc():
+    with pytest.raises(ValueError):
+        BBox3D.from_points([])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2)])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2, 3, 4)])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2, 3)], resolution=(1, 1))
+
+
+@pytest.mark.parametrize(
     "start_coord, end_coord, resolution, expected_bounds",
     [
         [
@@ -564,6 +590,48 @@ def test_intersects(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
 )
 def test_intersection(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
     assert bbox1.intersection(bbox2) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            BBox3D(bounds=((-1, 2), (-9, 9), (-25, 42))),
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            BBox3D(bounds=((-1, 2), (-3, 3), (-5, 7))),
+        ],
+    ],
+)
+def test_supremum(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.supremum(bbox2) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, point, resolution, expected",
+    [
+        [BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))), Vec3D(0, -9, 24), (1, 1, 1), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(1, 0, -5), (1, 1, 1), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.9, 0, -5), (1, 1, 1), False],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(1, 0, 7), (1, 1, 1), False],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.1, 0, -0.5), (10, 10, 10), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.09, 0, -0.5), (10, 10, 10), False],
+    ],
+)
+def test_contains(bbox: BBox3D, point: Vec3D, resolution: Vec3D, expected: bool):
+    assert bbox.contains(point, resolution) == expected
+
+
+def test_contains_exc():
+    bbox = BBox3D(bounds=((1, 2), (-3, 3), (-5, 7)))
+    with pytest.raises(ValueError):
+        bbox.contains((1, 2, 3, 4), (1, 2, 3))
+    with pytest.raises(ValueError):
+        bbox.contains((1, 2, 3), (1, 2))
 
 
 def test_transpose_local():

@@ -1,11 +1,15 @@
 # pylint: disable=unused-import, import-outside-toplevel
 """Zetta AI Computational Connectomics Toolkit."""
+import sys
+
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
 from .log import get_logger
-import pdbp  # noqa
 
-PYTHONBREAKPOINT = pdbp.set_trace
+if "sphinx" not in sys.modules:
+    import pdbp  # noqa
+
+    PYTHONBREAKPOINT = pdbp.set_trace
 
 logger = get_logger("zetta_utils")
 

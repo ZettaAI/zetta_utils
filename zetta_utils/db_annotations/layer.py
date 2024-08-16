@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -25,7 +26,17 @@ def read_layer(layer_id: str) -> DBRowDataT:
     return LAYERS_DB[idx]
 
 
-def read_layers(layer_ids: list[str] | None = None) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+@overload
+def read_layers() -> dict[str, DBRowDataT]:
+    ...
+
+
+@overload
+def read_layers(*, layer_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
+def read_layers(*, layer_ids: list[str] | None = None) -> list[DBRowDataT] | dict[str, DBRowDataT]:
     if layer_ids is None:
         return LAYERS_DB.query()
     idx = (layer_ids, INDEXED_COLS + NON_INDEXED_COLS)

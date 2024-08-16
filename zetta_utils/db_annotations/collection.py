@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -26,8 +27,18 @@ def read_collection(collection_id: str) -> DBRowDataT:
     return COLLECTIONS_DB[idx]
 
 
+@overload
+def read_collections() -> dict[str, DBRowDataT]:
+    ...
+
+
+@overload
+def read_collections(*, collection_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
 def read_collections(
-    collection_ids: list[str] | None = None,
+    *, collection_ids: list[str] | None = None
 ) -> list[DBRowDataT] | dict[str, DBRowDataT]:
     if collection_ids is None:
         return COLLECTIONS_DB.query()

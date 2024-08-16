@@ -63,9 +63,14 @@ async def read_multiple(
 ):
     if annotation_ids:
         return read_annotations(annotation_ids=annotation_ids)
-    return read_annotations(
+    annotations = read_annotations(
         collection_ids=collection_ids, layer_group_ids=layer_group_ids, tags=tags
     )
+    response = []
+    for _id, annotation in annotations.items():
+        annotation["id"] = _id
+        response.append(annotation)
+    return response
 
 
 @api.post("/multiple")

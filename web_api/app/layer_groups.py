@@ -54,8 +54,14 @@ async def read_multiple(
     layer_group_ids: Annotated[list[str] | None, Query()] = None,
     collection_ids: Annotated[list[str] | None, Query()] = None,
 ):
-    if collection_ids:
-        return read_layer_groups(collection_ids=collection_ids)
     if layer_group_ids:
         return read_layer_groups(layer_group_ids=layer_group_ids)
-    return read_layer_groups()
+    if collection_ids:
+        layer_groups = read_layer_groups(collection_ids=collection_ids)
+    else:
+        layer_groups = read_layer_groups()
+    response = []
+    for _id, layer_group in layer_groups.items():
+        layer_group["id"] = _id
+        response.append(layer_group)
+    return response

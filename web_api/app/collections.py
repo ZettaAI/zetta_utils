@@ -31,4 +31,11 @@ async def update_single(
 
 @api.get("/multiple")
 async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = None):
-    return read_collections(collection_ids)
+    if collection_ids:
+        return read_collections(collection_ids=collection_ids)
+    collections = read_collections()
+    response = []
+    for _id, collection in collections.items():
+        collection["id"] = _id
+        response.append(collection)
+    return response

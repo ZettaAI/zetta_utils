@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from typing import Annotated
+
+from fastapi import FastAPI, Query
 
 from zetta_utils.db_annotations.layer_group import (
     add_layer_group,
@@ -48,5 +50,12 @@ async def update_single(
 
 
 @api.get("/multiple")
-async def read_multiple(layer_group_ids: list[str]):
-    return read_layer_groups(layer_group_ids)
+async def read_multiple(
+    layer_group_ids: Annotated[list[str] | None, Query()] = None,
+    collection_ids: Annotated[list[str] | None, Query()] = None,
+):
+    if collection_ids:
+        return read_layer_groups(collection_ids=collection_ids)
+    if layer_group_ids:
+        return read_layer_groups(layer_group_ids=layer_group_ids)
+    return read_layer_groups()

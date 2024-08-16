@@ -26,7 +26,11 @@ def read_collection(collection_id: str) -> DBRowDataT:
     return COLLECTIONS_DB[idx]
 
 
-def read_collections(collection_ids: list[str]) -> list[DBRowDataT]:
+def read_collections(
+    collection_ids: list[str] | None = None,
+) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    if collection_ids is None:
+        return COLLECTIONS_DB.query()
     idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
     return COLLECTIONS_DB[idx]
 

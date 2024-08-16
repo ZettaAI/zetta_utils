@@ -57,7 +57,7 @@ def read_annotations(
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,
     tags: list[str] | None = None,
-) -> list[DBRowDataT]:
+) -> dict[str, DBRowDataT]:
     ...
 
 
@@ -67,7 +67,7 @@ def read_annotations(
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,
     tags: list[str] | None = None,
-) -> list[DBRowDataT]:
+) -> list[DBRowDataT] | dict[str, DBRowDataT]:
     if annotation_ids:
         idx = (annotation_ids, INDEXED_COLS + NON_INDEXED_COLS)
         return ANNOTATIONS_DB[idx]
@@ -80,7 +80,7 @@ def read_annotations(
     if tags:
         _filter["-tags"] = tags
     result = cast(FirestoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
-    return list(result.values())
+    return result
 
 
 def add_annotation(

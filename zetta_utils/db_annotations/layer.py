@@ -25,7 +25,9 @@ def read_layer(layer_id: str) -> DBRowDataT:
     return LAYERS_DB[idx]
 
 
-def read_layers(layer_ids: list[str]) -> list[DBRowDataT]:
+def read_layers(layer_ids: list[str] | None = None) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    if layer_ids is None:
+        return LAYERS_DB.query()
     idx = (layer_ids, INDEXED_COLS + NON_INDEXED_COLS)
     return LAYERS_DB[idx]
 

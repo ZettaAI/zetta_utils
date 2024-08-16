@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -25,7 +26,30 @@ def read_layer_group(layer_group_id: str) -> DBRowDataT:
     return LAYER_GROUPS_DB[idx]
 
 
-def read_layer_groups(layer_group_ids: list[str]) -> list[DBRowDataT]:
+@overload
+def read_layer_groups() -> dict[str, DBRowDataT]:
+    ...
+
+
+@overload
+def read_layer_groups(*, layer_group_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
+@overload
+def read_layer_groups(*, collection_ids: list[str] | None = None) -> dict[str, DBRowDataT]:
+    ...
+
+
+def read_layer_groups(
+    *, layer_group_ids: list[str] | None = None, collection_ids: list[str] | None = None
+) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    _filter = {}
+    if collection_ids:
+        _filter["collection"] = collection_ids
+        return LAYER_GROUPS_DB.query(column_filter=_filter)
+    if layer_group_ids is None:
+        return LAYER_GROUPS_DB.query()
     idx = (layer_group_ids, INDEXED_COLS + NON_INDEXED_COLS)
     return LAYER_GROUPS_DB[idx]
 

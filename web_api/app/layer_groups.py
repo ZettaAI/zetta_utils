@@ -4,6 +4,8 @@ from fastapi import FastAPI, Query
 
 from zetta_utils.db_annotations.layer_group import (
     add_layer_group,
+    delete_layer_group,
+    delete_layer_groups,
     read_layer_group,
     read_layer_groups,
     update_layer_group,
@@ -49,6 +51,11 @@ async def update_single(
     )
 
 
+@api.delete("/single")
+async def delete_single(layer_group_id: str):
+    delete_layer_group(layer_group_id)
+
+
 @api.get("/multiple")
 async def read_multiple(
     layer_group_ids: Annotated[list[str] | None, Query()] = None,
@@ -65,3 +72,8 @@ async def read_multiple(
         layer_group["id"] = _id
         response.append(layer_group)
     return response
+
+
+@api.delete("/multiple")
+async def delete_multiple(layer_group_ids: list[str]):
+    delete_layer_groups(layer_group_ids)

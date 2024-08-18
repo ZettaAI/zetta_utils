@@ -174,11 +174,11 @@ def update_annotations(
 
 
 def delete_annotation(annotation_id: str):
-    raise NotImplementedError()
+    del ANNOTATIONS_DB[annotation_id]
 
 
 def delete_annotations(annotation_ids: list[str]):
-    raise NotImplementedError()
+    del ANNOTATIONS_DB[annotation_ids]
 
 
 def parse_ng_annotations(annotations_raw: list[dict]) -> list[NgAnnotation]:

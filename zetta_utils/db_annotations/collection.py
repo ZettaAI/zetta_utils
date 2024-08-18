@@ -69,4 +69,8 @@ def update_collection(
 
 
 def delete_collection(collection_id: str):
-    raise NotImplementedError()
+    del COLLECTIONS_DB[collection_id]
+
+
+def delete_collections(collection_ids: list[str]):
+    del COLLECTIONS_DB[collection_ids]

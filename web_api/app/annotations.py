@@ -5,6 +5,8 @@ from fastapi import FastAPI, Query
 from zetta_utils.db_annotations.annotation import (
     add_annotation,
     add_annotations,
+    delete_annotation,
+    delete_annotations,
     parse_ng_annotations,
     read_annotation,
     read_annotations,
@@ -52,6 +54,11 @@ async def update_single(
         comment=comment,
         tags=tags,
     )
+
+
+@api.delete("/single")
+async def delete_single(annotation_id: str):
+    delete_annotation(annotation_id)
 
 
 @api.get("/multiple")
@@ -105,3 +112,8 @@ async def update_multiple(
         comment=comment,
         tags=tags,
     )
+
+
+@api.delete("/multiple")
+async def delete_multiple(annotation_ids: list[str]):
+    delete_annotations(annotation_ids)

@@ -4,6 +4,8 @@ from fastapi import FastAPI, Query
 
 from zetta_utils.db_annotations.collection import (
     add_collection,
+    delete_collection,
+    delete_collections,
     read_collection,
     read_collections,
     update_collection,
@@ -29,6 +31,11 @@ async def update_single(
     update_collection(collection_id, user, name=name, comment=comment)
 
 
+@api.delete("/single")
+async def delete_single(collection_id: str):
+    delete_collection(collection_id)
+
+
 @api.get("/multiple")
 async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = None):
     if collection_ids:
@@ -39,3 +46,8 @@ async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = N
         collection["id"] = _id
         response.append(collection)
     return response
+
+
+@api.delete("/multiple")
+async def delete_multiple(collection_ids: list[str]):
+    delete_collections(collection_ids)

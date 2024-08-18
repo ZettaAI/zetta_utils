@@ -96,4 +96,8 @@ def update_layer_group(
 
 
 def delete_layer_group(layer_group_id: str):
-    raise NotImplementedError()
+    del LAYER_GROUPS_DB[layer_group_id]
+
+
+def delete_layer_groups(layer_group_ids: list[str]):
+    del LAYER_GROUPS_DB[layer_group_ids]

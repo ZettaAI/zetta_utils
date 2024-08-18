@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Union, cast, overload
 
 from neuroglancer.viewer_state import (
@@ -97,10 +98,10 @@ def add_annotation(
     row["comment"] = comment
     if tags:
         row["tags"] = list(set(tags))
-    row_key = str(annotation.id)
+    annotation_id = str(uuid.uuid4())
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    ANNOTATIONS_DB[(row_key, col_keys)] = row
-    return row_key
+    ANNOTATIONS_DB[(annotation_id, col_keys)] = row
+    return annotation_id
 
 
 def add_annotations(
@@ -112,7 +113,7 @@ def add_annotations(
     tags: list[str] | None = None,
 ) -> list[str]:
     rows = []
-    row_keys = []
+    annotation_ids = []
     for ann in annotations:
         row = ann.to_json()
         row["collection"] = collection_id
@@ -121,10 +122,10 @@ def add_annotations(
         if tags:
             row["tags"] = list(set(tags))
         rows.append(row)
-        row_keys.append(str(ann.id))
+        annotation_ids.append(str(uuid.uuid4()))
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    ANNOTATIONS_DB[(row_keys, col_keys)] = rows
-    return row_keys
+    ANNOTATIONS_DB[(annotation_ids, col_keys)] = rows
+    return annotation_ids
 
 
 def update_annotation(

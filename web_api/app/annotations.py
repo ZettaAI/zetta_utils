@@ -115,5 +115,5 @@ async def update_multiple(
 
 
 @api.delete("/multiple")
-async def delete_multiple(annotation_ids: list[str]):
+async def delete_multiple(annotation_ids: Annotated[list[str], Query()]):
     delete_annotations(annotation_ids)

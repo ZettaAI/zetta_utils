@@ -75,5 +75,5 @@ async def read_multiple(
 
 
 @api.delete("/multiple")
-async def delete_multiple(layer_group_ids: list[str]):
+async def delete_multiple(layer_group_ids: Annotated[list[str], Query()]):
     delete_layer_groups(layer_group_ids)

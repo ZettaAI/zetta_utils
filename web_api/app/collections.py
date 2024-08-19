@@ -49,5 +49,5 @@ async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = N
 
 
 @api.delete("/multiple")
-async def delete_multiple(collection_ids: list[str]):
+async def delete_multiple(collection_ids: Annotated[list[str], Query()]):
     delete_collections(collection_ids)

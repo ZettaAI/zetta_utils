@@ -13,12 +13,11 @@ References:
 
 import io
 import json
-import logging
 import os
 import struct
 from itertools import product
 from math import ceil
-from random import randrange, shuffle
+from random import shuffle
 from typing import IO, Optional, Sequence
 
 from google.cloud import storage
@@ -72,6 +71,14 @@ class LineAnnotation:
         Return a string representation of the LineAnnotation instance.
         """
         return f"LineAnnotation(id={self.id}, start={self.start}, end={self.end})"
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, LineAnnotation)
+            and self.id == other.id
+            and self.start == other.start
+            and self.end == other.end
+        )
 
     def write(self, output: IO[bytes]):
         """
@@ -564,67 +571,3 @@ class SpatialFile:
 
         # rewrite the info file, with the updated spatial entries
         self.write_info_file(spatial_entries)
-
-
-def test_writing(out_dir: str):
-    logger.info(f"Testing write to: {out_dir}")
-    lines = []  # coordinates is a list of tuples (x,y,z, x2,y2,z2)
-    line_id = 1
-    for _ in range(92):
-        x = randrange(0, 2000)
-        y = randrange(0, 2000)
-        z = randrange(0, 600)
-        dx = randrange(-10, 10)
-        dy = randrange(-10, 10)
-        dz = randrange(-5, 5)
-        lines.append(LineAnnotation(line_id, (x, y, z), (x + dx, y + dy, z + dz)))
-        line_id += 1
-    lines.append(LineAnnotation(line_id, (100, 0, 100), (1900, 0, 100)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (2000, 100, 100), (2000, 1900, 100)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (1900, 2000, 100), (100, 2000, 100)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (0, 1900, 100), (0, 100, 100)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (100, 0, 590), (1900, 0, 590)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (2000, 100, 590), (2000, 1900, 590)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (1900, 2000, 590), (100, 2000, 590)))
-    line_id += 1
-    lines.append(LineAnnotation(line_id, (0, 1900, 590), (0, 100, 590)))
-    line_id += 1
-
-    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
-    chunk_sizes = [[2000, 2000, 600], [1000, 1000, 600], [500, 500, 300]]
-
-    sf = SpatialFile(out_dir, index, chunk_sizes)
-    sf.clear()
-    sf.write_annotations(lines)
-
-
-def test_reading(pre_dir: str):
-    pre_dir = os.path.expanduser(pre_dir)
-    logger.info(f"Testing read from: {pre_dir}")
-    dimensions, lower_bound, upper_bound, spatial_data = read_info(pre_dir)
-    logger.info(f"Dimensions: {dimensions}")
-    logger.info(f"Bounds: {lower_bound} - {upper_bound}")
-    for se in spatial_data:
-        logger.info(se)
-    data = read_data(pre_dir, spatial_data[-1])
-    logger.info(f"Read {len(data)} lines, such as:")
-    logger.info(data[0])
-    logger.info("...and...")
-    logger.info(data[-1])
-
-
-def run_simple_test():
-    path = "~/temp/pca_test"
-    test_writing(path)
-    test_reading(path)
-
-
-if __name__ == "__main__":
-    logger.setLevel(logging.INFO)
-    run_simple_test()

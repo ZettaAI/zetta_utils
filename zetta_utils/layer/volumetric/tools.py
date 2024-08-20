@@ -198,12 +198,14 @@ class ROIMaskProcessor(JointIndexDataProcessor):
         This defines the size of each voxel within the ROI.
     :param targets: A list of strings specifying the target layers in the data for which
         the ROI masks will be generated.
+    :param upstream_pad: Paddings applied upstream that this processor does not know about.
     """
 
     start_coord: Sequence[int]
     end_coord: Sequence[int]
     resolution: Sequence[float]
     targets: list[str]
+    upstream_pad: Sequence[int] | None = None
 
     roi: VolumetricIndex = attrs.field(init=False)
     prepared_subidx: Slices3D | None = attrs.field(init=False, default=None)
@@ -219,9 +221,12 @@ class ROIMaskProcessor(JointIndexDataProcessor):
     def process_index(
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
     ) -> VolumetricIndex:
+        idx_ = idx
+        if self.upstream_pad is not None:
+            idx = idx.padded(pad=self.upstream_pad)
         intersection = idx.intersection(self.roi)
         self.prepared_subidx = intersection.translated(-idx.start).to_slices()
-        return idx
+        return idx_
 
     def process_data(
         self, data: dict[str, npt.NDArray], mode: Literal["read", "write"]
@@ -232,7 +237,7 @@ class ROIMaskProcessor(JointIndexDataProcessor):
             assert target in data
             if target + "_mask" in data:
                 continue
-            roi_mask = np.zeros_like(data[target])
+            roi_mask = np.zeros_like(data[target], dtype=np.uint8)
             extra_dims = roi_mask.ndim - len(self.prepared_subidx)
             slices = [slice(0, None) for _ in range(extra_dims)]
             slices += list(self.prepared_subidx)

@@ -39,3 +39,7 @@ def test_round_trip():
     assert len(lines_read) == len(lines)
     for line in lines:
         assert line in lines_read
+
+
+if __name__ == "__main__":
+    test_round_trip()

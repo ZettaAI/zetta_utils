@@ -20,7 +20,7 @@ from math import ceil
 from random import shuffle
 from typing import IO, Optional, Sequence
 
-from google.cloud import storage
+from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils import builder, log
 from zetta_utils.geometry.vec import Vec3D
@@ -147,18 +147,10 @@ def write_bytes(file_or_gs_path: str, data: bytes):
     :param file_or_gs_path: path to file to write (local or GCS path)
     :param data: bytes to write
     """
-    if file_or_gs_path.startswith("gs://"):
-        # Write to Google Storage
-        gcs_path = file_or_gs_path[5:]
-        bucket_name, blob_name = gcs_path.split("/", 1)
-        client = storage.Client()
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        blob.upload_from_string(data)
-    else:
-        # Write to local file system
-        with open(file_or_gs_path, "wb") as raw_file:
-            raw_file.write(data)
+    if not "//" in file_or_gs_path:
+        file_or_gs_path = "file://" + file_or_gs_path
+    cf = CloudFile(file_or_gs_path)
+    cf.put(data)
 
 
 def write_lines(file_or_gs_path: str, lines: Sequence[LineAnnotation], randomize: bool = True):
@@ -201,21 +193,13 @@ def read_bytes(file_or_gs_path: str):
     :param file_or_gs_path: path to file to read (local or GCS path)
     :return: bytes read from the file
     """
-    if file_or_gs_path.startswith("gs://"):
-        # Read from GCS
-        gcs_path = file_or_gs_path[5:]
-        bucket_name, blob_name = gcs_path.split("/", 1)
-        client = storage.Client()
-        bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
-        return blob.download_as_bytes()
-    else:
-        # Read from local file system
-        with open(file_or_gs_path, "rb") as raw_file:
-            return raw_file.read()
+    if not "//" in file_or_gs_path:
+        file_or_gs_path = "file://" + file_or_gs_path
+    cf = CloudFile(file_or_gs_path)
+    return cf.get()
 
 
-def read_lines(file_or_gs_path: str):
+def read_lines(file_or_gs_path: str) -> list[LineAnnotation]:
     """
     Read a set of lines from the given file, which should be in
     'multiple annotation encoding' as defined in write_lines above.
@@ -224,7 +208,9 @@ def read_lines(file_or_gs_path: str):
         data = read_bytes(file_or_gs_path)
     except (IOError, ValueError):
         return []
-    lines = []
+    lines: list[LineAnnotation] = []
+    if data is None or len(data) == 0:
+        return lines
     with io.BytesIO(data) as buffer:
         # first read the count
         line_count = struct.unpack("<Q", buffer.read(8))[0]
@@ -423,38 +409,24 @@ class SpatialFile:
         Clear out all data, and (re)write the info file, leaving an empty spatial
         file ready to pour fresh data into.
         """
-        if self.path.startswith("gs://"):
-            self._clear_gcs()
-        else:
-            self._clear_local()
+        # Delete all files under our path
+        path = self.path
+        if not "//" in path:
+            path = "file://" + path
+        cf = CloudFiles(path)
+        cf.delete(cf.list())
+        if path.startswith("file://"):
+            # also delete the empty directories (which sadly CloudFiles cannot do)
+            local_path = path[len("file://") :]
+            for root, dirs, _ in os.walk(local_path, topdown=False):
+                for directory in dirs:
+                    try:
+                        os.rmdir(os.path.join(root, directory))
+                    except OSError:
+                        pass  # Directory not empty or other OS error; skip it
+
+        # Then, write (or overwrite) the info file
         self.write_info_file()
-
-    def _clear_local(self):
-        """Clear all files under a local directory."""
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-            return
-
-        for root, dirs, files in os.walk(self.path, topdown=False):
-            for name in files:
-                file_path = os.path.join(root, name)
-                os.remove(file_path)
-            for name in dirs:
-                dir_path = os.path.join(root, name)
-                os.rmdir(dir_path)
-
-    def _clear_gcs(self):
-        """Clear all files under a Google Cloud Storage bucket."""
-        client = storage.Client()
-        bucket_name = self.path[5:].split("/")[0]  # Extract the bucket name from the path
-        bucket = client.bucket(bucket_name)
-
-        # Extract prefix if there are subdirectories
-        prefix = "/".join(self.path[5:].split("/")[1:]) + "/" if "/" in self.path else ""
-
-        blobs = bucket.list_blobs(prefix=prefix)
-        for blob in blobs:
-            blob.delete()
 
     def get_spatial_entries(self, limit_value: int = 1):
         """
@@ -524,7 +496,7 @@ class SpatialFile:
                     chunk_start, chunk_end, self.index.resolution
                 )
                 # pylint: disable=cell-var-from-loop
-                chunk_data: Sequence[LineAnnotation] = list(
+                chunk_data: list[LineAnnotation] = list(
                     filter(lambda d: d.in_bounds(chunk_bounds), annotations)
                 )
                 if not chunk_data:

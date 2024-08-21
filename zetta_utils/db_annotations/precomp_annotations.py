@@ -38,12 +38,16 @@ def point_in_bounds(point: Vec3D | Sequence[float], bounds: VolumetricIndex):
     return True
 
 
+def is_local_filesystem(path: str) -> bool:
+    return path.startswith("file://") or "://" not in path
+
+
 def path_join(*paths: str):
     if not paths:
         raise ValueError("At least one path is required")
 
-    if paths[0].startswith("gs://"):
-        # Join paths using "/" for GCS paths
+    if not is_local_filesystem(paths[0]):
+        # Join paths using "/" for GCS or other URL-like paths
         cleaned_paths = [path.strip("/") for path in paths]
         return "/".join(cleaned_paths)
     else:
@@ -479,7 +483,7 @@ class SpatialFile:
             logger.info(f"subdividing {bounds_size} by {chunk_size}, for grid_shape {grid_shape}")
             level_key = f"spatial{level}"
             level_dir = path_join(self.path, level_key)
-            if not self.path.startswith("gs://"):
+            if is_local_filesystem(self.path):
                 os.makedirs(level_dir)
             for x, y, z in product(
                 range(grid_shape[0]), range(grid_shape[1]), range(grid_shape[2])

@@ -204,10 +204,7 @@ def read_lines(file_or_gs_path: str) -> list[LineAnnotation]:
     Read a set of lines from the given file, which should be in
     'multiple annotation encoding' as defined in write_lines above.
     """
-    try:
-        data = read_bytes(file_or_gs_path)
-    except (IOError, ValueError):
-        return []
+    data = read_bytes(file_or_gs_path)
     lines: list[LineAnnotation] = []
     if data is None or len(data) == 0:
         return lines
@@ -420,10 +417,7 @@ class SpatialFile:
             local_path = path[len("file://") :]
             for root, dirs, _ in os.walk(local_path, topdown=False):
                 for directory in dirs:
-                    try:
-                        os.rmdir(os.path.join(root, directory))
-                    except OSError:
-                        pass  # Directory not empty or other OS error; skip it
+                    os.rmdir(os.path.join(root, directory))
 
         # Then, write (or overwrite) the info file
         self.write_info_file()

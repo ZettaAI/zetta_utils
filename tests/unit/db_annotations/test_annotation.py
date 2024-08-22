@@ -2,6 +2,8 @@
 
 from typing import cast
 
+import pytest
+
 from zetta_utils.db_annotations import annotation, collection, layer, layer_group
 
 
@@ -23,7 +25,7 @@ def _init_collection_and_layer_group() -> tuple[str, str]:
     return (collection_id, layer_group_id)
 
 
-def test_add_update_annotation(
+def test_add_update_delete_annotation(
     firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
     collection_id, layer_group_id = _init_collection_and_layer_group()
@@ -56,6 +58,10 @@ def test_add_update_annotation(
     _annotation = annotation.read_annotation(_id)
     assert len(cast(list, _annotation["tags"])) == 1
     assert cast(list, _annotation["tags"])[0] == "tag2"
+
+    annotation.delete_annotation(_id)
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id)
 
 
 def test_add_update_annotations(
@@ -113,7 +119,7 @@ def test_add_update_annotations(
     assert len(cast(list, _annotations[1]["tags"])) == 1
 
 
-def test_read_annotations(firestore_emulator, annotations_db):
+def test_read_delete_annotations(firestore_emulator, annotations_db):
     collection_id, layer_group_id = _init_collection_and_layer_group()
     ng_annotations = annotation.parse_ng_annotations(
         [
@@ -131,7 +137,7 @@ def test_read_annotations(firestore_emulator, annotations_db):
         ]
     )
 
-    annotation.add_annotation(
+    _id0 = annotation.add_annotation(
         ng_annotations[0],
         collection_id=collection_id,
         layer_group_id=layer_group_id,
@@ -139,7 +145,7 @@ def test_read_annotations(firestore_emulator, annotations_db):
         tags=["tag0"],
     )
 
-    annotation.add_annotation(
+    _id1 = annotation.add_annotation(
         ng_annotations[1],
         collection_id=collection_id,
         layer_group_id=layer_group_id,
@@ -155,3 +161,11 @@ def test_read_annotations(firestore_emulator, annotations_db):
 
     _annotations = annotation.read_annotations(tags=["tag0"])
     assert len(_annotations) == 1
+
+    annotation.delete_annotations([_id0, _id1])
+
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id0)
+
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id1)

@@ -2,10 +2,12 @@
 
 from typing import cast
 
+import pytest
+
 from zetta_utils.db_annotations import collection, layer, layer_group
 
 
-def test_add_update_layer_group(firestore_emulator, layer_groups_db):
+def test_add_update_delete_layer_group(firestore_emulator, layer_groups_db):
     user = "john_doe"
     collection_name = "test_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
@@ -37,8 +39,12 @@ def test_add_update_layer_group(firestore_emulator, layer_groups_db):
     _layer = layer_group.read_layer_group(_id)
     assert _layer["name"] != old_name
 
+    layer_group.delete_layer_group(_id)
+    with pytest.raises(KeyError):
+        layer_group.read_layer_group(_id)
 
-def test_read_layer_groups(firestore_emulator, layer_groups_db):
+
+def test_read_delete_layer_groups(firestore_emulator, layer_groups_db):
     user = "john_doe"
     collection_name = "test_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
@@ -68,3 +74,17 @@ def test_read_layer_groups(firestore_emulator, layer_groups_db):
     assert len(cast(list, _layer_groups[0]["layers"])) == len(
         cast(list, _layer_groups[1]["layers"])
     )
+
+    _layer_groups1 = layer_group.read_layer_groups()
+    assert len(_layer_groups1) == 2
+
+    _layer_groups2 = layer_group.read_layer_groups(collection_ids=[collection_id])
+    assert len(_layer_groups2) == 2
+
+    layer_group.delete_layer_groups([_id0, _id1])
+
+    with pytest.raises(KeyError):
+        layer_group.read_layer_group(_id0)
+
+    with pytest.raises(KeyError):
+        layer_group.read_layer_group(_id1)

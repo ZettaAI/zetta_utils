@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from typing import Union, cast, overload
 
 from neuroglancer.viewer_state import (
@@ -12,7 +13,7 @@ from neuroglancer.viewer_state import (
 )
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import FirestoreBackend, build_firestore_layer
 from zetta_utils.parsing.ngl_state import AnnotationKeys
 
 from . import constants
@@ -34,11 +35,10 @@ NON_INDEXED_COLS = (
 )
 
 DB_NAME = "annotations"
-ANNOTATIONS_DB = build_datastore_layer(
+ANNOTATIONS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 
@@ -58,7 +58,7 @@ def read_annotations(
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,
     tags: list[str] | None = None,
-) -> list[DBRowDataT]:
+) -> dict[str, DBRowDataT]:
     ...
 
 
@@ -68,7 +68,7 @@ def read_annotations(
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,
     tags: list[str] | None = None,
-) -> list[DBRowDataT]:
+) -> list[DBRowDataT] | dict[str, DBRowDataT]:
     if annotation_ids:
         idx = (annotation_ids, INDEXED_COLS + NON_INDEXED_COLS)
         return ANNOTATIONS_DB[idx]
@@ -79,9 +79,9 @@ def read_annotations(
     if layer_group_ids:
         _filter["layer_group"] = layer_group_ids
     if tags:
-        _filter["tags"] = tags
-    result = cast(DatastoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
-    return list(result.values())
+        _filter["-tags"] = tags
+    result = cast(FirestoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
+    return result
 
 
 def add_annotation(
@@ -98,10 +98,10 @@ def add_annotation(
     row["comment"] = comment
     if tags:
         row["tags"] = list(set(tags))
-    row_key = str(annotation.id)
+    annotation_id = str(uuid.uuid4())
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    ANNOTATIONS_DB[(row_key, col_keys)] = row
-    return row_key
+    ANNOTATIONS_DB[(annotation_id, col_keys)] = row
+    return annotation_id
 
 
 def add_annotations(
@@ -113,7 +113,7 @@ def add_annotations(
     tags: list[str] | None = None,
 ) -> list[str]:
     rows = []
-    row_keys = []
+    annotation_ids = []
     for ann in annotations:
         row = ann.to_json()
         row["collection"] = collection_id
@@ -122,10 +122,10 @@ def add_annotations(
         if tags:
             row["tags"] = list(set(tags))
         rows.append(row)
-        row_keys.append(str(ann.id))
+        annotation_ids.append(str(uuid.uuid4()))
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    ANNOTATIONS_DB[(row_keys, col_keys)] = rows
-    return row_keys
+    ANNOTATIONS_DB[(annotation_ids, col_keys)] = rows
+    return annotation_ids
 
 
 def update_annotation(
@@ -174,11 +174,11 @@ def update_annotations(
 
 
 def delete_annotation(annotation_id: str):
-    raise NotImplementedError()
+    del ANNOTATIONS_DB[annotation_id]
 
 
 def delete_annotations(annotation_ids: list[str]):
-    raise NotImplementedError()
+    del ANNOTATIONS_DB[annotation_ids]
 
 
 def parse_ng_annotations(annotations_raw: list[dict]) -> list[NgAnnotation]:

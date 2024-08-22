@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import time
 import uuid
+from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 
 from . import constants
 
@@ -14,11 +15,10 @@ DB_NAME = "collections"
 INDEXED_COLS = ("name", "created_by", "created_at", "modified_by", "modified_at")
 NON_INDEXED_COLS = ("comment",)
 
-COLLECTIONS_DB = build_datastore_layer(
+COLLECTIONS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 
@@ -27,7 +27,21 @@ def read_collection(collection_id: str) -> DBRowDataT:
     return COLLECTIONS_DB[idx]
 
 
-def read_collections(collection_ids: list[str]) -> list[DBRowDataT]:
+@overload
+def read_collections() -> dict[str, DBRowDataT]:
+    ...
+
+
+@overload
+def read_collections(*, collection_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
+def read_collections(
+    *, collection_ids: list[str] | None = None
+) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    if collection_ids is None:
+        return COLLECTIONS_DB.query()
     idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
     return COLLECTIONS_DB[idx]
 
@@ -55,4 +69,8 @@ def update_collection(
 
 
 def delete_collection(collection_id: str):
-    raise NotImplementedError()
+    del COLLECTIONS_DB[collection_id]
+
+
+def delete_collections(collection_ids: list[str]):
+    del COLLECTIONS_DB[collection_ids]

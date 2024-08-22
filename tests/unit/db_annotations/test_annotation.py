@@ -7,16 +7,17 @@ import pytest
 from zetta_utils.db_annotations import annotation, collection, layer, layer_group
 
 
-def _init_collection_and_layer_group() -> tuple[str, str]:
+def _init_collection_and_layer_group(
+    collection_name: str, layer_group_name: str
+) -> tuple[str, str]:
     user = "john_doe"
-    collection_name = "test_ann_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")
     layer_id1 = layer.add_layer("test_layer1", "precomputed://test1", "this is a test")
 
     layer_group_id = layer_group.add_layer_group(
-        name="test_layer_group0",
+        name=layer_group_name,
         collection_id=collection_id,
         user=user,
         layers=[layer_id0, layer_id1],
@@ -28,7 +29,9 @@ def _init_collection_and_layer_group() -> tuple[str, str]:
 def test_add_update_delete_annotation(
     firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection0", "new_lgroup0"
+    )
     annotation_raw = {
         "pointA": [1, 1, 1],
         "pointB": [1, 1, 5],
@@ -67,7 +70,9 @@ def test_add_update_delete_annotation(
 def test_add_update_annotations(
     firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection1", "new_lgroup1"
+    )
     annotations_raw = [
         {
             "pointA": [1, 1, 1],
@@ -120,7 +125,9 @@ def test_add_update_annotations(
 
 
 def test_read_delete_annotations(firestore_emulator, annotations_db):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection2", "new_lgroup2"
+    )
     ng_annotations = annotation.parse_ng_annotations(
         [
             {

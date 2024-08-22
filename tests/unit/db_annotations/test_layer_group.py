@@ -46,7 +46,7 @@ def test_add_update_delete_layer_group(firestore_emulator, layer_groups_db):
 
 def test_read_delete_layer_groups(firestore_emulator, layer_groups_db):
     user = "john_doe"
-    collection_name = "test_lg_collection0"
+    collection_name = "test_lg_collection1"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")

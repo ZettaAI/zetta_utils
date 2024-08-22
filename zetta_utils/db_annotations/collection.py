@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import uuid
 from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
@@ -47,7 +46,9 @@ def read_collections(
 
 
 def add_collection(name: str, user: str, comment: str | None = None) -> str:
-    collection_id = str(uuid.uuid4())
+    collection_id = name
+    if collection_id in COLLECTIONS_DB:
+        raise KeyError(f"{collection_id} already exists.")
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {"name": name, "created_by": user, "created_at": time.time()}
     if comment:

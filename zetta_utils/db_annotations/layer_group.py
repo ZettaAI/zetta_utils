@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
@@ -62,7 +61,9 @@ def add_layer_group(
     layers: list[str] | None = None,
     comment: str | None = None,
 ) -> str:
-    layer_group_id = str(uuid.uuid4())
+    layer_group_id = name
+    if layer_group_id in LAYER_GROUPS_DB:
+        raise KeyError(f"{layer_group_id} already exists.")
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {"name": name, "collection": collection_id, "created_by": user}
     if layers:

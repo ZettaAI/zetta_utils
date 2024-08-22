@@ -31,6 +31,7 @@ def test_round_trip():
 
     chunk_sizes = [[2000, 2000, 600], [1000, 1000, 600], [500, 500, 300]]
     sf = SpatialFile(file_dir, index, chunk_sizes)
+    os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
     sf.write_annotations([])  # (does nothing)
     sf.write_annotations(lines)
@@ -55,6 +56,8 @@ def test_round_trip():
     entries = precomp_annotations.subdivide([], sf.index, sf.chunk_sizes, file_dir)
     assert len(entries) == 3
     precomp_annotations.read_data(file_dir, entries[0])
+
+    shutil.rmtree(file_dir)  # clean up when done
 
 
 def test_edge_cases():

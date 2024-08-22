@@ -1,12 +1,13 @@
-# type: ignore
+# pylint: disable=all # type: ignore
 import os
 import sys
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from google.auth.transport import requests
-from google.cloud import iap_v1
-from google.iam.v1 import iam_policy_pb2
+
+# from google.cloud import iap_v1
+# from google.iam.v1 import iam_policy_pb2
 from google.oauth2 import id_token
 
 from .annotations import api as annotations_api

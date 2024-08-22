@@ -63,7 +63,7 @@ def test_read_layer_groups(firestore_emulator, layer_groups_db):
         comment="this is a test",
     )
 
-    _layer_groups = layer_group.read_layer_groups([_id0, _id1])
+    _layer_groups = layer_group.read_layer_groups(layer_group_ids=[_id0, _id1])
     assert _layer_groups[0]["name"] == "test_layer_group0"
     assert len(cast(list, _layer_groups[0]["layers"])) == len(
         cast(list, _layer_groups[1]["layers"])

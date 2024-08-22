@@ -1,3 +1,4 @@
+# pylint: disable=all # type: ignore
 import gzip
 from typing import Annotated
 

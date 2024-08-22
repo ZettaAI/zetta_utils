@@ -21,7 +21,7 @@ def test_add_update_collection(firestore_emulator, collections_db):
 def test_read_collections(firestore_emulator, collections_db):
     collection_id0 = collection.add_collection("test_collection0", "john_doe", "this is a test")
     collection_id1 = collection.add_collection("test_collection1", "jane_doe", "this is a test")
-    _collections = collection.read_collections([collection_id0, collection_id1])
+    _collections = collection.read_collections(collection_ids=[collection_id0, collection_id1])
 
     assert _collections[0]["name"] == "test_collection0"
     assert _collections[0]["created_by"] == "john_doe"

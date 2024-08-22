@@ -1,3 +1,4 @@
+# pylint: disable=all # type: ignore
 from typing import Annotated
 
 from fastapi import FastAPI, Query

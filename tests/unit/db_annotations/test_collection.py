@@ -9,6 +9,10 @@ def test_add_update_delete_collection(firestore_emulator, collections_db):
     old_user = "john_doe"
     old_name = "test_collection0"
     _id = collection.add_collection(old_name, old_user, "this is a test")
+
+    with pytest.raises(KeyError):
+        collection.add_collection(old_name, old_user, "this is a test")
+
     _collection = collection.read_collection(_id)
     assert _collection["name"] == old_name
     assert _collection["created_by"] == old_user

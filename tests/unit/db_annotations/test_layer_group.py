@@ -24,6 +24,16 @@ def test_add_update_delete_layer_group(firestore_emulator, layer_groups_db):
         layers=layers_ids,
         comment="this is a test",
     )
+
+    with pytest.raises(KeyError):
+        layer_group.add_layer_group(
+            name=old_name,
+            collection_id=collection_id,
+            user=user,
+            layers=layers_ids,
+            comment="this is a test",
+        )
+
     _layer_group = layer_group.read_layer_group(_id)
     assert _layer_group["name"] == old_name
     assert len(cast(list, _layer_group["layers"])) == 2

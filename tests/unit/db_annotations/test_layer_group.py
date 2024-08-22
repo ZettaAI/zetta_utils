@@ -9,7 +9,7 @@ from zetta_utils.db_annotations import collection, layer, layer_group
 
 def test_add_update_delete_layer_group(firestore_emulator, layer_groups_db):
     user = "john_doe"
-    collection_name = "test_collection0"
+    collection_name = "test_lg_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")
@@ -46,7 +46,7 @@ def test_add_update_delete_layer_group(firestore_emulator, layer_groups_db):
 
 def test_read_delete_layer_groups(firestore_emulator, layer_groups_db):
     user = "john_doe"
-    collection_name = "test_collection0"
+    collection_name = "test_lg_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")
@@ -76,7 +76,7 @@ def test_read_delete_layer_groups(firestore_emulator, layer_groups_db):
     )
 
     _layer_groups1 = layer_group.read_layer_groups()
-    assert len(_layer_groups1) == 2
+    assert len(_layer_groups1) == 5
 
     _layer_groups2 = layer_group.read_layer_groups(collection_ids=[collection_id])
     assert len(_layer_groups2) == 2

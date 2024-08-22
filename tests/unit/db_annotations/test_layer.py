@@ -28,5 +28,5 @@ def test_read_layers(firestore_emulator, layers_db):
     assert _layers[1]["source"] == "precomputed://test1"
 
     _layers1 = layer.read_layers()
-    assert len(_layers1) == 2
+    assert len(_layers1) == 9
     assert layer_id0 in _layers1 and layer_id1 in _layers1

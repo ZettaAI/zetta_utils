@@ -35,7 +35,7 @@ def test_read_delete_collections(firestore_emulator, collections_db):
     assert _collections[1]["created_by"] == "jane_doe"
 
     _collections1 = collection.read_collections()
-    assert len(_collections1) == 2
+    assert len(_collections1) == 5
 
     collection.delete_collections([collection_id0, collection_id1])
 

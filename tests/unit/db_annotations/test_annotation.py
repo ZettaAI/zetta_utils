@@ -9,7 +9,7 @@ from zetta_utils.db_annotations import annotation, collection, layer, layer_grou
 
 def _init_collection_and_layer_group() -> tuple[str, str]:
     user = "john_doe"
-    collection_name = "test_collection0"
+    collection_name = "test_ann_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")

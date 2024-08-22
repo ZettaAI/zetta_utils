@@ -74,7 +74,7 @@ class LineAnnotation:
         """
         Return a string representation of the LineAnnotation instance.
         """
-        return f"LineAnnotation(id={self.id}, start={self.start}, end={self.end})"
+        return f"LineAnnotation(line_id={self.id}, start={self.start}, end={self.end})"
 
     def __eq__(self, other):
         return (
@@ -225,7 +225,6 @@ def read_lines(file_or_gs_path: str) -> list[LineAnnotation]:
         for i in range(line_count):
             line_id = struct.unpack("<Q", buffer.read(8))[0]
             lines[i].id = line_id
-
     return lines
 
 
@@ -504,9 +503,15 @@ class SpatialFile:
                 limit = max(limit, len(chunk_data))
                 write_lines(anno_file_path, chunk_data)
 
-    def read_all(self, spatial_level: int = -1):
+    def read_all(self, spatial_level: int = -1, filter_duplicates: bool = True):
         """
         Read and return all annotations from the given spatial level.
+        Note that an annotation that spans chunk boundaries will appear in
+        multiple chunks.  In that case, the behavior of this function is
+        determined by filter_duplicates: if filter_duplicates is True,
+        then no annotation (by id) will appear in the results more than
+        once, even if it spans chunk boundaries; but if it is False, then
+        the same annotation may appear multiple times.
         """
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
         result = []
@@ -520,6 +525,9 @@ class SpatialFile:
                 for z in range(0, grid_shape[2]):
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                     result += read_lines(anno_file_path)
+        if filter_duplicates:
+            result_dict = {line.id: line for line in result}
+            result = list(result_dict.values())
         return result
 
     def post_process(self):

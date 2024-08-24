@@ -1,7 +1,7 @@
 # pylint: disable=all # type: ignore
 from typing import Annotated
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 
 from zetta_utils.db_annotations.collection import (
     add_collection,
@@ -12,7 +12,14 @@ from zetta_utils.db_annotations.collection import (
     update_collection,
 )
 
+from .utils import generic_exception_handler
+
 api = FastAPI()
+
+
+@api.exception_handler(Exception)
+async def generic_handler(request: Request, exc: Exception):
+    return generic_exception_handler(request, exc)
 
 
 @api.get("/single/{collection_id}")
@@ -22,7 +29,10 @@ async def read_single(collection_id: str):
 
 @api.post("/single")
 async def add_single(name: str, user: str, comment: str | None = None):
-    return add_collection(name, user, comment=comment)
+    try:
+        return add_collection(name, user, comment=comment)
+    except KeyError:
+        raise HTTPException(status_code=409, detail=f"`{name}` exists.")
 
 
 @api.put("/single")

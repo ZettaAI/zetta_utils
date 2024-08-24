@@ -61,7 +61,7 @@ def add_layer_group(
     layers: list[str] | None = None,
     comment: str | None = None,
 ) -> str:
-    layer_group_id = name
+    layer_group_id = f"{collection_id}:{name}"
     if layer_group_id in LAYER_GROUPS_DB:
         raise KeyError(f"{layer_group_id} already exists.")
     col_keys = INDEXED_COLS + NON_INDEXED_COLS

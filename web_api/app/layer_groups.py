@@ -1,7 +1,7 @@
 # pylint: disable=all # type: ignore
 from typing import Annotated
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 
 from zetta_utils.db_annotations.layer_group import (
     add_layer_group,
@@ -12,7 +12,14 @@ from zetta_utils.db_annotations.layer_group import (
     update_layer_group,
 )
 
+from .utils import generic_exception_handler
+
 api = FastAPI()
+
+
+@api.exception_handler(Exception)
+async def generic_handler(request: Request, exc: Exception):
+    return generic_exception_handler(request, exc)
 
 
 @api.get("/single/{layer_group_id}")
@@ -28,9 +35,14 @@ async def add_single(
     layers: list[str] | None = None,
     comment: str | None = None,
 ):
-    return add_layer_group(
-        name=name, collection_id=collection_id, user=user, layers=layers, comment=comment
-    )
+    try:
+        return add_layer_group(
+            name=name, collection_id=collection_id, user=user, layers=layers, comment=comment
+        )
+    except KeyError:
+        raise HTTPException(
+            status_code=409, detail=f"`{collection_id}` already has layer group `{name}`."
+        )
 
 
 @api.put("/single")

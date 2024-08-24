@@ -1,7 +1,7 @@
 # pylint: disable=all # type: ignore
 from typing import Annotated
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 
 from zetta_utils.db_annotations.annotation import (
     add_annotation,
@@ -15,7 +15,14 @@ from zetta_utils.db_annotations.annotation import (
     update_annotations,
 )
 
+from .utils import generic_exception_handler
+
 api = FastAPI()
+
+
+@api.exception_handler(Exception)
+async def generic_handler(request: Request, exc: Exception):
+    return generic_exception_handler(request, exc)
 
 
 @api.get("/single/{annotation_id}")

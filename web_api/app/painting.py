@@ -1,11 +1,12 @@
 # pylint: disable=all # type: ignore
 import gzip
+from io import BytesIO
 from typing import Annotated
 
 import einops
 import numpy as np
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import Response
+from fastapi.responses import StreamingResponse
 
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
@@ -36,8 +37,16 @@ async def read_cutout(
     if is_fortran:
         data = einops.rearrange(data, "C X Y Z -> Z Y X C")
     data_bytes = data.tobytes()
-    compressed_data = gzip.compress(data_bytes)
-    return Response(content=compressed_data)
+
+    def chunked_compress(data_bytes: bytes):
+        with BytesIO() as buffer:
+            with gzip.GzipFile(fileobj=buffer, mode='wb') as gzip_file:
+                gzip_file.write(data_bytes)
+            buffer.seek(0)
+            while chunk := buffer.read(64 * 1024):
+                yield chunk
+
+    return StreamingResponse(chunked_compress(data_bytes), media_type="application/gzip")
 
 
 @api.post("/cutout")

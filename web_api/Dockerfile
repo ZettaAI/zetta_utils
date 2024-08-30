@@ -10,4 +10,5 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install '.[modules]'
 COPY . /opt/http
 RUN zetta --help
 
-CMD ["uvicorn", "app.main:app", "--app-dir", "./web_api" "--host", "0.0.0.0", "--port", "80"]
+WORKDIR /opt/http/web_api
+CMD ["hypercorn", "app.main:app", "--bind", "0.0.0.0:80"]

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import time
-from typing import overload
+from typing import Annotated, cast, overload
+
+import attrs
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -21,28 +23,52 @@ COLLECTIONS_DB = build_firestore_layer(
 )
 
 
-def read_collection(collection_id: str) -> DBRowDataT:
+@attrs.frozen
+class CollectionDBEntry:
+    id: str
+    name: str
+    created_by: str
+    created_at: float
+
+    @staticmethod
+    def from_dict(collection_id: str, raw_dict: dict) -> CollectionDBEntry:
+        return CollectionDBEntry(
+            id=collection_id,
+            name=raw_dict["name"],
+            created_by=raw_dict["created_by"],
+            created_at=raw_dict["created_at"],
+        )
+
+
+def read_collection(collection_id: str) -> CollectionDBEntry:
     idx = (collection_id, INDEXED_COLS + NON_INDEXED_COLS)
-    return COLLECTIONS_DB[idx]
+    result_raw = COLLECTIONS_DB[idx]
+    result = CollectionDBEntry.from_dict(collection_id, result_raw)
+    return result
 
 
 @overload
-def read_collections() -> dict[str, DBRowDataT]:
+def read_collections() -> dict[str, CollectionDBEntry]:
     ...
 
 
 @overload
-def read_collections(*, collection_ids: list[str]) -> list[DBRowDataT]:
+def read_collections(*, collection_ids: list[str]) -> list[CollectionDBEntry]:
     ...
 
 
-def read_collections(
-    *, collection_ids: list[str] | None = None
-) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+def read_collections(*, collection_ids=None):
     if collection_ids is None:
-        return COLLECTIONS_DB.query()
-    idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
-    return COLLECTIONS_DB[idx]
+        result_raw = COLLECTIONS_DB.query()
+        result = {k: CollectionDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.values()}
+    else:
+        idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
+        result_raw = COLLECTIONS_DB[idx]
+        result = [
+            CollectionDBEntry.from_dict(collection_ids[i], result_raw[i])
+            for i in range(len(result_raw))
+        ]
+    return result
 
 
 def add_collection(name: str, user: str, comment: str | None = None) -> str:

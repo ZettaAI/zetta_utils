@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import uuid
-from typing import overload
+from typing import cast, overload
+
+import attrs
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -21,26 +23,49 @@ LAYERS_DB = build_firestore_layer(
 )
 
 
-def read_layer(layer_id: str) -> DBRowDataT:
+@attrs.frozen
+class LayerDBEntry:
+    id: str
+    name: str
+    source: str
+
+    @staticmethod
+    def from_dict(layer_id: str, raw_dict: dict) -> LayerDBEntry:
+        return LayerDBEntry(
+            id=layer_id,
+            name=raw_dict["name"],
+            source=raw_dict["source"],
+        )
+
+
+def read_layer(layer_id: str) -> LayerDBEntry:
     idx = (layer_id, INDEXED_COLS + NON_INDEXED_COLS)
-    return LAYERS_DB[idx]
+    result_raw = LAYERS_DB[idx]
+    result = LayerDBEntry.from_dict(layer_id, result_raw)
+    return result
 
 
 @overload
-def read_layers() -> dict[str, DBRowDataT]:
+def read_layers() -> dict[str, LayerDBEntry]:
     ...
 
 
 @overload
-def read_layers(*, layer_ids: list[str]) -> list[DBRowDataT]:
+def read_layers(*, layer_ids: list[str]) -> list[LayerDBEntry]:
     ...
 
 
-def read_layers(*, layer_ids: list[str] | None = None) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+def read_layers(*, layer_ids=None):
     if layer_ids is None:
-        return LAYERS_DB.query()
-    idx = (layer_ids, INDEXED_COLS + NON_INDEXED_COLS)
-    return LAYERS_DB[idx]
+        result_raw = LAYERS_DB.query()
+        result = {k: LayerDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.items()}
+    else:
+        idx = (layer_ids, INDEXED_COLS + NON_INDEXED_COLS)
+        result_raw = LAYERS_DB[idx]
+        result = [
+            LayerDBEntry.from_dict(layer_ids[i], result_raw[i]) for i in range(len(result_raw))
+        ]
+    return result
 
 
 def add_layer(name: str, source: str, comment: str | None = None) -> str:

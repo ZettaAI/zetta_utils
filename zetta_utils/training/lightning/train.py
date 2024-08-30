@@ -134,7 +134,7 @@ def lightning_train(
             train_args[k] = v
         else:
             arg_spec = builder.get_initial_builder_spec(v)
-            if arg_spec is None:
+            if arg_spec is None and v is not None:
                 raise RuntimeError(
                     f"No builder spec found for `{k}`. Remote training requires arguments to "
                     "be created using `builder` module."

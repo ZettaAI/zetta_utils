@@ -234,7 +234,7 @@ class ConfigureLogging(pl.callbacks.Callback):
     def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
             api_key = os.environ.get("WANDB_API_KEY", None)
-            wandb.login(key=api_key)
+            wandb.login(key=api_key)  # type: ignore[attr-defined]  # Bug in wandb 0.17.8 (#8217)
 
         trainer.logger = WandbLogger(
             project=self.exp_name,

@@ -27,6 +27,7 @@ dependencies = [
   "packaging >= 23.2",
   "pdbp >= 1.5.3",
   "boto3 == 1.28.4",
+  "slack_sdk >= 3.31.0",
 ]
 description = "Zetta AI Connectomics Toolkit"
 keywords = ["neuroscience connectomics EM"]

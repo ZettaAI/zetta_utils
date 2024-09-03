@@ -122,6 +122,7 @@ def configure_cronjob(
         resource_requests=resource_requests,
     )
     if patch:
+        name = f"run-{name}"
         batch_v1_api.patch_namespaced_cron_job(name=name, namespace=namespace, body=cronjob)
     else:
         batch_v1_api.create_namespaced_cron_job(namespace=namespace, body=cronjob)

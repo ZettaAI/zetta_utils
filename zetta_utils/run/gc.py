@@ -12,8 +12,6 @@ from typing import Mapping
 import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils.cloud_management.resource_allocation.k8s import (
@@ -35,16 +33,9 @@ from zetta_utils.run import (
     deregister_resource,
     update_run_info,
 )
+from zetta_utils.run.gc_slack import post_message
 
 logger = get_logger("zetta_utils")
-slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
-
-
-def post_message(msg: str):
-    try:
-        slack_client.chat_postMessage(channel=os.environ["SLACK_CHANNEL"], text=msg)
-    except SlackApiError as err:
-        logger.warning(err.response["error"])
 
 
 def _get_current_resources_and_stale_run_ids() -> (
@@ -180,7 +171,7 @@ if __name__ == "__main__":  # pragma: no cover
     if len(stale_run_ids) > 0:
         post_message(f"Cleaning up {len(stale_run_ids)} runs.")
     else:
-        post_message("Nothing to do.")
+        post_message("Nothing to do.", priority=False)
     for _id in stale_run_ids:
         logger.info(f"Cleaning up run `{_id}`")
         cleanup_run(_id, _resources[_id])

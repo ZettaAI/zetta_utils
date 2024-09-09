@@ -82,7 +82,7 @@ async def read_multiple(
         layer_groups = read_layer_groups()
     response = []
     for _id, layer_group in layer_groups.items():
-        layer_group["id"] = _id
+        layer_group.id = _id
         response.append(layer_group)
     return response
 

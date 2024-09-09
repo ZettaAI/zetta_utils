@@ -83,7 +83,7 @@ async def read_multiple(
     )
     response = []
     for _id, annotation in annotations.items():
-        annotation["id"] = _id
+        annotation.id = _id
         response.append(annotation)
     return response
 

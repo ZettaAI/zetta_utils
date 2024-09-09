@@ -1,4 +1,4 @@
-# pylint: disable=unused-argument
+# pylint: disable=unused-argument,redefined-outer-name
 
 from typing import cast
 
@@ -7,31 +7,43 @@ import pytest
 from zetta_utils.db_annotations import annotation, collection, layer, layer_group
 
 
-def _init_collection_and_layer_group(
-    collection_name: str, layer_group_name: str
-) -> tuple[str, str]:
+@pytest.fixture
+def collection_and_layer_group():
     user = "john_doe"
-    collection_id = collection.add_collection(collection_name, user, "this is a test")
+    collection_id = collection.add_collection("collection_x0", user, "this is a test")
+    layer_groups = layer_group.read_layer_groups(collection_ids=[collection_id])
+    annotations = annotation.read_annotations(collection_ids=[collection_id])
+    layer_group.delete_layer_groups(list(layer_groups.keys()))
+    annotation.delete_annotations(list(annotations.keys()))
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")
     layer_id1 = layer.add_layer("test_layer1", "precomputed://test1", "this is a test")
 
     layer_group_id = layer_group.add_layer_group(
-        name=layer_group_name,
+        name="layer_group_x0",
         collection_id=collection_id,
         user=user,
         layers=[layer_id0, layer_id1],
         comment="this is a test",
     )
-    return (collection_id, layer_group_id)
+    yield (collection_id, layer_group_id)
+    layer_group.delete_layer_group(layer_group_id)
+    layer_groups = layer_group.read_layer_groups(collection_ids=[collection_id])
+    annotations = annotation.read_annotations(collection_ids=[collection_id])
+    layer_group.delete_layer_groups(list(layer_groups.keys()))
+    annotation.delete_annotations(list(annotations.keys()))
+    collection.delete_collection(collection_id=collection_id)
 
 
 def test_add_update_delete_annotation(
-    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+    firestore_emulator,
+    annotations_db,
+    collections_db,
+    layer_groups_db,
+    layers_db,
+    collection_and_layer_group,
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group(
-        "new_collection0", "new_lgroup0"
-    )
+    collection_id, layer_group_id = collection_and_layer_group
     annotation_raw = {
         "pointA": [1, 1, 1],
         "pointB": [1, 1, 5],
@@ -47,9 +59,9 @@ def test_add_update_delete_annotation(
     )
 
     _annotation = annotation.read_annotation(_id)
-    assert _annotation["collection"] == collection_id
-    assert _annotation["layer_group"] == layer_group_id
-    assert len(cast(list, _annotation["tags"])) == 2
+    assert _annotation.collection_id == collection_id
+    assert _annotation.layer_group_id == layer_group_id
+    assert len(cast(list, _annotation.tags)) == 2
 
     annotation.update_annotation(
         _id,
@@ -59,8 +71,8 @@ def test_add_update_delete_annotation(
         tags=["tag2"],
     )
     _annotation = annotation.read_annotation(_id)
-    assert len(cast(list, _annotation["tags"])) == 1
-    assert cast(list, _annotation["tags"])[0] == "tag2"
+    assert len(cast(list, _annotation.tags)) == 1
+    assert cast(list, _annotation.tags)[0] == "tag2"
 
     annotation.delete_annotation(_id)
     with pytest.raises(KeyError):
@@ -68,11 +80,14 @@ def test_add_update_delete_annotation(
 
 
 def test_add_update_annotations(
-    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+    firestore_emulator,
+    annotations_db,
+    collections_db,
+    layer_groups_db,
+    layers_db,
+    collection_and_layer_group,
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group(
-        "new_collection1", "new_lgroup1"
-    )
+    collection_id, layer_group_id = collection_and_layer_group
     annotations_raw = [
         {
             "pointA": [1, 1, 1],
@@ -107,10 +122,10 @@ def test_add_update_annotations(
     )
 
     _annotations = annotation.read_annotations(annotation_ids=_ids)
-    assert _annotations[0]["type"] == "line"
-    assert _annotations[1]["type"] == "point"
-    assert len(cast(list, _annotations[0]["tags"])) == 2
-    assert len(cast(list, _annotations[1]["tags"])) == 2
+    assert _annotations[0].ng_annotation.type == "line"
+    assert _annotations[1].ng_annotation.type == "point"
+    assert len(cast(list, _annotations[0].tags)) == 2
+    assert len(cast(list, _annotations[1].tags)) == 2
 
     annotation.update_annotations(
         _ids,
@@ -120,14 +135,12 @@ def test_add_update_annotations(
         tags=["tag2"],
     )
     _annotations = annotation.read_annotations(annotation_ids=_ids)
-    assert len(cast(list, _annotations[0]["tags"])) == 1
-    assert len(cast(list, _annotations[1]["tags"])) == 1
+    assert len(cast(list, _annotations[0].tags)) == 1
+    assert len(cast(list, _annotations[1].tags)) == 1
 
 
-def test_read_delete_annotations(firestore_emulator, annotations_db):
-    collection_id, layer_group_id = _init_collection_and_layer_group(
-        "new_collection2", "new_lgroup2"
-    )
+def test_read_delete_annotations(firestore_emulator, annotations_db, collection_and_layer_group):
+    collection_id, layer_group_id = collection_and_layer_group
     ng_annotations = annotation.parse_ng_annotations(
         [
             {

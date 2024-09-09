@@ -308,5 +308,17 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         """
         return self.bbox.contains(point, self.resolution)
 
+    def line_intersects(
+        self: VolumetricIndex, pointA: Sequence[float], pointB: Sequence[float]
+    ) -> bool:
+        """
+        Returns whether the line segment from endpointA to endpointB intersects
+        this volume.
+
+        :param endpointA: one end point of the line, in voxels.
+        :param endpointB: other end point of the line, in voxels.
+        """
+        return self.bbox.line_intersects(pointA, pointB, self.resolution)
+
 
 builder.register("VolumetricIndex.from_coords")(VolumetricIndex.from_coords)

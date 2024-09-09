@@ -630,6 +630,46 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         point_in_nm = [p * r for p, r in zip(point, resolution)]
         return all(self.bounds[i][0] <= point_in_nm[i] < self.bounds[i][1] for i in range(3))
 
+    def line_intersects(
+        self, endpoint1: Sequence[float], endpoint2: Sequence[float], resolution: Sequence[float]
+    ) -> bool:
+        """Returns whether the line segment from endpoint1 to endpoint2 intersects
+        this BBox3D.
+
+        :param endpoint1: one endpoint of the line.
+        :param endpoint2: other endpoint of the line.
+        :param resolution: Resolution and which the endpoints were given.
+        """
+        if len(endpoint1) != 3 or len(endpoint2) != 3 or len(resolution) != 3:
+            raise ValueError("Only 3-dimensional points and resolution are supported.")
+
+        # Early out: if either point is inside the box, return True
+        if self.contains(endpoint1, resolution) or self.contains(endpoint2, resolution):
+            return True
+
+        # Convert endpoints to nanometer coordinates
+        point1_in_nm = [p * r for p, r in zip(endpoint1, resolution)]
+        point2_in_nm = [p * r for p, r in zip(endpoint2, resolution)]
+
+        # Liang-Barsky line clipping algorithm adapted for a 3D box
+        tmin, tmax = 0.0, 1.0
+        for i in range(3):  # Iterate over X, Y, Z axes
+            p1, p2 = point1_in_nm[i], point2_in_nm[i]
+            box_min, box_max = self.bounds[i]
+
+            direction = p2 - p1
+            if direction == 0:
+                if p1 < box_min or p1 >= box_max:
+                    return False
+            else:
+                t1 = (box_min - p1) / direction
+                t2 = (box_max - p1) / direction
+                tmin, tmax = max(tmin, min(t1, t2)), min(tmax, max(t1, t2))
+                if tmin > tmax:
+                    return False
+
+        return True
+
 
 builder.register("BBox3D.from_slices")(BBox3D.from_slices)
 builder.register("BBox3D.from_coords")(BBox3D.from_coords)

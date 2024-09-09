@@ -61,7 +61,7 @@ async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = N
     collections = read_collections()
     response = []
     for _id, collection in collections.items():
-        collection["id"] = _id
+        collection.id = _id
         response.append(collection)
     return response
 

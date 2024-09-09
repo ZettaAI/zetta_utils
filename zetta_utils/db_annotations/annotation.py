@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import uuid
-from typing import Union, cast, overload
+from typing import Any, Union, cast, overload
 
+import attrs
 from neuroglancer.viewer_state import (
     AxisAlignedBoundingBoxAnnotation,
     EllipsoidAnnotation,
@@ -42,13 +44,45 @@ ANNOTATIONS_DB = build_firestore_layer(
 )
 
 
-def read_annotation(annotation_id: str) -> DBRowDataT:
+@attrs.mutable
+class AnnotationDBEntry:
+    id: str
+    layer_group_id: str
+    collection_id: str
+    ng_annotation: NgAnnotation
+    comment: str
+    tags: list[str]
+
+    @staticmethod
+    def from_dict(annotation_id: str, raw_dict: dict[str, Any]) -> AnnotationDBEntry:
+        raw_with_defaults: dict[str, Any] = {"tags": [], **raw_dict}
+        shape_dict = copy.deepcopy(raw_with_defaults)
+        del shape_dict["layer_group"]
+        del shape_dict["collection"]
+        del shape_dict["comment"]
+        del shape_dict["tags"]
+        ng_annotation = parse_ng_annotations([shape_dict])[0]
+
+        result = AnnotationDBEntry(
+            id=annotation_id,
+            layer_group_id=raw_with_defaults["layer_group"],
+            collection_id=raw_with_defaults["collection"],
+            comment=raw_with_defaults["comment"],
+            tags=raw_with_defaults["tags"],
+            ng_annotation=ng_annotation,
+        )
+        return result
+
+
+def read_annotation(annotation_id: str) -> AnnotationDBEntry:
     idx = (annotation_id, INDEXED_COLS + NON_INDEXED_COLS)
-    return ANNOTATIONS_DB[idx]
+    raw_dict = ANNOTATIONS_DB[idx]
+
+    return AnnotationDBEntry.from_dict(annotation_id=annotation_id, raw_dict=raw_dict)
 
 
 @overload
-def read_annotations(*, annotation_ids: list[str]) -> list[DBRowDataT]:
+def read_annotations(*, annotation_ids: list[str]) -> list[AnnotationDBEntry]:
     ...
 
 
@@ -58,30 +92,34 @@ def read_annotations(
     collection_ids: list[str] | None = None,
     layer_group_ids: list[str] | None = None,
     tags: list[str] | None = None,
-) -> dict[str, DBRowDataT]:
+) -> dict[str, AnnotationDBEntry]:
     ...
 
 
 def read_annotations(
     *,
-    annotation_ids: list[str] | None = None,
-    collection_ids: list[str] | None = None,
-    layer_group_ids: list[str] | None = None,
-    tags: list[str] | None = None,
-) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    annotation_ids=None,
+    collection_ids=None,
+    layer_group_ids=None,
+    tags=None,
+):
     if annotation_ids:
         idx = (annotation_ids, INDEXED_COLS + NON_INDEXED_COLS)
-        return ANNOTATIONS_DB[idx]
-
-    _filter = {}
-    if collection_ids:
-        _filter["collection"] = collection_ids
-    if layer_group_ids:
-        _filter["layer_group"] = layer_group_ids
-    if tags:
-        _filter["-tags"] = tags
-    result = cast(FirestoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
-    return result
+        result_raw = ANNOTATIONS_DB[idx]
+        return [
+            AnnotationDBEntry.from_dict(annotation_ids[i], result_raw[i])
+            for i in range(len(annotation_ids))
+        ]
+    else:
+        _filter = {}
+        if collection_ids:
+            _filter["collection"] = collection_ids
+        if layer_group_ids:
+            _filter["layer_group"] = layer_group_ids
+        if tags:
+            _filter["-tags"] = tags
+        result_raw = cast(FirestoreBackend, ANNOTATIONS_DB.backend).query(column_filter=_filter)
+        return {k: AnnotationDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.items()}
 
 
 def add_annotation(

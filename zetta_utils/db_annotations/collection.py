@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import time
-from typing import overload
+from typing import List, Mapping, cast, overload
+
+import attrs
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -21,28 +23,55 @@ COLLECTIONS_DB = build_firestore_layer(
 )
 
 
-def read_collection(collection_id: str) -> DBRowDataT:
+@attrs.mutable
+class CollectionDBEntry:
+    id: str
+    name: str
+    created_by: str
+    created_at: float
+    modified_by: str
+    modified_at: float
+
+    @staticmethod
+    def from_dict(collection_id: str, raw_dict: Mapping) -> CollectionDBEntry:
+        return CollectionDBEntry(
+            id=collection_id,
+            name=raw_dict["name"],
+            created_by=raw_dict["created_by"],
+            created_at=raw_dict["created_at"],
+            modified_by=raw_dict["modified_by"],
+            modified_at=raw_dict["modified_at"],
+        )
+
+
+def read_collection(collection_id: str) -> CollectionDBEntry:
     idx = (collection_id, INDEXED_COLS + NON_INDEXED_COLS)
-    return COLLECTIONS_DB[idx]
+    result_raw = COLLECTIONS_DB[idx]
+    result = CollectionDBEntry.from_dict(collection_id, result_raw)
+    return result
 
 
 @overload
-def read_collections() -> dict[str, DBRowDataT]:
+def read_collections() -> dict[str, CollectionDBEntry]:
     ...
 
 
 @overload
-def read_collections(*, collection_ids: list[str]) -> list[DBRowDataT]:
+def read_collections(*, collection_ids: list[str]) -> list[CollectionDBEntry]:
     ...
 
 
-def read_collections(
-    *, collection_ids: list[str] | None = None
-) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+def read_collections(*, collection_ids=None):
     if collection_ids is None:
-        return COLLECTIONS_DB.query()
-    idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
-    return COLLECTIONS_DB[idx]
+        result_raw = COLLECTIONS_DB.query()
+        return {k: CollectionDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.items()}
+    else:
+        idx = (collection_ids, INDEXED_COLS + NON_INDEXED_COLS)
+        result_raw_list = cast(List, COLLECTIONS_DB[idx])
+        return [
+            CollectionDBEntry.from_dict(collection_ids[i], result_raw_list[i])
+            for i in range(len(result_raw_list))
+        ]
 
 
 def add_collection(name: str, user: str, comment: str | None = None) -> str:
@@ -50,7 +79,13 @@ def add_collection(name: str, user: str, comment: str | None = None) -> str:
     if collection_id in COLLECTIONS_DB:
         raise KeyError(f"{collection_id} already exists.")
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    row: DBRowDataT = {"name": name, "created_by": user, "created_at": time.time()}
+    row: DBRowDataT = {
+        "name": name,
+        "created_by": user,
+        "created_at": time.time(),
+        "modified_by": user,
+        "modified_at": time.time(),
+    }
     if comment:
         row["comment"] = comment
     COLLECTIONS_DB[(collection_id, col_keys)] = row

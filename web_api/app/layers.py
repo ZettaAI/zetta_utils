@@ -44,6 +44,6 @@ async def read_multiple(layer_ids: Annotated[list[str] | None, Query()] = None):
     layers = read_layers()
     response = []
     for _id, layer in layers.items():
-        layer["id"] = _id
+        layer.id = _id
         response.append(layer)
     return response

@@ -174,7 +174,6 @@ class ConvBlock(nn.Module):
                     skip_data_for[skip_dest] += crop_center(result, size)
                 else:
                     skip_data_for[skip_dest] = result
-
             result = layer(result)
 
             if i in self.base_layer_pos:

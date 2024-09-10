@@ -1,9 +1,15 @@
+import math
 from typing import Callable, Optional, Union
 
 import numpy as np
 import pytest
+import torch
 
 from zetta_utils import augmentations, distributions
+from zetta_utils.augmentations.tensor import (
+    apply_to_random_boxes,
+    apply_to_random_sections,
+)
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from ..helpers import assert_array_equal
@@ -264,3 +270,56 @@ def test_square_tile_pattern_aug(
         repeats=repeats,
     )
     assert_array_equal(result, expected)
+
+
+def test_apply_to_random_sections():
+    data = torch.ones((1, 5, 5, 5))
+    result = apply_to_random_sections(data, torch.zeros_like, 2)
+    assert (result == 0).sum() == 50
+
+
+def test_appl_to_random_boxes_num():
+    data = torch.ones((1, 5, 5, 5))
+    result = apply_to_random_boxes(
+        data,
+        fn=torch.zeros_like,
+        box_size_px=1,
+        allow_partial_boxes=False,
+    )
+    assert (result == 0).sum() == 1  # one fifth along each dim
+
+
+def test_appl_to_random_boxes_not_full():
+    data = torch.ones((1, 2048, 2048, 1))
+
+    not_full_bbox = False
+    for _ in range(10):
+        result = apply_to_random_boxes(
+            data, fn=torch.zeros_like, box_size_px=data.shape[1:], allow_partial_boxes=True
+        )
+        if (result == 1).sum() != 0:
+            not_full_bbox = True
+            break
+
+    assert not_full_bbox
+
+
+def test_appl_to_random_boxes_density():
+    data = torch.ones((1, 256, 256, 20))
+
+    pixels_touched = 0
+
+    def _toucher_funciton(data: torch.Tensor):
+        nonlocal pixels_touched
+        pixels_touched += math.prod(data.shape[-3:])
+        return data
+
+    apply_to_random_boxes(
+        data,
+        fn=_toucher_funciton,
+        box_size_px=[16, 16, 10],
+        allow_partial_boxes=False,
+        num_boxes=None,
+        density=1.0,
+    )
+    assert pixels_touched >= math.prod(data.shape[-3:])

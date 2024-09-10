@@ -18,6 +18,7 @@ import einops
 import numpy as np
 import tinybrain
 import torch
+from numpy import typing as npt
 from typeguard import typechecked
 from typing_extensions import Concatenate, ParamSpec
 
@@ -29,8 +30,8 @@ T = TypeVar("T")
 
 
 @attrs.frozen
-class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
-    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
+class DictSupportingTensorOp(Generic[P]):
+    fn: Callable  # [Concatenate[TensorTypeVar, P], TensorTypeVar]
 
     @overload
     def __call__(self, data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
@@ -49,10 +50,22 @@ class DictSupportingTensorOp(Generic[P, TensorTypeVar]):
             return self.fn(data, *args, **kwargs)
 
 
+@overload
 def supports_dict(
-    fn: Callable[Concatenate[TensorTypeVar, P], TensorTypeVar]
-) -> DictSupportingTensorOp[P, TensorTypeVar]:
-    return DictSupportingTensorOp[P, TensorTypeVar](fn)
+    fn: Callable[Concatenate[npt.NDArray, P], npt.NDArray]
+) -> DictSupportingTensorOp[P]:
+    ...
+
+
+@overload
+def supports_dict(
+    fn: Callable[Concatenate[torch.Tensor, P], torch.Tensor]
+) -> DictSupportingTensorOp[P]:
+    ...
+
+
+def supports_dict(fn):
+    return DictSupportingTensorOp(fn)
 
 
 @builder.register("rearrange")
@@ -106,8 +119,8 @@ def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
 
 
 @builder.register("unsqueeze")
-@typechecked
 @supports_dict
+@typechecked
 def unsqueeze(
     data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
 ) -> TensorTypeVar:
@@ -131,8 +144,8 @@ def unsqueeze(
 
 
 @builder.register("squeeze")
-@typechecked
 @supports_dict
+@typechecked
 def squeeze(
     data: TensorTypeVar,
     dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None,
@@ -279,8 +292,8 @@ def _validate_interpolation_setting(
 
 
 @builder.register("unsqueeze_to")
-@typechecked
 @supports_dict
+@typechecked
 def unsqueeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -301,8 +314,8 @@ def unsqueeze_to(
 
 
 @builder.register("squeeze_to")
-@typechecked
 @supports_dict
+@typechecked
 def squeeze_to(
     data: TensorTypeVar,
     ndim: Optional[int],
@@ -328,8 +341,8 @@ def squeeze_to(
 
 
 @builder.register("interpolate")
-@typechecked
 @supports_dict
+@typechecked
 def interpolate(  # pylint: disable=too-many-locals
     data: TensorTypeVar,
     size: Optional[Sequence[int]] = None,
@@ -509,8 +522,8 @@ CompareMode = Literal[
 
 
 @builder.register("compare")
-@typechecked
 @supports_dict
+@typechecked
 def compare(
     data: TensorTypeVar,
     mode: CompareMode,
@@ -565,8 +578,8 @@ def compare(
 
 
 @builder.register("crop")
-@typechecked
 @supports_dict
+@typechecked
 def crop(
     data: TensorTypeVar,
     crop: Sequence[int],  # pylint: disable=redefined-outer-name
@@ -593,8 +606,8 @@ def crop(
 
 
 @builder.register("crop_center")
-@typechecked
 @supports_dict
+@typechecked
 def crop_center(
     data: TensorTypeVar,
     size: Sequence[int],  # pylint: disable=redefined-outer-name
@@ -624,9 +637,20 @@ def crop_center(
     return result
 
 
-@builder.register("tensor_op_chain")
+@builder.register("clone")
 @typechecked
+def clone(
+    data: TensorTypeVar,
+) -> TensorTypeVar:  # pragma: no cover; delegation
+    if isinstance(data, torch.Tensor):
+        return data.clone()
+    else:
+        return data.copy()
+
+
+@builder.register("tensor_op_chain")
 @supports_dict
+@typechecked
 def tensor_op_chain(
     data: TensorTypeVar, steps: Sequence[Callable[[TensorTypeVar], TensorTypeVar]]
 ) -> TensorTypeVar:  # pragma: no cover
@@ -637,8 +661,8 @@ def tensor_op_chain(
 
 
 @builder.register("abs")
-@typechecked
 @supports_dict
+@typechecked
 def abs(  # pylint: disable=redefined-builtin
     data: TensorTypeVar,
 ) -> TensorTypeVar:  # pragma: no cover
@@ -649,8 +673,8 @@ def abs(  # pylint: disable=redefined-builtin
 
 
 @builder.register("pad_center_to")
-@typechecked
 @supports_dict
+@typechecked
 def pad_center_to(
     data: TensorTypeVar,
     shape: Sequence[int],

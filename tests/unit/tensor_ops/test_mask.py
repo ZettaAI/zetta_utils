@@ -83,6 +83,92 @@ def test_filter_cc_big():
     assert_array_equal(result, expected)
 
 
+def test_filter_cc3d_small():
+    a = torch.Tensor(
+        [
+            [
+                [1, 1, 0, 1],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 1, 1],
+            ],
+            [
+                [1, 1, 0, 1],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [1, 0, 0, 0],
+            ],
+        ]
+    ).unsqueeze(0)
+
+    expected = torch.Tensor(
+        [
+            [
+                [0, 0, 0, 1],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 1, 1],
+            ],
+            [
+                [0, 0, 0, 1],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [1, 0, 0, 0],
+            ],
+        ]
+    ).unsqueeze(0)
+
+    result = mask.filter_cc3d(
+        a,
+        mode="keep_small",
+        thr=2,
+    )
+    assert_array_equal(result, expected)
+
+
+def test_filter_cc3d_large():
+    a = torch.Tensor(
+        [
+            [
+                [1, 1, 0, 1],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 1, 1],
+            ],
+            [
+                [1, 1, 0, 1],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [1, 0, 0, 0],
+            ],
+        ]
+    ).unsqueeze(0)
+
+    expected = torch.Tensor(
+        [
+            [
+                [1, 1, 0, 0],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ],
+            [
+                [1, 1, 0, 0],
+                [1, 1, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ],
+        ]
+    ).unsqueeze(0)
+
+    result = mask.filter_cc3d(
+        a,
+        mode="keep_large",
+        thr=2,
+    )
+    assert_array_equal(result, expected)
+
+
 def test_kornia_closing():
     a = np.expand_dims(
         np.array(

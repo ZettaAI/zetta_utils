@@ -128,7 +128,7 @@ class DatastoreBackend(DBBackend):
             parent_key = self.client.key("Row", row_key)
             parent_keys.append(parent_key)
             parent_entities.append(Entity(key=parent_key))
-            for col_key in idx.col_keys[i]:
+            for col_key in idx.rows_col_keys[i]:
                 child_key = self.client.key("Column", col_key, parent=parent_key)
                 if data is None:
                     keys.append(child_key)

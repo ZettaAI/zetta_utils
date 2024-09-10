@@ -160,10 +160,12 @@ class ReduceByWeightedSum(ReduceOperation):
                         if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[subidx_channels] = (
-                                res[subidx_channels] + layer[intscn].float() * weight
+                                res[subidx_channels] + layer[intscn].astype(float) * weight.numpy()
                             )
                         else:
-                            res[subidx_channels] = res[subidx_channels] + layer[intscn] * weight
+                            res[subidx_channels] = (
+                                res[subidx_channels] + layer[intscn] * weight.numpy()
+                            )
 
                 if not is_floating_point_dtype(dst.backend.dtype):
                     res = res.round().to(dtype=convert.to_torch_dtype(dst.backend.dtype))
@@ -172,7 +174,7 @@ class ReduceByWeightedSum(ReduceOperation):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
                     with semaphore("read"):
-                        res[subidx_channels] = layer[intscn]
+                        res.numpy()[tuple(subidx_channels)] = layer[intscn]
             with semaphore("write"):
                 dst[red_idx] = res
 
@@ -656,7 +658,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         if self.allow_cache:
             op_args, op_kwargs = set_allow_cache(*op_args, **op_kwargs)
 
-        logger.info(f"Breaking {idx} into chunks with {self.processing_chunker}.")
+        logger.debug(f"Breaking {idx} into chunks with {self.processing_chunker}.")
 
         # cases without checkerboarding
         if not self.use_checkerboarding and not self.force_intermediaries:
@@ -692,7 +694,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 max_superchunk_size=copy_chunk_size,
                 offset=-self.processing_gap // 2,
             )
-            logger.info(
+            logger.debug(
                 f"Breaking {idx} into chunks to be copied from the intermediary layer"
                 f" with {reduction_chunker}."
             )
@@ -758,7 +760,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 resolution=self.dst_resolution,
                 max_superchunk_size=self.max_reduction_chunk_size_final,
             )
-            logger.info(
+            logger.debug(
                 f"Breaking {idx} into reduction chunks with checkerboarding"
                 f" with {reduction_chunker}. Processing chunks will use the padded index"
                 f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."

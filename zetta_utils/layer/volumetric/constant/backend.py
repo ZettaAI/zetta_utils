@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
+import sys
 from typing import Literal, Union
 
 import attrs
@@ -10,6 +11,8 @@ from numpy import typing as npt
 from zetta_utils.geometry import Vec3D
 
 from .. import VolumetricBackend, VolumetricIndex
+
+MAXSIZE_HALF = (sys.maxsize + 1) // 2
 
 
 @attrs.mutable
@@ -84,7 +87,8 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
                     slices[0].stop - slices[0].start,
                     slices[1].stop - slices[1].start,
                     slices[2].stop - slices[2].start,
-                )
+                ),
+                dtype=self.dtype,
             )
             * self.value
         )
@@ -104,6 +108,13 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:  # pragma: no cover
         return Vec3D[int](0, 0, 0)
+
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover
+        return VolumetricIndex.from_coords(
+            (-MAXSIZE_HALF, -MAXSIZE_HALF, -MAXSIZE_HALF),
+            (MAXSIZE_HALF, MAXSIZE_HALF, MAXSIZE_HALF),
+            Vec3D[int](1, 1, 1),
+        )
 
     def get_chunk_aligned_index(
         self, idx: VolumetricIndex, mode: Literal["expand", "shrink", "round"]

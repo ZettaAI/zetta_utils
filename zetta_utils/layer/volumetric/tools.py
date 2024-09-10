@@ -19,12 +19,16 @@ logger = log.get_logger("zetta_utils")
 
 @typechecked
 def translate_volumetric_index(
-    idx: VolumetricIndex, offset: Sequence[float], resolution: Sequence[float]
+    idx: VolumetricIndex,
+    offset: Sequence[float],
+    resolution: Sequence[float],
+    allow_slice_rounding: bool,
 ):  # pragma: no cover # under 3 statements, no conditionals
     bbox = idx.bbox.translated(offset, resolution)
     result = VolumetricIndex(
         bbox=bbox,
         resolution=Vec3D(*idx.resolution),
+        allow_slice_rounding=allow_slice_rounding,
     )
     return result
 
@@ -35,12 +39,30 @@ def translate_volumetric_index(
 class VolumetricIndexTranslator:  # pragma: no cover # under 3 statements, no conditionals
     offset: Sequence[float]
     resolution: Sequence[float]
+    allow_slice_rounding: bool = False
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
         result = translate_volumetric_index(
             idx=idx,
             offset=self.offset,
             resolution=self.resolution,
+            allow_slice_rounding=self.allow_slice_rounding,
+        )
+        return result
+
+
+@builder.register("VolumetricIndexScaler")
+@typechecked
+@attrs.mutable
+class VolumetricIndexScaler:  # pragma: no cover # under 3 statements, no conditionals
+    res_change_mult: Sequence[int]
+    allow_slice_rounding: bool = False
+
+    def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
+        result = VolumetricIndex(
+            bbox=idx.bbox,
+            resolution=idx.resolution * Vec3D(*self.res_change_mult),
+            allow_slice_rounding=self.allow_slice_rounding,
         )
         return result
 
@@ -176,12 +198,14 @@ class ROIMaskProcessor(JointIndexDataProcessor):
         This defines the size of each voxel within the ROI.
     :param targets: A list of strings specifying the target layers in the data for which
         the ROI masks will be generated.
+    :param upstream_pad: Paddings applied upstream that this processor does not know about.
     """
 
     start_coord: Sequence[int]
     end_coord: Sequence[int]
     resolution: Sequence[float]
     targets: list[str]
+    upstream_pad: Sequence[int] | None = None
 
     roi: VolumetricIndex = attrs.field(init=False)
     prepared_subidx: Slices3D | None = attrs.field(init=False, default=None)
@@ -197,9 +221,12 @@ class ROIMaskProcessor(JointIndexDataProcessor):
     def process_index(
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
     ) -> VolumetricIndex:
+        idx_ = idx
+        if self.upstream_pad is not None:
+            idx = idx.padded(pad=self.upstream_pad)
         intersection = idx.intersection(self.roi)
         self.prepared_subidx = intersection.translated(-idx.start).to_slices()
-        return idx
+        return idx_
 
     def process_data(
         self, data: dict[str, npt.NDArray], mode: Literal["read", "write"]
@@ -210,7 +237,7 @@ class ROIMaskProcessor(JointIndexDataProcessor):
             assert target in data
             if target + "_mask" in data:
                 continue
-            roi_mask = np.zeros_like(data[target])
+            roi_mask = np.zeros_like(data[target], dtype=np.uint8)
             extra_dims = roi_mask.ndim - len(self.prepared_subidx)
             slices = [slice(0, None) for _ in range(extra_dims)]
             slices += list(self.prepared_subidx)
@@ -272,7 +299,7 @@ class VolumetricIndexChunker(IndexChunker[VolumetricIndex]):
     ) -> List[VolumetricIndex]:
         bbox_strider = self._get_bbox_strider(idx, stride_start_offset_in_unit, mode)
         if self.max_superchunk_size is not None:
-            logger.info(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
+            logger.debug(f"Superchunk size: {bbox_strider.chunk_size}")  # pragma: no cover
         bbox_chunks = bbox_strider.get_all_chunk_bboxes()
         result = [
             VolumetricIndex(

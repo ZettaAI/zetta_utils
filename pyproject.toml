@@ -25,13 +25,16 @@ dependencies = [
   "requests-oauthlib==1.3.1", # version conflicts otherwise
   "cloud-files == 4.20.1",
   "packaging >= 23.2",
+  "pdbp >= 1.5.3",
+  "boto3 == 1.28.4",
+  "slack_sdk >= 3.31.0",
 ]
 description = "Zetta AI Connectomics Toolkit"
 keywords = ["neuroscience connectomics EM"]
 license = {text = "MIT"}
 name = "zetta_utils"
 readme = "README.md"
-requires-python = ">3.9,<3.12"
+requires-python = ">3.9,<3.13"
 urls = {Homepage = "https://github.com/zettaai/zetta_utils"}
 version = "0.0.2"
 
@@ -41,7 +44,8 @@ alignment = [
   "metroem @ git+https://github.com/ZettaAI/metroem.git",
   "torch >= 2.0",
 ]
-all = ["zetta_utils[modules,docs,test]"]
+all-cpu = ["zetta_utils[modules,docs,test]"]
+all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
   "imgaug @ git+https://github.com/u7122029/imgaug.git@418f22d4275e9f90274900e27b595ed678bb4bcc",
@@ -51,11 +55,16 @@ augmentations = [
 cli = ["click == 8.0.1"]
 cloudvol = [
   "cloud-volume == 8.27.0",
+  "zetta_utils[tensor_ops]",
+]
+tensorstore = [
+  "boto3 == 1.28.4",
   "tensorstore == 0.1.33",
   "zetta_utils[tensor_ops]",
 ]
-convnet = ["torch >= 2.0", "artificery >= 0.0.3.3"]
-datastore = ["google-cloud-datastore"]
+convnet = ["torch >= 2.0", "artificery >= 0.0.3.3",
+  "onnxruntime >= 1.18.1"]
+databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.11.1",
   "sphinx-autodoc-typehints == 1.14.1",
@@ -69,6 +78,7 @@ docs = [
   "sphinxcontrib-htmlhelp == 2.0.1",
   "sphinxcontrib-qthelp == 1.0.3",
   "sphinxcontrib-serializinghtml == 1.1.5",
+  "pdbp >= 1.5.3",
 ]
 gcfs-exceptions = [
   "gcsfs >= 2023.3.0",
@@ -95,14 +105,29 @@ mazepa-addons = [
   "google-api-python-client",
   "google-cloud-compute",
 ]
+meshing = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "mapbuffer >= 0.7.2",
+  "pyfqmr >= 0.2.0",
+  "shard-computer >= 1.1.1",
+  "trimesh >= 4.4.0",
+  "zmesh >= 1.7.1",
+]
 modules = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
-  "zetta_utils[cloudvol,alignment]",
+  "zetta_utils[cloudvol,tensorstore,alignment]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
-  "zetta_utils[datastore]",
+  "zetta_utils[databackends]",
+  "zetta_utils[montaging]",
   "zetta_utils[segmentation]",
+  "zetta_utils[meshing]",
+  "zetta_utils[skeletonization]",
+]
+montaging = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "torch >= 2.0",
 ]
 public = [
   # put them in order of dependencies
@@ -110,17 +135,27 @@ public = [
   "zetta_utils[cloudvol]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",
-  "zetta_utils[datastore]",
+  "zetta_utils[databackends]",
 ]
 segmentation = [
   "zetta_utils[tensor_ops]",
   "onnx >= 1.13.0",
-  "onnxruntime-gpu >= 1.13.1",
+  "onnxruntime >= 1.18.1",
   "scikit-learn >= 1.2.2",
   "networkx",
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
   "waterz @ git+https://github.com/ZettaAI/waterz.git@c61190d",
+]
+gpu = [
+  "onnxruntime-gpu >= 1.13.1",
+]
+skeletonization = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "mapbuffer >= 0.7.2",
+  "shard-computer >= 1.1.1",
+  "kimimaro>=4.0.2",
+  "dbscan>=0.0.12",
 ]
 slurm = [
   "simple_slurm",
@@ -135,16 +170,20 @@ tensor-ops = [
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
 ]
-tensor-typing = ["torch >= 2.0", "numpy >= 1.23.4"]
+
+tensor-typing = [
+  "torch >= 2.0",
+  "numpy >= 1.23.4, < 2"   # tensorstore currently broken with 2.0
+]
+
 test = [
   "zetta_utils[types]",
-  "pdbpp >= 0.10.3",
   "docker == 6.0.0",
   "black == 21.9b0",
   "click == 8.0.1", # for black to work
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",
-  "mypy == 1.5",
+  "mypy == 1.10.1",
   "mypy-extensions == 1.0.0",
   "pytest == 7.1.1",
   "pytest-cov == 3.0.0",
@@ -163,7 +202,6 @@ training = [
   "wandb >= 0.13.1",
   "kubernetes",
   "onnx >= 1.13.0",
-  "onnxruntime-gpu >= 1.13.1",
   "zetta_utils[mazepa]",
 ]
 types = [
@@ -211,7 +249,7 @@ min-similarity-lines = 4
 
 [tool.pylint.main]
 extension-pkg-whitelist = "numpy,cc3d,fastremap"
-ignore-paths = ["^docs/*"]
+ignore-paths = ["^docs/*", "^scripts/*", "^specs/*"]
 load-plugins = "pylint.extensions.no_self_use"
 
 [tool.pylint.options]
@@ -237,4 +275,4 @@ warn_unused_ignores = true
 [tool.isort]
 known_third_party = "wandb"
 profile = "black"
-skip = ["__init__.py"]
+skip = ["__init__.py", "specs"]

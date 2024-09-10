@@ -52,7 +52,7 @@ def skip_on_empty_data(fn: OpT) -> OpT:
     return wrapped  # type: ignore
 
 
-@builder.register("filter_cc")  # type: ignore # TODO: pyright
+@builder.register("filter_cc")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -97,6 +97,50 @@ def filter_cc(
     return result
 
 
+@builder.register("filter_cc3d")
+@supports_dict
+@skip_on_empty_data
+@typechecked
+def filter_cc3d(
+    data: TensorTypeVar,
+    mode: MaskFilteringModes = "keep_small",
+    thr: int = 100,
+    connectivity_3d: Literal[6, 18, 26] = 6,
+) -> TensorTypeVar:
+    """
+    Remove 3D connected components from the given input tensor_ops.
+
+    Clustering is performed based on non-zero values.
+
+    :param data: Input tensor (CXYZ).
+    :param mode: Filtering mode.
+    :param thr:  Pixel size threshold.
+    :return: Tensor with the filtered clusters removed.
+    """
+    data_np = convert.to_np(data)
+
+    data_np = einops.rearrange(data_np, "1 X Y Z -> X Y Z")
+
+    result_raw = np.zeros_like(data_np)
+
+    if (data_np != 0).sum() > 0:
+        cc_labels = cc3d.connected_components(data_np != 0, connectivity=connectivity_3d)
+        segids, counts = np.unique(cc_labels, return_counts=True)
+        if mode == "keep_large":
+            segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
+        else:
+            segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
+
+        filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
+
+        result_raw = copy.copy(data_np)
+        result_raw[filtered_mask == 0] = 0
+
+    result_raw = einops.rearrange(result_raw, "X Y Z -> 1 X Y Z")
+    result = convert.astype(result_raw, data)
+    return result
+
+
 def _normalize_kernel(
     kernel: Union[Tensor, str], width: int, device: torch.types.Device
 ) -> torch.Tensor:
@@ -116,7 +160,7 @@ def _normalize_kernel(
     return convert.to_torch(kernel, device=device)
 
 
-@builder.register("kornia_opening")  # type: ignore
+@builder.register("kornia_opening")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -159,7 +203,7 @@ def kornia_opening(
     return result
 
 
-@builder.register("kornia_closing")  # type: ignore
+@builder.register("kornia_closing")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -202,7 +246,7 @@ def kornia_closing(
     return result
 
 
-@builder.register("kornia_erosion")  # type: ignore
+@builder.register("kornia_erosion")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -245,7 +289,7 @@ def kornia_erosion(
     return result
 
 
-@builder.register("kornia_dilation")  # type: ignore
+@builder.register("kornia_dilation")
 @supports_dict
 @skip_on_empty_data
 @typechecked
@@ -290,7 +334,7 @@ def kornia_dilation(
     return result
 
 
-@builder.register("mask_out_with_fn")  # type: ignore
+@builder.register("mask_out_with_fn")
 @supports_dict
 @skip_on_empty_data
 @typechecked

@@ -1,3 +1,6 @@
 [submodule "zetta_utils/internal"]
 	path = zetta_utils/internal
 	url = git@github.com:ZettaAI/internal.git
+[submodule "specs"]
+	path = specs
+	url = git@github.com:ZettaAI/specs.git

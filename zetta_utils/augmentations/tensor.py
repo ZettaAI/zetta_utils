@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import collections
 import math
 import random
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Sequence, Union, overload
 
 import torch
 from torchvision.transforms.functional import rotate
 from typeguard import typechecked
 
 from zetta_utils import builder, distributions, tensor_ops
+from zetta_utils.tensor_ops.common import clone
+from zetta_utils.tensor_ops.convert import astype
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 from .common import prob_aug
@@ -168,4 +171,129 @@ def square_tile_pattern_aug(  # pylint: disable=too-many-locals
     result = tensor_ops.astype(data_torch_3d, data)
     if len(data.shape) == 3:
         result = result.squeeze(-1)
+    return result
+
+
+@builder.register("apply_to_random_sections")
+@prob_aug
+@typechecked
+def apply_to_random_sections(
+    data: TensorTypeVar,
+    fn: Callable[[TensorTypeVar], TensorTypeVar],
+    num_sections: Union[distributions.Distribution, int] = 1,
+) -> TensorTypeVar:
+    assert data.ndim == 4, "Input must be CXYZ tensor"
+    num_sections_chosen = int(distributions.to_distribution(num_sections)())
+    chosen_sections = random.sample(range(0, data.shape[-1]), num_sections_chosen)
+    result = clone(data)
+    for i in chosen_sections:
+        processed = astype(fn(data[..., i]), result)
+        assert isinstance(processed, type(result))
+        result[..., i] = processed  # type: ignore # mypy bug
+    return result
+
+
+@overload
+def apply_to_random_boxes(
+    data: TensorTypeVar,
+    fn: Callable[[TensorTypeVar], TensorTypeVar],
+    box_size_px: Union[
+        distributions.Distribution, int, Sequence[distributions.Distribution], Sequence[int]
+    ],
+    num_boxes: Union[distributions.Distribution, int] = ...,
+    density: None = ...,
+    vary_box_sizes: bool = ...,
+    allow_partial_boxes: bool = ...,
+) -> TensorTypeVar:
+    ...
+
+
+@overload
+def apply_to_random_boxes(
+    data: TensorTypeVar,
+    fn: Callable[[TensorTypeVar], TensorTypeVar],
+    box_size_px: Union[
+        distributions.Distribution, int, Sequence[distributions.Distribution], Sequence[int]
+    ],
+    num_boxes: None = ...,
+    density: Union[distributions.Distribution, float] = ...,
+    vary_box_sizes: bool = ...,
+    allow_partial_boxes: bool = ...,
+) -> TensorTypeVar:
+    ...
+
+
+@builder.register("apply_to_random_boxes")
+@prob_aug
+@typechecked
+def apply_to_random_boxes(
+    data,
+    fn,
+    box_size_px,
+    num_boxes=1,
+    density=None,
+    vary_box_sizes=True,
+    allow_partial_boxes=True,
+):
+    assert data.ndim == 4, "Input must be CXYZ tensor"
+    result = data.clone()
+
+    chosen_regions: list[tuple[slice, ...]] = []
+    if isinstance(box_size_px, collections.abc.Sequence):
+        box_size_px_seq = box_size_px
+    else:
+        box_size_px_seq = [box_size_px] * 3  # X Y Z
+
+    box_size_distrs = [
+        distributions.to_distribution(bs) if isinstance(bs, int) else bs for bs in box_size_px_seq
+    ]
+
+    def _get_box_size() -> tuple[int, ...]:
+        result = tuple(int(box_size_distrs[i]()) for i in range(3))
+        assert min(*result) > 0
+        return result
+
+    box_size = _get_box_size()
+
+    def _choose_box() -> tuple[slice, ...]:
+        nonlocal box_size
+        if vary_box_sizes:
+            box_size = _get_box_size()
+        if allow_partial_boxes:
+            box_start = [
+                random.choice(range(-box_size[i] + 1, data.shape[i + 1])) for i in range(3)
+            ]
+        else:
+            box_start = [
+                random.choice(range(0, data.shape[i + 1] - box_size[i])) for i in range(3)
+            ]
+        result = tuple(
+            [slice(None, None)]
+            + [slice(max(box_start[i], 0), box_start[i] + box_size[i]) for i in range(3)]
+        )
+        return result
+
+    if num_boxes is not None:
+        assert density is None
+        num_boxes_chosen = int(distributions.to_distribution(num_boxes)())
+        for i in range(num_boxes_chosen):
+            this_region = _choose_box()
+            chosen_regions.append(this_region)
+    else:
+        assert density is not None
+        chosen_density = distributions.to_distribution(density)()
+        current_density = 0
+        total_px = math.prod(data.shape[1:])
+
+        while current_density < chosen_density:
+            this_region = _choose_box()
+            chosen_regions.append(this_region)
+            this_region_px = math.prod(
+                this_region[i + 1].stop - this_region[i + 1].start for i in range(3)
+            )
+            current_density += this_region_px / total_px
+
+    for region in chosen_regions:
+        result[region] = fn(data[region])
+
     return result

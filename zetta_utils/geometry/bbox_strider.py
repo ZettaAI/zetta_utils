@@ -118,7 +118,7 @@ class BBoxStrider:
         step_end_partial = tuple(round(e, VEC3D_PRECISION) > 0 for e in bbox_end_diff)
         step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
         step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
-        logger.info(
+        logger.debug(
             f"Exact bbox requested; out of {self.bbox.bounds},"
             f" full cubes are in {bbox_snapped.bounds}, given offset"
             f" {stride_start_offset_in_unit}{self.bbox.unit} with chunk size"

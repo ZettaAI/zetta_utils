@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring
+from typing import Sequence
+
 import pytest
 
 from zetta_utils.geometry import BBox3D, Vec3D
@@ -74,6 +76,32 @@ def test_from_slices(slices: Slices3D, resolution: Vec3D, expected_bounds: Slice
         resolution=resolution,
     )
     assert result.bounds == expected_bounds
+
+
+@pytest.mark.parametrize(
+    "points, resolution, expected_bounds",
+    [
+        [
+            [(1, 2, 5), (4, 6, 3), (11, 8, 8), (5, 12, 13)],
+            (1, 1, 1),
+            ((1, 11.0001), (2, 12.0001), (3, 13.0001)),
+        ],
+    ],
+)
+def test_from_points(points: Sequence[Vec3D], resolution: Vec3D, expected_bounds: Slices3D):
+    result = BBox3D.from_points(points=points, resolution=resolution)
+    assert result.bounds == expected_bounds
+
+
+def test_from_points_exc():
+    with pytest.raises(ValueError):
+        BBox3D.from_points([])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2)])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2, 3, 4)])
+    with pytest.raises(ValueError):
+        BBox3D.from_points([(1, 2, 3)], resolution=(1, 1))
 
 
 @pytest.mark.parametrize(
@@ -221,6 +249,74 @@ def test_pad(bbox: BBox3D, pad, resolution: Vec3D, expected: BBox3D):
 def test_pad_exc(bbox: BBox3D, pad, resolution: Vec3D, expected_exc):
     with pytest.raises(expected_exc):
         bbox.padded(pad=pad, resolution=resolution)
+
+
+@pytest.mark.parametrize(
+    "bbox, num_splits, expected",
+    [
+        [
+            BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 2, 3),
+            [
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+                BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            ],
+        ],
+        [
+            BBox3D(bounds=((0, 3), (0, 4), (0, 5))),
+            (3, 1, 5),
+            [
+                BBox3D(bounds=((0, 1), (0, 4), (0, 1))),
+                BBox3D(bounds=((0, 1), (0, 4), (1, 2))),
+                BBox3D(bounds=((0, 1), (0, 4), (2, 3))),
+                BBox3D(bounds=((0, 1), (0, 4), (3, 4))),
+                BBox3D(bounds=((0, 1), (0, 4), (4, 5))),
+                BBox3D(bounds=((1, 2), (0, 4), (0, 1))),
+                BBox3D(bounds=((1, 2), (0, 4), (1, 2))),
+                BBox3D(bounds=((1, 2), (0, 4), (2, 3))),
+                BBox3D(bounds=((1, 2), (0, 4), (3, 4))),
+                BBox3D(bounds=((1, 2), (0, 4), (4, 5))),
+                BBox3D(bounds=((2, 3), (0, 4), (0, 1))),
+                BBox3D(bounds=((2, 3), (0, 4), (1, 2))),
+                BBox3D(bounds=((2, 3), (0, 4), (2, 3))),
+                BBox3D(bounds=((2, 3), (0, 4), (3, 4))),
+                BBox3D(bounds=((2, 3), (0, 4), (4, 5))),
+            ],
+        ],
+        [
+            BBox3D(bounds=((0, 2), (-3, 0), (0, 0))),
+            (2, 2, 1),
+            [
+                BBox3D(bounds=((0, 1), (-3, -1.5), (0, 0))),
+                BBox3D(bounds=((0, 1), (-1.5, 0), (0, 0))),
+                BBox3D(bounds=((1, 2), (-3, -1.5), (0, 0))),
+                BBox3D(bounds=((1, 2), (-1.5, 0), (0, 0))),
+            ],
+        ],
+    ],
+)
+def test_split(bbox: BBox3D, num_splits: Sequence[int], expected: BBox3D):
+    result = bbox.split(num_splits=num_splits)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, num_splits, expected_exc",
+    [
+        [
+            BBox3D(bounds=((0, 0), (0, 0), (0, 0))),
+            (1, 3, 5, 3),
+            ValueError,
+        ],
+    ],
+)
+def test_num_splits_exc(bbox: BBox3D, num_splits: Sequence[int], expected_exc):
+    with pytest.raises(expected_exc):
+        bbox.split(num_splits=num_splits)
 
 
 @pytest.mark.parametrize(
@@ -494,6 +590,139 @@ def test_intersects(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
 )
 def test_intersection(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
     assert bbox1.intersection(bbox2) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox1, bbox2, expected",
+    [
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            BBox3D(bounds=((0, 2), (3, 5), (7, 42))),
+            BBox3D(bounds=((-1, 2), (-9, 9), (-25, 42))),
+        ],
+        [
+            BBox3D(bounds=((-1, 1), (-3, 3), (-5, 5))),
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            BBox3D(bounds=((-1, 2), (-3, 3), (-5, 7))),
+        ],
+    ],
+)
+def test_supremum(bbox1: BBox3D, bbox2: BBox3D, expected: BBox3D):
+    assert bbox1.supremum(bbox2) == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, point, resolution, expected",
+    [
+        [BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))), Vec3D(0, -9, 24), (1, 1, 1), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(1, 0, -5), (1, 1, 1), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.9, 0, -5), (1, 1, 1), False],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(1, 0, 7), (1, 1, 1), False],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.1, 0, -0.5), (10, 10, 10), True],
+        [BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))), Vec3D(0.09, 0, -0.5), (10, 10, 10), False],
+    ],
+)
+def test_contains(bbox: BBox3D, point: Vec3D, resolution: Vec3D, expected: bool):
+    assert bbox.contains(point, resolution) == expected
+
+
+def test_contains_exc():
+    bbox = BBox3D(bounds=((1, 2), (-3, 3), (-5, 7)))
+    with pytest.raises(ValueError):
+        bbox.contains((1, 2, 3, 4), (1, 2, 3))
+    with pytest.raises(ValueError):
+        bbox.contains((1, 2, 3), (1, 2))
+
+
+@pytest.mark.parametrize(
+    "bbox, endpoint1, endpoint2, resolution, expected",
+    [
+        # Line entirely inside the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -8, -20),
+            Vec3D(0.5, 0, 20),
+            (1, 1, 1),
+            True,
+        ],
+        # Line with one endpoint inside and one outside
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -8, -20),
+            Vec3D(2, 0, 30),
+            (1, 1, 1),
+            True,
+        ],
+        # Line entirely outside the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(2, -10, -30),
+            Vec3D(3, -10, -40),
+            (1, 1, 1),
+            False,
+        ],
+        # Line intersects only one face of the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -10, -20),
+            Vec3D(0, -8, -20),
+            (1, 1, 1),
+            True,
+        ],
+        # Diagonal line passing through the box
+        [
+            BBox3D(bounds=((0, 100), (0, 100), (0, 100))),
+            Vec3D(-50, -50, -50),
+            Vec3D(150, 150, 150),
+            (1, 1, 1),
+            True,
+        ],
+        # Line touches the boundary but doesn't enter
+        [
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            Vec3D(0.9, 0, -5),
+            Vec3D(1, 0, -5),
+            (1, 1, 1),
+            True,
+        ],
+        # Line parallel to X face, but out of bounds
+        [
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            Vec3D(3, 2, 0),
+            Vec3D(3, 4, 0),
+            (1, 1, 1),
+            False,
+        ],
+        # Line completely outside with high resolution
+        [
+            BBox3D(bounds=((1, 2), (1, 2), (1, 2))),
+            Vec3D(1, 1, 1),
+            Vec3D(2, 2, 2),
+            (10, 10, 10),
+            False,
+        ],
+        # Line near the edge with high resolution
+        [
+            BBox3D(bounds=((1, 2), (1, 2), (1, 2))),
+            Vec3D(0.1, 0.1, 0.1),
+            Vec3D(0.11, 0.11, 0.11),
+            (10, 10, 10),
+            True,
+        ],
+    ],
+)
+def test_line_intersects(
+    bbox: BBox3D, endpoint1: Vec3D, endpoint2: Vec3D, resolution: Vec3D, expected: bool
+):
+    assert bbox.line_intersects(endpoint1, endpoint2, resolution) == expected
+
+
+def test_line_intersects_exc():
+    bbox = BBox3D(bounds=((1, 2), (-3, 3), (-5, 7)))
+    with pytest.raises(ValueError):
+        bbox.line_intersects((1, 2, 3, 4), (1, 2, 3), (1, 1, 1))
+    with pytest.raises(ValueError):
+        bbox.line_intersects((1, 2, 3), (1, 3, 2), (1, 2))
 
 
 def test_transpose_local():

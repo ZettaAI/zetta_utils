@@ -9,6 +9,7 @@ import cachetools
 import cloudvolume as cv
 import numpy as np
 from cloudvolume import CloudVolume
+from cloudvolume.exceptions import ScaleUnavailableError
 from numpy import typing as npt
 
 from zetta_utils.common import abspath, is_local
@@ -38,14 +39,17 @@ def _get_cv_cached(
     if (path_, resolution) in _cv_cache:
         return _cv_cache[(path_, resolution)]
     if resolution is not None:
-        result = CloudVolume(
-            path_,
-            info=get_info(path_),
-            provenance={},
-            mip=tuple(resolution),
-            lru_bytes=cache_bytes_limit,
-            **kwargs,
-        )
+        try:
+            result = CloudVolume(
+                path_,
+                info=get_info(path_),
+                provenance={},
+                mip=tuple(resolution),
+                lru_bytes=cache_bytes_limit,
+                **kwargs,
+            )
+        except ScaleUnavailableError as e:
+            raise ScaleUnavailableError(f"{path_} - {e}") from e
     else:
         result = CloudVolume(
             path_,
@@ -118,7 +122,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("non_aligned_writes", False)
         self.cv_kwargs.setdefault("cache", False)
         self.cv_kwargs.setdefault("compress_cache", False)
-        self.cv_kwargs.setdefault("compress", True)
+        self.cv_kwargs.setdefault("compress", None)
         self.cv_kwargs.setdefault("cdn_cache", False)
         self.cv_kwargs.setdefault("fill_missing", True)
         self.cv_kwargs.setdefault("delete_black_uploads", True)
@@ -223,6 +227,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             if data_final.min() < np.int64(0):
                 raise ValueError("Attempting to write negative values to a uint64 CloudVolume")
             data_final = data_final.astype(np.uint64)
+        cvol.non_aligned_writes = True
         cvol[slices] = data_final
         cvol.autocrop = False
 

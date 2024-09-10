@@ -2,19 +2,22 @@
 
 from typing import cast
 
+import pytest
+
 from zetta_utils.db_annotations import annotation, collection, layer, layer_group
 
 
-def _init_collection_and_layer_group() -> tuple[str, str]:
+def _init_collection_and_layer_group(
+    collection_name: str, layer_group_name: str
+) -> tuple[str, str]:
     user = "john_doe"
-    collection_name = "test_collection0"
     collection_id = collection.add_collection(collection_name, user, "this is a test")
 
     layer_id0 = layer.add_layer("test_layer0", "precomputed://test0", "this is a test")
     layer_id1 = layer.add_layer("test_layer1", "precomputed://test1", "this is a test")
 
     layer_group_id = layer_group.add_layer_group(
-        name="test_layer_group0",
+        name=layer_group_name,
         collection_id=collection_id,
         user=user,
         layers=[layer_id0, layer_id1],
@@ -23,10 +26,12 @@ def _init_collection_and_layer_group() -> tuple[str, str]:
     return (collection_id, layer_group_id)
 
 
-def test_add_update_annotation(
-    datastore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+def test_add_update_delete_annotation(
+    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection0", "new_lgroup0"
+    )
     annotation_raw = {
         "pointA": [1, 1, 1],
         "pointB": [1, 1, 5],
@@ -57,11 +62,17 @@ def test_add_update_annotation(
     assert len(cast(list, _annotation["tags"])) == 1
     assert cast(list, _annotation["tags"])[0] == "tag2"
 
+    annotation.delete_annotation(_id)
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id)
+
 
 def test_add_update_annotations(
-    datastore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
+    firestore_emulator, annotations_db, collections_db, layer_groups_db, layers_db
 ):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection1", "new_lgroup1"
+    )
     annotations_raw = [
         {
             "pointA": [1, 1, 1],
@@ -113,8 +124,10 @@ def test_add_update_annotations(
     assert len(cast(list, _annotations[1]["tags"])) == 1
 
 
-def test_read_annotations(datastore_emulator, annotations_db):
-    collection_id, layer_group_id = _init_collection_and_layer_group()
+def test_read_delete_annotations(firestore_emulator, annotations_db):
+    collection_id, layer_group_id = _init_collection_and_layer_group(
+        "new_collection2", "new_lgroup2"
+    )
     ng_annotations = annotation.parse_ng_annotations(
         [
             {
@@ -131,7 +144,7 @@ def test_read_annotations(datastore_emulator, annotations_db):
         ]
     )
 
-    annotation.add_annotation(
+    _id0 = annotation.add_annotation(
         ng_annotations[0],
         collection_id=collection_id,
         layer_group_id=layer_group_id,
@@ -139,7 +152,7 @@ def test_read_annotations(datastore_emulator, annotations_db):
         tags=["tag0"],
     )
 
-    annotation.add_annotation(
+    _id1 = annotation.add_annotation(
         ng_annotations[1],
         collection_id=collection_id,
         layer_group_id=layer_group_id,
@@ -155,3 +168,11 @@ def test_read_annotations(datastore_emulator, annotations_db):
 
     _annotations = annotation.read_annotations(tags=["tag0"])
     assert len(_annotations) == 1
+
+    annotation.delete_annotations([_id0, _id1])
+
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id0)
+
+    with pytest.raises(KeyError):
+        annotation.read_annotation(_id1)

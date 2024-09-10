@@ -8,6 +8,8 @@ import torchfields  # pylint: disable=unused-import
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.tensor_ops import convert
+from zetta_utils.tensor_typing import Tensor
 
 
 @builder.register("get_affine_field")
@@ -42,6 +44,72 @@ def get_affine_field(
     mat = torch.tensor([[aff.a, aff.b, aff.c], [aff.d, aff.e, aff.f]]).unsqueeze(0)
     field = torch.Field.affine_field(mat, size=(1, 2, size, size))  # type: ignore
     return einops.rearrange(field, "Z C X Y -> C X Y Z")
+
+
+def get_field_from_matrix(
+    mat: Tensor, size: int | Sequence[int], device=None
+) -> torchfields.Field:
+    """
+    Returns a 2D displacement field for each affine or perspective transformation matrix.
+
+    :param mat:  [Nx]2x3 (affine) or [Nx]3x3 (perspective) ndarray or torch.Tensor.
+                 The matrices defining the transformations.
+    :param size: an `int`, a `tuple` or a `torch.Size` of the form `(H, W)`.
+    :return:     DisplacementField for the given transformation of size `(N, 2, H, W)`
+
+    Note:
+    The matrix defines the transformation that warps the destination to the source,
+    such that, \vec{x_s} = P \vec{x_d} where x_s is a point in the source image, x_d a point in
+    the destination image, and P is the perspective matrix.
+    The field returned will be defined over the destination image. So the matrix P should define
+    the location in the source image that contribute to a pixel in the destination image.
+    """
+
+    mat = convert.to_torch(mat, device=device)
+    if mat.ndimension() == 2:
+        mat = mat.unsqueeze(0)
+        N = 1
+    elif mat.ndimension() == 3:
+        N = mat.shape[0]
+    else:
+        raise ValueError(f"Expected 2 or 3-dimensional matrix. Received shape {mat.shape}.")
+
+    if isinstance(size, int):
+        size = [N, 2, size, size]
+    elif len(size) == 2:
+        size = [N, 2, size[0], size[1]]
+    else:
+        raise ValueError(f"Expected size to be int or a Sequence of length 2. Received {size}.")
+
+    # Generate a grid of coordinates to apply the perspective transform
+    grid_identity = torch.nn.functional.affine_grid(
+        torch.eye(2, 3, device=device, dtype=mat.dtype).unsqueeze(0).expand(N, 2, 3),
+        size,
+        align_corners=False,
+    )
+    grid_identity = grid_identity.view(N, size[2], size[3], 2)
+
+    if mat.shape[1] == 2:
+        # Affine - can just use torch's affine_grid
+        warped_grid = torch.nn.functional.affine_grid(mat, size, align_corners=False)
+    else:
+        # Perspective - need to apply the perspective transformation manually
+        grid_homogeneous = torch.cat(
+            [grid_identity, torch.ones(N, size[2], size[3], 1, device=device, dtype=mat.dtype)],
+            dim=-1,
+        )
+        grid_homogeneous = grid_homogeneous.view(N, -1, 3).transpose(1, 2)
+
+        # Apply the perspective transformation
+        warped_grid_homogeneous = (
+            torch.bmm(mat, grid_homogeneous).transpose(1, 2).view(N, size[2], size[3], 3)
+        )
+        warped_grid = warped_grid_homogeneous[..., :2] / warped_grid_homogeneous[..., 2:]
+
+    displacement_field = warped_grid - grid_identity
+    displacement_field = displacement_field.permute(0, 3, 1, 2).field_()  # type: ignore
+
+    return displacement_field
 
 
 # https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57

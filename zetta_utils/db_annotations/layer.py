@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import overload
 
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.datastore import build_datastore_layer
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 
 from . import constants
 
@@ -13,11 +14,10 @@ DB_NAME = "layers"
 INDEXED_COLS = ("name", "source")
 NON_INDEXED_COLS = ("comment",)
 
-LAYERS_DB = build_datastore_layer(
+LAYERS_DB = build_firestore_layer(
     DB_NAME,
     project=constants.PROJECT,
     database=constants.DATABASE,
-    exclude_from_indexes=NON_INDEXED_COLS,
 )
 
 
@@ -26,7 +26,19 @@ def read_layer(layer_id: str) -> DBRowDataT:
     return LAYERS_DB[idx]
 
 
-def read_layers(layer_ids: list[str]) -> list[DBRowDataT]:
+@overload
+def read_layers() -> dict[str, DBRowDataT]:
+    ...
+
+
+@overload
+def read_layers(*, layer_ids: list[str]) -> list[DBRowDataT]:
+    ...
+
+
+def read_layers(*, layer_ids: list[str] | None = None) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+    if layer_ids is None:
+        return LAYERS_DB.query()
     idx = (layer_ids, INDEXED_COLS + NON_INDEXED_COLS)
     return LAYERS_DB[idx]
 

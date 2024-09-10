@@ -70,7 +70,7 @@ def get_secrets_and_mapping(
             raise ValueError(
                 f"Please set `{env_k}` environment variable in order to create a deployment."
             )
-        secret_name = f"{run_id}-{env_k}".lower().replace("_", "-")
+        secret_name = f"run-{run_id}-{env_k}".lower().replace("_", "-")
         env_secret_mapping[env_k] = secret_name
         secrets_kv[secret_name] = env_v
 

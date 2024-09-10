@@ -19,7 +19,7 @@ def test_write_exc(mocker):
         disp_min_in_unit=1,
         disp_max_in_unit=1,
     )
-    proc.prepared_disp_fraction = mocker.MagicMock()
+    proc.prepared_disp = mocker.MagicMock()
     with pytest.raises(RuntimeError):
         proc.process_index(idx, mode="write")
 
@@ -40,7 +40,7 @@ def test_tensor_process_data_slip_pos(mocker):
         disp_max_in_unit=1,
         mode="slip",
     )
-    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
+    proc.prepared_disp = (1, 2)
     chosen_z = 3
     mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -66,7 +66,7 @@ def test_tensor_process_data_slip_neg(mocker):
         disp_max_in_unit=1,
         mode="slip",
     )
-    proc.prepared_disp_fraction = (-1 / 5, -2 / 5)
+    proc.prepared_disp = (-1, -2)
     chosen_z = 3
     mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -92,7 +92,7 @@ def test_tensor_process_data_step_pos(mocker):
         disp_max_in_unit=1,
         mode="step",
     )
-    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
+    proc.prepared_disp = (1, 2)
     chosen_z = 3
     mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
     result = proc.process_data(data_padded.clone(), mode="read")
@@ -125,7 +125,7 @@ def test_dict_process_data_slip_pos(mocker):
         mode="slip",
         keys_to_apply=keys_to_apply,
     )
-    proc.prepared_disp_fraction = (1 / 5, 2 / 5)
+    proc.prepared_disp = (1, 2)
     chosen_z = 3
     mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
 
@@ -152,7 +152,7 @@ def test_dict_process_slip_no_keys_exc():
         disp_max_in_unit=1,
         mode="slip",
     )
-    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    proc.prepared_disp = (1, 1)
     with pytest.raises(ValueError):
         proc.process_data(data, mode="read")
 
@@ -165,7 +165,7 @@ def test_dict_process_step_no_keys():
         disp_max_in_unit=1,
         mode="step",
     )
-    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    proc.prepared_disp = (1, 1)
     result = proc.process_data(data, mode="read")
     assert list(result["key"].shape) == [1, 4, 4, 5]
 
@@ -193,7 +193,7 @@ def test_dict_process_diff_size(
         mode=misalign_mode,
         keys_to_apply=["key0", "key1"],
     )
-    proc.prepared_disp_fraction = (1 / 5, 1 / 5)
+    proc.prepared_disp = (1, 1)
     mocker.patch(
         "zetta_utils.augmentations.misalign._choose_pos_or_neg_misalignent", return_value=1
     )
@@ -246,3 +246,48 @@ def test_process_index_neg(mocker):
     assert idx_out == VolumetricIndex(
         resolution=Vec3D(1, 1, 1), bbox=BBox3D(bounds=((1, 3), (10, 21), (100, 200)))
     )
+
+
+def test_metadata_step(mocker):
+    data_padded = torch.zeros((1, 5, 5, 5))
+    for x in range(5):
+        for y in range(5):
+            for z in range(5):
+                data_padded[0, x, y, z] = 100 * z + 10 * y + x
+
+    proc = MisalignProcessor[dict[str, torch.Tensor]](
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        mode="step",
+    )
+    proc.add_misalignment_metadata = "metadata_key"
+    proc.prepared_disp = (1, 2)
+    chosen_z = 3
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
+    result = proc.process_data({"data_key": data_padded.clone()}, mode="read")
+    assert "metadata_key" in result
+    assert result["metadata_key"] == [(2, 3)]
+
+
+def test_metadata_slip(mocker):
+    data_padded = torch.zeros((1, 5, 5, 5))
+    for x in range(5):
+        for y in range(5):
+            for z in range(5):
+                data_padded[0, x, y, z] = 100 * z + 10 * y + x
+
+    proc = MisalignProcessor[dict[str, torch.Tensor]](
+        prob=1.0,
+        disp_min_in_unit=1,
+        disp_max_in_unit=1,
+        mode="slip",
+    )
+    proc.add_misalignment_metadata = "metadata_key"
+    proc.keys_to_apply = ["data_key"]
+    proc.prepared_disp = (1, 2)
+    chosen_z = 3
+    mocker.patch("zetta_utils.augmentations.misalign._select_z", return_value=chosen_z)
+    result = proc.process_data({"data_key": data_padded.clone()}, mode="read")
+    assert "metadata_key" in result
+    assert result["metadata_key"] == [(2, 3), (3, 4)]

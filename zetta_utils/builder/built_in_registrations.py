@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+import numpy as np  # pylint: disable=unused-import
 import torch  # pylint: disable=unused-import
 
 from .building import BuilderPartial

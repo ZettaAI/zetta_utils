@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import copy
 import random
-from typing import Any, Literal, TypeVar
+from typing import (
+    Any,
+    Literal,
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    Sequence,
+    TypeVar,
+)
 
 import attrs
+import numpy as np
 import torch
 from typeguard import typechecked
 
@@ -11,8 +21,10 @@ from zetta_utils import builder
 from zetta_utils.geometry.vec import Vec3D
 from zetta_utils.layer.tools_base import JointIndexDataProcessor
 from zetta_utils.layer.volumetric.index import VolumetricIndex
+from zetta_utils.tensor_typing import TensorTypeVar
 
-T = TypeVar("T", torch.Tensor, dict[str, Any])
+# T = TypeVar("T", TensorTypeVar, Mapping[str, Any])  # TODO: this doesn't pass mypy
+T = TypeVar("T", torch.Tensor, np.ndarray, MutableMapping[str, Any])
 
 # This dummy wrappers for mock targets during testing
 # trying to decouple implementation from tests a bit
@@ -48,9 +60,10 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
     disp_min_in_unit: float
     disp_max_in_unit: float
     mode: Literal["slip", "step"] = "step"
-    keys_to_apply: list[str] | None = None
+    keys_to_apply: Sequence[str] | None = None
+    add_misalignment_metadata: str | None = None
 
-    prepared_disp_fraction: tuple[float, float] | None = attrs.field(init=False, default=None)
+    prepared_disp: tuple[int, int] | None = attrs.field(init=False, default=None)
 
     def process_index(
         self, idx: VolumetricIndex, mode: Literal["read", "write"]
@@ -63,8 +76,8 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         disp_x_in_unit = disp_x_in_unit_magn * _choose_pos_or_neg_misalignent()
         disp_y_in_unit = disp_y_in_unit_magn * _choose_pos_or_neg_misalignent()
 
-        disp_x_in_idx_res = disp_x_in_unit // idx.resolution[0]
-        disp_y_in_idx_res = disp_y_in_unit // idx.resolution[1]
+        disp_x_in_idx_res = int(disp_x_in_unit // idx.resolution[0])
+        disp_y_in_idx_res = int(disp_y_in_unit // idx.resolution[1])
 
         start_offset = [0, 0, 0]
         end_offset = [0, 0, 0]
@@ -80,40 +93,39 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         idx = idx.translated_start(Vec3D[int](*start_offset)).translated_end(
             Vec3D[int](*end_offset)
         )
-        self.prepared_disp_fraction = (
-            disp_x_in_idx_res / idx.shape[0],
-            disp_y_in_idx_res / idx.shape[1],
-        )
+        self.prepared_disp = (disp_x_in_idx_res, disp_y_in_idx_res)
+
         return idx
 
-    def _get_keys_to_apply_final(self, data: dict[str, Any]) -> list[str]:
+    def _get_keys_to_apply_final(self, data: Mapping[str, Any]) -> Sequence[str]:
+        result: Sequence[str]
         if not self.keys_to_apply:
             if self.mode == "slip":
                 raise ValueError(
                     "`keys_to_apply` must be a non-empty list of strings when "
-                    "applying `slip` to data of type `dict`"
+                    "applying `slip` to data of type `Mapping`"
                 )
             # Applied to all tensors by default for step
             assert self.mode == "step"
-            result = [k for k, v in data.items() if isinstance(v, torch.Tensor)]
+            result = [k for k, v in data.items() if isinstance(v, torch.Tensor | np.ndarray)]
         else:
             result = self.keys_to_apply
         return result
 
     def _get_chosen_z_considering_crop(
-        self, tensor: torch.Tensor, z_size: int, z_chosen: int
+        self, tensor: TensorTypeVar, z_size: int, z_chosen: int
     ) -> int | None:
         """
         `None` result means no change of data needs to be done.
         int result means that the data _after_ the indicated Z
         will be misaligned.
         """
-        if tensor.size(-1) < z_size:
-            z_diff = z_size - tensor.size(-1)
+        if tensor.shape[-1] < z_size:
+            z_diff = z_size - tensor.shape[-1]
             assert z_diff > 0
             assert z_diff % 2 == 0
 
-            if z_chosen > tensor.size(-1) + z_diff // 2 - 1:
+            if z_chosen > tensor.shape[-1] + z_diff // 2 - 1:
                 # the chosen Z fall in the higher cropped out region,
                 # so none of the tensor needs to be shifted
                 result = None
@@ -133,14 +145,13 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
 
         return result
 
-    def _process_tensor(self, tensor: torch.Tensor, z_size: int, z_chosen: int) -> torch.Tensor:
+    def _process_tensor(self, tensor: TensorTypeVar, z_size: int, z_chosen: int) -> TensorTypeVar:
         this_z_chosen = self._get_chosen_z_considering_crop(
             tensor, z_size=z_size, z_chosen=z_chosen
         )
 
-        assert self.prepared_disp_fraction is not None
-        x_offset = int(tensor.shape[-3] * self.prepared_disp_fraction[0])
-        y_offset = int(tensor.shape[-2] * self.prepared_disp_fraction[1])
+        assert self.prepared_disp is not None
+        x_offset, y_offset = self.prepared_disp
 
         x_size = tensor.shape[-3] - abs(x_offset)
         y_size = tensor.shape[-2] - abs(y_offset)
@@ -164,16 +175,18 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
             if self.mode == "slip":
                 z_misal_slice = slice(this_z_chosen, this_z_chosen + 1)
             else:
-                z_misal_slice = slice(this_z_chosen, tensor.size(-1))
-
+                z_misal_slice = slice(this_z_chosen, tensor.shape[-1])
             tensor[
                 :, x_start : x_start + x_size, y_start : y_start + y_size, z_misal_slice
-            ] = tensor[
-                :,
-                x_start_misal : x_start_misal + x_size,
-                y_start_misal : y_start_misal + y_size,
-                z_misal_slice,
-            ].clone()  # clone necessary bc inplace operation
+            ] = copy.deepcopy(  # type: ignore  # guaranteed same type as target
+                tensor[
+                    :,
+                    x_start_misal : x_start_misal + x_size,
+                    y_start_misal : y_start_misal + y_size,
+                    z_misal_slice,
+                ]
+            )  # clone necessary bc inplace operation
+
         # Crop the data from the pad
         result = tensor[:, x_start : x_start + x_size, y_start : y_start + y_size, :]
         return result
@@ -182,8 +195,9 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
         if mode != "read":
             raise NotImplementedError()
 
-        keys_to_apply_final: list[str] | None = None
-        if isinstance(data, torch.Tensor):
+        keys_to_apply_final: Sequence[str] | None = None
+
+        if isinstance(data, torch.Tensor | np.ndarray):
             z_size = data.shape[-1]
         else:
             keys_to_apply_final = self._get_keys_to_apply_final(data)
@@ -192,11 +206,28 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
 
         z_chosen = _select_z(0, z_size - 1)
 
-        if isinstance(data, dict):
+        if isinstance(data, Mapping):
             assert keys_to_apply_final
             for k in keys_to_apply_final:
-                assert isinstance(data[k], torch.Tensor)
+                assert isinstance(data[k], torch.Tensor | np.ndarray)
                 data[k] = self._process_tensor(data[k], z_size=z_size, z_chosen=z_chosen)
         else:
             data = self._process_tensor(data, z_size=z_size, z_chosen=z_chosen)
+
+        if self.add_misalignment_metadata is not None:
+            assert isinstance(data, MutableMapping)
+            key = self.add_misalignment_metadata
+            if key not in data:
+                data[key] = []
+            metadata_list = data[key]
+            assert isinstance(metadata_list, MutableSequence) and not isinstance(
+                metadata_list, torch.Tensor | np.ndarray
+            )
+            if self.mode == "step":
+                metadata_list.append((z_chosen - 1, z_chosen))
+            elif self.mode == "slip":
+                metadata_list.append((z_chosen - 1, z_chosen))
+                metadata_list.append((z_chosen, z_chosen + 1))
+            # TODO: Add more information, e.g., displacement vector
+
         return data

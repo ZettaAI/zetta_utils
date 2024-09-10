@@ -25,7 +25,7 @@ def register_dummy():
         {"@type": "dummy", "i": {"a": "b"}},
     ],
 )
-def test_zetta_run(spec, register_dummy, mocker, datastore_emulator):
+def test_zetta_run(spec, register_dummy, mocker, firestore_emulator):
     mocker.patch("zetta_utils.parsing.cue.load", return_value=spec)
     runner = CliRunner()
 
@@ -50,7 +50,7 @@ def test_show_registry(register_dummy):
         {"@type": "dummy", "i": {"a": "b"}},
     ],
 )
-def test_zetta_run_str(spec, register_dummy, mocker, datastore_emulator):
+def test_zetta_run_str(spec, register_dummy, mocker, firestore_emulator):
     mocker.patch(
         "fsspec.open",
         side_effect=[tempfile.TemporaryFile(mode="w"), tempfile.TemporaryFile(mode="w")],
@@ -67,14 +67,14 @@ builder.register("registered_in_file")(lambda: None)
 SPEC_WITH_CUSTOM_IMPORT = {"@type": "registered_in_file"}
 
 
-def test_zetta_run_extra_import_fail(tmp_path, datastore_emulator):
+def test_zetta_run_extra_import_fail(tmp_path, firestore_emulator):
     runner = CliRunner()
     # make sure that it doesn't run without a file import
     should_fail = runner.invoke(cli.run, ["-s", json.dumps(SPEC_WITH_CUSTOM_IMPORT)])
     assert should_fail.exit_code != 0
 
 
-def test_zetta_run_extra_import_success(tmp_path, mocker, datastore_emulator):
+def test_zetta_run_extra_import_success(tmp_path, mocker, firestore_emulator):
     mocker.patch(
         "fsspec.open",
         side_effect=[tempfile.TemporaryFile(mode="w"), tempfile.TemporaryFile(mode="w")],
@@ -88,7 +88,7 @@ def test_zetta_run_extra_import_success(tmp_path, mocker, datastore_emulator):
     assert should_succeed.exit_code == 0
 
 
-def test_zetta_run_extra_import_py_check_fail(tmp_path, datastore_emulator):
+def test_zetta_run_extra_import_py_check_fail(tmp_path, firestore_emulator):
     runner = CliRunner()
     my_file = tmp_path / "custom_import"
     my_file.write_text(CUSTOM_IMPORT_CONTENT)

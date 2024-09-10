@@ -1,8 +1,16 @@
 # pylint: disable=unused-import, import-outside-toplevel
 """Zetta AI Computational Connectomics Toolkit."""
+import os
+import sys
+
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
 from .log import get_logger
+
+if "sphinx" not in sys.modules:
+    import pdbp  # noqa
+
+    os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
 
 logger = get_logger("zetta_utils")
 
@@ -69,7 +77,8 @@ def load_training_modules():
         training,
         tensor_mapping,
     )
-    from .layer import volumetric
+    from .layer import volumetric, db_layer
+    from .layer.db_layer import datastore, firestore
     from .layer.volumetric import cloudvol
 
     from . import mazepa_addons

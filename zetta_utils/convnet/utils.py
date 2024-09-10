@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import io
-from typing import Literal, Optional, Sequence, Union
+from typing import Literal, Optional, Sequence, Union, overload
 
 import cachetools
 import fsspec
 import onnx
 import onnxruntime as ort
 import torch
+from numpy import typing as npt
 from onnxruntime.capi.onnxruntime_inference_collection import (
     InferenceSession as OrtInferenceSession,
 )
@@ -112,13 +113,28 @@ def load_weights_file(
     return model
 
 
-@typechecked
+@overload
 def load_and_run_model(
     path: str,
     data_in: torch.Tensor,
-    device: Union[Literal["cpu", "cuda"], torch.device, None] = None,
-    use_cache: bool = True,
-) -> torch.Tensor:  # pragma: no cover
+    device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
+    use_cache: bool = ...,
+) -> torch.Tensor:
+    ...
+
+
+@overload
+def load_and_run_model(
+    path: str,
+    data_in: npt.NDArray,
+    device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
+    use_cache: bool = ...,
+) -> npt.NDArray:
+    ...
+
+
+@typechecked
+def load_and_run_model(path, data_in, device=None, use_cache=True):  # pragma: no cover
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -130,11 +146,13 @@ def load_and_run_model(
         model = load_model(path=path, device=device, use_cache=use_cache)
 
     if path.endswith(".onnx"):
-        data_in_np = data_in.numpy()
+        data_in_np = tensor_ops.convert.to_np(data_in)
         output_np = model.run(None, {"input": data_in_np})[0]
-        output = tensor_ops.convert.to_torch(output_np)
+        output = tensor_ops.convert.astype(output_np, reference=data_in)
     else:
         autocast_device = device.type if isinstance(device, torch.device) else str(device)
-        with torch.autocast(device_type=autocast_device):
-            output = model(data_in.to(device))
+        with torch.inference_mode():  # uses less memory when used with JITs
+            with torch.autocast(device_type=autocast_device):
+                output = model(tensor_ops.convert.to_torch(data_in, device=device))
+                output = tensor_ops.convert.astype(output, reference=data_in)
     return output

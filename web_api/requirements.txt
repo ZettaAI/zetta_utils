@@ -1,0 +1,4 @@
+fastapi
+pydantic
+hypercorn
+google-cloud-iap

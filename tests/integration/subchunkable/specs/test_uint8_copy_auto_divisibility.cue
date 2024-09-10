@@ -19,7 +19,7 @@
 	processing_blend_pads: [[7, 11, 0], [13, 17, 0]]
 	max_reduction_chunk_size: [1024, 1024, 1]
 	level_intermediaries_dirs: ["assets/temp/", "assets/temp/"]
-	auto_divisibility: true
+	auto_divisibility:      true
 	expand_bbox_processing: true
 	dst_resolution: [128, 128, 40]
 	bbox: #BBOX

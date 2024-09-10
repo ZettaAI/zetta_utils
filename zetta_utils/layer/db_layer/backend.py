@@ -10,7 +10,7 @@ from . import DBIndex
 DBScalarValueT = Union[bool, int, float, str]
 DBArrayValueT = list[DBScalarValueT]
 DBValueT = Union[DBScalarValueT, DBArrayValueT]
-DBRowDataT = MutableMapping[str, DBValueT]
+DBRowDataT = MutableMapping[str, DBValueT | None]
 DBDataT = Sequence[DBRowDataT]
 
 

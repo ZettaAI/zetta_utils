@@ -25,6 +25,7 @@ def get_configmap(
     labels: Optional[Dict] = None,
     data: Optional[Dict[str, str]] = None,
 ):
+    name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(annotations=annotations, labels=labels, name=name)
     return k8s_client.V1ConfigMap(metadata=meta, data=data)
 

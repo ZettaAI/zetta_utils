@@ -34,4 +34,4 @@ def test_db_convert(
     result = layer._convert_idx(idx)
     assert result.get_size() == expected.get_size()
     assert result.row_keys == expected.row_keys
-    assert result.col_keys == expected.col_keys
+    assert result.rows_col_keys == expected.rows_col_keys

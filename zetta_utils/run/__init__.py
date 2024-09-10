@@ -11,8 +11,8 @@ import fsspec
 
 from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer
-from zetta_utils.layer.db_layer import DBRowDataT, build_db_layer
-from zetta_utils.layer.db_layer.datastore import DatastoreBackend
+from zetta_utils.layer.db_layer import DBRowDataT
+from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.mazepa import id_generation
 from zetta_utils.parsing import json
 
@@ -28,8 +28,11 @@ from .resource import (
 logger = log.get_logger("zetta_utils")
 
 RUN_INFO_BUCKET = "gs://zetta_utils_runs"
-RUN_DB_NAME = "run-info"
+COLLECTION_NAME = "run-info"
 RUN_ID: str | None = None
+RUN_DB = build_firestore_layer(
+    COLLECTION_NAME, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
+)
 
 
 class RunInfo(Enum):
@@ -39,11 +42,6 @@ class RunInfo(Enum):
     STATE = "state"
     TIMESTAMP = "timestamp"
     PARAMS = "params"
-
-
-RUN_DB_BACKEND = DatastoreBackend(namespace=RUN_DB_NAME, project=constants.DEFAULT_PROJECT)
-RUN_DB_BACKEND.exclude_from_indexes = (RunInfo.CLUSTERS.value, RunInfo.PARAMS.value)
-RUN_DB = build_db_layer(RUN_DB_BACKEND)
 
 
 class RunState(Enum):
@@ -88,15 +86,13 @@ def _record_run(spec: dict | list | None = None) -> None:
 
 
 def update_run_info(run_id: str, info: DBRowDataT) -> None:
-    row_key = f"run-{run_id}"
     col_keys = tuple(info.keys())
-    RUN_DB[(row_key, col_keys)] = info
+    RUN_DB[(run_id, col_keys)] = info
 
 
 def _check_run_id_conflict():
     assert RUN_ID is not None
-    row_key = f"run-{RUN_ID}"
-    if row_key in RUN_DB:
+    if RUN_ID in RUN_DB:
         raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
 
 

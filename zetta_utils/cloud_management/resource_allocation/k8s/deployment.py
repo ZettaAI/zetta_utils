@@ -38,6 +38,7 @@ def get_deployment_spec(
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> k8s_client.V1Deployment:
+    name = f"run-{name}"
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
@@ -128,6 +129,7 @@ def get_deployment(
     labels: Optional[Dict[str, str]] = None,
     revision_history_limit: Optional[int] = 10,
 ) -> k8s_client.V1Deployment:
+    name = f"run-{name}"
     labels = labels or {"app": name}
     pod_template = k8s_client.V1PodTemplateSpec(
         metadata=k8s_client.V1ObjectMeta(labels=labels),

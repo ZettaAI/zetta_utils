@@ -55,7 +55,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         if isinstance(col_keys, str):
             col_keys = (col_keys,)
         row_col_keys = {row_key: col_keys for row_key in row_keys}  # type: ignore
-        return DBIndex(row_col_keys)
+        return DBIndex(row_col_keys, col_keys)
 
     @overload
     def _convert_read_data(self, idx_user: str, data: DBDataT) -> DBValueT | DBRowDataT:

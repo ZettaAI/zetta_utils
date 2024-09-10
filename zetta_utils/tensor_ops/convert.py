@@ -34,6 +34,7 @@ def to_torch_dtype(dtype: np.dtype) -> torch.dtype:  # pragma: no cover
     return NP_TO_TORCH_DTYPE_MAP[dtype]
 
 
+@builder.register("to_np")
 @typechecked
 def to_np(data: Tensor) -> npt.NDArray:
     """Convert the given tensor to ``numpy.ndarray``.
@@ -51,6 +52,7 @@ def to_np(data: Tensor) -> npt.NDArray:
     return result
 
 
+@builder.register("to_torch")
 @typechecked
 def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
     """Convert the given tensor to `torch.Tensor`.

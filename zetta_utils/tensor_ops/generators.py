@@ -1,13 +1,17 @@
 import math
-from typing import Callable, Sequence
+from typing import Callable, Iterable, Sequence
 
 import affine
 import einops
 import torch
 import torchfields  # pylint: disable=unused-import
+from neuroglancer.viewer_state import LineAnnotation
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.db_annotations.annotation import AnnotationDBEntry
+from zetta_utils.geometry.vec import VEC3D_PRECISION, Vec3D
+from zetta_utils.layer.volumetric.index import VolumetricIndex
 from zetta_utils.tensor_ops import convert
 from zetta_utils.tensor_typing import Tensor
 
@@ -110,6 +114,45 @@ def get_field_from_matrix(
     displacement_field = displacement_field.permute(0, 3, 1, 2).field_()  # type: ignore
 
     return displacement_field
+
+
+def get_field_from_annotations(
+    line_annotations: Iterable[AnnotationDBEntry],
+    index: VolumetricIndex,
+    device: torch.types.Device | None = None,
+) -> torchfields.Field:
+    """
+    Returns a sparse 2D displacement field based on the provided line annotations.
+
+    :param line_annotations: Iterable line annotations.
+    :param index: VolumetricIndex specifying bounds and resolution of returned field.
+    :param device: Device to use for returned field.
+    :return: DisplacementField for the given line annotations. Unspecified values are NaN.
+    """
+    sparse_field = torch.full((1, 2, index.shape[0], index.shape[1]), torch.nan, device=device)
+    contrib_sum = torch.zeros(sparse_field.shape[-2:], device=device)
+    for line in line_annotations:
+        annotation = line.ng_annotation
+        if not isinstance(annotation, LineAnnotation):
+            raise ValueError(f"Expected LineAnnotation, got {type(annotation)}")
+
+        pointA: Vec3D = Vec3D(*annotation.pointA) / index.resolution
+        pointB: Vec3D = Vec3D(*annotation.pointB) / index.resolution
+        if index.contains(round(pointA, VEC3D_PRECISION)):
+            x = math.floor(pointA.x) - index.start[0]
+            y = math.floor(pointA.y) - index.start[1]
+            # Contribution is 1 - sqrt(2) at corner of pixel, 1 at center
+            # Maybe should consider adjacent pixel, but hopefully good enough for now
+            contrib = 1.0 - math.sqrt((pointA.x % 1 - 0.5) ** 2 + (pointA.y % 1 - 0.5) ** 2)
+            contrib_sum[x, y] += contrib
+
+            if sparse_field[0, :, x, y].isnan().all():
+                sparse_field[0, :, x, y] = 0.0
+
+            # Field xy is flipped
+            sparse_field[0, :, x, y] += contrib * torch.tensor(pointB - pointA)[:2].flipud()
+
+    return sparse_field / contrib_sum
 
 
 # https://gist.github.com/vadimkantorov/ac1b097753f217c5c11bc2ff396e0a57

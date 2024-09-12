@@ -3,7 +3,11 @@ import einops
 import numpy as np
 import pytest
 import torch
+from torch import nan
 
+from zetta_utils.db_annotations.annotation import AnnotationDBEntry
+from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.volumetric.index import VolumetricIndex
 from zetta_utils.tensor_ops import generators
 
 
@@ -230,3 +234,63 @@ def test_get_field_from_matrix(mat, size, expected_shape, expected_dtype):
 def test_get_field_from_matrix_exceptions(mat, size):
     with pytest.raises(ValueError):
         generators.get_field_from_matrix(mat, size)
+
+
+@pytest.mark.parametrize(
+    "annotations, index, expected",
+    [
+        # Single vector
+        [
+            [
+                AnnotationDBEntry.from_dict(
+                    "1", {"type": "line", "pointA": [1.0, 0.0, 0.0], "pointB": [0.0, 0.0, 1.0]}
+                ),
+            ],
+            VolumetricIndex.from_coords([0, 0, 0], [2, 2, 1], Vec3D(*[1, 1, 1])),
+            torch.tensor(
+                [[[[nan, nan], [0.0, nan]], [[nan, nan], [-1.0, nan]]]], dtype=torch.float32
+            ),
+        ],
+
+        # Two vectors, same target pixel -- should average
+        [
+            [
+                AnnotationDBEntry.from_dict(
+                    "1", {"type": "line", "pointA": [0.4, 0.0, 0.0], "pointB": [0.0, 0.0, 1.0]}
+                ),
+                AnnotationDBEntry.from_dict(
+                    "2", {"type": "line", "pointA": [0.6, 0.0, 0.0], "pointB": [1.0, 0.0, 1.0]}
+                ),
+            ],
+            VolumetricIndex.from_coords([0, 0, 0], [2, 2, 1], Vec3D(*[1, 1, 1])),
+            torch.tensor(
+                [[[[0.0, nan], [nan, nan]], [[0.0, nan], [nan, nan]]]], dtype=torch.float32
+            ),
+        ],
+
+        # Annotation outside ROI
+        [
+            [
+                AnnotationDBEntry.from_dict(
+                    "1", {"type": "line", "pointA": [0.4, 0.0, 0.0], "pointB": [0.0, 0.0, 1.0]}
+                ),
+            ],
+            VolumetricIndex.from_coords([0, 0, 1], [2, 2, 2], Vec3D(*[1, 1, 1])),
+            torch.tensor(
+                [[[[nan, nan], [nan, nan]], [[nan, nan], [nan, nan]]]], dtype=torch.float32
+            ),
+        ],
+    ],
+)
+def test_get_field_from_annotations(annotations, index, expected):
+    result = generators.get_field_from_annotations(annotations, index, device="cpu")
+    torch.testing.assert_close(result, expected, equal_nan=True)
+    assert result.device == torch.device("cpu")
+
+
+def test_get_field_from_annotations_exception():
+    with pytest.raises(ValueError):
+        generators.get_field_from_annotations(
+            [AnnotationDBEntry.from_dict("1", {"type": "point", "point": [0.0, 0.0, 0.0]})],
+            VolumetricIndex.from_coords([0, 0, 0], [2, 2, 1], Vec3D(*[1, 1, 1])),
+        )

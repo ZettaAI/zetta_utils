@@ -200,21 +200,27 @@ def get_weight_template(
         weights_z = [z / (2 * z_pad + 1) for z in range(1, 2 * z_pad + 1)]
     elif processing_blend_mode == "quadratic":
         weights_x = [
-            ((x / (x_pad + 0.5)) ** 2) / 2
-            if x <= x_pad
-            else 1 - ((2 - (x / (x_pad + 0.5))) ** 2) / 2
+            (
+                ((x / (x_pad + 0.5)) ** 2) / 2
+                if x <= x_pad
+                else 1 - ((2 - (x / (x_pad + 0.5))) ** 2) / 2
+            )
             for x in range(1, 2 * x_pad + 1)
         ]
         weights_y = [
-            ((y / (y_pad + 0.5)) ** 2) / 2
-            if y <= y_pad
-            else 1 - ((2 - (y / (y_pad + 0.5))) ** 2) / 2
+            (
+                ((y / (y_pad + 0.5)) ** 2) / 2
+                if y <= y_pad
+                else 1 - ((2 - (y / (y_pad + 0.5))) ** 2) / 2
+            )
             for y in range(1, 2 * y_pad + 1)
         ]
         weights_z = [
-            ((z / (z_pad + 0.5)) ** 2) / 2
-            if z <= z_pad
-            else 1 - ((2 - (z / (z_pad + 0.5))) ** 2) / 2
+            (
+                ((z / (z_pad + 0.5)) ** 2) / 2
+                if z <= z_pad
+                else 1 - ((2 - (z / (z_pad + 0.5))) ** 2) / 2
+            )
             for z in range(1, 2 * z_pad + 1)
         ]
 
@@ -563,7 +569,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
                 task_idxs = chunker(
                     idx_expanded,
-                    stride_start_offset_in_unit=idx_expanded.start * idx_expanded.resolution,
+                    stride_start_offset=idx_expanded.start,
                     mode="shrink",
                     chunk_id_increment=self.l0_chunks_per_task,
                 )
@@ -699,9 +705,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" with {reduction_chunker}."
             )
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
             red_chunks = reduction_chunker(
-                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
+                idx, mode="exact", stride_start_offset=stride_start_offset
             )
             tasks_reduce = [
                 Copy().make_task(
@@ -721,7 +726,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
             (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
@@ -766,12 +770,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."
             )
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            stride_start_offset_in_unit = stride_start_offset * self.dst_resolution
             red_chunks = reduction_chunker(
-                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
+                idx, mode="exact", stride_start_offset=stride_start_offset
             )
             red_shape = reduction_chunker.get_shape(
-                idx, mode="exact", stride_start_offset_in_unit=stride_start_offset_in_unit
+                idx, mode="exact", stride_start_offset=stride_start_offset
             )
             (
                 tasks,

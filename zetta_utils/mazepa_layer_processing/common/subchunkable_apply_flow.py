@@ -357,36 +357,15 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         if auto_bbox:
             raise ValueError("`auto_bbox` cannot be used when `dst` is None.")
 
-    if auto_bbox:
-        if (
-            start_coord is not None
-            or end_coord is not None
-            or coord_resolution is not None
-            or bbox is not None
-        ):
-            raise ValueError(
-                "`auto_bbox` was supplied, so `bbox`, `start_coord`, end_coord`, and"
-                " `coord_resolution` cannot be specified."
-            )
-        assert dst is not None
-        bbox_ = dst.backend.get_bounds(dst_resolution_).bbox
-    else:
-        if bbox is None:
-            if start_coord is None or end_coord is None or coord_resolution is None:
-                raise ValueError(
-                    "`bbox` and `auto_bbox` were not supplied, so `start_coord`, "
-                    "end_coord`, and `coord_resolution` has to be specified."
-                )
-            bbox_ = BBox3D.from_coords(
-                start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
-            )
-        else:
-            if start_coord is not None or end_coord is not None or coord_resolution is not None:
-                raise ValueError(
-                    "`bbox` was supplied, so `start_coord`, end_coord`, and"
-                    " `coord_resolution` cannot be specified."
-                )
-            bbox_ = bbox
+    bbox_ = parse_bbox(
+        dst=dst,
+        bbox=bbox,
+        start_coord=start_coord,
+        end_coord=end_coord,
+        coord_resolution=coord_resolution,
+        dst_resolution=dst_resolution_,
+        auto_bbox=auto_bbox,
+    )
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -590,6 +569,50 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         op_args=op_args,
         op_kwargs=op_kwargs_,
     )
+
+
+def parse_bbox(
+    dst: VolumetricBasedLayerProtocol | None,
+    bbox: BBox3D | None,
+    start_coord: Sequence[int] | None,
+    end_coord: Sequence[int] | None,
+    coord_resolution: Sequence | None,
+    dst_resolution: Vec3D,
+    auto_bbox: bool,
+) -> BBox3D:
+
+    if auto_bbox:
+        if (
+            start_coord is not None
+            or end_coord is not None
+            or coord_resolution is not None
+            or bbox is not None
+        ):
+            raise ValueError(
+                "`auto_bbox` was supplied, so `bbox`, `start_coord`, end_coord`, and"
+                " `coord_resolution` cannot be specified."
+            )
+        assert dst is not None
+        bbox_ = dst.backend.get_bounds(dst_resolution).bbox
+    else:
+        if bbox is None:
+            if start_coord is None or end_coord is None or coord_resolution is None:
+                raise ValueError(
+                    "`bbox` and `auto_bbox` were not supplied, so `start_coord`, "
+                    "end_coord`, and `coord_resolution` has to be specified."
+                )
+            bbox_ = BBox3D.from_coords(
+                start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
+            )
+        else:
+            if start_coord is not None or end_coord is not None or coord_resolution is not None:
+                raise ValueError(
+                    "`bbox` was supplied, so `start_coord`, end_coord`, and"
+                    " `coord_resolution` cannot be specified."
+                )
+            bbox_ = bbox
+
+    return bbox_
 
 
 def _path_join_if_not_none(base: str | None, suffix: str) -> str | None:

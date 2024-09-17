@@ -150,14 +150,18 @@ class PrecomputedInfoSpec:
     default_chunk_size: Sequence[int] | None = None
     default_voxel_offset: Sequence[int] | None = None
     default_dataset_size: Sequence[int] | None = None
+    default_encoding: str | None = None
     chunk_size_map: dict[str, Sequence[int]] | None = None
     voxel_offset_map: dict[str, Sequence[int]] | None = None
     dataset_size_map: dict[str, Sequence[int]] | None = None
+    encoding_map: dict[str, str] | None = None
     data_type: str | None = None
+    num_channels: int | None = None
     add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None
     add_scales_ref: str | dict[str, Any] | None = None
     add_scales_mode: Literal["merge", "replace", "extend"] = "merge"
     add_scales_exclude_fields: Sequence[str] = ()
+    only_retain_scales: Sequence[Sequence[float]] | None = None
     # ensure_scales: Optional[Iterable[int]] = None
 
     def set_voxel_offset(self, voxel_offset_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
@@ -165,7 +169,6 @@ class PrecomputedInfoSpec:
         key = res_to_key(resolution)
         if self.voxel_offset_map is None:
             self.voxel_offset_map = {}
-
         self.voxel_offset_map[key] = voxel_offset
 
     def set_chunk_size(self, chunk_size_and_res: Tuple[Vec3D[int], Vec3D]) -> None:
@@ -190,6 +193,7 @@ class PrecomputedInfoSpec:
             and self.extend_if_exists_path is None
             and self.field_overrides is None
             and self.add_scales is None
+            and self.only_retain_scales is None
         ):
             result = None
         else:
@@ -255,12 +259,32 @@ class PrecomputedInfoSpec:
                     for e in result["scales"]:
                         if e["key"] in self.dataset_size_map.keys():
                             e["size"] = [*self.dataset_size_map[e["key"]]]
+                if self.default_encoding is not None:
+                    for e in result["scales"]:
+                        e["encoding"] = self.default_encoding
+                if self.encoding_map is not None:
+                    for e in result["scales"]:
+                        if e["key"] in self.encoding_map.keys():
+                            e["encoding"] = self.encoding_map[e["key"]]
 
-            if self.data_type is not None:
+            if self.num_channels:
+                result["num_channels"] = self.num_channels
+
+            if self.data_type:
                 result["data_type"] = self.data_type
 
             if self.type:
                 result["type"] = self.type
+
+            if self.only_retain_scales:
+                scales_to_keep = {}
+                for e in result["scales"]:
+                    if e["resolution"] in self.only_retain_scales:
+                        scales_to_keep[str(e["resolution"])] = e
+                for scale in self.only_retain_scales:
+                    if str(scale) not in scales_to_keep:
+                        raise ValueError("Unable to retain scale " f"{scale}: scale not found.")
+                result["scales"] = list(scales_to_keep.values())
 
         return result
 

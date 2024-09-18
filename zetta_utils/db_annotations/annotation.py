@@ -73,6 +73,18 @@ class AnnotationDBEntry:
         )
         return result
 
+    def dict(self) -> dict[str, Any]:
+        result = self.ng_annotation.to_json()
+        if self.layer_group_id:
+            result["layer_group"] = self.layer_group_id
+        if self.collection_id:
+            result["collection"] = self.collection_id
+        if self.comment:
+            result["comment"] = self.comment
+        if self.tags:
+            result["tags"] = self.tags
+        return result
+
 
 def read_annotation(annotation_id: str) -> AnnotationDBEntry:
     idx = (annotation_id, INDEXED_COLS + NON_INDEXED_COLS)

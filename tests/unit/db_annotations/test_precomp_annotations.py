@@ -50,6 +50,12 @@ def test_round_trip():
     for line in lines:
         assert line in lines_read
 
+    idx = VolumetricIndex.from_coords((1000, 500, 300), (1500, 1000, 1000), Vec3D(10, 10, 40))
+    lines_read = sf.read_in_bounds(idx)
+    assert len(lines_read) == 2
+    for line in lines[-2:]:
+        assert line in lines_read
+
     # Above is typical usage.  Below, we do some odd things
     # to trigger other code paths we want to test.
     lines_read = sf.read_all(-1, False)  # allow duplicates

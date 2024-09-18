@@ -29,15 +29,6 @@ from zetta_utils.layer.volumetric.index import VolumetricIndex
 logger = log.get_logger("zetta_utils")
 
 
-def point_in_bounds(point: Vec3D | Sequence[float], bounds: VolumetricIndex):
-    bounds_start = bounds.start
-    bounds_end = bounds.stop
-    for d in (0, 1, 2):
-        if point[d] < bounds_start[d] or point[d] > bounds_end[d]:
-            return False
-    return True
-
-
 def is_local_filesystem(path: str) -> bool:
     return path.startswith("file://") or "://" not in path
 
@@ -105,9 +96,8 @@ class LineAnnotation:
     def in_bounds(self, bounds: VolumetricIndex):
         """
         Return whether either end of this line is in the given bounds.
-        (NOTE: better might be to check whether the line intersects the bounds, even
-        if neither end is within.  But doing the simple thing for now.)"""
-        return point_in_bounds(self.start, bounds) or point_in_bounds(self.end, bounds)
+        """
+        return bounds.line_intersects(self.start, self.end)
 
 
 class SpatialEntry:
@@ -432,10 +422,9 @@ class AnnotationLayer:
             data = None
         return data is not None and len(data) > 0
 
-    def clear(self):
+    def delete(self):
         """
-        Clear out all data, and (re)write the info file, leaving an empty spatial
-        file ready to pour fresh data into.
+        Completely delete this precomputed annotation file.
         """
         # Delete all files under our path
         path = self.path
@@ -449,6 +438,14 @@ class AnnotationLayer:
             for root, dirs, _ in os.walk(local_path, topdown=False):
                 for directory in dirs:
                     os.rmdir(os.path.join(root, directory))
+
+    def clear(self):
+        """
+        Clear out all data, and (re)write the info file, leaving an empty spatial
+        file ready to pour fresh data into.
+        """
+        # Delete all files under our path
+        self.delete()
 
         # Then, write (or overwrite) the info file
         self.write_info_file()
@@ -556,6 +553,28 @@ class AnnotationLayer:
         if filter_duplicates:
             result_dict = {line.id: line for line in result}
             result = list(result_dict.values())
+        return result
+
+    def read_in_bounds(self, index: VolumetricIndex):
+        """
+        Return all annotations within the given bounds (index).
+        """
+        level = len(self.chunk_sizes) - 1
+        result = []
+        bounds_size = self.index.shape
+        chunk_size = Vec3D(*self.chunk_sizes[level])
+        grid_shape = ceil(bounds_size / chunk_size)
+        level_key = f"spatial{level}"
+        level_dir = path_join(self.path, level_key)
+        start_chunk = (index.start - self.index.start) // chunk_size
+        end_chunk = (index.stop - self.index.start) // chunk_size
+        for x in range(max(0, start_chunk[0]), min(grid_shape[0], end_chunk[0])):
+            for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1])):
+                for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2])):
+                    anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
+                    result += read_lines(anno_file_path)
+        result_dict = {line.id: line for line in result}
+        result = list(result_dict.values())
         return result
 
     def post_process(self):

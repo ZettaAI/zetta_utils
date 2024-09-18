@@ -15,6 +15,7 @@ from .collections import api as collections_api
 from .layer_groups import api as layer_groups_api
 from .layers import api as layers_api
 from .painting import api as painting_api
+from .precomputed_annotations import api as precomputed_annotations_api
 
 app = FastAPI()
 
@@ -31,6 +32,7 @@ app.mount("/collections", collections_api)
 app.mount("/layer_groups", layer_groups_api)
 app.mount("/layers", layers_api)
 app.mount("/painting", painting_api)
+app.mount("/precomputed_annotations", precomputed_annotations_api)
 
 
 @app.middleware("http")

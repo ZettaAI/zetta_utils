@@ -279,11 +279,11 @@ class PrecomputedInfoSpec:
             if self.only_retain_scales:
                 scales_to_keep = {}
                 for e in result["scales"]:
-                    if e["resolution"] in self.only_retain_scales:
-                        scales_to_keep[str(e["resolution"])] = e
-                for scale in self.only_retain_scales:
-                    if str(scale) not in scales_to_keep:
-                        raise ValueError("Unable to retain scale " f"{scale}: scale not found.")
+                    if e["key"] in [res_to_key(Vec3D(*res)) for res in self.only_retain_scales]:
+                        scales_to_keep[e["key"]] = e
+                for res in self.only_retain_scales:
+                    if res_to_key(Vec3D(*res)) not in scales_to_keep:
+                        raise ValueError("Unable to retain scale " f"{res}: scale not found.")
                 result["scales"] = list(scales_to_keep.values())
 
         return result

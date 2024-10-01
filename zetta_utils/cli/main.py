@@ -1,5 +1,7 @@
 import os
 import pprint
+import subprocess
+import sys
 from tempfile import NamedTemporaryFile
 from typing import Optional
 
@@ -14,19 +16,7 @@ logger = log.get_logger("zetta_utils")
 
 @click.group()
 @click.option("-v", "--verbose", count=True, default=2)
-@click.option(
-    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
-)
-def cli(load_mode, verbose):  # pragma: no cover # no logic, delegation
-    if load_mode == "all":
-        zetta_utils.load_all_modules()
-    elif load_mode == "inference":
-        zetta_utils.load_inference_modules()
-    elif load_mode == "try":
-        zetta_utils.try_load_train_inference()
-    else:
-        assert load_mode == "training"
-        zetta_utils.load_training_modules()
+def cli(verbose):  # pragma: no cover # no logic, delegation
     verbosity_map = {
         1: "WARN",
         2: "INFO",
@@ -92,6 +82,9 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     is_flag=True,
     help="Enable/disable heartbeat. Disable with caution.",
 )
+@click.option(
+    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
+)
 def run(
     path: Optional[str],
     str_spec: Optional[str],
@@ -100,11 +93,16 @@ def run(
     parallel_builder: bool,
     extra_imports: tuple[str],
     main_run_process: bool,
+    load_mode: str,
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
-        spec = zetta_utils.parsing.cue.load(path)
+        try:
+            spec = zetta_utils.parsing.cue.load(path)
+        except subprocess.CalledProcessError as err:
+            logger.error("Aborting due to CUE validation failure.")
+            sys.exit(err.returncode)
         os.environ["ZETTA_RUN_SPEC_PATH"] = path
     else:
         assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
@@ -112,6 +110,16 @@ def run(
         with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
             f.write(str_spec)
             os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
+
+    if load_mode == "all":
+        zetta_utils.load_all_modules()
+    elif load_mode == "inference":
+        zetta_utils.load_inference_modules()
+    elif load_mode == "try":
+        zetta_utils.try_load_train_inference()
+    else:
+        assert load_mode == "training"
+        zetta_utils.load_training_modules()
 
     for import_path in extra_imports:
         assert import_path.endswith(".py")

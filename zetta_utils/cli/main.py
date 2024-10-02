@@ -16,7 +16,10 @@ logger = log.get_logger("zetta_utils")
 
 @click.group()
 @click.option("-v", "--verbose", count=True, default=2)
-def cli(verbose):  # pragma: no cover # no logic, delegation
+@click.option(
+    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
+)
+def cli(verbose, load_mode):  # pragma: no cover # no logic, delegation
     verbosity_map = {
         1: "WARN",
         2: "INFO",
@@ -26,6 +29,10 @@ def cli(verbose):  # pragma: no cover # no logic, delegation
     verbose = min(verbose, 3)
     log.set_verbosity(verbosity_map[verbose])
     log.configure_logger()
+
+    # Save load_mode in the click context so subcommands can access it
+    ctx = click.get_current_context()
+    ctx.obj = {"load_mode": load_mode}
 
 
 def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
@@ -82,9 +89,6 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     is_flag=True,
     help="Enable/disable heartbeat. Disable with caution.",
 )
-@click.option(
-    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
-)
 def run(
     path: Optional[str],
     str_spec: Optional[str],
@@ -93,14 +97,16 @@ def run(
     parallel_builder: bool,
     extra_imports: tuple[str],
     main_run_process: bool,
-    load_mode: str,
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
+    ctx = click.get_current_context()
+    load_mode = ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all"
+
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
         try:
             spec = zetta_utils.parsing.cue.load(path)
-        except subprocess.CalledProcessError as err:
+        except subprocess.CalledProcessError as err:  # pragma: no cover
             logger.error("Aborting due to CUE validation failure.")
             sys.exit(err.returncode)
         os.environ["ZETTA_RUN_SPEC_PATH"] = path
@@ -113,11 +119,11 @@ def run(
 
     if load_mode == "all":
         zetta_utils.load_all_modules()
-    elif load_mode == "inference":
+    elif load_mode == "inference":  # pragma: no cover
         zetta_utils.load_inference_modules()
-    elif load_mode == "try":
+    elif load_mode == "try":  # pragma: no cover
         zetta_utils.try_load_train_inference()
-    else:
+    else:  # pragma: no cover
         assert load_mode == "training"
         zetta_utils.load_training_modules()
 

@@ -47,8 +47,8 @@ ANNOTATIONS_DB = build_firestore_layer(
 @attrs.mutable
 class AnnotationDBEntry:
     id: str
-    layer_group_id: str
-    collection_id: str
+    layer_group: str
+    collection: str
     ng_annotation: NgAnnotation
     comment: str
     tags: list[str]
@@ -65,24 +65,18 @@ class AnnotationDBEntry:
 
         result = AnnotationDBEntry(
             id=annotation_id,
-            layer_group_id=raw_with_defaults["layer_group"],
-            collection_id=raw_with_defaults["collection"],
+            layer_group=raw_with_defaults["layer_group"],
+            collection=raw_with_defaults["collection"],
             comment=raw_with_defaults["comment"],
             tags=raw_with_defaults["tags"],
             ng_annotation=ng_annotation,
         )
         return result
 
-    def dict(self) -> dict[str, Any]:
-        result = self.ng_annotation.to_json()
-        if self.layer_group_id:
-            result["layer_group"] = self.layer_group_id
-        if self.collection_id:
-            result["collection"] = self.collection_id
-        if self.comment:
-            result["comment"] = self.comment
-        if self.tags:
-            result["tags"] = self.tags
+    def to_dict(self):
+        result = dict(self.ng_annotation.to_json())
+        result.update(attrs.asdict(self))
+        del result["ng_annotation"]
         return result
 
 

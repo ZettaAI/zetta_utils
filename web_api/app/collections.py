@@ -1,6 +1,7 @@
 # pylint: disable=all # type: ignore
 from typing import Annotated
 
+from attrs import asdict
 from fastapi import FastAPI, HTTPException, Query, Request
 
 from zetta_utils.db_annotations.annotation import delete_annotations, read_annotations
@@ -29,7 +30,7 @@ async def generic_handler(request: Request, exc: Exception):
 
 @api.get("/single/{collection_id}")
 async def read_single(collection_id: str):
-    return read_collection(collection_id)
+    return asdict(read_collection(collection_id))
 
 
 @api.post("/single")
@@ -62,7 +63,7 @@ async def read_multiple(collection_ids: Annotated[list[str] | None, Query()] = N
     response = []
     for _id, collection in collections.items():
         collection.id = _id
-        response.append(collection)
+        response.append(asdict(collection))
     return response
 
 

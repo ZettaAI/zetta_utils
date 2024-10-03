@@ -3,6 +3,7 @@ This file provides web API endpoints for manipulating annotations stored in
 precomputed (i.e. Neuroglancer) file format.  Design reference:
 https://github.com/ZettaAI/zetta_utils/issues/797
 """
+
 from typing import Annotated
 
 # pylint: disable=all # type: ignore
@@ -45,13 +46,13 @@ async def read_in_bounds(
     for line in layer.read_in_bounds(index):
         annotation = AnnotationDBEntry(
             id=line.id,
-            layer_group_id="",
-            collection_id="",
+            layer_group="",
+            collection="",
             comment="",
             tags=[],
             ng_annotation=LineAnnotation(pointA=line.start, pointB=line.end),
         )
-        response.append(annotation.dict())
+        response.append(annotation.to_dict())
     return response
 
 

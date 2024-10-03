@@ -27,7 +27,7 @@ async def generic_handler(request: Request, exc: Exception):
 
 @api.get("/single/{annotation_id}")
 async def read_single(annotation_id: str):
-    return read_annotation(annotation_id).dict()
+    return read_annotation(annotation_id).to_dict()
 
 
 @api.post("/single")
@@ -84,7 +84,7 @@ async def read_multiple(
     response = []
     for _id, annotation in annotations.items():
         annotation.id = _id
-        response.append(annotation.dict())
+        response.append(annotation.to_dict())
     return response
 
 

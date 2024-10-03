@@ -59,8 +59,8 @@ def test_add_update_delete_annotation(
     )
 
     _annotation = annotation.read_annotation(_id)
-    assert _annotation.collection_id == collection_id
-    assert _annotation.layer_group_id == layer_group_id
+    assert _annotation.collection == collection_id
+    assert _annotation.layer_group == layer_group_id
     assert len(cast(list, _annotation.tags)) == 2
 
     annotation.update_annotation(

@@ -29,8 +29,9 @@ class CollectionDBEntry:
     name: str
     created_by: str
     created_at: float
-    modified_by: str
-    modified_at: float
+    modified_by: str | None
+    modified_at: float | None
+    comment: str | None
 
     @staticmethod
     def from_dict(collection_id: str, raw_dict: Mapping) -> CollectionDBEntry:
@@ -39,8 +40,9 @@ class CollectionDBEntry:
             name=raw_dict["name"],
             created_by=raw_dict["created_by"],
             created_at=raw_dict["created_at"],
-            modified_by=raw_dict["modified_by"],
-            modified_at=raw_dict["modified_at"],
+            modified_by=raw_dict.get("modified_by"),
+            modified_at=raw_dict.get("modified_at"),
+            comment=raw_dict.get("comment"),
         )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Mapping, cast
+from typing import List, Mapping, cast, overload
 
 import attrs
 
@@ -26,9 +26,10 @@ LAYER_GROUPS_DB = build_firestore_layer(
 class LayerGroupDBEntry:
     id: str
     name: str
-    collection_id: str
+    collection: str
     layers: list[str]
     created_by: str
+    modified_by: str | None
 
     @staticmethod
     def from_dict(layer_group_id: str, raw_dict: Mapping) -> LayerGroupDBEntry:
@@ -36,7 +37,8 @@ class LayerGroupDBEntry:
             id=layer_group_id,
             name=raw_dict["name"],
             created_by=raw_dict["created_by"],
-            collection_id=raw_dict["collection"],
+            modified_by=raw_dict.get("modified_by"),
+            collection=raw_dict["collection"],
             layers=raw_dict["layers"],
         )
 
@@ -48,19 +50,14 @@ def read_layer_group(layer_group_id: str) -> LayerGroupDBEntry:
     return result
 
 
-# TODO: mypy bug fixed in 1.11
-# @overload
-# def read_layer_groups(  # type: ignore
-#     *, layer_group_ids: list[str] = ..., collection_ids: None = ...
-# ) -> list[LayerGroupDBEntry]:
-#     ...
+@overload
+def read_layer_groups(*, layer_group_ids: list[str]) -> list[LayerGroupDBEntry]:
+    ...
 
 
-# @overload
-# def read_layer_groups( # type: ignore
-#     *, layer_group_ids: None = ..., collection_ids: list[str] | None = ...
-# ) -> dict[str, LayerGroupDBEntry]:
-#     ...
+@overload
+def read_layer_groups(*, collection_ids: list[str] | None = None) -> dict[str, LayerGroupDBEntry]:
+    ...
 
 
 def read_layer_groups(*, layer_group_ids=None, collection_ids=None):

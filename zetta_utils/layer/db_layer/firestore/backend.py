@@ -135,7 +135,7 @@ class FirestoreBackend(DBBackend):
         If index provided, delete rows from the index; else, delete all rows.
         """
         bulk_writer = self.client.bulk_writer()
-        if idx:
+        if idx is not None:
             doc_refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         else:
             collection_ref = self.client.collection(self.collection)

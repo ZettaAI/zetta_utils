@@ -198,7 +198,7 @@ class DatastoreBackend(DBBackend):
         If index provided, delete rows from the index.
         Else delete all rows.
         """
-        if idx:
+        if idx is not None:
             keys: list[Key] = []
             for _key, col_keys in self._get_row_col_keys(idx.row_keys, ds_keys=True).items():
                 keys.extend(col_keys)

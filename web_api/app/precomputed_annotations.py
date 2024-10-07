@@ -30,7 +30,7 @@ async def generic_handler(request: Request, exc: Exception):
     return generic_exception_handler(request, exc)
 
 
-@api.get("/")
+@api.get("/annotations")
 async def read_in_bounds(
     path: Annotated[str, Query()],
     bbox_start: Annotated[tuple[int, int, int], Query()],
@@ -56,7 +56,7 @@ async def read_in_bounds(
     return response
 
 
-@api.put("/")
+@api.put("/annotations")
 async def add_multiple(
     annotations: list[dict],
     path: Annotated[str, Query()],
@@ -80,7 +80,7 @@ async def add_multiple(
     layer.write_annotations(lines)
 
 
-@api.delete("/")
+@api.delete("/annotations")
 async def delete_multiple(
     path: Annotated[str, Query()],
 ):

@@ -32,7 +32,7 @@ app.mount("/collections", collections_api)
 app.mount("/layer_groups", layer_groups_api)
 app.mount("/layers", layers_api)
 app.mount("/painting", painting_api)
-app.mount("/precomputed_annotations", precomputed_annotations_api)
+app.mount("/precomputed", precomputed_annotations_api)
 
 
 @app.middleware("http")

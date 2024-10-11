@@ -95,7 +95,9 @@ class ReduceNaive(ReduceOperation):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
                     with semaphore("read"):
-                        res[subidx_channels] = torch.maximum(res[subidx_channels], layer[intscn])
+                        res[subidx_channels] = torch.maximum(
+                            res[subidx_channels], convert.to_torch(layer[intscn], res.device)
+                        )
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)

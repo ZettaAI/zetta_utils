@@ -555,9 +555,12 @@ class AnnotationLayer:
             result = list(result_dict.values())
         return result
 
-    def read_in_bounds(self, index: VolumetricIndex):
+    def read_in_bounds(self, index: VolumetricIndex, strict: bool = False):
         """
-        Return all annotations within the given bounds (index).
+        Return all annotations within the given bounds (index).  If strict is
+        true, return ONLY annotations entirely within the given bounds.  If it
+        is false, then you may also get some annotations that are partially or
+        entirely outside the given bounds.
         """
         level = len(self.chunk_sizes) - 1
         result = []
@@ -573,6 +576,10 @@ class AnnotationLayer:
                 for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2])):
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                     result += read_lines(anno_file_path)
+        if strict:
+            result = list(
+                filter(lambda x: index.contains(x.start) and index.contains(x.end), result)
+            )
         result_dict = {line.id: line for line in result}
         result = list(result_dict.values())
         return result

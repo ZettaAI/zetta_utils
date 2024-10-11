@@ -50,11 +50,19 @@ def test_round_trip():
     for line in lines:
         assert line in lines_read
 
-    idx = VolumetricIndex.from_coords((1000, 500, 300), (1500, 1000, 1000), Vec3D(10, 10, 40))
-    lines_read = sf.read_in_bounds(idx)
+    idx = VolumetricIndex.from_coords((255, 0, 300), (1500, 1000, 1000), Vec3D(10, 10, 40))
+    # With that index, and strict=False, we would get at least 3 lines (ids 3, 4, and 5).
+    lines_read = sf.read_in_bounds(idx, strict=False)
+    assert len(lines_read) == 3
+    for line in lines[-2:]:
+        assert line in lines_read
+        assert line.id in [3, 4, 5]
+    # But with strict=True, we should get only 2 lines (ids 4 and 5).
+    lines_read = sf.read_in_bounds(idx, strict=True)
     assert len(lines_read) == 2
     for line in lines[-2:]:
         assert line in lines_read
+        assert line.id in [4, 5]
 
     # Above is typical usage.  Below, we do some odd things
     # to trigger other code paths we want to test.

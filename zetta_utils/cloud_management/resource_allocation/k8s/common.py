@@ -1,12 +1,14 @@
 """
 Tools to interact with kubernetes clusters.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any, Final, Optional, Tuple
 
 import attrs
+from kubernetes.dynamic import DynamicClient
 
 from kubernetes import client as k8s_client  # type: ignore
 from zetta_utils import builder, log, run
@@ -144,3 +146,32 @@ def parse_cluster_info(
             project=cluster_project,
         )
     return cluster_info
+
+
+def create_dynamic_resource(
+    name: str,
+    configuration: k8s_client.Configuration,
+    api_version: str,
+    kind: str,
+    manifest: dict,
+    namespace: str | None = "default",
+):
+    api_client = k8s_client.api_client
+    client = DynamicClient(api_client.ApiClient(configuration=configuration))
+    dynamic_api = client.resources.get(api_version=api_version, kind=kind)
+    logger.info(f"Creating dynamic k8s resource `{name}`")
+    dynamic_api.create(body=manifest, namespace=namespace)
+
+
+def delete_dynamic_resource(
+    name: str,
+    configuration: k8s_client.Configuration,
+    api_version: str,
+    kind: str,
+    namespace: str | None = "default",
+):
+    api_client = k8s_client.api_client
+    client = DynamicClient(api_client.ApiClient(configuration=configuration))
+    dynamic_api = client.resources.get(api_version=api_version, kind=kind)
+    logger.info(f"Deleting dynamic k8s resource `{name}`")
+    dynamic_api.delete(name=name, body={}, namespace=namespace)

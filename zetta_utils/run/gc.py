@@ -14,10 +14,7 @@ from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
 
 from kubernetes import client as k8s_client  # type: ignore
-from zetta_utils.cloud_management.resource_allocation.k8s import (
-    ClusterInfo,
-    get_cluster_data,
-)
+from zetta_utils.cloud_management.resource_allocation import k8s
 from zetta_utils.log import get_logger
 from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
     DEFAULT_GCP_CLUSTER,
@@ -53,20 +50,49 @@ def _get_current_resources_and_stale_run_ids() -> (
     time_diff = time.time() - lookback
     for run_id, heartbeat in zip(run_ids, heartbeats):
         if heartbeat < time_diff:
-            stale_ids.append(run_id[4:])
+            if run_id[:4] == "run-":
+                stale_ids.append(run_id[4:])
+            else:
+                stale_ids.append(run_id)
     return run_resources, stale_ids
 
 
-def _read_clusters(run_id_key: str) -> list[ClusterInfo]:  # pragma: no cover
+def _read_clusters(run_id_key: str) -> list[k8s.ClusterInfo]:  # pragma: no cover
     try:
         clusters_str = RUN_DB[run_id_key]["clusters"]
     except KeyError:
         return [DEFAULT_GCP_CLUSTER]
     clusters: list[Mapping] = json.loads(clusters_str)
-    return [ClusterInfo(**cluster) for cluster in clusters]
+    return [k8s.ClusterInfo(**cluster) for cluster in clusters]
 
 
-def _delete_k8s_resource(resource_id: str, resource: Resource):
+def _delete_dynamic_resource(
+    resource_id: str, resource: Resource, configuration: k8s_client.Configuration
+) -> bool:
+    success = True
+    try:
+        k8s.delete_dynamic_resource(
+            resource.name,
+            configuration,
+            k8s.keda.KEDA_API_VERSION,
+            resource.type,
+            namespace="default",
+        )
+        deregister_resource(resource_id)
+    except k8s_client.ApiException as exc:
+        if exc.status == 404:
+            success = True
+            logger.info(f"Resource does not exist: `{resource.name}`: {exc}")
+            deregister_resource(resource_id)
+        else:
+            success = False
+            msg = f"Failed to delete k8s resource `{resource.name}`: {exc}"
+            logger.warning(msg)
+            post_message(msg)
+    return success
+
+
+def _delete_k8s_resource(resource_id: str, resource: Resource) -> bool:
     success = True
     k8s_apps_v1_api = k8s_client.AppsV1Api()
     k8s_core_v1_api = k8s_client.CoreV1Api()
@@ -110,7 +136,7 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
     clusters = _read_clusters(run_id)
     for cluster in clusters:
         try:
-            configuration, _ = get_cluster_data(cluster)
+            configuration, _ = k8s.get_cluster_data(cluster)
         except GoogleAPICallError as exc:
             # cluster does not exist, discard resource entries
             logger.info(f"Could not connect to {cluster}: ERROR CODE {exc.code}")
@@ -124,7 +150,13 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
 
         k8s_client.Configuration.set_default(configuration)
         for resource_id, resource in resources.items():
-            _delete_k8s_resource(resource_id, resource)
+            if resource.type in [
+                ResourceTypes.K8S_SCALED_OBJECT.value,
+                ResourceTypes.K8S_TRIGGER_AUTH.value,
+            ]:
+                success &= _delete_dynamic_resource(resource_id, resource, configuration)
+                continue
+            success &= _delete_k8s_resource(resource_id, resource)
     return success
 
 
@@ -169,7 +201,8 @@ if __name__ == "__main__":  # pragma: no cover
     logger.setLevel(logging.INFO)
     _resources, stale_run_ids = _get_current_resources_and_stale_run_ids()
     if len(stale_run_ids) > 0:
-        post_message(f"Cleaning up {len(stale_run_ids)} runs.")
+        _ids = "\n".join(stale_run_ids)
+        post_message(f"Cleaning up {len(stale_run_ids)} runs.\n```{_ids}```")
     else:
         post_message("Nothing to do.", priority=False)
     for _id in stale_run_ids:

@@ -6,6 +6,8 @@ from .common import (
     ClusterInfo,
     DEFAULT_CLUSTER_INFO,
     DEFAULT_CLUSTER_PROJECT,
+    create_dynamic_resource,
+    delete_dynamic_resource,
     get_cluster_data,
     parse_cluster_info,
 )
@@ -21,6 +23,7 @@ from .job import (
     follow_job_logs,
     wait_for_job_completion,
 )
+from .keda import scaled_deployment_ctx_mngr
 from .pod import get_pod_spec
 from .secret import secrets_ctx_mngr, get_secrets_and_mapping
 from .service import get_service, service_ctx_manager

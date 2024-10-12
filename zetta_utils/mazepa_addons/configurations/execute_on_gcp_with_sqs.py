@@ -59,10 +59,12 @@ def get_gcp_with_sqs_config(
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
     ctx_managers: list[AbstractContextManager],
+    sqs_based_scaling: bool,
     worker_resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    cool_down_period: int = 300,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"run-{execution_id}-work"
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -95,7 +97,7 @@ def get_gcp_with_sqs_config(
         image=worker_image,
         task_queue_spec=task_queue_spec,
         outcome_queue_spec=outcome_queue_spec,
-        replicas=worker_replicas,
+        replicas=1 if sqs_based_scaling else worker_replicas,
         resources=worker_resources,
         env_secret_mapping=env_secret_mapping,
         labels=worker_labels,
@@ -105,14 +107,25 @@ def get_gcp_with_sqs_config(
         provisioning_model=provisioning_model,
     )
 
-    ctx_managers.append(
-        resource_allocation.k8s.deployment_ctx_mngr(
+    if sqs_based_scaling:
+        scaled_deployment_ctx_mngr = resource_allocation.k8s.scaled_deployment_ctx_mngr(
+            execution_id,
+            cluster_info=worker_cluster,
+            deployment=deployment,
+            secrets=secrets,
+            max_replicas=worker_replicas,
+            queue=task_queue,
+            cool_down_period=cool_down_period,
+        )
+        ctx_managers.append(scaled_deployment_ctx_mngr)
+    else:
+        deployment_ctx_mngr = resource_allocation.k8s.deployment_ctx_mngr(
             execution_id,
             cluster_info=worker_cluster,
             deployment=deployment,
             secrets=secrets,
         )
-    )
+        ctx_managers.append(deployment_ctx_mngr)
     return task_queue, outcome_queue, ctx_managers
 
 
@@ -140,6 +153,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    sqs_based_scaling: bool = True,
+    cool_down_period: int = 300,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -198,6 +213,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             num_procs=num_procs,
             semaphores_spec=semaphores_spec,
             provisioning_model=provisioning_model,
+            sqs_based_scaling=sqs_based_scaling,
+            cool_down_period=cool_down_period,
         )
 
         with ExitStack() as stack:

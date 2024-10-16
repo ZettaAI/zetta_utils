@@ -117,6 +117,7 @@ def _delete_k8s_resource(resource_id: str, resource: Resource) -> bool:
                 namespace="default",
                 propagation_policy="Foreground",
             )
+        deregister_resource(resource_id)
     except k8s_client.ApiException as exc:
         if exc.status == 404:
             success = True
@@ -174,6 +175,7 @@ def _delete_sqs_queues(resources: dict[str, Resource]) -> bool:  # pragma: no co
             logger.info(f"Deleting SQS queue `{resource.name}`")
             queue_url = sqs_client.get_queue_url(QueueName=resource.name)["QueueUrl"]
             sqs_client.delete_queue(QueueUrl=queue_url)
+            deregister_resource(resource_id)
         except sqs_client.exceptions.QueueDoesNotExist as exc:
             logger.info(f"Queue does not exist: `{resource.name}`: {exc}")
             deregister_resource(resource_id)

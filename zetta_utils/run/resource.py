@@ -15,6 +15,7 @@ RESOURCE_DB = build_firestore_layer(
 class ResourceTypes(Enum):
     K8S_CONFIGMAP = "k8s_configmap"
     K8S_DEPLOYMENT = "k8s_deployment"
+    K8S_SCALED_JOB = "ScaledJob"
     K8S_SCALED_OBJECT = "ScaledObject"
     K8S_TRIGGER_AUTH = "TriggerAuthentication"
     K8S_JOB = "k8s_job"

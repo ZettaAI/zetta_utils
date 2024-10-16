@@ -38,8 +38,10 @@ def run_worker(
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
     debug: bool = False,
+    idle_timeout: int = 60,
 ):
     start_time = time.time()
+    time_slept = 0.0
     while True:
         try:
             task_msgs = task_queue.pull(max_num=max_pull_num)
@@ -68,8 +70,10 @@ def run_worker(
         if len(task_msgs) == 0:
             logger.info(f"Sleeping for {sleep_sec} secs.")
             time.sleep(sleep_sec)
+            time_slept += sleep_sec
         else:
             logger.info("STARTING: task batch execution.")
+            time_slept = 0
             time_start = time.time()
             for msg in task_msgs:
                 task = msg.payload
@@ -92,6 +96,9 @@ def run_worker(
             logger.info(f"DONE: task batch execution ({time_end - time_start:.2f}sec).")
 
         if max_runtime is not None and time.time() - start_time > max_runtime:
+            break
+
+        if time_slept > idle_timeout:
             break
 
 

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 import attrs
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import builder, log
 
 from .common import ClusterInfo, get_cluster_data

@@ -8,7 +8,7 @@ from typing import Dict, List, Optional
 
 from kubernetes.client.exceptions import ApiException
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from kubernetes import watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.run import (
@@ -24,15 +24,15 @@ from .secret import secrets_ctx_mngr
 logger = log.get_logger("zetta_utils")
 
 
-def _get_job_spec(
+def get_job_spec(
     pod_spec: k8s_client.V1PodSpec,
-    meta: k8s_client.V1ObjectMeta,
+    meta: Optional[k8s_client.V1ObjectMeta] = None,
     active_deadline_seconds: Optional[int] = None,
-    backoff_limit: Optional[int] = 3,
+    backoff_limit: Optional[int] = 1,
     pod_failure_policy: Optional[k8s_client.V1PodFailurePolicy] = None,
     selector: Optional[k8s_client.V1LabelSelector] = None,
     suspend: Optional[bool] = False,
-):
+) -> k8s_client.V1JobSpec:
     pod_template = k8s_client.V1PodTemplateSpec(metadata=meta, spec=pod_spec)
     return k8s_client.V1JobSpec(
         active_deadline_seconds=active_deadline_seconds,
@@ -62,7 +62,7 @@ def get_job_template(
 ) -> k8s_client.V1JobTemplateSpec:
     name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
-    job_spec = _get_job_spec(
+    job_spec = get_job_spec(
         pod_spec=pod_spec,
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,
@@ -86,7 +86,7 @@ def get_job(
 ) -> k8s_client.V1Job:
     name = f"run-{name}"
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
-    job_spec = _get_job_spec(
+    job_spec = get_job_spec(
         pod_spec=pod_spec,
         meta=meta,
         active_deadline_seconds=active_deadline_seconds,

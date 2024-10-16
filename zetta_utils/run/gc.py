@@ -13,7 +13,7 @@ import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils.cloud_management.resource_allocation import k8s
 from zetta_utils.log import get_logger
 from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
@@ -151,6 +151,7 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
         k8s_client.Configuration.set_default(configuration)
         for resource_id, resource in resources.items():
             if resource.type in [
+                ResourceTypes.K8S_SCALED_JOB.value,
                 ResourceTypes.K8S_SCALED_OBJECT.value,
                 ResourceTypes.K8S_TRIGGER_AUTH.value,
             ]:

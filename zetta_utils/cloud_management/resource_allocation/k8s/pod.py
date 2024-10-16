@@ -4,10 +4,14 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import log
+from zetta_utils.cloud_management.resource_allocation.k8s.volume import (
+    get_common_volume_mounts,
+    get_common_volumes,
+)
 
 from .secret import get_worker_env_vars
 
@@ -71,4 +75,32 @@ def get_pod_spec(
         termination_grace_period_seconds=30,
         tolerations=tolerations,
         volumes=volumes,
+    )
+
+
+def get_mazepa_pod_spec(
+    image: str,
+    command: str,
+    resources: Optional[Dict[str, int | float | str]] = None,
+    env_secret_mapping: Optional[Dict[str, str]] = None,
+    provisioning_model: Literal["standard", "spot"] = "spot",
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
+) -> k8s_client.V1PodSpec:
+    schedule_toleration = k8s_client.V1Toleration(
+        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
+    )
+
+    return get_pod_spec(
+        name="zutils-worker",
+        image=image,
+        command=["/bin/sh"],
+        command_args=["-c", command],
+        resources=resources,
+        env_secret_mapping=env_secret_mapping,
+        node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
+        restart_policy="Never",
+        tolerations=[schedule_toleration],
+        volumes=get_common_volumes(),
+        volume_mounts=get_common_volume_mounts(),
+        resource_requests=resource_requests,
     )

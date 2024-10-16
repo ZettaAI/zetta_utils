@@ -4,7 +4,7 @@ Helpers for k8s volumes.
 
 from __future__ import annotations
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 
 
 def get_common_volumes():

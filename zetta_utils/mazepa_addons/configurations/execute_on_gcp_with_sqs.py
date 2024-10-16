@@ -1,3 +1,4 @@
+# pylint: disable=too-many-locals
 from __future__ import annotations
 
 import copy
@@ -6,7 +7,7 @@ from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Literal, Optional, Union
 
 from zetta_utils import builder, log, mazepa, run
-from zetta_utils.cloud_management import resource_allocation
+from zetta_utils.cloud_management.resource_allocation import aws_sqs, k8s
 from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
@@ -31,7 +32,7 @@ DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
 DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
 DEFAULT_GCP_CLUSTER_PROJECT: Final = "zetta-research"
 
-DEFAULT_GCP_CLUSTER: Final = resource_allocation.k8s.ClusterInfo(
+DEFAULT_GCP_CLUSTER: Final = k8s.ClusterInfo(
     name=DEFAULT_GCP_CLUSTER_NAME,
     region=DEFAULT_GCP_CLUSTER_REGION,
     project=DEFAULT_GCP_CLUSTER_PROJECT,
@@ -54,7 +55,7 @@ def _ensure_required_env_vars():
 def get_gcp_with_sqs_config(
     execution_id: str,
     worker_image: str,
-    worker_cluster: resource_allocation.k8s.ClusterInfo,
+    worker_cluster: k8s.ClusterInfo,
     worker_replicas: int,
     worker_resources: Dict[str, int | float | str],
     worker_labels: Optional[Dict[str, str]],
@@ -64,7 +65,7 @@ def get_gcp_with_sqs_config(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
-    cool_down_period: int = 300,
+    idle_worker_timeout: int = 300,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"run-{execution_id}-work"
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -82,44 +83,53 @@ def get_gcp_with_sqs_config(
     task_queue = builder.build(task_queue_spec)
     outcome_queue = builder.build(outcome_queue_spec)
 
-    ctx_managers.append(resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
+    ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
+    ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue))
 
-    ctx_managers.append(
-        resource_allocation.aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue)
-    )
-
-    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
-        execution_id, REQUIRED_ENV_VARS
-    )
-
-    deployment = resource_allocation.k8s.get_mazepa_worker_deployment(
-        execution_id,
-        image=worker_image,
-        task_queue_spec=task_queue_spec,
-        outcome_queue_spec=outcome_queue_spec,
-        replicas=1 if sqs_based_scaling else worker_replicas,
-        resources=worker_resources,
-        env_secret_mapping=env_secret_mapping,
-        labels=worker_labels,
-        resource_requests=worker_resource_requests,
-        num_procs=num_procs,
-        semaphores_spec=semaphores_spec,
-        provisioning_model=provisioning_model,
-    )
+    secrets, env_secret_mapping = k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
 
     if sqs_based_scaling:
-        scaled_deployment_ctx_mngr = resource_allocation.k8s.scaled_deployment_ctx_mngr(
+        worker_command = k8s.get_mazepa_worker_command(
+            task_queue_spec,
+            outcome_queue_spec,
+            num_procs,
+            semaphores_spec,
+            idle_timeout=idle_worker_timeout,
+        )
+        pod_spec = k8s.get_mazepa_pod_spec(
+            image=worker_image,
+            command=worker_command,
+            resources=worker_resources,
+            env_secret_mapping=env_secret_mapping,
+            provisioning_model=provisioning_model,
+            resource_requests=worker_resource_requests,
+        )
+        job_spec = k8s.get_job_spec(pod_spec=pod_spec)
+        scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
             execution_id,
             cluster_info=worker_cluster,
-            deployment=deployment,
+            job_spec=job_spec,
             secrets=secrets,
             max_replicas=worker_replicas,
             queue=task_queue,
-            cool_down_period=cool_down_period,
         )
-        ctx_managers.append(scaled_deployment_ctx_mngr)
+        ctx_managers.append(scaled_job_ctx_mngr)
     else:
-        deployment_ctx_mngr = resource_allocation.k8s.deployment_ctx_mngr(
+        deployment = k8s.get_mazepa_worker_deployment(
+            execution_id,
+            image=worker_image,
+            task_queue_spec=task_queue_spec,
+            outcome_queue_spec=outcome_queue_spec,
+            replicas=1 if sqs_based_scaling else worker_replicas,
+            resources=worker_resources,
+            env_secret_mapping=env_secret_mapping,
+            labels=worker_labels,
+            resource_requests=worker_resource_requests,
+            num_procs=num_procs,
+            semaphores_spec=semaphores_spec,
+            provisioning_model=provisioning_model,
+        )
+        deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,
             cluster_info=worker_cluster,
             deployment=deployment,
@@ -154,7 +164,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     sqs_based_scaling: bool = True,
-    cool_down_period: int = 300,
+    idle_worker_timeout: int = 300,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -192,7 +202,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                     "Both `worker_cluster_region` and `worker_cluster_project` must be provided "
                     "when `worker_cluster_name` is specified."
                 )
-            worker_cluster = resource_allocation.k8s.ClusterInfo(
+            worker_cluster = k8s.ClusterInfo(
                 name=worker_cluster_name,
                 region=worker_cluster_region,
                 project=worker_cluster_project,
@@ -214,7 +224,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             semaphores_spec=semaphores_spec,
             provisioning_model=provisioning_model,
             sqs_based_scaling=sqs_based_scaling,
-            cool_down_period=cool_down_period,
+            idle_worker_timeout=idle_worker_timeout,
         )
 
         with ExitStack() as stack:

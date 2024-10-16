@@ -5,7 +5,7 @@ Helpers for k8s configmap.
 from contextlib import contextmanager
 from typing import Dict, Optional
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import log
 from zetta_utils.run import (
     Resource,

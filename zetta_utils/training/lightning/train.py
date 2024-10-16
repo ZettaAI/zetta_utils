@@ -11,7 +11,7 @@ from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import time
 import uuid
 from typing import Any, Union, cast, overload
 
@@ -25,7 +26,7 @@ NgAnnotation = Union[
 ]
 
 
-INDEXED_COLS = ("collection", "layer_group", "tags")
+INDEXED_COLS = ("collection", "layer_group", "tags", "created_at", "modified_at")
 NON_INDEXED_COLS = (
     "comment",
     AnnotationKeys.TYPE.value,
@@ -52,6 +53,8 @@ class AnnotationDBEntry:
     ng_annotation: NgAnnotation
     comment: str
     tags: list[str]
+    created_at: float | None = None
+    modified_at: float | None = None
 
     @staticmethod
     def from_dict(annotation_id: str, raw_dict: dict[str, Any]) -> AnnotationDBEntry:
@@ -70,6 +73,8 @@ class AnnotationDBEntry:
             comment=raw_with_defaults["comment"],
             tags=raw_with_defaults["tags"],
             ng_annotation=ng_annotation,
+            created_at=raw_dict.get("created_at"),
+            modified_at=raw_dict.get("modified_at"),
         )
         return result
 
@@ -142,6 +147,8 @@ def add_annotation(
     row["collection"] = collection_id
     row["layer_group"] = layer_group_id
     row["comment"] = comment
+    row["created_at"] = time.time()
+
     if tags:
         row["tags"] = list(set(tags))
     annotation_id = str(uuid.uuid4())
@@ -165,6 +172,7 @@ def add_annotations(
         row["collection"] = collection_id
         row["layer_group"] = layer_group_id
         row["comment"] = comment
+        row["created_at"] = time.time()
         if tags:
             row["tags"] = list(set(tags))
         rows.append(row)
@@ -183,7 +191,7 @@ def update_annotation(
     tags: list[str] | None = None,
 ):
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
-    row: DBRowDataT = {}
+    row: DBRowDataT = {"modified_at": time.time()}
     if collection_id:
         row["collection"] = collection_id
     if layer_group_id:
@@ -206,7 +214,7 @@ def update_annotations(
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     rows = []
     for _ in range(len(annotation_ids)):
-        row: DBRowDataT = {}
+        row: DBRowDataT = {"modified_at": time.time()}
         if collection_id:
             row["collection"] = collection_id
         if layer_group_id:
@@ -231,6 +239,8 @@ def parse_ng_annotations(annotations_raw: list[dict]) -> list[NgAnnotation]:
     annotations = []
     for ann in annotations_raw:
         _type = ann.pop("type")
+        ann.pop("created_at", None)
+        ann.pop("modified_at", None)
         if _type == "line":
             annotations.append(LineAnnotation(**ann))
         elif _type == "ellipsoid":

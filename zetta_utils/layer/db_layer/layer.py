@@ -215,14 +215,17 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         return self.backend.clear()
 
     def keys(
-        self, column_filter: dict[str, list] | None = None
+        self,
+        column_filter: dict[str, list] | None = None,
+        union: bool = True,
     ) -> list[str]:  # pragma: no cover # no logic
-        return self.backend.keys(column_filter)
+        return self.backend.keys(column_filter, union=union)
 
     def query(
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
+        union: bool = True,
     ) -> dict[str, DBRowDataT]:  # pragma: no cover # no logic
         """
         Fetch list of rows that match given filters.
@@ -232,7 +235,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         `return_columns` is a tuple of column names to read from matched rows.
             If provided, this can signifincantly improve performance based on the backend used.
         """
-        return self.backend.query(column_filter, return_columns=return_columns)
+        return self.backend.query(column_filter, return_columns=return_columns, union=union)
 
     def get_batch(
         self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()

@@ -36,7 +36,11 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         ...
 
     @abstractmethod
-    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def keys(
+        self,
+        column_filter: dict[str, list] | None = None,
+        union: bool = True,
+    ) -> list[str]:
         ...
 
     @abstractmethod
@@ -44,6 +48,7 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
+        union: bool = True,
     ) -> dict[str, DBRowDataT]:
         ...
 

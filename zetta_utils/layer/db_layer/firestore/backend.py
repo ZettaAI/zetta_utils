@@ -147,6 +147,7 @@ class FirestoreBackend(DBBackend):
     def keys(
         self,
         column_filter: dict[str, list] | None = None,  # pylint: disable=unused-argument
+        union: bool = True,  # pylint: disable=unused-argument
     ) -> list[str]:
         """
         Not implemented, firestore does not yet support `keys_only` queries.
@@ -157,6 +158,7 @@ class FirestoreBackend(DBBackend):
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
+        union: bool = True,
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
@@ -181,7 +183,10 @@ class FirestoreBackend(DBBackend):
             if len(_filters) == 1:
                 _q = collection_ref.where(filter=_filters[0])
             else:  # pragma: no cover # no emulator support for composite queries
-                _q = collection_ref.where(filter=Or(_filters))
+                if union:
+                    _q = collection_ref.where(filter=Or(_filters))
+                else:
+                    _q = collection_ref.where(filter=And(_filters))
             snapshots = list(_q.stream())
         else:
             refs = collection_ref.list_documents()

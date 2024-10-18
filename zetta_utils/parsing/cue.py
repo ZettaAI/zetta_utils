@@ -68,7 +68,7 @@ def load(path):
                 tmp_f.write(contents)
                 tmp_f.flush()
             # Do a quick check for valid CUE before proceeding any further
-            result = subprocess.run(["cue", "vet", local_tmp_path], check=True)
+            result = subprocess.run(["cue", "vet", "-c", local_tmp_path], check=True)
             # Then, return file contents
             result = load_local(local_tmp_path)
     return result

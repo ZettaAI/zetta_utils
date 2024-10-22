@@ -20,6 +20,8 @@ ADD_WORKLOAD_IDENTITY_TMPL = 'gcloud container clusters get-credentials {CLUSTER
     && gcloud iam service-accounts add-iam-policy-binding {CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com --role roles/iam.workloadIdentityUser --member "serviceAccount:{PROJECT_NAME}.svc.id.goog[default/default]" --project {PROJECT_NAME} \
     && kubectl annotate serviceaccount default --namespace default iam.gke.io/gcp-service-account={CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com'
 
+CREATE_ARTIFACT_REGISTRY_REPO_TMPL = "gcloud artifacts repositories create zutils --repository-format=docker --location={REGION} --project={PROJECT_NAME}"
+
 CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME}; kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml"
 
 
@@ -71,6 +73,9 @@ def main():  # pylint: disable=too-many-statements
     )
     parser.add_argument("--add_cpu", action="store_true", help="Add CPU node pool.")
     parser.add_argument("--add_gpu", action="store_true", help="Add GPU node pool.")
+    parser.add_argument(
+        "--add-repo", action="store_true", help="Add Artifact Registry Repository."
+    )
 
     args = parser.parse_args()
     # cluster_version = args.cluster_version
@@ -137,6 +142,13 @@ def main():  # pylint: disable=too-many-statements
     add_wi_command = add_wi_command.replace("{CLUSTER_NAME}", args.cluster_name)
     print(f"Running: \n{add_wi_command}")
     subprocess.call(add_wi_command, shell=True)
+
+    if args.add_repo:
+        create_repo_command = CREATE_ARTIFACT_REGISTRY_REPO_TMPL
+        create_repo_command = create_repo_command.replace("{REGION}", args.region)
+        create_repo_command = create_repo_command.replace("{PROJECT_NAME}", args.project_name)
+        print(f"Running: \n{create_repo_command}")
+        subprocess.call(create_repo_command, shell=True)
 
 
 if __name__ == "__main__":

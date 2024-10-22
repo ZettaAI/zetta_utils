@@ -72,7 +72,7 @@ def get_mazepa_worker_command(
         command = "mazepa.run_worker"
         num_procs_line = ""
         semaphores_line = ""
-        idle_timeout_line = f"idle_timeout: {num_procs}\n"
+        idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
     else:
         command = "mazepa.run_worker_manager"
         num_procs_line = f"num_procs: {num_procs}\n"

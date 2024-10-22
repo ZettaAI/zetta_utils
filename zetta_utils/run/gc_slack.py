@@ -22,8 +22,8 @@ def post_message(msg: str, priority=True):
                 slack_client.chat_delete(
                     channel=os.environ["SLACK_CHANNEL"], ts=RUN_DB["gc_last_msg"]
                 )
-                RUN_DB["gc_last_msg"] = response["ts"]
             except (KeyError, SlackApiError):
                 ...
+            RUN_DB["gc_last_msg"] = response["ts"]
     except SlackApiError as err:
         logger.warning(err.response["error"])

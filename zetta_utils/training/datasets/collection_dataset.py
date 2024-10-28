@@ -28,12 +28,12 @@ def build_collection_dataset(
     base_resolution: Sequence[float],
     layer_rename_map: dict[str, str],
     shared_read_procs: Sequence[DataProcessor],
-    per_layer_read_procs: dict[str, Sequence[DataProcessor]] ,
+    per_layer_read_procs: dict[str, Sequence[DataProcessor]],
+    tags: list[str] | None = None,
 ) -> JointDataset:
-
     datasets = {}
-    annotations = db_annotations.read_annotations(collection_ids=[collection_name])
-    layer_group_map: dict[str, dict[str, Layer]]= {}
+    annotations = db_annotations.read_annotations(collection_ids=[collection_name], tags=tags)
+    layer_group_map: dict[str, dict[str, Layer]] = {}
 
     for i, annotation in enumerate(annotations.values()):
         if annotation.layer_group_id not in layer_group_map:
@@ -52,24 +52,17 @@ def build_collection_dataset(
 
         if isinstance(annotation.ng_annotation, AxisAlignedBoundingBoxAnnotation):
             bbox = BBox3D.from_ng_bbox(
-                ng_bbox=annotation.ng_annotation,
-                base_resolution=base_resolution
+                ng_bbox=annotation.ng_annotation, base_resolution=base_resolution
             ).snapped([0, 0, 0], resolution, "shrink")
-            datasets[str(i)] = (
-                LayerDataset(
-                    layer=build_layer_set(
-                        layers=layers,
-                        read_procs=shared_read_procs
-                    ),
-                    sample_indexer=VolumetricStridedIndexer(
-                        resolution=resolution,
-                        chunk_size=chunk_size,
-                        stride=chunk_stride,
-                        mode="shrink",
-                        bbox=bbox,
-                    )
-
-                )
+            datasets[str(i)] = LayerDataset(
+                layer=build_layer_set(layers=layers, read_procs=shared_read_procs),
+                sample_indexer=VolumetricStridedIndexer(
+                    resolution=resolution,
+                    chunk_size=chunk_size,
+                    stride=chunk_stride,
+                    mode="shrink",
+                    bbox=bbox,
+                ),
             )
     dset = JointDataset(mode="vertical", datasets=datasets)
     return dset

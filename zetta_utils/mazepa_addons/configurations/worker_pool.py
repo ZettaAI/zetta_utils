@@ -86,7 +86,7 @@ def setup_local_worker_pool(
         )
         logger.info(
             f"Created {num_procs} local workers attached to queues "
-            f"`{task_queue_name}`/`{outcome_queue_name}`."
+            f"`{task_queue_name}` / `{outcome_queue_name}`."
         )
         yield
     finally:
@@ -94,7 +94,7 @@ def setup_local_worker_pool(
         pool.join()
         logger.info(
             f"Cleaned up {num_procs} local workers that were attached to queues "
-            f"`{task_queue_name}`/`{outcome_queue_name}`."
+            f"`{task_queue_name}` / `{outcome_queue_name}`."
         )
 
 

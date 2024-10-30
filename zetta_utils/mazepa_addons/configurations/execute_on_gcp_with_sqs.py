@@ -155,6 +155,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     show_progress: bool = True,
     do_dryrun_estimation: bool = True,
     local_test: bool = False,
+    local_test_queues_dir: str | None = None,
     debug: bool = False,
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: float = 300.0,
@@ -177,6 +178,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             batch_gap_sleep_sec=batch_gap_sleep_sec,
             show_progress=show_progress,
             do_dryrun_estimation=do_dryrun_estimation,
+            queues_dir=local_test_queues_dir,
             checkpoint=checkpoint,
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
@@ -187,6 +189,13 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     else:
         _ensure_required_env_vars()
         ctx_managers = copy.copy(list(extra_ctx_managers))
+
+    if local_test_queues_dir:
+        logger.warning(
+            "`local_test_queues_dir` was given, but `local_test` is False. "
+            "The argument will be unused, and remote workers will use the "
+            "default locations for their local task and outcome queues."
+        )
 
         if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")

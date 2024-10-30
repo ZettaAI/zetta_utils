@@ -77,7 +77,10 @@ def configure_semaphores(
             for name in semaphores_spec_:
                 sema = Semaphore(name_to_posix_name(name, os.getpid()))
                 sema.unlink()
-            logger.info(f"Cleaned up semaphores created by process {os.getpid()}.")
+            logger.info(
+                f"Cleaned up semaphores created by process {os.getpid()}.\n"
+                "(Please ignore the UserWarning about leaked semaphore objects.)"
+            )
         except ExistentialError as e:
             raise RuntimeError(
                 f"Trying to unlink semaphores created by process {os.getpid()} that do not exist."

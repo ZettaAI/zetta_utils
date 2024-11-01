@@ -44,6 +44,8 @@ def _get_current_resources_and_stale_run_ids() -> (
         run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
     run_ids = list(run_resources.keys())
+    runs = RUN_DB.query(column_filter={"state": ["running"]})
+    run_ids += list(runs.keys())
     stale_ids = []
     heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
     lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])

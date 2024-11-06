@@ -97,6 +97,9 @@ If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you w
 It is a simple two-step process which is described in detail in their `Documentation <https://cuelang.org/docs/install/>`_.
 
 
+To use **KEDA** (Kubernetes Event-driven Autoscaling), you will first need to install `helm <https://helm.sh/docs/intro/install/>`_.
+
+
 If you are planning to use `zetta_utils.viz` toolkit, you will need to install **nodejs**:
 
 .. code-block:: console

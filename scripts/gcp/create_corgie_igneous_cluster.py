@@ -24,6 +24,10 @@ CREATE_ARTIFACT_REGISTRY_REPO_TMPL = "gcloud artifacts repositories create zutil
 
 CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME}; kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml"
 
+CONFIGURE_KEDA_COMMAND_TMPL = 'helm repo add kedacore https://kedacore.github.io/charts && helm repo update kedacore \
+    && gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
+    && helm install keda kedacore/keda --namespace keda --create-namespace'
+
 
 def main():  # pylint: disable=too-many-statements
     parser = argparse.ArgumentParser(description="Creates a corgie/igneous cluster on GCP.")
@@ -149,6 +153,13 @@ def main():  # pylint: disable=too-many-statements
         create_repo_command = create_repo_command.replace("{PROJECT_NAME}", args.project_name)
         print(f"Running: \n{create_repo_command}")
         subprocess.call(create_repo_command, shell=True)
+
+    create_keda_command = CONFIGURE_KEDA_COMMAND_TMPL
+    create_keda_command = create_keda_command.replace("{REGION}", args.region)
+    create_keda_command = create_keda_command.replace("{PROJECT_NAME}", args.project_name)
+    create_keda_command = create_keda_command.replace("{CLUSTER_NAME}", args.cluster_name)
+    print(f"Running: \n{create_keda_command}")
+    subprocess.call(create_keda_command, shell=True)
 
 
 if __name__ == "__main__":

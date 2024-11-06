@@ -73,7 +73,11 @@ async def add_multiple(
         annotation = AnnotationDBEntry.from_dict(entry["id"], entry)
         line = annotation.ng_annotation
         lines.append(
-            precomp_annotations.LineAnnotation(int(annotation.id), line.point_a, line.point_b)
+            precomp_annotations.LineAnnotation(
+                int(annotation.id),
+                list(line.point_a),
+                list(line.point_b),
+            )
         )
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
     layer = build_annotation_layer(path, index=index, mode="replace")

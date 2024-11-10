@@ -60,21 +60,21 @@ class AnnotationDBEntry:
     def from_dict(annotation_id: str, raw_dict: dict[str, Any]) -> AnnotationDBEntry:
         raw_with_defaults: dict[str, Any] = {"tags": [], **raw_dict}
         shape_dict = copy.deepcopy(raw_with_defaults)
-        del shape_dict["layer_group"]
-        del shape_dict["collection"]
-        del shape_dict["comment"]
-        del shape_dict["tags"]
+        shape_dict.pop("layer_group", None)
+        shape_dict.pop("collection", None)
+        shape_dict.pop("comment", None)
+        shape_dict.pop("tags", None)
         ng_annotation = parse_ng_annotations([shape_dict])[0]
 
         result = AnnotationDBEntry(
             id=annotation_id,
-            layer_group=raw_with_defaults["layer_group"],
-            collection=raw_with_defaults["collection"],
-            comment=raw_with_defaults["comment"],
+            layer_group=raw_with_defaults.get("layer_group", ""),
+            collection=raw_with_defaults.get("collection", ""),
+            comment=raw_with_defaults.get("comment", ""),
             tags=raw_with_defaults["tags"],
             ng_annotation=ng_annotation,
-            created_at=raw_dict.get("created_at"),
-            modified_at=raw_dict.get("modified_at"),
+            created_at=raw_with_defaults.get("created_at"),
+            modified_at=raw_with_defaults.get("modified_at"),
         )
         return result
 

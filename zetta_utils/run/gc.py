@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Mapping
 
 import taskqueue
@@ -46,16 +47,42 @@ def _get_current_resources_and_stale_run_ids() -> (
     run_ids = list(run_resources.keys())
     runs = RUN_DB.query(column_filter={"state": ["running"]})
     run_ids += list(runs.keys())
+    users = []
+    heartbeats = []
+    timestamps = []
+
+    run_infos = RUN_DB[
+        (run_ids, (RunInfo.HEARTBEAT.value, RunInfo.TIMESTAMP.value, RunInfo.ZETTA_USER.value))
+    ]
+    for run_info in run_infos:
+        user = run_info.get(RunInfo.ZETTA_USER.value, "NA")
+        ts = run_info.get(RunInfo.TIMESTAMP.value, 0)
+        hb = run_info.get(RunInfo.HEARTBEAT.value, ts)
+        users.append(user)
+        timestamps.append(ts)
+        heartbeats.append(hb)
+
     stale_ids = []
-    heartbeats = [x.get("heartbeat", 0) for x in RUN_DB[(run_ids, ("heartbeat",))]]
-    lookback = int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
-    time_diff = time.time() - lookback
-    for run_id, heartbeat in zip(run_ids, heartbeats):
-        if heartbeat < time_diff:
+    stale_infos = []
+    hb_threshold = time.time() - int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
+    for run_id, hb, user, ts in zip(run_ids, heartbeats, users, timestamps):
+        if hb < hb_threshold:
+            stale_id = run_id
             if run_id[:4] == "run-":
-                stale_ids.append(run_id[4:])
-            else:
-                stale_ids.append(run_id)
+                stale_id = run_id[4:]
+            stale_ids.append(stale_id)
+            ts_str = datetime.fromtimestamp(ts, timezone.utc).isoformat()
+            hb_str = datetime.fromtimestamp(hb, timezone.utc).isoformat()
+            stale_infos.append(f"{stale_id:<60} | {user:<16} | {ts_str:<42} | {hb_str}")
+
+    if len(stale_ids) > 0:
+        threshold_str = datetime.fromtimestamp(hb_threshold, timezone.utc).isoformat()
+        infos = "\n".join(stale_infos)
+        post_message(
+            f"{len(stale_ids)} run(s) with heartbeat before `{threshold_str}`.\n```{infos}```"
+        )
+    else:
+        post_message("Nothing to do.", priority=False)
     return run_resources, stale_ids
 
 
@@ -205,11 +232,6 @@ def cleanup_run(run_id: str, resources_raw: dict):
 if __name__ == "__main__":  # pragma: no cover
     logger.setLevel(logging.INFO)
     _resources, stale_run_ids = _get_current_resources_and_stale_run_ids()
-    if len(stale_run_ids) > 0:
-        _ids = "\n".join(stale_run_ids)
-        post_message(f"Cleaning up {len(stale_run_ids)} runs.\n```{_ids}```")
-    else:
-        post_message("Nothing to do.", priority=False)
     for _id in stale_run_ids:
         logger.info(f"Cleaning up run `{_id}`")
         cleanup_run(_id, _resources[_id])

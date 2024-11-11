@@ -190,12 +190,12 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         _ensure_required_env_vars()
         ctx_managers = copy.copy(list(extra_ctx_managers))
 
-    if local_test_queues_dir:
-        logger.warning(
-            "`local_test_queues_dir` was given, but `local_test` is False. "
-            "The argument will be unused, and remote workers will use the "
-            "default locations for their local task and outcome queues."
-        )
+        if local_test_queues_dir:
+            logger.warning(
+                "`local_test_queues_dir` was given, but `local_test` is False. "
+                "The argument will be unused, and remote workers will use the "
+                "default locations for their local task and outcome queues."
+            )
 
         if worker_cluster_name is None:
             logger.info(f"Cluster info not provided, using default: {DEFAULT_GCP_CLUSTER}")

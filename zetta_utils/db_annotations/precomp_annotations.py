@@ -149,7 +149,7 @@ def write_bytes(file_or_gs_path: str, data: bytes):
     if "//" not in file_or_gs_path:
         file_or_gs_path = "file://" + file_or_gs_path
     cf = CloudFile(file_or_gs_path)
-    cf.put(data, cache_control="no-cache")
+    cf.put(data, cache_control="no-cache, no-store, max-age=0, must-revalidate")
 
 
 def write_lines(file_or_gs_path: str, lines: Sequence[LineAnnotation], randomize: bool = True):

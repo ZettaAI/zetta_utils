@@ -110,6 +110,8 @@ def lightning_train(
     if resource_limits is None:
         raise ValueError("Must provide resource limits for remote training.")
 
+    assert resource_allocation.gcloud.check_image_exists(image), image
+
     cluster_info = resource_allocation.k8s.parse_cluster_info(
         cluster_name=cluster_name,
         cluster_region=cluster_region,

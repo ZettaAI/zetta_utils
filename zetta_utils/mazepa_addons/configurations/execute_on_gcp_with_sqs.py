@@ -7,7 +7,7 @@ from contextlib import AbstractContextManager, ExitStack
 from typing import Dict, Final, Iterable, Literal, Optional, Union
 
 from zetta_utils import builder, log, mazepa, run
-from zetta_utils.cloud_management.resource_allocation import aws_sqs, k8s
+from zetta_utils.cloud_management.resource_allocation import aws_sqs, gcloud, k8s
 from zetta_utils.mazepa import SemaphoreType, execute
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.tasks import Task
@@ -187,6 +187,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             debug=debug,
         )
     else:
+        assert gcloud.check_image_exists(worker_image), worker_image
         _ensure_required_env_vars()
         ctx_managers = copy.copy(list(extra_ctx_managers))
 

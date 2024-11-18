@@ -44,12 +44,13 @@ def _get_current_resources_and_stale_run_ids() -> (
     for _resource_id, _resource in _resources.items():
         run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
-    run_ids = list(run_resources.keys())
+    u_run_ids = set(run_resources.keys())
     runs = RUN_DB.query(column_filter={"state": ["running"]})
-    run_ids += list(runs.keys())
+    u_run_ids.update(runs.keys())
     users = []
     heartbeats = []
     timestamps = []
+    run_ids = list(u_run_ids)
 
     run_infos = RUN_DB[
         (run_ids, (RunInfo.HEARTBEAT.value, RunInfo.TIMESTAMP.value, RunInfo.ZETTA_USER.value))

@@ -114,7 +114,7 @@ def bulk_insert_synapses(items: List[Dict], table_name: str, batch_size: int = 1
 
             value_entries.append(
                 f"""(
-                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP, TRUE,
                 ST_MakePoint({pre_x}, {pre_y}, {pre_z}),
                 ST_MakePoint({post_x}, {post_y}, {post_z}),
                 ST_MakePoint({ctr_x}, {ctr_y}, {ctr_z})
@@ -125,7 +125,7 @@ def bulk_insert_synapses(items: List[Dict], table_name: str, batch_size: int = 1
 
         return f"""
             INSERT INTO {table_name}
-                (created, pre_pt_position, post_pt_position, ctr_pt_position)
+                (created, valid, pre_pt_position, post_pt_position, ctr_pt_position)
             VALUES
                 {values_clause}
         """
@@ -209,9 +209,10 @@ def main():
         sys.exit()
 
     print(f"{len(items)} annotations ready to export.")
-    yn = input("Proceed [Y/n]? ").upper()
+    table_name = input("Table name: ")
+    yn = input(f"CONFIRM: Import {len(items)} synapses into {table_name} [Y/n]? ").upper()
     if yn in ("Y", ""):
-        bulk_insert_synapses(items, "opl_synapses", batch_size=1000)
+        bulk_insert_synapses(items, table_name, batch_size=1000)
 
 
 if __name__ == "__main__":

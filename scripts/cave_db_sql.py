@@ -10,7 +10,7 @@ from typing import Any
 
 from geoalchemy2.elements import WKBElement
 from shapely.wkb import loads as load_wkb
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL, CursorResult, Result
 from sqlalchemy.exc import SQLAlchemyError
@@ -127,21 +127,26 @@ def main():
     try:
         print(f"Connecting to {DB_NAME} at {DB_HOST}:{DB_PORT}...")
         with engine.connect() as connection:
-            print("Successfully connected")
-
+            print("Successfully connected.")
     # pylint: disable-next=broad-exception-caught
     except Exception as e:
         print("Error connecting to the database:")
         print(e)
         sys.exit()
 
+    # List the tables.  This is the main thing the user needs to know in order to
+    # get anything done, and is most likely to have forgotten.
+    inspector = inspect(engine)
+    print("Available tables:\n - " + "\n - ".join(inspector.get_table_names()))
+    print()
+
     # Now, do the SQL thing.
     with engine.connect() as connection:
         pending_commit = False
         while True:
             try:
-                inp = input("SQL or COMMIT>" if pending_commit else "SQL>")
-                if not inp.strip():
+                inp = input("SQL or COMMIT>" if pending_commit else "SQL>").strip()
+                if not inp:
                     continue
             except EOFError:
                 print("\nExiting.")
@@ -157,6 +162,15 @@ def main():
                 print("Changes rolled back.")
                 pending_commit = False
             else:
+                # SQL (possibly multi-line) command
+                while not inp.endswith(";"):
+                    try:
+                        inp += " " + input("...>")
+                    except EOFError:
+                        inp = ""
+                        break
+                if not inp:
+                    continue
                 try:
                     result = connection.execute(sql(inp))
                     print_results(result)

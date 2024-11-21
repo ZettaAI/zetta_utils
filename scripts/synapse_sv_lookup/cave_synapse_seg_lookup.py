@@ -7,11 +7,13 @@ Command-line options:
     --dry-run: do everything except actually write to the DB
 """
 import argparse
+import json
 import sys
 from collections import defaultdict
 from math import floor
 from typing import Dict, List, Tuple
 
+from google.cloud import storage
 from sqlalchemy import create_engine
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
@@ -28,27 +30,51 @@ DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
 
-# Synapse table parameters
-SYNAPSE_TABLE = "ipl_inhib_synapses"
-SUPERVOX_TABLE = "ipl_inhib_synapses__dacey_human_fovea_2404"
-SYNAPSE_RESOLUTION = Vec3D(20, 20, 50)
 
 # Segmentation parameters
 # pylint: disable-next=line-too-long
-SEG_PATH = "gs://zetta_ws/dacey_human_fovea_2404"
-SEG_RESOLUTION = Vec3D(40, 40, 50)
-SEG_CHUNK_SIZE = Vec3D(256, 256, 64)
-SEG_OFFSET = Vec3D(0, 512, 1)
+
+# Globals
+engine = None
+synapse_table = ""  # e.g. ipl_ribbon_synapses
+supervox_table = ""  # e.g. ipl_ribbon_synapses__dacey_human_fovea_2404
+synapse_resolution = Vec3D(0, 0, 0)
+seg_layer = None
+seg_bounds = None
+seg_path = ""  # e.g. gs://zetta_ws/dacey_human_fovea_2404
+
+seg_resolution = Vec3D(0, 0, 0)
+seg_chunk_size = Vec3D(0, 0, 0)
+seg_offset = Vec3D(0, 0, 0)
 
 # Conversion factors for going from one resolution to another
-SYN_TO_SEG = SYNAPSE_RESOLUTION / SEG_RESOLUTION
-SEG_TO_SYN = SEG_RESOLUTION / SYNAPSE_RESOLUTION
+syn_to_seg = Vec3D(0.0, 0.0, 0.0)
+
+engine = None
+chunk = None
+chunk_bounds = None
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--dry-run", action="store_true")
 args = parser.parse_args()
 if args.dry_run:
     print("Dry Run mode active.")
+
+
+def read_gcs_json(bucket_path):
+    # Parse bucket and blob path
+    bucket_name = bucket_path.split("/")[2]
+    blob_path = "/".join(bucket_path.split("/")[3:])
+
+    # Initialize client
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(blob_path)
+
+    # Download and parse JSON
+    json_str = blob.download_as_text()
+    data = json.loads(json_str)
+    return data
 
 
 def load_volume(path, scale_index=0):
@@ -81,14 +107,14 @@ def chunk_index_for_point(seg_point):
     Return a VolumetricIndex representing the chunk containing the
     given (Vec3D) point, in segmentation voxel coordinates.
     """
-    offset_point = seg_point - SEG_OFFSET
-    chunk_count = floor(offset_point / SEG_CHUNK_SIZE)
-    chunk_start = SEG_OFFSET + chunk_count * SEG_CHUNK_SIZE
-    return VolumetricIndex.from_coords(chunk_start, chunk_start + SEG_CHUNK_SIZE, SEG_RESOLUTION)
+    offset_point = seg_point - seg_offset
+    chunk_count = floor(offset_point / seg_chunk_size)
+    chunk_start = seg_offset + chunk_count * seg_chunk_size
+    return VolumetricIndex.from_coords(chunk_start, chunk_start + seg_chunk_size, seg_resolution)
 
 
 def bin_index_for_point(seg_point):
-    return floor((seg_point - SEG_OFFSET[0]) / SEG_CHUNK_SIZE)
+    return floor((seg_point - seg_offset) / seg_chunk_size)
 
 
 def bin_synapses(to_do):
@@ -129,19 +155,20 @@ def row_to_dict(row: Tuple, keys: Tuple[str, ...]) -> Dict:
     and 'segA' and 'segB' set to None.
     """
     row_dict = dict(zip(keys, row))
-    return {
+    result = {
         "id": row_dict["id"],
         "pointA": Vec3D(
             float(row_dict["pre_x"]), float(row_dict["pre_y"]), float(row_dict["pre_z"])
         )
-        * SYN_TO_SEG,
+        * syn_to_seg,
         "pointB": Vec3D(
             float(row_dict["post_x"]), float(row_dict["post_y"]), float(row_dict["post_z"])
         )
-        * SYN_TO_SEG,
+        * syn_to_seg,
         "segA": None,
         "segB": None,
     }
+    return result
 
 
 def read_synapses(conn, table_name, where_clause) -> List[Dict]:
@@ -201,7 +228,8 @@ def bulk_insert_seg_ids(items: List[Dict], table_name: str, batch_size: int = 10
                 post_pt_supervoxel_id = EXCLUDED.post_pt_supervoxel_id;
         """
 
-    with engine.connect() as conn:
+    assert engine is not None
+    with engine.connect() as conn:  # type: ignore[unreachable]
         for i in range(0, len(items), batch_size):
             batch = items[i : i + batch_size]
             query = sql(create_batch_query(batch))
@@ -217,6 +245,23 @@ def bulk_insert_seg_ids(items: List[Dict], table_name: str, batch_size: int = 10
             print(f"Committed {len(items)} new rows to {table_name}")
 
 
+def input_vec3D(prompt="", default=None):
+    while True:
+        s = input(prompt + (f" [{default.x}, {default.y}, {default.z}]" if default else "") + ": ")
+        if s == "" and default:
+            return default
+        try:
+            x, y, z = map(float, s.replace(",", " ").split())
+            return Vec3D(x, y, z)
+        except:
+            print("Enter x, y, and z values separated by commas or spaces.")
+
+
+def input_vec3Di(prompt="", default=None):
+    v = input_vec3D(prompt, default)
+    return round(v)
+
+
 # Create the connection URL
 connection_url = URL.create(
     drivername="postgresql+psycopg2",
@@ -226,27 +271,6 @@ connection_url = URL.create(
     port=DB_PORT,
     database=DB_NAME,
 )
-
-# Create the engine
-engine = create_engine(connection_url, connect_args={"connect_timeout": 10})  # 10 seconds timeout
-
-# Try to connect, just to be sure we can
-try:
-    print(f"Connecting to {DB_NAME} at {DB_HOST}:{DB_PORT}...")
-    with engine.connect() as connection:
-        print("Successfully connected to the database!")
-
-# pylint: disable-next=broad-exception-caught
-except Exception as e:
-    print("Error connecting to the database:")
-    print(e)
-    sys.exit()
-
-# Load the segmentation layer
-seg_layer, seg_bounds = load_volume(SEG_PATH)
-
-chunk = None
-chunk_bounds = None
 
 
 def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
@@ -264,9 +288,11 @@ def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
             return None
         chunk_bounds = chunk_index_for_point(seg_point)
         # print(f'Loading new chunk: {chunk_bounds.bbox}...', end='', flush=True)
+        assert seg_layer is not None
+        assert seg_layer[chunk_bounds] is not None  # type: ignore[unreachable]
         chunk = seg_layer[chunk_bounds][0]
         # print('Chunk loaded.')
-    relative_point = floor(seg_point - chunk_bounds.start)
+    relative_point = floor(seg_point - chunk_bounds.start)  # type: ignore[unreachable] # Geez mypy is stupid.
     return chunk[relative_point[0], relative_point[1], relative_point[2]]
 
 
@@ -306,27 +332,76 @@ def process_synapses(to_do):
             f"   Done: {len(done)}"
         )
         if len(done) > 500:
-            print(f"Saving done records to {SUPERVOX_TABLE}...")
-            bulk_insert_seg_ids(done, SUPERVOX_TABLE)
+            print(f"Saving done records to {supervox_table}...")
+            bulk_insert_seg_ids(done, supervox_table)
             done = []
 
     if done:
-        print(f"Saving last done records to {SUPERVOX_TABLE}...")
-        bulk_insert_seg_ids(done, SUPERVOX_TABLE)
+        print(f"Saving last done records to {supervox_table}...")
+        bulk_insert_seg_ids(done, supervox_table)
     print(f"Finished processing {total_to_do} synapses!")
 
 
 def main():
+    global engine, synapse_table, supervox_table, synapse_resolution
+    global seg_layer, seg_bounds, seg_resolution, seg_chunk_size, seg_offset
+    global syn_to_seg
+
+    # Create the engine
+    engine = create_engine(
+        connection_url, connect_args={"connect_timeout": 10}
+    )  # 10 seconds timeout
+
+    # Try to connect, just to be sure we can
+    try:
+        print(f"Connecting to {DB_NAME} at {DB_HOST}:{DB_PORT}...")
+        with engine.connect() as connection:
+            print("Successfully connected to the database!")
+
+    # pylint: disable-next=broad-exception-caught
+    except Exception as e:
+        print("Error connecting to the database:")
+        print(e)
+        sys.exit()
+
+    # Get parameters from the user
+    while True:
+        supervox_table = input("Supervoxel table name: ")
+        if len(supervox_table.split("__")) == 2:
+            break
+        print(
+            "This should look something like, for example: ipl_ribbon_synapses__dacey_human_fovea_2404"
+        )
+    synapse_table = supervox_table.split("__")[0]
+    synapse_resolution = input_vec3Di("Synapse voxel scale (resolution)")
+
+    print()
+    seg_path = input("Segmentation volume path: ")
+    data = read_gcs_json(seg_path + "/info")
+    scale0 = data["scales"][0]
+    seg_resolution = Vec3D(*scale0["resolution"])
+    seg_chunk_size = Vec3D(*scale0["chunk_sizes"][0])
+    seg_offset = Vec3D(*scale0["voxel_offset"])
+    print(f"   Segmentation resolution: {seg_resolution}")
+    print(f"   Segmentation chunk size: {seg_chunk_size}")
+    print(f"   Segmentation offset:     {seg_offset}")
+
+    syn_to_seg = synapse_resolution / seg_resolution
+    print(f"   Conversion factor from synapse to segmentation: {syn_to_seg}")
+
+    # Load the segmentation layer
+    seg_layer, seg_bounds = load_volume(seg_path)
+
     to_do: List[dict] = []
     with engine.connect() as conn1:
         print("Reading synapses...")
         where_clause = f"""
-NOT EXISTS (SELECT 1 FROM {SUPERVOX_TABLE} b WHERE b.id = {SYNAPSE_TABLE}.id);
+NOT EXISTS (SELECT 1 FROM {supervox_table} b WHERE b.id = {synapse_table}.id);
 """
         where_clause = ""  # HACK!!!
-        to_do = read_synapses(conn1, SYNAPSE_TABLE, where_clause)
+        to_do = read_synapses(conn1, synapse_table, where_clause)
 
-    print(f"Read {len(to_do)} synapses from {SYNAPSE_TABLE}")
+    print(f"Read {len(to_do)} synapses from {synapse_table}")
     print(f"Sorting synapses into chunks...")
     bins = bin_synapses(to_do)
     print(f"Divided them into {len(bins)} bins")

@@ -176,11 +176,12 @@ def main():
     # Stored state URL be like:
     # https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4542084277075968
     # ID is the last part of this.
-    state_id = input_or_default("Neuroglancer state ID", "5033438798151680")
+    state_id = input("Neuroglancer state link or ID: ")
     state_id = state_id.split("/")[-1]  # in case full URL was given
 
     assert client is not None
     state = client.state.get_state_json(state_id)
+    print("Select annotation layer containing synapses to import:")
     anno_layer_name = get_annotation_layer_name(state)
     data = nglui.parser.get_layer(state, anno_layer_name)
 

@@ -4,7 +4,8 @@ from __future__ import annotations
 from itertools import product
 from math import floor
 from typing import Literal, Optional, Sequence, Union, cast
-
+from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
+    
 import attrs
 from typeguard import typechecked
 
@@ -63,6 +64,22 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         """returns the shape coordinates."""
         return self.end - self.start
 
+    @staticmethod
+    def from_ng_bbox(
+        ng_bbox: AxisAlignedBoundingBoxAnnotation,
+        base_resolution: Sequence[float]
+    ) -> BBox3D:
+        point_a_nm = Vec3D(*ng_bbox.pointA).int() * Vec3D(*base_resolution)
+        point_b_nm = Vec3D(*ng_bbox.pointB).int() * Vec3D(*base_resolution)
+        start_coord = [min(point_a_nm[i], point_b_nm[i]) for i in range(3)]
+        end_coord = [max(point_a_nm[i], point_b_nm[i]) for i in range(3)]
+        bbox = BBox3D.from_coords(
+            start_coord=start_coord,
+            end_coord=end_coord,
+            resolution=[1, 1, 1] 
+        )
+        return bbox 
+    
     @classmethod
     def from_slices(
         cls,

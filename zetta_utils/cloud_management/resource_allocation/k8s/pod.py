@@ -85,6 +85,7 @@ def get_mazepa_pod_spec(
     env_secret_mapping: Optional[Dict[str, str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    restart_policy: Literal["Always", "Never"] = "Always",
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -98,7 +99,7 @@ def get_mazepa_pod_spec(
         resources=resources,
         env_secret_mapping=env_secret_mapping,
         node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
-        restart_policy="Never",
+        restart_policy=restart_policy,
         tolerations=[schedule_toleration],
         volumes=get_common_volumes(),
         volume_mounts=get_common_volume_mounts(),

@@ -103,6 +103,7 @@ def get_gcp_with_sqs_config(
             env_secret_mapping=env_secret_mapping,
             provisioning_model=provisioning_model,
             resource_requests=worker_resource_requests,
+            restart_policy="Never",
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(

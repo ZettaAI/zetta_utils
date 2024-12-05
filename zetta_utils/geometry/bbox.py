@@ -44,6 +44,19 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
     unit: str = DEFAULT_UNIT
     pprint_px_resolution: Sequence[float] = (1, 1, 1)
 
+    def __attrs_post_init__(self):
+        object.__setattr__(
+            self,
+            "bounds",
+            tuple(
+                (
+                    round(start, VEC3D_PRECISION),
+                    round(end, VEC3D_PRECISION),
+                )
+                for start, end in self.bounds
+            ),
+        )
+
     @property
     def ndim(self) -> int:
         return 3
@@ -153,6 +166,12 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         )
 
         return cls(bounds=bounds, unit=unit)
+
+    def __truediv__(self, vec: Vec3D) -> BBox3D:
+        return BBox3D.from_coords(self.start / vec, self.end / vec)
+
+    def __mul__(self, vec: Vec3D) -> BBox3D:
+        return BBox3D.from_coords(self.start * vec, self.end * vec)
 
     def get_slice(
         self,

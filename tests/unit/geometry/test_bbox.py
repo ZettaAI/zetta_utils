@@ -139,6 +139,46 @@ def test_constructor(
 
 
 @pytest.mark.parametrize(
+    "bbox, vec, expected",
+    [
+        [
+            BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
+            Vec3D(1, 2, 3),
+            BBox3D(bounds=((0, 1), (0, 1), (0, 1))),
+        ],
+        [
+            BBox3D(bounds=((0, 5734.4), (0, 8601.6), (0, 1))),
+            Vec3D(2.8, 2.8, 1),
+            BBox3D(bounds=((0, 2048), (0, 3072), (0, 1))),
+        ],
+    ],
+)
+def test_truediv(bbox: BBox3D, vec: Vec3D, expected: BBox3D):
+    result = bbox / vec
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, vec, expected",
+    [
+        [
+            BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
+            Vec3D(1, 2, 3),
+            BBox3D(bounds=((0, 1), (0, 4), (0, 9))),
+        ],
+        [
+            BBox3D(bounds=((0, 2048), (0, 3072), (0, 1))),
+            Vec3D(2.8, 2.8, 1),
+            BBox3D(bounds=((0, 5734.4), (0, 8601.6), (0, 1))),
+        ],
+    ],
+)
+def test_mul(bbox: BBox3D, vec: Vec3D, expected: BBox3D):
+    result = bbox * vec
+    assert result == expected
+
+
+@pytest.mark.parametrize(
     "bbox, resolution, allow_slice_rounding, expected",
     [
         [

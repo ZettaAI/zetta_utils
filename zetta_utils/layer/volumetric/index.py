@@ -76,6 +76,16 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=allow_slice_rounding,
         )
 
+    def __truediv__(self, vec: Vec3D) -> VolumetricIndex:
+        return VolumetricIndex(
+            self.resolution, self.bbox / vec, self.chunk_id, self.allow_slice_rounding
+        )
+
+    def __mul__(self, vec: Vec3D) -> VolumetricIndex:
+        return VolumetricIndex(
+            self.resolution, self.bbox * vec, self.chunk_id, self.allow_slice_rounding
+        )
+
     def to_slices(self):
         """
         Represent this index as a tuple of slices.

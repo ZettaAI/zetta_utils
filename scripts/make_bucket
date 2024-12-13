@@ -1,0 +1,115 @@
+#!/bin/bash
+
+# This shell script creates a new GS bucket and configures it
+# with our standard read access and CORS policy.
+#
+# Usage: just run it and follow the prompts!
+
+# Default values
+DEFAULT_PROJECT="zetta-research"
+DEFAULT_REGION="us-east1"
+
+# Function to prompt with default value
+prompt_with_default() {
+    local prompt=$1
+    local default=$2
+    local response
+
+    read -p "${prompt} [${default}]: " response
+    echo ${response:-$default}
+}
+
+# Create CORS configuration file
+cat > cors.json << 'EOL'
+[{
+    "maxAgeSeconds": 3600,
+    "method": ["GET", "HEAD"],
+    "origin": ["*"],
+    "responseHeader": ["Content-Type", "Range"]
+}]
+EOL
+
+# Function to create a bucket with specified settings
+create_bucket() {
+    local bucket_name=$1
+    local project_id=$2
+    local region=$3
+
+    echo "Creating bucket: gs://${bucket_name}"
+    echo "Project ID: ${project_id}"
+    echo "Region: ${region}"
+
+    gsutil mb \
+        -p ${project_id} \
+        -c regional \
+        -l ${region} \
+        -b on \
+        gs://${bucket_name}
+
+    if [ $? -eq 0 ]; then
+        echo "Successfully created bucket: ${bucket_name}"
+
+        # Set CORS policy
+        echo "Setting CORS policy for: ${bucket_name}"
+        gsutil cors set cors.json gs://${bucket_name}
+
+	# Add public read access
+	echo "Setting public read access..."
+	gsutil iam ch allUsers:objectViewer gs://${bucket_name}
+
+    else
+        echo "Failed to create bucket: ${bucket_name}"
+        return 1
+    fi
+}
+
+# Main execution
+echo "Starting bucket creation process..."
+
+# Check if gsutil is installed
+if ! command -v gsutil &> /dev/null; then
+    echo "Error: gsutil is not installed. Please install Google Cloud SDK first."
+    exit 1
+fi
+
+# Check if user is authenticated
+if ! gsutil ls &> /dev/null; then
+    echo "Error: Not authenticated. Please run 'gcloud auth login' first."
+    exit 1
+fi
+
+# Get project ID and region with defaults
+PROJECT_ID=$(prompt_with_default "Enter project ID" "$DEFAULT_PROJECT")
+REGION=$(prompt_with_default "Enter region" "$DEFAULT_REGION")
+
+# Ask user for bucket name (no default)
+read -p "Enter the bucket name (without gs:// prefix): " bucket_name
+
+# Validate bucket name
+if [[ -z "$bucket_name" ]]; then
+    echo "Error: Bucket name cannot be empty"
+    exit 1
+fi
+
+# Show summary before proceeding
+echo -e "\nSummary of settings:"
+echo "Project ID: ${PROJECT_ID}"
+echo "Region: ${REGION}"
+echo "Bucket name: ${bucket_name}"
+read -p "Proceed with bucket creation? (y/N): " confirm
+if [[ ! "$confirm" =~ ^[yY]$ ]]; then
+    echo "Bucket creation cancelled."
+    exit 0
+fi
+
+# Create the bucket
+create_bucket "$bucket_name" "$PROJECT_ID" "$REGION"
+if [ $? -ne 0 ]; then
+    echo "Error occurred while creating bucket: ${bucket_name}"
+    exit 1
+fi
+
+# Cleanup
+rm cors.json
+
+echo "Bucket creation completed!"

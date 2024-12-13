@@ -3,6 +3,7 @@ This script scales the X,Y,Z and X2,Y2,Z2 columns (if any) in a CSV file
 from one resolution to another.
 """
 
+import readline
 from collections import namedtuple
 from pathlib import Path
 

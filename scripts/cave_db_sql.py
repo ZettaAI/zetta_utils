@@ -3,11 +3,13 @@
 This script provides a raw SQL interface to a CAVE database.
 Use with caution!
 """
+import readline
 import struct
 import sys
 from binascii import unhexlify
 from typing import Any
 
+import psycopg2
 from geoalchemy2.elements import WKBElement
 from shapely.wkb import loads as load_wkb
 from sqlalchemy import create_engine, inspect
@@ -19,7 +21,6 @@ from tabulate import tabulate
 # Database connection parameters
 DB_USER = "postgres"
 DB_PASS = "Abracadabra is the passphrase"
-DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
 
@@ -106,7 +107,81 @@ def print_results(result: Result, batch_size: int = 20) -> None:
         print(f"Error executing query: {str(e)}")
 
 
+def select_database():
+    conn = psycopg2.connect(
+        host="127.0.0.1",
+        port="5432",
+        database="postgres",  # Default database that always exists
+        user="postgres",
+        password="Abracadabra is the passphrase",
+    )
+    cur = conn.cursor()
+    cur.execute("SELECT datname FROM pg_database")
+    databases = [db[0] for db in cur.fetchall()]
+    databases.sort()
+    num_to_db = {}
+    next_num = 1
+    print("Available databases:")
+    for db in databases:
+        print(f"   {' ' if next_num < 10 else ''}{next_num}. {db}")
+        num_to_db[next_num] = db
+        next_num += 1
+    print()
+    while True:
+        try:
+            choice: int | str = input("Enter DB name or number: ")
+        except EOFError:
+            print()
+            return None
+        if choice in databases:
+            return choice
+        choice = int(choice)
+        if choice in num_to_db:
+            return num_to_db[choice]
+
+
+def do_command(command, connection, pending_commit=False) -> Any:
+    """
+    Execute the given SQL command, or one of our extra commands
+    (quit, commit, or rollback).  Return the new value for
+    pending_commit, indicating changes are pending.
+    """
+    if command.lower() in ("quit", "exit"):
+        sys.exit()
+    elif command.lower() == "commit":
+        connection.commit()
+        print("Changes commited.")
+        pending_commit = False
+    elif command.lower() == "rollback":
+        connection.rollback()
+        print("Changes rolled back.")
+        pending_commit = False
+    else:
+        # SQL (possibly multi-line) command
+        while not command.endswith(";"):
+            try:
+                command += " " + input("...>")
+            except EOFError:
+                command = ""
+                break
+        if not command:
+            return pending_commit
+        try:
+            result = connection.execute(sql(command))
+            print_results(result)
+            if not result.returns_rows and result.rowcount > 0:
+                pending_commit = True
+        # pylint: disable-next=broad-exception-caught
+        except Exception as e:
+            print(e)
+    return pending_commit
+
+
 def main():
+
+    db_name = select_database()
+    if db_name is None:
+        return
 
     # Create the connection URL
     connection_url = URL.create(
@@ -115,7 +190,7 @@ def main():
         password=DB_PASS,
         host=DB_HOST,
         port=DB_PORT,
-        database=DB_NAME,
+        database=db_name,
     )
 
     # Create the engine
@@ -125,7 +200,7 @@ def main():
 
     # Try to connect, just to be sure we can
     try:
-        print(f"Connecting to {DB_NAME} at {DB_HOST}:{DB_PORT}...")
+        print(f"Connecting to {db_name} at {DB_HOST}:{DB_PORT}...")
         with engine.connect() as connection:
             print("Successfully connected.")
     # pylint: disable-next=broad-exception-caught
@@ -151,34 +226,7 @@ def main():
             except EOFError:
                 print("\nExiting.")
                 sys.exit()
-            if inp.lower() in ("quit", "exit"):
-                sys.exit()
-            elif inp.lower() == "commit":
-                connection.commit()
-                print("Changes commited.")
-                pending_commit = False
-            elif inp.lower() == "rollback":
-                connection.rollback()
-                print("Changes rolled back.")
-                pending_commit = False
-            else:
-                # SQL (possibly multi-line) command
-                while not inp.endswith(";"):
-                    try:
-                        inp += " " + input("...>")
-                    except EOFError:
-                        inp = ""
-                        break
-                if not inp:
-                    continue
-                try:
-                    result = connection.execute(sql(inp))
-                    print_results(result)
-                    if not result.returns_rows and result.rowcount > 0:
-                        pending_commit = True
-                # pylint: disable-next=broad-exception-caught
-                except Exception as e:
-                    print(e)
+            pending_commit = do_command(inp, connection, pending_commit)
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 This script takes lines from a precomputed annotations file,
 and stuffs them into a synapses table in CAVE.
 """
+import readline
 import sys
 from typing import Dict, List
 
@@ -142,6 +143,50 @@ def bulk_insert_synapses(items: List[Dict], table_name: str, batch_size: int = 1
         print(f"Committed {len(items)} new rows to {table_name}")
 
 
+def load_annotations():
+    layer = None
+    items = None
+    print("Enter Neuroglancer state link or ID, or a GS file path:")
+    inp = input("> ")
+    if inp.startswith("gs:"):
+        layer = build_annotation_layer(inp, mode="read")
+    else:
+        verify_cave_auth()
+        state_id = inp.split("/")[-1]  # in case full URL was given
+
+        assert client is not None
+        state = client.state.get_state_json(state_id)
+        print("Select annotation layer containing synapses to import:")
+        anno_layer_name = get_annotation_layer_name(state)
+        data = nglui.parser.get_layer(state, anno_layer_name)
+
+        if "annotations" in data:
+            items = data["annotations"]
+        elif "source" in data:
+            print("Precomputed annotation layer.")
+            layer = build_annotation_layer(data["source"], mode="read")
+        else:
+            print("Neither 'annotations' nor 'source' found in layer data.  I'm stumped.")
+            sys.exit()
+    if items is None and layer is not None:
+        opt = ""
+        while opt not in ("A", "B"):
+            opt = input("Read [A]ll lines, or only within some [B]ounds? ").upper()
+        if opt == "B":
+            bbox_start = input_vec3Di("  Bounds start")
+            bbox_end = input_vec3Di("    Bounds end")
+            resolution = input_vec3Di("    Resolution")
+            index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution)
+            lines = layer.read_in_bounds(index, strict=True)
+        else:
+            lines = layer.read_all()
+        items = [
+            {"id": hex(l.id)[2:], "type": "line", "pointA": l.start, "pointB": l.end}
+            for l in lines
+        ]
+    return items
+
+
 def main():
     # Create the connection URL
     connection_url = URL.create(
@@ -170,44 +215,7 @@ def main():
         print(e)
         sys.exit()
 
-    # Connect to CAVE so we can get the Neurglancer state
-    verify_cave_auth()
-
-    # Stored state URL be like:
-    # https://spelunker.cave-explorer.org/#!middleauth+https://global.daf-apis.com/nglstate/api/v1/4542084277075968
-    # ID is the last part of this.
-    state_id = input("Neuroglancer state link or ID: ")
-    state_id = state_id.split("/")[-1]  # in case full URL was given
-
-    assert client is not None
-    state = client.state.get_state_json(state_id)
-    print("Select annotation layer containing synapses to import:")
-    anno_layer_name = get_annotation_layer_name(state)
-    data = nglui.parser.get_layer(state, anno_layer_name)
-
-    if "annotations" in data:
-        items = data["annotations"]
-    elif "source" in data:
-        print("Precomputed annotation layer.")
-        layer = build_annotation_layer(data["source"], mode="read")
-        opt = ""
-        while opt not in ("A", "B"):
-            opt = input("Read [A]ll lines, or only within some [B]ounds? ").upper()
-        if opt == "B":
-            bbox_start = input_vec3Di("  Bounds start")
-            bbox_end = input_vec3Di("    Bounds end")
-            resolution = input_vec3Di("    Resolution")
-            index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution)
-            lines = layer.read_in_bounds(index, strict=True)
-        else:
-            lines = layer.read_all()
-        items = [
-            {"id": hex(l.id)[2:], "type": "line", "pointA": l.start, "pointB": l.end}
-            for l in lines
-        ]
-    else:
-        print("Neither 'annotations' nor 'source' found in layer data.  I'm stumped.")
-        sys.exit()
+    items = load_annotations()
 
     print(f"{len(items)} annotations ready to export.")
     table_name = input("Table name: ")

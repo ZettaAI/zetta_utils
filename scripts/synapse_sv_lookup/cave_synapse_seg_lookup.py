@@ -30,9 +30,7 @@ DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
 
-
-# Segmentation parameters
-# pylint: disable-next=line-too-long
+# pylint: disable=global-statement
 
 # Globals
 engine = None
@@ -41,7 +39,6 @@ supervox_table = ""  # e.g. ipl_ribbon_synapses__dacey_human_fovea_2404
 synapse_resolution = Vec3D(0, 0, 0)
 seg_layer = None
 seg_bounds = None
-seg_path = ""  # e.g. gs://zetta_ws/dacey_human_fovea_2404
 
 seg_resolution = Vec3D(0, 0, 0)
 seg_chunk_size = Vec3D(0, 0, 0)
@@ -253,7 +250,7 @@ def input_vec3D(prompt="", default=None):
         try:
             x, y, z = map(float, s.replace(",", " ").split())
             return Vec3D(x, y, z)
-        except:
+        except:  # pylint: disable=bare-except
             print("Enter x, y, and z values separated by commas or spaces.")
 
 
@@ -292,7 +289,7 @@ def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
         assert seg_layer[chunk_bounds] is not None  # type: ignore[unreachable]
         chunk = seg_layer[chunk_bounds][0]
         # print('Chunk loaded.')
-    relative_point = floor(seg_point - chunk_bounds.start)  # type: ignore[unreachable] # Geez mypy is stupid.
+    relative_point = floor(seg_point - chunk_bounds.start)  # type: ignore[unreachable]
     return chunk[relative_point[0], relative_point[1], relative_point[2]]
 
 
@@ -355,7 +352,7 @@ def main():
     # Try to connect, just to be sure we can
     try:
         print(f"Connecting to {DB_NAME} at {DB_HOST}:{DB_PORT}...")
-        with engine.connect() as connection:
+        with engine.connect() as _:
             print("Successfully connected to the database!")
 
     # pylint: disable-next=broad-exception-caught
@@ -370,7 +367,8 @@ def main():
         if len(supervox_table.split("__")) == 2:
             break
         print(
-            "This should look something like, for example: ipl_ribbon_synapses__dacey_human_fovea_2404"
+            "This should look something like, for example: "
+            "ipl_ribbon_synapses__dacey_human_fovea_2404"
         )
     synapse_table = supervox_table.split("__")[0]
     synapse_resolution = input_vec3Di("Synapse voxel scale (resolution)")
@@ -398,17 +396,15 @@ def main():
         where_clause = f"""
 NOT EXISTS (SELECT 1 FROM {supervox_table} b WHERE b.id = {synapse_table}.id);
 """
-        where_clause = ""  # HACK!!!
         to_do = read_synapses(conn1, synapse_table, where_clause)
 
     print(f"Read {len(to_do)} synapses from {synapse_table}")
-    print(f"Sorting synapses into chunks...")
+    print("Sorting synapses into chunks...")
     bins = bin_synapses(to_do)
     print(f"Divided them into {len(bins)} bins")
     sorted_indexes = sorted(bins.keys())
-    for i in range(0, len(sorted_indexes)):
+    for i, bin_idx in enumerate(sorted_indexes):
         print()
-        bin_idx = sorted_indexes[i]
         print(f"STARTING BIN {i}/{len(sorted_indexes)} (bin {bin_idx})...")
         process_synapses(bins[bin_idx])
 

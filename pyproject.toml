@@ -54,7 +54,7 @@ augmentations = [
 ]
 cli = ["click == 8.0.1"]
 cloudvol = [
-  "cloud-volume[all_codecs] ~= 11.0.2",  # support for NaN bg color
+  "cloud-volume[all_codecs] ~= 11.1.0",  # raw LRU cache support
   "zetta_utils[tensor_ops]",
 ]
 tensorstore = [

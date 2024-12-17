@@ -127,6 +127,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("fill_missing", True)
         self.cv_kwargs.setdefault("delete_black_uploads", True)
         self.cv_kwargs.setdefault("agglomerate", True)
+        self.cv_kwargs.setdefault("lru_encoding", "raw")
 
     @property
     def name(self) -> str:  # pragma: no cover

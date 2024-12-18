@@ -13,7 +13,7 @@ from zetta_utils.layer.volumetric.tools import ROIMaskProcessor
 
 
 @pytest.mark.parametrize(
-    "resolution, stride, offset, idx, stride_start_offset_in_unit, mode, chunk1",
+    "resolution, stride, offset, idx, stride_start_offset, mode, chunk1",
     [
         [
             Vec3D(1, 1, 1),
@@ -56,9 +56,9 @@ from zetta_utils.layer.volumetric.tools import ROIMaskProcessor
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
             VolumetricIndex(Vec3D(1, 1, 1), BBox3D(((0, 10), (0, 15), (0, 15)))),
-            IntVec3D(1, 2, 3),
+            IntVec3D(3, 4, 6),
             "expand",
-            BBox3D(((7, 13), (2, 8), (3, 13))),
+            BBox3D(((9, 15), (4, 10), (4, 14))),
         ],
         [
             None,
@@ -72,7 +72,7 @@ from zetta_utils.layer.volumetric.tools import ROIMaskProcessor
     ],
 )
 def test_volumetric_index_chunker(
-    resolution, stride, offset, idx, stride_start_offset_in_unit, mode, chunk1
+    resolution, stride, offset, idx, stride_start_offset, mode, chunk1
 ):
     vic = VolumetricIndexChunker(
         chunk_size=IntVec3D(2, 3, 5),
@@ -81,7 +81,7 @@ def test_volumetric_index_chunker(
         resolution=resolution,
         offset=offset,
     )
-    res = list(vic(idx=idx, stride_start_offset_in_unit=stride_start_offset_in_unit, mode=mode))
+    res = list(vic(idx=idx, stride_start_offset=stride_start_offset, mode=mode))
     assert res[1].bbox == chunk1
 
 

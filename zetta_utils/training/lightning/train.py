@@ -11,7 +11,7 @@ from lightning_fabric.utilities.cloud_io import get_filesystem
 from pytorch_lightning.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json
@@ -109,6 +109,8 @@ def lightning_train(
         raise ValueError("Must provide a container image for remote training.")
     if resource_limits is None:
         raise ValueError("Must provide resource limits for remote training.")
+
+    assert resource_allocation.gcloud.check_image_exists(image), image
 
     cluster_info = resource_allocation.k8s.parse_cluster_info(
         cluster_name=cluster_name,

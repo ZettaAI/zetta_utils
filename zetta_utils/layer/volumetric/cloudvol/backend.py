@@ -21,7 +21,7 @@ from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024**2
 
 # To avoid reloading info file - note that an empty provenance is passed
 # since otherwise the CloudVolume's __new__ will download the provenance
@@ -207,6 +207,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def write(self, idx: VolumetricIndex, data: npt.NDArray):
         # Data in: cxyz
         # Write format: xyzc (b == 1)
+        if self.enforce_chunk_aligned_writes:
+            self.assert_idx_is_chunk_aligned(idx)
 
         if data.size == 1 and len(data.shape) == 1:
             data_final = data[0]
@@ -227,7 +229,6 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             if data_final.min() < np.int64(0):
                 raise ValueError("Attempting to write negative values to a uint64 CloudVolume")
             data_final = data_final.astype(np.uint64)
-        cvol.non_aligned_writes = True
         cvol[slices] = data_final
         cvol.autocrop = False
 

@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
+from zetta_utils.layer.volumetric.cloudvol.backend import _cv_cache, _get_cv_cached
 
 from .utils import generic_exception_handler
 
@@ -40,7 +41,7 @@ async def read_cutout(
 
     def chunked_compress(data_bytes: bytes):
         with BytesIO() as buffer:
-            with gzip.GzipFile(fileobj=buffer, mode='wb') as gzip_file:
+            with gzip.GzipFile(fileobj=buffer, mode="wb") as gzip_file:
                 gzip_file.write(data_bytes)
             buffer.seek(0)
             while chunk := buffer.read(64 * 1024):
@@ -71,4 +72,10 @@ async def write_cutout(
     else:
         data_arr = np.frombuffer(data, dtype=layer.backend.dtype).reshape(shape[::-1])
         data_arr = einops.rearrange(data_arr, "Z Y X C -> C X Y Z")
+
+    # temporary hack to get non_aligned_writes to work.
+    cvol = _get_cv_cached(path, index.resolution, layer.backend.cv_kwargs)  # type: ignore
+    cvol.non_aligned_writes = True
+    _cv_cache[(path, index.resolution)] = cvol
+
     layer[index] = data_arr

@@ -477,7 +477,7 @@ def _interpolate_with_torch(
         result_raw = result_raw > mask_value_thr
 
     result_raw = result_raw.to(data_torch.dtype)
-    result = tensor_ops.convert.astype(result_raw, data)
+    result = tensor_ops.convert.astype(result_raw, data, cast=True)
     return result
 
 

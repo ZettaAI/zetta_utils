@@ -30,12 +30,11 @@ class BBoxStrider:
     :param max_superchunk_size: Upper bound for the superchunks to consolidate the
         individual chunks to. Defaults to ``chunk_size``.
     :param stride: Distance between neighboring chunks along each dimension.
-    :param stride_start_offset: Where the stride should start in unit (not voxel),
-        modulo ``chunk_size``.
+    :param stride_start_offset: Where the stride should start in voxel. Defaults to
+        the start of the bbox.
     :param mode: The modes that can be chosen for the behaviour.
-        `shrink` will round the bbox down to
-        be aligned with the ``stride_start_offset`` (or just the start of the bbox
-        if ``stride_start_offset`` is not set or ``stride`` != ``chunk_size``).
+        `shrink` will round the bbox down to be aligned with the ``stride_start_offset``
+        (or just the start of the bbox if ``stride_start_offset`` is not set).
         `expand` is similar to `shrink` except it expands the bbox.
         `exact` will give full cubes aligned with the ``stride_start_offset`` and the
         ``chunk_size``, as well as the partial cubes at the edges.
@@ -46,9 +45,10 @@ class BBoxStrider:
     chunk_size: Vec3D[int]
     stride: Vec3D[int]
     max_superchunk_size: Optional[Vec3D[int]] = None
-    stride_start_offset_in_unit: Optional[Vec3D] = None
+    stride_start_offset: Optional[Vec3D[int]] = None
     chunk_size_in_unit: Vec3D = attrs.field(init=False)
     stride_in_unit: Vec3D = attrs.field(init=False)
+    stride_start_offset_in_unit: Vec3D = attrs.field(init=False)
     bbox_snapped: BBox3D = attrs.field(init=False)
     step_limits: Vec3D[int] = attrs.field(init=False)
     step_start_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
@@ -70,7 +70,6 @@ class BBoxStrider:
         if self.max_superchunk_size is None:
             return
         else:
-            object.__setattr__(self, "stride_start_offset_in_unit", self.bbox_snapped.start)
             if self.mode in ("expand", "shrink"):
                 object.__setattr__(self, "bbox", self.bbox_snapped)
             if not self.max_superchunk_size >= self.chunk_size:
@@ -84,6 +83,10 @@ class BBoxStrider:
             object.__setattr__(self, "stride", superchunk_size)
             object.__setattr__(self, "mode", "exact")
             object.__setattr__(self, "max_superchunk_size", None)
+            object.__setattr__(self,
+                               "stride_start_offset",
+                               self.bbox_snapped.start / self.resolution)
+            object.__setattr__(self, "stride_start_offset_in_unit", self.bbox_snapped.start)
             self.__attrs_post_init__()
 
     def _attrs_post_init_exact(self) -> None:
@@ -91,10 +94,10 @@ class BBoxStrider:
             raise NotImplementedError(
                 "`exact` mode is only supported when the `chunk_size` and `stride` are equal"
             )
-        if self.stride_start_offset_in_unit is None:
+        if self.stride_start_offset is None:
             stride_start_offset_in_unit = self.bbox.start
         else:
-            stride_start_offset_in_unit = self.stride_start_offset_in_unit
+            stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset) * self.resolution
         bbox_snapped = self.bbox.snapped(
             grid_offset=stride_start_offset_in_unit,
             grid_size=self.stride_in_unit,
@@ -129,13 +132,14 @@ class BBoxStrider:
         object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
+        object.__setattr__(self, "stride_start_offset_in_unit", stride_start_offset_in_unit)
 
     def _attrs_post_init_nonexact(self) -> None:
         step_start_partial = (False, False, False)
         step_end_partial = (False, False, False)
-        if self.stride_start_offset_in_unit is not None:
+        if self.stride_start_offset is not None:
             # align stride_start_offset to just larger than the start of the bbox
-            stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset_in_unit)
+            stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset) * self.resolution
             stride_start_offset_in_unit += (
                 (self.bbox.start - stride_start_offset_in_unit)
                 // self.stride_in_unit
@@ -221,6 +225,7 @@ class BBoxStrider:
         object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
+        object.__setattr__(self, "stride_start_offset_in_unit", stride_start_offset_in_unit)
 
     @property
     def num_chunks(self) -> int:

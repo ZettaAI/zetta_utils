@@ -17,6 +17,8 @@ def annotations_db(firestore_emulator):
 def collections_db(firestore_emulator):
     db = build_firestore_layer(collection.DB_NAME, project=firestore_emulator)
     collection.COLLECTIONS_DB = db
+    collections = collection.read_collections()
+    collection.delete_collections(list(collections.keys()))
     return collection.COLLECTIONS_DB
 
 
@@ -24,6 +26,8 @@ def collections_db(firestore_emulator):
 def layer_groups_db(firestore_emulator):
     db = build_firestore_layer(layer_group.DB_NAME, project=firestore_emulator)
     layer_group.LAYER_GROUPS_DB = db
+    layer_groups = layer_group.read_layer_groups()
+    layer_group.delete_layer_groups(list(layer_groups.keys()))
     return layer_group.LAYER_GROUPS_DB
 
 
@@ -31,4 +35,7 @@ def layer_groups_db(firestore_emulator):
 def layers_db(firestore_emulator):
     db = build_firestore_layer(layer.DB_NAME, project=firestore_emulator)
     layer.LAYERS_DB = db
+    layers = layer.read_layers()
+    for e in layers:
+        layer.delete_layer(e)
     return layer.LAYERS_DB

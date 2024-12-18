@@ -157,7 +157,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
         f"\t`processing_blend`:\t\t{tuple(processing_blend)}\t(at all levels)\n"
         "As core chunk sizes, before padding for crop and blend:\n"
         f"\t`processing_chunk_sizes`:"
-        "\t{', '.join(size.pformat() for size in processing_chunk_sizes)}\n"
+        f"\t{', '.join(size.pformat() for size in processing_chunk_sizes)}\n"
         "The bottom level chunk size will be respected to maintain the input size of "
         f"{tuple(processing_input_sizes[-1])} while the other levels will be "
         "treated as upper bounds, fitting in as many chunks as possible."
@@ -357,36 +357,15 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         if auto_bbox:
             raise ValueError("`auto_bbox` cannot be used when `dst` is None.")
 
-    if auto_bbox:
-        if (
-            start_coord is not None
-            or end_coord is not None
-            or coord_resolution is not None
-            or bbox is not None
-        ):
-            raise ValueError(
-                "`auto_bbox` was supplied, so `bbox`, `start_coord`, end_coord`, and"
-                " `coord_resolution` cannot be specified."
-            )
-        assert dst is not None
-        bbox_ = dst.backend.get_bounds(dst_resolution_).bbox
-    else:
-        if bbox is None:
-            if start_coord is None or end_coord is None or coord_resolution is None:
-                raise ValueError(
-                    "`bbox` and `auto_bbox` were not supplied, so `start_coord`, "
-                    "end_coord`, and `coord_resolution` has to be specified."
-                )
-            bbox_ = BBox3D.from_coords(
-                start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
-            )
-        else:
-            if start_coord is not None or end_coord is not None or coord_resolution is not None:
-                raise ValueError(
-                    "`bbox` was supplied, so `start_coord`, end_coord`, and"
-                    " `coord_resolution` cannot be specified."
-                )
-            bbox_ = bbox
+    bbox_ = parse_bbox(
+        dst=dst,
+        bbox=bbox,
+        start_coord=start_coord,
+        end_coord=end_coord,
+        coord_resolution=coord_resolution,
+        dst_resolution=dst_resolution_,
+        auto_bbox=auto_bbox,
+    )
 
     if fn is not None and op is not None:
         raise ValueError("Cannot take both `fn` and `op`; please choose one or the other.")
@@ -590,6 +569,50 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         op_args=op_args,
         op_kwargs=op_kwargs_,
     )
+
+
+def parse_bbox(
+    dst: VolumetricBasedLayerProtocol | None,
+    bbox: BBox3D | None,
+    start_coord: Sequence[int] | None,
+    end_coord: Sequence[int] | None,
+    coord_resolution: Sequence | None,
+    dst_resolution: Vec3D,
+    auto_bbox: bool,
+) -> BBox3D:
+
+    if auto_bbox:
+        if (
+            start_coord is not None
+            or end_coord is not None
+            or coord_resolution is not None
+            or bbox is not None
+        ):
+            raise ValueError(
+                "`auto_bbox` was supplied, so `bbox`, `start_coord`, end_coord`, and"
+                " `coord_resolution` cannot be specified."
+            )
+        assert dst is not None
+        bbox_ = dst.backend.get_bounds(dst_resolution).bbox
+    else:
+        if bbox is None:
+            if start_coord is None or end_coord is None or coord_resolution is None:
+                raise ValueError(
+                    "`bbox` and `auto_bbox` were not supplied, so `start_coord`, "
+                    "end_coord`, and `coord_resolution` has to be specified."
+                )
+            bbox_ = BBox3D.from_coords(
+                start_coord=start_coord, end_coord=end_coord, resolution=coord_resolution
+            )
+        else:
+            if start_coord is not None or end_coord is not None or coord_resolution is not None:
+                raise ValueError(
+                    "`bbox` was supplied, so `start_coord`, end_coord`, and"
+                    " `coord_resolution` cannot be specified."
+                )
+            bbox_ = bbox
+
+    return bbox_
 
 
 def _path_join_if_not_none(base: str | None, suffix: str) -> str | None:
@@ -1135,11 +1158,11 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             error_str = (
                 "At each level (where the 0-th level is the smallest), the"
                 " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]`"
-                " + processing_gap must be"
+                " + `processing_gap` must be"
                 f" evenly divisible by the `processing_chunk_size[level]` + processing_gap (processing_gap applies only on top level).\n"
                 f"\nAt level {level}, received:\n"
                 f"`processing_chunk_size[level+1]`:\t\t\t\t\t\t{processing_chunk_size_higher}\n"
-                f"`applicable processing_gap`:\t\t\t\t\t\t\t\t{processing_gap_higher}\n"
+                f"`processing_gap`:\t\t\t\t\t\t\t\t{processing_gap_higher}\n"
                 f"`processing_crop_pad[level+1]` ((0, 0, 0) for the top level):\t\t\t{processing_crop_pad_higher}\n"
                 f"`processing_blend_pad[level+1]`:\t\t\t\t\t\t{processing_blend_pad_higher}\n"
                 f"Size of the region to be processed for the level:\t\t\t\t{processing_region}\n"

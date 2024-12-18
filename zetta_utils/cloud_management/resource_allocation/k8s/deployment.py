@@ -7,7 +7,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Dict, List, Literal, Optional
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import builder, log
 from zetta_utils.mazepa import SemaphoreType
 from zetta_utils.run import (
@@ -18,9 +18,8 @@ from zetta_utils.run import (
 )
 
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
-from .pod import get_pod_spec
+from .pod import get_mazepa_pod_spec
 from .secret import secrets_ctx_mngr
-from .volume import get_common_volume_mounts, get_common_volumes
 
 logger = log.get_logger("zetta_utils")
 
@@ -33,27 +32,16 @@ def get_deployment_spec(
     resources: Dict[str, int | float | str],
     labels: Dict[str, str],
     env_secret_mapping: Dict[str, str],
-    volumes: Optional[List[k8s_client.V1Volume]] = None,
-    volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
-    schedule_toleration = k8s_client.V1Toleration(
-        key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
-    )
-
-    pod_spec = get_pod_spec(
-        name="zutils-worker",
+    pod_spec = get_mazepa_pod_spec(
         image=image,
-        command=["/bin/sh"],
-        command_args=["-c", command],
+        command=command,
         resources=resources,
         env_secret_mapping=env_secret_mapping,
-        node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
-        tolerations=[schedule_toleration],
-        volumes=volumes,
-        volume_mounts=volume_mounts,
+        provisioning_model=provisioning_model,
         resource_requests=resource_requests,
     )
 
@@ -115,8 +103,6 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         resources=resources,
         labels=labels_final,
         env_secret_mapping=env_secret_mapping,
-        volumes=get_common_volumes(),
-        volume_mounts=get_common_volume_mounts(),
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
     )
@@ -164,7 +150,7 @@ def deployment_ctx_mngr(
     k8s_client.Configuration.set_default(configuration)
     k8s_apps_v1_api = k8s_client.AppsV1Api()
 
-    with secrets_ctx_mngr(run_id, secrets, cluster_info):
+    with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
         k8s_apps_v1_api.create_namespaced_deployment(body=deployment, namespace=namespace)
         _id = register_resource(

@@ -30,12 +30,15 @@ def execute_locally(
     do_dryrun_estimation: bool = True,
     show_progress: bool = True,
     checkpoint: Optional[str] = None,
+    queues_dir: str | None = None,
     checkpoint_interval_sec: Optional[float] = 150,
     raise_on_failed_checkpoint: bool = True,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     debug: bool = False,
 ):
+
+    queues_dir_ = queues_dir if queues_dir else ""
 
     with ExitStack() as stack:
         logger.info(
@@ -49,8 +52,8 @@ def execute_locally(
             task_queue = None
             outcome_queue = None
         else:
-            task_queue_name = f"{os.getpid()}_task_queue"
-            outcome_queue_name = f"{os.getpid()}_outcome_queue"
+            task_queue_name = os.path.join(queues_dir_, f"{os.getpid()}_task_queue")
+            outcome_queue_name = os.path.join(queues_dir_, f"{os.getpid()}_outcome_queue")
             task_queue = stack.enter_context(FileQueue(task_queue_name))
             outcome_queue = stack.enter_context(FileQueue(outcome_queue_name))
             stack.enter_context(

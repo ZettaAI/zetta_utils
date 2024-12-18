@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Any, Iterable, Sequence, Union
+from typing import Any, Iterable, Literal, Sequence, Union
 
 import torch
 from numpy import typing as npt
@@ -25,7 +25,11 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     data_resolution: Sequence[float] | None = None,
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
+    info_extend_if_exists: bool = True,
     info_reference_path: str | None = None,
+    info_type: Literal["image", "segmentation"] | None = None,
+    info_data_type: str | None = None,
+    info_num_channels: int | None = None,
     info_field_overrides: dict[str, Any] | None = None,
     info_chunk_size: Sequence[int] | None = None,
     info_chunk_size_map: dict[str, Sequence[int]] | None = None,
@@ -33,6 +37,13 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     info_dataset_size_map: dict[str, Sequence[int]] | None = None,
     info_voxel_offset: Sequence[int] | None = None,
     info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
+    info_encoding: str | None = None,
+    info_encoding_map: dict[str, str] | None = None,
+    info_add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None,
+    info_add_scales_ref: str | dict[str, Any] | None = None,
+    info_add_scales_exclude_fields: Sequence[str] = (),
+    info_add_scales_mode: Literal["merge", "replace"] = "merge",
+    info_only_retain_scales: Sequence[Sequence[float]] | None = None,
     on_info_exists: InfoExistsModes = "expect_same",
     cache_bytes_limit: int | None = None,
     allow_slice_rounding: bool = False,
@@ -63,6 +74,11 @@ def build_ts_layer(  # pylint: disable=too-many-locals
         ``data_resolution`` differs from ``desired_resolution``.
     :param readonly: Whether layer is read only.
     :param info_reference_path: Path to a reference Precomputed volume for info.
+    :param info_type: Type of the volume. Takes precedence over ``info_fields_overrides["type"]``.
+    :param info_data_type: Data type of the volume. Takes precedence over
+        ``info_fields_overrides["data_type"]``.
+    :param info_num_channels: Number of channels of the volume. Takes precedence over
+        ``info_fields_overrides["num_channels"]``.
     :param info_field_overrides: Manual info field specifications.
     :param info_chunk_size: Precomputed chunk size for all scales.
     :param info_chunk_size_map: Precomputed chunk size for each resolution.
@@ -70,6 +86,22 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     :param info_dataset_size_map: Precomputed dataset size for each resolution.
     :param info_voxel_offset: Precomputed voxel offset for all scales.
     :param info_voxel_offset_map: Precomputed voxel offset for each resolution.
+    :param info_encoding: Precomputed encoding for all scales.
+    :param info_encoding_map: Precomputed encoding for each resolution.
+    :param info_add_scales: List of scales to be added based on ``info_add_scales_ref``
+        Each entry can be either a resolution (e.g., [4, 4, 40]) or a partially filled
+        Precomputed scale. By default, ``size`` and ``voxel_offset`` will be scaled
+        accordingly to the reference scale, while keeping ``chunk_sizes`` the same.
+        Note that using ``info_[chunk_size,dataset_size,voxel_offset][_map]`` will
+        override these values. Using this will also sort the added and existing scales
+        by their resolutions.
+    :param info_add_scales_ref: Reference scale to be used. If `None`, use
+        the highest available resolution scale.
+    :param info_add_scales_mode: Either "merge" or "replace". "merge" will
+        merge added scales to existing scales if ``info_reference_path`` is
+        used, while "replace" will not keep them.
+    :param info_only_retain_scales: Only keep the given scales. Evaluated after all
+        other info operations except for the actual writing.
     :param on_info_exists: Behavior mode for when both new info specs aregiven
         and layer info already exists.
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
@@ -88,7 +120,11 @@ def build_ts_layer(  # pylint: disable=too-many-locals
         path=path,
         on_info_exists=on_info_exists,
         info_spec=PrecomputedInfoSpec(
+            type=info_type,
+            data_type=info_data_type,
+            num_channels=info_num_channels,
             reference_path=info_reference_path,
+            extend_if_exists_path=path if info_extend_if_exists else None,
             field_overrides=info_field_overrides,
             default_chunk_size=info_chunk_size,
             chunk_size_map=info_chunk_size_map,
@@ -96,6 +132,13 @@ def build_ts_layer(  # pylint: disable=too-many-locals
             dataset_size_map=info_dataset_size_map,
             default_voxel_offset=info_voxel_offset,
             voxel_offset_map=info_voxel_offset_map,
+            default_encoding=info_encoding,
+            encoding_map=info_encoding_map,
+            add_scales=info_add_scales,
+            add_scales_ref=info_add_scales_ref,
+            add_scales_mode=info_add_scales_mode,
+            add_scales_exclude_fields=info_add_scales_exclude_fields,
+            only_retain_scales=info_only_retain_scales,
         ),
         cache_bytes_limit=cache_bytes_limit,
     )

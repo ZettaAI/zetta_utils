@@ -18,24 +18,15 @@ import struct
 from itertools import product
 from math import ceil
 from random import shuffle
-from typing import IO, Optional, Sequence
+from typing import IO, Literal, Optional, Sequence
 
 from cloudfiles import CloudFile, CloudFiles
 
-from zetta_utils import builder, log
+from zetta_utils import builder, log, mazepa
 from zetta_utils.geometry.vec import Vec3D
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
-
-
-def point_in_bounds(point: Vec3D | Sequence[float], bounds: VolumetricIndex):
-    bounds_start = bounds.start
-    bounds_end = bounds.stop
-    for d in (0, 1, 2):
-        if point[d] < bounds_start[d] or point[d] > bounds_end[d]:
-            return False
-    return True
 
 
 def is_local_filesystem(path: str) -> bool:
@@ -46,7 +37,7 @@ def path_join(*paths: str):
     if not paths:
         raise ValueError("At least one path is required")
 
-    if not is_local_filesystem(paths[0]):
+    if not is_local_filesystem(paths[0]):  # pragma: no cover
         # Join paths using "/" for GCS or other URL-like paths
         cleaned_paths = [path.strip("/") for path in paths]
         return "/".join(cleaned_paths)
@@ -105,9 +96,8 @@ class LineAnnotation:
     def in_bounds(self, bounds: VolumetricIndex):
         """
         Return whether either end of this line is in the given bounds.
-        (NOTE: better might be to check whether the line intersects the bounds, even
-        if neither end is within.  But doing the simple thing for now.)"""
-        return point_in_bounds(self.start, bounds) or point_in_bounds(self.end, bounds)
+        """
+        return bounds.line_intersects(self.start, self.end)
 
 
 class SpatialEntry:
@@ -282,9 +272,21 @@ def parse_info(info_json):
 
 
 def read_info(dir_path):
+    """
+    Read the info file within the given directory, and return:
+
+     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry)
+
+    If the file is empty or does not exist, return (None, None, None, None)
+    """
     file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
-    data = read_bytes(file_path).decode("utf-8")
-    return parse_info(data)
+    try:
+        data = read_bytes(file_path)
+    except NotADirectoryError:
+        data = None
+    if data is None or len(data) == 0:
+        return (None, None, None, None)
+    return parse_info(data.decode("utf-8"))
 
 
 def read_data(dir_path, spatial_entry):
@@ -347,8 +349,8 @@ def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, lev
     return spatial_entries
 
 
-@builder.register("SpatialFile")
-class SpatialFile:
+@builder.register("AnnotationLayer")
+class AnnotationLayer:
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
     bounds, and how that is broken up into chunks (possibly over several levels).
@@ -369,7 +371,7 @@ class SpatialFile:
         chunk_sizes: Optional[Sequence[Sequence[int]]] = None,
     ):
         """
-        Initialize a SpatialFile.
+        Initialize an AnnotationLayer.
 
         :param path: local file or GS path of root of file hierarchy
         :param index: bounding box and resolution defining volume containing the data
@@ -384,6 +386,8 @@ class SpatialFile:
         assert path, "path parameter is required"
         if index is None:
             dims, lower_bound, upper_bound, spatial_entries = read_info(path)
+            if dims is None:
+                raise ValueError("index is required when file does not exist")  # pragma: no cover
             resolution = []
             for i in [0, 1, 2]:
                 numAndUnit = dims["xyz"[i]]
@@ -402,12 +406,25 @@ class SpatialFile:
         self.chunk_sizes = chunk_sizes
 
     def __repr__(self):
-        return f"SpatialFile(path={self.path}, index={self.index}, chunk_sizes={self.chunk_sizes})"
+        return (
+            f"AnnotationLayer(path='{self.path}', index={self.index}, "
+            f"chunk_sizes={self.chunk_sizes})"
+        )
 
-    def clear(self):
+    def exists(self) -> bool:
         """
-        Clear out all data, and (re)write the info file, leaving an empty spatial
-        file ready to pour fresh data into.
+        Return whether this spatial file (more specifically, its info file) already exists.
+        """
+        path = path_join(self.path, "info")
+        try:
+            data = read_bytes(path)
+        except NotADirectoryError:
+            data = None
+        return data is not None and len(data) > 0
+
+    def delete(self):
+        """
+        Completely delete this precomputed annotation file.
         """
         # Delete all files under our path
         path = self.path
@@ -421,6 +438,14 @@ class SpatialFile:
             for root, dirs, _ in os.walk(local_path, topdown=False):
                 for directory in dirs:
                     os.rmdir(os.path.join(root, directory))
+
+    def clear(self):
+        """
+        Clear out all data, and (re)write the info file, leaving an empty spatial
+        file ready to pour fresh data into.
+        """
+        # Delete all files under our path
+        self.delete()
 
         # Then, write (or overwrite) the info file
         self.write_info_file()
@@ -530,6 +555,35 @@ class SpatialFile:
             result = list(result_dict.values())
         return result
 
+    def read_in_bounds(self, index: VolumetricIndex, strict: bool = False):
+        """
+        Return all annotations within the given bounds (index).  If strict is
+        true, return ONLY annotations entirely within the given bounds.  If it
+        is false, then you may also get some annotations that are partially or
+        entirely outside the given bounds.
+        """
+        level = len(self.chunk_sizes) - 1
+        result = []
+        bounds_size = self.index.shape
+        chunk_size = Vec3D(*self.chunk_sizes[level])
+        grid_shape = ceil(bounds_size / chunk_size)
+        level_key = f"spatial{level}"
+        level_dir = path_join(self.path, level_key)
+        start_chunk = (index.start - self.index.start) // chunk_size
+        end_chunk = (index.stop - self.index.start) // chunk_size
+        for x in range(max(0, start_chunk[0]), min(grid_shape[0], end_chunk[0])):
+            for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1])):
+                for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2])):
+                    anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
+                    result += read_lines(anno_file_path)
+        if strict:
+            result = list(
+                filter(lambda x: index.contains(x.start) and index.contains(x.end), result)
+            )
+        result_dict = {line.id: line for line in result}
+        result = list(result_dict.values())
+        return result
+
     def post_process(self):
         """
         Read all our data from the lowest-level chunks on disk, then rewrite:
@@ -549,3 +603,107 @@ class SpatialFile:
 
         # rewrite the info file, with the updated spatial entries
         self.write_info_file(spatial_entries)
+
+
+@builder.register("build_annotation_layer")
+def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches
+    path: str,
+    resolution: Sequence[float] | None = None,
+    dataset_size: Sequence[int] | None = None,
+    voxel_offset: Sequence[int] | None = None,
+    index: VolumetricIndex | None = None,
+    chunk_sizes: Sequence[Sequence[int]] | None = None,
+    mode: Literal["read", "write", "replace", "update"] = "write",
+) -> AnnotationLayer:  # pragma: no cover # trivial conditional, delegation only
+    """Build an AnnotationLayer (spatially indexed annotations in precomputed file format).
+
+    :param path: Path to the precomputed file (directory).
+    :param resolution: (x, y, z) size of one voxel, in nm.
+    :dataset_size: Precomputed dataset size (in voxels) for all scales.
+    :param voxel_offset: start of the dataset volume (in voxels) for all scales.
+    :index: VolumetricIndex indicating dataset size and resolution.  Note that
+      for new files, you must provide either (resolution, dataset_size, voxel_offset)
+      or index, but not both.  For existing files, all these are optional.
+    :chunk_sizes: Chunk sizes for spatial index; defaults to a single chunk for
+      new files (or the existing chunk structure for existing files).
+    :mode: How the file should be created or opened:
+       "read": for reading only; throws error if file does not exist.
+       "write": for writing; throws error if file exists.
+       "replace": for writing; if file exists, it is cleared of all data.
+       "update": for writing additional data; throws error if file does not exist.
+    """
+    dims, lower_bound, upper_bound, spatial_entries = read_info(path)
+    file_exists = spatial_entries is not None
+    file_resolution = []
+    file_index = None
+    file_chunk_sizes = []
+    if file_exists:
+        for i in [0, 1, 2]:
+            numAndUnit = dims["xyz"[i]]
+            assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
+            file_resolution.append(numAndUnit[0])
+        # pylint: disable=E1120
+        file_index = VolumetricIndex.from_coords(lower_bound, upper_bound, Vec3D(*file_resolution))
+        file_chunk_sizes = [se.chunk_size for se in spatial_entries]
+
+    if mode in ("read", "update") and not file_exists:
+        raise IOError(
+            f"AnnotationLayer built with mode {mode}, but file does not exist (path: {path})"
+        )
+    if mode == "write" and file_exists:
+        raise IOError(
+            f"AnnotationLayer built with mode {mode}, but file already exists (path: {path})"
+        )
+
+    if index is None:
+        if mode == "write" or (mode == "replace" and not file_exists):
+            if resolution is None:
+                raise ValueError("when `index` is not provided, `resolution` is required")
+            if dataset_size is None:
+                raise ValueError("when `index` is not provided, `dataset_size` is required")
+            if voxel_offset is None:
+                raise ValueError("when `index` is not provided, `voxel_offset` is required")
+            if len(resolution) != 3:
+                raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
+            if len(dataset_size) != 3:
+                raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
+            if len(voxel_offset) != 3:
+                raise ValueError(f"`dataset_size` needs 3 elements, not {len(voxel_offset)}")
+            end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
+            index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
+    else:
+        if resolution is not None:
+            raise ValueError("providing both `index` and `resolution` is invalid")
+        if dataset_size is not None:
+            raise ValueError("providing both `index` and `dataset_size` is invalid")
+        if voxel_offset is not None:
+            raise ValueError("providing both `index` and `voxel_offset` is invalid")
+
+    if mode == "update":
+        if index is not None and index != file_index:
+            raise ValueError(
+                f'opened file for "update" with index {index}, '
+                f"but existing file index is {file_index}"
+            )
+        if chunk_sizes is not None and chunk_sizes != file_chunk_sizes:
+            raise ValueError(
+                f'opened file for "update" with chunk_sizes {chunk_sizes}, '
+                f"but existing file chunk_sizes is {file_chunk_sizes}"
+            )
+
+    sf = AnnotationLayer(path, index, chunk_sizes)
+    if mode in ("write", "replace"):
+        sf.clear()
+    return sf
+
+
+@mazepa.taskable_operation
+def post_process_annotation_layer_op(target: AnnotationLayer):  # pragma: no cover
+    print(f"Post-processing: {target.path}")
+    target.post_process()
+
+
+@builder.register("post_process_annotation_layer_flow")
+@mazepa.flow_schema
+def post_process_annotation_layer_flow(target: AnnotationLayer):  # pragma: no cover
+    yield post_process_annotation_layer_op.make_task(target)

@@ -4,7 +4,10 @@ import shutil
 import pytest
 
 from zetta_utils.db_annotations import precomp_annotations
-from zetta_utils.db_annotations.precomp_annotations import LineAnnotation, SpatialFile
+from zetta_utils.db_annotations.precomp_annotations import (
+    AnnotationLayer,
+    LineAnnotation,
+)
 from zetta_utils.geometry.vec import Vec3D
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
@@ -26,19 +29,19 @@ def test_round_trip():
 
     index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
 
-    sf = SpatialFile(file_dir, index)
+    sf = AnnotationLayer(file_dir, index)
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
     chunk_sizes = [[2000, 2000, 600], [1000, 1000, 600], [500, 500, 300]]
-    sf = SpatialFile(file_dir, index, chunk_sizes)
+    sf = AnnotationLayer(file_dir, index, chunk_sizes)
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
     sf.write_annotations([])  # (does nothing)
     sf.write_annotations(lines)
     sf.post_process()
 
-    # Now create a *new* SpatialFile, given just the directory.
-    sf = SpatialFile(file_dir)
+    # Now create a *new* AnnotationLayer, given just the directory.
+    sf = AnnotationLayer(file_dir)
     assert sf.index == index
     assert sf.chunk_sizes == chunk_sizes
 
@@ -46,6 +49,20 @@ def test_round_trip():
     assert len(lines_read) == len(lines)
     for line in lines:
         assert line in lines_read
+
+    idx = VolumetricIndex.from_coords((255, 0, 300), (1500, 1000, 1000), Vec3D(10, 10, 40))
+    # With that index, and strict=False, we would get at least 3 lines (ids 3, 4, and 5).
+    lines_read = sf.read_in_bounds(idx, strict=False)
+    assert len(lines_read) == 3
+    for line in lines[-2:]:
+        assert line in lines_read
+        assert line.id in [3, 4, 5]
+    # But with strict=True, we should get only 2 lines (ids 4 and 5).
+    lines_read = sf.read_in_bounds(idx, strict=True)
+    assert len(lines_read) == 2
+    for line in lines[-2:]:
+        assert line in lines_read
+        assert line.id in [4, 5]
 
     # Above is typical usage.  Below, we do some odd things
     # to trigger other code paths we want to test.
@@ -67,7 +84,13 @@ def test_edge_cases():
     # pylint: disable=use-implicit-booleaness-not-comparison
     assert precomp_annotations.read_lines("/dev/null") == []
 
+    assert precomp_annotations.read_info("/dev/null") == (None, None, None, None)
+
     assert precomp_annotations.path_join("gs://foo/", "bar") == "gs://foo/bar"
+
+    index = VolumetricIndex.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
+    assert not AnnotationLayer("/dev/null", index).exists()
+    assert not AnnotationLayer("/dev/null/subdir", index).exists()
 
 
 if __name__ == "__main__":

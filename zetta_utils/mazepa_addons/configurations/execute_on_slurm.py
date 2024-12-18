@@ -14,7 +14,7 @@ from simple_slurm import Slurm
 
 from zetta_utils import builder, log, mazepa, run
 from zetta_utils.cloud_management import resource_allocation
-from zetta_utils.cloud_management.resource_allocation.k8s.common import (
+from zetta_utils.cloud_management.resource_allocation.k8s import (
     get_mazepa_worker_command,
 )
 from zetta_utils.common.ctx_managers import set_env_ctx_mngr

@@ -198,7 +198,7 @@ class DatastoreBackend(DBBackend):
         If index provided, delete rows from the index.
         Else delete all rows.
         """
-        if idx:
+        if idx is not None:
             keys: list[Key] = []
             for _key, col_keys in self._get_row_col_keys(idx.row_keys, ds_keys=True).items():
                 keys.extend(col_keys)
@@ -213,7 +213,11 @@ class DatastoreBackend(DBBackend):
             row_iter = row_query.fetch()
             self.client.delete_multi(keys=[ent.key for ent in chain(col_iter, row_iter)])
 
-    def keys(self, column_filter: dict[str, list] | None = None) -> list[str]:
+    def keys(
+        self,
+        column_filter: dict[str, list] | None = None,
+        union: bool = True,
+    ) -> list[str]:
         """
         Fetch list of row keys that match given filters.
 
@@ -227,13 +231,17 @@ class DatastoreBackend(DBBackend):
                 if len(_filters) == 1:
                     _query.add_filter(filter=_filters[0])
                 else:  # pragma: no cover # no emulator support for composite queries
-                    _query.add_filter(filter=query.Or(_filters))
+                    if union:
+                        _query.add_filter(filter=query.Or(_filters))
+                    else:
+                        _query.add_filter(filter=query.And(_filters))
         return list(set(entity.key.parent.id_or_name for entity in _query.fetch()))
 
     def query(
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
+        union: bool = True,
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
@@ -244,7 +252,7 @@ class DatastoreBackend(DBBackend):
             This is operation is significantly faster if this is provided.
             Else the reader has to iterate over all rows and find their columns.
         """
-        row_keys = self.keys(column_filter=column_filter)
+        row_keys = self.keys(column_filter=column_filter, union=union)
         if len(return_columns) > 0:
             idx = DBIndex({row_key: return_columns for row_key in row_keys})
         else:

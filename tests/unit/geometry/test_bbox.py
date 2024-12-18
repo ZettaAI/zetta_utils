@@ -139,6 +139,46 @@ def test_constructor(
 
 
 @pytest.mark.parametrize(
+    "bbox, vec, expected",
+    [
+        [
+            BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
+            Vec3D(1, 2, 3),
+            BBox3D(bounds=((0, 1), (0, 1), (0, 1))),
+        ],
+        [
+            BBox3D(bounds=((0, 5734.4), (0, 8601.6), (0, 1))),
+            Vec3D(2.8, 2.8, 1),
+            BBox3D(bounds=((0, 2048), (0, 3072), (0, 1))),
+        ],
+    ],
+)
+def test_truediv(bbox: BBox3D, vec: Vec3D, expected: BBox3D):
+    result = bbox / vec
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "bbox, vec, expected",
+    [
+        [
+            BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
+            Vec3D(1, 2, 3),
+            BBox3D(bounds=((0, 1), (0, 4), (0, 9))),
+        ],
+        [
+            BBox3D(bounds=((0, 2048), (0, 3072), (0, 1))),
+            Vec3D(2.8, 2.8, 1),
+            BBox3D(bounds=((0, 5734.4), (0, 8601.6), (0, 1))),
+        ],
+    ],
+)
+def test_mul(bbox: BBox3D, vec: Vec3D, expected: BBox3D):
+    result = bbox * vec
+    assert result == expected
+
+
+@pytest.mark.parametrize(
     "bbox, resolution, allow_slice_rounding, expected",
     [
         [
@@ -632,6 +672,97 @@ def test_contains_exc():
         bbox.contains((1, 2, 3, 4), (1, 2, 3))
     with pytest.raises(ValueError):
         bbox.contains((1, 2, 3), (1, 2))
+
+
+@pytest.mark.parametrize(
+    "bbox, endpoint1, endpoint2, resolution, expected",
+    [
+        # Line entirely inside the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -8, -20),
+            Vec3D(0.5, 0, 20),
+            (1, 1, 1),
+            True,
+        ],
+        # Line with one endpoint inside and one outside
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -8, -20),
+            Vec3D(2, 0, 30),
+            (1, 1, 1),
+            True,
+        ],
+        # Line entirely outside the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(2, -10, -30),
+            Vec3D(3, -10, -40),
+            (1, 1, 1),
+            False,
+        ],
+        # Line intersects only one face of the box
+        [
+            BBox3D(bounds=((-1, 1), (-9, 9), (-25, 25))),
+            Vec3D(0, -10, -20),
+            Vec3D(0, -8, -20),
+            (1, 1, 1),
+            True,
+        ],
+        # Diagonal line passing through the box
+        [
+            BBox3D(bounds=((0, 100), (0, 100), (0, 100))),
+            Vec3D(-50, -50, -50),
+            Vec3D(150, 150, 150),
+            (1, 1, 1),
+            True,
+        ],
+        # Line touches the boundary but doesn't enter
+        [
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            Vec3D(0.9, 0, -5),
+            Vec3D(1, 0, -5),
+            (1, 1, 1),
+            True,
+        ],
+        # Line parallel to X face, but out of bounds
+        [
+            BBox3D(bounds=((1, 2), (-3, 3), (-5, 7))),
+            Vec3D(3, 2, 0),
+            Vec3D(3, 4, 0),
+            (1, 1, 1),
+            False,
+        ],
+        # Line completely outside with high resolution
+        [
+            BBox3D(bounds=((1, 2), (1, 2), (1, 2))),
+            Vec3D(1, 1, 1),
+            Vec3D(2, 2, 2),
+            (10, 10, 10),
+            False,
+        ],
+        # Line near the edge with high resolution
+        [
+            BBox3D(bounds=((1, 2), (1, 2), (1, 2))),
+            Vec3D(0.1, 0.1, 0.1),
+            Vec3D(0.11, 0.11, 0.11),
+            (10, 10, 10),
+            True,
+        ],
+    ],
+)
+def test_line_intersects(
+    bbox: BBox3D, endpoint1: Vec3D, endpoint2: Vec3D, resolution: Vec3D, expected: bool
+):
+    assert bbox.line_intersects(endpoint1, endpoint2, resolution) == expected
+
+
+def test_line_intersects_exc():
+    bbox = BBox3D(bounds=((1, 2), (-3, 3), (-5, 7)))
+    with pytest.raises(ValueError):
+        bbox.line_intersects((1, 2, 3, 4), (1, 2, 3), (1, 1, 1))
+    with pytest.raises(ValueError):
+        bbox.line_intersects((1, 2, 3), (1, 3, 2), (1, 2))
 
 
 def test_transpose_local():

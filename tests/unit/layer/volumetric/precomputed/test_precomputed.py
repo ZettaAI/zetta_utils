@@ -121,6 +121,20 @@ def test_type(clear_caches_reset_mocks):
     assert info["type"] == "segmentation"
 
 
+def test_data_type(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, data_type="uint16")
+    info = info_spec.make_info()
+    assert info is not None
+    assert info["data_type"] == "uint16"
+
+
+def test_num_channels(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, num_channels=4)
+    info = info_spec.make_info()
+    assert info is not None
+    assert info["num_channels"] == 4
+
+
 def test_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks, mocker):
     info_spec = PrecomputedInfoSpec(
         reference_path=LAYER_X0_PATH,
@@ -137,6 +151,42 @@ def test_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks, mocker):
             assert scale["voxel_offset"] == [1, 2, 3]
             assert scale["chunk_sizes"][0] == [3, 2, 1]
             assert scale["size"] == [10, 20, 30]
+
+
+def test_encoding(clear_caches_reset_mocks, mocker):
+    info_spec = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH,
+        default_encoding="jpeg",
+    )
+    info = info_spec.make_info()
+    assert info is not None
+    for scale in info["scales"]:
+        assert scale["encoding"] == "jpeg"
+
+    info_spec_map = PrecomputedInfoSpec(
+        reference_path=LAYER_X0_PATH, default_encoding="jpeg", encoding_map={"2_2_1": "raw"}
+    )
+    info_map = info_spec_map.make_info()
+    assert info_map is not None
+    for scale in info_map["scales"]:
+        if scale["resolution"] == [2, 2, 1]:
+            assert scale["encoding"] == "raw"
+        else:
+            assert scale["encoding"] == "jpeg"
+
+
+def test_only_retain_scales(clear_caches_reset_mocks, mocker):
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, only_retain_scales=[[2, 2, 1]])
+    info = info_spec.make_info()
+    assert info is not None
+    for scale in info["scales"]:
+        assert scale["resolution"] == [2, 2, 1]
+
+
+def test_only_retain_scales_exc(clear_caches_reset_mocks, mocker):
+    info_spec = PrecomputedInfoSpec(reference_path=LAYER_X0_PATH, only_retain_scales=[[12, 12, 1]])
+    with pytest.raises(ValueError):
+        info_spec.make_info()
 
 
 def make_tmp_layer(tmpdir, info_text=None):

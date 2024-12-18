@@ -135,7 +135,7 @@ class FirestoreBackend(DBBackend):
         If index provided, delete rows from the index; else, delete all rows.
         """
         bulk_writer = self.client.bulk_writer()
-        if idx:
+        if idx is not None:
             doc_refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         else:
             collection_ref = self.client.collection(self.collection)
@@ -147,6 +147,7 @@ class FirestoreBackend(DBBackend):
     def keys(
         self,
         column_filter: dict[str, list] | None = None,  # pylint: disable=unused-argument
+        union: bool = True,  # pylint: disable=unused-argument
     ) -> list[str]:
         """
         Not implemented, firestore does not yet support `keys_only` queries.
@@ -157,6 +158,7 @@ class FirestoreBackend(DBBackend):
         self,
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
+        union: bool = True,
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
@@ -181,7 +183,10 @@ class FirestoreBackend(DBBackend):
             if len(_filters) == 1:
                 _q = collection_ref.where(filter=_filters[0])
             else:  # pragma: no cover # no emulator support for composite queries
-                _q = collection_ref.where(filter=Or(_filters))
+                if union:
+                    _q = collection_ref.where(filter=Or(_filters))
+                else:
+                    _q = collection_ref.where(filter=And(_filters))
             snapshots = list(_q.stream())
         else:
             refs = collection_ref.list_documents()

@@ -1,6 +1,7 @@
 # pylint: disable=all # type: ignore
 from typing import Annotated
 
+from attrs import asdict
 from fastapi import FastAPI, Query, Request
 
 from zetta_utils.db_annotations.layer import (
@@ -22,7 +23,7 @@ async def generic_handler(request: Request, exc: Exception):
 
 @api.get("/single/{layer_id}")
 async def read_single(layer_id: str):
-    return read_layer(layer_id)
+    return asdict(read_layer(layer_id))
 
 
 @api.post("/single")
@@ -40,10 +41,10 @@ async def update_single(
 @api.get("/multiple")
 async def read_multiple(layer_ids: Annotated[list[str] | None, Query()] = None):
     if layer_ids:
-        return read_layers(layer_ids=layer_ids)
+        return [asdict(x) for x in read_layers(layer_ids=layer_ids)]
     layers = read_layers()
     response = []
     for _id, layer in layers.items():
-        layer["id"] = _id
-        response.append(layer)
+        layer.id = _id
+        response.append(asdict(layer))
     return response

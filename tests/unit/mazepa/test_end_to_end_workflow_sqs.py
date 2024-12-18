@@ -57,6 +57,21 @@ def queues_with_worker(task_queue, outcome_queue):
     yield task_queue, outcome_queue, worker
 
 
+@pytest.fixture
+def queues_with_idle_worker(task_queue, outcome_queue):
+    max_runtime = 10.0
+    worker = partial(
+        mazepa.run_worker,
+        task_queue=task_queue,
+        outcome_queue=outcome_queue,
+        sleep_sec=0.2,
+        max_runtime=max_runtime,
+        debug=True,
+        idle_timeout=0.5,
+    )
+    yield worker, max_runtime
+
+
 def return_false_fn(*args, **kwargs):
     return False
 
@@ -146,3 +161,10 @@ def test_worker_task_pull_error(queues_with_worker, mocker) -> None:
     exc = outcomes[0].payload.outcome.exception
     assert isinstance(exc, RuntimeError)
     assert "hola" in str(exc)
+
+
+def test_idling_worker(queues_with_idle_worker) -> None:
+    worker, max_runtime = queues_with_idle_worker
+    start = time.time()
+    worker()
+    assert (time.time() - start) < max_runtime

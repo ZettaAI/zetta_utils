@@ -1,14 +1,16 @@
 """
 Tools to interact with kubernetes clusters.
 """
+
 from __future__ import annotations
 
 import json
 from typing import Any, Final, Optional, Tuple
 
 import attrs
+from kubernetes.dynamic import DynamicClient
 
-from kubernetes import client as k8s_client  # type: ignore
+from kubernetes import client as k8s_client
 from zetta_utils import builder, log, run
 from zetta_utils.mazepa import SemaphoreType
 
@@ -64,15 +66,18 @@ def get_mazepa_worker_command(
     outcome_queue_spec: dict[str, Any],
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
+    idle_timeout: int = 60,
 ):
     if num_procs == 1 and semaphores_spec is None:
         command = "mazepa.run_worker"
         num_procs_line = ""
         semaphores_line = ""
+        idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
     else:
         command = "mazepa.run_worker_manager"
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
+        idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
 
     result = f"zetta -vv -l try run -r {run.RUN_ID} --no-main-run-process -p -s '{{"
     result += (
@@ -81,6 +86,7 @@ def get_mazepa_worker_command(
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
         + num_procs_line
         + semaphores_line
+        + idle_timeout_line
         + """
         sleep_sec: 5
     }'
@@ -144,3 +150,32 @@ def parse_cluster_info(
             project=cluster_project,
         )
     return cluster_info
+
+
+def create_dynamic_resource(
+    name: str,
+    configuration: k8s_client.Configuration,
+    api_version: str,
+    kind: str,
+    manifest: dict,
+    namespace: str | None = "default",
+):
+    api_client = k8s_client.api_client
+    client = DynamicClient(api_client.ApiClient(configuration=configuration))
+    dynamic_api = client.resources.get(api_version=api_version, kind=kind)
+    logger.info(f"Creating dynamic k8s resource `{name}`")
+    dynamic_api.create(body=manifest, namespace=namespace)
+
+
+def delete_dynamic_resource(
+    name: str,
+    configuration: k8s_client.Configuration,
+    api_version: str,
+    kind: str,
+    namespace: str | None = "default",
+):
+    api_client = k8s_client.api_client
+    client = DynamicClient(api_client.ApiClient(configuration=configuration))
+    dynamic_api = client.resources.get(api_version=api_version, kind=kind)
+    logger.info(f"Deleting dynamic k8s resource `{name}`")
+    dynamic_api.delete(name=name, body={}, namespace=namespace)

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import overload
+from typing import List, Mapping, cast, overload
+
+import attrs
 
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
@@ -20,37 +22,60 @@ LAYER_GROUPS_DB = build_firestore_layer(
 )
 
 
-def read_layer_group(layer_group_id: str) -> DBRowDataT:
+@attrs.mutable
+class LayerGroupDBEntry:
+    id: str
+    name: str
+    collection: str
+    layers: list[str]
+    created_by: str
+    modified_by: str | None
+
+    @staticmethod
+    def from_dict(layer_group_id: str, raw_dict: Mapping) -> LayerGroupDBEntry:
+        return LayerGroupDBEntry(
+            id=layer_group_id,
+            name=raw_dict["name"],
+            created_by=raw_dict["created_by"],
+            modified_by=raw_dict.get("modified_by"),
+            collection=raw_dict["collection"],
+            layers=raw_dict["layers"],
+        )
+
+
+def read_layer_group(layer_group_id: str) -> LayerGroupDBEntry:
     idx = (layer_group_id, INDEXED_COLS + NON_INDEXED_COLS)
-    return LAYER_GROUPS_DB[idx]
+    result_raw = LAYER_GROUPS_DB[idx]
+    result = LayerGroupDBEntry.from_dict(layer_group_id=layer_group_id, raw_dict=result_raw)
+    return result
 
 
 @overload
-def read_layer_groups() -> dict[str, DBRowDataT]:
+def read_layer_groups(*, layer_group_ids: list[str]) -> list[LayerGroupDBEntry]:
     ...
 
 
 @overload
-def read_layer_groups(*, layer_group_ids: list[str]) -> list[DBRowDataT]:
+def read_layer_groups(*, collection_ids: list[str] | None = None) -> dict[str, LayerGroupDBEntry]:
     ...
 
 
-@overload
-def read_layer_groups(*, collection_ids: list[str] | None = None) -> dict[str, DBRowDataT]:
-    ...
-
-
-def read_layer_groups(
-    *, layer_group_ids: list[str] | None = None, collection_ids: list[str] | None = None
-) -> list[DBRowDataT] | dict[str, DBRowDataT]:
+def read_layer_groups(*, layer_group_ids=None, collection_ids=None):
     _filter = {}
     if collection_ids:
         _filter["collection"] = collection_ids
-        return LAYER_GROUPS_DB.query(column_filter=_filter)
-    if layer_group_ids is None:
-        return LAYER_GROUPS_DB.query()
-    idx = (layer_group_ids, INDEXED_COLS + NON_INDEXED_COLS)
-    return LAYER_GROUPS_DB[idx]
+        result_raw = LAYER_GROUPS_DB.query(column_filter=_filter)
+        return {k: LayerGroupDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.items()}
+    elif layer_group_ids is None:
+        result_raw = LAYER_GROUPS_DB.query()
+        return {k: LayerGroupDBEntry.from_dict(k, cast(dict, v)) for k, v in result_raw.items()}
+    else:
+        idx = (layer_group_ids, INDEXED_COLS + NON_INDEXED_COLS)
+        result_raw_list = cast(List, LAYER_GROUPS_DB[idx])
+        return [
+            LayerGroupDBEntry.from_dict(layer_group_ids[i], result_raw_list[i])
+            for i in range(len(result_raw_list))
+        ]
 
 
 def add_layer_group(

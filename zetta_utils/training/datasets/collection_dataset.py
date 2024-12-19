@@ -1,5 +1,8 @@
+import json
+import os
 from typing import Sequence
 
+import fsspec
 from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
 from typeguard import typechecked
 
@@ -10,7 +13,6 @@ from zetta_utils.layer.layer_base import Layer
 from zetta_utils.layer.layer_set.build import build_layer_set
 from zetta_utils.layer.tools_base import DataProcessor
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
-from zetta_utils.layer.volumetric.layer import VolumetricLayer
 from zetta_utils.training.datasets.joint_dataset import JointDataset
 from zetta_utils.training.datasets.layer_dataset import LayerDataset
 from zetta_utils.training.datasets.sample_indexers.volumetric_strided_indexer import (
@@ -25,19 +27,20 @@ def build_collection_dataset(
     resolution: Sequence[float],
     chunk_size: Sequence[int],
     chunk_stride: Sequence[int],
-    base_resolution: Sequence[float],
     layer_rename_map: dict[str, str],
     shared_read_procs: Sequence[DataProcessor],
     per_layer_read_procs: dict[str, Sequence[DataProcessor]],
     tags: list[str] | None = None,
 ) -> JointDataset:
     datasets = {}
-    annotations = db_annotations.read_annotations(collection_ids=[collection_name], tags=tags)
+    annotations = db_annotations.read_annotations(
+        collection_ids=[collection_name], tags=tags, union=False
+    )
     layer_group_map: dict[str, dict[str, Layer]] = {}
 
     for i, annotation in enumerate(annotations.values()):
-        if annotation.layer_group_id not in layer_group_map:
-            layer_group = db_annotations.read_layer_group(annotation.layer_group_id)
+        if annotation.layer_group not in layer_group_map:
+            layer_group = db_annotations.read_layer_group(annotation.layer_group)
             db_layers = db_annotations.read_layers(layer_ids=layer_group.layers)
             layers = {}
             for layer in db_layers:
@@ -46,18 +49,39 @@ def build_collection_dataset(
                     name = layer_rename_map[name]
                 read_procs = per_layer_read_procs[name]
                 layers[name] = build_cv_layer(path=layer.source, read_procs=read_procs)
-            layer_group_map[annotation.layer_group_id] = layers
+            layer_group_map[annotation.layer_group] = layers
         else:
-            layers = layer_group_map[annotation.layer_group_id]
-
+            layers = layer_group_map[annotation.layer_group]
+        z_resolution = resolution[-1]
+        for layer in layers.values():
+            info_path = os.path.join(layer.backend.name.strip("precomputed://"), "info")
+            with fsspec.open(info_path) as f:
+                info = json.loads(f.read())
+                z_resolutions = set([e["resolution"][-1] for e in info["scales"]])
+                if len(z_resolutions) != 1:
+                    raise RuntimeError("Only layers with single z resolution are supported")
+                z_resolution = list(z_resolutions)[0]
+        this_resolution = [resolution[0], resolution[1], z_resolution]
         if isinstance(annotation.ng_annotation, AxisAlignedBoundingBoxAnnotation):
-            bbox = BBox3D.from_ng_bbox(
-                ng_bbox=annotation.ng_annotation, base_resolution=base_resolution
-            ).snapped([0, 0, 0], resolution, "shrink")
+            ng_bbox = annotation.ng_annotation
+            point_a_nm = Vec3D(*ng_bbox.pointA).int()
+            point_b_nm = Vec3D(*ng_bbox.pointB).int()
+
+            start_coord = [
+                round((min(point_a_nm[i], point_b_nm[i]) / this_resolution[i]))
+                * this_resolution[i]
+                for i in range(3)
+            ]
+            end_coord = [
+                round(max(point_a_nm[i], point_b_nm[i]) / this_resolution[i]) * this_resolution[i]
+                for i in range(3)
+            ]
+
+            bbox = BBox3D.from_coords(start_coord=start_coord, end_coord=end_coord)
             datasets[str(i)] = LayerDataset(
                 layer=build_layer_set(layers=layers, read_procs=shared_read_procs),
                 sample_indexer=VolumetricStridedIndexer(
-                    resolution=resolution,
+                    resolution=this_resolution,
                     chunk_size=chunk_size,
                     stride=chunk_stride,
                     mode="shrink",

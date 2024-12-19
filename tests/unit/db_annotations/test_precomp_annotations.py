@@ -77,6 +77,38 @@ def test_round_trip():
     shutil.rmtree(file_dir)  # clean up when done
 
 
+def test_single_level():
+    temp_dir = os.path.expanduser("~/temp/test_precomp_anno")
+    os.makedirs(temp_dir, exist_ok=True)
+    file_dir = os.path.join(temp_dir, "single_level")
+
+    lines = [
+        LineAnnotation(line_id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+        LineAnnotation(line_id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
+        LineAnnotation(line_id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
+        LineAnnotation(line_id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
+        LineAnnotation(line_id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
+    ]
+    # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
+    # be written out to both of them.
+
+    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
+
+    sf = AnnotationLayer(file_dir, index)
+    assert sf.chunk_sizes == [(2000, 2000, 600)]
+
+    chunk_sizes = [[500, 500, 300]]
+    sf = AnnotationLayer(file_dir, index, chunk_sizes)
+    os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
+    sf.clear()
+    sf.write_annotations([])  # (does nothing)
+    sf.write_annotations(lines)
+    sf.post_process()
+
+    chunk_path = os.path.join(file_dir, "spatial0", "2_1_1")
+    assert precomp_annotations.count_lines_in_file(chunk_path) == 2
+
+
 def test_edge_cases():
     with pytest.raises(ValueError):
         precomp_annotations.path_join()

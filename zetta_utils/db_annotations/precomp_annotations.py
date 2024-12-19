@@ -12,6 +12,7 @@ References:
 """
 
 import io
+import itertools
 import json
 import os
 import struct
@@ -145,7 +146,7 @@ def write_bytes(file_or_gs_path: str, data: bytes):
     :param file_or_gs_path: path to file to write (local or GCS path)
     :param data: bytes to write
     """
-    if not "//" in file_or_gs_path:
+    if "//" not in file_or_gs_path:
         file_or_gs_path = "file://" + file_or_gs_path
     cf = CloudFile(file_or_gs_path)
     cf.put(data)
@@ -184,6 +185,14 @@ def write_lines(file_or_gs_path: str, lines: Sequence[LineAnnotation], randomize
     write_bytes(file_or_gs_path, buffer.getvalue())
 
 
+def line_count_from_file_size(file_size: int) -> int:
+    """
+    Provide a count (or at least a very good estimate) of the number of lines in
+    a line chunk file of the given size in bytes.
+    """
+    return round((file_size - 8) / (LineAnnotation.BYTES_PER_ENTRY + 8))
+
+
 def count_lines_in_file(file_or_gs_path: str) -> int:
     """
     Provide a count (or at least a very good estimate) of the number of lines in
@@ -192,10 +201,7 @@ def count_lines_in_file(file_or_gs_path: str) -> int:
     # We could open the file and read the count in the first 8 bytes.
     # But even faster is to just calculate it from the file length.
     cf = CloudFile(file_or_gs_path)
-    fileLen = cf.size()
-    if fileLen is None:
-        return 0
-    return round((fileLen - 8) / (LineAnnotation.BYTES_PER_ENTRY + 8))
+    return line_count_from_file_size(cf.size() or 0)
 
 
 def read_bytes(file_or_gs_path: str):
@@ -205,7 +211,7 @@ def read_bytes(file_or_gs_path: str):
     :param file_or_gs_path: path to file to read (local or GCS path)
     :return: bytes read from the file
     """
-    if not "//" in file_or_gs_path:
+    if "//" not in file_or_gs_path:
         file_or_gs_path = "file://" + file_or_gs_path
     cf = CloudFile(file_or_gs_path)
     return cf.get()
@@ -470,7 +476,7 @@ class AnnotationLayer:
         """
         # Delete all files under our path
         path = self.path
-        if not "//" in path:
+        if "//" not in path:
             path = "file://" + path
         cf = CloudFiles(path)
         cf.delete(cf.list())
@@ -558,7 +564,7 @@ class AnnotationLayer:
             # is to do one level at a time, filtering at each level, so that
             # the final filters don't have to wade through as much data.
             for x in range(grid_shape[0]):
-                print(f"x = {x} of {grid_shape[0]}", end="", flush=True)
+                logger.debug(f"x = {x} of {grid_shape[0]}")
                 split_by_x = VolumetricIndex.from_coords(
                     (
                         self.index.start[0] + x * chunk_size[0],
@@ -576,11 +582,11 @@ class AnnotationLayer:
                 split_data_by_x: list[LineAnnotation] = list(
                     filter(lambda d: d.in_bounds(split_by_x), annotations)
                 )
-                print(f":  {len(split_data_by_x)} lines")
+                logger.debug(f":  {len(split_data_by_x)} lines")
                 if not split_data_by_x:
                     continue
                 for y in range(grid_shape[1]):
-                    print(f"    y = {y} of {grid_shape[1]}", end="", flush=True)
+                    logger.debug(f"    y = {y} of {grid_shape[1]}")
                     split_by_y = VolumetricIndex.from_coords(
                         (
                             self.index.start[0] + x * chunk_size[0],
@@ -598,7 +604,7 @@ class AnnotationLayer:
                     split_data_by_y: list[LineAnnotation] = list(
                         filter(lambda d: d.in_bounds(split_by_y), split_data_by_x)
                     )
-                    print(f":  {len(split_data_by_y)} lines")
+                    logger.debug(f":  {len(split_data_by_y)} lines")
                     if not split_data_by_y:
                         continue
                     for z in range(grid_shape[2]):
@@ -622,8 +628,6 @@ class AnnotationLayer:
                         chunk_bounds = VolumetricIndex.from_coords(
                             chunk_start, chunk_end, self.index.resolution
                         )
-                        # print(f'split_by_z:   {split_by_z}')
-                        # print(f'chunk_bounds: {chunk_bounds}')
                         assert chunk_bounds == split_by_z
                         # pylint: disable=cell-var-from-loop
                         chunk_data: list[LineAnnotation] = list(
@@ -676,14 +680,18 @@ class AnnotationLayer:
         grid_shape = ceil(bounds_size / chunk_size)
         level_key = f"spatial{level}"
         level_dir = path_join(self.path, level_key)
-        result = 0
-        for x in range(0, grid_shape[0]):
-            for y in range(0, grid_shape[1]):
-                for z in range(0, grid_shape[2]):
-                    anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                    line_count = count_lines_in_file(anno_file_path)
-                    result = max(result, line_count)
-        return result
+        if "//" not in level_dir:
+            level_dir = "file://" + level_dir
+        cf = CloudFiles(level_dir)
+        file_paths = [
+            f"{x}_{y}_{z}"
+            for x, y, z in itertools.product(
+                range(grid_shape[0]), range(grid_shape[1]), range(grid_shape[2])
+            )
+        ]
+        file_sizes = cf.size(file_paths)
+        max_file_size = max(x or 0 for x in file_sizes.values())
+        return line_count_from_file_size(max_file_size)
 
     def read_in_bounds(self, index: VolumetricIndex, strict: bool = False):
         """
@@ -728,7 +736,7 @@ class AnnotationLayer:
             # Just iterate over the spatial entry files, getting the line
             # count in each one, and keep track of the max.
             max_line_count = self.find_max_size(0)
-            print(f"Found max_line_count = {max_line_count}")
+            # print(f"Found max_line_count = {max_line_count}")
             spatial_entries = self.get_spatial_entries(max_line_count)
         else:
             # Multiple chunk sizes means we have to start at the lowest
@@ -737,7 +745,7 @@ class AnnotationLayer:
             # read data (from lowest level chunks)
             all_data = self.read_all()
 
-            # write data to all levels EXCEPT the last one
+            # subdivide as if writing data to all levels EXCEPT the last one
             levels_to_write = range(0, len(self.chunk_sizes) - 1)
             spatial_entries = subdivide(
                 all_data, self.index, self.chunk_sizes, self.path, levels_to_write

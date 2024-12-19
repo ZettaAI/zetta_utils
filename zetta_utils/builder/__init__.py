@@ -1,7 +1,6 @@
 """Building objects from specs"""
 import inspect
 from typing import List
-
 import numpy as np
 
 from . import built_in_registrations, constants
@@ -24,3 +23,4 @@ for k in dir(np):
         elif isinstance(getattr(np, k), (float, type(None))):
             # Add inf, nan, newaxis (None), etc. to cue specs
             register(f"np.{k}")(lambda k=k: getattr(np, k))
+

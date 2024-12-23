@@ -53,7 +53,7 @@ def make_interpolate_operation(
 
 
 @builder.register("build_interpolate_flow")
-def build_interpolate_flow(
+def build_interpolate_flow(  # pylint: disable=too-many-locals
     src: VolumetricBasedLayerProtocol,
     dst: VolumetricBasedLayerProtocol | None,
     src_resolution: Sequence[float],
@@ -61,6 +61,7 @@ def build_interpolate_flow(
     mode: tensor_ops.InterpolationMode,
     processing_chunk_sizes: Sequence[Sequence[int]],
     level_intermediaries_dirs: Sequence[str | None] | None = None,
+    skip_intermediaries: bool = False,
     expand_bbox_resolution: bool = False,
     expand_bbox_backend: bool = False,
     expand_bbox_processing: bool = True,
@@ -103,6 +104,7 @@ def build_interpolate_flow(
                 dst_resolution=dst_res,
                 processing_chunk_sizes=processing_chunk_sizes,
                 level_intermediaries_dirs=level_intermediaries_dirs,
+                skip_intermediaries=skip_intermediaries,
                 expand_bbox_resolution=expand_bbox_resolution,
                 expand_bbox_backend=expand_bbox_backend,
                 expand_bbox_processing=expand_bbox_processing,

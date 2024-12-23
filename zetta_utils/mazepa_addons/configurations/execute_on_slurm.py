@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import copy
-import datetime
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 from contextlib import AbstractContextManager, ExitStack, contextmanager
@@ -98,6 +98,17 @@ def check_gres(_, __, value):
         raise ValueError("gres must be a (list of) string or None")
 
 
+def check_timedelta(_, __, value):
+    timedelta_pattern = re.compile(r"^(\d+-\d+(:\d+(:\d+)?)?)|(\d+:\d+(:\d+)?)|(\d+)$")
+
+    if not (isinstance(value, str) or timedelta_pattern.match(value)):
+        raise ValueError(
+            'time must be a string in the format "minutes", "minutes:seconds", '
+            '"hours:minutes:seconds", "days-hours", "days-hours:minutes" or '
+            '"days-hours:minutes:seconds"'
+        )
+
+
 def check_array(_, __, value):
     if not (
         value is None
@@ -126,6 +137,8 @@ class SlurmWorkerResources:
     mem_per_cpu: str = attrs.field(validator=check_mem_per_cpu)
     gres: str | None = attrs.field(validator=check_gres, default=None)
     array: Any = attrs.field(validator=check_array, default=None)
+    time: str = attrs.field(validator=check_timedelta, default="6-0:0:0")
+    partition: str | None = None
 
     def to_dict(self) -> dict:
         return dict(attrs.asdict(self, filter=lambda attr, value: value is not None).items())
@@ -189,9 +202,7 @@ def get_slurm_contex_managers(
     pathlib.Path(f"slurm_{execution_id}").mkdir()
     slurm_obj = Slurm(
         output=f"slurm_{execution_id}/{Slurm.JOB_ARRAY_ID}.out",
-        time=datetime.timedelta(days=2, hours=0, minutes=0, seconds=0),
         ntasks=worker_replicas,
-        partition="highpri",
         job_name=f"slurm-worker-{execution_id}",
         **slurm_worker_resources.to_dict(),
     )

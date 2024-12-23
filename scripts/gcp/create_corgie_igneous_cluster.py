@@ -78,7 +78,7 @@ def main():  # pylint: disable=too-many-statements
     parser.add_argument("--add_cpu", action="store_true", help="Add CPU node pool.")
     parser.add_argument("--add_gpu", action="store_true", help="Add GPU node pool.")
     parser.add_argument(
-        "--add-repo", action="store_true", help="Add Artifact Registry Repository."
+        "--add_repo", action="store_true", help="Add Artifact Registry Repository."
     )
 
     args = parser.parse_args()

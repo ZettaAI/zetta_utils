@@ -26,7 +26,7 @@ CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLU
 
 CONFIGURE_KEDA_COMMAND_TMPL = 'helm repo add kedacore https://kedacore.github.io/charts && helm repo update kedacore \
     && gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
-    && helm install keda kedacore/keda --namespace keda --create-namespace'
+    && helm install keda kedacore/keda --namespace keda --create-namespace --set resources.operator.requests.cpu="10m" --set resources.metricServer.requests.cpu="10m" --set resources.webhooks.requests.cpu="10m"'
 
 
 def main():  # pylint: disable=too-many-statements

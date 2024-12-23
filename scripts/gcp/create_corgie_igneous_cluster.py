@@ -53,8 +53,7 @@ def main():  # pylint: disable=too-many-statements
         "-r",
         type=str,
         default="us-east1",
-        choices=["us-east1", "us-central1"],
-        help="GCP region (e.g. us-east-1).",
+        help="GCP region (e.g. us-east1).",
     )
     parser.add_argument(
         "--cluster_version",

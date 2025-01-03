@@ -1,0 +1,23 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+ADD pyproject.toml /opt/zetta_utils/
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git build-essential curl software-properties-common libboost-dev \
+  && add-apt-repository ppa:deadsnakes/ppa -y \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends python3.12 python3-pip python3.12-dev \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+  && cd /bin/ && curl -Ls https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz | tar -xzvf - cue \
+  && cd /opt/zetta_utils \
+  && pip install --user --no-cache-dir torch==2.5.1+cu124 torchvision==0.20.1+cu124 --index-url https://download.pytorch.org/whl/cu124 \
+  && pip install --user --no-cache-dir '.[modules]' \
+  && pip uninstall pathlib -y \
+  && apt-get --purge autoremove -y build-essential curl software-properties-common libboost-dev \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY . /opt/zetta_utils/
+ENV PYTHONPATH /opt/zetta_utils
+WORKDIR /opt/zetta_utils
+# RUN zetta --help

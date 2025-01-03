@@ -1,0 +1,97 @@
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04 as builder
+
+ENV DEBIAN_FRONTEND="noninteractive"
+
+# Install conda
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git wget ccache libjpeg-dev libpng-dev && \
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p /opt/conda && \
+    rm /tmp/miniconda.sh && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN /usr/sbin/update-ccache-symlinks
+RUN mkdir /opt/ccache && ccache --set-config=cache_dir=/opt/ccache
+ENV PATH /opt/conda/bin:$PATH
+
+# Download Pytorch source
+RUN git clone --recursive --single-branch --branch v2.5.1 https://github.com/pytorch/pytorch.git /pytorch
+WORKDIR /pytorch
+RUN git submodule sync && git submodule update --init --recursive
+
+# Install Pytorch build dependencies
+RUN conda create -n build-env \
+  -c https://software.repos.intel.com/python/conda/ -c conda-forge -c pytorch \
+  python=3.12 intelpython3_full mkl-include \
+  cmake ninja magma-cuda124
+SHELL ["conda", "run", "-n", "build-env", "/bin/bash", "-c"]
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN --mount=type=cache,target=/opt/ccache \
+    _GLIBCXX_USE_CXX11_ABI=1 \
+    CMAKE_PREFIX_PATH=${CONDA_PREFIX:-"$(dirname $(which conda))/../"} \
+    CMAKE_INCLUDE_PATH="${CONDA_PREFIX}/include" \
+    CUDA_HOME="/usr/local/cuda" \
+    USE_ROCM=0 \
+    USE_XPU=0 \
+    USE_CUDA=1 \
+    TORCH_CUDA_ARCH_LIST="8.9" \
+    PYTORCH_BUILD_VERSION=2.5.1 \
+    PYTORCH_BUILD_NUMBER=1 \
+    # TORCH_CUDA_ARCH_LIST="7.5 8.0 8.6 8.9 9.0 9.0a" \
+    TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
+    USE_STATIC_CUDNN=1 \
+    USE_STATIC_NCCL=1 \
+    USE_STATIC_MKL=1 \
+    USE_CUDA_STATIC_LINK=1 \
+    USE_SYSTEM_NCCL=1 \
+    MAX_JOBS=4 \
+    python3 setup.py bdist_wheel
+
+
+FROM ubuntu:24.04 as runtime
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+
+ADD pyproject.toml /opt/zetta_utils/
+RUN --mount=target=/opt/pytorch/,from=builder,source=/pytorch/dist/ \
+  apt-get update \
+  && apt-get install -y --no-install-recommends software-properties-common \
+  && add-apt-repository ppa:deadsnakes/ppa -y \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    python3.12 \
+    python3-pip \
+    python3.12-dev \
+    # python3.12-venv \
+    # six needed by boto3, would be uninstalled by cleanup
+    # python3-six \
+    libboost-dev \
+    # libgomp1 needed by torch
+    libgomp1 \ 
+  # && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
+  # && python3.12 get-pip.py \
+  && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 \
+  && cd /bin/ && curl -Ls https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz | tar -xzvf - cue \
+  && cd /opt/zetta_utils \
+  && pip install --user --no-cache-dir --ignore-installed \
+    /opt/pytorch/*.whl \
+    nvidia-cuda-cupti-cu12 \
+    nvidia-cuda-runtime-cu12 \
+    nvidia-cublas-cu12 \
+    nvidia-cufft-cu12 \
+    nvidia-cusparse-cu12 \
+    '.[modules]' \
+  # Remove the bad pathlib from metroem that overrides/breaks system
+  && pip uninstall pathlib -y \
+  && apt-get --purge autoremove -y build-essential curl software-properties-common libboost-dev  \
+  && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONPATH="$PYTHONPATH:/opt/zetta_utils:/root/.local/lib/python3.12/site-packages"
+ENV PATH="$PATH:/root/.local/bin"
+ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/root/.local/lib/python3.12/site-packages/nvidia"
+COPY . /opt/zetta_utils/
+WORKDIR /opt/zetta_utils
+# RUN zetta --help

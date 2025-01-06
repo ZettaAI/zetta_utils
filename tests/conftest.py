@@ -68,7 +68,7 @@ def firestore_emulator():
     """Ensure that the Firestore service is up and responsive."""
 
     client = docker.from_env()  # type: ignore
-    project = "test-project"
+    project = "test-project-x0"
     port = "8080"
     container = client.containers.run(
         "mtlynch/firestore-emulator:latest",

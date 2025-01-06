@@ -255,7 +255,7 @@ def _spec_configmap_vol_and_ctx(
     )
 
     configmap_projection = k8s_client.V1ConfigMapProjection(
-        name=run.RUN_ID,
+        name=configmap.metadata.name,
         items=[k8s_client.V1KeyToPath(key=f"{spec}.cue", path=f"{spec}.cue") for spec in specs],
     )
 

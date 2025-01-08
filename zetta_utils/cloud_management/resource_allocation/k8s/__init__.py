@@ -25,7 +25,7 @@ from .job import (
     follow_job_logs,
     wait_for_job_completion,
 )
-from .keda import scaled_deployment_ctx_mngr, scaled_job_ctx_mngr
+from .keda import scaled_deployment_ctx_mngr, scaled_job_ctx_mngr, sqs_trigger_ctx_mngr
 from .pod import get_pod_spec, get_mazepa_pod_spec
 from .secret import secrets_ctx_mngr, get_secrets_and_mapping
 from .service import get_service, service_ctx_manager

@@ -2,6 +2,7 @@ import random
 import time
 
 import fsspec
+import torch
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.mazepa.tasks import taskable_operation
@@ -36,3 +37,28 @@ def keda_test_flow(num_tasks: int):
     for _ in range(num_tasks):
         yield dummy_task.make_task(random.randint(0, 10))
     yield dummy_task.make_task(random.randint(600, 1200))
+
+
+@taskable_operation
+def dummy_cpu_task(num_seconds: int) -> bool:
+    logger.info("CPU Task.")
+    time.sleep(num_seconds)
+    return False
+
+
+@taskable_operation
+def dummy_gpu_task(num_seconds: int) -> bool:
+    assert torch.cuda.is_available()
+    logger.info(f"GPU Task. {torch.cuda.device_count()} available.")
+    time.sleep(num_seconds)
+    return True
+
+
+@builder.register("group_test_flow")
+@mazepa.flow_schema
+def group_test_flow(num_tasks: int, tag1: str, tag2: str):
+    for _ in range(num_tasks):
+        yield dummy_cpu_task.make_task(random.randint(0, 10)).add_tags([tag1])
+
+    for _ in range(num_tasks):
+        yield dummy_gpu_task.make_task(random.randint(0, 10)).add_tags([tag2])

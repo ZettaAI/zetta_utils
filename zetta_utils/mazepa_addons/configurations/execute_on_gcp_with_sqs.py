@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import AbstractContextManager, ExitStack
-from typing import Any, Final, Iterable, Literal, Optional, Union
+from typing import Any, Final, Iterable, Literal, Optional, TypedDict, Union
 
 import attrs
 
@@ -55,7 +55,7 @@ def _ensure_required_env_vars():
         )
 
 
-@attrs.mutable
+@attrs.frozen
 class WorkerGroup:
     replicas: int
     resource_limits: dict[str, int | float | str]
@@ -69,13 +69,27 @@ class WorkerGroup:
     labels: dict[str, str] | None = None
 
 
+class WorkerGroupDict(TypedDict, total=False):
+    replicas: int
+    resource_limits: dict[str, int | float | str]
+    queue_tags: list[str]
+    num_procs: int
+    sqs_based_scaling: bool
+    resource_requests: dict[str, int | float | str]
+    semaphores_spec: dict[SemaphoreType, int]
+    provisioning_model: Literal["standard", "spot"]
+    idle_worker_timeout: int
+    labels: dict[str, str]
+
+
 def _get_group_taskqueue_and_contexts(
     execution_id: str,
     image: str,
     group: WorkerGroup,
+    group_name: str,
     cluster: k8s.ClusterInfo,
+    sqs_trigger_name: str,
     outcome_queue_spec: dict[str, Any],
-    secrets: list,
     env_secret_mapping: dict[str, str],
 ) -> tuple[PushMessageQueue[Task], list[AbstractContextManager]]:
     ctx_managers: list[AbstractContextManager] = []
@@ -104,16 +118,18 @@ def _get_group_taskqueue_and_contexts(
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
             execution_id,
+            group_name=group_name,
             cluster_info=cluster,
             job_spec=job_spec,
-            secrets=secrets,
+            secrets=[],
+            sqs_trigger_name=sqs_trigger_name,
             max_replicas=group.replicas,
             queue=task_queue,
         )
         ctx_managers.append(scaled_job_ctx_mngr)
     else:
         deployment = k8s.get_mazepa_worker_deployment(
-            execution_id,
+            f"{execution_id}-{group_name}",
             image=image,
             task_queue_spec=task_queue_spec,
             outcome_queue_spec=outcome_queue_spec,
@@ -130,7 +146,7 @@ def _get_group_taskqueue_and_contexts(
             execution_id,
             cluster_info=cluster,
             deployment=deployment,
-            secrets=secrets,
+            secrets=[],
         )
         ctx_managers.append(deployment_ctx_mngr)
     return task_queue, ctx_managers
@@ -139,7 +155,7 @@ def _get_group_taskqueue_and_contexts(
 def get_gcp_with_sqs_config(
     execution_id: str,
     image: str,
-    groups: Iterable[WorkerGroup],
+    groups: dict[str, WorkerGroupDict],
     cluster: k8s.ClusterInfo,
     ctx_managers: list[AbstractContextManager],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
@@ -150,10 +166,23 @@ def get_gcp_with_sqs_config(
     outcome_queue_spec = {"@type": "SQSQueue", "name": outcome_queue_name, "pull_wait_sec": 2.5}
     outcome_queue = builder.build(outcome_queue_spec)
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue))
+    ctx_managers.append(k8s.secrets_ctx_mngr(execution_id, secrets=secrets, cluster_info=cluster))
 
-    for group in groups:
+    sqs_trigger_name = f"run-{execution_id}-keda-trigger-auth-aws"
+    ctx_managers.append(k8s.sqs_trigger_ctx_mngr(execution_id, cluster, sqs_trigger_name))
+
+    for group_name, group_dict in groups.items():
+        group = WorkerGroup(**group_dict)
+        group_name = group_name.replace("_", "-")
         task_queue, group_ctx_managers = _get_group_taskqueue_and_contexts(
-            execution_id, image, group, cluster, outcome_queue_spec, secrets, env_secret_mapping
+            execution_id=execution_id,
+            image=image,
+            group=group,
+            group_name=group_name,
+            cluster=cluster,
+            sqs_trigger_name=sqs_trigger_name,
+            outcome_queue_spec=outcome_queue_spec,
+            env_secret_mapping=env_secret_mapping,
         )
         task_queues.append(task_queue)
         ctx_managers.extend(group_ctx_managers)
@@ -165,7 +194,7 @@ def get_gcp_with_sqs_config(
 def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],
     worker_image: str,
-    worker_groups: dict[str, WorkerGroup],
+    worker_groups: dict[str, WorkerGroupDict],
     worker_cluster_name: Optional[str] = None,
     worker_cluster_region: Optional[str] = None,
     worker_cluster_project: Optional[str] = None,
@@ -240,7 +269,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         task_queue, outcome_queue, ctx_managers = get_gcp_with_sqs_config(
             execution_id=run.RUN_ID,
             image=worker_image,
-            groups=worker_groups.values(),
+            groups=worker_groups,
             cluster=worker_cluster,
             ctx_managers=ctx_managers,
         )

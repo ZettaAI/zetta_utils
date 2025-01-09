@@ -48,7 +48,6 @@ def dummy_cpu_task(num_seconds: int) -> bool:
 
 @taskable_operation
 def dummy_gpu_task(num_seconds: int) -> bool:
-    assert torch.cuda.is_available()
     logger.info(f"GPU Task. {torch.cuda.device_count()} available.")
     time.sleep(num_seconds)
     return True
@@ -58,7 +57,7 @@ def dummy_gpu_task(num_seconds: int) -> bool:
 @mazepa.flow_schema
 def group_test_flow(num_tasks: int, tag1: str, tag2: str):
     for _ in range(num_tasks):
-        yield dummy_cpu_task.make_task(random.randint(0, 10)).add_tags([tag1])
+        yield dummy_cpu_task.make_task(random.randint(0, 3)).add_tags([tag1])
 
     for _ in range(num_tasks):
-        yield dummy_gpu_task.make_task(random.randint(0, 10)).add_tags([tag2])
+        yield dummy_gpu_task.make_task(random.randint(0, 3)).add_tags([tag2])

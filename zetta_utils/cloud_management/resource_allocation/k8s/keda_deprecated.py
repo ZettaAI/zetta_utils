@@ -31,11 +31,11 @@ KEDA_API_VERSION = "keda.sh/v1alpha1"
 logger = log.get_logger("zetta_utils")
 
 
-def _get_sqs_trigger(sqs_trigger_name: str, queue: SQSQueue) -> dict:
+def _get_sqs_trigger(trigger_name: str, queue: SQSQueue) -> dict:
     sqs_client = sqs_utils.get_sqs_client(region_name=queue.region_name)
     sqs_trigger = {
         "type": "aws-sqs-queue",
-        "authenticationRef": {"name": sqs_trigger_name},
+        "authenticationRef": {"name": trigger_name},
         "metadata": {
             "queueURL": sqs_client.get_queue_url(QueueName=queue.name)["QueueUrl"],
             "queueLength": "1",
@@ -46,7 +46,8 @@ def _get_sqs_trigger(sqs_trigger_name: str, queue: SQSQueue) -> dict:
     return sqs_trigger
 
 
-def _get_sqs_trigger_auth_manifest(run_id: str, name: str) -> dict:
+def _get_sqs_trigger_auth_manifest(run_id: str) -> dict:
+    name = f"run-{run_id}-keda-trigger-auth-aws"
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_TRIGGER_AUTH.value,
@@ -139,19 +140,19 @@ def _get_scaled_job_manifest(
 def sqs_trigger_ctx_mngr(
     run_id: str,
     cluster_info: ClusterInfo,
-    sqs_trigger_name: str,
     namespace: str | None = "default",
 ):
     configuration, _ = get_cluster_data(cluster_info)
-    manifest = _get_sqs_trigger_auth_manifest(run_id, sqs_trigger_name)
-    resource = Resource(run_id, ResourceTypes.K8S_TRIGGER_AUTH.value, sqs_trigger_name)
+    manifest = _get_sqs_trigger_auth_manifest(run_id)
+    trigger_name = manifest["metadata"]["name"]
+    resource = Resource(run_id, ResourceTypes.K8S_TRIGGER_AUTH.value, trigger_name)
     create_dynamic_resource(
         resource.name, configuration, KEDA_API_VERSION, resource.type, manifest, namespace
     )
     _id = register_resource(resource)
 
     try:
-        yield
+        yield trigger_name
     finally:
         # new configuration to refresh expired tokens (long running executions)
         configuration, _ = get_cluster_data(cluster_info)
@@ -168,71 +169,70 @@ def scaled_deployment_ctx_mngr(
     deployment: k8s_client.V1Deployment,
     secrets: list[k8s_client.V1Secret],
     max_replicas: int,
-    sqs_trigger_name: str,
     queue: SQSQueue,
     namespace: str | None = "default",
     cool_down_period: int = 300,
 ):
     configuration, _ = get_cluster_data(cluster_info)
     with deployment_ctx_mngr(run_id, cluster_info, deployment, secrets, namespace=namespace):
-        manifest = _get_scaled_object_manifest(
-            run_id,
-            [_get_sqs_trigger(sqs_trigger_name, queue)],
-            target_name=deployment.metadata.name,
-            max_replicas=max_replicas,
-            cool_down_period=cool_down_period,
-        )
-        so_name = manifest["metadata"]["name"]
-        resource = Resource(run_id, ResourceTypes.K8S_SCALED_OBJECT.value, so_name)
-        create_dynamic_resource(
-            resource.name, configuration, KEDA_API_VERSION, resource.type, manifest, namespace
-        )
-        _id = register_resource(resource)
-
-        try:
-            yield
-        finally:
-            # new configuration to refresh expired tokens (long running executions)
-            configuration, _ = get_cluster_data(cluster_info)
-            delete_dynamic_resource(
-                resource.name, configuration, KEDA_API_VERSION, resource.type, namespace
+        with sqs_trigger_ctx_mngr(run_id, cluster_info, namespace) as trigger_name:
+            manifest = _get_scaled_object_manifest(
+                run_id,
+                [_get_sqs_trigger(trigger_name, queue)],
+                target_name=deployment.metadata.name,
+                max_replicas=max_replicas,
+                cool_down_period=cool_down_period,
             )
-            deregister_resource(_id)
+            so_name = manifest["metadata"]["name"]
+            resource = Resource(run_id, ResourceTypes.K8S_SCALED_OBJECT.value, so_name)
+            create_dynamic_resource(
+                resource.name, configuration, KEDA_API_VERSION, resource.type, manifest, namespace
+            )
+            _id = register_resource(resource)
+
+            try:
+                yield
+            finally:
+                # new configuration to refresh expired tokens (long running executions)
+                configuration, _ = get_cluster_data(cluster_info)
+                delete_dynamic_resource(
+                    resource.name, configuration, KEDA_API_VERSION, resource.type, namespace
+                )
+                deregister_resource(_id)
 
 
 @contextmanager
 def scaled_job_ctx_mngr(
     run_id: str,
-    group_name: str,
     cluster_info: ClusterInfo,
     job_spec: k8s_client.V1JobSpec,
     secrets: list[k8s_client.V1Secret],
     max_replicas: int,
-    sqs_trigger_name: str,
     queue: SQSQueue,
     namespace: str | None = "default",
 ):
     configuration, _ = get_cluster_data(cluster_info)
     with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
-        manifest = _get_scaled_job_manifest(
-            f"{run_id}-{group_name}",
-            [_get_sqs_trigger(sqs_trigger_name, queue)],
-            job_spec=job_spec,
-            max_replicas=max_replicas,
-        )
-        so_name = manifest["metadata"]["name"]
-        resource = Resource(run_id, ResourceTypes.K8S_SCALED_JOB.value, so_name)
-        create_dynamic_resource(
-            resource.name, configuration, KEDA_API_VERSION, resource.type, manifest, namespace
-        )
-        _id = register_resource(resource)
-
-        try:
-            yield
-        finally:
-            # new configuration to refresh expired tokens (long running executions)
-            configuration, _ = get_cluster_data(cluster_info)
-            delete_dynamic_resource(
-                resource.name, configuration, KEDA_API_VERSION, resource.type, namespace
+        with sqs_trigger_ctx_mngr(run_id, cluster_info, namespace) as trigger_name:
+            manifest = _get_scaled_job_manifest(
+                run_id,
+                [_get_sqs_trigger(trigger_name, queue)],
+                job_spec=job_spec,
+                max_replicas=max_replicas,
             )
-            deregister_resource(_id)
+            so_name = manifest["metadata"]["name"]
+            resource = Resource(run_id, ResourceTypes.K8S_SCALED_JOB.value, so_name)
+            create_dynamic_resource(
+                resource.name, configuration, KEDA_API_VERSION, resource.type, manifest, namespace
+            )
+            _id = register_resource(resource)
+
+            try:
+                yield
+            finally:
+                # new configuration to refresh expired tokens (long running executions)
+                configuration, _ = get_cluster_data(cluster_info)
+                delete_dynamic_resource(
+                    resource.name, configuration, KEDA_API_VERSION, resource.type, namespace
+                )
+                deregister_resource(_id)

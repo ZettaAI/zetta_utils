@@ -38,11 +38,27 @@ def test_read_write_simple(firestore_emulator) -> None:
 def _write_some_data(layer: DBLayer):
     layer.clear()
     row_keys = ["key0", "key1", "key2"]
-    idx_user = (row_keys, ("col0", "col1", "tags"))
+    idx_user = (row_keys, ("col0", "col1", "col2", "tags"))
     data_user: DBDataT = [
         {"col0": "val0", "col1": "val0"},
         {"col0": "val0", "tags": ["tag1"]},
         {"col1": "val1", "tags": ["tag0", "tag1"]},
+    ]
+    layer[idx_user] = data_user
+    return idx_user, data_user
+
+
+def _write_some_query_data(layer: DBLayer):
+    layer.clear()
+    row_keys = ["key0", "key1", "key2", "key3", "key4", "key5"]
+    idx_user = (row_keys, ("col0", "col1", "col2", "tags"))
+    data_user: DBDataT = [
+        {"col0": "val0", "col1": "val0"},
+        {"col0": "val0", "tags": ["tag1"]},
+        {"col1": "val1", "tags": ["tag0", "tag1"]},
+        {"col2": 3},
+        {"col2": 5},
+        {"col2": 1},
     ]
     layer[idx_user] = data_user
     return idx_user, data_user
@@ -59,17 +75,26 @@ def test_read_write(firestore_emulator) -> None:
 def test_query_and_keys(firestore_emulator) -> None:
     layer = build_firestore_layer("test", project=firestore_emulator)
     _write_some_data(layer)
-    col_filter = {"col1": ["val0"]}
-    result = layer.query(column_filter=col_filter)
+    col_filter0 = {"col1": ["val0"]}
+    result = layer.query(column_filter=col_filter0)
     assert "key0" in result and len(result) == 1
 
-    col_filter = {"col1": ["val1"]}
-    result = layer.query(column_filter=col_filter)
+    col_filter1 = {"col1": ["val1"]}
+    result = layer.query(column_filter=col_filter1)
     assert "key2" in result and len(result) == 1
 
-    col_filter = {"-tags": ["tag1"]}
-    result = layer.query(column_filter=col_filter)
+    col_filter2 = {"-tags": ["tag1"]}
+    result = layer.query(column_filter=col_filter2)
     assert "key1" in result and "key2" in result and len(result) == 2
+
+
+def test_inequality_filters(firestore_emulator) -> None:
+    layer = build_firestore_layer("test", project=firestore_emulator)
+    _write_some_query_data(layer)
+    col_filter = {">col2": [2]}
+    result = layer.query(column_filter=col_filter)
+    assert "key3" in result and "key4" in result and len(result) == 2
+    layer.clear()
 
 
 def test_delete_and_clear(firestore_emulator) -> None:

@@ -5,9 +5,11 @@ import sys
 import time
 from contextlib import contextmanager
 from enum import Enum
+from operator import itemgetter
 
 import attrs
 import fsspec
+from gcsfs import GCSFileSystem
 
 from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer
@@ -83,6 +85,18 @@ def _record_run(spec: dict | list | None = None) -> None:
             content = src.read()
         with fsspec.open(os.path.join(info_path_user, f"{RUN_ID}.cue"), "w") as dst:
             dst.write(content)
+
+
+def get_latest_checkpoint(run_id: str, zetta_user: str | None = None) -> str:
+    if zetta_user is None:
+        zetta_user = os.environ["ZETTA_USER"]
+    info_path = os.environ.get("RUN_INFO_BUCKET", RUN_INFO_BUCKET)
+    info_path_user = os.path.join(info_path, zetta_user)
+    fs = GCSFileSystem(project=constants.DEFAULT_PROJECT)
+    checkpoints_path = os.path.join(info_path_user, run_id)
+    files = fs.ls(checkpoints_path, detail=True)
+    files = sorted(files, key=itemgetter("ctime"), reverse=True)
+    return files[0]["name"]
 
 
 def update_run_info(run_id: str, info: DBRowDataT) -> None:

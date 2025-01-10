@@ -62,8 +62,7 @@ tensorstore = [
   "tensorstore == 0.1.33",
   "zetta_utils[tensor_ops]",
 ]
-convnet = ["torch >= 2.0", "artificery >= 0.0.3.3",
-  "onnxruntime >= 1.18.1"]
+convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch"]
 databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.11.1",
@@ -140,16 +139,14 @@ public = [
 segmentation = [
   "zetta_utils[tensor_ops]",
   "onnx >= 1.13.0",
-  "onnxruntime >= 1.18.1",
+  "onnx2torch",
   "scikit-learn >= 1.2.2",
   "networkx",
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
   "waterz @ git+https://github.com/ZettaAI/waterz.git@c61190d",
 ]
-gpu = [
-  "onnxruntime-gpu >= 1.13.1",
-]
+gpu = [ ]
 skeletonization = [
   "zetta_utils[cloudvol, databackends, mazepa]",
   "mapbuffer >= 0.7.2",

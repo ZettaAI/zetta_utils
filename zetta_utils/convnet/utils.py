@@ -6,12 +6,9 @@ from typing import Literal, Optional, Sequence, Union, overload
 import cachetools
 import fsspec
 import onnx
-import onnxruntime as ort
+import onnx2torch
 import torch
 from numpy import typing as npt
-from onnxruntime.capi.onnxruntime_inference_collection import (
-    InferenceSession as OrtInferenceSession,
-)
 from typeguard import typechecked
 
 from zetta_utils import builder, log, tensor_ops
@@ -40,34 +37,15 @@ def _load_model(
     elif path.endswith(".jit"):
         with fsspec.open(path, "rb") as f:
             result = torch.jit.load(f, map_location=device)
+    elif path.endswith(".onnx"):
+        with fsspec.open(path, "rb") as f:
+            result = onnx2torch.convert(onnx.load(f)).to(device)
     else:
         raise ValueError(f"Unsupported file format: {path}")
     return result
 
 
 _load_model_cached = cachetools.cached(cachetools.LRUCache(maxsize=2))(_load_model)
-
-
-@builder.register("load_model_onnx")
-@typechecked
-def load_model_onnx(
-    path: str, device: str = "cuda", use_cache: bool = False
-) -> OrtInferenceSession:  # pragma: no cover
-    if use_cache:
-        result = _load_model_onnx_cached(path, device)
-    else:
-        result = _load_model_onnx(path, device)
-    return result
-
-
-def _load_model_onnx(path: str, device: str = "cuda") -> OrtInferenceSession:  # pragma: no cover
-    providers = ["CUDAExecutionProvider"] if device == "cuda" else ["CPUExecutionProvider"]
-    with fsspec.open(path, "rb") as f:
-        result = ort.InferenceSession(onnx.load(f).SerializeToString(), providers=providers)
-    return result
-
-
-_load_model_onnx_cached = cachetools.cached(cachetools.LRUCache(maxsize=2))(_load_model_onnx)
 
 
 @typechecked
@@ -139,20 +117,11 @@ def load_and_run_model(path, data_in, device=None, use_cache=True):  # pragma: n
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    if path.endswith(".onnx"):
-        onnx_device = device.type if isinstance(device, torch.device) else str(device)
-        model = load_model_onnx(path=path, device=onnx_device, use_cache=use_cache)
-    else:
-        model = load_model(path=path, device=device, use_cache=use_cache)
+    model = load_model(path=path, device=device, use_cache=use_cache)
 
-    if path.endswith(".onnx"):
-        data_in_np = tensor_ops.convert.to_np(data_in)
-        output_np = model.run(None, {"input": data_in_np})[0]
-        output = tensor_ops.convert.astype(output_np, reference=data_in)
-    else:
-        autocast_device = device.type if isinstance(device, torch.device) else str(device)
-        with torch.inference_mode():  # uses less memory when used with JITs
-            with torch.autocast(device_type=autocast_device):
-                output = model(tensor_ops.convert.to_torch(data_in, device=device))
-                output = tensor_ops.convert.astype(output, reference=data_in)
+    autocast_device = device.type if isinstance(device, torch.device) else str(device)
+    with torch.inference_mode():  # uses less memory when used with JITs
+        with torch.autocast(device_type=autocast_device):
+            output = model(tensor_ops.convert.to_torch(data_in, device=device))
+            output = tensor_ops.convert.astype(output, reference=data_in)
     return output

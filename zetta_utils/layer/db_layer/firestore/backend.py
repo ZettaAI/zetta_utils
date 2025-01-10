@@ -178,6 +178,9 @@ class FirestoreBackend(DBBackend):
                 if _key[0] == "-":  # represents a column with array value type
                     _key = _key[1:]
                     _filters.append(FieldFilter(_key, "array_contains_any", _values))
+                elif _key[0] == ">":
+                    _key = _key[1:]
+                    _filters.extend([FieldFilter(_key, ">", v) for v in _values])
                 else:
                     _filters.extend([FieldFilter(_key, "==", v) for v in _values])
             if len(_filters) == 1:

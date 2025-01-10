@@ -10,6 +10,7 @@ import click
 import zetta_utils
 from zetta_utils import log
 from zetta_utils.run import run_ctx_manager
+from zetta_utils.run.cli import run_info_cli
 
 logger = log.get_logger("zetta_utils")
 
@@ -19,7 +20,7 @@ logger = log.get_logger("zetta_utils")
 @click.option(
     "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
 )
-def cli(verbose, load_mode):  # pragma: no cover # no logic, delegation
+def root_cli(verbose, load_mode):  # pragma: no cover # no logic, delegation
     verbosity_map = {
         1: "WARN",
         2: "INFO",
@@ -42,7 +43,7 @@ def validate_py_path(ctx, param, value):  # pylint: disable=unused-argument
     return value
 
 
-@click.command()
+@root_cli.command()
 @click.argument("path", type=click.Path(), required=False)
 @click.option(
     "--str_spec",
@@ -143,11 +144,10 @@ def run(
             breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
 
 
-@click.command()
+@root_cli.command()
 def show_registry():
     """Display builder registry."""
     logger.critical(pprint.pformat(zetta_utils.builder.REGISTRY, indent=4))
 
 
-cli.add_command(run)
-cli.add_command(show_registry)
+cli = click.CommandCollection(sources=[root_cli, run_info_cli])

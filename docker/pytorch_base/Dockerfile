@@ -1,0 +1,139 @@
+# syntax = docker/dockerfile:1
+FROM ubuntu:24.04
+
+ARG PYTHON_VERSION="3.12"
+ARG CUDA_VERSION="12.6"
+ARG CUDA_PACKAGE_VERSION="12-6"
+ARG CUDNN_VERSION="9.6.0.74-1"
+ARG TORCH_VERSION="2.5.1"
+ARG TORCHVISION_VERSION="0.20.1"
+ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.9"
+# ARG MAGMA_VERSION="126-2.6.1"
+
+### TORCH_CUDA_ARCH_LIST ###
+# 6.1: Pascal -- GTX 10xx, Titan Xp, P40
+# 7.0: Volta -- V100, Titan V
+# 7.5: Turing -- GTX 1660 Ti, RTX 20xx, Titan RTX, T4
+# 8.0: Ampere -- A100
+# 8.6: Ampere -- RTX 30xx, A40
+# 8.9: Ada Lovelace -- RTX 40xx, L4
+# 9.0: Hopper -- H100
+
+WORKDIR /
+
+LABEL com.nvidia.volumes.needed="nvidia_driver"
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV NVIDIA_REQUIRE_CUDA "cuda>=${CUDA_VERSION}"
+
+ENV PATH /usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
+  && mkdir /opt/ccache
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt,sharing=locked \
+  --mount=type=cache,target=/opt/ccache,sharing=locked \
+  apt update && apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+        apt-utils \
+        apt-transport-https \
+        ccache \
+        software-properties-common \
+        wget \
+        git \
+        cmake \
+        build-essential \
+        protobuf-compiler \
+        libprotobuf-dev \
+        ca-certificates \
+        gpg-agent \
+    && /usr/sbin/update-ccache-symlinks \
+    && ccache --set-config=cache_dir=/opt/ccache \
+    && wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb && dpkg -i cuda-keyring_1.1-1_all.deb && rm cuda-keyring_1.1-1_all.deb \
+    && wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null \
+    && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | tee /etc/apt/sources.list.d/oneAPI.list \
+    && apt-get update \
+    && apt install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+        cuda-cudart-${CUDA_PACKAGE_VERSION} \
+        cuda-compat-${CUDA_PACKAGE_VERSION} \
+        cuda-libraries-${CUDA_PACKAGE_VERSION} \
+        cuda-nvcc-${CUDA_PACKAGE_VERSION} \
+        cuda-nvrtc-${CUDA_PACKAGE_VERSION} \
+        libnpp-${CUDA_PACKAGE_VERSION} \
+        cuda-nvtx-${CUDA_PACKAGE_VERSION} \
+        libcublas-${CUDA_PACKAGE_VERSION} \
+        cuda-nvml-dev-${CUDA_PACKAGE_VERSION} \
+        cuda-command-line-tools-${CUDA_PACKAGE_VERSION} \
+        cuda-nvprof-${CUDA_PACKAGE_VERSION} \
+        libnpp-dev-${CUDA_PACKAGE_VERSION} \
+        cuda-libraries-dev-${CUDA_PACKAGE_VERSION} \
+        cuda-minimal-build-${CUDA_PACKAGE_VERSION} \
+        libcublas-dev-${CUDA_PACKAGE_VERSION}  \
+        libcusparselt0 \
+        libcusparselt-dev \
+        libcudnn9-cuda-12=${CUDNN_VERSION} \
+        libcudnn9-dev-cuda-12=${CUDNN_VERSION} \
+        # libcudss0-dev-cuda-12 \
+        # libcudss0-cuda-12 \
+        intel-oneapi-mkl-devel \
+        libturbojpeg0-dev \
+        libturbojpeg \
+        libpng-dev \
+        libpng16-16t64 \
+    && wget -O ~/miniconda.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh  \
+    # && wget -O ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && chmod +x ~/miniconda.sh \
+    && ~/miniconda.sh -b -p /opt/conda \
+    && rm ~/miniconda.sh \
+    && /opt/conda/bin/conda install -y python=${PYTHON_VERSION} numpy==1.26.4 psutil pyyaml typing_extensions \
+    && /opt/conda/bin/conda install -y magma-cuda126 -c pytorch \
+    && /opt/conda/bin/conda clean -ya \
+    # && mkdir -p /tmp/magma/ \
+    # && cd /tmp/magma \
+    # && curl -OLs https://ossci-linux.s3.us-east-1.amazonaws.com/magma-cuda${MAGMA_VERSION}-1.tar.bz2 \
+    # && tar -xvf "magma-cuda${MAGMA_VERSION}-1.tar.bz2" \
+    # && mkdir -p "/usr/local/cuda-${CUDA_VERSION}/magma" \
+    # && mv include "/usr/local/cuda-${CUDA_VERSION}/magma/include" \
+    # && mv lib "/usr/local/cuda-${CUDA_VERSION}/magma/lib" \
+    # && cd /opt \
+    && git clone --branch v${TORCH_VERSION} --recursive https://github.com/pytorch/pytorch.git /opt/pytorch \
+    && cd /opt/pytorch \
+    && git submodule sync && git submodule update --init --recursive \
+    #&& git config --global user.email "you@example.com" \
+    #&& git config --global user.name "Your Name" \
+    #&& git cherry-pick 9a18968253e28ba8d8bdf646731087000c7876b7 \
+    && CFLAGS="-O2 -pipe" \
+      TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST} \
+      USE_XPU=0 \
+      USE_STATIC_MKL=1 \
+      BUILD_TEST=0 \
+      TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
+      CMAKE_PREFIX_PATH="$(dirname $(which conda))/../" \
+      python setup.py install \
+    && cd /opt \
+    && git clone --branch v${TORCHVISION_VERSION} https://github.com/pytorch/vision.git && cd vision && python setup.py install \
+    && cd /opt \
+    && /opt/conda/bin/conda remove -y magma-cuda126 \
+    && /opt/conda/bin/conda clean -ya \
+    && rm -rf pytorch vision \
+    && apt-mark auto '.*' > /dev/null \
+    && apt-mark manual 'ca-certificates' > /dev/null \
+    && find /usr/local/lib /opt/conda f -executable -exec ldd '{}' ';' \
+        | awk '/=>/ { print $(NF-1) }' \
+        | sort -u \
+        | grep -v not \
+        | xargs -r realpath \
+        | xargs -r dpkg-query --search \
+        | cut -d: -f1 \
+        | sort -u \
+        | xargs -r apt-mark manual \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false -o APT::AutoRemove::SuggestsImportant=false \
+    && rm -rf \
+          /root/.cache/pip/* \
+          /tmp/* \
+          /var/tmp/* \
+          /usr/share/man \
+          /usr/share/doc \
+          /usr/share/doc-base
+
+CMD ["/bin/bash"]

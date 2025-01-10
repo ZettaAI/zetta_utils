@@ -21,7 +21,8 @@ from .. import VolumetricBackend, VolumetricIndex
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+# IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 0
 
 
 # To avoid reloading info file - note that an empty provenance is passed

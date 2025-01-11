@@ -34,6 +34,7 @@ def get_deployment_spec(
     env_secret_mapping: Dict[str, str],
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    gpu_accelerator_type: str | None = None,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -43,6 +44,7 @@ def get_deployment_spec(
         env_secret_mapping=env_secret_mapping,
         provisioning_model=provisioning_model,
         resource_requests=resource_requests,
+        gpu_accelerator_type=gpu_accelerator_type,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -84,6 +86,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    gpu_accelerator_type: str | None = None,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -105,6 +108,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         env_secret_mapping=env_secret_mapping,
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
+        gpu_accelerator_type=gpu_accelerator_type,
     )
 
 

@@ -67,6 +67,7 @@ class WorkerGroup:
     provisioning_model: Literal["standard", "spot"] = "spot"
     idle_worker_timeout: int = 300
     labels: dict[str, str] | None = None
+    gpu_accelerator_type: str | None = None
 
 
 class WorkerGroupDict(TypedDict, total=False):
@@ -80,6 +81,7 @@ class WorkerGroupDict(TypedDict, total=False):
     provisioning_model: Literal["standard", "spot"]
     idle_worker_timeout: int
     labels: dict[str, str]
+    gpu_accelerator_type: str
 
 
 def _get_group_taskqueue_and_contexts(
@@ -114,6 +116,7 @@ def _get_group_taskqueue_and_contexts(
             provisioning_model=group.provisioning_model,
             resource_requests=group.resource_requests,
             restart_policy="Never",
+            gpu_accelerator_type=group.gpu_accelerator_type,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
@@ -141,6 +144,7 @@ def _get_group_taskqueue_and_contexts(
             num_procs=group.num_procs,
             semaphores_spec=group.semaphores_spec,
             provisioning_model=group.provisioning_model,
+            gpu_accelerator_type=group.gpu_accelerator_type,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,

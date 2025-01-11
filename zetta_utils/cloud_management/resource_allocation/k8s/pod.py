@@ -4,7 +4,7 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes import client as k8s_client
 from zetta_utils import log
@@ -31,7 +31,7 @@ def get_pod_spec(
     host_network: Optional[bool] = False,
     host_aliases: Optional[List[k8s_client.V1HostAlias]] = None,
     image_pull_policy: Optional[str] = "IfNotPresent",
-    node_selector: Optional[Dict[str, str]] = None,
+    node_selector: Optional[Mapping[str, str]] = None,
     restart_policy: Optional[str] = "Always",
     tolerations: Optional[List[k8s_client.V1Toleration]] = None,
     volumes: Optional[List[k8s_client.V1Volume]] = None,
@@ -86,10 +86,15 @@ def get_mazepa_pod_spec(
     provisioning_model: Literal["standard", "spot"] = "spot",
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     restart_policy: Literal["Always", "Never"] = "Always",
+    gpu_accelerator_type: str | None = None,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
+
+    node_selector: dict[str, str] = {"cloud.google.com/gke-provisioning": provisioning_model}
+    if gpu_accelerator_type:
+        node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
 
     return get_pod_spec(
         name="zutils-worker",
@@ -98,7 +103,7 @@ def get_mazepa_pod_spec(
         command_args=["-c", command],
         resources=resources,
         env_secret_mapping=env_secret_mapping,
-        node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
+        node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
         volumes=get_common_volumes(),

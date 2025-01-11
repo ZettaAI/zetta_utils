@@ -53,6 +53,7 @@ def lightning_train(
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    gpu_accelerator_type: str | None = None,
 ) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -83,6 +84,8 @@ def lightning_train(
     :param resource_limits: K8s reource limits per pod.
     :param resource_requests: K8s resource requests per pod.
     :param provisioning_model: VM provision type to use for worker pods.
+    :param gpu_accelerator_type: Schedule on nodes with given gpu type.
+        Eg., "nvidia-tesla-t4". `gcloud compute accelerator-types list`.
     """
     args_mapping = {
         "regime": regime,
@@ -155,6 +158,7 @@ def lightning_train(
         resource_limits=resource_limits,
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
+        gpu_accelerator_type=gpu_accelerator_type,
     )
 
 
@@ -290,6 +294,7 @@ def _lightning_train_remote(
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
+    gpu_accelerator_type: str | None = None,
 ):  # pylint: disable=too-many-locals,too-many-statements
     """
     Parse spec and launch single/multinode training accordingly.
@@ -325,6 +330,9 @@ def _lightning_train_remote(
     else:
         train_spec = {"@type": "_lightning_train_local", **train_args}
         node_selector = {"cloud.google.com/gke-provisioning": provisioning_model}
+
+    if gpu_accelerator_type:
+        node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
 
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)

@@ -63,7 +63,10 @@ def run_info(run_ids: list[str]):
 
         info_path_user = os.path.join(info_path, zetta_user)
         info["spec_path"] = os.path.join(info_path_user, f"{run_id}.cue")
-        info["last_checkpoint"] = get_latest_checkpoint(run_id, zetta_user=zetta_user)
+        try:
+            info["last_checkpoint"] = get_latest_checkpoint(run_id, zetta_user=zetta_user)
+        except FileNotFoundError as e:
+            info["last_checkpoint"] = repr(e)
         pprint(info, expand_all=True)
 
 

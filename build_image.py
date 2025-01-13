@@ -3,8 +3,8 @@
 import argparse
 import subprocess
 
-BUILD_COMMAND_TMPL = "docker build --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:{TAG} -f docker/Dockerfile.{MODE}.{PYTHON_VERSION} ."
-PUSH_COMMAND_TMPL = "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:{TAG}"
+BUILD_COMMAND_TMPL = "docker build --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:py{PYTHON_VERSION}_{TAG} --build-arg PYTHON_VERSION={PYTHON_VERSION} -f docker/Dockerfile.{MODE} ."
+PUSH_COMMAND_TMPL = "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/zetta_utils:py{PYTHON_VERSION}_{TAG}"
 
 
 def main():
@@ -23,11 +23,11 @@ def main():
         "--python",
         "-p",
         type=str,
-        default="3.10",
-        choices=["3.11", "3.10"],
+        default="3.12",
+        choices=["3.12", "3.11", "3.10"],
         help="Which python version to use for the image.",
     )
-    parser.add_argument("--region", type=str, default="us-east1", help="Artifact Registry region.")
+    parser.add_argument("--region", type=str, default="us-central1", help="Artifact Registry region.")
     parser.add_argument("--repo", type=str, default="zutils", help="Artifact Registry repo name.")
 
     args = parser.parse_args()
@@ -35,7 +35,7 @@ def main():
     build_command = BUILD_COMMAND_TMPL
     build_command = build_command.replace("{TAG}", args.tag)
     build_command = build_command.replace("{MODE}", args.mode)
-    build_command = build_command.replace("{PYTHON_VERSION}", f"p{args.python.replace('.', '')}")
+    build_command = build_command.replace("{PYTHON_VERSION}", args.python.replace('.', ''))
     build_command = build_command.replace("{PROJECT}", args.project)
     build_command = build_command.replace("{REGION}", args.region)
     build_command = build_command.replace("{REPO}", args.repo)
@@ -44,6 +44,7 @@ def main():
 
     push_command = PUSH_COMMAND_TMPL
     push_command = push_command.replace("{TAG}", args.tag)
+    push_command = push_command.replace("{PYTHON_VERSION}", args.python.replace('.', ''))
     push_command = push_command.replace("{PROJECT}", args.project)
     push_command = push_command.replace("{REGION}", args.region)
     push_command = push_command.replace("{REPO}", args.repo)

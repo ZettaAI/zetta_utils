@@ -39,7 +39,7 @@ class LayerGroupDBEntry:
             created_by=raw_dict["created_by"],
             modified_by=raw_dict.get("modified_by"),
             collection=raw_dict["collection"],
-            layers=raw_dict["layers"],
+            layers=raw_dict.get("layers", []),
         )
 
 

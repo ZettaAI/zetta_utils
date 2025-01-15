@@ -12,12 +12,15 @@ import csv
 import os
 import sys
 from datetime import datetime
-from math import floor
+from math import floor, sqrt
+from typing import List, Optional, Sequence
 
 import cc3d
+import cv2
 import google.auth
 import nglui
 import numpy as np
+import torch
 from caveclient import CAVEclient
 from scipy.ndimage import binary_dilation
 
@@ -28,6 +31,39 @@ from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 client: CAVEclient
 ng_state = None
+
+
+def distance_transform_fast(mask_3d):
+    """
+    This function is similary to scipy.ndimage.distance_transform_edt, except:
+     1. It computes Manhattan distance, not Euclidean
+     2. It runs much faster (especially on GPU, but even on CPU).
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    mask_tensor = torch.tensor(~mask_3d, dtype=torch.float32, device=device)
+    distance = torch.full_like(mask_tensor, float("inf"), device=device)
+    distance[mask_tensor == 1] = 0
+
+    shifts = [
+        (1, 0, 0),
+        (-1, 0, 0),
+        (0, 1, 0),
+        (0, -1, 0),
+        (0, 0, 1),
+        (0, 0, -1),
+    ]
+
+    for _ in range(max(mask_3d.shape)):  # Enough iterations to cover the full mask
+        updated_distance = distance.clone()
+        for dz, dy, dx in shifts:
+            shifted = torch.roll(distance, shifts=(dz, dy, dx), dims=(0, 1, 2))
+            updated_distance = torch.minimum(updated_distance, shifted + 1)
+        if torch.equal(updated_distance, distance):
+            break  # no more change; operation has converged
+        distance = updated_distance
+
+    return distance.cpu().numpy()
 
 
 def verify_cave_auth():
@@ -51,7 +87,7 @@ def input_or_default(prompt: str, value: str) -> str:
     return response
 
 
-def get_annotation_layer_name(state, label="synapse annotation"):
+def get_annotation_layer_name(state, label: str = "synapse annotation") -> str:
     names = nglui.parser.annotation_layers(state)
     if len(names) == 0:
         print("No annotation layers found in this state.")
@@ -63,13 +99,13 @@ def get_annotation_layer_name(state, label="synapse annotation"):
             print(f"{i+1}. {names[i]}")
         choice: int | str = input(f"Enter {label} layer name or number: ")
         if choice in names:
-            return choice
+            return str(choice)
         choice = int(choice) - 1
         if choice >= 0 and choice < len(names):
             return names[choice]
 
 
-def unarchived_segmentation_layers(state):
+def unarchived_segmentation_layers(state) -> List[str]:
     names = nglui.parser.segmentation_layers(state)
     for i in range(len(names) - 1, -1, -1):
         if nglui.parser.get_layer(state, names[i]).get("archived", False):
@@ -77,7 +113,7 @@ def unarchived_segmentation_layers(state):
     return names
 
 
-def get_segmentation_layer_name(state, label="cell segmentation"):
+def get_segmentation_layer_name(state, label: str = "cell segmentation") -> str:
     names = unarchived_segmentation_layers(state)
     if len(names) == 0:
         print("No segmentation layers found in this state.")
@@ -89,13 +125,13 @@ def get_segmentation_layer_name(state, label="cell segmentation"):
             print(f"{i+1}. {names[i]}")
         choice: int | str = input(f"Enter {label} layer name or number: ")
         if choice in names:
-            return choice
+            return str(choice)
         choice = int(choice) - 1
         if choice >= 0 and choice < len(names):
             return names[choice]
 
 
-def get_bounding_box(precomputed_path, scale_index=0):
+def get_bounding_box(precomputed_path: str, scale_index=0) -> VolumetricIndex:
     """
     Given a path to a precomputed volume, return a VolumetricIndex describing the data bounds
     and the data resolution.
@@ -114,7 +150,7 @@ def get_bounding_box(precomputed_path, scale_index=0):
     return bounds
 
 
-def load_volume(path, scale_index=0, index_resolution=None):
+def load_volume(path: str, scale_index: int = 0, index_resolution: Sequence[float] | None = None):
     """
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a VolumetricIndex describing the data bounds and resolution.
@@ -182,6 +218,50 @@ def find_contact_clusters(cell_ids, cell1, cell2, n=2):
     return cc_labels
 
 
+def nearby_point(mask, external_point, interior_distance=5, alpha=0.9):
+    """
+    Return the point in m with a value of target_value, that is close
+    to external_point, but at least interior_distance from the edge
+    of the cluster (defined by target_value), if reasonably possible.
+
+    This function works in both 2D and 3D.
+
+    Parameters:
+    - mask: matrix where true (1) values define the cluster
+    - interior_distance: minimum distance from the edge of the cluster
+    - external_point: tuple (x, y) of external point coordinates
+    - alpha: mixing parameter between interior distance and proximity to external_point (0 to 1)
+
+    Returns:
+    - Tuple (x, y) of the chosen point's coordinates
+    """
+    distance_from_edge = distance_transform_fast(mask)
+    valid_points = np.argwhere(mask)
+
+    # We want to minimize both the difference between the actual edge
+    # distance and the desired edge distance, AND the distance to
+    # the external point.  Sum these, with the weighting factor alpha,
+    # and then find the minimum.
+    external_point = np.array(external_point)
+    distances_to_point = np.linalg.norm(valid_points - external_point, axis=1)
+
+    edge_distances = distance_from_edge[tuple(valid_points.T)]
+    edge_dist_diffs = abs(edge_distances - interior_distance)
+
+    scores = alpha * edge_dist_diffs + (1 - alpha) * distances_to_point
+
+    best_index = np.argmin(scores)
+    best_point = tuple(valid_points[best_index])
+    print(
+        f"Best point near {tuple(external_point)} is {tuple(best_point)}, "
+        f"with dist from edge {edge_distances[best_index]} "
+        f"for diff {edge_dist_diffs[best_index]}, "
+        f"and dist to point {distances_to_point[best_index]}, "
+        f"for score {scores[best_index]}"
+    )
+    return best_point
+
+
 def get_ng_state():
     global ng_state
     global client
@@ -230,6 +310,8 @@ def process_one(mito_point: Vec3D, seg_layer, resolution: Vec3D):
     Process one mitochondrion, assumed to be the segment that contains
     the given point.  Add lines between this segment and any neighboring
     ones (i.e. across any valid neighbor contacts).
+
+    Returns a list of line annotation JSON entries.
     """
     print(f"Processing mito at {list(mito_point)}...")
     # We need to define a bounding box that is reasonably small (for performance),
@@ -247,18 +329,38 @@ def process_one(mito_point: Vec3D, seg_layer, resolution: Vec3D):
     # Approach: create a binary mask for the mitochondrion, dilate this by a
     # voxel or two, and use that to mask the chunk.  See what segment IDs are
     # left; those are the ones the mito touches.
-    mask = chunk == mito_id
+    mito_mask = chunk == mito_id
     N = 1  # neighborhood size
     structuring_element = np.ones((N * 2 + 1, N * 2 + 1, 1))
-    dilated_mask = binary_dilation(mask, structure=structuring_element)
-    boundary_mask = dilated_mask & (~mask)
+    dilated_mask = binary_dilation(mito_mask, structure=structuring_element)
+    boundary_mask = dilated_mask & (~mito_mask)
     boundary_area = np.sum(boundary_mask)
     print(f"   Mitochondrion segment ID: {mito_id}; surface area: {boundary_area}")
     neighbor_ids = chunk[boundary_mask]
     unique_ids, counts = np.unique(neighbor_ids, return_counts=True)
+    result = []
     for id, count in zip(unique_ids, counts):
-        valid = "VALID" if count > boundary_area * 0.10 else "invalid"
-        print(f"   Found contact ({count} voxels) with segment {id} ({valid})")
+        if count < boundary_area * 0.10:
+            continue  # too small; not a valid contact
+        print(f"   Found contact ({count} voxels) with segment {id}")
+        neighbor_point: Vec3D = Vec3D(*nearby_point(chunk == id, halfSizeInVox, 5, 0.95))
+        close_mito_pt: Vec3D = Vec3D(*nearby_point(mito_mask, neighbor_point, 5, 0.8))
+        offset = mito_point - halfSizeInVox
+        neighbor_point += offset
+        close_mito_pt += offset
+
+        diff = neighbor_point - close_mito_pt
+        dist = sqrt(diff.x ** 2 + diff.y ** 2 + diff.z ** 2)
+        print(f"    Line: {tuple(close_mito_pt)} - {tuple(neighbor_point)}  (distance: {dist})")
+        elems = [
+            f'"pointA": {list(close_mito_pt)}',
+            f'"pointB": {list(neighbor_point)}',
+            '"type": "line"',
+            f'"id": "{mito_id}{id}"',
+            f'"description": "{mito_id} - {id}"',
+        ]
+        result.append("{" + ",".join(elems) + "}")
+    return result
 
 
 def main():
@@ -270,109 +372,15 @@ def main():
     resolution = round(cell_index.resolution)
     print(f"Working resolution: {list(resolution)}")
 
-    process_one(mito_points[0], cell_cvl, resolution)
+    lines = []
+    for i, mito in enumerate(mito_points):
+        print(f"({i}/{len(mito_points)}) ", end="")
+        lines += process_one(mito, cell_cvl, resolution)
 
-    sys.exit()
-
-    presyn_file = ""
-    presyn_ids: list[int] = []
-    if input("Enter presynaptic cell IDs [M]anually or from [File]? ").upper == "F":
-        while True:
-            presyn_file = input_or_default(
-                "File containing presynaptic cell IDs", "presyn_cells.txt"
-            )
-            if presyn_file[-4:] == ".txt":
-                presyn_ids = list(np.loadtxt(presyn_file, dtype=int))
-            elif presyn_file[-4:] == ".csv":
-                presyn_ids = list(
-                    np.genfromtxt(
-                        presyn_file, delimiter=",", skip_header=1, usecols=(0,), dtype=int
-                    )
-                )
-            else:
-                print("Only .txt and .csv are supported")
-                continue
-            break
-
-        print(f"{presyn_file} contains {len(presyn_ids)} IDs.")
-    else:
-        presyn_file = "manual input"
-        presyn_ids = [int(input("Cell ID: ").strip())]
-        print("(Enter a blank ID to stop.)")
-        while True:
-            inp = input("Cell ID: ").strip()
-            if not inp:
-                break
-            presyn_ids.append(int(inp))
-
-    if np.isin(presyn_ids, unique_ids).all():
-        print("Verified that all these IDs are valid in this cutout.")
-    else:
-        print(f"WARNING: Some entries in {presyn_file} are not found in this cutout.")
-
-    nowstr = datetime.now().strftime("%Y%m%d")  # new file daily (but same within each day)
-    out_path = input_or_default("Output layer GS path", f"gs://tmp_2w/joe/concact-{nowstr}")
-
-    max_label = 0
-    neighbor_dist = 1
-    for cell_id in presyn_ids:
-        print(f"Presynaptic cell ID: {cell_id}")
-
-        aggregate_labels = np.zeros(cell_ids.shape, dtype=np.int32)
-        count = 0
-        max_count = len(unique_ids) - 1
-        for other_id in unique_ids:
-            if other_id == cell_id:
-                continue
-            count += 1
-            cc_labels = find_contact_clusters(cell_ids, cell_id, other_id, neighbor_dist)
-            contact_count = cc_labels.max()
-            if contact_count == 0:
-                continue
-            contact_volume = (cc_labels > 0).sum()
-            print(
-                f"({count}/{max_count}) {cell_id} and {other_id} touch in {contact_count} place(s),"
-                f" totalling {contact_volume} voxels"
-            )
-            if contact_volume / contact_count < 10:
-                continue  # too few pixels to be real
-            cc_labels[cc_labels > 0] += max_label
-            aggregate_labels[cc_labels > 0] = cc_labels[cc_labels > 0]
-            max_label = aggregate_labels.max()
-            # if count > 3: break  # HACK!!!
-
-    # Now prepare a new segmentation volume for the output.
-    disable_stdout()
-    out_cvl = build_cv_layer(
-        path=out_path,
-        default_desired_resolution=resolution,
-        index_resolution=resolution,
-        data_resolution=resolution,
-        allow_slice_rounding=True,
-        interpolation_mode="segmentation",
-        info_voxel_offset=volume_index.start,
-        info_dataset_size=volume_index.shape,
-        info_chunk_size=[128, 128, 40],
-        on_info_exists="overwrite",
-        info_add_scales_ref={
-            "chunk_sizes": [128, 128, 40],
-            "encoding": "raw",
-            "resolution": resolution,
-            "size": volume_index.shape,
-            "voxel_offset": volume_index.start,
-        },
-        info_add_scales=[resolution],
-        # info_add_scales_mode = 'replace',
-        info_field_overrides={
-            "type": "segmentation",
-            "data_type": "int32",
-            "num_channels": 1,
-        },
-    )
-    enable_stdout()
-    shape = (1, *volume_index.shape)
-    out_cvl[volume_index] = aggregate_labels.reshape(*shape)
-    print(f"Wrote {shape} data containing {max_label} contacts to: {out_path}")
+    print()
+    print('"annotations": [')
+    print(",\n".join(lines))
+    print("],")
 
 
 if __name__ == "__main__":

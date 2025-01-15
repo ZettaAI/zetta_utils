@@ -142,7 +142,6 @@ from zetta_utils.internal.regimes.alignment.misalignment_detector_aced import (
 from zetta_utils.internal.regimes.common import is_2d_image, log_results
 from zetta_utils.internal.regimes.naive_supervised import NaiveSupervisedRegime
 from zetta_utils.internal.regimes.noop import NoOpRegime
-from zetta_utils.internal.segmentation.inference import run_affinities_inference_onnx
 from zetta_utils.layer.backend_base import Backend
 from zetta_utils.layer.db_layer.backend import DBBackend
 from zetta_utils.layer.db_layer.build import build_db_layer

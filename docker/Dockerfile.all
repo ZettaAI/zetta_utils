@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=312
-FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.6.0_torch2.5.1_py${PYTHON_VERSION}"
+FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.6.0_torch2.5.1_py${PYTHON_VERSION}" AS zutils
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   && cd /opt/zetta_utils \
   && pip install --upgrade '.[modules]' \
   && rm -rf /root/.cache/bazel/ \
-  # 
+  #
   && apt-mark auto '.*' > /dev/null \
   && apt-mark manual $savedAptMark zstd parallel coreutils libtbb2 libjemalloc2 \
   && find /usr/local/lib /opt/conda f -executable -exec ldd '{}' ';' \
@@ -73,3 +73,11 @@ COPY . /opt/zetta_utils/
 #   && rm -rf /var/lib/apt/lists/*
 
 RUN zetta --help
+
+
+FROM zutils AS zutils-pcg
+RUN conda install graph-tool -c conda-forge -y \
+  && apt update && apt install git g++ -y \
+  && git clone --depth 1 --branch v2.18.3 https://github.com/CAVEconnectome/PyChunkedGraph.git pcg \
+  && cd pcg \
+  && pip3 install . -r requirements.in

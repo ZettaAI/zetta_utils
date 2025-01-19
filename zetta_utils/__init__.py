@@ -1,7 +1,12 @@
-# pylint: disable=unused-import, import-outside-toplevel
+# pylint: disable=unused-import, import-outside-toplevel, broad-exception-caught, import-error
 """Zetta AI Computational Connectomics Toolkit."""
 import os
 import sys
+
+try:
+    import graph_tool
+except Exception:
+    ...
 
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng
@@ -28,17 +33,17 @@ def try_load_train_inference():  # pragma: no cover
     try:
         load_inference_modules()
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.exception(e)
 
     try:
         load_training_modules()
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.exception(e)
 
     try:
         from . import mazepa_addons
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.exception(e)
 
 

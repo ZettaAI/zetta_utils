@@ -777,3 +777,7 @@ def test_transpose_global():
     transposed = bbox.transposed(0, 1, local=False)
     expected = BBox3D(bounds=((3, 5), (0, 1), (7, 25)))
     assert transposed == expected
+
+
+def test_from_ng_bbox():
+    ...

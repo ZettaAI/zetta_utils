@@ -16,7 +16,7 @@ def main():
         "-m",
         type=str,
         default="all",
-        choices=["all"],
+        choices=["all", "all_pcg"],
         help="Which dependencies to install.",
     )
     parser.add_argument(

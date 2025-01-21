@@ -2,6 +2,7 @@
 from typing import Sequence
 
 import pytest
+from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
 
 from zetta_utils.geometry import BBox3D, Vec3D
 
@@ -780,4 +781,11 @@ def test_transpose_global():
 
 
 def test_from_ng_bbox():
-    ...
+    bbox = BBox3D.from_ng_bbox(
+        AxisAlignedBoundingBoxAnnotation(
+            point_a=(0, 0, 0),
+            point_b=(4, 6, 8),
+        ),
+        base_resolution=(4, 4, 40),
+    )
+    assert bbox.bounds == ((0, 16), (0, 24), (0, 320))

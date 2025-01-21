@@ -6,6 +6,7 @@ from math import floor
 from typing import Literal, Optional, Sequence, Union, cast
 
 import attrs
+from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
 from typeguard import typechecked
 
 from zetta_utils import builder
@@ -688,6 +689,19 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
                     return False
 
         return True
+
+    @staticmethod
+    def from_ng_bbox(
+        ng_bbox: AxisAlignedBoundingBoxAnnotation, base_resolution: Sequence[float]
+    ) -> BBox3D:
+        point_a_nm = Vec3D(*ng_bbox.pointA).int() * Vec3D(*base_resolution)
+        point_b_nm = Vec3D(*ng_bbox.pointB).int() * Vec3D(*base_resolution)
+        start_coord = [min(point_a_nm[i], point_b_nm[i]) for i in range(3)]
+        end_coord = [max(point_a_nm[i], point_b_nm[i]) for i in range(3)]
+        bbox = BBox3D.from_coords(
+            start_coord=start_coord, end_coord=end_coord, resolution=[1, 1, 1]
+        )
+        return bbox
 
 
 builder.register("BBox3D.from_slices")(BBox3D.from_slices)

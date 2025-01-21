@@ -26,7 +26,8 @@ ENV NVIDIA_VISIBLE_DEVICES all
 ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
 ENV NVIDIA_REQUIRE_CUDA "cuda>=${CUDA_VERSION}"
 
-ENV PATH /usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
+ENV PATH /usr/local/nvidia/bin:/usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 ENV DEBIAN_FRONTEND noninteractive
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache \
@@ -34,7 +35,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloa
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
   --mount=type=cache,target=/opt/ccache,sharing=locked \
-  apt update && apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
+  preexistingAptMark="$(apt-mark showmanual)" \
+  && apt update && apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
         apt-utils \
         apt-transport-https \
         ccache \
@@ -85,7 +87,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && chmod +x ~/miniconda.sh \
     && ~/miniconda.sh -b -p /opt/conda \
     && rm ~/miniconda.sh \
-    && /opt/conda/bin/conda install -y python=${PYTHON_VERSION} numpy==1.26.4 psutil pyyaml typing_extensions \
+    && /opt/conda/bin/conda install -y python=${PYTHON_VERSION} numpy==1.26.4 psutil pyyaml typing_extensions graph-tool-base \
     && /opt/conda/bin/conda install -y magma-cuda126 -c pytorch \
     && /opt/conda/bin/conda clean -ya \
     # && mkdir -p /tmp/magma/ \
@@ -105,6 +107,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && CFLAGS="-O2 -pipe" \
       TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST} \
       USE_XPU=0 \
+      USE_CUDA=1 \
       USE_STATIC_MKL=1 \
       BUILD_TEST=0 \
       TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
@@ -117,7 +120,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && /opt/conda/bin/conda clean -ya \
     && rm -rf pytorch vision \
     && apt-mark auto '.*' > /dev/null \
-    && apt-mark manual 'ca-certificates' > /dev/null \
+    && apt-mark manual $preexistingAptMark ca-certificates > /dev/null \
     && find /usr/local/lib /opt/conda f -executable -exec ldd '{}' ';' \
         | awk '/=>/ { print $(NF-1) }' \
         | sort -u \

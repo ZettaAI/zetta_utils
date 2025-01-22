@@ -8,7 +8,7 @@ from zetta_utils.db_annotations.precomp_annotations import (
     AnnotationLayer,
     LineAnnotation,
 )
-from zetta_utils.geometry.vec import Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 
@@ -50,19 +50,41 @@ def test_round_trip():
     for line in lines:
         assert line in lines_read
 
-    idx = VolumetricIndex.from_coords((255, 0, 300), (1500, 1000, 1000), Vec3D(10, 10, 40))
+    # Let's test with a bounds specified in *different* units than the file itself.
+    roi = BBox3D.from_coords((510, 0, 300), (3000, 200, 1000), Vec3D(5, 50, 40))
     # With that index, and strict=False, we would get at least 3 lines (ids 3, 4, and 5).
-    lines_read = sf.read_in_bounds(idx, strict=False)
+    # And on this test, we'll get our coordinates in their original resolution.
+    lines_read = sf.read_in_bounds(roi, strict=False)
     assert len(lines_read) == 3
-    for line in lines[-2:]:
-        assert line in lines_read
+    for line in lines_read:
+        assert line in lines  # should match what was written exactly in this case
         assert line.id in [3, 4, 5]
+        if line.id == 3:
+            assert line.start == (254.0, 68.0, 575.0)
+            assert line.end == (258.0, 62.0, 575.0)
     # But with strict=True, we should get only 2 lines (ids 4 and 5).
-    lines_read = sf.read_in_bounds(idx, strict=True)
+    # And also, in this test, we'll ask for the coordinates in nm.
+    lines_read = sf.read_in_bounds(roi, strict=True, annotation_resolution=Vec3D(1, 1, 1))
     assert len(lines_read) == 2
-    for line in lines[-2:]:
-        assert line in lines_read
+    for line in lines_read:
         assert line.id in [4, 5]
+        if line.id == 3:
+            assert line.start == (254.0 * 10, 68.0 * 10, 575.0 * 40)
+            assert line.end == (258.0 * 10, 62.0 * 10, 575.0 * 40)
+
+    # Test replacing only the two lines in that bounds.
+    new_lines = [
+        LineAnnotation(line_id=104, start=(1061.5, 657.0, 507.0), end=(1062.5, 653.0, 502.0)),
+        LineAnnotation(line_id=105, start=(1298.5, 889.0, 315.0), end=(1294.5, 887.0, 314.0)),
+    ]
+    sf.write_annotations(new_lines, clearing_bbox=roi)
+    lines_read = sf.read_in_bounds(roi, strict=False)
+    assert len(lines_read) == 3
+    for line in lines_read:
+        assert line.id in [3, 104, 105]
+        if line.id == 104:
+            assert line.start == (1061.5, 657.0, 507.0)
+            assert line.end == (1062.5, 653.0, 502.0)
 
     # Above is typical usage.  Below, we do some odd things
     # to trigger other code paths we want to test.
@@ -75,6 +97,33 @@ def test_round_trip():
     precomp_annotations.read_data(file_dir, entries[0])
 
     shutil.rmtree(file_dir)  # clean up when done
+
+
+def test_resolution_changes():
+    temp_dir = os.path.expanduser("~/temp/test_precomp_anno")
+    os.makedirs(temp_dir, exist_ok=True)
+    file_dir = os.path.join(temp_dir, "resolution_changes")
+
+    # file resolution: 20, 20, 40
+    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(20, 20, 40))
+    sf = AnnotationLayer(file_dir, index)
+    sf.clear()
+
+    # writing with voxel size 10, 10, 80
+    lines = [LineAnnotation(line_id=1, start=(100, 500, 50), end=(200, 600, 60))]
+    sf.write_annotations(lines, Vec3D(10, 10, 80))
+
+    # pull those back out at file native resolution, i.e. (20, 20, 40)
+    lines_read = sf.read_all()
+    assert len(lines_read) == 1
+    assert lines_read[0].start == (100 * 10 / 20, 500 * 10 / 20, 50 * 80 / 40)
+    assert lines_read[0].end == (200 * 10 / 20, 600 * 10 / 20, 60 * 80 / 40)
+
+    # pull those back out at resolution (5, 5, 20)
+    lines_read = sf.read_all(annotation_resolution=Vec3D(5, 5, 20))
+    assert len(lines_read) == 1
+    assert lines_read[0].start == (100 * 10 / 5, 500 * 10 / 5, 50 * 80 / 20)
+    assert lines_read[0].end == (200 * 10 / 5, 600 * 10 / 5, 60 * 80 / 20)
 
 
 def test_single_level():

@@ -14,8 +14,8 @@ if "sphinx" not in sys.modules:
 
 logger = get_logger("zetta_utils")
 
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
+builder.registry.MULTIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
+builder.registry.MULTIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
 log.add_supress_traceback_module(builder)
 
 

@@ -17,7 +17,7 @@ from zetta_utils.db_annotations.precomp_annotations import (
     AnnotationLayer,
     build_annotation_layer,
 )
-from zetta_utils.geometry import Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 
 from .utils import generic_exception_handler
@@ -38,12 +38,14 @@ async def read_in_bounds(
     resolution: Annotated[tuple[float, float, float], Query()],
 ):
     """
-    This endpoint retrieves all lines within the given bounds.
+    This endpoint retrieves all lines entirely within the given bounds.
+    Coordinates are returned in units according to `resolution`.
     """
-    index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
+    resolution_vec = Vec3D(*resolution)
+    bbox = BBox3D.from_coords(bbox_start, bbox_end, resolution_vec)
     layer = build_annotation_layer(path, mode="read")
     response = []
-    for line in layer.read_in_bounds(index):
+    for line in layer.read_in_bounds(bbox, strict=True, annotation_resolution=resolution_vec):
         annotation = AnnotationDBEntry(
             id=line.id,
             layer_group="",
@@ -65,8 +67,8 @@ async def add_multiple(
     resolution: Annotated[tuple[float, float, float], Query()],
 ):
     """
-    The PUT endpoint replaces all data in the given file (which may or
-    may not exist yet) with the given new set of lines.
+    The PUT endpoint replaces all data within the given bounds in the given file
+    (which may or may not exist yet) with the given new set of lines.
     """
     lines = []
     for entry in annotations:
@@ -79,9 +81,10 @@ async def add_multiple(
                 line.point_b.tolist(),
             )
         )
-    index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
+    resolution_vec = Vec3D(*resolution)
+    index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution_vec)
     layer = build_annotation_layer(path, index=index, mode="replace")
-    layer.write_annotations(lines)
+    layer.write_annotations(lines, annotation_resolution=resolution_vec, clearing_bbox=index.bbox)
 
 
 @api.delete("/annotations")

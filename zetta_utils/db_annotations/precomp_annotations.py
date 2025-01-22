@@ -23,7 +23,8 @@ from typing import IO, Literal, Optional, Sequence
 from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils import builder, log, mazepa
-from zetta_utils.geometry.vec import Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.geometry.vec import VEC3D_PRECISION
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
@@ -57,7 +58,9 @@ class LineAnnotation:
         :param start: A tuple of three floats representing the start coordinate (x, y, z).
         :param end: A tuple of three floats representing the end coordinate (x, y, z).
 
-        Coordinates are in units defined by "dimensions" in the info file.
+        Coordinates are in units defined by "dimensions" in the info file, or some
+        other resolution specified by the user.  (Like a Vec3D, context is needed to
+        interpret these coordinates.)
         """
         self.start = start
         self.end = end
@@ -100,8 +103,26 @@ class LineAnnotation:
     def in_bounds(self, bounds: VolumetricIndex):
         """
         Return whether either end of this line is in the given bounds.
+        (Assumes our coordinates match that of the given VolumetricIndex.)
         """
         return bounds.line_intersects(self.start, self.end)
+
+    def convert_coordinates(self, from_res: Vec3D, to_res: Vec3D):
+        """
+        Convert our start and end coordinates from one resolution to another.
+        Mutates the current instance.
+        """
+        self.start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
+        self.end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
+
+    def with_converted_coordinates(self, from_res: Vec3D, to_res: Vec3D):
+        """
+        Return a new LineAnnotation instance with converted coordinates.
+        Does not mutate the current instance.
+        """
+        new_start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
+        new_end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
+        return LineAnnotation(self.id, new_start, new_end)
 
 
 class SpatialEntry:
@@ -534,20 +555,43 @@ class AnnotationLayer:
             spatial_data=spatial_data,
         )
 
-    def write_annotations(self, annotations: Sequence[LineAnnotation], all_levels: bool = True):
+    def write_annotations(
+        self,
+        annotations: Sequence[LineAnnotation],
+        annotation_resolution: Optional[Vec3D] = None,
+        all_levels: bool = True,
+        clearing_bbox: Optional[BBox3D] = None,
+    ):
         """
         Write a set of line annotations to the file, adding to any already there.
 
         :param annotations: sequence of LineAnnotations to add.
+        :param annotation_resolution: resolution of given LineAnnotation coordinates;
+        if not specified, assumes native coordinates (i.e. self.index.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).
+        :param clearing_bbox: if given, clear any existing data within these bounds.
         """
         if not annotations:
             logger.info("write_annotations called with 0 annotations to write")
             return
+        if annotation_resolution and annotation_resolution != self.index.resolution:
+            annotations = [
+                x.with_converted_coordinates(annotation_resolution, self.index.resolution)
+                for x in annotations
+            ]
         qty_levels = len(self.chunk_sizes)
         levels = range(0, qty_levels) if all_levels else [qty_levels - 1]
         bounds_size = self.index.shape
+
+        clearing_idx: Optional[VolumetricIndex] = None
+        if clearing_bbox:
+            clearing_idx = VolumetricIndex.from_coords(
+                round(clearing_bbox.start / self.index.resolution),
+                round(clearing_bbox.end / self.index.resolution),
+                self.index.resolution,
+            )
+
         for level in levels:
             limit = 0
             chunk_size = Vec3D(*self.chunk_sizes[level])
@@ -636,11 +680,21 @@ class AnnotationLayer:
                         if not chunk_data:
                             continue
                         anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                        chunk_data += read_lines(anno_file_path)
+                        old_data = read_lines(anno_file_path)
+                        if clearing_idx:
+                            old_data = list(
+                                filter(lambda d: not d.in_bounds(clearing_idx), old_data)
+                            )
+                        chunk_data += old_data
                         limit = max(limit, len(chunk_data))
                         write_lines(anno_file_path, chunk_data)
 
-    def read_all(self, spatial_level: int = -1, filter_duplicates: bool = True):
+    def read_all(
+        self,
+        spatial_level: int = -1,
+        filter_duplicates: bool = True,
+        annotation_resolution: Optional[Vec3D] = None,
+    ):
         """
         Read and return all annotations from the given spatial level.
         Note that an annotation that spans chunk boundaries will appear in
@@ -668,6 +722,9 @@ class AnnotationLayer:
         if filter_duplicates:
             result_dict = {line.id: line for line in result}
             result = list(result_dict.values())
+        if annotation_resolution:
+            for line in result:
+                line.convert_coordinates(self.index.resolution, annotation_resolution)
         return result
 
     def find_max_size(self, spatial_level: int = -1):
@@ -693,22 +750,34 @@ class AnnotationLayer:
         max_file_size = max(x or 0 for x in file_sizes.values())
         return line_count_from_file_size(max_file_size)
 
-    def read_in_bounds(self, index: VolumetricIndex, strict: bool = False):
+    def read_in_bounds(
+        self, roi: BBox3D, annotation_resolution: Optional[Vec3D] = None, strict: bool = False
+    ):
         """
-        Return all annotations within the given bounds (index).  If strict is
-        true, return ONLY annotations entirely within the given bounds.  If it
-        is false, then you may also get some annotations that are partially or
-        entirely outside the given bounds.
+        Return all annotations within the given bounds (index).
+
+        :param roi: region of interest
+        :param annotation_resolution: resolution of returned LineAnnotation coordinates;
+        if not specified, uses native coordinates (i.e. self.index.resolution)
+        :param strict: if True, return ONLY annotations entirely within the given bounds;
+        if False, then you may also get some annotations that are partially or entirely
+        outside the given bounds
+        :return: list of LineAnnotation objects
         """
         level = len(self.chunk_sizes) - 1
         result = []
-        bounds_size = self.index.shape
-        chunk_size = Vec3D(*self.chunk_sizes[level])
-        grid_shape = ceil(bounds_size / chunk_size)
+        bounds_size_vx = self.index.shape
+        chunk_size_vx = Vec3D(*self.chunk_sizes[level])
+        grid_shape = ceil(bounds_size_vx / chunk_size_vx)
         level_key = f"spatial{level}"
         level_dir = path_join(self.path, level_key)
-        start_chunk = (index.start - self.index.start) // chunk_size
-        end_chunk = (index.stop - self.index.start) // chunk_size
+
+        roi_start_vx = round(roi.start / self.index.resolution)
+        roi_end_vx = round(roi.end / self.index.resolution)
+        roi_index = VolumetricIndex.from_coords(roi_start_vx, roi_end_vx, self.index.resolution)
+
+        start_chunk = (roi_index.start - self.index.start) // chunk_size_vx
+        end_chunk = (roi_index.stop - self.index.start) // chunk_size_vx
         for x in range(max(0, start_chunk[0]), min(grid_shape[0], end_chunk[0] + 1)):
             for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1] + 1)):
                 for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2] + 1)):
@@ -716,10 +785,13 @@ class AnnotationLayer:
                     result += read_lines(anno_file_path)
         if strict:
             result = list(
-                filter(lambda x: index.contains(x.start) and index.contains(x.end), result)
+                filter(lambda x: roi_index.contains(x.start) and roi_index.contains(x.end), result)
             )
         result_dict = {line.id: line for line in result}
         result = list(result_dict.values())
+        if annotation_resolution:
+            for line in result:
+                line.convert_coordinates(self.index.resolution, annotation_resolution)
         return result
 
     def post_process(self):

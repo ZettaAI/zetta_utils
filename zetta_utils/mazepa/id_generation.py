@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Callable, Optional
 
-import dill
+import cloudpickle
 import xxhash
 from coolname import generate_slug
 
@@ -42,7 +42,7 @@ def generate_invocation_id(
     prefix: Optional[str] = None,
 ) -> str:
     """Generate a unique and deterministic ID for a function invocation.
-    The ID is generated using xxhash and dill to hash the function and its arguments.
+    The ID is generated using xxhash and cloudpickle to hash the function and its arguments.
 
     :param fn: the function, or really any Callable, defaults to None
     :param args: the function arguments, or any list, defaults to None
@@ -53,16 +53,8 @@ def generate_invocation_id(
     """
     x = xxhash.xxh128()
     try:
-        x.update(
-            dill.dumps(
-                (fn, args, kwargs),
-                protocol=dill.DEFAULT_PROTOCOL,
-                byref=False,
-                recurse=True,
-                fmode=dill.FILE_FMODE,
-            )
-        )
-    except dill.PicklingError as e:
+        x.update(cloudpickle.dumps((fn, args, kwargs)))
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to pickle {fn} with args {args} and kwargs {kwargs}: {e}")
         x.update(str(uuid.uuid4()))
 

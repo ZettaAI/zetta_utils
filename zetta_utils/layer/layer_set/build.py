@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from typeguard import typechecked
 
@@ -14,7 +14,7 @@ from . import LayerSet, LayerSetBackend, LayerSetDataProcT
 @builder.register("build_layer_set")
 @typechecked
 def build_layer_set(
-    layers: dict[str, Layer],
+    layers: Mapping[str, Layer],
     readonly: bool = False,
     index_procs: Iterable[IndexProcessor] = (),
     read_procs: Iterable[LayerSetDataProcT] = (),

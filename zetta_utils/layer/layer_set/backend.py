@@ -1,7 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Mapping, TypeVar
 
 import attrs
 
@@ -16,7 +16,7 @@ DataWriteT = TypeVar("DataWriteT")
 class LayerSetBackend(
     Backend[IndexT, dict[str, DataT], dict[str, DataWriteT]]
 ):  # pylint: disable=too-few-public-methods
-    layers: dict[str, Layer[IndexT, DataT, DataWriteT]]
+    layers: Mapping[str, Layer[IndexT, DataT, DataWriteT]]
 
     def read(self, idx: IndexT) -> dict[str, DataT]:
         return {k: v.read_with_procs(idx) for k, v in self.layers.items()}

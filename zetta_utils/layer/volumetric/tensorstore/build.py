@@ -15,7 +15,6 @@ from ..precomputed import InfoExistsModes, PrecomputedInfoSpec
 from . import TSBackend
 
 # from typeguard import typechecked
-
 # @typechecked # ypeError: isinstance() arg 2 must be a type or tuple of types on p3.9
 @builder.register("build_ts_layer")
 def build_ts_layer(  # pylint: disable=too-many-locals

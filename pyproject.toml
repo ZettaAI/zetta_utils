@@ -61,7 +61,7 @@ cloudvol = [
 ]
 tensorstore = [
   "boto3 == 1.28.4",
-  "tensorstore == 0.1.33",
+  "tensorstore == 0.1.71",
   "zetta_utils[tensor_ops]",
 ]
 convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch"]

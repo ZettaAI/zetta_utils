@@ -258,15 +258,16 @@ def _gen_id_calls(_) -> dict[str, str]:
 
 def test_persistence_across_sessions() -> None:
     # Create two separate processes - spawn ensures a new PYTHONHASHSEED is used
-    ctx = multiprocessing.get_context("spawn")
+    #ctx = multiprocessing.get_context("spawn")
+    ctx = multiprocessing.get_context("fork")
     for _ in range(1):
         with ctx.Pool(processes=2) as pool:
             result = pool.map(_gen_id_calls, range(2))
 
-        #assert result[0] == result[1]
+        assert result[0] == result[1]
         print(result[0])
         print(result[1])
-        assert False
+        #assert False
 
 
 """

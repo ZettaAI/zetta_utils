@@ -263,7 +263,10 @@ def test_persistence_across_sessions() -> None:
         with ctx.Pool(processes=2) as pool:
             result = pool.map(_gen_id_calls, range(2))
 
-        assert result[0] == result[1]
+        #assert result[0] == result[1]
+        print(result[0])
+        print(result[1])
+        assert False
 
 
 """

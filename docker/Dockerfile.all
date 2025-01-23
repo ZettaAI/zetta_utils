@@ -13,14 +13,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
   --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   savedAptMark="$(apt-mark showmanual)" \
-  apt-get update \
+  && apt-get update \
   && apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
     # General pip build dependencies
     git build-essential wget \
     # OpenCV dependencies
     ffmpeg libsm6 libxext6 \
     # Abiss (https://github.com/seung-lab/abiss/blob/main/docker/Dockerfile)
-    ca-certificates \
     curl \
     build-essential \
     cmake \

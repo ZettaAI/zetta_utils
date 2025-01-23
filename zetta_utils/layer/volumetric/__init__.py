@@ -27,6 +27,7 @@ from .layer import (
     VolumetricLayer,
 )
 from .build import build_volumetric_layer
+from .tensorstore import build
 
 from .constant import ConstantVolumetricBackend, build_constant_volumetric_layer
 from .layer_set import VolumetricLayerSet, build_volumetric_layer_set

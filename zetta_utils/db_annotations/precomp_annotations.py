@@ -18,8 +18,9 @@ import os
 import struct
 from math import ceil
 from random import shuffle
-from typing import IO, Literal, Optional, Sequence
+from typing import IO, Any, Literal, Optional, Sequence, Tuple
 
+import attrs
 from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils import builder, log, mazepa
@@ -47,38 +48,27 @@ def path_join(*paths: str):
         return os.path.join(*paths)
 
 
+def to_3_tuple(value: Any) -> Tuple[float, ...]:
+    # Ensure the value is a 3-element tuple of floats
+    if len(value) != 3:
+        raise ValueError("3-element sequence expected")
+    return tuple(float(x) for x in value)
+
+
+@attrs.define
 class LineAnnotation:
+    """
+    LineAnnotation represents a Neuroglancer line annotation.  Start and end
+    points are in voxels -- i.e., the coordinates are in units defined by
+    "dimensions" in the info file, or some other resolution specified by the
+    user.  (Like a Vec3D, context is needed to interpret these coordinates.)
+    """
+
     BYTES_PER_ENTRY = 24  # start (3 floats), end (3 floats)
 
-    def __init__(self, line_id: int, start: Sequence[float], end: Sequence[float]):
-        """
-        Initialize a LineAnnotation instance.
-
-        :param id: An integer representing the ID of the annotation.
-        :param start: A tuple of three floats representing the start coordinate (x, y, z).
-        :param end: A tuple of three floats representing the end coordinate (x, y, z).
-
-        Coordinates are in units defined by "dimensions" in the info file, or some
-        other resolution specified by the user.  (Like a Vec3D, context is needed to
-        interpret these coordinates.)
-        """
-        self.start = start
-        self.end = end
-        self.id = line_id
-
-    def __repr__(self):
-        """
-        Return a string representation of the LineAnnotation instance.
-        """
-        return f"LineAnnotation(line_id={self.id}, start={self.start}, end={self.end})"
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, LineAnnotation)
-            and self.id == other.id
-            and self.start == other.start
-            and self.end == other.end
-        )
+    id: int
+    start: Tuple[float, ...] = attrs.field(converter=to_3_tuple)
+    end: Tuple[float, ...] = attrs.field(converter=to_3_tuple)
 
     def write(self, output: IO[bytes]):
         """
@@ -419,6 +409,7 @@ def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, lev
 
 
 @builder.register("AnnotationLayer")
+@attrs.define(init=False)
 class AnnotationLayer:
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
@@ -432,6 +423,10 @@ class AnnotationLayer:
     within the grid, e.g. "1_2_0".  This class manages all that so you shouldn't
     have to worry about it.
     """
+
+    index: VolumetricIndex
+    chunk_sizes: Sequence[Sequence[int]]
+    path: str = ""
 
     def __init__(
         self,
@@ -473,12 +468,6 @@ class AnnotationLayer:
         self.path = os.path.expanduser(path)
         self.index = index
         self.chunk_sizes = chunk_sizes
-
-    def __repr__(self):
-        return (
-            f"AnnotationLayer(path='{self.path}', index={self.index}, "
-            f"chunk_sizes={self.chunk_sizes})"
-        )
 
     def exists(self) -> bool:
         """

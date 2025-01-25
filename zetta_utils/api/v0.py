@@ -46,7 +46,6 @@ from zetta_utils.cloud_management.resource_allocation.k8s.cronjob import (
 from zetta_utils.cloud_management.resource_allocation.k8s.deployment import (
     deployment_ctx_mngr,
     get_deployment,
-    get_deployment_spec,
     get_mazepa_worker_deployment,
 )
 from zetta_utils.cloud_management.resource_allocation.k8s.eks import (

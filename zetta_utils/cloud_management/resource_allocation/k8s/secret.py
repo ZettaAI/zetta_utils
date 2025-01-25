@@ -2,6 +2,7 @@
 Helpers for k8s secrets.
 """
 
+import base64
 import os
 from contextlib import contextmanager
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -18,8 +19,6 @@ from zetta_utils.run import (
 from .common import ClusterInfo, get_cluster_data
 
 logger = log.get_logger("zetta_utils")
-
-CV_SECRETS_NAME = "cloudvolume-secrets"
 
 
 def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> list:
@@ -53,11 +52,30 @@ def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> 
     return envs
 
 
+def _get_user_adc() -> str | None:
+    """
+    Reads credentials file created by ` gcloud auth application-default login`.
+    """
+    file_name = ".config/gcloud/application_default_credentials.json"
+    home_dir = os.path.expanduser("~")
+    file_path = os.path.join(home_dir, file_name)
+    data = None
+    if os.path.exists(file_path):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = f.read()
+                data = base64.b64encode(data.encode()).decode()
+        except Exception:  # pylint: disable=broad-exception-caught
+            ...
+    return data
+
+
 def get_secrets_and_mapping(
     run_id: str, share_envs: Iterable[str] = ()
-) -> Tuple[List[k8s_client.V1Secret], Dict[str, str]]:
+) -> Tuple[List[k8s_client.V1Secret], Dict[str, str], bool]:
     env_secret_mapping: Dict[str, str] = {}
     secrets_kv: Dict[str, str] = {}
+    adc_available: bool = False
 
     combined_secret_data = {}
     for env_k in share_envs:
@@ -88,7 +106,15 @@ def get_secrets_and_mapping(
             string_data={"value": v},
         )
         secrets.append(secret)
-    return secrets, env_secret_mapping
+
+    adc_content = _get_user_adc()
+    adc_available = not adc_content is None
+    adc_creds = k8s_client.V1Secret(
+        metadata=k8s_client.V1ObjectMeta(name=f"run-{run_id}-adc"),
+        data={"adc.json": adc_content},
+    )
+    secrets.append(adc_creds)
+    return secrets, env_secret_mapping, adc_available
 
 
 @contextmanager

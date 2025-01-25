@@ -619,7 +619,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     # also catches situations where the task_idx intersects
                     # the current reduction chunk but is hanging off the
                     # `left` edge
-                    print(red_chunks[red_ind].shape, task_idx.shape)
                     if task_idx.intersects(red_chunks[last_xy_rollover]):
                         red_ind = last_xy_rollover
                     elif task_idx.intersects(red_chunks[last_x_rollover]):

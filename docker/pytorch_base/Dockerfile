@@ -8,6 +8,8 @@ ARG CUDNN_VERSION="9.6.0.74-1"
 ARG TORCH_VERSION="2.5.1"
 ARG TORCHVISION_VERSION="0.20.1"
 ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.9"
+ARG GRAPH_TOOL_VERSION="2.88"
+ARG GRAPH_TOOL_MICROARCH="x86_64_v3"
 # ARG MAGMA_VERSION="126-2.6.1"
 
 ### TORCH_CUDA_ARCH_LIST ###
@@ -87,7 +89,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && chmod +x ~/miniconda.sh \
     && ~/miniconda.sh -b -p /opt/conda \
     && rm ~/miniconda.sh \
-    && /opt/conda/bin/conda install -y python=${PYTHON_VERSION} numpy==1.26.4 psutil pyyaml typing_extensions graph-tool-base \
+    && CONDA_OVERRIDE_ARCHSPEC=${GRAPH_TOOL_MICROARCH} /opt/conda/bin/conda install -y \
+        python=${PYTHON_VERSION} \
+        numpy==1.26.4 psutil pyyaml typing_extensions \
+        graph-tool-base=${GRAPH_TOOL_VERSION} \
     && /opt/conda/bin/conda install -y magma-cuda126 -c pytorch \
     && /opt/conda/bin/conda clean -ya \
     # && mkdir -p /tmp/magma/ \

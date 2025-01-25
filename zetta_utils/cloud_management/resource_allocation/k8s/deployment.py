@@ -24,7 +24,7 @@ from .secret import secrets_ctx_mngr
 logger = log.get_logger("zetta_utils")
 
 
-def get_deployment_spec(
+def _get_mazepa_deployment(
     name: str,
     image: str,
     command: str,
@@ -35,6 +35,7 @@ def get_deployment_spec(
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
+    adc_available: bool = False,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -45,6 +46,7 @@ def get_deployment_spec(
         provisioning_model=provisioning_model,
         resource_requests=resource_requests,
         gpu_accelerator_type=gpu_accelerator_type,
+        adc_available=adc_available,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -69,7 +71,6 @@ def get_deployment_spec(
         metadata=k8s_client.V1ObjectMeta(name=name, labels=labels),
         spec=deployment_spec,
     )
-
     return deployment
 
 
@@ -87,6 +88,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
+    adc_available: bool = False,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -98,7 +100,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
-    return get_deployment_spec(
+    return _get_mazepa_deployment(
         name=run_id,
         image=image,
         replicas=replicas,
@@ -109,6 +111,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
         gpu_accelerator_type=gpu_accelerator_type,
+        adc_available=adc_available,
     )
 
 

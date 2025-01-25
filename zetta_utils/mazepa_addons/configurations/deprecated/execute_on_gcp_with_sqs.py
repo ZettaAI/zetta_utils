@@ -86,7 +86,9 @@ def get_gcp_with_sqs_config(
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue))
 
-    secrets, env_secret_mapping = k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
+    secrets, env_secret_mapping, adc_available = k8s.get_secrets_and_mapping(
+        execution_id, REQUIRED_ENV_VARS
+    )
 
     if sqs_based_scaling:
         worker_command = k8s.get_mazepa_worker_command(
@@ -104,6 +106,7 @@ def get_gcp_with_sqs_config(
             provisioning_model=provisioning_model,
             resource_requests=worker_resource_requests,
             restart_policy="Never",
+            adc_available=adc_available,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.keda_deprecated.scaled_job_ctx_mngr(
@@ -129,6 +132,7 @@ def get_gcp_with_sqs_config(
             num_procs=num_procs,
             semaphores_spec=semaphores_spec,
             provisioning_model=provisioning_model,
+            adc_available=adc_available,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,

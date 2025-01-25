@@ -98,12 +98,16 @@ def lightning_train(
         _lightning_train_local(
             regime=regime if not isinstance(regime, dict) else builder.build(regime),
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
-            train_dataloader=train_dataloader
-            if not isinstance(train_dataloader, dict)
-            else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED),
-            val_dataloader=val_dataloader
-            if not isinstance(val_dataloader, dict)
-            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED),
+            train_dataloader=(
+                train_dataloader
+                if not isinstance(train_dataloader, dict)
+                else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+            ),
+            val_dataloader=(
+                val_dataloader
+                if not isinstance(val_dataloader, dict)
+                else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+            ),
             full_state_ckpt_path=full_state_ckpt_path,
         )
         return
@@ -336,7 +340,7 @@ def _lightning_train_remote(
 
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)
-    secrets, env_secret_mapping = resource_allocation.k8s.get_secrets_and_mapping(
+    secrets, env_secret_mapping, adc_available = resource_allocation.k8s.get_secrets_and_mapping(
         run.RUN_ID, REQUIRED_ENV_VARS
     )
 
@@ -347,6 +351,14 @@ def _lightning_train_remote(
     env_vars = env_vars or {}
     for key, val in env_vars.items():
         envs.append(k8s_client.V1EnvVar(name=key, value=val))
+
+    if adc_available:
+        envs.append(
+            k8s_client.V1EnvVar(
+                name="GOOGLE_APPLICATION_CREDENTIALS",
+                value=resource_allocation.k8s.ADC_MOUNT_PATH,
+            )
+        )
 
     ip_env = k8s_client.V1EnvVar(
         name="NODE_IP",

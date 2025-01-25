@@ -34,4 +34,4 @@ from . import keda_deprecated
 from .pod import get_pod_spec, get_mazepa_pod_spec
 from .secret import secrets_ctx_mngr, get_secrets_and_mapping
 from .service import get_service, service_ctx_manager
-from .volume import get_common_volumes, get_common_volume_mounts
+from .volume import ADC_MOUNT_PATH, get_common_volumes, get_common_volume_mounts

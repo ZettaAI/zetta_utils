@@ -8,10 +8,7 @@ from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes import client as k8s_client
 from zetta_utils import log
-from zetta_utils.cloud_management.resource_allocation.k8s.volume import (
-    get_common_volume_mounts,
-    get_common_volumes,
-)
+from zetta_utils.cloud_management.resource_allocation.k8s import volume
 
 from .secret import get_worker_env_vars
 
@@ -87,6 +84,7 @@ def get_mazepa_pod_spec(
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     restart_policy: Literal["Always", "Never"] = "Always",
     gpu_accelerator_type: str | None = None,
+    adc_available: bool = False,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -96,17 +94,24 @@ def get_mazepa_pod_spec(
     if gpu_accelerator_type:
         node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
 
+    envs = []
+    if adc_available:
+        envs.append(
+            k8s_client.V1EnvVar(name="GOOGLE_APPLICATION_CREDENTIALS", value=volume.ADC_MOUNT_PATH)
+        )
+
     return get_pod_spec(
         name="zutils-worker",
         image=image,
         command=["/bin/sh"],
         command_args=["-c", command],
         resources=resources,
+        envs=envs,
         env_secret_mapping=env_secret_mapping,
         node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
-        volumes=get_common_volumes(),
-        volume_mounts=get_common_volume_mounts(),
+        volumes=volume.get_common_volumes(),
+        volume_mounts=volume.get_common_volume_mounts(),
         resource_requests=resource_requests,
     )

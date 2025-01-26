@@ -294,6 +294,7 @@ python_files = "test.py tests.py test_*.py *_test.py"
 testpaths = ["tests", "zetta_utils/alignment"]
 
 [tool.mypy]
+exclude = "^(?!zetta_utils/|tests/|scripts/).*"
 check_untyped_defs = true
 ignore_missing_imports = true
 implicit_reexport = true

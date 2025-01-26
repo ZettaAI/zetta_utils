@@ -6,6 +6,8 @@ ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 COPY pyproject.toml /opt/zetta_utils/
+COPY install_zutils.py /opt/zetta_utils/
+COPY compile_waterz /opt/zetta_utils/
 ENV PYTHONPATH=/opt/zetta_utils
 WORKDIR /opt/zetta_utils
 
@@ -13,39 +15,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
   --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   savedAptMark="$(apt-mark showmanual)" \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" \
-    # General pip build dependencies
-    git build-essential wget \
-    # OpenCV dependencies
-    ffmpeg libsm6 libxext6 \
-    # Abiss (https://github.com/seung-lab/abiss/blob/main/docker/Dockerfile)
-    curl \
-    build-essential \
-    cmake \
-    ninja-build \
-    pkg-config \
-    zstd \
-    parallel \
-    coreutils \
-    libboost-system-dev \
-    libboost-iostreams-dev \
-    libjemalloc-dev \
-    git \
-    libtbb-dev \
-    # ?? (was in old docker image)
-    unixodbc-dev \
-  && mkdir /opt/cue \
-  && cd /opt/cue \
-  && wget https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz \
-  && tar -xzvf cue_v0.11.1_linux_amd64.tar.gz  \
-  && mv cue /bin/ \
-  && rm -rf /opt/cue \
   && cd /opt/zetta_utils \
-  && pip install --upgrade '.[modules, pcg]' \
-  && pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@v2.18.3 \
+  && ./install_zutils.py --dockerfile --mode modules --pcg \
   && rm -rf /root/.cache/bazel/ \
-  # 
+  #
   && apt-mark auto '.*' > /dev/null \
   && apt-mark manual $savedAptMark zstd parallel coreutils libtbb2 libjemalloc2 \
   && find /usr/local/lib /opt/conda f -executable -exec ldd '{}' ';' \

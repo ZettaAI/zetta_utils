@@ -22,7 +22,7 @@ Project Information
 - **License**: `MIT <https://choosealicense.com/licenses/mit/>`_
 - **Source Code**: https://github.com/ZettaAI/zetta_utils
 - **Documentation**:  https://zetta.ai/zetta_utils/index.html
-- **Supported Python Versions**: 3.10, 3.11
+- **Supported Python Versions**: 3.11, 3.12
 
 .. project-info-end
 

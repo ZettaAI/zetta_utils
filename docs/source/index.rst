@@ -22,59 +22,9 @@ The recommended installation method is `pip <https://pip.pypa.io/en/stable/>`_-i
 
 .. code-block:: console
 
-   $ git clone git@github.com:ZettaAI/zetta_utils.git 
+   $ git clone  --recurse-submodules git@github.com:ZettaAI/zetta_utils.git
    $ cd zetta_utils
-   $ pip install -e '.[all]'
-
-If you are a member of the Zetta team and have access to private submodules, add `--recurse-submodules` to the clone command:
-
-.. code-block:: console
-
-   $ git clone  --recurse-submodules git@github.com:ZettaAI/zetta_utils.git  
-   $ cd zetta_utils
-   $ pip install -e '.[all]'
-
-.. note::
-
-  Please be sure to read all of the following points to avoid installation problems.
-
-For logging purposes, **zetta_utils** requires the following two environment variables:
-
-.. code-block:: console
-
-   ZETTA_USER
-   ZETTA_PROJECT
-
-
-If you are planning to interact with **Google Cloud Storage** (GCS) in any way, make sure to authenticate by running
-
-.. code-block:: console
-
-    $ gcloud auth application-default login
-
-
-If you are planning to use **Amazon Simple Queue Service** (SQS) for managing tasks, you must set the following environment variables:
-
-.. code-block:: console
-
-   AWS_ACCESS_KEY_ID
-   AWS_SECRET_ACCESS_KEY
-   AWS_DEFAULT_REGION
-
-Please consult the `AWS documentation <https://aws.amazon.com/blogs/security/wheres-my-secret-access-key/>`_ for how to generate the access key and the secret access key.
-
-
-If you are planning to use **WandB** for automatic logging during training, the following environment variable needs to be set:
-
-.. code-block:: console
-
-   WANDB_API_KEY
-
-This can be done automatically by running
-
-.. code-block:: console
-
-   $ wandb login
+   $ ./install_zutils.py
 
 
 If you want to let zetta_utils generate **neuroglancer** links automatically, you will need to set:
@@ -92,11 +42,6 @@ If you want to use **Grafana** integration for logging, you will need to set:
 
 Please consult the `Grafana API documentation <https://grafana.com/docs/grafana-cloud/reference/create-api-key/>`_ for how to set up an API key.
 
-
-If you are planning to use `zetta_utils.parsing.cue` or `zetta_utils.cli`, you will need to install `cuelang <https://cuelang.org/>`_.
-It is a simple two-step process which is described in detail in their `Documentation <https://cuelang.org/docs/install/>`_.
-
-
 To use **KEDA** (Kubernetes Event-driven Autoscaling), you will first need to install `helm <https://helm.sh/docs/intro/install/>`_.
 
 
@@ -107,8 +52,6 @@ If you are planning to use `zetta_utils.viz` toolkit, you will need to install *
     $ curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
     $ sudo apt install -y nodejs
 
-
-Depending on your system, you may need to install several other non-Python dependencies. Please refer to the provided `Dockerfiles <https://github.com/ZettaAI/zetta_utils/tree/main/docker>`_ for the comprehensive setup process.
 
 The next steps will get you up and running in no time:
 

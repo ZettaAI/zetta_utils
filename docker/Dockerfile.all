@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   && rm -rf /root/.cache/bazel/ \
   && apt-mark auto '.*' > /dev/null \
   && apt-mark manual $savedAptMark zstd parallel coreutils libtbb2 libjemalloc2 \
-  && find /usr/local/lib /opt/conda f -executable -exec ldd '{}' ';' \
+  && find /usr/local/lib /opt/conda -type f -executable -exec ldd '{}' ';' \
       | awk '/=>/ { print $(NF-1) }' \
       | sort -u \
       | grep -v not \
@@ -31,7 +31,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       | xargs -r apt-mark manual \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false -o APT::AutoRemove::SuggestsImportant=false \
   && rm -rf \
-        /root/.cache/pip/* \
         /tmp/* \
         /var/tmp/* \
         /usr/share/man \
@@ -39,9 +38,5 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         /usr/share/doc-base
 
 COPY . /opt/zetta_utils/
-
-# RUN apt-get --purge autoremove -y build-essential wget libboost-dev
-#   && apt-get clean \
-#   && rm -rf /var/lib/apt/lists/*
 
 RUN zetta --help

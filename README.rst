@@ -38,4 +38,4 @@ Project Information
 
 .. |Docs Badge| image:: https://github.com/ZettaAI/zetta_utils/actions/workflows/docs_deployment.yaml/badge.svg?branch=main
   :target: https://github.com/ZettaAI/zetta_utils/actions/workflows/docs_deployment.yaml
-.. |Python Badge| image:: https://img.shields.io/badge/python-3.10+-blue.svg
+.. |Python Badge| image:: https://img.shields.io/badge/python-3.11+-blue.svg

@@ -374,11 +374,12 @@ def check_and_setup_zetta_env():
         response = session.prompt("").lower()
         if response in ["y", "yes"]:
             no_aws = True
+            break
         if response in ["n", "no", ""]:  # empty input defaults to No
             no_aws = False
             break
         console.print(
-            "[yellow]Please enter 'y' for yes or 'n' for no (or press Enter for no)[/yellow]"
+            f"[yellow]Please enter 'y' for yes or 'n' for no (or press Enter for no), you entered: {response}[/yellow]"
         )
         continue
 
@@ -665,7 +666,9 @@ def main():
         install_mode = args.mode
         if args.pcg:
             install_mode = f"{install_mode},pcg"
-        run_command(f"pip install --upgrade .[{install_mode}]", "Installing zetta_utils")
+        run_command(
+            f"pip install --upgrade .[{install_mode}]", "Installing `zetta_utils` python package"
+        )
         run_command("python3 ./compile_waterz", "Compiling waterz")
         if args.pcg:
             run_command(
@@ -679,7 +682,7 @@ def main():
         check_and_setup_zetta_env()
         for region in ["us-central1", "us-east1", "us-west1"]:
             run_command(
-                f"gcloud auth configure-docker {region}-docker.pkg.dev",
+                f"gcloud auth configure-docker --quiet {region}-docker.pkg.dev",
                 "Setting up GCP artifact repository",
             )
 

@@ -1,5 +1,0 @@
-#!/usr/bin/env python3
-import waterz
-
-if __name__ == "__main__":
-    waterz.agglomerate()

@@ -628,21 +628,22 @@ def main():
             "git",
             "build-essential",
             "wget",
-            "ffmpeg",
-            "libsm6",
-            "libxext6",
-            "curl",
-            "cmake",
-            "ninja-build",
-            "pkg-config",
-            "zstd",
-            "parallel",
-            "coreutils",
-            "libboost-system-dev",
-            "libboost-iostreams-dev",
-            "libjemalloc-dev",
-            "libtbb-dev",
-            "unixodbc-dev",
+            "ffmpeg",  # opencv
+            "libsm6",  # opencv
+            "libxext6",  # opencv
+            "curl",  # abiss
+            "cmake",  # abiss
+            "ninja-build",  # abiss
+            "pkg-config",  # abiss
+            "zstd",  # abiss
+            "parallel",  # abiss
+            "coreutils",  # abiss
+            "libboost-system-dev",  # abiss
+            "libboost-iostreams-dev",  # abiss
+            "libjemalloc-dev",  # abiss
+            "libtbb-dev",  # abiss
+            "libboost-dev",  # waterz
+            "unixodbc-dev",  # ???
         ]
         run_command(f"{sudo_prefix}apt-get update", "Updating package lists")
         apt_install_flags = '-y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
@@ -669,7 +670,6 @@ def main():
         run_command(
             f"pip install --upgrade .[{install_mode}]", "Installing `zetta_utils` python package"
         )
-        run_command("python3 ./compile_waterz", "Compiling waterz")
         if args.pcg:
             run_command(
                 "pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@v2.18.3",

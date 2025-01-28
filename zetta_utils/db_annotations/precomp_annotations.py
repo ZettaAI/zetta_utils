@@ -553,7 +553,7 @@ class AnnotationLayer:
         annotation_resolution: Optional[Vec3D] = None,
         all_levels: bool = True,
         clearing_bbox: Optional[BBox3D] = None,
-    ):
+    ):  # pylint: disable=too-many-branches
         """
         Write a set of line annotations to the file, adding to any already there.
 
@@ -562,7 +562,8 @@ class AnnotationLayer:
         if not specified, assumes native coordinates (i.e. self.index.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).
-        :param clearing_bbox: if given, clear any existing data within these bounds.
+        :param clearing_bbox: if given, clear any existing data within these bounds;
+            annotations must be entirely within these bounds.
         """
         if not annotations:
             logger.info("write_annotations called with 0 annotations to write")
@@ -583,6 +584,8 @@ class AnnotationLayer:
                 round(clearing_bbox.end / self.index.resolution),
                 self.index.resolution,
             )
+            if not all(map(lambda x: x.in_bounds(clearing_idx, strict=True), annotations)):
+                raise ValueError("All annotations must be strictly within clearing_bbox")
 
         for level in levels:
             limit = 0

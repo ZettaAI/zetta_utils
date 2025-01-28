@@ -21,7 +21,7 @@ from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024**2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
 
 # To avoid reloading info file - note that an empty provenance is passed
 # since otherwise the CloudVolume's __new__ will download the provenance

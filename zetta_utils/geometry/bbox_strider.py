@@ -83,9 +83,9 @@ class BBoxStrider:
             object.__setattr__(self, "stride", superchunk_size)
             object.__setattr__(self, "mode", "exact")
             object.__setattr__(self, "max_superchunk_size", None)
-            object.__setattr__(self,
-                               "stride_start_offset",
-                               self.bbox_snapped.start / self.resolution)
+            object.__setattr__(
+                self, "stride_start_offset", self.bbox_snapped.start / self.resolution
+            )
             object.__setattr__(self, "stride_start_offset_in_unit", self.bbox_snapped.start)
             self.__attrs_post_init__()
 

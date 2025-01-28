@@ -251,7 +251,6 @@ def test_get_field_from_matrix_exceptions(mat, size):
                 [[[[nan, nan], [0.0, nan]], [[nan, nan], [-1.0, nan]]]], dtype=torch.float32
             ),
         ],
-
         # Two vectors, same target pixel -- should average
         [
             [
@@ -267,7 +266,6 @@ def test_get_field_from_matrix_exceptions(mat, size):
                 [[[[0.0, nan], [nan, nan]], [[0.0, nan], [nan, nan]]]], dtype=torch.float32
             ),
         ],
-
         # Annotation outside ROI
         [
             [

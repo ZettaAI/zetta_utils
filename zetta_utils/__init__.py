@@ -1,7 +1,12 @@
-# pylint: disable=unused-import, import-outside-toplevel
+# pylint: disable=unused-import, import-outside-toplevel, broad-exception-caught, import-error
 """Zetta AI Computational Connectomics Toolkit."""
 import os
 import sys
+
+try:
+    import graph_tool
+except Exception:
+    ...
 
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng

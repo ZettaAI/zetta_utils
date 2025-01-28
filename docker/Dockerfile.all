@@ -7,7 +7,6 @@ ENV DEBIAN_FRONTEND="noninteractive"
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 COPY pyproject.toml /opt/zetta_utils/
 COPY install_zutils.py /opt/zetta_utils/
-COPY compile_waterz /opt/zetta_utils/
 ENV PYTHONPATH=/opt/zetta_utils
 WORKDIR /opt/zetta_utils
 

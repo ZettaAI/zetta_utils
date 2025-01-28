@@ -2,6 +2,7 @@
 """Zetta AI Computational Connectomics Toolkit."""
 import os
 import sys
+import warnings
 
 try:
     import graph_tool
@@ -18,6 +19,18 @@ if "sphinx" not in sys.modules:
     os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
 
 logger = get_logger("zetta_utils")
+ignore_warnings_from = [
+    "python_jsonschema_objects",
+    "kornia",
+    "google",
+    "pytorch_lightning",
+    "lightning_fabric",
+    "pkg_resources",
+]
+
+for pkg_name in ignore_warnings_from:
+    warnings.filterwarnings("ignore", module=pkg_name)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
 builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")

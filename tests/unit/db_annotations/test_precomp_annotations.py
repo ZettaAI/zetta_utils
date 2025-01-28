@@ -157,6 +157,14 @@ def test_single_level():
     chunk_path = os.path.join(file_dir, "spatial0", "2_1_1")
     assert precomp_annotations.count_lines_in_file(chunk_path) == 2
 
+    with pytest.raises(ValueError):
+        out_of_bounds_lines = [
+            LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+            LineAnnotation(id=666, start=(-100, 0, 0), end=(50, 50, 50)),
+        ]
+        roi = BBox3D.from_coords((25, 25, 25), (250, 250, 250), resolution=(10, 10, 40))
+        sf.write_annotations(out_of_bounds_lines, clearing_bbox=roi)
+
 
 def test_edge_cases():
     with pytest.raises(ValueError):

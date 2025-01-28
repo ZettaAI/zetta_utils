@@ -90,11 +90,14 @@ class LineAnnotation:
             struct.unpack("<3f", in_stream.read(12)),
         )
 
-    def in_bounds(self, bounds: VolumetricIndex):
+    def in_bounds(self, bounds: VolumetricIndex, strict=False):
         """
-        Return whether either end of this line is in the given bounds.
-        (Assumes our coordinates match that of the given VolumetricIndex.)
+        Check whether this line at all crosses (when strict=False), or
+        is entirely within (when strict=True), the given VolumetricIndex.
+        (Assumes our coordinates match that of the index.)
         """
+        if strict:
+            return bounds.contains(self.start) and bounds.contains(self.end)
         return bounds.line_intersects(self.start, self.end)
 
     def convert_coordinates(self, from_res: Vec3D, to_res: Vec3D):
@@ -672,7 +675,9 @@ class AnnotationLayer:
                         old_data = read_lines(anno_file_path)
                         if clearing_idx:
                             old_data = list(
-                                filter(lambda d: not d.in_bounds(clearing_idx), old_data)
+                                filter(
+                                    lambda d: not d.in_bounds(clearing_idx, strict=True), old_data
+                                )
                             )
                         chunk_data += old_data
                         limit = max(limit, len(chunk_data))

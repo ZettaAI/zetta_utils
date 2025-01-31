@@ -18,8 +18,9 @@ import os
 import struct
 from math import ceil
 from random import shuffle
-from typing import IO, Literal, Optional, Sequence
+from typing import IO, Any, Literal, Optional, Sequence, Tuple
 
+import attrs
 from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils import builder, log, mazepa
@@ -47,38 +48,27 @@ def path_join(*paths: str):
         return os.path.join(*paths)
 
 
+def to_3_tuple(value: Any) -> Tuple[float, ...]:
+    # Ensure the value is a 3-element tuple of floats
+    if len(value) != 3:
+        raise ValueError("3-element sequence expected")
+    return tuple(float(x) for x in value)
+
+
+@attrs.define
 class LineAnnotation:
+    """
+    LineAnnotation represents a Neuroglancer line annotation.  Start and end
+    points are in voxels -- i.e., the coordinates are in units defined by
+    "dimensions" in the info file, or some other resolution specified by the
+    user.  (Like a Vec3D, context is needed to interpret these coordinates.)
+    """
+
     BYTES_PER_ENTRY = 24  # start (3 floats), end (3 floats)
 
-    def __init__(self, line_id: int, start: Sequence[float], end: Sequence[float]):
-        """
-        Initialize a LineAnnotation instance.
-
-        :param id: An integer representing the ID of the annotation.
-        :param start: A tuple of three floats representing the start coordinate (x, y, z).
-        :param end: A tuple of three floats representing the end coordinate (x, y, z).
-
-        Coordinates are in units defined by "dimensions" in the info file, or some
-        other resolution specified by the user.  (Like a Vec3D, context is needed to
-        interpret these coordinates.)
-        """
-        self.start = start
-        self.end = end
-        self.id = line_id
-
-    def __repr__(self):
-        """
-        Return a string representation of the LineAnnotation instance.
-        """
-        return f"LineAnnotation(line_id={self.id}, start={self.start}, end={self.end})"
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, LineAnnotation)
-            and self.id == other.id
-            and self.start == other.start
-            and self.end == other.end
-        )
+    id: int
+    start: Tuple[float, ...] = attrs.field(converter=to_3_tuple)
+    end: Tuple[float, ...] = attrs.field(converter=to_3_tuple)
 
     def write(self, output: IO[bytes]):
         """
@@ -100,11 +90,14 @@ class LineAnnotation:
             struct.unpack("<3f", in_stream.read(12)),
         )
 
-    def in_bounds(self, bounds: VolumetricIndex):
+    def in_bounds(self, bounds: VolumetricIndex, strict=False):
         """
-        Return whether either end of this line is in the given bounds.
-        (Assumes our coordinates match that of the given VolumetricIndex.)
+        Check whether this line at all crosses (when strict=False), or
+        is entirely within (when strict=True), the given VolumetricIndex.
+        (Assumes our coordinates match that of the index.)
         """
+        if strict:
+            return bounds.contains(self.start) and bounds.contains(self.end)
         return bounds.line_intersects(self.start, self.end)
 
     def convert_coordinates(self, from_res: Vec3D, to_res: Vec3D):
@@ -419,6 +412,7 @@ def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, lev
 
 
 @builder.register("AnnotationLayer")
+@attrs.define(init=False)
 class AnnotationLayer:
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
@@ -432,6 +426,10 @@ class AnnotationLayer:
     within the grid, e.g. "1_2_0".  This class manages all that so you shouldn't
     have to worry about it.
     """
+
+    index: VolumetricIndex
+    chunk_sizes: Sequence[Sequence[int]]
+    path: str = ""
 
     def __init__(
         self,
@@ -473,12 +471,6 @@ class AnnotationLayer:
         self.path = os.path.expanduser(path)
         self.index = index
         self.chunk_sizes = chunk_sizes
-
-    def __repr__(self):
-        return (
-            f"AnnotationLayer(path='{self.path}', index={self.index}, "
-            f"chunk_sizes={self.chunk_sizes})"
-        )
 
     def exists(self) -> bool:
         """
@@ -561,7 +553,7 @@ class AnnotationLayer:
         annotation_resolution: Optional[Vec3D] = None,
         all_levels: bool = True,
         clearing_bbox: Optional[BBox3D] = None,
-    ):
+    ):  # pylint: disable=too-many-branches
         """
         Write a set of line annotations to the file, adding to any already there.
 
@@ -570,7 +562,8 @@ class AnnotationLayer:
         if not specified, assumes native coordinates (i.e. self.index.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).
-        :param clearing_bbox: if given, clear any existing data within these bounds.
+        :param clearing_bbox: if given, clear any existing data within these bounds;
+            annotations must be entirely within these bounds.
         """
         if not annotations:
             logger.info("write_annotations called with 0 annotations to write")
@@ -591,6 +584,8 @@ class AnnotationLayer:
                 round(clearing_bbox.end / self.index.resolution),
                 self.index.resolution,
             )
+            if not all(map(lambda x: x.in_bounds(clearing_idx, strict=True), annotations)):
+                raise ValueError("All annotations must be strictly within clearing_bbox")
 
         for level in levels:
             limit = 0
@@ -683,7 +678,9 @@ class AnnotationLayer:
                         old_data = read_lines(anno_file_path)
                         if clearing_idx:
                             old_data = list(
-                                filter(lambda d: not d.in_bounds(clearing_idx), old_data)
+                                filter(
+                                    lambda d: not d.in_bounds(clearing_idx, strict=True), old_data
+                                )
                             )
                         chunk_data += old_data
                         limit = max(limit, len(chunk_data))

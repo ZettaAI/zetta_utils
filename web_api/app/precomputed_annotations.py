@@ -69,20 +69,22 @@ async def add_multiple(
     """
     The PUT endpoint replaces all data within the given bounds in the given file
     (which may or may not exist yet) with the given new set of lines.
+
+    Note that any lines not entirely contained within the bbox are ignored.
     """
-    lines = []
-    for entry in annotations:
-        annotation = AnnotationDBEntry.from_dict(entry["id"], entry)
-        line = annotation.ng_annotation
-        lines.append(
-            precomp_annotations.LineAnnotation(
-                int(annotation.id),
-                line.point_a.tolist(),
-                line.point_b.tolist(),
-            )
-        )
     resolution_vec = Vec3D(*resolution)
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution_vec)
+    lines = []
+    for d in annotations:
+        db_entry = AnnotationDBEntry.from_dict(d["id"], d)
+        ng_annotation = db_entry.ng_annotation
+        line_annotation = precomp_annotations.LineAnnotation(
+            int(db_entry.id),
+            ng_annotation.point_a.tolist(),
+            ng_annotation.point_b.tolist(),
+        )
+        if line_annotation.in_bounds(index, strict=True):
+            lines.append(line_annotation)
     layer = build_annotation_layer(path, index=index, mode="replace")
     layer.write_annotations(lines, annotation_resolution=resolution_vec, clearing_bbox=index.bbox)
 

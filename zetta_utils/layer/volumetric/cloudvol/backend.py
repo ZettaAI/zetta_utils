@@ -15,8 +15,8 @@ from numpy import typing as npt
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
+from ...precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
-from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _cv_cached: Dict[str, set] = {}

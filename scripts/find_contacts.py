@@ -17,7 +17,7 @@ from scipy.ndimage import binary_dilation
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
+from zetta_utils.layer.volumetric.deprecated import PrecomputedInfoSpec
 
 client: CAVEclient
 
@@ -290,24 +290,14 @@ out_cvl = build_cv_layer(
     data_resolution=resolution,
     allow_slice_rounding=True,
     interpolation_mode="segmentation",
-    info_voxel_offset=volume_index.start,
-    info_dataset_size=volume_index.shape,
-    info_chunk_size=[128, 128, 40],
+    info_type="segmentation",
+    info_data_type="int32",
+    info_num_channels=1,
     on_info_exists="overwrite",
-    info_add_scales_ref={
-        "chunk_sizes": [128, 128, 40],
-        "encoding": "raw",
-        "resolution": resolution,
-        "size": volume_index.shape,
-        "voxel_offset": volume_index.start,
-    },
-    info_add_scales=[resolution],
-    # info_add_scales_mode = 'replace',
-    info_field_overrides={
-        "type": "segmentation",
-        "data_type": "int32",
-        "num_channels": 1,
-    },
+    info_scales=[resolution],
+    info_encoding="raw",
+    info_chunk_size=[128, 128, 40],
+    info_bbox=volume_index.bbox,
 )
 enable_stdout()
 shape = (1, *volume_index.shape)

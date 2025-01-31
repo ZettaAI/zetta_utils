@@ -1,23 +1,29 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Any, Iterable, Literal, Sequence, Union
+from typing import Iterable, Literal, Sequence, Union
 
 import torch
 from numpy import typing as npt
 
 from zetta_utils import builder
+from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.tensor_ops import InterpolationMode
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor
+from ...precomputed import (
+    InfoExistsModes,
+    InfoSpecParams,
+    PrecomputedInfoSpec,
+    PrecomputedVolumeDType,
+)
 from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
-from ..precomputed import InfoExistsModes, PrecomputedInfoSpec
 from . import TSBackend
 
 
 # from typeguard import typechecked
-# @typechecked # ypeError: isinstance() arg 2 must be a type or tuple of types on p3.9
-@builder.register("build_ts_layer")
+# @typechecked
+@builder.register("build_ts_layer", versions=">=0.4")
 def build_ts_layer(  # pylint: disable=too-many-locals
     path: str,
     default_desired_resolution: Sequence[float] | None = None,
@@ -25,27 +31,17 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     data_resolution: Sequence[float] | None = None,
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
-    info_extend_if_exists: bool = True,
     info_reference_path: str | None = None,
+    inherit_all_params: bool = False,
     info_type: Literal["image", "segmentation"] | None = None,
-    info_data_type: str | None = None,
+    info_data_type: PrecomputedVolumeDType | None = None,
     info_num_channels: int | None = None,
-    info_field_overrides: dict[str, Any] | None = None,
     info_chunk_size: Sequence[int] | None = None,
-    info_chunk_size_map: dict[str, Sequence[int]] | None = None,
-    info_dataset_size: Sequence[int] | None = None,
-    info_dataset_size_map: dict[str, Sequence[int]] | None = None,
-    info_voxel_offset: Sequence[int] | None = None,
-    info_voxel_offset_map: dict[str, Sequence[int]] | None = None,
+    info_bbox: BBox3D | None = None,
     info_encoding: str | None = None,
-    info_encoding_map: dict[str, str] | None = None,
-    info_add_scales: Sequence[Sequence[float] | dict[str, Any]] | None = None,
-    info_add_scales_ref: str | dict[str, Any] | None = None,
-    info_add_scales_exclude_fields: Sequence[str] = (),
-    info_add_scales_mode: Literal["merge", "replace"] = "merge",
-    info_only_retain_scales: Sequence[Sequence[float]] | None = None,
+    info_scales: Sequence[Sequence[float]] | None = None,
+    info_extra_scale_data: dict | None = None,
     on_info_exists: InfoExistsModes = "expect_same",
-    cache_bytes_limit: int | None = None,
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
@@ -60,6 +56,7 @@ def build_ts_layer(  # pylint: disable=too-many-locals
             JointIndexDataProcessor[npt.NDArray | torch.Tensor, VolumetricIndex],
         ]
     ] = (),
+    cache_bytes_limit: int | None = None,
 ) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only
     """Build a TensorStore layer.
 
@@ -74,72 +71,74 @@ def build_ts_layer(  # pylint: disable=too-many-locals
         ``data_resolution`` differs from ``desired_resolution``.
     :param readonly: Whether layer is read only.
     :param info_reference_path: Path to a reference Precomputed volume for info.
-    :param info_type: Type of the volume. Takes precedence over ``info_fields_overrides["type"]``.
-    :param info_data_type: Data type of the volume. Takes precedence over
-        ``info_fields_overrides["data_type"]``.
-    :param info_num_channels: Number of channels of the volume. Takes precedence over
-        ``info_fields_overrides["num_channels"]``.
-    :param info_field_overrides: Manual info field specifications.
-    :param info_chunk_size: Precomputed chunk size for all scales.
-    :param info_chunk_size_map: Precomputed chunk size for each resolution.
-    :param info_dataset_size: Precomputed dataset size for all scales.
-    :param info_dataset_size_map: Precomputed dataset size for each resolution.
-    :param info_voxel_offset: Precomputed voxel offset for all scales.
-    :param info_voxel_offset_map: Precomputed voxel offset for each resolution.
-    :param info_encoding: Precomputed encoding for all scales.
-    :param info_encoding_map: Precomputed encoding for each resolution.
-    :param info_add_scales: List of scales to be added based on ``info_add_scales_ref``
-        Each entry can be either a resolution (e.g., [4, 4, 40]) or a partially filled
-        Precomputed scale. By default, ``size`` and ``voxel_offset`` will be scaled
-        accordingly to the reference scale, while keeping ``chunk_sizes`` the same.
-        Note that using ``info_[chunk_size,dataset_size,voxel_offset][_map]`` will
-        override these values. Using this will also sort the added and existing scales
-        by their resolutions.
-    :param info_add_scales_ref: Reference scale to be used. If `None`, use
-        the highest available resolution scale.
-    :param info_add_scales_mode: Either "merge" or "replace". "merge" will
-        merge added scales to existing scales if ``info_reference_path`` is
-        used, while "replace" will not keep them.
-    :param info_only_retain_scales: Only keep the given scales. Evaluated after all
-        other info operations except for the actual writing.
-    :param on_info_exists: Behavior mode for when both new info specs aregiven
-        and layer info already exists.
-    :param allow_slice_rounding: Whether layer allows IO operations where the specified index
-        corresponds to a non-integer number of pixels at the desired resolution. When
-        ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
-    :param index_procs: List of processors that will be applied to the index given by the user
-        prior to IO operations.
+    :param info_scales: List of scales to be added to the info file.
+    :param info_type: Type of the volume (`image` or `segmentation`).
+    :param info_data_type: Data type of the volume.
+    :param info_num_channels: Number of channels of the volume.
+    :param info_chunk_size: Precomputed chunk size for all new scales.
+    :param info_bbox: Bounding box corresponding to the dataset bounds for all new
+            scales. If `None`, will be inherited from the reference.
+    :param info_extra_scale_data: Extra information to put into every scale. Not inherited
+            from reference.
+    :param info_encoding: Precomputed encoding for all new scales.
+    :param inherit_all_params: Whether to inherit all unspecified parameters from the
+        reference info file. If False, only the dataset bounds will be inherited.
+    :param on_info_exists: Behavior mode for when both new info specs are given and
+        layer info already exists.
+    :param allow_slice_rounding: Whether layer allows IO operations where the specified
+        index corresponds to a non-integer number of pixels at the desired resolution.
+        When ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
+    :param index_procs: List of processors that will be applied to the index given by
+        the user prior to IO operations.
     :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
+    :param cache_bytes_limit: Cache size limit in bytes.
     :return: Layer built according to the spec.
-
     """
+    if info_scales is not None:
+        info_spec = PrecomputedInfoSpec(
+            info_spec_params=InfoSpecParams.from_optional_reference(
+                reference_path=info_reference_path,
+                scales=info_scales,
+                type=info_type,
+                data_type=info_data_type,
+                chunk_size=info_chunk_size,
+                num_channels=info_num_channels,
+                encoding=info_encoding,
+                bbox=info_bbox,
+                inherit_all_params=inherit_all_params,
+                extra_scale_data=info_extra_scale_data,
+            )
+        )
+    else:
+        if any(
+            param is not None
+            for param in [
+                info_reference_path,
+                info_type,
+                info_data_type,
+                info_num_channels,
+                info_chunk_size,
+                info_bbox,
+                info_encoding,
+                info_extra_scale_data,
+            ]
+        ):
+            raise ValueError(
+                "When 'info_scales' is not provided, all 'info_*' parameters must be None. "
+                "'info_scales' provides all the scales for the info file. An info file without "
+                "scales is invalid. If 'info_scales' is not provided, the info file at the "
+                "specified path is assumed to exist and will be used without modifications. "
+                "Therefore, all other 'info_*' parameters must be None as they won't be used."
+            )
+        info_spec = PrecomputedInfoSpec(info_path=path)
+
     backend = TSBackend(
         path=path,
         on_info_exists=on_info_exists,
-        info_spec=PrecomputedInfoSpec(
-            type=info_type,
-            data_type=info_data_type,
-            num_channels=info_num_channels,
-            reference_path=info_reference_path,
-            extend_if_exists_path=path if info_extend_if_exists else None,
-            field_overrides=info_field_overrides,
-            default_chunk_size=info_chunk_size,
-            chunk_size_map=info_chunk_size_map,
-            default_dataset_size=info_dataset_size,
-            dataset_size_map=info_dataset_size_map,
-            default_voxel_offset=info_voxel_offset,
-            voxel_offset_map=info_voxel_offset_map,
-            default_encoding=info_encoding,
-            encoding_map=info_encoding_map,
-            add_scales=info_add_scales,
-            add_scales_ref=info_add_scales_ref,
-            add_scales_mode=info_add_scales_mode,
-            add_scales_exclude_fields=info_add_scales_exclude_fields,
-            only_retain_scales=info_only_retain_scales,
-        ),
+        info_spec=info_spec,
         cache_bytes_limit=cache_bytes_limit,
     )
 

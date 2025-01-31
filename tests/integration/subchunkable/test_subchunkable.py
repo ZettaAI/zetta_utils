@@ -11,9 +11,9 @@ import pytest
 import zetta_utils
 from zetta_utils import builder, mazepa, parsing
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import _info_cache
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed.precomputed import _info_cache
 from zetta_utils.layer.volumetric.tensorstore import TSBackend
 from zetta_utils.mazepa_layer_processing.common import build_subchunkable_apply_flow
 
@@ -261,21 +261,13 @@ def test_subchunkable_padded_chunk_ids(clear_temp_dir_and_info_cache):
     dst = build_cv_layer(
         path="file://assets/temp/",
         on_info_exists="overwrite",
-        info_field_overrides={
-            "type": "image",
-            "data_type": "int32",
-            "num_channels": 1,
-            "scales": [
-                {
-                    "encoding": "raw",
-                    "resolution": dst_resolution,
-                    "size": list(bbox.shape),
-                    "chunk_sizes": [[256, 256, 32]],
-                    "voxel_offset": list(bbox.start),
-                    "key": "16_16_42",
-                }
-            ],
-        },
+        info_type="image",
+        info_data_type="int32",
+        info_num_channels=1,
+        info_scales=[dst_resolution],
+        info_encoding="raw",
+        info_chunk_size=[256, 256, 32],
+        info_bbox=bbox,
     )
     processing_chunk_sizes = [[512, 512, 32], [320, 320, 32], [224, 224, 32]]
     flow = build_subchunkable_apply_flow(

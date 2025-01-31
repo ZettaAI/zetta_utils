@@ -17,10 +17,10 @@ from zetta_utils import tensor_ops
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
+from ...precomputed import InfoExistsModes, PrecomputedInfoSpec
 from .. import VolumetricBackend, VolumetricIndex
 from ..cloudvol import CVBackend
 from ..layer_set import VolumetricSetBackend
-from ..precomputed import InfoExistsModes, PrecomputedInfoSpec
 
 _ts_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _ts_cached: Dict[str, set] = {}
@@ -87,7 +87,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def __attrs_post_init__(self):
         if self.info_spec is None:
-            self.info_spec = PrecomputedInfoSpec()
+            self.info_spec = PrecomputedInfoSpec(info_path=self.path)
         overwritten = self.info_spec.update_info(self.path, self.on_info_exists)
         if overwritten:
             _clear_ts_cache(self.path)
@@ -263,15 +263,18 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "dataset_size_res",
             "use_compression",
         ]
-        keys_to_kwargs = {
-            "name": "path",
-            "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
-        }
+
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,
             "dataset_size_res": info_spec.set_dataset_size,
         }
+
+        keys_to_kwargs = {
+            "name": "path",
+            "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
+        }
+
         evolve_kwargs = {}
         for k, v in kwargs.items():
             if k not in implemented_keys:
@@ -280,6 +283,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 evolve_kwargs[keys_to_kwargs[k]] = v
             if k in keys_to_infospec_fn:
                 keys_to_infospec_fn[k](v)
+
         # must clear the TS cache since the TS cache is separate from the info cache
         _clear_ts_cache(self.path)
         if "name" in kwargs:

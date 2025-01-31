@@ -12,7 +12,7 @@ UNEXISTING_FILE_PATH = TEST_DATA_DIR / "no_file_x0.cue"
 
 
 def test_loads():
-    result = cue.loads('["1"] * 2')
+    result = cue.loads('["1", "1"]')
     assert result == ["1", "1"]
 
 

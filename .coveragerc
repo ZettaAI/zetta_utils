@@ -6,8 +6,9 @@ omit =
   zetta_utils/mazepa_layer_processing/**/*.py
   zetta_utils/tensor_mapping/*.py
   zetta_utils/tensor_mapping/**/*.py
-  zetta_utils/convnet/architecture/deprecated/*.py
-  zetta_utils/convnet/architecture/deprecated/**/*.py
+  zetta_utils/**/deprecated.py
+  zetta_utils/**/deprecated/*.py
+  zetta_utils/**/deprecated/**/*.py
   zetta_utils/viz/*.py
   zetta_utils/viz/**/*.py
   zetta_utils/internal/*.py

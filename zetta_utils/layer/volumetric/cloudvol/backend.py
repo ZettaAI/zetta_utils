@@ -15,8 +15,8 @@ from numpy import typing as npt
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
+from ...precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
-from ..precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
 
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
 _cv_cached: Dict[str, set] = {}
@@ -98,7 +98,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     path: str
     cv_kwargs: Dict[str, Any] = attrs.field(factory=dict)
-    info_spec: Optional[PrecomputedInfoSpec] = None
+    info_spec: PrecomputedInfoSpec | None = None
     on_info_exists: InfoExistsModes = "expect_same"
 
     def __attrs_post_init__(self):
@@ -110,7 +110,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         self._set_cv_defaults()
         if self.info_spec is None:
-            self.info_spec = PrecomputedInfoSpec()
+            self.info_spec = PrecomputedInfoSpec(info_path=self.path)
         overwritten = self.info_spec.update_info(self.path, self.on_info_exists)
         if overwritten:
             _clear_cv_cache(self.path)

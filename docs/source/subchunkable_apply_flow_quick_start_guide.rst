@@ -196,7 +196,7 @@ Precomputed volumes require an *infofile* that contains information about things
 
 .. collapse:: infofiles in zetta_utils
 
-   In ``zetta_utils``, infofiles are handled by ``zetta_utils.layer.volumetric.precomputed`` module, which is used by ``zetta_utils.layer.volumetric.cloudvol`` and ``zetta_utils.layer.volumetric.tensorstore`` (both instances of ``VolumetricBackend``). While changing the contents of the infofiles within Python (rather than passing in arguments into `build_cv_layer`) is outside the scope of this guide and is something that you shouldn't need to do, here is the example code for reading the content (with ``cvl`` as before):
+   In ``zetta_utils``, infofiles are handled by ``zetta_utils.layer.precomputed`` module, which is used by ``zetta_utils.layer.volumetric.cloudvol`` and ``zetta_utils.layer.volumetric.tensorstore`` (both instances of ``VolumetricBackend``). While changing the contents of the infofiles within Python (rather than passing in arguments into `build_cv_layer`) is outside the scope of this guide and is something that you shouldn't need to do, here is the example code for reading the content (with ``cvl`` as before):
 
      >>> cvl.backend.get_bounds(Vec3D(4, 4, 40)) # get bound at resolution
      VolumetricIndex(resolution=Vec3D(4, 4, 40), bbox=BBox3D(bounds=((0, 1048576), (0, 524288), (0, 282560)), unit='nm', pprint_px_resolution=(1, 1, 1)), chunk_id=0, allow_slice_rounding=False)

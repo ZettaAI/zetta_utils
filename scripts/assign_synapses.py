@@ -31,9 +31,9 @@ from scipy.stats import mode
 
 import zetta_utils.tensor_ops.convert as convert
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import PrecomputedInfoSpec, PrecomputedVolumeDType
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Configuration
 resolution = Vec3D(8, 8, 42)  # working resolution
@@ -56,28 +56,20 @@ def make_layer(
     bbox: BBox3D,
     resolution: Vec3D,
     path: str,
-    data_type: str = "int32",
+    data_type: PrecomputedVolumeDType = "int32",
     chunk_sizes: Sequence[Sequence[int]] = [[256, 256, 32]],
 ) -> VolumetricLayer:
     return build_cv_layer(
         path=path,
         on_info_exists="overwrite",
         index_resolution=resolution,
-        info_field_overrides={
-            "type": "image",
-            "data_type": data_type,
-            "num_channels": 1,
-            "scales": [
-                {
-                    "encoding": "raw",
-                    "resolution": list(resolution),
-                    "size": list(bbox.shape),
-                    "chunk_sizes": chunk_sizes,
-                    "voxel_offset": list(bbox.start),
-                    "key": "_".join(str(i) for i in resolution),
-                }
-            ],
-        },
+        info_type="image",
+        info_data_type=data_type,
+        info_num_channels=1,
+        info_encoding="raw",
+        info_scales=[resolution],
+        info_chunk_size=chunk_sizes[0],
+        info_bbox=bbox,
         cv_kwargs={"non_aligned_writes": True},
     )
 
@@ -87,7 +79,7 @@ def load_volume(path: str, scale_index: int = 0) -> Tuple[VolumetricLayer, BBox3
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a BBox3D describing the data bounds.
     """
-    spec = PrecomputedInfoSpec(reference_path=path)
+    spec = PrecomputedInfoSpec(info_path=path)
     info = spec.make_info()
     assert info is not None
     scale = info["scales"][scale_index]

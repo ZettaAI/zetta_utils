@@ -703,6 +703,16 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         )
         return bbox
 
+    def with_start(self, start_coord: Sequence[float], resolution: Sequence[float]):
+        return BBox3D.from_coords(
+            start_coord=start_coord, end_coord=self.end / Vec3D(*resolution), resolution=resolution
+        )
+
+    def with_end(self, end_coord: Sequence[float], resolution: Sequence[float]):
+        return BBox3D.from_coords(
+            start_coord=self.start / Vec3D(*resolution), end_coord=end_coord, resolution=resolution
+        )
+
 
 builder.register("BBox3D.from_slices")(BBox3D.from_slices)
 builder.register("BBox3D.from_coords")(BBox3D.from_coords)

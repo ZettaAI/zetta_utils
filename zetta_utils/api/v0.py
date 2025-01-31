@@ -152,6 +152,7 @@ from zetta_utils.layer.layer_base import Layer
 from zetta_utils.layer.layer_set.backend import LayerSetBackend
 from zetta_utils.layer.layer_set.build import build_layer_set
 from zetta_utils.layer.layer_set.layer import LayerSet
+from zetta_utils.layer.precomputed import PrecomputedInfoSpec, get_info
 from zetta_utils.layer.protocols import LayerWithIndexDataT, LayerWithIndexT
 from zetta_utils.layer.tools_base import (
     DataProcessor,
@@ -171,10 +172,6 @@ from zetta_utils.layer.volumetric.layer import VolumetricLayer
 from zetta_utils.layer.volumetric.layer_set.backend import VolumetricSetBackend
 from zetta_utils.layer.volumetric.layer_set.build import build_volumetric_layer_set
 from zetta_utils.layer.volumetric.layer_set.layer import VolumetricLayerSet
-from zetta_utils.layer.volumetric.precomputed.precomputed import (
-    PrecomputedInfoSpec,
-    get_info,
-)
 from zetta_utils.layer.volumetric.protocols import VolumetricBasedLayerProtocol
 from zetta_utils.layer.volumetric.tensorstore.backend import TSBackend
 from zetta_utils.layer.volumetric.tensorstore.build import build_ts_layer

@@ -113,21 +113,13 @@ def subchunkable_flow():
         processing_chunk_sizes=[[1, 1, 1]],
         dst=build_cv_layer(
             path="/tmp/zutils/test/test_id_generation",
-            info_field_overrides={
-                "data_type": "int8",
-                "num_channels": 1,
-                "scales": [
-                    {
-                        "chunk_sizes": [[1, 1, 1]],
-                        "encoding": "raw",
-                        "key": "1_1_1",
-                        "resolution": [1, 1, 1],
-                        "size": [1, 1, 1],
-                        "voxel_offset": [0, 0, 0],
-                    }
-                ],
-                "type": "image",
-            },
+            info_type="image",
+            info_data_type="int8",
+            info_num_channels=1,
+            info_scales=[[1, 1, 1]],
+            info_chunk_size=[1, 1, 1],
+            info_encoding="raw",
+            info_bbox=BBox3D.from_coords(start_coord=[0, 0, 0], end_coord=[1, 1, 1]),
         ),
         bbox=BBox3D.from_coords(start_coord=[0, 0, 0], end_coord=[1, 1, 1], resolution=[1, 1, 1]),
         level_intermediaries_dirs=[

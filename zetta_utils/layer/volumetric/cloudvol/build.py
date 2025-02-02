@@ -34,7 +34,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
     info_reference_path: str | None = None,
-    inherit_all_params: bool = False,
+    info_inherit_all_params: bool = False,
     info_type: Literal["image", "segmentation"] | None = None,
     info_data_type: PrecomputedVolumeDType | None = None,
     info_num_channels: int | None = None,
@@ -84,7 +84,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     :param info_encoding: Precomputed encoding for all new scales.
     :param info_extra_scale_data: Extra information to put into every scale. Not inherited
             from reference.
-    :param inherit_all_params: Whether to inherit all unspecified parameters from the
+    :param info_inherit_all_params: Whether to inherit all unspecified parameters from the
         reference info file. If False, only the dataset bounds will be inherited.
     :param on_info_exists: Behavior mode for when both new info specs are given and
         layer info already exists.
@@ -113,7 +113,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
                 num_channels=info_num_channels,
                 encoding=info_encoding,
                 bbox=info_bbox,
-                inherit_all_params=inherit_all_params,
+                inherit_all_params=info_inherit_all_params,
                 extra_scale_data=info_extra_scale_data,
             )
         )

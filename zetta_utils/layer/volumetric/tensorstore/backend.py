@@ -17,7 +17,7 @@ from zetta_utils import tensor_ops
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
-from ...precomputed import InfoExistsModes, PrecomputedInfoSpec
+from ...precomputed import PrecomputedInfoSpec
 from .. import VolumetricBackend, VolumetricIndex
 from ..cloudvol import CVBackend
 from ..layer_set import VolumetricSetBackend
@@ -81,14 +81,19 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     path: str
     info_spec: Optional[PrecomputedInfoSpec] = None
-    on_info_exists: InfoExistsModes = "expect_same"
+    info_overwrite: bool = False
+    info_keep_existing_scales: bool = True
     cache_bytes_limit: Optional[int] = None
     _enforce_chunk_aligned_writes: bool = True
 
     def __attrs_post_init__(self):
         if self.info_spec is None:
             self.info_spec = PrecomputedInfoSpec(info_path=self.path)
-        overwritten = self.info_spec.update_info(self.path, self.on_info_exists)
+        overwritten = self.info_spec.update_info(
+            self.path,
+            overwrite=self.info_overwrite,
+            keep_existing_scales=self.info_keep_existing_scales,
+        )
         if overwritten:
             _clear_ts_cache(self.path)
 
@@ -115,7 +120,12 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     @staticmethod
     def from_precomputed(backend):
         if isinstance(backend, CVBackend):
-            return TSBackend(backend.path, backend.info_spec, backend.on_info_exists)
+            return TSBackend(
+                backend.path,
+                backend.info_spec,
+                info_overwrite=backend.info_overwrite,
+                info_keep_existing_scales=backend.info_keep_existing_scales,
+            )
         elif isinstance(backend, VolumetricSetBackend):
             return attrs.evolve(
                 backend,
@@ -293,7 +303,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             self,
             **evolve_kwargs,
             info_spec=info_spec,
-            on_info_exists="overwrite",
+            info_overwrite=True,
+            info_keep_existing_scales=True,
         )
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:

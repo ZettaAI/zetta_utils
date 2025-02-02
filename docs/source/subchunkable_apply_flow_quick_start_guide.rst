@@ -208,7 +208,9 @@ Precomputed volumes require an *infofile* that contains information about things
      Vec3D(262144, 131072, 7064)
 
 
-For most common use cases, it will suffice to use an existing infofile as a template. We will do that here, but change the chunk size for (8, 8, 40) nm resolution to be (128, 128, 1) voxels:
+For most common use cases, it will suffice to use an existing infofile as a template.
+We will do that here, but ensure that (8, 8, 40)nm exists and set chunk size to be (128, 128, 1) voxels.
+To inherit the rest of the info file will be inherited from the reference path, we set `info_inherit_all_params` to `True`:
 
 .. doctest::
 
@@ -216,7 +218,9 @@ For most common use cases, it will suffice to use an existing infofile as a temp
    >>> cvl = build_cv_layer(
    ...    path="file://~/zetta_utils_temp/temp",  # path for the volume
    ...    info_reference_path="https://storage.googleapis.com/fafb_v15_aligned/v0/img/img_norm", # path for the reference infofile
-   ...    info_chunk_size_map={"8_8_40": (128, 128, 1)} # override chunk size - key has to be in "x_y_z" format for CloudVolume
+   ...    info_chunk_size=(128, 128, 1),
+   ...    info_scales=[(8, 8, 40)],
+   ...    info_inherit_all_params=True,
    ... )
 
 Let's try writing to a chunk:

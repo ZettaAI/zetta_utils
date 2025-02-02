@@ -6,8 +6,8 @@ import warnings
 
 try:
     import graph_tool
-except Exception:
-    ...  # pragma: no cover
+except Exception:  # pragma: no cover
+    ...
 
 from . import log, typing, parsing, builder, common, constants
 from . import geometry, distributions, layer, ng

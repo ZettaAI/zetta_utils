@@ -32,43 +32,32 @@ def test_nonexistent_info(clear_caches_reset_mocks):
         precomputed.get_info(NONEXISTENT_LAYER_PATH)
 
 
-def test_infospec_expect_same_exc(clear_caches_reset_mocks, mocker):
-    _write_info = mocker.MagicMock()
-    precomputed._write_info = _write_info
-    info_spec = PrecomputedInfoSpec(
-        info_path=LAYER_X0_PATH,
-    )
-    with pytest.raises(RuntimeError):
-        info_spec.update_info(path=LAYER_X1_PATH, on_info_exists="expect_same")
-    _write_info.assert_not_called()
-
-
 @pytest.mark.parametrize(
-    "path, reference, mode",
+    "path, reference, overwrite",
     [
-        [LAYER_X0_PATH, LAYER_X0_PATH, "overwrite"],
-        [LAYER_X0_PATH, LAYER_X0_PATH, "expect_same"],
+        [LAYER_X0_PATH, LAYER_X0_PATH, True],
+        [LAYER_X0_PATH, LAYER_X0_PATH, False],
     ],
 )
-def test_infospec_no_action(clear_caches_reset_mocks, path, reference, mode, mocker):
+def test_infospec_no_action(clear_caches_reset_mocks, path, reference, overwrite, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
         info_path=reference,
     )
-    info_spec.update_info(path=path, on_info_exists=mode)
+    info_spec.update_info(path=path, overwrite=overwrite, keep_existing_scales=True)
 
     _write_info.assert_not_called()
 
 
 @pytest.mark.parametrize(
-    "path, reference, mode",
+    "path, reference",
     [
-        [LAYER_X1_PATH, LAYER_X0_PATH, "overwrite"],
-        [".", LAYER_X0_PATH, "overwrite"],
+        [LAYER_X1_PATH, LAYER_X0_PATH],
+        [".", LAYER_X0_PATH],
     ],
 )
-def test_infospec_overwrite(clear_caches_reset_mocks, path, reference, mode, mocker):
+def test_infospec_overwrite(clear_caches_reset_mocks, path, reference, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -79,7 +68,7 @@ def test_infospec_overwrite(clear_caches_reset_mocks, path, reference, mode, moc
             inherit_all_params=True,
         )
     )
-    info_spec.update_info(path=path, on_info_exists=mode)
+    info_spec.update_info(path=path, overwrite=True, keep_existing_scales=True)
 
     _write_info.assert_called_once()
 
@@ -102,7 +91,7 @@ def test_infospec_extend(clear_caches_reset_mocks, path, reference, mocker):
             inherit_all_params=True,
         )
     )
-    info_spec.update_info(path=path, on_info_exists="extend")
+    info_spec.update_info(path=path, overwrite=True, keep_existing_scales=True)
     _write_info.assert_called_once()
 
 
@@ -178,7 +167,7 @@ def test_set_voxel_offset_chunk_and_data(clear_caches_reset_mocks):
             inherit_all_params=True,
         )
     )
-    info_spec.update_info(LAYER_SCRATCH0_PATH, on_info_exists="overwrite")
+    info_spec.update_info(LAYER_SCRATCH0_PATH, overwrite=True, keep_existing_scales=True)
     scales = get_info(LAYER_SCRATCH0_PATH)["scales"]
     for scale in scales:
         assert scale["voxel_offset"] == [1, 2, 3]
@@ -217,7 +206,7 @@ def test_no_scales_exc(clear_caches_reset_mocks):
         )
 
 
-def test_not_pure_extension_exc(clear_caches_reset_mocks, mocker):
+def test_no_overwrite_dtype_change(clear_caches_reset_mocks, mocker):
     _write_info = mocker.MagicMock()
     precomputed._write_info = _write_info
     info_spec = PrecomputedInfoSpec(
@@ -227,13 +216,29 @@ def test_not_pure_extension_exc(clear_caches_reset_mocks, mocker):
             scales=[[1, 1, 1]],
             bbox=BBox3D.from_coords([1, 2, 3], [11, 22, 33], [1, 1, 1]),
             inherit_all_params=True,
-            type="segmentation",
             data_type="int32",
         )
     )
 
     with pytest.raises(Exception):
-        info_spec.update_info(LAYER_X0_PATH, "extend")
+        info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=True)
+    _write_info.assert_not_called()
+
+
+def test_no_overwrite_type_change(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+            type="segmentation",
+        )
+    )
+
+    with pytest.raises(Exception):
+        info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=False)
     _write_info.assert_not_called()
 
 
@@ -249,7 +254,7 @@ def test_change_scale_on_extend_exc(clear_caches_reset_mocks, mocker):
         )
     )
     with pytest.raises(Exception):
-        info_spec.update_info(LAYER_X0_PATH, "extend")
+        info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=True)
     _write_info.assert_not_called()
 
 

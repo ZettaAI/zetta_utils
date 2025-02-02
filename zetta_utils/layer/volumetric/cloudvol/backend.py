@@ -15,7 +15,7 @@ from numpy import typing as npt
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
-from ...precomputed import InfoExistsModes, PrecomputedInfoSpec, get_info
+from ...precomputed import PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
 
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
@@ -99,7 +99,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     path: str
     cv_kwargs: Dict[str, Any] = attrs.field(factory=dict)
     info_spec: PrecomputedInfoSpec | None = None
-    on_info_exists: InfoExistsModes = "expect_same"
+    info_overwrite: bool = False
+    info_keep_existing_scales: bool = True
 
     def __attrs_post_init__(self):
         if "mip" in self.cv_kwargs:
@@ -111,7 +112,11 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self._set_cv_defaults()
         if self.info_spec is None:
             self.info_spec = PrecomputedInfoSpec(info_path=self.path)
-        overwritten = self.info_spec.update_info(self.path, self.on_info_exists)
+        overwritten = self.info_spec.update_info(
+            self.path,
+            overwrite=self.info_overwrite,
+            keep_existing_scales=self.info_keep_existing_scales,
+        )
         if overwritten:
             _clear_cv_cache(self.path)
 
@@ -284,12 +289,14 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         if "name" in kwargs:
             _clear_cv_cache(kwargs["name"])
         _clear_cv_cache(self.path)
+
         result = attrs.evolve(
             self,
             **evolve_kwargs,
             info_spec=info_spec,
             cv_kwargs=cv_kwargs,
-            on_info_exists="overwrite",
+            info_overwrite=True,
+            info_keep_existing_scales=True,
         )
         return result
 

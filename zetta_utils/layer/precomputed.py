@@ -16,8 +16,6 @@ from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.geometry.vec import Vec3D
 
-InfoExistsModes = Literal["expect_same", "overwrite", "extend"]
-
 _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
@@ -60,6 +58,7 @@ class InfoSpecParams:
         cls,
         scales: Sequence[Sequence[float]],
         reference_path: str | None = None,
+        inherit_all_params: bool = False,
         type: Literal["image", "segmentation"] | None = None,  # pylint: disable=redefined-builtin
         data_type: PrecomputedVolumeDType | None = None,
         chunk_size: Sequence[int] | None = None,
@@ -67,14 +66,15 @@ class InfoSpecParams:
         encoding: str | None = None,
         bbox: BBox3D | None = None,
         extra_scale_data: dict | None = None,
-        inherit_all_params: bool = False,
     ):  # pylint: disable=too-many-branches,too-many-boolean-expressions # trivial branches for exception text
         """
         Create an InfoSpecParams instance from a reference path.
 
         :param reference_path: Path to the reference info file. Note that `scales`
             cannot be inherited.
-        :param scales: Sequence of scales to be added to be used in the info. Must be
+        :param inherit_all_params: If True, inherit all unspecified parameters from the
+            reference info file. If False, only bbox will be inherited.
+        :param scales: Sequence of scales to be ensured in the info. Must be
             non-empty.
         :param type: Precomputed volume type (e.g., "image", "segmentation"). If
             inherit_all_params is True, this can be None.
@@ -87,8 +87,6 @@ class InfoSpecParams:
         :param encoding: Encoding type. If inherit_all_params is True, this can be None.
         :param bbox: Bounding box corresponding to the bounds of the dataset.
             If `None`, will be inherited from the reference.
-        :param inherit_all_params: If True, inherit all unspecified parameters from the
-            reference info file. If False, only bbox will be inherited.
         :param extra_scale_data: Extra information to put into every scale. Not inherited
             from reference.
         """
@@ -251,6 +249,7 @@ class InfoSpecParams:
         )
 
 
+@typechecked
 @attrs.mutable
 class PrecomputedInfoSpec:
     info_path: str | None = None
@@ -301,7 +300,7 @@ class PrecomputedInfoSpec:
 
             return result
 
-    def update_info(self, path: str, on_info_exists: InfoExistsModes) -> bool:
+    def update_info(self, path: str, overwrite: bool, keep_existing_scales: bool) -> bool:
         """
         Update infofile at `path`. Returns True if there was a write, else returns False.
         """
@@ -311,36 +310,41 @@ class PrecomputedInfoSpec:
             existing_info = None
 
         new_info = self.make_info()
+
         if new_info is not None:
             if existing_info is not None:
-                if on_info_exists == "expect_same" and new_info != existing_info:
-                    raise RuntimeError(
-                        f"New info is not equal to existing info at '{path}' while "
-                        "`on_info_exists` is set to 'expect_same'"
-                    )
-                if on_info_exists == "extend":
+                if keep_existing_scales:
+                    if (new_info["data_type"] != existing_info["data_type"]) or (
+                        new_info["num_channels"] != existing_info["num_channels"]
+                    ):
+                        raise RuntimeError(
+                            "Attempting to keep existing scales while 'data_type' or "
+                            "'num_channels' have changed in the info file. "
+                            "Consider setting `keep_existing_scales` to False."
+                        )
                     new_info["scales"] = _merge_and_sort_scales(
                         existing_info["scales"], new_info["scales"]
                     )
-                    exisging_scales_unchanged = all(
-                        e in new_info["scales"] for e in existing_info["scales"]
+
+                if not overwrite:
+                    existing_scales_changed = any(
+                        not (e in new_info["scales"]) for e in existing_info["scales"]
                     )
-                    if not exisging_scales_unchanged:
+                    if existing_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'extend'. Some scales present "
+                            "while `on_info_exists` is set to 'expect_same'. Some scales present "
                             f"in `{path}` would be overwritten."
                         )
-
                     existing_info_no_scales = copy.deepcopy(existing_info)
                     del existing_info_no_scales["scales"]
                     new_info_no_scales = copy.deepcopy(new_info)
                     del new_info_no_scales["scales"]
-
-                    if existing_info_no_scales != new_info_no_scales:
+                    non_scales_changed = existing_info_no_scales != new_info_no_scales
+                    if non_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'extend'. Some non-scale keys "
+                            "while `on_info_exists` is set to 'expect_same'. Some non-scale keys "
                             f"in `{path}` would be overwritten."
                         )
 

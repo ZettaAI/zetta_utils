@@ -260,7 +260,7 @@ def test_subchunkable_padded_chunk_ids(clear_temp_dir_and_info_cache):
     )
     dst = build_cv_layer(
         path="file://assets/temp/",
-        on_info_exists="overwrite",
+        info_overwrite=True,
         info_type="image",
         info_data_type="int32",
         info_num_channels=1,

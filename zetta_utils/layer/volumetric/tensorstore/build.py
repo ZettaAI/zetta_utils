@@ -11,12 +11,7 @@ from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.tensor_ops import InterpolationMode
 
 from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor
-from ...precomputed import (
-    InfoExistsModes,
-    InfoSpecParams,
-    PrecomputedInfoSpec,
-    PrecomputedVolumeDType,
-)
+from ...precomputed import InfoSpecParams, PrecomputedInfoSpec, PrecomputedVolumeDType
 from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
 from . import TSBackend
 
@@ -41,7 +36,8 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     info_encoding: str | None = None,
     info_scales: Sequence[Sequence[float]] | None = None,
     info_extra_scale_data: dict | None = None,
-    on_info_exists: InfoExistsModes = "expect_same",
+    info_overwrite: bool = False,
+    info_keep_existing_scales: bool = True,
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
@@ -83,8 +79,9 @@ def build_ts_layer(  # pylint: disable=too-many-locals
     :param info_encoding: Precomputed encoding for all new scales.
     :param info_inherit_all_params: Whether to inherit all unspecified parameters from the
         reference info file. If False, only the dataset bounds will be inherited.
-    :param on_info_exists: Behavior mode for when both new info specs are given and
-        layer info already exists.
+    :param info_keep_existing_scales: Whether to keep existing scales in the info file at `path`.
+    :param info_overwrite: Whether to allow overwriting existing fields/scales in the info file
+        at `path.
     :param allow_slice_rounding: Whether layer allows IO operations where the specified
         index corresponds to a non-integer number of pixels at the desired resolution.
         When ``allow_slice_rounding == True``, shapes will be rounded to nearest integer.
@@ -137,7 +134,8 @@ def build_ts_layer(  # pylint: disable=too-many-locals
 
     backend = TSBackend(
         path=path,
-        on_info_exists=on_info_exists,
+        info_overwrite=info_overwrite,
+        info_keep_existing_scales=info_keep_existing_scales,
         info_spec=info_spec,
         cache_bytes_limit=cache_bytes_limit,
     )

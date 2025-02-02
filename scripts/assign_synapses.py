@@ -61,7 +61,7 @@ def make_layer(
 ) -> VolumetricLayer:
     return build_cv_layer(
         path=path,
-        on_info_exists="overwrite",
+        info_overwrite=True,
         index_resolution=resolution,
         info_type="image",
         info_data_type=data_type,

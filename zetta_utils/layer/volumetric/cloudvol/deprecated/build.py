@@ -9,10 +9,10 @@ from numpy import typing as npt
 from zetta_utils import builder
 from zetta_utils.tensor_ops import InterpolationMode
 
-from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor
-from ...deprecated.precomputed import InfoExistsModes, PrecomputedInfoSpec
-from .. import VolumetricIndex, VolumetricLayer, build_volumetric_layer
-from . import CVBackend
+from .... import DataProcessor, IndexProcessor, JointIndexDataProcessor
+from ....deprecated.precomputed import InfoExistsModes, PrecomputedInfoSpec
+from ... import VolumetricIndex, VolumetricLayer, build_volumetric_layer
+from .backend import CVBackend
 
 # from typeguard import typechecked
 
@@ -124,7 +124,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         path=path,
         cv_kwargs=cv_kwargs,
         on_info_exists=on_info_exists,
-        info_spec=PrecomputedInfoSpec(  # type: ignore # deprecated and new are compatible
+        info_spec=PrecomputedInfoSpec(
             type=info_type,
             data_type=info_data_type,
             num_channels=info_num_channels,

@@ -36,6 +36,16 @@ PrecomputedVolumeDType = Literal[
 PrecomputedAnnotationDType = Literal["POINT", "LINE", "AXIS_ALIGNED_BOUNDING_BOX", "ELLIPSOID"]
 PrecomputedDType = Union[PrecomputedVolumeDType, PrecomputedAnnotationDType]
 
+NON_INHERITABLE_SCALE_KEYS = [
+    "sharding",
+    "encoding",
+    "voxel_offset",
+    "size",
+    "chunk_sizes",
+    "resolution",
+    "key",
+]
+
 
 @attrs.mutable
 class InfoSpecParams:
@@ -212,6 +222,15 @@ class InfoSpecParams:
                 encoding = reference_scale["encoding"]
             if chunk_size is None:
                 chunk_size = reference_scale["chunk_sizes"][0]
+
+            if extra_scale_data is None:
+                extra_scale_data = {}
+            extra_scale_data = {
+                **{
+                    k: v for k, v in reference_scale.items() if k not in NON_INHERITABLE_SCALE_KEYS
+                },
+                **extra_scale_data,
+            }
         else:
             missing_params = []
             if type is None:

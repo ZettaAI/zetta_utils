@@ -228,6 +228,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: float = 300.0,
     raise_on_failed_checkpoint: bool = True,
+    write_progress_summary: bool = False,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -247,6 +248,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             num_procs=num_procs,
             semaphores_spec=semaphores_spec,
             debug=debug,
+            write_progress_summary=write_progress_summary,
         )
     else:
         assert gcloud.check_image_exists(worker_image), worker_image
@@ -307,4 +309,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 checkpoint=checkpoint,
                 checkpoint_interval_sec=checkpoint_interval_sec,
                 raise_on_failed_checkpoint=raise_on_failed_checkpoint,
+                write_progress_summary=write_progress_summary,
             )

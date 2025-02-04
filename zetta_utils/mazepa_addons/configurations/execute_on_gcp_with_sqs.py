@@ -7,6 +7,8 @@ from contextlib import AbstractContextManager, ExitStack
 from typing import Any, Final, Iterable, Literal, Optional, TypedDict, Union
 
 import attrs
+from typeguard import typechecked
+from typing_extensions import NotRequired
 
 from zetta_utils import builder, log, mazepa, run
 from zetta_utils.cloud_management.resource_allocation import aws_sqs, gcloud, k8s
@@ -59,7 +61,7 @@ def _ensure_required_env_vars():
 class WorkerGroup:
     replicas: int
     resource_limits: dict[str, int | float | str]
-    queue_tags: list[str]
+    queue_tags: list[str] | None = None
     num_procs: int = 1
     sqs_based_scaling: bool = True
     resource_requests: dict[str, int | float | str] | None = None
@@ -73,15 +75,15 @@ class WorkerGroup:
 class WorkerGroupDict(TypedDict, total=False):
     replicas: int
     resource_limits: dict[str, int | float | str]
-    queue_tags: list[str]
-    num_procs: int
-    sqs_based_scaling: bool
-    resource_requests: dict[str, int | float | str]
-    semaphores_spec: dict[SemaphoreType, int]
-    provisioning_model: Literal["standard", "spot"]
-    idle_worker_timeout: int
-    labels: dict[str, str]
-    gpu_accelerator_type: str
+    queue_tags: NotRequired[list[str]]
+    num_procs: NotRequired[int]
+    sqs_based_scaling: NotRequired[bool]
+    resource_requests: NotRequired[dict[str, int | float | str]]
+    semaphores_spec: NotRequired[dict[SemaphoreType, int]]
+    provisioning_model: NotRequired[Literal["standard", "spot"]]
+    idle_worker_timeout: NotRequired[int]
+    labels: NotRequired[dict[str, str]]
+    gpu_accelerator_type: NotRequired[str]
 
 
 def _get_group_taskqueue_and_contexts(
@@ -96,7 +98,11 @@ def _get_group_taskqueue_and_contexts(
     adc_available: bool = False,
 ) -> tuple[PushMessageQueue[Task], list[AbstractContextManager]]:
     ctx_managers: list[AbstractContextManager] = []
-    work_queue_name = f"run-{execution_id}-{'-'.join(group.queue_tags)}-work"
+
+    work_queue_name = f"run-{execution_id}"
+    if group.queue_tags is not None:
+        work_queue_name += f"_{'_'.join(group.queue_tags)}"
+    work_queue_name += "_work"
     task_queue_spec = {"@type": "SQSQueue", "name": work_queue_name}
     task_queue = builder.build(task_queue_spec)
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
@@ -200,6 +206,7 @@ def get_gcp_with_sqs_config(
     return TaskRouter(task_queues), outcome_queue, ctx_managers
 
 
+@typechecked
 @builder.register("mazepa.execute_on_gcp_with_sqs", versions=">=0.0.3")
 def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     target: Union[mazepa.Flow, mazepa.ExecutionState],

@@ -10,8 +10,8 @@ def test_read(mocker):
     idx = mocker.MagicMock()
     result = layer_set[idx]
     assert result == {"a": "a", "b": "b"}
-    layer_a.read_with_procs.called_with(idx=idx)
-    layer_b.read_with_procs.called_with(idx=idx)
+    layer_a.read_with_procs.assert_called_with(idx)
+    layer_b.read_with_procs.assert_called_with(idx)
 
 
 def test_write(mocker):
@@ -22,5 +22,5 @@ def test_write(mocker):
     layer_set = build_layer_set(layers={"a": layer_a, "b": layer_b})
     idx = mocker.MagicMock()
     layer_set[idx] = {"a": 1, "b": 2}
-    layer_a.write_with_procs.called_with(idx=idx, data=1)
-    layer_b.write_with_procs.called_with(idx=idx, data=2)
+    layer_a.write_with_procs.assert_called_with(idx, 1)
+    layer_b.write_with_procs.assert_called_with(idx, 2)

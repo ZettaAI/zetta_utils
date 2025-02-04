@@ -13,8 +13,8 @@ jobs:
         os:
           - ubuntu-latest
         python-version:
-          - "3.10"
           - "3.11"
+          - "3.12"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Get token from Github App

@@ -4,10 +4,13 @@ import contextlib
 import os
 import signal
 import sys
+import time
 from typing import Generator, Protocol
 
+import fsspec
 import rich
 from rich import progress
+from rich.console import Console
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
 
@@ -45,7 +48,9 @@ class ProgressUpdateFN(Protocol):
 
 @contextlib.contextmanager
 def progress_ctx_mngr(
-    expected_total_counts: dict[str, int]
+    expected_total_counts: dict[str, int],
+    write_progress_to_path: str | None = None,
+    write_progress_interval_sec: int = 5,
 ) -> Generator[ProgressUpdateFN, None, None]:  # pragma: no cover
     progress_bar = progress.Progress(
         progress.SpinnerColumn(),
@@ -83,6 +88,7 @@ def progress_ctx_mngr(
             return pdb.Pdb().set_trace(sys._getframe().f_back)  # pylint: disable=protected-access
 
     sys.breakpointhook = custom_debugger_hook
+    last_progress_writeout_ts = 0.0
 
     with progress_bar as progress_bar:
         with custom_signal_handler_ctx(get_confirm_sigint_fn(progress_bar), signal.SIGINT):
@@ -100,6 +106,7 @@ def progress_ctx_mngr(
             execution_tracker_ids: dict[str, progress.TaskID] = {}
 
             def update_fn(progress_reports: dict[str, ProgressReport]) -> None:
+                nonlocal last_progress_writeout_ts
                 if not hasattr(sys, "gettrace") or sys.gettrace() is None:
                     progress_bar.start()
 
@@ -120,6 +127,18 @@ def progress_ctx_mngr(
                         progress_bar.update(execution_tracker_ids[k], completed=v.completed_count)
 
                 progress_bar.refresh()
+                if (write_progress_to_path is not None) and (
+                    time.time() - last_progress_writeout_ts > write_progress_interval_sec
+                ):
+                    temp_console = Console(record=True, width=80)
+                    for line in progress_bar.get_renderables():
+                        temp_console.print(line)
+                    progress_html = temp_console.export_html(inline_styles=True)
+
+                    with fsspec.open(write_progress_to_path, "w") as f:
+                        f.write(progress_html)
+
+                    last_progress_writeout_ts = time.time()
 
             yield update_fn
             try:

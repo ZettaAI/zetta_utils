@@ -92,6 +92,7 @@ def get_mazepa_worker_command(
     }'
     """
     )
+    logger.debug(f"Worker command: \n'{result}'\n")
     return result
 
 

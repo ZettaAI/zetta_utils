@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring,protected-access,unused-argument,redefined-outer-name,invalid-name, line-too-long
+import os
+import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -327,3 +329,101 @@ def test_unpickleable_dict():
         )
     )
     assert len(recons) == 0
+
+
+def assert_file_exists(path):
+    assert os.path.exists(path)
+
+
+def write_file(path):
+    with open(path, "w", encoding="utf8") as f:
+        f.write("hello world")
+
+
+def dummy_f(arg):
+    ...
+
+
+@pytest.fixture
+def file_io_funcitons():
+    builder.register("assert_file_exists", versions=">=0.0.0")(assert_file_exists)
+    builder.register("write_file", versions=">=0.0.0")(write_file)
+    builder.register("dummy_f", versions=">=0.0.0")(dummy_f)
+    yield
+    builder.unregister(name="dummy_f", fn=dummy_f)
+    builder.unregister(name="write_file", fn=write_file)
+    builder.unregister(name="assert_file_exists", fn=assert_file_exists)
+
+
+def test_sequential_side_effects_x0(file_io_funcitons):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "file.txt")
+        builder.build(
+            {
+                "parts": [
+                    {"@type": "write_file", "path": file_path},
+                    {"@type": "assert_file_exists", "path": file_path},
+                    [{"@type": "assert_file_exists", "path": file_path}],
+                    [[{"@type": "assert_file_exists", "path": file_path}]],
+                ]
+            }
+        )
+
+
+def test_sequential_side_effects_x1(file_io_funcitons):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "file.txt")
+        builder.build(
+            {
+                "parts": [
+                    [[[{"@type": "write_file", "path": file_path}]]],
+                    {"@type": "assert_file_exists", "path": file_path},
+                    [{"@type": "assert_file_exists", "path": file_path}],
+                    [[{"@type": "assert_file_exists", "path": file_path}]],
+                ]
+            }
+        )
+
+
+def test_sequential_side_effects_x2(file_io_funcitons):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "file.txt")
+        builder.build(
+            {
+                "parts": [
+                    [[{"inner": [{"@type": "write_file", "path": file_path}]}]],
+                    {"@type": "assert_file_exists", "path": file_path},
+                    [{"@type": "assert_file_exists", "path": file_path}],
+                    [[{"@type": "assert_file_exists", "path": file_path}]],
+                ]
+            }
+        )
+
+
+def test_sequential_side_effects_x3(file_io_funcitons):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "file.txt")
+        builder.build(
+            {
+                "parts": [
+                    {"@type": "dummy_f", "arg": [{"@type": "write_file", "path": file_path}]},
+                    {"@type": "assert_file_exists", "path": file_path},
+                ]
+            }
+        )
+
+
+def test_sequential_side_effects_x4(file_io_funcitons):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        file_path = os.path.join(tmp_dir, "file.txt")
+        builder.build(
+            {
+                "parts": [
+                    {"@type": "write_file", "path": file_path},
+                    {
+                        "@type": "dummy_f",
+                        "arg": {"@type": "assert_file_exists", "path": file_path},
+                    },
+                ]
+            }
+        )

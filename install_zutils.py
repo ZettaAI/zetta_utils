@@ -611,6 +611,7 @@ def main():
     parser.add_argument(
         "--pcg", action="store_true", default=False, help="Whether or not to install PCG"
     )
+    parser.add_argument("--pcgtag", default="v2.18.3", help="PCG repo tag to use")
 
     args = parser.parse_args()
 
@@ -672,7 +673,7 @@ def main():
         )
         if args.pcg:
             run_command(
-                "pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@v2.18.3",
+                f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
                 "Install PCG package (do deps)",
             )
 

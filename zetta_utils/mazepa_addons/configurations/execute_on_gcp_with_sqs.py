@@ -61,6 +61,7 @@ def _ensure_required_env_vars():
 class WorkerGroup:
     replicas: int
     resource_limits: dict[str, int | float | str]
+    max_replicas: int = 0
     queue_tags: list[str] | None = None
     num_procs: int = 1
     sqs_based_scaling: bool = True
@@ -75,6 +76,7 @@ class WorkerGroup:
 class WorkerGroupDict(TypedDict, total=False):
     replicas: int
     resource_limits: dict[str, int | float | str]
+    max_replicas: NotRequired[int]
     queue_tags: NotRequired[list[str]]
     num_procs: NotRequired[int]
     sqs_based_scaling: NotRequired[bool]
@@ -134,7 +136,8 @@ def _get_group_taskqueue_and_contexts(
             job_spec=job_spec,
             secrets=[],
             sqs_trigger_name=sqs_trigger_name,
-            max_replicas=group.replicas,
+            replicas=group.replicas,
+            max_replicas=group.max_replicas,
             queue=task_queue,
         )
         ctx_managers.append(scaled_job_ctx_mngr)

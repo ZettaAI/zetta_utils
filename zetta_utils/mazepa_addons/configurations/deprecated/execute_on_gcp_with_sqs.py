@@ -66,6 +66,7 @@ def get_gcp_with_sqs_config(
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     idle_worker_timeout: int = 300,
+    max_worker_replicas: int = 0,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"run-{execution_id}-work"
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -114,7 +115,8 @@ def get_gcp_with_sqs_config(
             cluster_info=worker_cluster,
             job_spec=job_spec,
             secrets=secrets,
-            max_replicas=worker_replicas,
+            replicas=worker_replicas,
+            max_replicas=max_worker_replicas,
             queue=task_queue,
         )
         ctx_managers.append(scaled_job_ctx_mngr)
@@ -171,6 +173,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     provisioning_model: Literal["standard", "spot"] = "spot",
     sqs_based_scaling: bool = True,
     idle_worker_timeout: int = 300,
+    max_worker_replicas: int = 0,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -240,6 +243,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             provisioning_model=provisioning_model,
             sqs_based_scaling=sqs_based_scaling,
             idle_worker_timeout=idle_worker_timeout,
+            max_worker_replicas=max_worker_replicas,
         )
 
         with ExitStack() as stack:

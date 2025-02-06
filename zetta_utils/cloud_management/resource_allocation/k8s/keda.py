@@ -207,17 +207,22 @@ def scaled_job_ctx_mngr(
     cluster_info: ClusterInfo,
     job_spec: k8s_client.V1JobSpec,
     secrets: list[k8s_client.V1Secret],
-    max_replicas: int,
+    replicas: int,
     sqs_trigger_name: str,
     queue: SQSQueue,
+    max_replicas: int = 0,
     namespace: str | None = "default",
 ):
+    if max_replicas == 0:
+        max_replicas = replicas
+        replicas = 0
     configuration, _ = get_cluster_data(cluster_info)
     with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
         manifest = _get_scaled_job_manifest(
             f"{run_id}-{group_name}",
             [_get_sqs_trigger(sqs_trigger_name, queue)],
             job_spec=job_spec,
+            min_replicas=replicas,
             max_replicas=max_replicas,
         )
         so_name = manifest["metadata"]["name"]

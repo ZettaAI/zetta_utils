@@ -345,7 +345,7 @@ def dummy_f(arg):
 
 
 @pytest.fixture
-def file_io_funcitons():
+def file_io_functions():
     builder.register("assert_file_exists", versions=">=0.0.0")(assert_file_exists)
     builder.register("write_file", versions=">=0.0.0")(write_file)
     builder.register("dummy_f", versions=">=0.0.0")(dummy_f)
@@ -355,7 +355,7 @@ def file_io_funcitons():
     builder.unregister(name="assert_file_exists", fn=assert_file_exists)
 
 
-def test_sequential_side_effects_x0(file_io_funcitons):
+def test_sequential_side_effects_x0(file_io_functions):
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = os.path.join(tmp_dir, "file.txt")
         builder.build(
@@ -370,7 +370,7 @@ def test_sequential_side_effects_x0(file_io_funcitons):
         )
 
 
-def test_sequential_side_effects_x1(file_io_funcitons):
+def test_sequential_side_effects_x1(file_io_functions):
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = os.path.join(tmp_dir, "file.txt")
         builder.build(
@@ -385,7 +385,7 @@ def test_sequential_side_effects_x1(file_io_funcitons):
         )
 
 
-def test_sequential_side_effects_x2(file_io_funcitons):
+def test_sequential_side_effects_x2(file_io_functions):
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = os.path.join(tmp_dir, "file.txt")
         builder.build(
@@ -400,7 +400,7 @@ def test_sequential_side_effects_x2(file_io_funcitons):
         )
 
 
-def test_sequential_side_effects_x3(file_io_funcitons):
+def test_sequential_side_effects_x3(file_io_functions):
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = os.path.join(tmp_dir, "file.txt")
         builder.build(
@@ -413,7 +413,7 @@ def test_sequential_side_effects_x3(file_io_funcitons):
         )
 
 
-def test_sequential_side_effects_x4(file_io_funcitons):
+def test_sequential_side_effects_x4(file_io_functions):
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = os.path.join(tmp_dir, "file.txt")
         builder.build(

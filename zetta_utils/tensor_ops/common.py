@@ -388,7 +388,7 @@ def interpolate(  # pylint: disable=too-many-locals
         allow_slice_rounding=allow_slice_rounding,
     )
 
-    if mode == "segmentation" and (
+    if mode in ("segmentation", "img", "bilinear") and (
         scale_factor_tuple is not None
         and (
             tuple(scale_factor_tuple)
@@ -400,8 +400,10 @@ def interpolate(  # pylint: disable=too-many-locals
         )
         and data.shape[0] == 1
     ):  # use tinybrain
-        result_raw = _interpolate_segmentation_with_tinybrain(
-            data=data, scale_factor_tuple=scale_factor_tuple
+        result_raw = _interpolate_with_tinybrain(
+            data=data,
+            scale_factor_tuple=scale_factor_tuple,
+            is_segmentation=(mode == "segmentation"),
         )
     else:
         result_raw = _interpolate_with_torch(
@@ -481,8 +483,8 @@ def _interpolate_with_torch(
     return result
 
 
-def _interpolate_segmentation_with_tinybrain(
-    data: TensorTypeVar, scale_factor_tuple: Sequence[float]
+def _interpolate_with_tinybrain(
+    data: TensorTypeVar, scale_factor_tuple: Sequence[float], is_segmentation: bool
 ) -> TensorTypeVar:
     """
     Interpolate the given segmentation tensor by the given ``scale_factor_tuple`` using
@@ -496,9 +498,15 @@ def _interpolate_segmentation_with_tinybrain(
     data_np = tensor_ops.convert.to_np(data)
     data_np = data_np.squeeze(0)  # cut the B dim
     data_np = np.moveaxis(data_np, 0, -1)  # put C dim to the end for tinybrain
-    result_raw = tinybrain.downsample_segmentation(
-        img=data_np, factor=[1.0 / e for e in scale_factor_tuple]
-    )[0]
+    if is_segmentation:
+        result_raw = tinybrain.downsample_segmentation(
+            img=data_np, factor=[1.0 / e for e in scale_factor_tuple]
+        )[0]
+    else:
+        result_raw = tinybrain.downsample_with_averaging(
+            img=data_np, factor=[1.0 / e for e in scale_factor_tuple]
+        )[0]
+
     result_raw = np.moveaxis(result_raw, -1, 0)  # put C dim to front again
     result_raw = result_raw[np.newaxis, ...]  # add the B dim
     result_final = tensor_ops.convert.astype(result_raw, data)

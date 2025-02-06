@@ -93,6 +93,7 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
 
     stages = []
     last_res = Vec3D(*src_resolution)
+    last_src = src
     for i, dst_res in enumerate(dst_resolutions_vec_sorted):
         stages.append(
             build_subchunkable_apply_flow(
@@ -113,9 +114,10 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
                 bbox=bbox,
                 auto_bbox=auto_bbox,
                 dst_tighten_bounds=dst_tighten_bounds,
-                op_kwargs={"src": src},
+                op_kwargs={"src": last_src},
             )
         )
         last_res = dst_res
+        last_src = dst
     result = sequential_flow(stages=stages)
     return result

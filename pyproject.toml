@@ -194,7 +194,7 @@ sql = [
 ]
 tensor-ops = [
   "zetta_utils[tensor_typing]",
-  "tinybrain",
+  "tinybrain >= 1.7.0",
   "affine >= 2.3.1",
   "connected-components-3d >= 3.10.0",
   "fastremap >= 1.12.2",

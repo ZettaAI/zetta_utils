@@ -1,6 +1,7 @@
 # pylint: disable=too-many-locals
 from __future__ import annotations
 
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
@@ -16,7 +17,7 @@ from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
 
 from . import Flow, Task, dryrun, sequential_flow
-from .execution_checkpoint import record_execution_checkpoint
+from .execution_checkpoint import EXECUTION_CHECKPOINT_PATH, record_execution_checkpoint
 from .execution_state import ExecutionState, InMemoryExecutionState
 from .id_generation import get_unique_id
 from .progress_tracker import progress_ctx_mngr
@@ -75,6 +76,7 @@ def execute(
     checkpoint: Optional[str] = None,
     checkpoint_interval_sec: Optional[float] = 150,
     raise_on_failed_checkpoint: bool = True,
+    write_progress_summary: bool = False,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -137,6 +139,7 @@ def execute(
             show_progress=show_progress,
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
+            write_progress_summary=write_progress_summary,
         )
 
         end_time = time.time()
@@ -155,6 +158,7 @@ def _execute_from_state(
     show_progress: bool,
     checkpoint_interval_sec: Optional[float],
     raise_on_failed_checkpoint: bool,
+    write_progress_summary: bool,
     num_procs: int = 8,
 ):
     if do_dryrun_estimation:
@@ -166,7 +170,19 @@ def _execute_from_state(
 
     with ExitStack() as stack:
         if show_progress:
-            progress_updater = stack.enter_context(progress_ctx_mngr(expected_operation_counts))
+            write_progress_to_path = None
+            if write_progress_summary:  # pragma: no cover
+                zetta_user = os.environ["ZETTA_USER"]
+                info_path = os.environ.get("EXECUTION_CHECKPOINT_PATH", EXECUTION_CHECKPOINT_PATH)
+                write_progress_to_path = os.path.join(
+                    info_path, zetta_user, execution_id, "progress.html"
+                )
+
+            progress_updater = stack.enter_context(
+                progress_ctx_mngr(
+                    expected_operation_counts, write_progress_to_path=write_progress_to_path
+                )
+            )
         else:
             progress_updater = lambda *args, **kwargs: None  # pylint: disable=C3001
         with ThreadPoolExecutor(max_workers=num_procs) as pool:

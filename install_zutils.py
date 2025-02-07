@@ -625,10 +625,21 @@ def main():
         sudo_prefix = ""
 
     if not args.skip_apt:
+        run_command(f"{sudo_prefix}apt-get update", "Updating package lists")
+        run_command(
+            command=f"{sudo_prefix}apt-get install -y wget gnupg software-properties-common && "
+            "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && "
+            f"{sudo_prefix}mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600 && "
+            f"{sudo_prefix}apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/7fa2af80.pub && "
+            f"{sudo_prefix}apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC && "
+            f'{sudo_prefix}add-apt-repository "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /"',
+            description="Adding NVIDIA apt repository",
+        )
+
+        run_command(f"{sudo_prefix}apt-get update", "Updating package lists")
         apt_packages = [
             "git",
             "build-essential",
-            "wget",
             "ffmpeg",  # opencv
             "libsm6",  # opencv
             "libxext6",  # opencv
@@ -645,8 +656,8 @@ def main():
             "libtbb-dev",  # abiss
             "libboost-dev",  # waterz
             "unixodbc-dev",  # ???
+            "cuda-nvrtc-12-0",  # torch jit
         ]
-        run_command(f"{sudo_prefix}apt-get update", "Updating package lists")
         apt_install_flags = '-y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
         run_command(
             f"{sudo_prefix} apt-get install {apt_install_flags} {' '.join(apt_packages)}",

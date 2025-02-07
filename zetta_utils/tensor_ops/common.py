@@ -388,7 +388,7 @@ def interpolate(  # pylint: disable=too-many-locals
         allow_slice_rounding=allow_slice_rounding,
     )
 
-    if mode in ("segmentation", "img", "bilinear") and (
+    if mode in ("segmentation", "img", "bilinear", "linear", "trilinear") and (
         scale_factor_tuple is not None
         and (
             tuple(scale_factor_tuple)

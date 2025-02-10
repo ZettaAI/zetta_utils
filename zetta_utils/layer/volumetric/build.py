@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import copy
-from typing import Iterable, Sequence
+from typing import Iterable, Sequence, Union
 
 import torch
 from numpy import typing as npt
 from typeguard import typechecked
 
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.layer_base import Layer
+from zetta_utils.layer.volumetric.frontend import UserVolumetricDataT, UserVolumetricIndex
 from zetta_utils.tensor_ops import InterpolationMode
 
 from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor
@@ -17,8 +19,18 @@ from . import (
     VolumetricBackend,
     VolumetricFrontend,
     VolumetricIndex,
-    VolumetricLayer,
 )
+VolumetricDataProcT = Union[
+    DataProcessor[npt.NDArray], 
+    JointIndexDataProcessor[npt.NDArray, VolumetricIndex]
+]
+
+VolumetricLayer = Layer[
+    UserVolumetricIndex,
+    VolumetricIndex,
+    UserVolumetricDataT,
+    npt.NDArray
+]
 
 
 @typechecked
@@ -31,13 +43,8 @@ def build_volumetric_layer(
     interpolation_mode: InterpolationMode | None = None,
     readonly: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
-    read_procs: Iterable[
-        DataProcessor[npt.NDArray] | JointIndexDataProcessor[npt.NDArray, VolumetricIndex]
-    ] = (),
-    write_procs: Iterable[
-        DataProcessor[npt.NDArray | torch.Tensor]
-        | JointIndexDataProcessor[torch.Tensor | npt.NDArray, VolumetricIndex]
-    ] = (),
+    read_procs: Iterable[VolumetricDataProcT] = (),
+    write_procs: Iterable[VolumetricDataProcT] = (),
 ) -> VolumetricLayer:
     """Build a Volumetric Layer.
     :param backend: Layer backend.

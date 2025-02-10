@@ -14,7 +14,7 @@ DBRowDataT = MutableMapping[str, DBValueT | None]
 DBDataT = Sequence[DBRowDataT]
 
 
-class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-public-methods
+class DBBackend(Backend[DBIndex, DBDataT]):  # pylint: disable=too-few-public-methods
     @abstractmethod
     def __contains__(self, idx: str) -> bool:
         ...

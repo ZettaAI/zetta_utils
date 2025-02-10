@@ -9,6 +9,7 @@ from numpy import typing as npt
 
 from zetta_utils import tensor_ops
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.frontend_base import Frontend
 
 from . import VolumetricIndex
 
@@ -31,9 +32,10 @@ UserVolumetricIndex = Union[
     VolumetricIndex,
 ]
 
+UserVolumetricDataT = Union[npt.NDArray, torch.Tensor, float, int, bool]
 
 @attrs.frozen
-class VolumetricFrontend:
+class VolumetricFrontend(Frontend[UserVolumetricIndex, VolumetricIndex, UserVolumetricDataT, npt.NDArray]):
     index_resolution: Vec3D | None = None
     default_desired_resolution: Vec3D | None = None
     allow_slice_rounding: bool = False
@@ -92,7 +94,11 @@ class VolumetricFrontend:
 
     def convert_idx(self, idx_user: UserVolumetricIndex) -> VolumetricIndex:
         if isinstance(idx_user, VolumetricIndex):
-            result = idx_user
+            result = VolumetricIndex(
+                resolution=idx_user.resolution,
+                bbox=idx_user.bbox,
+                allow_slice_rounding=self.allow_slice_rounding
+            )
         else:
             bbox = self._get_bbox_from_user_vol_idx(idx_user)
             desired_resolution = self._get_desired_res_from_user_vol_idx(idx_user)
@@ -100,15 +106,15 @@ class VolumetricFrontend:
             result = VolumetricIndex(
                 resolution=desired_resolution,
                 bbox=bbox,
+                allow_slice_rounding=self.allow_slice_rounding
             )
 
-        result.allow_slice_rounding = self.allow_slice_rounding
         return result
 
     def convert_write(
         self,
         idx_user: UserVolumetricIndex,
-        data_user: npt.NDArray | torch.Tensor | float | int | bool,
+        data_user: UserVolumetricDataT 
     ) -> tuple[VolumetricIndex, npt.NDArray]:
         idx = self.convert_idx(idx_user)
         if isinstance(data_user, (float, int)):

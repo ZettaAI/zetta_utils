@@ -8,17 +8,21 @@ from typing import Any, Generic, Iterable, TypeVar, Union
 import attrs
 
 from . import Backend, DataProcessor, IndexProcessor, JointIndexDataProcessor
+from .frontend_base import Frontend
 
+UserIndexT = TypeVar("UserIndexT")
 BackendIndexT = TypeVar("BackendIndexT")
+UserDataT = TypeVar("UserDataT")
 BackendDataT = TypeVar("BackendDataT")
-BackendDataWriteT = TypeVar("BackendDataWriteT")
 BackendT = TypeVar("BackendT", bound=Backend)
+FrontendT = TypeVar("FrontendT", bound=Frontend)
 LayerT = TypeVar("LayerT", bound="Layer")
 
 
 @attrs.frozen
-class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
-    backend: Backend[BackendIndexT, BackendDataT, BackendDataWriteT]
+class Layer(Generic[BackendT, FrontendT, UserIndexT, BackendIndexT, UserDataT, BackendDataT]):
+    backend: BackendT[BackendIndexT, BackendDataT]
+    frontend: Frontend[UserIndexT, BackendIndexT, UserDataT, BackendDataT] = 
     readonly: bool = False
 
     index_procs: tuple[IndexProcessor[BackendIndexT], ...] = ()
@@ -28,17 +32,19 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
     ] = ()
     write_procs: tuple[
         Union[
-            DataProcessor[BackendDataWriteT],
-            JointIndexDataProcessor[BackendDataWriteT, BackendIndexT],
+            DataProcessor[BackendDataT],
+            JointIndexDataProcessor[BackendDataT, BackendIndexT],
         ],
         ...,
     ] = ()
 
     def read_with_procs(
         self,
-        idx: BackendIndexT,
+        idx: UserIndexT,
     ) -> BackendDataT:
-        idx_proced = idx
+        idx_proced = self.frontend.convert_idx(idx)
+        # if hasattr(idx, 'allow_slice_rounding'):
+        #     breakpoint()
         for proc_idx in self.index_procs:
             idx_proced = proc_idx(idx_proced)
 
@@ -49,9 +55,8 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
                 if should_apply:
                     idx_proced = e.process_index(idx=idx_proced, mode="read")
                     applied_joint_processors_idxs.add(i)
-
+                    
         data_backend = self.backend.read(idx=idx_proced)
-
         data_proced = data_backend
         for i, e in enumerate(self.read_procs):
             if isinstance(e, JointIndexDataProcessor):
@@ -64,13 +69,14 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
 
     def write_with_procs(
         self,
-        idx: BackendIndexT,
-        data: BackendDataWriteT,
+        idx: UserIndexT,
+        data: UserDataT,
     ):
         if self.readonly:
             raise IOError(f"Attempting to write to a read only layer {self}")
 
-        idx_proced = idx
+        idx_backend, data_backend = self.frontend.convert_write(idx, data)
+        idx_proced = idx_backend
         for proc_idx in self.index_procs:
             idx_proced = proc_idx(idx_proced)
 
@@ -82,10 +88,11 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
                     idx_proced = e.process_index(idx=idx_proced, mode="write")
                     applied_joint_processors_idxs.add(i)
 
-        data_proced = data
+        data_proced = data_backend
         for i, e in enumerate(self.write_procs):
             if isinstance(e, JointIndexDataProcessor):
                 if i in applied_joint_processors_idxs:
+                    data_proced
                     data_proced = e.process_data(data=data_proced, mode="write")
             else:
                 data_proced = e(data_proced)
@@ -121,3 +128,12 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
             proc_mods["write_procs"] = tuple(write_procs)
 
         return attrs.evolve(self, **proc_mods)
+    
+    def pformat(self) -> str:  # pragma: no cover
+        return self.backend.pformat()
+
+    def with_changes(
+        self,
+        **kwargs,
+    ):
+        return attrs.evolve(self, **kwargs)  # pragma: no cover

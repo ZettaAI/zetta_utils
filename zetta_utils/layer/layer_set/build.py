@@ -1,15 +1,26 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, TypeVar, Union
 
 from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.layer.tools_base import DataProcessor, JointIndexDataProcessor
 
+from .backend import LayerSetBackend
 from .. import IndexProcessor, Layer
-from . import LayerSet, LayerSetBackend, LayerSetDataProcT
 
+
+IndexT = TypeVar("IndexT")
+DataT = TypeVar("DataT")
+
+LayerSetDataProcT = Union[
+    DataProcessor[dict[str, DataT]],
+    JointIndexDataProcessor[dict[str, DataT], IndexT],
+]
+
+LayerSet = Layer[IndexT, IndexT, dict[str, DataT], dict[str, DataT]]
 
 @builder.register("build_layer_set")
 @typechecked

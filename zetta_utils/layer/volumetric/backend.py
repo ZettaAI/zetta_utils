@@ -13,12 +13,11 @@ from .. import Backend
 from . import VolumetricIndex
 
 DataT = TypeVar("DataT")
-DataWriteT = TypeVar("DataWriteT")
 
 
 @attrs.mutable
 class VolumetricBackend(
-    Backend[VolumetricIndex, DataT, DataWriteT]
+    Backend[VolumetricIndex, DataT]
 ):  # pylint: disable=too-few-public-methods
     @property
     @abstractmethod
@@ -82,7 +81,7 @@ class VolumetricBackend(
     "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
     """
 
-    def with_changes(self, **kwargs) -> VolumetricBackend[DataT, DataWriteT]:
+    def with_changes(self, **kwargs) -> VolumetricBackend[DataT]:
         return attrs.evolve(self, **kwargs)  # pragma: no cover
 
     @abstractmethod

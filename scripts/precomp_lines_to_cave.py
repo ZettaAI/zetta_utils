@@ -5,6 +5,7 @@ and stuffs them into a synapses table in CAVE.
 """
 import readline
 import sys
+from getpass import getpass
 from typing import Dict, List
 
 import nglui
@@ -19,7 +20,6 @@ from zetta_utils.layer.volumetric import VolumetricIndex
 
 # Database connection parameters
 DB_USER = "postgres"
-DB_PASS = ""  # Put DB password here
 DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
@@ -188,11 +188,13 @@ def load_annotations():
 
 
 def main():
+    password = getpass("Enter DB password: ")
+
     # Create the connection URL
     connection_url = URL.create(
         drivername="postgresql+psycopg2",
         username=DB_USER,
-        password=DB_PASS,
+        password=password,
         host=DB_HOST,
         port=DB_PORT,
         database=DB_NAME,

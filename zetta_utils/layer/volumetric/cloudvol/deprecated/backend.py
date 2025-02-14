@@ -23,6 +23,7 @@ _cv_cached: Dict[str, set] = {}
 
 IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
 
+
 # To avoid reloading info file - note that an empty provenance is passed
 # since otherwise the CloudVolume's __new__ will download the provenance
 # TODO: Use `assume_metadata` off of the cached info, using `get_info`.
@@ -100,6 +101,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     cv_kwargs: Dict[str, Any] = attrs.field(factory=dict)
     info_spec: Optional[PrecomputedInfoSpec] = None
     on_info_exists: InfoExistsModes = "expect_same"
+    cache_bytes_limit: Optional[int] = None
 
     def __attrs_post_init__(self):
         if "mip" in self.cv_kwargs:
@@ -142,13 +144,17 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def dtype(self) -> np.dtype:
-        result = _get_cv_cached(self.path, **self.cv_kwargs)
+        result = _get_cv_cached(
+            self.path, cache_bytes_limit=self.cache_bytes_limit, **self.cv_kwargs
+        )
 
         return np.dtype(result.data_type)
 
     @property
     def num_channels(self) -> int:  # pragma: no cover
-        result = _get_cv_cached(self.path, **self.cv_kwargs)
+        result = _get_cv_cached(
+            self.path, cache_bytes_limit=self.cache_bytes_limit, **self.cv_kwargs
+        )
         return result.num_channels
 
     @property
@@ -192,14 +198,21 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         info = get_info(self.path)
         for scale in info["scales"]:
             res = Vec3D[float](*scale["resolution"])
-            _get_cv_cached(self.path, resolution=res, **self.cv_kwargs).cache.flush()
+            _get_cv_cached(
+                self.path,
+                resolution=res,
+                cache_bytes_limit=self.cache_bytes_limit,
+                **self.cv_kwargs,
+            ).cache.flush()
 
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_cv_cache(self.path)
 
     def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
-        cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
+        cvol = _get_cv_cached(
+            self.path, idx.resolution, cache_bytes_limit=self.cache_bytes_limit, **self.cv_kwargs
+        )
         data_raw = cvol[idx.to_slices()]
 
         result = np.transpose(data_raw, (3, 0, 1, 2))
@@ -221,7 +234,9 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 f"but got a tensor of with ndim == {data.ndim}"
             )
 
-        cvol = _get_cv_cached(self.path, idx.resolution, **self.cv_kwargs)
+        cvol = _get_cv_cached(
+            self.path, idx.resolution, cache_bytes_limit=self.cache_bytes_limit, **self.cv_kwargs
+        )
         slices = idx.to_slices()
         # Enable autocrop for writes only
         cvol.autocrop = True
@@ -294,15 +309,30 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return result
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
+        cvol = _get_cv_cached(
+            self.path,
+            resolution=resolution,
+            cache_bytes_limit=self.cache_bytes_limit,
+            **self.cv_kwargs,
+        )
         return Vec3D[int](*cvol.voxel_offset)
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
+        cvol = _get_cv_cached(
+            self.path,
+            resolution=resolution,
+            cache_bytes_limit=self.cache_bytes_limit,
+            **self.cv_kwargs,
+        )
         return Vec3D[int](*cvol.chunk_size)
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
-        cvol = _get_cv_cached(self.path, resolution=resolution, **self.cv_kwargs)
+        cvol = _get_cv_cached(
+            self.path,
+            resolution=resolution,
+            cache_bytes_limit=self.cache_bytes_limit,
+            **self.cv_kwargs,
+        )
         return Vec3D[int](*cvol.volume_size)
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:  # pragma: no cover

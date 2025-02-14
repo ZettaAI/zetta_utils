@@ -49,7 +49,7 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     fn: Callable[..., R_co]
     operation_name: str = "Unnamed Task"
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
-    tags: list[str] = attrs.field(factory=list)
+    worker_type: str | None = None
 
     args: Iterable = attrs.field(factory=list)
     kwargs: dict = attrs.field(factory=dict)
@@ -62,12 +62,6 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
     runtime_limit_sec: float | None = None
 
     # cache_expiration: datetime.timedelta = None
-
-    def add_tags(self, tags: list[str]) -> Task:  # pragma: no cover
-        self.tags += tags
-        return self
-
-    # Split into __init__ and _set_up because ParamSpec doesn't allow us
     # to play with kwargs.
     # cc: https://peps.python.org/pep-0612/#concatenating-keyword-parameters
     def _set_up(self, *args: Iterable, **kwargs: dict):
@@ -178,7 +172,7 @@ class _TaskableOperation(Generic[P, R_co]):
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
-    tags: list[str] = attrs.field(factory=list)
+    worker_type: str | None = None
     runtime_limit_sec: float | None = None
     upkeep_interval_sec: float = constants.DEFAULT_UPKEEP_INTERVAL
 
@@ -203,7 +197,7 @@ class _TaskableOperation(Generic[P, R_co]):
             fn=self.fn,
             operation_name=self.operation_name,
             id_=id_,
-            tags=self.tags,
+            worker_type=self.worker_type,
             upkeep_settings=upkeep_settings,
             runtime_limit_sec=self.runtime_limit_sec,
         )

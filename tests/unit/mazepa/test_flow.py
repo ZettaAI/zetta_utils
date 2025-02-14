@@ -33,7 +33,7 @@ def test_make_flow_schema():
     assert isinstance(flow, Flow)
 
 
-def test_get_batch_tags(mocker):
+def test_get_batch(mocker):
     def do_nothing():
         return
 
@@ -46,13 +46,10 @@ def test_get_batch_tags(mocker):
             ]
         )
     )
-    tag_list = ["tag1", "tag2"]
     flow = _FlowSchema(
         fn=fn,
-        tags=tag_list,
     )()
 
     result = flow.get_next_batch()
     assert isinstance(result, list)
     assert isinstance(result[0], Flow)
-    assert result[0].tags == tag_list

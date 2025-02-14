@@ -55,9 +55,13 @@ def dummy_gpu_task(num_seconds: int) -> bool:
 
 @builder.register("group_test_flow")
 @mazepa.flow_schema
-def group_test_flow(num_tasks: int, tag1: str, tag2: str):
+def group_test_flow(num_tasks: int, type0: str, type1: str):
     for _ in range(num_tasks):
-        yield dummy_cpu_task.make_task(random.randint(0, 3)).add_tags([tag1])
+        task = dummy_cpu_task.make_task(random.randint(0, 3))
+        task.worker_type = type0
+        yield task
 
     for _ in range(num_tasks):
-        yield dummy_gpu_task.make_task(random.randint(0, 3)).add_tags([tag2])
+        task = dummy_gpu_task.make_task(random.randint(0, 3))
+        task.worker_type = type1
+        yield task

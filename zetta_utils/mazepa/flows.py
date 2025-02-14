@@ -81,16 +81,11 @@ class Flow:
     fn: Callable[..., FlowFnReturnType]
     id_: str = attrs.field(factory=lambda: str(uuid.uuid1()))
     _iterator: FlowFnReturnType = attrs.field(init=False, default=None)
-    tags: list[str] = attrs.field(factory=list)
 
     # These are saved as attributes just for printability.
     args: Iterable = attrs.field(factory=list)
     kwargs: Dict = attrs.field(factory=dict)
     _has_been_called: bool = attrs.field(init=False, default=False)
-
-    def add_tags(self, tags: list[str]) -> Flow:  # pragma: no cover
-        self.tags += tags
-        return self
 
     def _set_up(
         self,
@@ -115,10 +110,6 @@ class Flow:
         else:
             result = yielded
 
-        if self.tags is not None and isinstance(result, list):
-            for e in result:
-                e.tags += self.tags
-
         return result
 
 
@@ -134,7 +125,6 @@ class _FlowSchema(Generic[P]):
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="flow")
     )
-    tags: list[str] = attrs.field(factory=list)
 
     def __call__(
         self,
@@ -145,7 +135,6 @@ class _FlowSchema(Generic[P]):
         result = Flow(
             fn=self.fn,
             id_=id_,
-            tags=self.tags,
         )
         result._set_up(*args, **kwargs)  # pylint: disable=protected-access # friend class
         return result

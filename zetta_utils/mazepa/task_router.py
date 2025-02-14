@@ -10,6 +10,14 @@ from zetta_utils.message_queues.base import PushMessageQueue
 T = TypeVar("T")
 
 
+def _is_compatible_task(task: Task, queue_name: str) -> bool:
+    return (
+        task.worker_type is None
+        or queue_name.startswith("local_")
+        or f"_{task.worker_type}" in queue_name
+    )
+
+
 @typechecked
 @attrs.frozen
 class TaskRouter(PushMessageQueue[Task]):
@@ -22,16 +30,18 @@ class TaskRouter(PushMessageQueue[Task]):
 
     def push(self, payloads: Iterable[Task]):
         tasks_for_queue = defaultdict(list)
-
         for task in payloads:
-            matching_queue_names = [
-                queue.name for queue in self.queues if all(tag in queue.name for tag in task.tags)
-            ]
-            if len(matching_queue_names) == 0:
+            task_pushed = False
+            for queue in self.queues:
+                if _is_compatible_task(task, queue.name):
+                    tasks_for_queue[queue.name].append(task)
+                    task_pushed = True
+                    break
+            if not task_pushed:
                 raise RuntimeError(
-                    f"No queue from set {list(self.queues)} matches all tags {task.tags}."
+                    f"No queue from set {list(self.queues)} has the right worker "
+                    f"type {task.worker_type}."
                 )
-            tasks_for_queue[matching_queue_names[0]].append(task)
 
         for queue in self.queues:
             queue.push(tasks_for_queue[queue.name])

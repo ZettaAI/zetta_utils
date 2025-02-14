@@ -24,9 +24,9 @@ def test_push_tasks(mocker):
     queue_a.name = "_type_a"
     queue_b.name = "_type_b"
     meq = TaskRouter([queue_a, queue_b])
-    task_a = make_test_task(lambda: None, id_="dummy", worker_type="type_a")
-    task_b = make_test_task(lambda: None, "dummy", worker_type="type_b")
-    task_bb = make_test_task(lambda: None, "dummy", worker_type="type_b")
+    task_a = make_test_task(lambda: None, id_="dummy").with_worker_type("type_a")
+    task_b = make_test_task(lambda: None, "dummy").with_worker_type("type_b")
+    task_bb = make_test_task(lambda: None, "dummy").with_worker_type("type_b")
     meq.push([task_a, task_b, task_bb])
     queue_a.push.assert_called_with([task_a])
     queue_b.push.assert_called_with([task_b, task_bb])

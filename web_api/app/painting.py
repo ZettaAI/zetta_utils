@@ -74,7 +74,7 @@ async def write_cutout(
         data_arr = einops.rearrange(data_arr, "Z Y X C -> C X Y Z")
 
     # temporary hack to get non_aligned_writes to work.
-    cvol = _get_cv_cached(path, index.resolution, layer.backend.cv_kwargs)  # type: ignore
+    cvol = _get_cv_cached(path, index.resolution, **layer.backend.cv_kwargs)  # type: ignore
     cvol.non_aligned_writes = True
     _cv_cache[(path, index.resolution)] = cvol
 

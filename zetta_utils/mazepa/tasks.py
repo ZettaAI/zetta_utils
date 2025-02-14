@@ -68,6 +68,9 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         self.args = args
         self.kwargs = kwargs
 
+    def with_worker_type(self, worker_type: str | None) -> Task:
+        return attrs.evolve(self, worker_type=worker_type)
+
     def _call_task_fn(self, debug: bool = True) -> R_co:
         if debug or self.runtime_limit_sec is None:
             return_value = self.fn(*self.args, **self.kwargs)
@@ -172,7 +175,6 @@ class _TaskableOperation(Generic[P, R_co]):
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )
-    worker_type: str | None = None
     runtime_limit_sec: float | None = None
     upkeep_interval_sec: float = constants.DEFAULT_UPKEEP_INTERVAL
 
@@ -197,7 +199,6 @@ class _TaskableOperation(Generic[P, R_co]):
             fn=self.fn,
             operation_name=self.operation_name,
             id_=id_,
-            worker_type=self.worker_type,
             upkeep_settings=upkeep_settings,
             runtime_limit_sec=self.runtime_limit_sec,
         )

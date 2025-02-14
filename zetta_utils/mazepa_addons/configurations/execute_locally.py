@@ -53,8 +53,8 @@ def execute_locally(
             task_queue = None
             outcome_queue = None
         else:
-            task_queue_name = os.path.join(queues_dir_, f"{os.getpid()}_task_queue")
-            outcome_queue_name = os.path.join(queues_dir_, f"{os.getpid()}_outcome_queue")
+            task_queue_name = os.path.join(queues_dir_, f"local_{os.getpid()}_task_queue")
+            outcome_queue_name = os.path.join(queues_dir_, f"local_{os.getpid()}_outcome_queue")
             task_queue = stack.enter_context(FileQueue(task_queue_name))
             outcome_queue = stack.enter_context(FileQueue(outcome_queue_name))
             stack.enter_context(

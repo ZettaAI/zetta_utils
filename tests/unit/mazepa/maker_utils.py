@@ -3,11 +3,9 @@ from zetta_utils.mazepa.id_generation import get_literal_id_fn
 from zetta_utils.mazepa.tasks import _TaskableOperation
 
 
-def make_test_task(fn, id_, tags=None, operation_name="DummyTask"):  # TODO: type me
-    if tags is None:
-        tags = []
+def make_test_task(fn, id_, worker_type=None, operation_name="DummyTask"):  # TODO: type me
     return _TaskableOperation(
-        fn=fn, operation_name=operation_name, id_fn=get_literal_id_fn(id_), tags=tags
+        fn=fn, operation_name=operation_name, id_fn=get_literal_id_fn(id_), worker_type=worker_type
     ).make_task()
 
 

@@ -192,13 +192,13 @@ def test_mul(bbox: BBox3D, vec: Vec3D, expected: BBox3D):
             BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
             (2, 1, 1),
             True,
-            (slice(0, 0), slice(0, 2), slice(0, 3)),
+            (slice(0, 1), slice(0, 2), slice(0, 3)),
         ],
         [
             BBox3D(bounds=((0, 1), (0, 2), (0, 3))),
             (2, 2, 2),
             True,
-            (slice(0, 0), slice(0, 1), slice(0, 2)),  # round to even
+            (slice(0, 1), slice(0, 1), slice(0, 2)),  # round to even
         ],
         [
             BBox3D(bounds=((10, 20), (100, 110), (1000, 1010))),

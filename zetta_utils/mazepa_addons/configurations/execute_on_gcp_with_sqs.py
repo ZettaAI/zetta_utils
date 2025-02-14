@@ -306,4 +306,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 checkpoint_interval_sec=checkpoint_interval_sec,
                 raise_on_failed_checkpoint=raise_on_failed_checkpoint,
                 write_progress_summary=write_progress_summary,
+                require_interrupt_confirm=False,
             )

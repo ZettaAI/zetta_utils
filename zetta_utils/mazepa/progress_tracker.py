@@ -13,6 +13,7 @@ from rich import progress
 from rich.console import Console
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
+from zetta_utils.common.ctx_managers import noop_ctx_mngr
 
 from .execution_state import ProgressReport
 
@@ -51,6 +52,7 @@ def progress_ctx_mngr(
     expected_total_counts: dict[str, int],
     write_progress_to_path: str | None = None,
     write_progress_interval_sec: int = 5,
+    require_interrupt_confirm: bool = True,
 ) -> Generator[ProgressUpdateFN, None, None]:  # pragma: no cover
     progress_bar = progress.Progress(
         progress.SpinnerColumn(),
@@ -91,7 +93,13 @@ def progress_ctx_mngr(
     last_progress_writeout_ts = 0.0
 
     with progress_bar as progress_bar:
-        with custom_signal_handler_ctx(get_confirm_sigint_fn(progress_bar), signal.SIGINT):
+        if require_interrupt_confirm:
+            handler_ctx = custom_signal_handler_ctx(
+                get_confirm_sigint_fn(progress_bar), signal.SIGINT
+            )
+        else:
+            handler_ctx = noop_ctx_mngr()
+        with handler_ctx:
             submission_tracker_ids = {
                 k: progress_bar.add_task(
                     f"[cyan]Submission {k}",
@@ -104,6 +112,15 @@ def progress_ctx_mngr(
             }
 
             execution_tracker_ids: dict[str, progress.TaskID] = {}
+
+            def write_progress_file():
+                temp_console = Console(record=True, width=80)
+                for line in progress_bar.get_renderables():
+                    temp_console.print(line)
+                progress_html = temp_console.export_html(inline_styles=True)
+
+                with fsspec.open(write_progress_to_path, "w") as f:
+                    f.write(progress_html)
 
             def update_fn(progress_reports: dict[str, ProgressReport]) -> None:
                 nonlocal last_progress_writeout_ts
@@ -130,17 +147,13 @@ def progress_ctx_mngr(
                 if (write_progress_to_path is not None) and (
                     time.time() - last_progress_writeout_ts > write_progress_interval_sec
                 ):
-                    temp_console = Console(record=True, width=80)
-                    for line in progress_bar.get_renderables():
-                        temp_console.print(line)
-                    progress_html = temp_console.export_html(inline_styles=True)
-
-                    with fsspec.open(write_progress_to_path, "w") as f:
-                        f.write(progress_html)
+                    write_progress_file()
 
                     last_progress_writeout_ts = time.time()
 
             yield update_fn
+            if write_progress_to_path is not None:
+                write_progress_file()
             try:
                 progress_bar.stop()
             except IndexError:

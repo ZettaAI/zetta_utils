@@ -7,7 +7,7 @@ from numpy import typing as npt
 from zetta_utils import builder, mazepa, tensor_ops
 from zetta_utils.common import ComparablePartial
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric.protocols import VolumetricBasedLayerProtocol
+from zetta_utils.layer.volumetric.layer import VolumetricLayer
 from zetta_utils.mazepa.flows import sequential_flow
 from zetta_utils.mazepa_layer_processing.common.subchunkable_apply_flow import (
     build_subchunkable_apply_flow,
@@ -54,8 +54,8 @@ def make_interpolate_operation(
 
 @builder.register("build_interpolate_flow")
 def build_interpolate_flow(  # pylint: disable=too-many-locals
-    src: VolumetricBasedLayerProtocol,
-    dst: VolumetricBasedLayerProtocol | None,
+    src: VolumetricLayer,
+    dst: VolumetricLayer | None,
     src_resolution: Sequence[float],
     dst_resolutions: Sequence[Sequence[float]] | Sequence[float],
     mode: tensor_ops.InterpolationMode,

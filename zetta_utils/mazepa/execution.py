@@ -77,6 +77,7 @@ def execute(
     checkpoint_interval_sec: Optional[float] = 150,
     raise_on_failed_checkpoint: bool = True,
     write_progress_summary: bool = False,
+    require_interrupt_confirm: bool = True,
 ):
     """
     Executes a target until completion using the given execution queue.
@@ -140,6 +141,7 @@ def execute(
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
             write_progress_summary=write_progress_summary,
+            require_interrupt_confirm=require_interrupt_confirm,
         )
 
         end_time = time.time()
@@ -159,6 +161,7 @@ def _execute_from_state(
     checkpoint_interval_sec: Optional[float],
     raise_on_failed_checkpoint: bool,
     write_progress_summary: bool,
+    require_interrupt_confirm: bool,
     num_procs: int = 8,
 ):
     if do_dryrun_estimation:
@@ -180,7 +183,9 @@ def _execute_from_state(
 
             progress_updater = stack.enter_context(
                 progress_ctx_mngr(
-                    expected_operation_counts, write_progress_to_path=write_progress_to_path
+                    expected_operation_counts,
+                    write_progress_to_path=write_progress_to_path,
+                    require_interrupt_confirm=require_interrupt_confirm,
                 )
             )
         else:

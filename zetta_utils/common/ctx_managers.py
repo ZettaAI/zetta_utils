@@ -25,3 +25,8 @@ def set_env_ctx_mngr(**environ):
     finally:
         os.environ.clear()
         os.environ.update(old_environ)
+
+
+@contextlib.contextmanager
+def noop_ctx_mngr():  # pragma: no cover
+    yield

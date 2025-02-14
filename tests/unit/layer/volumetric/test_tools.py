@@ -125,7 +125,7 @@ def test_volumetric_index_overrider(
     expected_start, expected_stop, expected_resolution""",
     [
         [[2, 2, 1], [2, 3, 6], [7, 7, 16], [2, 2, 1]],
-        [[1, 2, 3], [4, 3, 2], [14, 7, 5], [1, 2, 3]],
+        [[1, 2, 3], [4, 3, 2], [14, 7, 6], [1, 2, 3]],
     ],
 )
 def test_volumetric_index_scaler(

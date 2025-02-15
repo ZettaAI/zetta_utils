@@ -162,7 +162,7 @@ pcg = [
 ]
 public = [
   # put them in order of dependencies
-  "zetta_utils[tensor_ops, viz, cli, gcs]",
+  "zetta_utils[tensor_ops, viz, cli, gcs, slurm]",
   "zetta_utils[cloudvol]",
   "zetta_utils[training,mazepa]",
   "zetta_utils[mazepa_addons]",

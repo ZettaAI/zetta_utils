@@ -351,6 +351,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     processing_chunker: VolumetricIndexChunker = attrs.field(init=False)
     flow_id: str = "no_id"
     l0_chunks_per_task: int = 0
+    op_worker_type: str | None = None
+    reduction_worker_type: str | None = None
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -473,7 +475,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             VolumetricIndex, VolumetricBasedLayerProtocol | None, dict[str, Any]
         ],  # cannot type with P.kwargs
     ) -> mazepa.tasks.Task[R_co]:
-        return self.op.make_task(idx=arg[0], dst=arg[1], **arg[2])
+        return self.op.make_task(idx=arg[0], dst=arg[1], **arg[2]).with_worker_type(
+            self.op_worker_type
+        )
 
     def make_tasks_without_checkerboarding(
         self,
@@ -712,9 +716,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 idx, mode="exact", stride_start_offset=stride_start_offset
             )
             tasks_reduce = [
-                Copy().make_task(
+                Copy()
+                .make_task(
                     src=dst_temp, dst=dst.with_procs(read_procs=(), write_procs=()), idx=red_chunk
                 )
+                .with_worker_type(self.reduction_worker_type)
                 for red_chunk in red_chunks
             ]
             logger.info(
@@ -806,7 +812,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     roi_idx=idx.padded(self.roi_crop_pad + self.processing_blend_pad),
                     dst=dst.with_procs(read_procs=(), write_procs=()),
                     processing_blend_pad=self.processing_blend_pad,
-                )
+                ).with_worker_type(self.reduction_worker_type)
                 for (
                     red_chunk_task_idxs,
                     red_chunk_temps,

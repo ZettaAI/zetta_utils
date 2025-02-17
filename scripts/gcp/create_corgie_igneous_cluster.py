@@ -44,6 +44,7 @@ ADD_WORKLOAD_IDENTITY_TMPL = 'gcloud container clusters get-credentials {CLUSTER
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/storage.objectUser" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/artifactregistry.reader" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/serviceusage.serviceUsageConsumer" \
+    && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/container.defaultNodeServiceAccount" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:zutils-worker-x0@zetta-research.iam.gserviceaccount.com" --role "roles/container.developer" \
     && gcloud projects add-iam-policy-binding zetta-research --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/storage.objectUser" \
     && gcloud projects add-iam-policy-binding zetta-research --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/datastore.user" \

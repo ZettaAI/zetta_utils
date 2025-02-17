@@ -70,6 +70,7 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
     bbox: BBox3D | None = None,
     auto_bbox: bool = False,
     dst_tighten_bounds: bool = False,
+    mask_value_thr: float = 0,
 ) -> mazepa.Flow:
     if dst is None:
         dst = src
@@ -100,6 +101,7 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
                 op=make_interpolate_operation(
                     res_change_mult=dst_res / last_res,
                     mode=mode,
+                    mask_value_thr=mask_value_thr,
                 ),
                 dst=dst,
                 dst_resolution=dst_res,

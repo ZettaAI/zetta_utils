@@ -117,7 +117,7 @@ def _get_scaled_job_manifest(
     Create manifest for Keda ScaledObject.
     """
     api = ApiClient()
-    name = f"run-{run_id}-scaledjob"
+    name = f"run-{run_id}-sj"
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_SCALED_JOB.value,

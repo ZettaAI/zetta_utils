@@ -37,6 +37,7 @@ def execute_locally(
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     debug: bool = False,
     write_progress_summary: bool = False,
+    require_interrupt_confirm: bool = True,
 ):
 
     queues_dir_ = queues_dir if queues_dir else ""
@@ -75,4 +76,5 @@ def execute_locally(
             checkpoint_interval_sec=checkpoint_interval_sec,
             raise_on_failed_checkpoint=raise_on_failed_checkpoint,
             write_progress_summary=write_progress_summary,
+            require_interrupt_confirm=require_interrupt_confirm,
         )

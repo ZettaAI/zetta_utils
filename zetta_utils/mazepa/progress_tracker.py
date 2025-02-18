@@ -13,7 +13,6 @@ from rich import progress
 from rich.console import Console
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
-from zetta_utils.common.ctx_managers import noop_ctx_mngr
 
 from .execution_state import ProgressReport
 
@@ -40,6 +39,10 @@ def get_confirm_sigint_fn(progress_bar: progress.Progress):  # pragma: no cover
         progress_bar.start()
 
     return handler
+
+
+def graceful_shutdown(_, __):  # pragma: no cover
+    sys.exit(0)
 
 
 class ProgressUpdateFN(Protocol):
@@ -98,7 +101,7 @@ def progress_ctx_mngr(
                 get_confirm_sigint_fn(progress_bar), signal.SIGINT
             )
         else:
-            handler_ctx = noop_ctx_mngr()
+            handler_ctx = custom_signal_handler_ctx(graceful_shutdown, signal.SIGTERM)
         with handler_ctx:
             submission_tracker_ids = {
                 k: progress_bar.add_task(

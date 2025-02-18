@@ -12,10 +12,9 @@ import fsspec
 from gcsfs import GCSFileSystem
 
 from zetta_utils import constants, log
-from zetta_utils.common import RepeatTimer
+from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
-from zetta_utils.mazepa import id_generation
 from zetta_utils.parsing import json
 
 from .resource import (
@@ -123,7 +122,7 @@ def run_ctx_manager(
         update_run_info(RUN_ID, info)
 
     if run_id is None:
-        run_id = id_generation.get_unique_id(slug_len=4, add_uuid=False, max_len=50)
+        run_id = get_unique_id(slug_len=4, add_uuid=False, max_len=50)
 
     global RUN_ID  # pylint: disable=global-statement
     RUN_ID = run_id

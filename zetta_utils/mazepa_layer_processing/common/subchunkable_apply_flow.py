@@ -476,6 +476,10 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         max_reduction_chunk_size_ = max_reduction_chunk_size
 
     if skip_intermediaries:
+        if reduction_worker_type is not None:
+            raise ValueError(
+                "`reduction_worker_type` cannot be used when `skip_intermediaries` is True."
+            )
         if level_intermediaries_dirs is not None:
             raise ValueError(
                 "`level_intermediaries_dirs` was supplied even though "

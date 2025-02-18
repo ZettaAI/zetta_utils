@@ -165,6 +165,7 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_skip_intermediaries_but_blend_pad",
         "test_uint8_exc_skip_intermediaries_but_crop_pad",
         "test_uint8_exc_skip_intermediaries_but_defer",
+        "test_uint8_exc_skip_intermediaries_but_reduction_worker_type",
         "test_uint8_exc_not_skip_intermediaries_but_no_level_intermediaries_dirs",
         "test_uint8_exc_shrink_processing_chunk_and_expand_bbox_processing",
         "test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution",

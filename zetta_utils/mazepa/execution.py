@@ -12,14 +12,13 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import log
-from zetta_utils.common import ComparablePartial
+from zetta_utils.common import ComparablePartial, get_unique_id
 from zetta_utils.mazepa.autoexecute_task_queue import AutoexecuteTaskQueue
 from zetta_utils.message_queues.base import PullMessageQueue, PushMessageQueue
 
 from . import Flow, Task, dryrun, sequential_flow
 from .execution_checkpoint import EXECUTION_CHECKPOINT_PATH, record_execution_checkpoint
 from .execution_state import ExecutionState, InMemoryExecutionState
-from .id_generation import get_unique_id
 from .progress_tracker import progress_ctx_mngr
 from .task_outcome import OutcomeReport, TaskStatus
 from .tasks import _TaskableOperation

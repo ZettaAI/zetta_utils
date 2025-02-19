@@ -220,6 +220,10 @@ def _lightning_train_local(
     )
 
 
+def _load_modules(worker_id: int):  # pylint: disable=unused-argument
+    load_all_modules()
+
+
 def _parse_spec_and_train():
     load_all_modules()
 
@@ -231,8 +235,10 @@ def _parse_spec_and_train():
     regime = builder.build(spec=train_args["regime"])
     trainer = builder.build(spec=train_args["trainer"])
     train_dataloader = builder.build(spec=train_args["train_dataloader"])
+    train_dataloader.worker_init_fn = _load_modules
     try:
         val_dataloader = builder.build(spec=train_args["val_dataloader"])
+        val_dataloader.worker_init_fn = _load_modules
     except KeyError:
         val_dataloader = None
     try:
@@ -457,6 +463,6 @@ def _lightning_train_remote(
             stack.enter_context(workers_ctx)
 
         if follow_logs:
-            resource_allocation.k8s.follow_job_logs(train_job, cluster_info)
+            resource_allocation.k8s.follow_job_logs(train_job, cluster_info, tail_lines=16)
         else:
             resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)

@@ -65,7 +65,6 @@ def get_gcp_with_sqs_config(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
-    idle_worker_timeout: int = 300,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"run-{execution_id}-work"
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -96,7 +95,6 @@ def get_gcp_with_sqs_config(
             outcome_queue_spec,
             num_procs,
             semaphores_spec,
-            idle_timeout=idle_worker_timeout,
         )
         pod_spec = k8s.get_mazepa_pod_spec(
             image=worker_image,
@@ -170,7 +168,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     sqs_based_scaling: bool = True,
-    idle_worker_timeout: int = 300,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -239,7 +236,6 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             semaphores_spec=semaphores_spec,
             provisioning_model=provisioning_model,
             sqs_based_scaling=sqs_based_scaling,
-            idle_worker_timeout=idle_worker_timeout,
         )
 
         with ExitStack() as stack:

@@ -39,7 +39,6 @@ def run_worker(
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
     debug: bool = False,
-    idle_timeout: int = 60,
 ):
     start_time = time.time()
     time_slept = 0.0
@@ -97,9 +96,6 @@ def run_worker(
             logger.info(f"DONE: task batch execution ({time_end - time_start:.2f}sec).")
 
         if max_runtime is not None and time.time() - start_time > max_runtime:
-            break
-
-        if time_slept > idle_timeout:
             break
 
 

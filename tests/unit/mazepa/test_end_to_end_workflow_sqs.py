@@ -67,7 +67,6 @@ def queues_with_idle_worker(task_queue, outcome_queue):
         sleep_sec=0.2,
         max_runtime=max_runtime,
         debug=True,
-        idle_timeout=0.5,
     )
     yield worker, max_runtime
 
@@ -167,4 +166,4 @@ def test_idling_worker(queues_with_idle_worker) -> None:
     worker, max_runtime = queues_with_idle_worker
     start = time.time()
     worker()
-    assert (time.time() - start) < max_runtime
+    assert (time.time() - start) >= max_runtime

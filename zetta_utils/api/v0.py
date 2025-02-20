@@ -71,6 +71,7 @@ from zetta_utils.cloud_management.resource_allocation.k8s.service import (
     service_ctx_manager,
 )
 from zetta_utils.common.ctx_managers import set_env_ctx_mngr
+from zetta_utils.common.misc import get_unique_id
 from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.common.path import abspath
 from zetta_utils.common.pprint import lrpad, lrpadprint, utcnow_ISO8601
@@ -227,11 +228,7 @@ from zetta_utils.mazepa.flows import (
     flow_schema_cls,
     sequential_flow,
 )
-from zetta_utils.mazepa.id_generation import (
-    generate_invocation_id,
-    get_literal_id_fn,
-    get_unique_id,
-)
+from zetta_utils.mazepa.id_generation import generate_invocation_id, get_literal_id_fn
 from zetta_utils.mazepa.progress_tracker import (
     ProgressUpdateFN,
     get_confirm_sigint_fn,

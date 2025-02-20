@@ -13,8 +13,11 @@ from rich import progress
 from rich.console import Console
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
+from zetta_utils.log import get_logger
 
 from .execution_state import ProgressReport
+
+logger = get_logger("zetta_utils")
 
 
 def get_confirm_sigint_fn(progress_bar: progress.Progress):  # pragma: no cover
@@ -42,7 +45,8 @@ def get_confirm_sigint_fn(progress_bar: progress.Progress):  # pragma: no cover
 
 
 def graceful_shutdown(_, __):  # pragma: no cover
-    sys.exit(0)
+    logger.info("Detected signal")
+    raise RuntimeError("Cancelled")
 
 
 class ProgressUpdateFN(Protocol):

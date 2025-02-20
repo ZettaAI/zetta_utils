@@ -10,7 +10,7 @@ import dill
 def serialize(obj):  # pragma: no cover
     try:
         result = _serialize(obj, pickle)
-    except pickle.PicklingError:
+    except (pickle.PicklingError, TypeError):
         result = _serialize(obj, dill)
 
     return result

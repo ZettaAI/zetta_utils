@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional
 
 import tenacity
 
-from zetta_utils import log
+from zetta_utils import builder, log
 from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
@@ -30,6 +30,7 @@ class AcceptAllTasks:
 logger = log.get_logger("mazepa")
 
 
+@builder.register("run_worker")
 def run_worker(
     task_queue: MessageQueue[Task],
     outcome_queue: MessageQueue[OutcomeReport],

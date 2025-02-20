@@ -44,7 +44,6 @@ def run_local_worker(
     outcome_queue_name: str,
     local: bool = True,
     sleep_sec: float = 0.1,
-    idle_timeout: int = 60,
 ) -> None:
     queue_type = FileQueue if local else SQSQueue
     task_queue = queue_type(name=task_queue_name)
@@ -54,7 +53,6 @@ def run_local_worker(
         outcome_queue=outcome_queue,
         sleep_sec=sleep_sec,
         max_pull_num=1,
-        idle_timeout=idle_timeout,
     )
 
 
@@ -65,7 +63,6 @@ def setup_local_worker_pool(
     outcome_queue_name: str,
     local: bool = True,
     sleep_sec: float = 0.1,
-    idle_timeout: int = 60,
 ):
     """
     Context manager for creating task/outcome queues, alongside a persistent pool of workers.
@@ -82,7 +79,6 @@ def setup_local_worker_pool(
             repeat(outcome_queue_name, num_procs),
             repeat(local, num_procs),
             repeat(sleep_sec, num_procs),
-            repeat(idle_timeout, num_procs),
         )
         logger.info(
             f"Created {num_procs} local workers attached to queues "
@@ -105,7 +101,6 @@ def run_worker_manager(
     sleep_sec: float = 1.0,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
-    idle_timeout: int = 60,
 ):
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
@@ -116,7 +111,6 @@ def run_worker_manager(
                 outcome_queue.name,
                 local=False,
                 sleep_sec=sleep_sec,
-                idle_timeout=idle_timeout,
             )
         )
         while True:

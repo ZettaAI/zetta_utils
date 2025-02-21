@@ -66,18 +66,15 @@ def get_mazepa_worker_command(
     outcome_queue_spec: dict[str, Any],
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
-    idle_timeout: int = 60,
 ):
     if num_procs == 1 and semaphores_spec is None:
         command = "mazepa.run_worker"
         num_procs_line = ""
         semaphores_line = ""
-        idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
     else:
         command = "mazepa.run_worker_manager"
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
-        idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
 
     result = f"zetta -vv -l try run -r {run.RUN_ID} --no-main-run-process -p -s '{{"
     result += (
@@ -86,7 +83,6 @@ def get_mazepa_worker_command(
         + f"outcome_queue: {json.dumps(outcome_queue_spec)}\n"
         + num_procs_line
         + semaphores_line
-        + idle_timeout_line
         + """
         sleep_sec: 5
     }'

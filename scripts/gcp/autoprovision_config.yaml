@@ -1,0 +1,21 @@
+resourceLimits:
+  - resourceType: 'cpu'
+    maximum: 1000
+  - resourceType: 'memory'
+    maximum: 16000
+  - resourceType: 'nvidia-tesla-t4'
+    maximum: 100
+  - resourceType: 'nvidia-l4'
+    maximum: 100
+  - resourceType: 'nvidia-tesla-a100'
+    maximum: 100
+  - resourceType: 'nvidia-a100-80gb'
+    maximum: 100
+  - resourceType: 'nvidia-h100-80gb'
+    maximum: 100
+  - resourceType: 'nvidia-h100-mega-80gb'
+    maximum: 100
+shieldedInstanceConfig:
+  enableSecureBoot: false
+  enableIntegrityMonitoring: true
+diskSizeGb: 64

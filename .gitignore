@@ -152,3 +152,6 @@ dmypy.json
 
 # editable installs
 src/
+
+# files including backslash cause havoc with GKE image streaming
+*\\*

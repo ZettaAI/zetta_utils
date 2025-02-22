@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import List, Mapping, cast, overload
 
@@ -68,10 +69,18 @@ def read_layers(*, layer_ids=None):
         ]
 
 
+def _validate_name(name: str):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise ValueError(
+            "Layer name must contain only alphanumeric characters, " f"`-` and `_`. Got: `{name}`"
+        )
+
+
 def add_layer(name: str, source: str, comment: str | None = None) -> str:
     layer_id = str(uuid.uuid4())
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {"name": name, "source": source}
+    _validate_name(name)
     if comment:
         row["comment"] = comment
     LAYERS_DB[(layer_id, col_keys)] = row
@@ -88,6 +97,7 @@ def update_layer(
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {}
     if name:
+        _validate_name(name)
         row["name"] = name
     if comment:
         row["comment"] = comment

@@ -1,5 +1,7 @@
 # pylint: disable=unused-argument
 
+import pytest
+
 from zetta_utils.db_annotations import layer
 
 
@@ -15,6 +17,12 @@ def test_add_update_layer(firestore_emulator, layers_db):
     )
     _layer = layer.read_layer(_id)
     assert _layer.name != old_name
+
+
+def test_add_layer_name_exc(firestore_emulator, layers_db):
+    name = "test layer0"
+    with pytest.raises(ValueError):
+        layer.add_layer(name, "precomputed://test", comment="this is a test")
 
 
 def test_read_layers(firestore_emulator, layers_db):

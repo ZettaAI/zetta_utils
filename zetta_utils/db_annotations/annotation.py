@@ -6,7 +6,7 @@ import copy
 import json
 import time
 import uuid
-from typing import Any, Union, cast, overload
+from typing import Any, Mapping, Sequence, Union, cast, overload
 
 import attrs
 from neuroglancer.viewer_state import (
@@ -39,6 +39,7 @@ NON_INDEXED_COLS = (
     AnnotationKeys.POINT_B.value,
     AnnotationKeys.CENTER.value,
     AnnotationKeys.RADII.value,
+    "selected_segments",
 )
 
 DB_NAME = "annotations"
@@ -57,17 +58,19 @@ class AnnotationDBEntry:
     ng_annotation: NgAnnotation
     comment: str
     tags: list[str]
+    selected_segments: Mapping[str, Sequence[int]]
     created_at: float | None = None
     modified_at: float | None = None
 
     @staticmethod
     def from_dict(annotation_id: str, raw_dict: dict[str, Any]) -> AnnotationDBEntry:
-        raw_with_defaults: dict[str, Any] = {"tags": [], **raw_dict}
+        raw_with_defaults: dict[str, Any] = {"tags": [], "selected_segments": [], **raw_dict}
         shape_dict = copy.deepcopy(raw_with_defaults)
         shape_dict.pop("layer_group", None)
         shape_dict.pop("collection", None)
         shape_dict.pop("comment", None)
         shape_dict.pop("tags", None)
+        shape_dict.pop("selected_segments", None)
         ng_annotation = parse_ng_annotations([shape_dict])[0]
 
         result = AnnotationDBEntry(
@@ -76,6 +79,7 @@ class AnnotationDBEntry:
             collection=raw_with_defaults.get("collection", ""),
             comment=raw_with_defaults.get("comment", ""),
             tags=raw_with_defaults["tags"],
+            selected_segments=raw_with_defaults["selected_segments"],
             ng_annotation=ng_annotation,
             created_at=raw_with_defaults.get("created_at"),
             modified_at=raw_with_defaults.get("modified_at"),
@@ -144,6 +148,7 @@ def _make_annotation_row(
     collection_id: str,
     layer_group_id: str,
     comment: str | None,
+    selected_segments: Mapping[str, Sequence[int]],
     tags: list[str] | None,
 ) -> tuple[str, dict]:
     row = annotation.to_json()
@@ -156,6 +161,7 @@ def _make_annotation_row(
     row["created_at"] = time.time()
     if tags:
         row["tags"] = list(set(tags))
+    row["selected_segments"] = selected_segments
     return annotation_id, row
 
 
@@ -165,6 +171,7 @@ def add_annotation(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
+    selected_segments: Mapping[str, Sequence[int]] | None = None,
     tags: list[str] | None = None,
 ) -> str:
     annotation_id, row = _make_annotation_row(
@@ -172,6 +179,7 @@ def add_annotation(
         collection_id=collection_id,
         layer_group_id=layer_group_id,
         comment=comment,
+        selected_segments=selected_segments if selected_segments else {},
         tags=tags,
     )
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
@@ -185,16 +193,21 @@ def add_annotations(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
+    selected_segments: Sequence[Mapping[str, Sequence[int]]] | None = None,
     tags: list[str] | None = None,
 ) -> list[str]:
     rows = []
     annotation_ids = []
-    for annotation in annotations:
+    for i, annotation in enumerate(annotations):
+        segments: Mapping[str, Sequence[int]] = {}
+        if selected_segments is not None:
+            segments = selected_segments[i]
         annotation_id, row = _make_annotation_row(
             annotation,
             collection_id=collection_id,
             layer_group_id=layer_group_id,
             comment=comment,
+            selected_segments=segments,
             tags=tags,
         )
         rows.append(row)
@@ -209,19 +222,23 @@ def update_annotation(
     *,
     collection_id: str | None = None,
     layer_group_id: str | None = None,
+    selected_segments: Mapping[str, Sequence[int]] | None = None,
     comment: str | None = None,
     tags: list[str] | None = None,
 ):
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {"modified_at": time.time()}
-    if collection_id:
+    if collection_id is not None:
         row["collection"] = collection_id
-    if layer_group_id:
+    if layer_group_id is not None:
         row["layer_group"] = layer_group_id
-    if comment:
+    if comment is not None:
         row["comment"] = comment
-    if tags:
+    if tags is not None:
         row["tags"] = list(set(tags))
+
+    if selected_segments is not None:
+        row["selected_segments"] = {k: list(v) for k, v in selected_segments.items()}
     ANNOTATIONS_DB[(annotation_id, col_keys)] = row
 
 
@@ -231,20 +248,23 @@ def update_annotations(
     collection_id: str | None = None,
     layer_group_id: str | None = None,
     comment: str | None = None,
+    selected_segments: Sequence[Mapping[str, Sequence[int]]] | None = None,
     tags: list[str] | None = None,
 ):
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     rows = []
-    for _ in range(len(annotation_ids)):
+    for i in range(len(annotation_ids)):
         row: DBRowDataT = {"modified_at": time.time()}
-        if collection_id:
+        if collection_id is not None:
             row["collection"] = collection_id
-        if layer_group_id:
+        if layer_group_id is not None:
             row["layer_group"] = layer_group_id
-        if comment:
+        if comment is not None:
             row["comment"] = comment
-        if tags:
+        if tags is not None:
             row["tags"] = list(set(tags))
+        if selected_segments is not None:
+            row["selected_segments"] = {k: list(v) for k, v in selected_segments[i].items()}
         rows.append(row)
     ANNOTATIONS_DB[(annotation_ids, col_keys)] = rows
 
@@ -282,6 +302,7 @@ def add_bbox_annotation(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
+    selected_segments: Mapping[str, Sequence[int]] | None = None,
     tags: list[str] | None = None,
 ) -> str:  # pragma: no cover # delegation
     return add_annotation(
@@ -291,6 +312,7 @@ def add_bbox_annotation(
         ),
         collection_id=collection_id,
         layer_group_id=layer_group_id,
+        selected_segments=selected_segments,
         comment=comment,
         tags=tags,
     )

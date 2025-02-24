@@ -1,5 +1,5 @@
 from .index import DBIndex
-from .backend import DBDataT, DBBackend, DBArrayValueT, DBValueT, DBRowDataT
+from .backend import DBDataT, DBBackend, DBValueT, DBRowDataT
 
 from .layer import DBLayer, UserDBIndex, ColIndex, DBDataProcT
 

@@ -16,7 +16,6 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
-from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
@@ -26,7 +25,6 @@ TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPIC
 
 
 @builder.register("FirestoreBackend")
-@typechecked
 @attrs.mutable
 class FirestoreBackend(DBBackend):
     """

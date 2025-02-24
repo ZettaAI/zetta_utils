@@ -62,6 +62,7 @@ def test_add_update_delete_annotation(
     assert _annotation.collection == collection_id
     assert _annotation.layer_group == layer_group_id
     assert len(cast(list, _annotation.tags)) == 2
+    assert len(_annotation.selected_segments) == 0
 
     _annotation_d = _annotation.to_dict()
     assert _annotation_d["collection"] == _annotation.collection
@@ -72,10 +73,12 @@ def test_add_update_delete_annotation(
         layer_group_id=layer_group_id,
         comment="this is also a test",
         tags=["tag2"],
+        selected_segments={"yo": [1, 2, 3]},
     )
     _annotation = annotation.read_annotation(_id)
     assert len(cast(list, _annotation.tags)) == 1
     assert cast(list, _annotation.tags)[0] == "tag2"
+    assert _annotation.selected_segments == {"yo": [1, 2, 3]}
 
     annotation.delete_annotation(_id)
     with pytest.raises(KeyError):
@@ -122,13 +125,15 @@ def test_add_update_annotations(
         layer_group_id=layer_group_id,
         comment="this is a test",
         tags=["tag0", "tag1"],
+        selected_segments=[{"yo": [0, -1]} for _ in annotations_raw],
     )
 
     _annotations = annotation.read_annotations(annotation_ids=_ids)
     assert _annotations[0].ng_annotation.type == "line"
     assert _annotations[1].ng_annotation.type == "point"
-    assert len(cast(list, _annotations[0].tags)) == 2
-    assert len(cast(list, _annotations[1].tags)) == 2
+    assert len(_annotations[0].tags) == 2
+    assert len(_annotations[1].tags) == 2
+    assert _annotations[0].selected_segments == {"yo": [0, -1]}
 
     annotation.update_annotations(
         _ids,
@@ -136,10 +141,12 @@ def test_add_update_annotations(
         layer_group_id=layer_group_id,
         comment="this is also a test",
         tags=["tag2"],
+        selected_segments=[{} for _ in _ids],
     )
     _annotations = annotation.read_annotations(annotation_ids=_ids)
-    assert len(cast(list, _annotations[0].tags)) == 1
-    assert len(cast(list, _annotations[1].tags)) == 1
+    assert len(_annotations[0].tags) == 1
+    assert len(_annotations[1].tags) == 1
+    assert _annotations[0].selected_segments == {}
 
 
 def test_read_delete_annotations(firestore_emulator, annotations_db, collection_and_layer_group):

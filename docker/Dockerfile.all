@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=312
-FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.6.0_torch2.5.1_py${PYTHON_VERSION}"
+
+FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.5.1_torch2.6.0_py${PYTHON_VERSION}"
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
@@ -24,8 +25,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     zstd parallel coreutils libjemalloc2 \
     # waterz
     libboost-dev g++ \
-    # torch JIT
-    cuda-nvrtc-12-0 \
   && find /usr/local/lib /opt/conda -type f -executable -exec ldd '{}' ';' \
       | awk '/=>/ { print $(NF-1) }' \
       | sort -u \

@@ -45,6 +45,7 @@ def lightning_train(
     retry_count: int = 3,
     local_run: bool = True,
     follow_logs: bool = False,
+    follow_logs_tail_lines: int | None = None,
     image: Optional[str] = None,
     cluster_name: Optional[str] = None,
     cluster_region: Optional[str] = None,
@@ -76,6 +77,8 @@ def lightning_train(
     :param local_run: If True run the training locally.
     :param follow_logs: If True, eagerly print logs from the pod.
         If False, will wait until job completes successfully.
+    :param follow_logs_tail_lines: Applicable when follow_logs=True.
+        Logs multiple lines from train job together instead of individually.
     :param image: Container image to use.
     :param cluster_name: Cluster configuration.
     :param cluster_region: Cluster configuration.
@@ -158,6 +161,7 @@ def lightning_train(
         train_args=train_args,
         env_vars=env_vars,
         follow_logs=follow_logs,
+        follow_logs_tail_lines=follow_logs_tail_lines,
         host_network=num_nodes > 1,
         resource_limits=resource_limits,
         resource_requests=resource_requests,
@@ -300,12 +304,13 @@ def _lightning_train_remote(
     train_args: dict,
     env_vars: Optional[Dict[str, str]] = None,
     follow_logs: Optional[bool] = False,
+    follow_logs_tail_lines: int | None = None,
     host_network: Optional[bool] = False,
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
-):  # pylint: disable=too-many-locals,too-many-statements
+):  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     """
     Parse spec and launch single/multinode training accordingly.
     Creates a volume mount for `train.cue` in `/opt/zetta_utils/specs`.
@@ -430,6 +435,10 @@ def _lightning_train_remote(
                 k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
             ]
 
+            node_selector = {"cloud.google.com/gke-provisioning": provisioning_model}
+            if gpu_accelerator_type:
+                node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
+
             flags += " --no-main-run-process"
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
@@ -441,7 +450,7 @@ def _lightning_train_remote(
                 host_network=True,
                 host_aliases=aliases,
                 resources=resource_limits,
-                node_selector={"cloud.google.com/gke-provisioning": provisioning_model},
+                node_selector=node_selector,
                 tolerations=_get_tolerations(),
                 volumes=volumes,
                 volume_mounts=mounts,
@@ -463,6 +472,8 @@ def _lightning_train_remote(
             stack.enter_context(workers_ctx)
 
         if follow_logs:
-            resource_allocation.k8s.follow_job_logs(train_job, cluster_info, tail_lines=16)
+            resource_allocation.k8s.follow_job_logs(
+                train_job, cluster_info, tail_lines=follow_logs_tail_lines
+            )
         else:
             resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)

@@ -675,6 +675,11 @@ def main():
             "Installing CUE",
         )
 
+        run_command(
+            "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash",
+            "Installing Helm"
+        )
+
     if not args.skip_pip:
         install_mode = args.mode
         if args.pcg:

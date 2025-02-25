@@ -140,3 +140,6 @@ venv.bak/
 
 # editable installs
 src/
+
+# files including backslash cause havoc with GKE image streaming
+*\\*

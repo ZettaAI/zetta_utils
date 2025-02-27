@@ -14,7 +14,8 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV NVIDIA_REQUIRE_CUDA="cuda>=$CUDA_VERSION"
 
-ENV PATH=/opt/conda/bin:${PATH}
+ENV PATH /usr/local/nvidia/bin:/usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
+ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache

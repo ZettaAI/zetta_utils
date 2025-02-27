@@ -144,6 +144,9 @@ def follow_job_logs(
         result = []
         for output in log_stream:
             result.append(output)
+            if len(result) == tail_lines:
+                logger.info("\n".join(result))
+                result = []
         logger.info("\n".join(result))
 
 

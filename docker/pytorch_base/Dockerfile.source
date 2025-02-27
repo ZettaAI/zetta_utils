@@ -5,8 +5,8 @@ ARG PYTHON_VERSION="3.12"
 ARG CUDA_VERSION="12.6"
 ARG CUDA_PACKAGE_VERSION="12-6"
 ARG CUDNN_VERSION="9.6.0.74-1"
-ARG TORCH_VERSION="2.5.1"
-ARG TORCHVISION_VERSION="0.20.1"
+ARG TORCH_VERSION="2.6.0"
+ARG TORCHVISION_VERSION="0.21.0"
 ARG TORCH_CUDA_ARCH_LIST="7.5;8.0;8.9"
 ARG GRAPH_TOOL_VERSION="2.88"
 ARG GRAPH_TOOL_MICROARCH="x86_64_v3"
@@ -77,6 +77,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libcusparselt-dev \
         libcudnn9-cuda-12=${CUDNN_VERSION} \
         libcudnn9-dev-cuda-12=${CUDNN_VERSION} \
+        libnccl2 \
+        libnccl-dev \
         # libcudss0-dev-cuda-12 \
         # libcudss0-cuda-12 \
         intel-oneapi-mkl-devel \
@@ -114,6 +116,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       USE_XPU=0 \
       USE_CUDA=1 \
       USE_STATIC_MKL=1 \
+      USE_SYSTEM_NCCL=1 \
       BUILD_TEST=0 \
       TORCH_NVCC_FLAGS="-Xfatbin -compress-all" \
       CMAKE_PREFIX_PATH="$(dirname $(which conda))/../" \
@@ -125,7 +128,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && /opt/conda/bin/conda clean -ya \
     && rm -rf pytorch vision \
     && apt-mark auto '.*' > /dev/null \
-    && apt-mark manual $preexistingAptMark ca-certificates > /dev/null \
+    && apt-mark manual $preexistingAptMark ca-certificates cuda-nvrtc-${CUDA_PACKAGE_VERSION} > /dev/null \
     && find /usr/local/lib /opt/conda -type f -executable -exec ldd '{}' ';' \
         | awk '/=>/ { print $(NF-1) }' \
         | sort -u \

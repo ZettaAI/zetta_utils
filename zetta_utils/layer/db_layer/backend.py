@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import MutableMapping, Sequence, Union
+from typing import Mapping, MutableMapping, Sequence, Union
 
 from .. import Backend
 from . import DBIndex
 
-DBScalarValueT = Union[bool, int, float, str]
-DBArrayValueT = list[DBScalarValueT]
-DBValueT = Union[DBScalarValueT, DBArrayValueT]
+DBValueT = Union[bool, int, float, str, Sequence["DBValueT"], Mapping[str, "DBValueT"]]
 DBRowDataT = MutableMapping[str, DBValueT | None]
 DBDataT = Sequence[DBRowDataT]
 

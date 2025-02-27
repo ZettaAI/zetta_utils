@@ -142,6 +142,11 @@ def test_batching(firestore_emulator, mocker) -> None:
     COLS = ("col_a", "col_b")
     mocker.patch(
         "zetta_utils.layer.db_layer.firestore.backend.FirestoreBackend.__len__",
+        return_value=0,
+    )
+    assert layer.get_batch(10, 10) == {}
+    mocker.patch(
+        "zetta_utils.layer.db_layer.firestore.backend.FirestoreBackend.__len__",
         return_value=ROW_COUNT,
     )
     rows: DBDataT = [

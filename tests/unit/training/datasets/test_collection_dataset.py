@@ -53,8 +53,8 @@ def dummy_dataset_x0():
         annotation.parse_ng_annotations(
             [
                 {
-                    "pointA": [0, 0, 0],
-                    "pointB": [128, 128, 128],
+                    "pointA": [128, 128, 128],
+                    "pointB": [256, 256, 256],
                     "type": "axis_aligned_bounding_box",
                     "id": "6fdfd685cc440a6106a089113869f5043cb18c2c",
                 }

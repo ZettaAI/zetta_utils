@@ -32,7 +32,7 @@ def test_round_trip():
     sf = AnnotationLayer(file_dir, index)
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
-    chunk_sizes = [[2000, 2000, 600], [1000, 1000, 600], [500, 500, 300]]
+    chunk_sizes = [(2000, 2000, 600), (1000, 1000, 600), (500, 500, 300)]
     sf = AnnotationLayer(file_dir, index, chunk_sizes)
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()

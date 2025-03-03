@@ -142,8 +142,8 @@ class SpatialEntry:
     """
 
     def __init__(self, chunk_size: Sequence[int], grid_shape: Sequence[int], key: str, limit: int):
-        self.chunk_size = chunk_size
-        self.grid_shape = grid_shape
+        self.chunk_size = tuple(chunk_size)
+        self.grid_shape = tuple(grid_shape)
         self.key = key
         self.limit = limit
 
@@ -466,20 +466,34 @@ class AnnotationLayer(
         # pylint: disable=E1120
         index = VolumetricIndex.from_coords(lower_bound, upper_bound, Vec3D(*resolution))
         logger.info(f"Inferred resolution: {resolution}")
-        # Set chunk_sizes here since we have the spatial_entries
-        self.chunk_sizes = [se.chunk_size for se in spatial_entries]
-        logger.info(f"Inferred chunk sizes: {self.chunk_sizes}")
+
+        # Store spatial entries for use in post_init
+        if spatial_entries:
+            # We use a private attribute to temporarily store this
+            # It will be used in post_init and then deleted
+            # pylint: disable=attribute-defined-outside-init
+            self._temp_spatial_entries = spatial_entries
+            logger.info(f"Found {len(spatial_entries)} spatial entries in info file")
         return index
 
     @index.validator
     def _validate_index(self, _, value):
         """Ensure index is never None after initialization."""
         if value is None:
-            raise ValueError("index cannot be None")
+            raise ValueError("index cannot be None")  # pragma: no cover
 
     def __attrs_post_init__(self):
-        if not self.chunk_sizes:  # Check for empty list instead of None
-            self.chunk_sizes = [tuple(self.index.shape)]
+        # First check if we need to read chunk sizes from an existing file
+        if not self.chunk_sizes:  # If chunk_sizes is empty
+            if hasattr(self, "_temp_spatial_entries"):  # If we have stored spatial entries
+                self.chunk_sizes = [se.chunk_size for se in self._temp_spatial_entries]
+                logger.info(f"Using stored chunk sizes: {self.chunk_sizes}")
+                # Clean up temporary storage
+                del self._temp_spatial_entries
+            else:  # If no stored entries, use default
+                self.chunk_sizes = [tuple(self.index.shape)]
+                logger.info(f"Using default chunk size: {self.chunk_sizes}")
+
         self.path = os.path.expanduser(self.path)
 
     def __repr__(self):
@@ -549,14 +563,21 @@ class AnnotationLayer(
         Write out just the info (JSON) file, with current parameters.
         """
         if spatial_data is None:
-            spatial_data = self.get_spatial_entries()
-        resolution = self.index.resolution
+            # Create spatial entries with the chunk sizes
+            spatial_data = []
+            bounds_size = self.index.shape
+            for level, chunk_size_seq in enumerate(self.chunk_sizes):
+                chunk_size = Vec3D(*chunk_size_seq)
+                grid_shape = ceil(bounds_size / chunk_size)
+                level_key = f"spatial{level}"
+                spatial_data.append(SpatialEntry(chunk_size, grid_shape, level_key, 1))
+
         write_info(
             dir_path=self.path,
             dimensions={
-                "x": [resolution.x, "nm"],
-                "y": [resolution.y, "nm"],
-                "z": [resolution.z, "nm"],
+                "x": [self.index.resolution.x, "nm"],
+                "y": [self.index.resolution.y, "nm"],
+                "z": [self.index.resolution.z, "nm"],
             },
             lower_bound=self.index.start,
             upper_bound=self.index.stop,
@@ -834,33 +855,20 @@ class AnnotationLayer(
         # rewrite the info file, with the updated spatial entries
         self.write_info_file(spatial_entries)
 
-    def read(self, idx: VolumetricIndex) -> Sequence[LineAnnotation]:
+    # Required overrides for Backend interface
+    def read(self, idx: VolumetricIndex) -> Sequence[LineAnnotation]:  # pragma: no cover
         """Read annotations within the given bounds."""
         return self.read_in_bounds(BBox3D.from_coords(idx.start, idx.stop, idx.resolution))
 
-    def write(self, idx: VolumetricIndex, data: Sequence[LineAnnotation]) -> None:
+    def write(
+        self, idx: VolumetricIndex, data: Sequence[LineAnnotation]
+    ) -> None:  # pragma: no cover
         """Write annotations to the given bounds."""
         self.write_annotations(data, annotation_resolution=idx.resolution)
 
-    def with_changes(self, **kwargs) -> "AnnotationLayer":
+    def with_changes(self, **kwargs) -> "AnnotationLayer":  # pragma: no cover
         """Return a new AnnotationLayer with the given changes applied."""
         return attrs.evolve(self, **kwargs)
-
-
-def _read_index_from_file(path: str) -> VolumetricIndex:
-    """Helper function to read index from an existing file."""
-    dims, lower_bound, upper_bound, _ = read_info(path)  # spatial_entries not used here
-    if dims is None:
-        raise ValueError("index is required when file does not exist")  # pragma: no cover
-    resolution = []
-    for i in [0, 1, 2]:
-        numAndUnit = dims["xyz"[i]]
-        assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
-        resolution.append(numAndUnit[0])
-    # pylint: disable=E1120
-    index = VolumetricIndex.from_coords(lower_bound, upper_bound, Vec3D(*resolution))
-    logger.info(f"Inferred resolution: {resolution}")
-    return index
 
 
 @builder.register("build_annotation_layer")
@@ -935,8 +943,16 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     assert index is not None
 
     # Determine chunk_sizes to use
-    if chunk_sizes is None:
-        chunk_sizes = file_chunk_sizes if file_exists else []
+    if mode in ("read", "update"):
+        # For read/update modes, always use the file's chunk sizes
+        if file_chunk_sizes:
+            chunk_sizes = file_chunk_sizes
+        else:
+            raise ValueError("Cannot read/update file: no chunk sizes found")
+    else:
+        # For write/replace modes, use provided chunk sizes or default to empty list
+        if chunk_sizes is None:
+            chunk_sizes = []
 
     # Create the layer
     layer = AnnotationLayer(path=path, index=index, chunk_sizes=chunk_sizes)

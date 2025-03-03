@@ -18,11 +18,11 @@ def test_round_trip():
     file_dir = os.path.join(temp_dir, "round_trip")
 
     lines = [
-        LineAnnotation(line_id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
-        LineAnnotation(line_id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
-        LineAnnotation(line_id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
-        LineAnnotation(line_id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
-        LineAnnotation(line_id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
+        LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+        LineAnnotation(id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
+        LineAnnotation(id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
+        LineAnnotation(id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
+        LineAnnotation(id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
     ]
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
@@ -74,8 +74,8 @@ def test_round_trip():
 
     # Test replacing only the two lines in that bounds.
     new_lines = [
-        LineAnnotation(line_id=104, start=(1061.5, 657.0, 507.0), end=(1062.5, 653.0, 502.0)),
-        LineAnnotation(line_id=105, start=(1298.5, 889.0, 315.0), end=(1294.5, 887.0, 314.0)),
+        LineAnnotation(id=104, start=(1061.5, 657.0, 507.0), end=(1062.5, 653.0, 502.0)),
+        LineAnnotation(id=105, start=(1298.5, 889.0, 315.0), end=(1294.5, 887.0, 314.0)),
     ]
     sf.write_annotations(new_lines, clearing_bbox=roi)
     lines_read = sf.read_in_bounds(roi, strict=False)
@@ -110,7 +110,7 @@ def test_resolution_changes():
     sf.clear()
 
     # writing with voxel size 10, 10, 80
-    lines = [LineAnnotation(line_id=1, start=(100, 500, 50), end=(200, 600, 60))]
+    lines = [LineAnnotation(id=1, start=(100, 500, 50), end=(200, 600, 60))]
     sf.write_annotations(lines, Vec3D(10, 10, 80))
 
     # pull those back out at file native resolution, i.e. (20, 20, 40)
@@ -132,11 +132,11 @@ def test_single_level():
     file_dir = os.path.join(temp_dir, "single_level")
 
     lines = [
-        LineAnnotation(line_id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
-        LineAnnotation(line_id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
-        LineAnnotation(line_id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
-        LineAnnotation(line_id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
-        LineAnnotation(line_id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
+        LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+        LineAnnotation(id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
+        LineAnnotation(id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
+        LineAnnotation(id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
+        LineAnnotation(id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
     ]
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
@@ -156,6 +156,14 @@ def test_single_level():
 
     chunk_path = os.path.join(file_dir, "spatial0", "2_1_1")
     assert precomp_annotations.count_lines_in_file(chunk_path) == 2
+
+    with pytest.raises(ValueError):
+        out_of_bounds_lines = [
+            LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+            LineAnnotation(id=666, start=(-100, 0, 0), end=(50, 50, 50)),
+        ]
+        roi = BBox3D.from_coords((25, 25, 25), (250, 250, 250), resolution=(10, 10, 40))
+        sf.write_annotations(out_of_bounds_lines, clearing_bbox=roi)
 
 
 def test_edge_cases():

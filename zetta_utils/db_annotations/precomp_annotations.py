@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """
 Module to support writing of annotations in precomputed format.
 
@@ -21,12 +22,14 @@ from random import shuffle
 from typing import IO, Literal, Optional, Sequence
 
 import attrs
+import numpy as np
 from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.common import is_local
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.geometry.vec import VEC3D_PRECISION
-from zetta_utils.layer import Backend
+from zetta_utils.layer.volumetric.backend import VolumetricBackend
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
@@ -422,9 +425,7 @@ def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, lev
 
 @builder.register("AnnotationLayer")
 @attrs.define(frozen=False)
-class AnnotationLayer(
-    Backend[VolumetricIndex, Sequence[LineAnnotation], Sequence[LineAnnotation]]
-):
+class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-methods
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
     bounds, and how that is broken up into chunks (possibly over several levels).
@@ -869,6 +870,53 @@ class AnnotationLayer(
     def with_changes(self, **kwargs) -> "AnnotationLayer":  # pragma: no cover
         """Return a new AnnotationLayer with the given changes applied."""
         return attrs.evolve(self, **kwargs)
+
+    # Required overrides for VolumetricBackend interface
+    @property
+    def is_local(self) -> bool:
+        return is_local(self.path)  # pragma: no cover
+
+    @property
+    def dtype(self) -> np.dtype:
+        return np.dtype(LineAnnotation)  # pragma: no cover
+
+    @property
+    def num_channels(self) -> int:
+        return 0  # pragma: no cover
+
+    @property
+    def allow_cache(self) -> bool:
+        return False  # pragma: no cover
+
+    @property
+    def enforce_chunk_aligned_writes(self) -> bool:
+        return False  # pragma: no cover
+
+    @property
+    def use_compression(self) -> bool:
+        return False  # pragma: no cover
+
+    def clear_cache(self) -> None:
+        pass  # pragma: no cover
+
+    def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
+        return round(self.index.start * resolution / self.index.resolution)  # pragma: no cover
+
+    def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
+        # Note: it's not clear which chunk size is wanted here; since there
+        # are no docs about it, let's just return the first one.
+        return round(
+            Vec3D(*self.chunk_sizes[0]) * resolution / self.index.resolution
+        )  # pragma: no cover
+
+    def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
+        return round(self.index.shape * resolution / self.index.resolution)  # pragma: no cover
+
+    def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:
+        return self.index * resolution / self.index.resolution  # pragma: no cover
+
+    def pformat(self) -> str:
+        return self.index.pformat()  # pragma: no cover
 
 
 @builder.register("build_annotation_layer")

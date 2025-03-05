@@ -40,6 +40,7 @@ log.add_supress_traceback_module(builder)
 def load_all_modules():
     load_inference_modules()
     load_training_modules()
+    from . import task_management
 
 
 def try_load_train_inference():  # pragma: no cover

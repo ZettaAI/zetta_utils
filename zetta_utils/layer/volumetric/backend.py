@@ -10,7 +10,7 @@ import numpy as np
 from zetta_utils.geometry import Vec3D
 
 from .. import Backend
-from . import VolumetricIndex
+from .index import VolumetricIndex
 
 DataT = TypeVar("DataT")
 DataWriteT = TypeVar("DataWriteT")

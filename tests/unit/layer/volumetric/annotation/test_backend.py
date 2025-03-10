@@ -3,12 +3,12 @@ import shutil
 
 import pytest
 
-from zetta_utils.db_annotations import precomp_annotations
-from zetta_utils.db_annotations.precomp_annotations import (
-    AnnotationLayer,
+from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.volumetric.annotation import backend
+from zetta_utils.layer.volumetric.annotation.backend import (
+    AnnotationLayerBackend,
     LineAnnotation,
 )
-from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 
@@ -18,22 +18,22 @@ def test_round_trip():
     file_dir = os.path.join(temp_dir, "round_trip")
 
     lines = [
-        LineAnnotation(line_id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
-        LineAnnotation(line_id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
-        LineAnnotation(line_id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
-        LineAnnotation(line_id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
-        LineAnnotation(line_id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
+        LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+        LineAnnotation(id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
+        LineAnnotation(id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
+        LineAnnotation(id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
+        LineAnnotation(id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
     ]
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
 
     index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
 
-    sf = AnnotationLayer(file_dir, index)
+    sf = AnnotationLayerBackend(file_dir, index)
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
     chunk_sizes = [(2000, 2000, 600), (1000, 1000, 600), (500, 500, 300)]
-    sf = AnnotationLayer(file_dir, index, chunk_sizes)
+    sf = AnnotationLayerBackend(file_dir, index, chunk_sizes)
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
     sf.write_annotations([])  # (does nothing)
@@ -41,7 +41,7 @@ def test_round_trip():
     sf.post_process()
 
     # Now create a *new* AnnotationLayer, given just the directory.
-    sf = AnnotationLayer(file_dir)
+    sf = AnnotationLayerBackend(file_dir, index=index, chunk_sizes=chunk_sizes)
     assert sf.index == index
     assert sf.chunk_sizes == chunk_sizes
 
@@ -74,8 +74,8 @@ def test_round_trip():
 
     # Test replacing only the two lines in that bounds.
     new_lines = [
-        LineAnnotation(line_id=104, start=(1061.5, 657.0, 507.0), end=(1062.5, 653.0, 502.0)),
-        LineAnnotation(line_id=105, start=(1298.5, 889.0, 315.0), end=(1294.5, 887.0, 314.0)),
+        LineAnnotation(id=104, start=(1061.5, 657.0, 507.0), end=(1062.5, 653.0, 502.0)),
+        LineAnnotation(id=105, start=(1298.5, 889.0, 315.0), end=(1294.5, 887.0, 314.0)),
     ]
     sf.write_annotations(new_lines, clearing_bbox=roi)
     lines_read = sf.read_in_bounds(roi, strict=False)
@@ -92,9 +92,9 @@ def test_round_trip():
     assert len(lines_read) == len(lines) + 1
 
     shutil.rmtree(os.path.join(file_dir, "spatial0"))
-    entries = precomp_annotations.subdivide([], sf.index, sf.chunk_sizes, file_dir)
+    entries = backend.subdivide([], sf.index, sf.chunk_sizes, file_dir)
     assert len(entries) == 3
-    precomp_annotations.read_data(file_dir, entries[0])
+    backend.read_data(file_dir, entries[0])
 
     shutil.rmtree(file_dir)  # clean up when done
 
@@ -105,12 +105,16 @@ def test_resolution_changes():
     file_dir = os.path.join(temp_dir, "resolution_changes")
 
     # file resolution: 20, 20, 40
-    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(20, 20, 40))
-    sf = AnnotationLayer(file_dir, index)
+    resolution = Vec3D(20, 20, 40)
+    voxel_offset = [0, 0, 0]
+    dataset_size = [2000, 2000, 600]
+    end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
+    index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
+    sf = AnnotationLayerBackend(file_dir, index)
     sf.clear()
 
     # writing with voxel size 10, 10, 80
-    lines = [LineAnnotation(line_id=1, start=(100, 500, 50), end=(200, 600, 60))]
+    lines = [LineAnnotation(id=1, start=(100, 500, 50), end=(200, 600, 60))]
     sf.write_annotations(lines, Vec3D(10, 10, 80))
 
     # pull those back out at file native resolution, i.e. (20, 20, 40)
@@ -132,22 +136,22 @@ def test_single_level():
     file_dir = os.path.join(temp_dir, "single_level")
 
     lines = [
-        LineAnnotation(line_id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
-        LineAnnotation(line_id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
-        LineAnnotation(line_id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
-        LineAnnotation(line_id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
-        LineAnnotation(line_id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
+        LineAnnotation(id=1, start=(1640.0, 1308.0, 61.0), end=(1644.0, 1304.0, 57.0)),
+        LineAnnotation(id=2, start=(1502.0, 1709.0, 589.0), end=(1498.0, 1701.0, 589.0)),
+        LineAnnotation(id=3, start=(254.0, 68.0, 575.0), end=(258.0, 62.0, 575.0)),
+        LineAnnotation(id=4, start=(1061.0, 657.0, 507.0), end=(1063.0, 653.0, 502.0)),
+        LineAnnotation(id=5, start=(1298.0, 889.0, 315.0), end=(1295.0, 887.0, 314.0)),
     ]
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
 
     index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
 
-    sf = AnnotationLayer(file_dir, index)
+    sf = AnnotationLayerBackend(file_dir, index)
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
     chunk_sizes = [[500, 500, 300]]
-    sf = AnnotationLayer(file_dir, index, chunk_sizes)
+    sf = AnnotationLayerBackend(file_dir, index, chunk_sizes)
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
     sf.write_annotations([])  # (does nothing)
@@ -155,23 +159,23 @@ def test_single_level():
     sf.post_process()
 
     chunk_path = os.path.join(file_dir, "spatial0", "2_1_1")
-    assert precomp_annotations.count_lines_in_file(chunk_path) == 2
+    assert backend.count_lines_in_file(chunk_path) == 2
 
 
 def test_edge_cases():
     with pytest.raises(ValueError):
-        precomp_annotations.path_join()
+        backend.path_join()
 
     # pylint: disable=use-implicit-booleaness-not-comparison
-    assert precomp_annotations.read_lines("/dev/null") == []
+    assert backend.read_lines("/dev/null") == []
 
-    assert precomp_annotations.read_info("/dev/null") == (None, None, None, None)
+    assert backend.read_info("/dev/null") == (None, None, None, None)
 
-    assert precomp_annotations.path_join("gs://foo/", "bar") == "gs://foo/bar"
+    assert backend.path_join("gs://foo/", "bar") == "gs://foo/bar"
 
     index = VolumetricIndex.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
-    assert not AnnotationLayer("/dev/null", index).exists()
-    assert not AnnotationLayer("/dev/null/subdir", index).exists()
+    assert not AnnotationLayerBackend("/dev/null", index).exists()
+    assert not AnnotationLayerBackend("/dev/null/subdir", index).exists()
 
 
 if __name__ == "__main__":

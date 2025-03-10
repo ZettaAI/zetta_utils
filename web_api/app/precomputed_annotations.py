@@ -11,14 +11,11 @@ from attrs import asdict
 from fastapi import FastAPI, Query, Request
 from neuroglancer.viewer_state import LineAnnotation
 
-from zetta_utils.db_annotations import precomp_annotations
 from zetta_utils.db_annotations.annotation import AnnotationDBEntry, NgAnnotation
-from zetta_utils.db_annotations.precomp_annotations import (
-    AnnotationLayer,
-    build_annotation_layer,
-)
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric.annotation import backend
+from zetta_utils.layer.volumetric.annotation.build import build_annotation_layer
 
 from .utils import generic_exception_handler
 
@@ -45,13 +42,16 @@ async def read_in_bounds(
     bbox = BBox3D.from_coords(bbox_start, bbox_end, resolution_vec)
     layer = build_annotation_layer(path, mode="read")
     response = []
-    for line in layer.read_in_bounds(bbox, strict=True, annotation_resolution=resolution_vec):
+    for line in layer.backend.read_in_bounds(
+        bbox, strict=True, annotation_resolution=resolution_vec
+    ):
         annotation = AnnotationDBEntry(
             id=line.id,
             layer_group="",
             collection="",
             comment="",
             tags=[],
+            selected_segments={},
             ng_annotation=LineAnnotation(pointA=line.start, pointB=line.end),
         )
         response.append(annotation.to_dict())
@@ -75,16 +75,18 @@ async def add_multiple(
         annotation = AnnotationDBEntry.from_dict(entry["id"], entry)
         line = annotation.ng_annotation
         lines.append(
-            precomp_annotations.LineAnnotation(
-                int(annotation.id),
-                line.point_a.tolist(),
-                line.point_b.tolist(),
+            backend.LineAnnotation(
+                start=line.point_a.tolist(),
+                end=line.point_b.tolist(),
+                id=int(annotation.id),
             )
         )
     resolution_vec = Vec3D(*resolution)
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, resolution_vec)
     layer = build_annotation_layer(path, index=index, mode="replace")
-    layer.write_annotations(lines, annotation_resolution=resolution_vec, clearing_bbox=index.bbox)
+    layer.backend.write_annotations(
+        lines, annotation_resolution=resolution_vec, clearing_bbox=index.bbox
+    )
 
 
 @api.delete("/annotations")
@@ -96,4 +98,4 @@ async def delete_multiple(
     file.  Use with caution.
     """
     layer = build_annotation_layer(path, mode="write")
-    layer.delete()
+    layer.backend.delete()

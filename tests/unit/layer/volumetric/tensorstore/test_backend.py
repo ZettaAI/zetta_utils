@@ -10,11 +10,7 @@ import tensorstore
 from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer import precomputed
 from zetta_utils.layer.precomputed import InfoSpecParams, PrecomputedInfoSpec
-from zetta_utils.layer.volumetric import (
-    VolumetricFrontend,
-    VolumetricIndex,
-    VolumetricLayer,
-)
+from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol.backend import CVBackend
 from zetta_utils.layer.volumetric.layer_set import VolumetricSetBackend
 from zetta_utils.layer.volumetric.tensorstore.backend import TSBackend, _clear_ts_cache
@@ -434,8 +430,8 @@ def test_ts_from_precomputed_layer_set(clear_caches_reset_mocks, mocker):
     cvb2 = CVBackend(path=LAYER_SCRATCH1_PATH, info_spec=info_spec2, info_overwrite=True)
     lsb = VolumetricSetBackend(
         layers={
-            "cvb1": VolumetricLayer(cvb1, VolumetricFrontend()),
-            "cvb2": VolumetricLayer(cvb2, VolumetricFrontend()),
+            "cvb1": VolumetricLayer(backend=cvb1),
+            "cvb2": VolumetricLayer(backend=cvb2),
         }
     )
     tsb = TSBackend.from_precomputed(lsb)

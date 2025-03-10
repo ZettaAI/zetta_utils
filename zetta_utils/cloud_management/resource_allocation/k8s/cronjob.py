@@ -5,7 +5,7 @@ Kubernetes cronjob.
 from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional
 
 import attrs
 
@@ -30,6 +30,7 @@ def _get_cronjob(
     labels: Optional[Dict[str, str]] = None,
     tolerations: Optional[k8s_client.V1Toleration] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    node_selector: Optional[Mapping[str, str]] = None,
 ) -> k8s_client.V1CronJob:
     tolerations = tolerations or []
     pod_spec = get_pod_spec(
@@ -42,6 +43,7 @@ def _get_cronjob(
         restart_policy="OnFailure",
         tolerations=tolerations,
         resource_requests=resource_requests,
+        node_selector=node_selector,
     )
 
     job_template = get_job_template(
@@ -91,6 +93,7 @@ def configure_cronjob(
     labels: Optional[Dict[str, str]] = None,
     patch: Optional[bool] = False,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    node_selector: Optional[Mapping[str, str]] = None,
 ):
     """
     Create a cronjob or patch/update an existing one.
@@ -120,6 +123,7 @@ def configure_cronjob(
         spec_config=spec_config,
         labels=labels,
         resource_requests=resource_requests,
+        node_selector=node_selector,
     )
     if patch:
         name = f"run-{name}"

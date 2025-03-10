@@ -109,6 +109,7 @@ def _get_group_taskqueue_and_contexts(
             outcome_queue_spec,
             group.num_procs,
             group.semaphores_spec,
+            idle_timeout=group.idle_worker_timeout,
         )
         pod_spec = k8s.get_mazepa_pod_spec(
             image=image,

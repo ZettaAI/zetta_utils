@@ -15,7 +15,6 @@ from .. import DataProcessor, IndexProcessor, JointIndexDataProcessor
 from . import (
     DataResolutionInterpolator,
     VolumetricBackend,
-    VolumetricFrontend,
     VolumetricIndex,
     VolumetricLayer,
 )
@@ -74,20 +73,16 @@ def build_volumetric_layer(
         read_procs = [resolution_interpolator] + list(read_procs)
         write_procs = [resolution_interpolator] + list(write_procs)
 
-    frontend = VolumetricFrontend(
-        index_resolution=Vec3D(*index_resolution) if index_resolution else None,
-        default_desired_resolution=(
-            Vec3D(*default_desired_resolution) if default_desired_resolution else None
-        ),
-        allow_slice_rounding=allow_slice_rounding,
-    )
-
     result = VolumetricLayer(
         backend=backend,
         readonly=readonly,
         index_procs=tuple(index_procs_final),
         read_procs=tuple(read_procs),
         write_procs=tuple(write_procs),
-        frontend=frontend,
+        index_resolution=Vec3D(*index_resolution) if index_resolution else None,
+        default_desired_resolution=(
+            Vec3D(*default_desired_resolution) if default_desired_resolution else None
+        ),
+        allow_slice_rounding=allow_slice_rounding,
     )
     return result

@@ -7,11 +7,15 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
-from zetta_utils.layer.volumetric.layer_set.layer import VolumetricSetDataWriteProcT
+from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.layer.volumetric.layer_set.layer import (
+    VolumetricLayerSet,
+    VolumetricSetDataProcT,
+    VolumetricSetDataWriteProcT,
+)
 
 from ... import IndexProcessor
-from .. import VolumetricFrontend, VolumetricIndex, VolumetricLayer
-from . import VolumetricLayerSet, VolumetricSetBackend, VolumetricSetDataProcT
+from .backend import VolumetricSetBackend
 
 
 @typechecked
@@ -26,10 +30,15 @@ def build_volumetric_layer_set(
     read_procs: Iterable[VolumetricSetDataProcT] = (),
     write_procs: Iterable[VolumetricSetDataWriteProcT] = (),
 ) -> VolumetricLayerSet:
-    """Build a set of volumetric layers.
-    :param layers: Mapping from layer names to layers.
-    :param readonly: Whether layer is read only.
-    :param index_procs: List of processors that will be applied to the index given by the user
+    """
+    Build a VolumetricLayerSet from a dict of VolumetricLayers.
+
+    :param layers: Dict of VolumetricLayers to include in the set.
+    :param readonly: Whether the layer is read-only.
+    :param default_desired_resolution: Default resolution to use for reading data.
+    :param index_resolution: Resolution to use for indexing.
+    :param allow_slice_rounding: Whether to allow rounding of slice indices.
+    :param index_procs: List of processors that will be applied to the index
         prior to IO operations.
     :param read_procs: List of processors that will be applied to the read data before
         returning it to the user.
@@ -38,18 +47,15 @@ def build_volumetric_layer_set(
     :return: Layer built according to the spec.
     """
     backend = VolumetricSetBackend(layers)
-    frontend = VolumetricFrontend(
+
+    result = VolumetricLayerSet(
+        backend=backend,
+        readonly=readonly,
         index_resolution=Vec3D(*index_resolution) if index_resolution else None,
         default_desired_resolution=(
             Vec3D(*default_desired_resolution) if default_desired_resolution else None
         ),
         allow_slice_rounding=allow_slice_rounding,
-    )
-
-    result = VolumetricLayerSet(
-        backend=backend,
-        frontend=frontend,
-        readonly=readonly,
         index_procs=tuple(index_procs),
         read_procs=tuple(read_procs),
         write_procs=tuple(write_procs),

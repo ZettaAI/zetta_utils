@@ -16,10 +16,11 @@ import io
 import itertools
 import json
 import os
+import random
 import struct
 from math import ceil
 from random import shuffle
-from typing import IO, Literal, Optional, Sequence
+from typing import IO, ClassVar, Optional, Sequence
 
 import attrs
 import numpy as np
@@ -52,38 +53,23 @@ def path_join(*paths: str):
         return os.path.join(*paths)
 
 
+@attrs.mutable
 class LineAnnotation:
-    BYTES_PER_ENTRY = 24  # start (3 floats), end (3 floats)
+    """
+    :param id: An integer representing the ID of the annotation.
+    :param start: A tuple of three floats representing the start coordinate (x, y, z).
+    :param end: A tuple of three floats representing the end coordinate (x, y, z).
 
-    def __init__(self, line_id: int, start: Sequence[float], end: Sequence[float]):
-        """
-        Initialize a LineAnnotation instance.
+    Coordinates are in units defined by "dimensions" in the info file, or some
+    other resolution specified by the user.  (Like a Vec3D, context is needed to
+    interpret these coordinates.)
+    """
 
-        :param id: An integer representing the ID of the annotation.
-        :param start: A tuple of three floats representing the start coordinate (x, y, z).
-        :param end: A tuple of three floats representing the end coordinate (x, y, z).
+    start: Sequence[float]
+    end: Sequence[float]
+    id: int = attrs.field(factory=lambda: random.randint(0, 2 ** 64 - 1))
 
-        Coordinates are in units defined by "dimensions" in the info file, or some
-        other resolution specified by the user.  (Like a Vec3D, context is needed to
-        interpret these coordinates.)
-        """
-        self.start = start
-        self.end = end
-        self.id = line_id
-
-    def __repr__(self):
-        """
-        Return a string representation of the LineAnnotation instance.
-        """
-        return f"LineAnnotation(line_id={self.id}, start={self.start}, end={self.end})"
-
-    def __eq__(self, other):
-        return (
-            isinstance(other, LineAnnotation)
-            and self.id == other.id
-            and self.start == other.start
-            and self.end == other.end
-        )
+    BYTES_PER_ENTRY: ClassVar[int] = 24  # start (3 floats), end (3 floats)
 
     def write(self, output: IO[bytes]):
         """
@@ -100,7 +86,6 @@ class LineAnnotation:
         Read an annotation in binary format from the given input reader.
         """
         return LineAnnotation(
-            0,  # (ID will be filled in later)
             struct.unpack("<3f", in_stream.read(12)),
             struct.unpack("<3f", in_stream.read(12)),
         )
@@ -127,7 +112,7 @@ class LineAnnotation:
         """
         new_start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
         new_end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
-        return LineAnnotation(self.id, new_start, new_end)
+        return LineAnnotation(id=self.id, start=new_start, end=new_end)
 
 
 class SpatialEntry:
@@ -425,7 +410,9 @@ def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, lev
 
 @builder.register("AnnotationLayer")
 @attrs.define(frozen=False)
-class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-methods
+class AnnotationLayerBackend(
+    VolumetricBackend[Sequence[LineAnnotation], Sequence[LineAnnotation]]
+):  # pylint: disable=too-many-public-methods
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
     bounds, and how that is broken up into chunks (possibly over several levels).
@@ -453,30 +440,6 @@ class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-met
     def _validate_path(self, _, value):
         assert value, "path parameter is required"
 
-    @index.default
-    def _default_index(self) -> VolumetricIndex:
-        """Read index from file if not provided."""
-        dims, lower_bound, upper_bound, spatial_entries = read_info(self.path)
-        if dims is None:
-            raise ValueError("index is required when file does not exist")  # pragma: no cover
-        resolution = []
-        for i in [0, 1, 2]:
-            numAndUnit = dims["xyz"[i]]
-            assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
-            resolution.append(numAndUnit[0])
-        # pylint: disable=E1120
-        index = VolumetricIndex.from_coords(lower_bound, upper_bound, Vec3D(*resolution))
-        logger.info(f"Inferred resolution: {resolution}")
-
-        # Store spatial entries for use in post_init
-        if spatial_entries:
-            # We use a private attribute to temporarily store this
-            # It will be used in post_init and then deleted
-            # pylint: disable=attribute-defined-outside-init
-            self._temp_spatial_entries = spatial_entries
-            logger.info(f"Found {len(spatial_entries)} spatial entries in info file")
-        return index
-
     @index.validator
     def _validate_index(self, _, value):
         """Ensure index is never None after initialization."""
@@ -486,14 +449,8 @@ class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-met
     def __attrs_post_init__(self):
         # First check if we need to read chunk sizes from an existing file
         if not self.chunk_sizes:  # If chunk_sizes is empty
-            if hasattr(self, "_temp_spatial_entries"):  # If we have stored spatial entries
-                self.chunk_sizes = [se.chunk_size for se in self._temp_spatial_entries]
-                logger.info(f"Using stored chunk sizes: {self.chunk_sizes}")
-                # Clean up temporary storage
-                del self._temp_spatial_entries
-            else:  # If no stored entries, use default
-                self.chunk_sizes = [tuple(self.index.shape)]
-                logger.info(f"Using default chunk size: {self.chunk_sizes}")
+            self.chunk_sizes = [tuple(self.index.shape)]
+            logger.info(f"Using default chunk size: {self.chunk_sizes}")
 
         self.path = os.path.expanduser(self.path)
 
@@ -867,7 +824,7 @@ class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-met
         """Write annotations to the given bounds."""
         self.write_annotations(data, annotation_resolution=idx.resolution)
 
-    def with_changes(self, **kwargs) -> "AnnotationLayer":  # pragma: no cover
+    def with_changes(self, **kwargs) -> "AnnotationLayerBackend":  # pragma: no cover
         """Return a new AnnotationLayer with the given changes applied."""
         return attrs.evolve(self, **kwargs)
 
@@ -919,105 +876,12 @@ class AnnotationLayer(VolumetricBackend):  # pylint: disable=too-many-public-met
         return self.index.pformat()  # pragma: no cover
 
 
-@builder.register("build_annotation_layer")
-def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches
-    path: str,
-    resolution: Sequence[float] | None = None,
-    dataset_size: Sequence[int] | None = None,
-    voxel_offset: Sequence[int] | None = None,
-    index: VolumetricIndex | None = None,
-    chunk_sizes: Sequence[Sequence[int]] | None = None,
-    mode: Literal["read", "write", "replace", "update"] = "write",
-) -> AnnotationLayer:  # pragma: no cover # trivial conditional, delegation only
-    """Build an AnnotationLayer (spatially indexed annotations in precomputed file format).
-
-    :param path: Path to the precomputed file (directory).
-    :param resolution: (x, y, z) size of one voxel, in nm.
-    :dataset_size: Precomputed dataset size (in voxels) for all scales.
-    :param voxel_offset: start of the dataset volume (in voxels) for all scales.
-    :index: VolumetricIndex indicating dataset size and resolution.  Note that
-      for new files, you must provide either (resolution, dataset_size, voxel_offset)
-      or index, but not both.  For existing files, all these are optional.
-    :chunk_sizes: Chunk sizes for spatial index; defaults to a single chunk for
-      new files (or the existing chunk structure for existing files).
-    :mode: How the file should be created or opened:
-       "read": for reading only; throws error if file does not exist.
-       "write": for writing; throws error if file exists.
-       "replace": for writing; if file exists, it is cleared of all data.
-       "update": for writing additional data; throws error if file does not exist.
-    """
-    dims, lower_bound, upper_bound, spatial_entries = read_info(path)
-    file_exists = spatial_entries is not None
-    file_resolution = []
-    file_index = None
-    file_chunk_sizes = []
-    if file_exists:
-        for i in [0, 1, 2]:
-            numAndUnit = dims["xyz"[i]]
-            assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
-            file_resolution.append(numAndUnit[0])
-        # pylint: disable=E1120
-        file_index = VolumetricIndex.from_coords(lower_bound, upper_bound, Vec3D(*file_resolution))
-        file_chunk_sizes = [se.chunk_size for se in spatial_entries]
-
-    if mode in ("read", "update") and not file_exists:
-        raise IOError(
-            f"AnnotationLayer built with mode {mode}, but file does not exist (path: {path})"
-        )
-    if mode == "write" and file_exists:
-        raise IOError(
-            f"AnnotationLayer built with mode {mode}, but file already exists (path: {path})"
-        )
-
-    # Determine the index to use
-    if index is None:
-        if mode == "write" or (mode == "replace" and not file_exists):
-            if resolution is None:
-                raise ValueError("when `index` is not provided, `resolution` is required")
-            if dataset_size is None:
-                raise ValueError("when `index` is not provided, `dataset_size` is required")
-            if voxel_offset is None:
-                raise ValueError("when `index` is not provided, `voxel_offset` is required")
-            if len(resolution) != 3:
-                raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
-            if len(dataset_size) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
-            if len(voxel_offset) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(voxel_offset)}")
-            end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
-            index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
-        else:
-            index = file_index
-    assert index is not None
-
-    # Determine chunk_sizes to use
-    if mode in ("read", "update"):
-        # For read/update modes, always use the file's chunk sizes
-        if file_chunk_sizes:
-            chunk_sizes = file_chunk_sizes
-        else:
-            raise ValueError("Cannot read/update file: no chunk sizes found")
-    else:
-        # For write/replace modes, use provided chunk sizes or default to empty list
-        if chunk_sizes is None:
-            chunk_sizes = []
-
-    # Create the layer
-    layer = AnnotationLayer(path=path, index=index, chunk_sizes=chunk_sizes)
-
-    # Handle replace mode
-    if mode == "replace":
-        layer.clear()
-
-    return layer
-
-
 @mazepa.taskable_operation
-def post_process_annotation_layer_op(target: AnnotationLayer):  # pragma: no cover
+def post_process_annotation_layer_op(target: AnnotationLayerBackend):  # pragma: no cover
     target.post_process()
 
 
 @builder.register("post_process_annotation_layer_flow")
 @mazepa.flow_schema
-def post_process_annotation_layer_flow(target: AnnotationLayer):  # pragma: no cover
+def post_process_annotation_layer_flow(target: AnnotationLayerBackend):  # pragma: no cover
     yield post_process_annotation_layer_op.make_task(target)

@@ -34,6 +34,12 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
         ...,
     ] = ()
 
+    def __getitem__(
+        self,
+        idx: BackendIndexT,
+    ) -> BackendDataT:
+        return self.read_with_procs(idx)
+
     def read_with_procs(
         self,
         idx: BackendIndexT,

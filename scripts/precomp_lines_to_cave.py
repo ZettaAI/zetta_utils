@@ -14,9 +14,8 @@ from sqlalchemy import create_engine
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
 
-from zetta_utils.db_annotations.precomp_annotations import build_annotation_layer
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric.annotation import build_annotation_layer
 
 # Database connection parameters
 DB_USER = "postgres"
@@ -177,9 +176,9 @@ def load_annotations():
             bbox_end = input_vec3Di("    Bounds end")
             resolution = input_vec3Di("    Resolution")
             bbox = BBox3D.from_coords(bbox_start, bbox_end, resolution)
-            lines = layer.read_in_bounds(bbox, strict=True)
+            lines = layer.backend.read_in_bounds(bbox, strict=True)
         else:
-            lines = layer.read_all()
+            lines = layer.backend.read_all()
         items = [
             {"id": hex(l.id)[2:], "type": "line", "pointA": l.start, "pointB": l.end}
             for l in lines

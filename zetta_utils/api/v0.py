@@ -167,7 +167,6 @@ from zetta_utils.layer.volumetric.cloudvol.backend import CVBackend
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
 from zetta_utils.layer.volumetric.constant.backend import ConstantVolumetricBackend
 from zetta_utils.layer.volumetric.constant.build import build_constant_volumetric_layer
-from zetta_utils.layer.volumetric.frontend import VolumetricFrontend
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 from zetta_utils.layer.volumetric.layer import VolumetricLayer
 from zetta_utils.layer.volumetric.layer_set.backend import VolumetricSetBackend

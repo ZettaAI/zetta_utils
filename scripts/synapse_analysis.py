@@ -17,9 +17,9 @@ from google.cloud import storage
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
-from zetta_utils.db_annotations.precomp_annotations import build_annotation_layer
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric.annotation import build_annotation_layer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 
 client: Optional[CAVEclient] = None
@@ -200,7 +200,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
             resolution = input_vec3Di("Resolution")
             return annotations, resolution, None
         layer = build_annotation_layer(source_path, mode="read")
-        resolution = layer.index.resolution
+        resolution = layer.backend.index.resolution
     else:
         verify_cave_auth()
         state_id = source_path.split("/")[-1]  # in case full URL was given
@@ -243,7 +243,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
             # be defined backwards on some dimensions.
             bbox = BBox3D.from_points([bbox_start, bbox_end], box_res, epsilon=0)
             print(f"Reading lines within {bbox}...")
-            lines = layer.read_in_bounds(bbox, strict=True)
+            lines = layer.backend.read_in_bounds(bbox, strict=True)
             boxItem = default_box
         else:
             opt = ""
@@ -257,7 +257,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
                 resolution = input_vec3Di("    Resolution")
                 assert resolution is not None
                 bbox = BBox3D.from_coords(bbox_start, bbox_end, resolution)
-                lines = layer.read_in_bounds(bbox, strict=True)
+                lines = layer.backend.read_in_bounds(bbox, strict=True)
                 boxItem = {
                     "pointA": list(bbox_start),
                     "pointB": list(bbox_end),
@@ -265,7 +265,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
                     "type": "axis_aligned_bounding_box",
                 }
             else:
-                lines = layer.read_all()
+                lines = layer.backend.read_all()
         lineItems = [
             {"id": hex(l.id)[2:], "type": "line", "pointA": l.start, "pointB": l.end}
             for l in lines

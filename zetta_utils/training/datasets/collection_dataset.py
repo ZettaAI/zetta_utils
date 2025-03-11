@@ -64,7 +64,9 @@ def build_collection_dataset(
                 if name in layer_rename_map:
                     name = layer_rename_map[name]
                 read_procs = per_layer_read_procs_dict.get(name, [])
-                layers[name] = build_cv_layer(path=layer.source, read_procs=read_procs)
+                layers[name] = build_cv_layer(
+                    path=layer.source, read_procs=read_procs, allow_slice_rounding=True
+                )
             layer_group_map[annotation.layer_group] = layers
         else:
             layers = layer_group_map[annotation.layer_group]
@@ -75,7 +77,9 @@ def build_collection_dataset(
 
         this_resolution = [resolution[0], resolution[1], z_resolution]
         if isinstance(annotation.ng_annotation, AxisAlignedBoundingBoxAnnotation):
-            bbox = BBox3D.from_ng_bbox(annotation.ng_annotation, (1, 1, 1))
+            bbox = BBox3D.from_ng_bbox(annotation.ng_annotation, (1, 1, 1)).snapped(
+                (0, 0, 0), this_resolution, "shrink"
+            )
 
             datasets[str(i)] = LayerDataset(
                 layer=build_layer_set(layers=layers, read_procs=shared_read_procs),

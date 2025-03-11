@@ -95,7 +95,7 @@ class BBoxStrider:
                 "`exact` mode is only supported when the `chunk_size` and `stride` are equal"
             )
         if self.stride_start_offset is None:
-            stride_start_offset_in_unit = self.bbox.start
+            stride_start_offset_in_unit = round(self.bbox.start / self.resolution) * self.resolution
         else:
             stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset) * self.resolution
         bbox_snapped = self.bbox.snapped(
@@ -146,7 +146,7 @@ class BBoxStrider:
                 * self.stride_in_unit
             )
         else:
-            stride_start_offset_in_unit = self.bbox.start
+            stride_start_offset_in_unit = round(self.bbox.start / self.resolution) * self.resolution
 
         bbox_snapped = (
             self.bbox.translated_end(-self.chunk_size_in_unit, resolution=Vec3D(1, 1, 1))

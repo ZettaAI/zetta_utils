@@ -1,4 +1,9 @@
 """
+This script compares predicted synaptic clefts to ground truth clefts,
+reporting precision, recall, and F1 score.
+"""
+
+"""
 This script compares a set of synapse lines to another (ground truth) set.
 """
 import csv
@@ -11,16 +16,18 @@ from typing import Any, Dict, List, Optional, Sequence, cast
 
 import nglui
 import numpy as np
+import cc3d
 from caveclient import CAVEclient
 from cloudfiles import CloudFile
 from cloudvolume import CloudVolume
 from google.cloud import storage
+from scipy.ndimage import center_of_mass
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
+from zetta_utils.db_annotations.precomp_annotations import build_annotation_layer
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.layer.volumetric.annotation import build_annotation_layer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 
 client: Optional[CAVEclient] = None
@@ -187,108 +194,13 @@ def read_csv(source_path):
     return lines
 
 
-def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
-    global source_path
-    layer = None
-    lineItems = None
-    boxItem: Optional[dict] = None
-    resolution = None
-    print(f"Enter Neuroglancer state link or ID, or a GS file path for {forPurpose}:")
-    inp = input("> ")
-    if inp:
-        source_path = inp
-    if "/|neuroglancer-precomputed:" in source_path:
-        source_path = source_path.split("/|neuroglancer-precomputed:")[0]
-    if source_path.startswith("gs:"):
-        if source_path.endswith(".df") or source_path.endswith(".csv"):
-            annotations = read_csv(source_path)
-            resolution = input_vec3Di("Resolution")
-            return annotations, resolution, None
-        layer = build_annotation_layer(source_path, mode="read")
-        resolution = layer.backend.index.resolution
-    else:
-        verify_cave_auth()
-        state_id = source_path.split("/")[-1]  # in case full URL was given
-
-        assert client is not None
-        print(f"Loading state {state_id}...")
-        state = client.state.get_state_json(state_id)
-        print(f"Select annotation layer containing synapses to import for {forPurpose}:")
-        anno_layer_name = get_annotation_layer_name(state)
-        data = nglui.parser.get_layer(state, anno_layer_name)
-        resolution = get_resolution(data)
-
-        if "annotations" in data:
-            lineItems = [item for item in data["annotations"] if item["type"] == "line"]
-            boxItem = next(
-                (
-                    item
-                    for item in data["annotations"]
-                    if item["type"] == "axis_aligned_bounding_box"
-                ),
-                None,
-            )
-            if boxItem != None:
-                boxItem = cast(Dict[Any, Any], boxItem)  # stupid mypy
-                boxItem["resolution"] = list(resolution)
-        elif "source" in data:
-            print("Precomputed annotation layer.")
-            source = data["source"]
-            if "/|neuroglancer-precomputed:" in source:
-                source = source.split("/|neuroglancer-precomputed:")[0]
-            layer = build_annotation_layer(source, mode="read")
-        else:
-            print("Neither 'annotations' nor 'source' found in layer data.  I'm stumped.")
-            sys.exit()
-    if lineItems is None and layer is not None:
-        if default_box is not None:
-            bbox_start: Optional[Vec3D] = Vec3D(*default_box["pointA"])
-            assert bbox_start is not None
-            bbox_end: Optional[Vec3D] = Vec3D(*default_box["pointB"])
-            assert bbox_end is not None
-            box_res: Optional[Vec3D] = Vec3D(*default_box["resolution"])
-            assert box_res is not None
-            # Using from_points here so as to straighten out a bbox that might
-            # be defined backwards on some dimensions.
-            bbox = BBox3D.from_points([bbox_start, bbox_end], box_res, epsilon=0)
-            print(f"Reading lines within {bbox}...")
-            lines = layer.backend.read_in_bounds(bbox, strict=True)
-            boxItem = default_box
-        else:
-            opt = ""
-            while opt not in ("A", "B"):
-                opt = input("Read [A]ll lines, or only within some [B]ounds? ").upper()
-            if opt == "B":
-                bbox_start = input_vec3Di("  Bounds start")
-                assert bbox_start is not None
-                bbox_end = input_vec3Di("    Bounds end")
-                assert bbox_end is not None
-                resolution = input_vec3Di("    Resolution")
-                assert resolution is not None
-                bbox = BBox3D.from_coords(bbox_start, bbox_end, resolution)
-                lines = layer.backend.read_in_bounds(bbox, strict=True)
-                boxItem = {
-                    "pointA": list(bbox_start),
-                    "pointB": list(bbox_end),
-                    "resolution": list(resolution),
-                    "type": "axis_aligned_bounding_box",
-                }
-            else:
-                lines = layer.backend.read_all()
-        lineItems = [
-            {"id": hex(l.id)[2:], "type": "line", "pointA": l.start, "pointB": l.end}
-            for l in lines
-        ]
-    return lineItems, resolution, boxItem
-
-
-def load_segmentation():
+def load_segmentation(purpose: str):
     global source_path
     layer = None
     lineItems = None
     boxItem = None
     resolution = None
-    print(f"Enter Neuroglancer state link or ID, or a GS file path for SEGMENTATION:")
+    print(f"Enter Neuroglancer state link or ID, or a GS file path for {purpose} segmentation:")
     inp = input("> ")
     if inp:
         source_path = inp
@@ -307,19 +219,13 @@ def load_segmentation():
         if isinstance(source_path, dict):  # type: ignore[unreachable]
             source_path = source_path["url"]  # type: ignore[unreachable]
         # resolution = get_resolution(layer_data)
+    if "/|neuroglancer-precomputed:" in source_path:
+        source_path = source_path.split("/|neuroglancer-precomputed:")[0]
     print(f"Loading segmentation from {source_path}...")
     seg_cvl = CloudVolume(source_path)
     seg_cvl.agglomerate = True  # get root IDs, not supervoxel IDs
+    seg_cvl.fill_missing = True # and don't crash for no good reason
     return seg_cvl, Vec3D(*seg_cvl.resolution)
-    # seg_cvl = build_cv_layer(
-    #     path=source_path,
-    #     allow_slice_rounding=True,
-    #     index_resolution=resolution,
-    #     data_resolution=resolution,
-    #     interpolation_mode="nearest",
-    #     readonly=True,
-    # )
-    # return seg_cvl, resolution
 
 
 def analyze_points(points_A, points_B, valid_test=None) -> dict:
@@ -334,7 +240,7 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
     result["count_A"] = len(points_A)
     result["count_B"] = len(points_B)
 
-    max_distance = 1000  # was: 250  # (nm)
+    max_distance = 250  # (nm)
 
     # Build KD-tree for set B; this lets us efficiently query for the point in B closest
     # to any other point (e.g., points in A), or even get ALL the distances to points in
@@ -388,12 +294,15 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
     result["min_dist"] = distances[0]
 
     # Detailed match info, for debugging
-    result["matches_list"] = matches
-    result["tp_points_A"] = [points_A[i] for i, _ in matches]
-    result["tp_points_B"] = [points_B[i] for _, i in matches]
-    result["fp_points_B"] = list([p for p in points_B if p not in result["tp_points_B"]])
-    result["fn_points_A"] = list([p for p in points_A if p not in result["tp_points_A"]])
-
+    print(f"Found {len(matches)} matches, such as: {matches[:3]}")
+    try:
+        result["matches_list"] = matches
+        result["tp_points_A"] = [points_A[i] for i, _ in matches]
+        result["tp_points_B"] = [points_B[i] for _, i in matches]
+        result["fp_points_B"] = list([p for p in points_B if p not in result["tp_points_B"]])
+        result["fn_points_A"] = list([p for p in points_A if p not in result["tp_points_A"]])
+    except:
+        pass
     return result
 
 
@@ -469,122 +378,62 @@ def print_as_annotations(points, items, key, resolution):
 
     print(",\n".join(result))
 
+# def centroid(binary_image_array):
+#     # Find the interior pixels (all pixels with a value of 1),
+#     # and average to find the centroid
+#     interior_coords = np.argwhere(binary_image_array == 1)
+#     centroid = np.mean(interior_coords, axis=0)
+#     return centroid
+def centroid(binary_image_array):
+    coords = np.transpose(np.nonzero(binary_image_array))
+    return coords.mean(axis=0) if coords.size else np.array([np.nan] * binary_image_array.ndim)
 
-def main():
-    gt_items, gt_resolution, bbox = load_annotations("GROUND TRUTH")
-    print(f"{len(gt_items)} lines loaded as ground-truth synapses")
-    print(f"(Resolution: {tuple(gt_resolution)})")
-    print()
-    pred_items, pred_resolution, bbox = load_annotations("PREDICTIONS", bbox)
-    print(f"{len(pred_items)} lines loaded as predicted synapses")
-    print(f"(Resolution: {tuple(pred_resolution)})")
-    print()
-    if not gt_items or not pred_items:
-        sys.exit()
-    seg_vol, seg_resolution = load_segmentation()
-    print(f"(Resolution: {tuple(seg_resolution)})")
 
-    if bbox is None:
-        bbox = {}
-        bbox["pointA"] = input_vec3Di("Bounding box start")
-        bbox["pointB"] = input_vec3Di("Bounding box end  ")
-        bbox["resolution"] = input_vec3Di("...at Resolution  ")
+def find_clusters(data: np.ndarray) -> Dict[np.integer, Vec3D]:
+    """
+    Find the centroid of each cluster in the data using numpy operations.
+    Return a dict mapping each cluster ID to its centroid.
+    """
+    if data.dtype == np.uint8:
+        # Run connected components on this data to get clusters
+        data = cc3d.connected_components(data, connectivity=26)
+    # Get unique cluster IDs (excluding 0)
+    labels = np.unique(data)
+    labels = labels[labels != 0]  # Skip background
+    print(f"Finding centroids for {len(labels)} clusters")
+    centroids = center_of_mass(np.ones_like(data), labels=data, index=labels)
+    return dict(zip(labels, centroids))
 
-    bbox_start: Vec3D = Vec3D(*bbox["pointA"])
-    bbox_end: Vec3D = Vec3D(*bbox["pointB"])
-    box_res: Vec3D = Vec3D(*bbox["resolution"])
-    bbox = BBox3D.from_points([bbox_start, bbox_end], box_res, epsilon=0)
-    idx = VolumetricIndex.from_coords(
-        floor(bbox.start / seg_resolution),
-        ceil(bbox.end / seg_resolution) + Vec3D(1, 1, 1),
-        seg_resolution,
-    )
+
+if __name__ == "__main__": #def main():
+    pred_vol, pred_resolution = load_segmentation("PREDICTIONS")
+    gt_vol, gt_resolution = load_segmentation("GROUND TRUTH")
+
+    bbox_start: Vec3D = input_vec3Di("Bounding box start")
+    bbox_end: Vec3D = input_vec3Di("Bounding box end  ")
+    bbox_res: Vec3D  = input_vec3Di("...at Resolution  ")
+
+    idx = VolumetricIndex.from_coords(bbox_start, bbox_end, bbox_res)
+
     # Pad the seg data so that we can handle synapses slightly out of bounds.
-    idx = idx.padded(Vec3D(64, 64, 32))
+    idx = idx.padded(Vec3D(16, 16, 8))
     print(f"Reading seg data for: {idx}")
     # seg_data = seg_vol[idx][0]
     s = idx.start
     e = idx.stop
-    seg_data = seg_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
-    print(f"Seg data shape: {seg_data.shape}")
+    pred_data = pred_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
+    gt_data = gt_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
+    
+    # Get the centroids of the clusters in the data
+    pred_centroids = find_clusters(pred_data)
+    gt_centroids = find_clusters(gt_data)
+    print(f"Found {len(pred_centroids)} predicted and {len(gt_centroids)} ground truth synapses")
 
-    # Analyze presynaptic points
-    gt_points = get_points(gt_items, "pointA", gt_resolution)
-    pr_points = get_points(pred_items, "pointA", pred_resolution)
-
-    # (print an example, for debugging)
-    print(f"{gt_points[0]} maps to seg {lookup_seg_id(gt_points[0], seg_data, idx)}")
-
-    point_segs: Dict[Vec3D, str] = {}
-    lookup_seg_ids(gt_points, seg_data, idx, point_segs)
-    lookup_seg_ids(pr_points, seg_data, idx, point_segs)
-    if not gt_points:
-        print("No GT points within bounding box (resolution error?)")
-        sys.exit()
-    if not pr_points:
-        print("No prediction points within bounding box (resolution error?)")
-        sys.exit()
-
-    stats = analyze_points(gt_points, pr_points, lambda a, b: point_segs[a] == point_segs[b])
+    # Analyze predictions vs ground truth
+    stats = analyze_points(list(gt_centroids.values()), list(pred_centroids.values()))
     print_stats(stats, "PRESYNAPTIC SITES")
 
-    # Analyze postsynaptic points
-    gt_points = get_points(gt_items, "pointB", gt_resolution)
-    pr_points = get_points(pred_items, "pointB", pred_resolution)
-
-    point_segs = {}
-    lookup_seg_ids(gt_points, seg_data, idx, point_segs)
-    lookup_seg_ids(pr_points, seg_data, idx, point_segs)
-    if not gt_points:
-        print("No GT points within bounding box (resolution error?)")
-        sys.exit()
-    if not pr_points:
-        print("No prediction points within bounding box (resolution error?)")
-        sys.exit()
-
-    stats = analyze_points(gt_points, pr_points, lambda a, b: point_segs[a] == point_segs[b])
-    print_stats(stats, "POSTSYNAPTIC SITES")
-
-    # Analyze complete synapses
-    # These require a somewhat different procedure — for point_segs, we'll use the
-    # string concatenation of IDs for BOTH ends of the line, keyed on the center point.
-    point_segs = {}
-    for item in gt_items:
-        item["center"] = (Vec3D(*item["pointA"]) + Vec3D(*item["pointB"])) / 2
-        ids = (
-            str(lookup_seg_id(Vec3D(*item["pointA"]) * gt_resolution, seg_data, idx))
-            + "-"
-            + str(lookup_seg_id(Vec3D(*item["pointB"]) * gt_resolution, seg_data, idx))
-        )
-        point_segs[item["center"] * gt_resolution] = ids
-    for item in pred_items:
-        item["center"] = (Vec3D(*item["pointA"]) + Vec3D(*item["pointB"])) / 2
-        ids = (
-            str(lookup_seg_id(Vec3D(*item["pointA"]) * pred_resolution, seg_data, idx))
-            + "-"
-            + str(lookup_seg_id(Vec3D(*item["pointB"]) * pred_resolution, seg_data, idx))
-        )
-        point_segs[item["center"] * pred_resolution] = ids
-    gt_points = get_points(gt_items, "center", gt_resolution)
-    if not gt_points:
-        print("No GT points within bounding box (resolution error?)")
-        sys.exit()
-    pr_points = get_points(pred_items, "center", pred_resolution)
-    if not pr_points:
-        print("No prediction points within bounding box (resolution error?)")
-        sys.exit()
-    stats = analyze_points(gt_points, pr_points, lambda a, b: point_segs[a] == point_segs[b])
-    print_stats(stats, "SYNAPSES")
-
-    print("\n\nTP:")
-    print_as_annotations(stats["tp_points_B"], pred_items, "center", pred_resolution)
-
-    print("\n\nFP:")
-    print_as_annotations(stats["fp_points_B"], pred_items, "center", pred_resolution)
-
-    print("\n\nFN:")
-    print_as_annotations(stats["fn_points_A"], gt_items, "center", gt_resolution)
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

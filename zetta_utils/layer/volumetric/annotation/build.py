@@ -65,6 +65,8 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         the user before writing it to the backend.
     :return: Layer built according to the spec.
     """
+    if "/|neuroglancer-precomputed:" in path:
+        path = path.split("/|neuroglancer-precomputed:")[0]
     dims, lower_bound, upper_bound, spatial_entries = read_info(path)
     file_exists = spatial_entries is not None
     file_resolution: list[float] = []

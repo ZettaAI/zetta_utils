@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import NotRequired, TypedDict
+
+from typing_extensions import NotRequired, TypedDict
 
 
 class User(TypedDict):

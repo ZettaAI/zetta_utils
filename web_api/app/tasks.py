@@ -57,7 +57,7 @@ async def get_subtask_api(project_name: str, subtask_id: str) -> Subtask:
     return get_subtask(project_name, subtask_id)
 
 
-@api.post("/projects/{project_name}/subtasks/start")
+@api.post("/projects/{project_name}/start_subtask")
 async def start_subtask_api(
     project_name: str,
     user_id: str,

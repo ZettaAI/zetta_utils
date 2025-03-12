@@ -160,7 +160,6 @@ def get_bounding_boxes(state, layer_name: str, return_union: bool = False):
     for item in layer_data["annotations"]:
         if item["type"] != "axis_aligned_bounding_box":
             continue
-        print(item)
         ng_bbox = AxisAlignedBoundingBoxAnnotation(pointA=item["pointA"], pointB=item["pointB"])
         bbox = BBox3D.from_ng_bbox(ng_bbox, resolution)
         bboxes.append(bbox)
@@ -174,14 +173,138 @@ def get_bounding_boxes(state, layer_name: str, return_union: bool = False):
     return bboxes
 
 
-def process_bbox(source_cv: CloudVolume, bbox: BBox3D, output_cv: CloudVolume):
+def get_annotation_lines(state, layer_name: str, resolution: Sequence[int]):
+    """
+    Returns a list of line annotations from a Neuroglancer state, with endpoints
+    converted to integer Vec3Ds at the given resolution.
+    """
+    layer_data = nglui.parser.get_layer(state, layer_name)
+    layer_res = get_resolution(layer_data)
+    desired_res = Vec3D(*resolution)
+    result = layer_data["annotations"]
+    offset = Vec3D(0, 0, -0.5)  # accounts for how NG displays annotations off by 0.5 voxel in Z
+    for i in range(len(result) - 1, -1, -1):
+        if result[i]["type"] != "line":
+            del result[i]
+            continue
+        pointA = Vec3D(*result[i]["pointA"]) + offset
+        pointB = Vec3D(*result[i]["pointB"]) + offset
+        if layer_res == desired_res:
+            result[i]["pointA"] = pointA.int()
+            result[i]["pointB"] = pointB.int()
+        else:
+            result[i]["pointA"] = (pointA * layer_res / desired_res).int()
+            result[i]["pointB"] = (pointB * layer_res / desired_res).int()
+    return result
+
+
+def get_labels_along_line(volume, start_point: Vec3D, end_point: Vec3D):
+    """Return set of nonzero values in volume along the line from start to end"""
+    labels = set()
+    x0, y0, z0 = round(start_point)
+    x1, y1, z1 = round(end_point)
+    dx = abs(x1 - x0)
+    dy = abs(y1 - y0)
+    dz = abs(z1 - z0)
+
+    xs = 1 if x1 > x0 else -1
+    ys = 1 if y1 > y0 else -1
+    zs = 1 if z1 > z0 else -1
+
+    # Driving axis is the one with max delta
+    if dx >= dy and dx >= dz:
+        p1 = 2 * dy - dx
+        p2 = 2 * dz - dx
+        while x0 != x1:
+            if volume[x0, y0, z0, 0] != 0:
+                labels.add(int(volume[x0, y0, z0, 0]))
+            x0 += xs
+            if p1 >= 0:
+                y0 += ys
+                p1 -= 2 * dx
+            if p2 >= 0:
+                z0 += zs
+                p2 -= 2 * dx
+            p1 += 2 * dy
+            p2 += 2 * dz
+
+    elif dy >= dx and dy >= dz:
+        p1 = 2 * dx - dy
+        p2 = 2 * dz - dy
+        while y0 != y1:
+            if volume[x0, y0, z0, 0] != 0:
+                labels.add(int(volume[x0, y0, z0, 0]))
+            y0 += ys
+            if p1 >= 0:
+                x0 += xs
+                p1 -= 2 * dy
+            if p2 >= 0:
+                z0 += zs
+                p2 -= 2 * dy
+            p1 += 2 * dx
+            p2 += 2 * dz
+
+    else:
+        p1 = 2 * dy - dz
+        p2 = 2 * dx - dz
+        while z0 != z1:
+            if volume[x0, y0, z0, 0] != 0:
+                labels.add(int(volume[x0, y0, z0, 0]))
+            z0 += zs
+            if p1 >= 0:
+                y0 += ys
+                p1 -= 2 * dz
+            if p2 >= 0:
+                x0 += xs
+                p2 -= 2 * dz
+            p1 += 2 * dy
+            p2 += 2 * dx
+
+    return labels
+
+
+def process_bbox(source_cv: CloudVolume, bbox: BBox3D, lines: dict, output_cv: CloudVolume):
+    """
+    Process a bounding box by erasing any clusters that intersect with the FP lines,
+    adding new clusters for each FN line, and leaving the TP lines unchanged.
+    Note that line endpoints must be in the same resolution as source_cv.
+    """
     assert (source_cv.resolution == output_cv.resolution).all()
+
+    # Pad the bounding box a bit, to ensure that synapses fit entirely within
+    resolution: Vec3D = Vec3D(*source_cv.resolution)
+    bbox = bbox.padded(pad=[20, 20, 10], resolution=resolution)
+
     # Get the segmentation data from the source volume
-    s = round(bbox.start / Vec3D(*source_cv.resolution))
-    e = round(bbox.end / Vec3D(*source_cv.resolution))
+    s = round(bbox.start / resolution)
+    e = round(bbox.end / resolution)
     data = source_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]]
+
     # Convert segmentation data to binary mask (255 where nonzero, 0 where zero)
     binary_mask = (data > 0).astype(np.uint8) * 255
+
+    # Handle FP lines by erasing any cluster these cross
+    for line in lines["FP"]:
+        pointA = line["pointA"]
+        pointB = line["pointB"]
+        if not bbox.line_intersects(pointA, pointB, resolution):
+            continue
+
+        # Convert line endpoints to bbox-relative coordinates
+        start = pointA - s
+        end = pointB - s
+
+        # Find labels that intersect with the line
+        intersecting_labels = get_labels_along_line(data, start, end)
+        print(
+            f"Clearing labels for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
+        )
+
+        # Clear those components from binary mask
+        for label in intersecting_labels:
+            binary_mask[data == label] = 0
+
+    # Write to file
     output_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]] = binary_mask
 
 
@@ -211,6 +334,22 @@ if __name__ == "__main__":
     print(f"Found {len(bboxes)} bounding boxes")
     print(f"Union of all bounding boxes: {union_bbox.pformat(tuple(source_res))}")
 
+    # Get the FP, TP, and FN layers
+    layer_names = nglui.parser.layer_names(state)
+    fp_layer_name = (
+        "FP" if "FP" in layer_names else get_annotation_layer_name(state, "False Positives")
+    )
+    tp_layer_name = (
+        "TP" if "TP" in layer_names else get_annotation_layer_name(state, "True Positives")
+    )
+    fn_layer_name = (
+        "FN" if "FN" in layer_names else get_annotation_layer_name(state, "False Negatives")
+    )
+    lines = {}
+    lines["FP"] = get_annotation_lines(state, fp_layer_name, source_res)
+    lines["TP"] = get_annotation_lines(state, tp_layer_name, source_res)
+    lines["FN"] = get_annotation_lines(state, fn_layer_name, source_res)
+
     # Initialize the output volume
     output_path = input_or_default("Enter output path", "gs://tmp_2w/joe/syntest")
     if not output_path.startswith("precomputed://"):
@@ -235,7 +374,7 @@ if __name__ == "__main__":
     # Now, iterate over and process each bounding box
     for bbox in bboxes:
         print(f"Processing bounding box: {bbox.pformat(tuple(source_res))}")
-        data = process_bbox(source_cv, bbox, output_cv)
+        data = process_bbox(source_cv, bbox, lines, output_cv)
     print("Done!")
 
 # if __name__ == "__main__":

@@ -16,6 +16,7 @@ from caveclient import CAVEclient
 from cloudvolume import CloudVolume
 from google.cloud import storage
 from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
+from scipy.ndimage import binary_dilation
 
 from zetta_utils.geometry import BBox3D, Vec3D
 
@@ -263,7 +264,77 @@ def get_labels_along_line(volume, start_point: Vec3D, end_point: Vec3D):
     return labels
 
 
-def process_bbox(source_cv: CloudVolume, bbox: BBox3D, lines: dict, output_cv: CloudVolume):
+def erase_clusters_along_line(binary_mask, labels, bbox: BBox3D, line: Dict, resolution: Vec3D):
+    """Erase clusters along a line in a binary mask"""
+    pointA = line["pointA"]
+    pointB = line["pointB"]
+    if not bbox.line_intersects(pointA, pointB, resolution):
+        return
+
+    # Convert line endpoints to bbox-relative coordinates
+    s = (bbox.start / resolution).int()
+    start = pointA - s
+    end = pointB - s
+
+    # Find labels that intersect with the line
+    intersecting_labels = get_labels_along_line(labels, start, end)
+    print(
+        f"Clearing labels for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
+    )
+
+    # Clear those components from binary mask
+    for label in intersecting_labels:
+        binary_mask[labels == label] = 0
+
+
+def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, resolution: Vec3D):
+    """Add a cluster along a line in a binary mask.  The line identifies two cells
+    via cell_seg; we dilate those a bit and find the overlap to determine the contact
+    region, and then fill in the mask from the overlap within some radius of the line."""
+    pointA = line["pointA"]
+    pointB = line["pointB"]
+    if not bbox.line_intersects(pointA, pointB, resolution):
+        return
+
+    # Convert line endpoints to bbox-relative coordinates
+    s = (bbox.start / resolution).int()
+    start = pointA - s
+    end = pointB - s
+
+    # Get the cell ID for each endpoint
+    cell_idA = cell_seg[start[0], start[1], start[2], 0]
+    cell_idB = cell_seg[end[0], end[1], end[2], 0]
+    print(
+        f"Creating cluster between {tuple(pointA)} and {tuple(pointB)}: cells {cell_idA} and {cell_idB}"
+    )
+    # Create and dilate a binary mask for each cell ID
+    cell_maskA = (cell_seg == cell_idA).astype(np.uint8)
+    cell_maskB = (cell_seg == cell_idB).astype(np.uint8)
+    cell_maskA = binary_dilation(cell_maskA, np.ones((3, 3, 2, 1)))
+    cell_maskB = binary_dilation(cell_maskB, np.ones((3, 3, 2, 1)))
+
+    # Find the overlap between the two masks
+    overlap = np.logical_and(cell_maskA, cell_maskB)
+
+    # Create a round nonisotropic mask around the line midpoint
+    midpoint = ((start + end) / 2).int()
+    xy_radius = 10
+    z_radius = 2
+    y, x, z = np.ogrid[
+        -midpoint[0] : binary_mask.shape[0] - midpoint[0],
+        -midpoint[1] : binary_mask.shape[1] - midpoint[1],
+        -midpoint[2] : binary_mask.shape[2] - midpoint[2],
+    ]
+    radius_mask = ((x * x + y * y) <= xy_radius * xy_radius) & (np.abs(z) <= z_radius)
+    radius_mask = radius_mask[..., np.newaxis]  # (make 4-dimensional)
+
+    # Update the binary mask with the overlap, but only within the radius mask
+    binary_mask[np.logical_and(overlap, radius_mask)] = 255
+
+
+def process_bbox(
+    source_cv: CloudVolume, cell_cv: CloudVolume, bbox: BBox3D, lines: dict, output_cv: CloudVolume
+):
     """
     Process a bounding box by erasing any clusters that intersect with the FP lines,
     adding new clusters for each FN line, and leaving the TP lines unchanged.
@@ -278,31 +349,19 @@ def process_bbox(source_cv: CloudVolume, bbox: BBox3D, lines: dict, output_cv: C
     # Get the segmentation data from the source volume
     s = round(bbox.start / resolution)
     e = round(bbox.end / resolution)
-    data = source_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]]
+    syn_data = source_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]]
+    cell_data = cell_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]]
 
-    # Convert segmentation data to binary mask (255 where nonzero, 0 where zero)
-    binary_mask = (data > 0).astype(np.uint8) * 255
+    # Convert synapse segmentation data to binary mask (255 where nonzero, 0 where zero)
+    binary_mask = (syn_data > 0).astype(np.uint8) * 255
 
     # Handle FP lines by erasing any cluster these cross
     for line in lines["FP"]:
-        pointA = line["pointA"]
-        pointB = line["pointB"]
-        if not bbox.line_intersects(pointA, pointB, resolution):
-            continue
+        erase_clusters_along_line(binary_mask, syn_data, bbox, line, resolution)
 
-        # Convert line endpoints to bbox-relative coordinates
-        start = pointA - s
-        end = pointB - s
-
-        # Find labels that intersect with the line
-        intersecting_labels = get_labels_along_line(data, start, end)
-        print(
-            f"Clearing labels for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
-        )
-
-        # Clear those components from binary mask
-        for label in intersecting_labels:
-            binary_mask[data == label] = 0
+    # Handle FN lines by adding new clusters for each line
+    for line in lines["FN"]:
+        add_cluster_along_line(binary_mask, cell_data, bbox, line, resolution)
 
     # Write to file
     output_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]] = binary_mask
@@ -327,6 +386,18 @@ if __name__ == "__main__":
     print(f"   Source resolution: {source_res}")
     print(f"   Source offset:     {source_cv.voxel_offset}")
     print(f"   Source data size:  {source_cv.volume_size}")
+
+    # Get the cell segmentation layer (likely to be a Graphene layer)
+    cell_layer_name = get_segmentation_layer_name(state, "Cell Segmentation")
+    cell_layer_data = nglui.parser.get_layer(state, cell_layer_name)
+    cell_source_path = cell_layer_data["source"]
+    if isinstance(cell_source_path, dict):
+        cell_source_path = cell_source_path["url"]
+    print(f"Cell segmentation path: {cell_source_path}")
+    cell_cv = CloudVolume(cell_source_path)
+    cell_res = [int(i) for i in cell_cv.resolution]
+    print(f"   Cell resolution: {cell_res}")
+    assert (cell_cv.resolution == source_cv.resolution).all()
 
     # Get the bounding box(es) which define the work space
     bbox_layer_name = get_annotation_layer_name(state, "Bounding Boxes")
@@ -374,7 +445,7 @@ if __name__ == "__main__":
     # Now, iterate over and process each bounding box
     for bbox in bboxes:
         print(f"Processing bounding box: {bbox.pformat(tuple(source_res))}")
-        data = process_bbox(source_cv, bbox, lines, output_cv)
+        data = process_bbox(source_cv, cell_cv, bbox, lines, output_cv)
     print("Done!")
 
 # if __name__ == "__main__":

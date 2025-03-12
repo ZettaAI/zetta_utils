@@ -23,18 +23,7 @@ async def generic_handler(request: Request, exc: Exception):
     return generic_exception_handler(request, exc)
 
 
-@api.get("/subtask_types/{subtask_type_id}")
-async def get_subtask_type_api(subtask_type_id: str) -> SubtaskType:
-    """
-    Get a subtask type by ID.
-
-    :param subtask_type_id: The ID of the subtask type to get
-    :return: The subtask type data
-    """
-    return get_subtask_type(subtask_type_id)
-
-
-@api.post("/subtask_types")
+@api.post("/subtask_type")
 async def create_subtask_type_api(data: SubtaskType) -> str:
     """
     Create a new subtask type.
@@ -45,7 +34,7 @@ async def create_subtask_type_api(data: SubtaskType) -> str:
     return create_subtask_type(data)
 
 
-@api.get("/projects/{project_name}/subtasks/{subtask_id}")
+@api.get("/get_subtask")
 async def get_subtask_api(project_name: str, subtask_id: str) -> Subtask:
     """
     Get a subtask by ID.
@@ -57,7 +46,7 @@ async def get_subtask_api(project_name: str, subtask_id: str) -> Subtask:
     return get_subtask(project_name, subtask_id)
 
 
-@api.post("/projects/{project_name}/start_subtask")
+@api.post("/start_subtask")
 async def start_subtask_api(
     project_name: str,
     user_id: str,
@@ -74,7 +63,7 @@ async def start_subtask_api(
     return start_subtask(project_name, user_id, subtask_id)
 
 
-@api.put("/projects/{project_name}/subtasks/{subtask_id}/release")
+@api.put("/release_subtask")
 async def release_subtask_api(
     project_name: str,
     subtask_id: str,
@@ -98,7 +87,7 @@ async def release_subtask_api(
     )
 
 
-@api.post("/projects/{project_name}/timesheets")
+@api.post("/submit_timesheet")
 async def submit_timesheet_api(
     project_name: str,
     user_id: str,

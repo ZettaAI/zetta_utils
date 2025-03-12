@@ -1,4 +1,4 @@
-FROM python:3.11
+FROM python:3.12
 
 ENV PYTHONPATH /opt/http
 WORKDIR /opt/http

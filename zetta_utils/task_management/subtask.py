@@ -124,12 +124,20 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             raise UserValidationError(f"User {user_id} not found")
 
         user_data = user_doc.to_dict()
-        if user_data.get("active_subtask"):
-            raise UserValidationError("User already has an active subtask")
+        current_active_subtask_id = user_data.get("active_subtask")
+        if (
+            subtask_id is not None
+            and current_active_subtask_id != ""
+            and current_active_subtask_id != subtask_id
+        ):
+            raise UserValidationError(
+                f"User already has an active subtask {current_active_subtask_id} "
+                f"which is different from requested subtask {subtask_id}"
+            )
 
-        if subtask_id is None:
+        if subtask_id is None and current_active_subtask_id == "":
             selected_subtask = _auto_select_subtask(client, project_name, user_id, transaction)
-        else:
+        elif subtask_id is not None:
             selected_subtask = (
                 client.collection(f"{project_name}_subtasks")
                 .document(subtask_id)
@@ -138,6 +146,14 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             assert selected_subtask is not None
             if not selected_subtask.exists:
                 raise SubtaskValidationError(f"Subtask {subtask_id} not found")
+        else:
+            selected_subtask = (
+                client.collection(f"{project_name}_subtasks")
+                .document(current_active_subtask_id)
+                .get(transaction=transaction)
+            )
+            assert selected_subtask is not None
+            assert selected_subtask.exists
 
         if selected_subtask is not None:
             selected_subtask_data = selected_subtask.to_dict()
@@ -153,7 +169,10 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             current_time = time.time()
             # Check if task is idle and can be taken over
             if subtask_data["active_user_id"] != "":
-                if subtask_data["last_leased_ts"] <= current_time - get_max_idle_seconds():
+                if (
+                    subtask_data["last_leased_ts"] <= current_time - get_max_idle_seconds()
+                    or subtask_data["active_user_id"] == user_id
+                ):
                     previous_user_ref = client.collection(f"{project_name}_users").document(
                         subtask_data["active_user_id"]
                     )

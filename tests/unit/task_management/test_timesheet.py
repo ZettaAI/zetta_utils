@@ -117,6 +117,35 @@ def test_submit_timesheet_success(project_name_timesheet, existing_user, existin
     assert subtask_data["last_leased_ts"] > time.time() - 10  # Updated within last 10 seconds
 
 
+def test_submit_timesheet_update_existing(project_name_timesheet, existing_user, existing_subtask):
+    """Test updating an existing timesheet entry with additional duration"""
+    # Start the subtask
+    start_subtask(project_name_timesheet, "test_user", "subtask_1")
+
+    # Submit first timesheet entry
+    initial_duration = 3600
+    submit_timesheet(project_name_timesheet, "test_user", initial_duration, "subtask_1")
+
+    # Submit second timesheet entry for the same subtask
+    additional_duration = 1800
+    submit_timesheet(project_name_timesheet, "test_user", additional_duration, "subtask_1")
+
+    # Verify the timesheet entry was updated with the combined duration
+    client = firestore.Client()
+    timesheet_doc = (
+        client.collection(f"{project_name_timesheet}_timesheets")
+        .document("test_user_subtask_1")
+        .get()
+    )
+    assert timesheet_doc.exists
+    timesheet_data = timesheet_doc.to_dict()
+    assert timesheet_data["duration_seconds"] == initial_duration + additional_duration
+    assert timesheet_data["user_id"] == "test_user"
+    assert timesheet_data["subtask_id"] == "subtask_1"
+    assert "last_updated_ts" in timesheet_data
+    assert timesheet_data["last_updated_ts"] > time.time() - 10  # Updated within last 10 seconds
+
+
 def test_submit_timesheet_no_active_subtask(project_name_timesheet, existing_user):
     """Test submitting timesheet without an active subtask"""
     with pytest.raises(UserValidationError, match="User does not have an active subtask"):

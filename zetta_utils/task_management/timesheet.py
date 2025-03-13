@@ -57,17 +57,30 @@ def submit_timesheet(
         if subtask_data["active_user_id"] != user_id:
             raise UserValidationError("Subtask not assigned to this user")
 
-        # Create timesheet entry
-        timesheet_ref = client.collection(f"{project_name}_timesheets").document()
-        timesheet_data = {
-            "duration_seconds": duration_seconds,
-            "user_id": user_id,
-            "subtask_id": subtask_id,
-            "created_ts": time.time(),
-        }
-        transaction.set(timesheet_ref, timesheet_data)
+        timesheet_ref = client.collection(f"{project_name}_timesheets").document(
+            f"{user_id}_{subtask_id}"
+        )
+        timesheet_doc = timesheet_ref.get(transaction=transaction)
 
-        # Update subtask's last_leased_ts
+        if timesheet_doc.exists:
+            existing_data = timesheet_doc.to_dict()
+            timesheet_data = {
+                "duration_seconds": existing_data["duration_seconds"] + duration_seconds,
+                "user_id": user_id,
+                "subtask_id": subtask_id,
+                "last_updated_ts": time.time(),
+            }
+            transaction.update(timesheet_ref, timesheet_data)
+        else:
+            timesheet_data = {
+                "duration_seconds": duration_seconds,
+                "user_id": user_id,
+                "subtask_id": subtask_id,
+                "created_ts": time.time(),
+                "last_updated_ts": time.time(),
+            }
+            transaction.set(timesheet_ref, timesheet_data)
+
         transaction.update(subtask_ref, {"last_leased_ts": time.time()})
 
     submit_in_transaction(get_transaction())

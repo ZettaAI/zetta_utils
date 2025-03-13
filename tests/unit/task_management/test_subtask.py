@@ -606,6 +606,11 @@ def test_start_subtask_user_already_has_active(
     subtask2 = get_subtask(project_name_subtask, "subtask_2")
     assert subtask2["active_user_id"] == ""
 
+    start_subtask(project_name_subtask, "user_1", "subtask_1")
+    start_subtask(project_name_subtask, "user_1")
+    user = get_user(project_name_subtask, "user_1")
+    assert user["active_subtask"] == "subtask_1"
+
 
 def test_start_nonexistent_subtask(project_name_subtask, existing_user):
     """Test that starting a nonexistent subtask raises an error"""

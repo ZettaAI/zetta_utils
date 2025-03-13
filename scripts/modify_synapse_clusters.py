@@ -278,9 +278,13 @@ def erase_clusters_along_line(binary_mask, labels, bbox: BBox3D, line: Dict, res
 
     # Find labels that intersect with the line
     intersecting_labels = get_labels_along_line(labels, start, end)
-    print(
-        f"Clearing labels for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
-    )
+    if len(intersecting_labels) == 0:
+        print(f"No labels found for line from {tuple(pointA)} to {tuple(pointB)}")
+        return
+    elif len(intersecting_labels) > 1:
+        print(
+            f"Multiple labels found for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
+        )
 
     # Clear those components from binary mask
     for label in intersecting_labels:
@@ -304,9 +308,7 @@ def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, reso
     # Get the cell ID for each endpoint
     cell_idA = cell_seg[start[0], start[1], start[2], 0]
     cell_idB = cell_seg[end[0], end[1], end[2], 0]
-    print(
-        f"Creating cluster between {tuple(pointA)} and {tuple(pointB)}: cells {cell_idA} and {cell_idB}"
-    )
+
     # Create and dilate a binary mask for each cell ID
     cell_maskA = (cell_seg == cell_idA).astype(np.uint8)
     cell_maskB = (cell_seg == cell_idB).astype(np.uint8)
@@ -315,6 +317,11 @@ def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, reso
 
     # Find the overlap between the two masks
     overlap = np.logical_and(cell_maskA, cell_maskB)
+    if not np.any(overlap):
+        print(
+            f"No overlap found between {tuple(pointA)} and {tuple(pointB)} (cells {cell_idA} and {cell_idB})"
+        )
+        return
 
     # Create a round nonisotropic mask around the line midpoint
     midpoint = ((start + end) / 2).int()

@@ -70,7 +70,7 @@ def progress_ctx_mngr(
         progress.TimeElapsedColumn(),
         progress.TimeRemainingColumn(),
         transient=True,
-        speed_estimate_period=90,
+        speed_estimate_period=300,
         # refresh_per_second=1,
     )
 

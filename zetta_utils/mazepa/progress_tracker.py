@@ -121,7 +121,7 @@ def progress_ctx_mngr(
             execution_tracker_ids: dict[str, progress.TaskID] = {}
 
             def write_progress_file():
-                temp_console = Console(record=True, width=80)
+                temp_console = Console(record=True, width=120)
                 for line in progress_bar.get_renderables():
                     temp_console.print(line)
                 progress_html = temp_console.export_html(inline_styles=True)

@@ -2,11 +2,6 @@
 """
 Module to support writing of annotations in precomputed format.
 
-(Note: unlike the other files in this directory, this one has
-nothing to do with storage of annotations in a database.  It's
-all about writing -- and to some extent, reading -- precomputed
-files as used by Neuroglancer.)
-
 References:
 	https://github.com/google/neuroglancer/issues/227
 	https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/annotations.md
@@ -756,6 +751,7 @@ class AnnotationLayerBackend(
         bounds_size_vx = self.index.shape
         chunk_size_vx = Vec3D(*self.chunk_sizes[level])
         grid_shape = ceil(bounds_size_vx / chunk_size_vx)
+
         level_key = f"spatial{level}"
         level_dir = path_join(self.path, level_key)
 
@@ -763,8 +759,9 @@ class AnnotationLayerBackend(
         roi_end_vx = round(roi.end / self.index.resolution)
         roi_index = VolumetricIndex.from_coords(roi_start_vx, roi_end_vx, self.index.resolution)
 
-        start_chunk = (roi_index.start - self.index.start) // chunk_size_vx
-        end_chunk = (roi_index.stop - self.index.start) // chunk_size_vx
+        # Voxel chunk sizes may be floats, so we need to convert to ints explicitly
+        start_chunk = [int(i) for i in (roi_index.start - self.index.start) // chunk_size_vx]
+        end_chunk = [int(i) for i in (roi_index.stop - self.index.start) // chunk_size_vx]
         for x in range(max(0, start_chunk[0]), min(grid_shape[0], end_chunk[0] + 1)):
             for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1] + 1)):
                 for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2] + 1)):
@@ -826,6 +823,7 @@ class AnnotationLayerBackend(
 
     def with_changes(self, **kwargs) -> "AnnotationLayerBackend":  # pragma: no cover
         """Return a new AnnotationLayer with the given changes applied."""
+        del kwargs["enforce_chunk_aligned_writes"]
         return attrs.evolve(self, **kwargs)
 
     # Required overrides for VolumetricBackend interface

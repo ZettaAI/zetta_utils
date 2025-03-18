@@ -22,6 +22,10 @@ for k in dir(torch.nn):
     if k not in NN_MANUAL and k[0].isupper():
         builder.register(f"torch.nn.{k}")(getattr(torch.nn, k))
 
+for k in dir(torch.optim):
+    if k[0].isupper():
+        builder.register(f"torch.optim.{k}")(getattr(torch.optim, k))
+
 for module in [torch, torch.nn.functional, torch.linalg, torch.fft]:
     for k in dir(module):
         attr = getattr(module, k)

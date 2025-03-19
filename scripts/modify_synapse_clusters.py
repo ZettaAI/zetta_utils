@@ -183,13 +183,12 @@ def get_annotation_lines(state, layer_name: str, resolution: Sequence[int]):
     layer_res = get_resolution(layer_data)
     desired_res = Vec3D(*resolution)
     result = layer_data["annotations"]
-    offset = Vec3D(0, 0, -0.5)  # accounts for how NG displays annotations off by 0.5 voxel in Z
     for i in range(len(result) - 1, -1, -1):
         if result[i]["type"] != "line":
             del result[i]
             continue
-        pointA = Vec3D(*result[i]["pointA"]) + offset
-        pointB = Vec3D(*result[i]["pointB"]) + offset
+        pointA: Vec3D = Vec3D(*result[i]["pointA"])
+        pointB: Vec3D = Vec3D(*result[i]["pointB"])
         if layer_res == desired_res:
             result[i]["pointA"] = pointA.int()
             result[i]["pointB"] = pointB.int()
@@ -265,22 +264,28 @@ def get_labels_along_line(volume, start_point: Vec3D, end_point: Vec3D):
 
 
 def erase_clusters_along_line(binary_mask, labels, bbox: BBox3D, line: Dict, resolution: Vec3D):
-    """Erase clusters along a line in a binary mask"""
+    """Erase clusters along a line in a binary mask.  Return True if any clusters were erased,
+    False otherwise."""
     pointA = line["pointA"]
     pointB = line["pointB"]
     if not bbox.line_intersects(pointA, pointB, resolution):
-        return
+        return False
 
     # Convert line endpoints to bbox-relative coordinates
     s = (bbox.start / resolution).int()
     start = pointA - s
     end = pointB - s
 
-    # Find labels that intersect with the line
-    intersecting_labels = get_labels_along_line(labels, start, end)
+    # Find labels that intersect with the line.  We'll try up to three different Z positions,
+    # since that can often make the difference between finding the clustor or not.
+    for delta in [0, 1, -1]:
+        dvec = Vec3D(0, 0, delta)
+        intersecting_labels = get_labels_along_line(labels, start + dvec, end + dvec)
+        if len(intersecting_labels) > 0:
+            break
     if len(intersecting_labels) == 0:
         print(f"No labels found for line from {tuple(pointA)} to {tuple(pointB)}")
-        return
+        return False
     elif len(intersecting_labels) > 1:
         print(
             f"Multiple labels found for line from {tuple(pointA)} to {tuple(pointB)}: {str(intersecting_labels)}"
@@ -289,6 +294,7 @@ def erase_clusters_along_line(binary_mask, labels, bbox: BBox3D, line: Dict, res
     # Clear those components from binary mask
     for label in intersecting_labels:
         binary_mask[labels == label] = 0
+    return True
 
 
 def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, resolution: Vec3D):
@@ -327,7 +333,7 @@ def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, reso
     midpoint = ((start + end) / 2).int()
     xy_radius = 10
     z_radius = 2
-    y, x, z = np.ogrid[
+    x, y, z = np.ogrid[
         -midpoint[0] : binary_mask.shape[0] - midpoint[0],
         -midpoint[1] : binary_mask.shape[1] - midpoint[1],
         -midpoint[2] : binary_mask.shape[2] - midpoint[2],
@@ -339,8 +345,43 @@ def add_cluster_along_line(binary_mask, cell_seg, bbox: BBox3D, line: Dict, reso
     binary_mask[np.logical_and(overlap, radius_mask)] = 255
 
 
+def add_terminal(
+    cell_seg, bbox: BBox3D, line: Dict, which_point: str, resolution: Vec3D, output_cv: CloudVolume
+):
+    """Add a terminal cluster for one end of a line in a binary mask."""
+    point = line["point" + which_point]
+    if not bbox.contains(point, resolution):
+        return
+
+    # Convert endpoint to bbox-relative coordinates, and find the cell ID
+    s = (bbox.start / resolution).int()
+    local_point = point - s
+    cell_id = cell_seg[local_point[0], local_point[1], local_point[2], 0]
+    cell_mask = (cell_seg == cell_id).astype(np.uint8)
+
+    # Create a round nonisotropic mask around the endpoint
+    xy_radius = 10
+    z_radius = 2
+    x, y, z = np.ogrid[
+        -local_point[0] : cell_seg.shape[0] - local_point[0],
+        -local_point[1] : cell_seg.shape[1] - local_point[1],
+        -local_point[2] : cell_seg.shape[2] - local_point[2],
+    ]
+    radius_mask = ((x * x + y * y) <= xy_radius * xy_radius) & (np.abs(z) <= z_radius)
+    radius_mask = radius_mask[..., np.newaxis]  # (make 4-dimensional)
+
+    # Update the binary mask with the cell mask, but only within the radius mask
+    output_cv[np.logical_and(cell_mask, radius_mask)] = 255
+
+
 def process_bbox(
-    source_cv: CloudVolume, cell_cv: CloudVolume, bbox: BBox3D, lines: dict, output_cv: CloudVolume
+    source_cv: CloudVolume,
+    cell_cv: CloudVolume,
+    bbox: BBox3D,
+    lines: dict,
+    output_cv: CloudVolume,
+    presyn_output_cv: CloudVolume,
+    postsyn_output_cv: CloudVolume,
 ):
     """
     Process a bounding box by erasing any clusters that intersect with the FP lines,
@@ -373,6 +414,55 @@ def process_bbox(
     # Write to file
     output_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]] = binary_mask
 
+    # If presynaptic output is desired, generate presynaptic clusters for TP and FN lines.
+    if presyn_output_cv is not None:
+        presyn_mask = np.zeros(binary_mask.shape, dtype=np.uint8)
+        for line in lines["TP"]:
+            add_terminal(cell_data, bbox, line, "A", resolution, presyn_mask)
+        for line in lines["FN"]:
+            add_terminal(cell_data, bbox, line, "A", resolution, presyn_mask)
+        presyn_output_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]] = presyn_mask
+
+    if postsyn_output_cv is not None:
+        postsyn_mask = np.zeros(binary_mask.shape, dtype=np.uint8)
+        for line in lines["TP"]:
+            add_terminal(cell_data, bbox, line, "B", resolution, postsyn_mask)
+        for line in lines["FN"]:
+            add_terminal(cell_data, bbox, line, "B", resolution, postsyn_mask)
+        postsyn_output_cv[s[0] : e[0], s[1] : e[1], s[2] : e[2]] = postsyn_mask
+
+
+def create_volume(source_cv: CloudVolume, output_path: str) -> CloudVolume:
+    """
+    Create a new CloudVolume instance based on the source volume's parameters.
+
+    :param source_cv: Source CloudVolume to copy parameters from
+    :param output_path: Path where the new volume will be created
+
+    :return: The newly created volume
+    """
+    if not output_path.startswith("precomputed://"):
+        output_path = "precomputed://" + output_path
+
+    info = CloudVolume.create_new_info(
+        num_channels=1,
+        layer_type="image",
+        data_type="uint8",
+        encoding="raw",
+        resolution=source_cv.resolution,
+        voxel_offset=source_cv.voxel_offset,
+        mesh="mesh",
+        chunk_size=source_cv.chunk_size,
+        volume_size=source_cv.volume_size,
+    )
+    output_cv = CloudVolume(output_path, info=info)
+    output_cv.commit_info()
+    output_cv.non_aligned_writes = True
+    output_cv.fill_missing = True
+    output_cv.delete_black_uploads = True
+
+    return output_cv
+
 
 # def main():
 if __name__ == "__main__":
@@ -402,6 +492,7 @@ if __name__ == "__main__":
         cell_source_path = cell_source_path["url"]
     print(f"Cell segmentation path: {cell_source_path}")
     cell_cv = CloudVolume(cell_source_path)
+    cell_cv.agglomerate = True  # get root IDs, not supervoxel IDs
     cell_res = [int(i) for i in cell_cv.resolution]
     print(f"   Cell resolution: {cell_res}")
     assert (cell_cv.resolution == source_cv.resolution).all()
@@ -428,31 +519,33 @@ if __name__ == "__main__":
     lines["TP"] = get_annotation_lines(state, tp_layer_name, source_res)
     lines["FN"] = get_annotation_lines(state, fn_layer_name, source_res)
 
-    # Initialize the output volume
-    output_path = input_or_default("Enter output path", "gs://tmp_2w/joe/syntest")
-    if not output_path.startswith("precomputed://"):
-        output_path = "precomputed://" + output_path
-    info = CloudVolume.create_new_info(
-        num_channels=1,
-        layer_type="image",
-        data_type="uint8",
-        encoding="raw",
-        resolution=source_res,
-        voxel_offset=source_cv.voxel_offset,
-        mesh="mesh",
-        chunk_size=source_cv.chunk_size,
-        volume_size=source_cv.volume_size,
+    # Initialize the output volumes
+    cleft_output_path = input_or_default(
+        "Enter output path for CLEFT DETECTION", "gs://tmp_2w/joe/syntest_cleft"
     )
-    output_cv = CloudVolume(output_path, info=info)
-    output_cv.commit_info()
-    output_cv.non_aligned_writes = True
-    output_cv.fill_missing = True
-    output_cv.delete_black_uploads = True
+    cleft_output_cv = create_volume(source_cv, cleft_output_path)
+
+    print("For the following optional paths, enter '-' to skip.")
+    presyn_output_path = input_or_default(
+        "(Optional) output path for PRESYNAPTIC TERMINALS", "gs://tmp_2w/joe/syntest_presyn"
+    )
+    presyn_output_cv = (
+        create_volume(source_cv, presyn_output_path) if presyn_output_path != "-" else None
+    )
+
+    postsyn_output_path = input_or_default(
+        "(Optional) output path for POSTSYNAPTIC TERMINALS", "gs://tmp_2w/joe/syntest_postsyn"
+    )
+    postsyn_output_cv = (
+        create_volume(source_cv, postsyn_output_path) if postsyn_output_path != "-" else None
+    )
 
     # Now, iterate over and process each bounding box
     for bbox in bboxes:
         print(f"Processing bounding box: {bbox.pformat(tuple(source_res))}")
-        data = process_bbox(source_cv, cell_cv, bbox, lines, output_cv)
+        data = process_bbox(
+            source_cv, cell_cv, bbox, lines, cleft_output_cv, presyn_output_cv, postsyn_output_cv
+        )
     print("Done!")
 
 # if __name__ == "__main__":

@@ -172,7 +172,7 @@ segmentation = [
   "networkx",
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
-  "waterz @ git+https://github.com/ZettaAI/waterz.git@c61190d",
+  "waterz @ git+https://github.com/ZettaAI/waterz.git@be547d6",
 ]
 gpu = []
 skeletonization = [

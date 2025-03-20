@@ -18,7 +18,7 @@ from zetta_utils.geometry import Vec3D
 from ...precomputed import PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
 
-_cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=16)
+_cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
 IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
@@ -38,7 +38,11 @@ def _get_cv_cached(
     if cache_bytes_limit is None:
         cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
     if (path_, resolution) in _cv_cache:
-        return _cv_cache[(path_, resolution)]
+        cvol = _cv_cache[(path_, resolution)]
+        if cvol.image.lru.size > cache_bytes_limit:
+            # only resize LRU cache if requested a smaller size than previously created
+            cvol.image.lru.resize(cache_bytes_limit)
+        return cvol
     if resolution is not None:
         try:
             result = CloudVolume(

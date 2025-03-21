@@ -140,21 +140,3 @@ def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
         result = data.astype(np.uint8)
 
     return result
-
-
-# @builder.register("to_uint16")
-# @supports_dict
-# @typechecked
-# def to_uint16(data: TensorTypeVar) -> TensorTypeVar:
-#     """Convert the given tensor to uint16.
-
-#     :param data: Input tensor_ops.
-#     :return: Input tensor converted to uint16.
-
-#     """
-#     if isinstance(data, torch.Tensor):
-#         raise RuntimeError("uint16 not supported by torch")
-#     elif isinstance(data, np.ndarray):
-#         result = data.astype(np.uint16)
-
-#     return result

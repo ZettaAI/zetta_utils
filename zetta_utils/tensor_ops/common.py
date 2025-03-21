@@ -2,6 +2,7 @@
 from typing import (
     Any,
     Callable,
+    Container,
     Generic,
     Literal,
     Mapping,
@@ -34,19 +35,39 @@ class DictSupportingTensorOp(Generic[P]):
     fn: Callable  # [Concatenate[TensorTypeVar, P], TensorTypeVar]
 
     @overload
-    def __call__(self, data: TensorTypeVar, *args: P.args, **kwargs: P.kwargs) -> TensorTypeVar:
+    def __call__(
+        self,
+        data: TensorTypeVar,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> TensorTypeVar:
         ...
 
     @overload
     def __call__(
-        self, data: Mapping[Any, TensorTypeVar], *args: P.args, **kwargs: P.kwargs
+        self,
+        data: Mapping[Any, TensorTypeVar],
+        *args: P.args,
+        targets: Container[str] | None = None,
+        **kwargs: P.kwargs,
     ) -> dict[Any, TensorTypeVar]:
         ...
 
-    def __call__(self, data, *args: P.args, **kwargs: P.kwargs):
+    @typechecked
+    def __call__(
+        self, data, *args: P.args, targets: Container[str] | None = None, **kwargs: P.kwargs
+    ):
         if isinstance(data, Mapping):
-            return {k: self.fn(v, *args, **kwargs) for k, v in data.items()}
+            new_data = {}
+            for k in data.keys():
+                if targets is None or k in targets:
+                    new_data[k] = self.fn(data[k], *args, **kwargs)
+                else:
+                    new_data[k] = data[k]
+            return new_data
         else:
+            if targets is not None:
+                raise RuntimeError("`data` must be a Mapping when `targets` is specified.")
             return self.fn(data, *args, **kwargs)
 
 

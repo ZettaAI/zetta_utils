@@ -53,11 +53,10 @@ class DictSupportingTensorOp(Generic[P]):
     ) -> dict[Any, TensorTypeVar]:
         ...
 
+    @typechecked
     def __call__(
         self, data, *args: P.args, targets: Container[str] | None = None, **kwargs: P.kwargs
     ):
-        if targets is not None and not isinstance(data, Mapping):
-            raise RuntimeError("`data` must be a Mapping when `targets` is specified.")
         if isinstance(data, Mapping):
             new_data = {}
             for k in data.keys():
@@ -67,6 +66,8 @@ class DictSupportingTensorOp(Generic[P]):
                     new_data[k] = data[k]
             return new_data
         else:
+            if targets is not None:
+                raise RuntimeError("`data` must be a Mapping when `targets` is specified.")
             return self.fn(data, *args, **kwargs)
 
 

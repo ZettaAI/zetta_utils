@@ -22,7 +22,7 @@ from zetta_utils.training.datasets.sample_indexers.volumetric_strided_indexer im
 def _get_z_resolution(layers: dict[str, VolumetricLayer]) -> float:
     z_resolutions = {}
     for layer_name, layer in layers.items():
-        info_path = os.path.join(layer.backend.name.strip("precomputed://"), "info")
+        info_path = os.path.join(layer.backend.name.removeprefix("precomputed://"), "info")
         with fsspec.open(info_path) as f:
             info = json.loads(f.read())
             z_resolutions[layer_name] = {e["resolution"][-1] for e in info["scales"]}
@@ -32,7 +32,7 @@ def _get_z_resolution(layers: dict[str, VolumetricLayer]) -> float:
 
 @builder.register("build_collection_dataset")
 @typechecked
-def build_collection_dataset(
+def build_collection_dataset(  # pylint: disable=too-many-locals
     collection_name: str,
     resolution: Sequence[float],
     chunk_size: Sequence[int],
@@ -81,7 +81,7 @@ def build_collection_dataset(
                 (0, 0, 0), this_resolution, "shrink"
             )
 
-            datasets[str(i)] = LayerDataset(
+            this_dset = LayerDataset(
                 layer=build_layer_set(layers=layers, read_procs=shared_read_procs),
                 sample_indexer=VolumetricStridedIndexer(
                     resolution=this_resolution,
@@ -91,5 +91,11 @@ def build_collection_dataset(
                     bbox=bbox,
                 ),
             )
+            if len(this_dset) == 0:
+                raise RuntimeError(
+                    f"The following annotation indicates bounding box {bbox} "
+                    f"which is smaller than the chunk size {chunk_size}"
+                )
+            datasets[str(i)] = this_dset
     dset = JointDataset(mode="vertical", datasets=datasets)
     return dset

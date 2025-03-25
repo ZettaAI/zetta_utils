@@ -94,3 +94,21 @@ def test_simple(
     assert "layer00" in sample
     assert "layer1" in sample
     assert "layer2" in sample
+
+
+def test_size_exc(
+    firestore_emulator,
+    annotations_db,
+    collections_db,
+    layer_groups_db,
+    layers_db,
+    dummy_dataset_x0,
+):
+    with pytest.raises(RuntimeError):
+        build_collection_dataset(
+            collection_name="collection_x0",
+            resolution=[8, 8, 8],
+            chunk_size=[1024, 1024, 1024],
+            chunk_stride=[1, 1, 1],
+            layer_rename_map={"layer0": "layer00"},
+        )

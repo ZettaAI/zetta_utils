@@ -78,6 +78,7 @@ def sample_subtasks(existing_subtask_type) -> list[Subtask]:
                 "active_user_id": "",
                 "completed_user_id": "",
                 "ng_state": f"http://example.com/{i}",
+                "ng_state_initial": f"http://example.com/{i}",
                 "priority": i,
                 "batch_id": "batch_1",
                 "subtask_type": existing_subtask_type["subtask_type"],

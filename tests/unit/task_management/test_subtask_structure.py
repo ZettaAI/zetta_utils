@@ -2,7 +2,7 @@
 import pytest
 from google.cloud import firestore
 
-from zetta_utils.task_management.subtask_structure import create_subtask_structure
+from zetta_utils.task_management.subtask_structure import create_subtask_dag
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.types import Task
 
@@ -46,15 +46,13 @@ def existing_task(firestore_emulator, project_name_subtask_structure, sample_tas
     yield sample_task
 
 
-def test_create_subtask_structure_nonexistent_task(
-    firestore_emulator, project_name_subtask_structure
-):
+def test_create_subtask_dag_nonexistent_task(firestore_emulator, project_name_subtask_structure):
     """Test that creating a subtask structure for a nonexistent task raises KeyError"""
     client = firestore.Client()
     transaction = client.transaction()
 
     with pytest.raises(KeyError, match="Task nonexistent_task not found"):
-        create_subtask_structure(
+        create_subtask_dag(
             client=client,
             transaction=transaction,
             project_name=project_name_subtask_structure,
@@ -64,7 +62,7 @@ def test_create_subtask_structure_nonexistent_task(
         )
 
 
-def test_create_subtask_structure_success(
+def test_create_subtask_dag_success(
     firestore_emulator, project_name_subtask_structure, existing_task
 ):
     """Test successful creation of a subtask structure"""
@@ -73,7 +71,7 @@ def test_create_subtask_structure_success(
 
     @firestore.transactional
     def create_in_transaction(transaction):
-        result = create_subtask_structure(
+        result = create_subtask_dag(
             client=client,
             transaction=transaction,
             project_name=project_name_subtask_structure,

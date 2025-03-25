@@ -56,6 +56,7 @@ def sample_subtask() -> Subtask:
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": "test_type",

@@ -52,22 +52,30 @@ def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> 
     return envs
 
 
-def _get_user_adc() -> str | None:
+def _get_user_adc() -> Optional[str]:
     """
-    Reads credentials file created by ` gcloud auth application-default login`.
+    Reads credentials file created by `gcloud auth application-default login`.
+    Returns base64 encoded credentials or None if not found.
     """
-    file_name = ".config/gcloud/application_default_credentials.json"
-    home_dir = os.path.expanduser("~")
-    file_path = os.path.join(home_dir, file_name)
-    data = None
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = f.read()
-                data = base64.b64encode(data.encode()).decode()
-        except Exception:  # pylint: disable=broad-exception-caught
-            ...
-    return data
+    # Try environment variable path first, then default location
+    credential_paths = [
+        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
+        os.path.join(
+            os.path.expanduser("~"), ".config/gcloud/application_default_credentials.json"
+        ),
+    ]
+
+    # Find first existing path
+    file_path = next((path for path in credential_paths if path and os.path.exists(path)), None)
+
+    if not file_path:
+        return None
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return base64.b64encode(f.read().encode()).decode()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
 
 
 def get_secrets_and_mapping(

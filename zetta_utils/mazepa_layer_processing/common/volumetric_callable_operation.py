@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from contextlib import ExitStack
 from functools import partial
-from typing import Callable, Generic, Sequence, TypeVar
+from typing import Any, Callable, Generic, Sequence, TypeVar
 
 import attrs
 import torch
@@ -38,7 +38,7 @@ class VolumetricCallableOperation(Generic[P]):
         `fn` does either of these things.
     """
 
-    fn: Callable[P, npt.NDArray | torch.Tensor]
+    fn: Callable[P, Any]
     fn_semaphores: Sequence[SemaphoreType] | None = None
     crop_pad: Sequence[int] = (0, 0, 0)
     res_change_mult: Sequence[float] = (1, 1, 1)
@@ -81,20 +81,20 @@ class VolumetricCallableOperation(Generic[P]):
         dst: VolumetricLayer | None,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> None:
+    ) -> Any:
         assert len(args) == 0
         idx_input = copy.deepcopy(idx)
         idx_input.resolution = self.get_input_resolution(idx.resolution)
         idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
         with semaphore("read"):
             task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
+
         with ExitStack() as semaphore_stack:
             if self.fn_semaphores is not None:
                 for semaphore_type in self.fn_semaphores:
                     semaphore_stack.enter_context(semaphore(semaphore_type))
             result_raw = self.fn(**task_kwargs)
             torch.cuda.empty_cache()
-
         # If no destination layer, we can bail out now.  Possibly we
         # could bail out a bit sooner.  ToDo: study this more.
         if dst is not None:
@@ -102,11 +102,18 @@ class VolumetricCallableOperation(Generic[P]):
             # difference between the resolutions of idx and dst_idx.
             # Padding was applied before the first read processor, so cropping
             # should be done as last write processor.
-            dst_with_crop = dst.with_procs(
-                write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
-            )
+            if tuple(self.crop_pad) != (0, 0, 0):
+                dst_with_crop = dst.with_procs(
+                    write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
+                )
+            else:
+                dst_with_crop = dst
+
             with semaphore("write"):
                 dst_with_crop[idx] = result_raw
+            return None
+        else:
+            return result_raw
 
 
 # TODO: remove as soon as `interpolate_flow` is cut and ComputeField is configured

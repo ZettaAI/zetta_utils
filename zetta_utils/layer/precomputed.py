@@ -10,6 +10,7 @@ import attrs
 import cachetools
 from cachetools.keys import hashkey
 from cloudfiles import CloudFile
+from cloudvolume import CloudVolume
 from typeguard import typechecked
 
 from zetta_utils.common import abspath, is_local
@@ -396,7 +397,7 @@ class PrecomputedInfoSpec:
 def _get_info_from_info_path(info_path: str) -> dict[str, Any]:
     cf = CloudFile(info_path)
     if cf.exists():
-        result = CloudFile(info_path).get_json()
+        result = CloudVolume(info_path[: -len("/info")]).info
         assert isinstance(result, dict)
     else:
         raise FileNotFoundError(f"The infofile at '{info_path}' does not exist.")

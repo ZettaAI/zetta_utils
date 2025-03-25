@@ -637,7 +637,7 @@ def _path_join_if_not_none(base: str | None, suffix: str) -> str | None:
 
 def _expand_bbox_resolution(  # pylint: disable=line-too-long
     bbox: BBox3D,
-    dst_resolution: Vec3D,
+    dst_resolution: Vec3D[float],
 ) -> BBox3D:
     bbox_new = bbox.snapped(Vec3D[float](0, 0, 0), dst_resolution, "expand")
     if bbox_new != bbox:

@@ -25,9 +25,10 @@ class SimpleInferenceRunner:  # pragma: no cover
             device = "cpu"
 
         # load model during the call _with caching_
-        model = convnet.utils.load_model(self.model_path, device=device, use_cache=True)
+        model = convnet.utils.load_model(self.model_path, device=device, use_cache=True).eval()
 
         if self.unsqueeze_to is not None:
             src = tensor_ops.unsqueeze_to(src, self.unsqueeze_to)
-        result = to_np(model(to_torch(src).to(device)))
+        with torch.no_grad():
+            result = to_np(model(to_torch(src).to(device)))
         return result

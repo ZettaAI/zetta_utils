@@ -98,26 +98,12 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     """
     if cv_kwargs is None:
         cv_kwargs = {}
-
-    if info_scales is not None:
-        info_spec = PrecomputedInfoSpec(
-            info_spec_params=InfoSpecParams.from_optional_reference(
-                reference_path=info_reference_path,
-                scales=info_scales,
-                type=info_type,
-                data_type=info_data_type,
-                chunk_size=info_chunk_size,
-                num_channels=info_num_channels,
-                encoding=info_encoding,
-                bbox=info_bbox,
-                inherit_all_params=info_inherit_all_params,
-                extra_scale_data=info_extra_scale_data,
-            )
-        )
-    else:
+    if path.startswith("graphene://"):
+        info_spec = None
         if any(
             param is not None
             for param in [
+                info_scales,
                 info_reference_path,
                 info_type,
                 info_data_type,
@@ -129,14 +115,47 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             ]
         ):
             raise ValueError(
-                "When 'info_scales' is not provided, all 'info_*' parameters must be None. "
-                "'info_scales' provides all the scales for the info file. An info file without "
-                "scales is invalid. If 'info_scales' is not provided, the info file at the "
-                "specified path is assumed to exist and will be used without modifications. "
-                "Therefore, all other 'info_*' parameters must be None as they won't be used."
+                "When using `graphene://` path, none of the `info_*` parameters are allowed to be set."
             )
-        info_spec = PrecomputedInfoSpec(info_path=path)
+    else:
+        if info_scales is not None:
+            info_spec = PrecomputedInfoSpec(
+                info_spec_params=InfoSpecParams.from_optional_reference(
+                    reference_path=info_reference_path,
+                    scales=info_scales,
+                    type=info_type,
+                    data_type=info_data_type,
+                    chunk_size=info_chunk_size,
+                    num_channels=info_num_channels,
+                    encoding=info_encoding,
+                    bbox=info_bbox,
+                    inherit_all_params=info_inherit_all_params,
+                    extra_scale_data=info_extra_scale_data,
+                )
+            )
+        else:
+            if any(
+                param is not None
+                for param in [
+                    info_reference_path,
+                    info_type,
+                    info_data_type,
+                    info_num_channels,
+                    info_chunk_size,
+                    info_bbox,
+                    info_encoding,
+                    info_extra_scale_data,
+                ]
+            ):
+                raise ValueError(
+                    "When 'info_scales' is not provided, all 'info_*' parameters must be None. "
+                    "'info_scales' provides all the scales for the info file. An info file without "
+                    "scales is invalid. If 'info_scales' is not provided, the info file at the "
+                    "specified path is assumed to exist and will be used without modifications. "
+                    "Therefore, all other 'info_*' parameters must be None as they won't be used."
+                )
 
+            info_spec = PrecomputedInfoSpec(info_path=path)
     backend = CVBackend(
         path=path,
         cv_kwargs=cv_kwargs,

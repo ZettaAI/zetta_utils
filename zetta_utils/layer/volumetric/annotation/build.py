@@ -24,12 +24,10 @@ from ... import IndexProcessor
 @builder.register("build_annotation_layer")
 def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches
     path: str,
-    resolution: Sequence[float] | None = None,
-    dataset_size: Sequence[int] | None = None,
-    voxel_offset: Sequence[int] | None = None,
-    index: VolumetricIndex | None = None,
+    info_resolution: Sequence[float] | None = None,
+    info_bbox: BBox3D | None = None,
     chunk_sizes: Sequence[Sequence[int]] | None = None,
-    mode: Literal["read", "write", "replace", "update"] = "write",
+    mode: Literal["read", "write", "replace", "update"] = "read",
     default_desired_resolution: Sequence[float] | None = None,
     index_resolution: Sequence[float] | None = None,
     allow_slice_rounding: bool = False,
@@ -72,9 +70,15 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     file_chunk_sizes = []
     if file_exists:
         for i in [0, 1, 2]:
-            numAndUnit = dims["xyz"[i]]
-            assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
-            file_resolution.append(numAndUnit[0])
+            num_and_unit = dims["xyz"[i]]
+            if num_and_unit[1] == "m":
+                file_resolution.append(num_and_unit[0] * 1e9)
+            elif num_and_unit[1] == "nm":
+                file_resolution.append(num_and_unit[0])
+            else:
+                raise ValueError(
+                    f"Only dimensions in 'nm' or 'm' are supported, got '{num_and_unit[1]}'"
+                )
 
         file_index = VolumetricIndex.from_coords(
             lower_bound,
@@ -92,25 +96,17 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             f"AnnotationLayer built with mode {mode}, but file already exists (path: {path})"
         )
 
-    if index is None:
-        if mode == "write" or (mode == "replace" and not file_exists):
-            if resolution is None:
-                raise ValueError("when `index` is not provided, `resolution` is required")
-            if dataset_size is None:
-                raise ValueError("when `index` is not provided, `dataset_size` is required")
-            if voxel_offset is None:
-                raise ValueError("when `index` is not provided, `voxel_offset` is required")
-            if len(resolution) != 3:
-                raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
-            if len(dataset_size) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
-            if len(voxel_offset) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(voxel_offset)}")
-            end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
-            index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
-        else:
-            index = file_index
-    assert index is not None
+    if mode == "write" or (mode == "replace" and not file_exists):
+        if info_resolution is None:
+            raise ValueError("when `mode` is `write` or `replace`, `info_resolution` is required")
+        if info_bbox is None:
+            raise ValueError("when `mode` is `write` or `replace`, `info_bbox` is required")
+        if len(info_resolution) != 3:
+            raise ValueError(f"`resolution` needs 3 elements, not {len(info_resolution)}")
+
+        index = VolumetricIndex(resolution=Vec3D(*info_resolution), bbox=info_bbox)
+    else:
+        index = file_index
 
     if mode in ("read", "update"):
         assert file_chunk_sizes
@@ -118,9 +114,9 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     else:
         if chunk_sizes is None:
             chunk_sizes = []
-
     backend = AnnotationLayerBackend(path=path, index=index, chunk_sizes=chunk_sizes)
-    backend.write_info_file()
+    if mode in ("write", "replace"):
+        backend.write_info_file()
 
     if mode == "replace":
         backend.clear()

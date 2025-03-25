@@ -4,9 +4,13 @@ import time
 from google.cloud import firestore
 from typeguard import typechecked
 
+from zetta_utils.log import get_logger
+
 from .exceptions import UserValidationError
 from .helpers import get_transaction, retry_transient_errors
 from .project import get_firestore_client
+
+logger = get_logger("zetta_utils")
 
 
 @retry_transient_errors
@@ -63,6 +67,7 @@ def submit_timesheet(
         timesheet_doc = timesheet_ref.get(transaction=transaction)
 
         if timesheet_doc.exists:
+            logger.info(f"[{project_name}] Updating timesheet for {user_id} on {subtask_id}")
             existing_data = timesheet_doc.to_dict()
             timesheet_data = {
                 "duration_seconds": existing_data["duration_seconds"] + duration_seconds,
@@ -72,6 +77,7 @@ def submit_timesheet(
             }
             transaction.update(timesheet_ref, timesheet_data)
         else:
+            logger.info(f"[{project_name}] Creating timesheet for {user_id} on {subtask_id}")
             timesheet_data = {
                 "duration_seconds": duration_seconds,
                 "user_id": user_id,

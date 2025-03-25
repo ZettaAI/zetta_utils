@@ -1,0 +1,1 @@
+MAX_ID_NONUNIQUE = 2 ** 64 - 1

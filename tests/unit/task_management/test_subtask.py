@@ -606,8 +606,10 @@ def test_start_subtask_user_already_has_active(
     subtask2 = get_subtask(project_name_subtask, "subtask_2")
     assert subtask2["active_user_id"] == ""
 
-    start_subtask(project_name_subtask, "user_1", "subtask_1")
-    start_subtask(project_name_subtask, "user_1")
+    result = start_subtask(project_name_subtask, "user_1", "subtask_1")
+    assert result == "subtask_1"
+    result = start_subtask(project_name_subtask, "user_1")
+    assert result == "subtask_1"
     user = get_user(project_name_subtask, "user_1")
     assert user["active_subtask"] == "subtask_1"
 
@@ -695,8 +697,9 @@ def test_start_subtask_already_active(project_name_subtask, existing_subtask, ex
     create_user(project_name_subtask, second_user)
 
     # First, have user_1 start the subtask
-    start_subtask(project_name_subtask, "user_1", "subtask_1")
+    result = start_subtask(project_name_subtask, "user_1", "subtask_1")
 
+    assert result == "subtask_1"
     # Verify user_1 has the subtask
     user1: User = get_user(project_name_subtask, "user_1")
     assert user1["active_subtask"] == "subtask_1"

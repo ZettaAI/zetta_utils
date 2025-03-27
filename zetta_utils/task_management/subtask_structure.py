@@ -6,7 +6,6 @@ from coolname import generate_slug
 from google.cloud import firestore
 
 from zetta_utils.task_management.project import get_collection
-from zetta_utils.task_management.utils import generate_id_nonunique
 
 # Registry to store all registered subtask structures
 _SUBTASK_STRUCTURES: dict[str, Callable] = {}
@@ -133,14 +132,12 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
-        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread_id), proofread_subtask)
 
@@ -152,14 +149,12 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
-        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_verify",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(verify_id), verify_subtask)
 
@@ -171,21 +166,19 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
-        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread_expert",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(expert_id), expert_subtask)
 
     # 4. Create dependency for verify (depends on proofread → done)
     verify_dependency = {
         "dependency_id": dep_verify_id,
-        "dependent_subtask_id": verify_id,
+        "subtask_id": verify_id,
         "dependent_on_subtask_id": proofread_id,
         "required_completion_status": "done",
         "is_satisfied": False,
@@ -195,7 +188,7 @@ def segmentation_proofread_simple(
     # 5. Create dependency for expert (depends on proofread → need_help)
     expert_dependency = {
         "dependency_id": dep_expert_id,
-        "dependent_subtask_id": expert_id,
+        "subtask_id": expert_id,
         "dependent_on_subtask_id": proofread_id,
         "required_completion_status": "need_help",
         "is_satisfied": False,
@@ -273,14 +266,12 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
-        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread1_id), proofread1_subtask)
 
@@ -292,14 +283,12 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": json.dumps(ng_state_val),
-        "ng_state_initial": json.dumps(ng_state_val),
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread2_id), proofread2_subtask)
 
@@ -311,21 +300,19 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": json.dumps(ng_state_cons),
-        "ng_state_initial": json.dumps(ng_state_cons),
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_consolidate",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
-        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(consolidate_id), consolidate_subtask)
 
     # 4. Create dependency for consolidate (depends on proofread1 → done)
     consolidate_dependency1 = {
         "dependency_id": dep_consolidate_from_p1_id,
-        "dependent_subtask_id": consolidate_id,
+        "subtask_id": consolidate_id,
         "dependent_on_subtask_id": proofread1_id,
         "required_completion_status": "done",
         "is_satisfied": False,
@@ -335,7 +322,7 @@ def segmentation_proofread_two_path(
     # 5. Create dependency for consolidate (depends on proofread2 → done)
     consolidate_dependency2 = {
         "dependency_id": dep_consolidate_from_p2_id,
-        "dependent_subtask_id": consolidate_id,
+        "subtask_id": consolidate_id,
         "dependent_on_subtask_id": proofread2_id,
         "required_completion_status": "done",
         "is_satisfied": False,

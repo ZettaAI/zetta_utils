@@ -6,7 +6,6 @@ from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from typeguard import typechecked
 
 from zetta_utils.log import get_logger
-from zetta_utils.task_management.utils import generate_id_nonunique
 
 from .exceptions import SubtaskValidationError, UserValidationError
 from .helpers import get_transaction, retry_transient_errors
@@ -23,7 +22,7 @@ def get_max_idle_seconds() -> float:
     return _MAX_IDLE_SECONDS
 
 
-def _validate_subtask(project_name: str, subtask: dict) -> Subtask:
+def _validate_subtask(subtask: dict) -> Subtask:
     """
     Validate that a subtask's data is consistent and valid.
 
@@ -32,7 +31,7 @@ def _validate_subtask(project_name: str, subtask: dict) -> Subtask:
     :raises SubtaskValidationError: If the subtask data is invalid
     """
     try:
-        subtask_type = get_subtask_type(project_name, subtask["subtask_type"])
+        subtask_type = get_subtask_type(subtask["subtask_type"])
     except KeyError as e:
         raise SubtaskValidationError(f"Subtask type not found: {subtask['subtask_type']}") from e
 
@@ -66,7 +65,7 @@ def _validate_subtask(project_name: str, subtask: dict) -> Subtask:
 @typechecked
 def create_subtask(project_name: str, data: Subtask) -> str:
     """Create a new subtask record"""
-    get_subtask_type(project_name, data["subtask_type"])
+    get_subtask_type(data["subtask_type"])
 
     collection = get_collection(project_name, "subtasks")
     doc_ref = collection.document(data["subtask_id"])
@@ -76,7 +75,7 @@ def create_subtask(project_name: str, data: Subtask) -> str:
         doc = doc_ref.get(transaction=transaction)
         if doc.exists:
             raise SubtaskValidationError(f"Subtask {data['subtask_id']} already exists")
-        transaction.set(doc_ref, {**data, "_id_nonunique": generate_id_nonunique()})
+        transaction.set(doc_ref, data)
         return data["subtask_id"]
 
     return create_in_transaction(get_transaction())
@@ -96,7 +95,7 @@ def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate) -> b
 
         current_data = doc.to_dict()
         merged_data = {**current_data, **data}
-        _validate_subtask(project_name, merged_data)
+        _validate_subtask(merged_data)
 
         # If completion status is changing, handle side effects
         if "completion_status" in data and "completed_user_id" in data:
@@ -162,7 +161,7 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
         if selected_subtask is not None:
             selected_subtask_data = selected_subtask.to_dict()
             assert selected_subtask_data is not None
-            subtask_data = _validate_subtask(project_name, selected_subtask_data)
+            subtask_data = _validate_subtask(selected_subtask_data)
 
             # Check if user is qualified for this subtask type
             if "qualified_subtask_types" in user_data and subtask_data[
@@ -440,6 +439,4 @@ def get_subtask(project_name: str, subtask_id: str) -> Subtask:
     doc = collection.document(subtask_id).get()
     if not doc.exists:
         raise KeyError(f"Subtask {subtask_id} not found")
-    result = doc.to_dict()
-    del result["_id_nonunique"]
-    return result
+    return doc.to_dict()

@@ -10,25 +10,25 @@ from zetta_utils.task_management.user import create_user, get_user, update_user
 
 
 def test_get_user_success(existing_user, project_name):
-    result = get_user(project_name, "test_user")
+    result = get_user(project_name, "test_user_1")
     assert result == existing_user
 
 
 def test_get_user_not_found(clean_collections, project_name):
-    with pytest.raises(KeyError, match="User test_user not found"):
-        get_user(project_name, "test_user")
+    with pytest.raises(KeyError, match="User test_user_1 not found"):
+        get_user(project_name, "test_user_1")
 
 
 def test_create_user_success(project_name, clean_collections, sample_user):
     result = create_user(project_name, sample_user)
     assert result == sample_user["user_id"]
-    doc = get_collection(project_name, "users").document("test_user").get()
+    doc = get_collection(project_name, "users").document("test_user_1").get()
     assert doc.exists
     assert doc.to_dict() == sample_user
 
 
 def test_create_user_already_exists(clean_collections, existing_user, sample_user, project_name):
-    with pytest.raises(ValueError, match="User test_user already exists"):
+    with pytest.raises(ValueError, match="User test_user_1 already exists"):
         create_user(project_name, sample_user)
 
 
@@ -37,9 +37,9 @@ def test_update_user_success(clean_collections, existing_user, project_name):
     updated_data["hourly_rate"] = 60.0
     del updated_data["user_id"]
 
-    result = update_user(project_name, "test_user", updated_data)
+    result = update_user(project_name, "test_user_1", updated_data)
     assert result is True
-    doc = get_collection(project_name, "users").document("test_user").get()
+    doc = get_collection(project_name, "users").document("test_user_1").get()
 
     # Compare with merged data instead of just update data
     expected_data = {**existing_user, **updated_data}
@@ -47,14 +47,14 @@ def test_update_user_success(clean_collections, existing_user, project_name):
 
 
 def test_update_user_not_found(clean_collections, sample_user, project_name):
-    with pytest.raises(KeyError, match="User test_user not found"):
-        update_user(project_name, "test_user", sample_user)
+    with pytest.raises(KeyError, match="User test_user_1 not found"):
+        update_user(project_name, "test_user_1", sample_user)
 
 
 def test_create_user_with_qualifications(clean_collections, project_name):
     user_data = User(
         **{
-            "user_id": "test_user",
+            "user_id": "test_user_1",
             "hourly_rate": 50.0,
             "active_subtask": "",
             "qualified_subtask_types": ["segmentation_proofread"],
@@ -63,17 +63,17 @@ def test_create_user_with_qualifications(clean_collections, project_name):
     result = create_user(project_name, user_data)
     assert result == user_data["user_id"]
 
-    stored_user = get_user(project_name, "test_user")
+    stored_user = get_user(project_name, "test_user_1")
     assert stored_user == user_data
 
 
 def test_update_user_qualifications(clean_collections, existing_user, project_name):
     updated_data = UserUpdate(qualified_subtask_types=["segmentation_verify"])
 
-    result = update_user(project_name, "test_user", updated_data)
+    result = update_user(project_name, "test_user_1", updated_data)
     assert result is True
 
-    stored_user = get_user(project_name, "test_user")
+    stored_user = get_user(project_name, "test_user_1")
     assert stored_user["qualified_subtask_types"] == ["segmentation_verify"]
 
 
@@ -84,7 +84,7 @@ def test_start_subtask_requires_qualification(
     # Update user to have empty qualifications list
     update_user(
         project_name,
-        "test_user",
+        "test_user_1",
         {
             "hourly_rate": 50.0,
             "active_subtask": "",
@@ -94,4 +94,4 @@ def test_start_subtask_requires_qualification(
 
     # Try to start subtask - this should raise an error
     with pytest.raises(Exception):
-        start_subtask(project_name, "test_user", "subtask_1")
+        start_subtask(project_name, "test_user_1", "subtask_1")

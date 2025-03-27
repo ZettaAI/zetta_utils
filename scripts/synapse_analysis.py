@@ -13,6 +13,7 @@ import nglui
 import numpy as np
 from caveclient import CAVEclient
 from cloudfiles import CloudFile
+from cloudvolume import CloudVolume
 from google.cloud import storage
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
@@ -146,6 +147,8 @@ def get_resolution(ng_layer_data) -> Vec3D:
         return Vec3D(*ng_layer_data["voxelSize"])
     source = ng_layer_data["source"]
     if isinstance(source, str):
+        if "/|neuroglancer-precomputed:" in source:
+            source = source.split("/|neuroglancer-precomputed:")[0]
         json = read_gcs_json(source + "/info")
         if "scales" in json:
             scale0 = json["scales"][0]
@@ -194,6 +197,8 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
     inp = input("> ")
     if inp:
         source_path = inp
+    if "/|neuroglancer-precomputed:" in source_path:
+        source_path = source_path.split("/|neuroglancer-precomputed:")[0]
     if source_path.startswith("gs:"):
         if source_path.endswith(".df") or source_path.endswith(".csv"):
             annotations = read_csv(source_path)
@@ -206,6 +211,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
         state_id = source_path.split("/")[-1]  # in case full URL was given
 
         assert client is not None
+        print(f"Loading state {state_id}...")
         state = client.state.get_state_json(state_id)
         print(f"Select annotation layer containing synapses to import for {forPurpose}:")
         anno_layer_name = get_annotation_layer_name(state)
@@ -227,7 +233,10 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
                 boxItem["resolution"] = list(resolution)
         elif "source" in data:
             print("Precomputed annotation layer.")
-            layer = build_annotation_layer(data["source"], mode="read")
+            source = data["source"]
+            if "/|neuroglancer-precomputed:" in source:
+                source = source.split("/|neuroglancer-precomputed:")[0]
+            layer = build_annotation_layer(source, mode="read")
         else:
             print("Neither 'annotations' nor 'source' found in layer data.  I'm stumped.")
             sys.exit()
@@ -273,7 +282,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
     return lineItems, resolution, boxItem
 
 
-def load_segmentation(default_box):
+def load_segmentation():
     global source_path
     layer = None
     lineItems = None
@@ -295,16 +304,22 @@ def load_segmentation(default_box):
         seg_layer_name = get_segmentation_layer_name(state)
         layer_data = nglui.parser.get_layer(state, seg_layer_name)
         source_path = layer_data["source"]
-        resolution = get_resolution(layer_data)
-    seg_cvl = build_cv_layer(
-        path=source_path,
-        allow_slice_rounding=True,
-        index_resolution=resolution,
-        data_resolution=resolution,
-        interpolation_mode="nearest",
-        readonly=True,
-    )
-    return seg_cvl, resolution
+        if isinstance(source_path, dict):  # type: ignore[unreachable]
+            source_path = source_path["url"]  # type: ignore[unreachable]
+        # resolution = get_resolution(layer_data)
+    print(f"Loading segmentation from {source_path}...")
+    seg_cvl = CloudVolume(source_path)
+    seg_cvl.agglomerate = True  # get root IDs, not supervoxel IDs
+    return seg_cvl, Vec3D(*seg_cvl.resolution)
+    # seg_cvl = build_cv_layer(
+    #     path=source_path,
+    #     allow_slice_rounding=True,
+    #     index_resolution=resolution,
+    #     data_resolution=resolution,
+    #     interpolation_mode="nearest",
+    #     readonly=True,
+    # )
+    # return seg_cvl, resolution
 
 
 def analyze_points(points_A, points_B, valid_test=None) -> dict:
@@ -319,7 +334,7 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
     result["count_A"] = len(points_A)
     result["count_B"] = len(points_B)
 
-    max_distance = 250  # (nm)
+    max_distance = 1000  # was: 250  # (nm)
 
     # Build KD-tree for set B; this lets us efficiently query for the point in B closest
     # to any other point (e.g., points in A), or even get ALL the distances to points in
@@ -442,9 +457,11 @@ def print_as_annotations(points, items, key, resolution):
         matching_items = [item for item in items if item[key] * resolution == p]
         if len(matching_items) == 1:
             m = matching_items[0]
+            pointA = list(m["pointA"])
+            pointB = list(m["pointB"])
             result.append(
                 "{"
-                + f""""type": "line", "id": "{m['id']}", "pointA": {m['pointA']}, "pointB": {m['pointB']}"""
+                + f""""type": "line", "id": "{m['id']}", "pointA": {pointA}, "pointB": {pointB}"""
                 + "}"
             )
         else:
@@ -464,7 +481,7 @@ def main():
     print()
     if not gt_items or not pred_items:
         sys.exit()
-    seg_vol, seg_resolution = load_segmentation(bbox)
+    seg_vol, seg_resolution = load_segmentation()
     print(f"(Resolution: {tuple(seg_resolution)})")
 
     if bbox is None:
@@ -485,7 +502,11 @@ def main():
     # Pad the seg data so that we can handle synapses slightly out of bounds.
     idx = idx.padded(Vec3D(64, 64, 32))
     print(f"Reading seg data for: {idx}")
-    seg_data = seg_vol[idx][0]
+    # seg_data = seg_vol[idx][0]
+    s = idx.start
+    e = idx.stop
+    seg_data = seg_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
+    print(f"Seg data shape: {seg_data.shape}")
 
     # Analyze presynaptic points
     gt_points = get_points(gt_items, "pointA", gt_resolution)
@@ -555,14 +576,14 @@ def main():
     stats = analyze_points(gt_points, pr_points, lambda a, b: point_segs[a] == point_segs[b])
     print_stats(stats, "SYNAPSES")
 
-    # print("\n\nTP:")
-    # print_as_annotations(stats["tp_points_B"], pred_items, "center", pred_resolution)
+    print("\n\nTP:")
+    print_as_annotations(stats["tp_points_B"], pred_items, "center", pred_resolution)
 
-    # print("\n\nFP:")
-    # print_as_annotations(stats["fp_points_B"], pred_items, "center", pred_resolution)
+    print("\n\nFP:")
+    print_as_annotations(stats["fp_points_B"], pred_items, "center", pred_resolution)
 
-    # print("\n\nFN:")
-    # print_as_annotations(stats["fn_points_A"], gt_items, "center", gt_resolution)
+    print("\n\nFN:")
+    print_as_annotations(stats["fn_points_A"], gt_items, "center", gt_resolution)
 
 
 if __name__ == "__main__":

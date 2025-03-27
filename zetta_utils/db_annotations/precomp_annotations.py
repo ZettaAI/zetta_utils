@@ -946,6 +946,8 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
        "replace": for writing; if file exists, it is cleared of all data.
        "update": for writing additional data; throws error if file does not exist.
     """
+    if "/|neuroglancer-precomputed:" in path:
+        path = path.split("/|neuroglancer-precomputed:")[0]
     dims, lower_bound, upper_bound, spatial_entries = read_info(path)
     file_exists = spatial_entries is not None
     file_resolution = []

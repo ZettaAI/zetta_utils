@@ -6,7 +6,7 @@ from typeguard import typechecked
 
 from .exceptions import UserValidationError
 from .helpers import get_transaction, retry_transient_errors
-from .project import get_firestore_client
+from .project import get_collection, get_firestore_client
 
 
 @retry_transient_errors
@@ -28,7 +28,7 @@ def submit_timesheet(
         raise ValueError("Duration must be positive")
 
     client = get_firestore_client()
-    user_ref = client.collection(f"{project_name}_users").document(user_id)
+    user_ref = get_collection(project_name, "users").document(user_id)
 
     @firestore.transactional
     def submit_in_transaction(transaction):
@@ -48,7 +48,7 @@ def submit_timesheet(
             )
 
         # Get the subtask and verify user is assigned
-        subtask_ref = client.collection(f"{project_name}_subtasks").document(subtask_id)
+        subtask_ref = get_collection(project_name, "subtasks").document(subtask_id)
         subtask_doc = subtask_ref.get(transaction=transaction)
         if not subtask_doc.exists:
             raise UserValidationError(f"Subtask {subtask_id} not found")
@@ -57,7 +57,7 @@ def submit_timesheet(
         if subtask_data["active_user_id"] != user_id:
             raise UserValidationError("Subtask not assigned to this user")
 
-        timesheet_ref = client.collection(f"{project_name}_timesheets").document(
+        timesheet_ref = get_collection(project_name, "timesheets").document(
             f"{user_id}_{subtask_id}"
         )
         timesheet_doc = timesheet_ref.get(transaction=transaction)

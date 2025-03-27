@@ -5,11 +5,15 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from typeguard import typechecked
 
+from zetta_utils.log import get_logger
+
 from .exceptions import SubtaskValidationError, UserValidationError
 from .helpers import get_transaction, retry_transient_errors
-from .project import get_collection, get_firestore_client
+from .project import get_collection
 from .subtask_type import get_subtask_type
 from .types import Subtask, SubtaskUpdate
+
+logger = get_logger("zetta_utils")
 
 _MAX_IDLE_SECONDS = 90
 
@@ -114,8 +118,7 @@ def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate) -> b
 
 @retry_transient_errors
 def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = None) -> str | None:
-    client = get_firestore_client()
-    user_ref = client.collection(f"{project_name}_users").document(user_id)
+    user_ref = get_collection(project_name, "users").document(user_id)
 
     @firestore.transactional
     def start_in_transaction(transaction):
@@ -136,10 +139,10 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             )
 
         if subtask_id is None and current_active_subtask_id == "":
-            selected_subtask = _auto_select_subtask(client, project_name, user_id, transaction)
+            selected_subtask = _auto_select_subtask(project_name, user_id, transaction)
         elif subtask_id is not None:
             selected_subtask = (
-                client.collection(f"{project_name}_subtasks")
+                get_collection(project_name, "subtasks")
                 .document(subtask_id)
                 .get(transaction=transaction)
             )
@@ -148,7 +151,7 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
                 raise SubtaskValidationError(f"Subtask {subtask_id} not found")
         else:
             selected_subtask = (
-                client.collection(f"{project_name}_subtasks")
+                get_collection(project_name, "subtasks")
                 .document(current_active_subtask_id)
                 .get(transaction=transaction)
             )
@@ -173,7 +176,7 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
                     subtask_data["last_leased_ts"] <= current_time - get_max_idle_seconds()
                     or subtask_data["active_user_id"] == user_id
                 ):
-                    previous_user_ref = client.collection(f"{project_name}_users").document(
+                    previous_user_ref = get_collection(project_name, "users").document(
                         subtask_data["active_user_id"]
                     )
                     transaction.update(previous_user_ref, {"active_subtask": ""})
@@ -212,8 +215,7 @@ def release_subtask(
     :raises ValueError: If the completion status is invalid
     :raises RuntimeError: If the Firestore transaction fails.
     """
-    client = get_firestore_client()
-    user_ref = client.collection(f"{project_name}_users").document(user_id)
+    user_ref = get_collection(project_name, "users").document(user_id)
 
     @firestore.transactional
     def release_in_transaction(transaction):
@@ -230,7 +232,7 @@ def release_subtask(
         if user_data["active_subtask"] != subtask_id:
             raise UserValidationError("Subtask ID does not match user's active subtask")
 
-        subtask_ref = client.collection(f"{project_name}_subtasks").document(subtask_id)
+        subtask_ref = get_collection(project_name, "subtasks").document(subtask_id)
         subtask_doc = subtask_ref.get(transaction=transaction)
         if not subtask_doc.exists:
             raise SubtaskValidationError(f"Subtask {subtask_id} not found")
@@ -286,41 +288,51 @@ def _handle_subtask_completion(
     :return: List of (doc_ref, update_data) tuples to be applied
     :raises RuntimeError: If the Firestore transaction fails
     """
-    client = get_firestore_client()
+    logger.info(f"Handling subtask completion side effects for `{subtask_id}`")
+    print(f"Handling subtask completion side effects for `{subtask_id}`")
     updates: list[tuple[DocumentSnapshot, dict]] = []
 
     # Get the subtask and its dependencies
-    subtask_ref = client.collection(f"{project_name}_subtasks").document(subtask_id)
+    subtask_ref = get_collection(project_name, "subtasks").document(subtask_id)
     subtask_doc = subtask_ref.get(transaction=transaction)
     subtask_data = subtask_doc.to_dict()
 
     # Get dependencies that depend on this subtask
     deps = (
-        client.collection(f"{project_name}_dependencies")
+        get_collection(project_name, "dependencies")
         .where("dependent_on_subtask_id", "==", subtask_id)
         .where("is_satisfied", "==", False)
         .get(transaction=transaction)
     )
-
+    logger.info(f"Got the following dependencies: {deps}")
+    print(f"Got the following dependencies: {deps}")
     # Update dependencies and dependent subtasks
     for dep in deps:
         dep_data = dep.to_dict()
+        logger.info(f"Dep data: {dep_data}")
+        print(f"Dep data: {dep_data}")
         if dep_data["required_completion_status"] == completion_status:
+            logger.info(f"Dependency {dep} satisfied")
+            print(f"Dependency {dep} satisfied")
             # Mark dependency satisfied
             updates.append((dep.reference, {"is_satisfied": True}))
 
             # Check if dependent subtask can be activated
             dependent_subtask_id = dep_data["subtask_id"]
             other_deps = (
-                client.collection(f"{project_name}_dependencies")
+                get_collection(project_name, "dependencies")
                 .where("subtask_id", "==", dependent_subtask_id)
                 .where("is_satisfied", "==", False)
                 .get(transaction=transaction)
             )
 
             # If this was the last unsatisfied dependency
+            logger.info(f"Remaining dependencies: {len(list(other_deps))}")
+            print(f"Remaining dependencies: {len(list(other_deps))}")
             if len(list(other_deps)) <= 1:
-                dependent_subtask_ref = client.collection(f"{project_name}_subtasks").document(
+                logger.info(f"Activating dependent subtask {dependent_subtask_id}")
+                print(f"Activating dependent subtask {dependent_subtask_id}")
+                dependent_subtask_ref = get_collection(project_name, "subtasks").document(
                     dependent_subtask_id
                 )
                 updates.append((dependent_subtask_ref, {"is_active": True}))
@@ -328,7 +340,7 @@ def _handle_subtask_completion(
     # Check if task is complete
     task_id = subtask_data["task_id"]
     incomplete_subtasks = (
-        client.collection(f"{project_name}_subtasks")
+        get_collection(project_name, "subtasks")
         .where("task_id", "==", task_id)
         .where("is_active", "==", True)
         .where("completion_status", "==", "")
@@ -337,7 +349,7 @@ def _handle_subtask_completion(
 
     # If this was the last incomplete subtask
     if len(list(incomplete_subtasks)) == 1:
-        task_ref = client.collection(f"{project_name}_tasks").document(task_id)
+        task_ref = get_collection(project_name, "tasks").document(task_id)
         task_doc = task_ref.get(transaction=transaction)
         if task_doc.exists:
             updates.append((task_ref, {"status": "fully_processed"}))
@@ -346,7 +358,7 @@ def _handle_subtask_completion(
 
 
 def _auto_select_subtask(
-    client: firestore.Client, project_name: str, user_id: str, transaction: firestore.Transaction
+    project_name: str, user_id: str, transaction: firestore.Transaction
 ) -> DocumentSnapshot | None:
     """Auto-select a subtask for a user based on priority and qualifications.
 
@@ -355,16 +367,14 @@ def _auto_select_subtask(
     2. Unassigned & matches qualified types (highest priority)
     3. Matches qualified types & idle > max idle seconds (most recently active)
     """
-    user_doc = (
-        client.collection(f"{project_name}_users").document(user_id).get(transaction=transaction)
-    )
+    user_doc = get_collection(project_name, "users").document(user_id).get(transaction=transaction)
     assert user_doc.exists
 
     qualified_types = user_doc.get("qualified_subtask_types")
     if not qualified_types:
         return None
 
-    subtasks_collection = client.collection(f"{project_name}_subtasks")
+    subtasks_collection = get_collection(project_name, "subtasks")
     current_time = time.time()
 
     # 1. Check for tasks already assigned to user

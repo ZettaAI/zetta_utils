@@ -95,7 +95,7 @@ def create_tasks_batch(project_name: str, tasks: list[Task], batch_size: int = 5
         chunk = tasks[i : i + batch_size]
 
         for task in chunk:
-            doc_ref = client.collection(f"{project_name}_tasks").document(task["task_id"])
+            doc_ref = get_collection(project_name, "tasks").document(task["task_id"])
             # Check if task exists before adding to batch
             if doc_ref.get().exists:
                 raise ValueError(f"Task {task['task_id']} already exists")

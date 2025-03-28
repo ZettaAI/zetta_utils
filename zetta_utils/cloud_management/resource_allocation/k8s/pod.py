@@ -85,6 +85,7 @@ def get_mazepa_pod_spec(
     restart_policy: Literal["Always", "Never"] = "Always",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
+    cave_secret_available: bool = False,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -111,7 +112,7 @@ def get_mazepa_pod_spec(
         node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
-        volumes=volume.get_common_volumes(),
-        volume_mounts=volume.get_common_volume_mounts(),
+        volumes=volume.get_common_volumes(cave_secret_available=cave_secret_available),
+        volume_mounts=volume.get_common_volume_mounts(cave_secret_available=cave_secret_available),
         resource_requests=resource_requests,
     )

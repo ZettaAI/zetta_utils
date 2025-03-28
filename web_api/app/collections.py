@@ -13,10 +13,7 @@ from zetta_utils.db_annotations.collection import (
     read_collections,
     update_collection,
 )
-from zetta_utils.db_annotations.layer_group import (
-    delete_layer_groups,
-    read_layer_groups,
-)
+from zetta_utils.db_annotations.utils import cascade_delete_collections
 
 from .utils import generic_exception_handler
 
@@ -51,7 +48,7 @@ async def update_single(
 @api.delete("/single")
 async def delete_single(collection_id: str, cascade: Annotated[bool, Query()] = True):
     if cascade:
-        _cascade_delete([collection_id])
+        cascade_delete_collections([collection_id])
     delete_collection(collection_id)
 
 
@@ -72,12 +69,6 @@ async def delete_multiple(
     collection_ids: Annotated[list[str], Query()], cascade: Annotated[bool, Query()] = True
 ):
     if cascade:
-        _cascade_delete(collection_ids)
-    delete_collections(collection_ids)
-
-
-def _cascade_delete(collection_ids: list[str]) -> None:
-    layer_groups = read_layer_groups(collection_ids=collection_ids)
-    annotations = read_annotations(collection_ids=collection_ids)
-    delete_layer_groups(list(layer_groups.keys()))
-    delete_annotations(list(annotations.keys()))
+        cascade_delete_collections(collection_ids)
+    else:
+        delete_collections(collection_ids)

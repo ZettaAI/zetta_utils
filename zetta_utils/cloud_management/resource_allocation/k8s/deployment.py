@@ -36,6 +36,7 @@ def _get_mazepa_deployment(
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
+    cave_secret_available: bool = False,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -47,6 +48,7 @@ def _get_mazepa_deployment(
         resource_requests=resource_requests,
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
+        cave_secret_available=cave_secret_available,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -89,6 +91,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
+    cave_secret_available: bool = False,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -112,6 +115,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         provisioning_model=provisioning_model,
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
+        cave_secret_available=cave_secret_available,
     )
 
 

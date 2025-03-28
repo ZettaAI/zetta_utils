@@ -829,3 +829,5 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
             clear_cache(*op_args, **op_kwargs)
+
+        return tasks

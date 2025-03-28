@@ -43,6 +43,7 @@ class SubtaskUpdate(TypedDict, total=False):
     last_leased_ts: float
     is_active: bool
     subtask_type: str
+    _id_nonunique: int
 
 
 class Timesheet(TypedDict):
@@ -95,6 +96,7 @@ class Task(TypedDict):
     status: str
     task_type: str
     ng_state: str
+    _id_nonunique: NotRequired[int]  # Random integer from 0 to 2^64-1
 
 
 class TaskUpdate(TypedDict, total=False):
@@ -104,6 +106,7 @@ class TaskUpdate(TypedDict, total=False):
     batch_id: str
     ng_state: str
     task_type: str
+    _id_nonunique: int
 
 
 class TimesheetEntry(TypedDict):

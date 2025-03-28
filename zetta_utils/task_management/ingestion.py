@@ -4,7 +4,7 @@ from google.cloud import firestore
 from typeguard import typechecked
 
 from .project import get_firestore_client
-from .subtask_structure import create_subtask_structure
+from .subtask_structure import create_subtask_dag
 
 
 @typechecked
@@ -115,7 +115,7 @@ def ingest_tasks(
                 transaction.update(subtasks.document(subtask.id), {"is_active": False})
 
             for task_id in task_bundle:  # pylint: disable=cell-var-from-loop
-                create_subtask_structure(
+                create_subtask_dag(
                     client=client,
                     transaction=transaction,
                     project_name=project_name,

@@ -4,7 +4,6 @@ from typing import Annotated
 from attrs import asdict
 from fastapi import FastAPI, HTTPException, Query, Request
 
-from zetta_utils.db_annotations.annotation import delete_annotations, read_annotations
 from zetta_utils.db_annotations.collection import (
     add_collection,
     delete_collection,

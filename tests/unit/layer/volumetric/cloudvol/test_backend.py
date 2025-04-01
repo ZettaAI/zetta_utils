@@ -168,11 +168,10 @@ def test_cv_backend_info_overwrite(clear_caches_reset_mocks, path, reference, mo
 def test_cv_backend_read(clear_caches_reset_mocks, mocker):
     data_read = np.ones([3, 4, 5, 2])
     expected = np.ones([2, 3, 4, 5])
+    cvb = CVBackend(path=LAYER_X0_PATH)
     cv_m = mocker.MagicMock()
     cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
-    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
-    cvb = CVBackend(path=LAYER_X0_PATH)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(1, 2), slice(2, 3))),
         resolution=Vec3D(1, 1, 1),
@@ -245,9 +244,6 @@ def test_cv_backend_write_scalar(clear_caches_reset_mocks, mocker):
 def test_cv_backend_read_uint63(clear_caches_reset_mocks, mocker):
     data_read = np.array([[[[2 ** 63 - 1]]]], dtype=np.uint64)
     expected = np.array([[[[2 ** 63 - 1]]]], dtype=np.int64)
-    cv_m = mocker.MagicMock()
-    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
-    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     cvb = CVBackend(
         path=LAYER_UINT63_0_PATH,
         info_spec=PrecomputedInfoSpec(
@@ -258,6 +254,9 @@ def test_cv_backend_read_uint63(clear_caches_reset_mocks, mocker):
             )
         ),
     )
+    cv_m = mocker.MagicMock()
+    cv_m.__getitem__ = mocker.MagicMock(return_value=data_read)
+    mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     index = VolumetricIndex(
         bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
         resolution=Vec3D(1, 1, 1),

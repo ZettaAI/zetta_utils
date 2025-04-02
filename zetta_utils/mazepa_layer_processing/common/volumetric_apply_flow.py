@@ -735,7 +735,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
+            (
+                tasks,
+                _,
+                _,
+                dst_temps,
+            ) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
             logger.info(

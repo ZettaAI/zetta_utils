@@ -37,12 +37,14 @@ class SimpleInferenceRunner:  # pragma: no cover
                 output_shape[1] = self.output_channels
             return np.zeros(output_shape)
 
-        # load model during the call _with caching_\
-        model = convnet.utils.load_model(self.model_path, device=device, use_cache=True)
-
-        result = model(to_torch(src).to(device))
+        # load model during the call _with caching_
+        model = convnet.utils.load_model(self.model_path, device=device, use_cache=True).eval()
+        with torch.no_grad():
+            result = model(to_torch(src).to(device))
         if self.apply_sigmoid:
             result = torch.sigmoid(result)
 
         result_np = to_np(result)
         return result_np
+
+

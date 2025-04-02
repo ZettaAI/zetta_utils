@@ -55,7 +55,7 @@ augmentations = [
   "torchvision",
 ]
 cli = ["click == 8.0.1"]
-cloudvol = ["cloud-volume[all_codecs] ~= 11.1.5", "zetta_utils[tensor_ops]"]
+cloudvol = ["cloud-volume[all_codecs] ~= 12.1.0", "zetta_utils[tensor_ops]"]
 tensorstore = [
   "boto3 == 1.28.4",
   "tensorstore == 0.1.71",

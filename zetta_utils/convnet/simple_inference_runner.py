@@ -47,9 +47,11 @@ class SimpleInferenceRunner:  # pragma: no cover
 
         with torch.inference_mode():
             result = model(to_torch(src).to(device))
-        if self.apply_sigmoid:
-            result = torch.sigmoid(result)
+            if self.apply_sigmoid:
+                result = torch.sigmoid(result)
+
         result_np = to_np(result)
+        del result
 
         if device == "cuda":
             type(self).call_count += 1

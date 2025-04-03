@@ -36,7 +36,7 @@ class SimpleInferenceRunner:  # pragma: no cover
         if self.is_3d:
             src = tensor_ops.unsqueeze_to(src, 5)
 
-        if self.skip_zeros and (src != 0).sum() == 0:
+        if self.skip_zeros and not src.any():
             output_shape = list(src.shape)
             if self.output_channels is not None:
                 output_shape[1] = self.output_channels
@@ -49,6 +49,7 @@ class SimpleInferenceRunner:  # pragma: no cover
             result = model(to_torch(src).to(device))
         if self.apply_sigmoid:
             result = torch.sigmoid(result)
+        result_np = to_np(result)
 
         if device == "cuda":
             type(self).call_count += 1
@@ -56,5 +57,4 @@ class SimpleInferenceRunner:  # pragma: no cover
                 gc.collect()
                 torch.cuda.empty_cache()
 
-        result_np = to_np(result)
         return result_np

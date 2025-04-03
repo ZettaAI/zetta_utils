@@ -353,7 +353,7 @@ class PrecomputedInfoSpec:
                     if existing_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'expect_same'. Some scales present "
+                            "while `info_overwrite` is set to False. Some scales present "
                             f"in `{path}` would be overwritten."
                         )
                     existing_info_no_scales = copy.deepcopy(existing_info)
@@ -364,7 +364,7 @@ class PrecomputedInfoSpec:
                     if non_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'expect_same'. Some non-scale keys "
+                            "while `info_overwrite` is set to False. Some non-scale keys "
                             f"in `{path}` would be overwritten."
                         )
 

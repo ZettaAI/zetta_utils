@@ -5,13 +5,14 @@ from zetta_utils.task_management.subtask import (
     get_subtask,
     release_subtask,
     start_subtask,
+    update_subtask,
 )
 from zetta_utils.task_management.subtask_type import (
     create_subtask_type,
     get_subtask_type,
 )
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.types import Subtask, SubtaskType
+from zetta_utils.task_management.types import Subtask, SubtaskType, SubtaskUpdate
 
 from .utils import generic_exception_handler
 
@@ -72,6 +73,24 @@ async def start_subtask_api(
     :return: The ID of the started subtask, or None if no subtask available
     """
     return start_subtask(project_name, user_id, subtask_id)
+
+
+@api.post("/projects/{project_name}/set_subtask_ng_state")
+async def set_subtask_ng_state_api(
+    project_name: str,
+    subtask_id: str,
+    ng_state: str,
+):
+    """
+    Update the neuroglancer state for a subtask.
+
+    :param project_name: The name of the project
+    :param subtask_id: The ID of the subtask to update
+    :param ng_state: The new neuroglancer state URL
+    """
+
+    update_data = SubtaskUpdate(ng_state=ng_state)
+    update_subtask(project_name, subtask_id, update_data)
 
 
 @api.put("/projects/{project_name}/release_subtask")

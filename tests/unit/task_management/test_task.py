@@ -103,6 +103,7 @@ def sample_subtasks() -> list[Subtask]:
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": f"http://example.com/{i}",
+            "ng_state_initial": f"http://example.com/{i}",
             "priority": i,
             "batch_id": "batch_1",
             "last_leased_ts": 0.0,

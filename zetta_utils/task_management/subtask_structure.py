@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Any, Callable, Mapping
 
 from coolname import generate_slug
 from google.cloud import firestore
@@ -31,13 +31,14 @@ def get_available_structures() -> list[str]:  # pragma: no cover
     return list(_SUBTASK_STRUCTURES.keys())
 
 
-def create_subtask_structure(
+def create_subtask_dag(
     client: firestore.Client,
     transaction: firestore.Transaction,
     project_name: str,
     task_id: str,
     subtask_structure: str,
     priority: int = 1,
+    subtask_structure_kwargs: Mapping[str, Any] | None = None,
 ) -> bool:
     """
     Create a predefined subtask structure for a task.
@@ -64,6 +65,8 @@ def create_subtask_structure(
     task_data = task_doc.to_dict()
 
     ng_state = task_data["ng_state"]
+    if subtask_structure_kwargs is None:
+        subtask_structure_kwargs = {}
 
     structure_func = _SUBTASK_STRUCTURES[subtask_structure]
     structure_func(
@@ -75,6 +78,7 @@ def create_subtask_structure(
         ng_state=ng_state,
         priority=priority,
         suffix=suffix,
+        **subtask_structure_kwargs,
     )
 
     transaction.update(task_ref, {"status": "ingested"})
@@ -127,6 +131,7 @@ def segmentation_proofread_simple(
         "assigned_user_id": "",
         "active_user_id": "",
         "completed_user_id": "",
+        "ng_state_initial": ng_state,
         "ng_state": ng_state,
         "priority": priority,
         "batch_id": batch_id,
@@ -144,6 +149,7 @@ def segmentation_proofread_simple(
         "assigned_user_id": "",
         "active_user_id": "",
         "completed_user_id": "",
+        "ng_state_initial": ng_state,
         "ng_state": ng_state,
         "priority": priority,
         "batch_id": batch_id,
@@ -161,6 +167,7 @@ def segmentation_proofread_simple(
         "assigned_user_id": "",
         "active_user_id": "",
         "completed_user_id": "",
+        "ng_state_initial": ng_state,
         "ng_state": ng_state,
         "priority": priority,
         "batch_id": batch_id,

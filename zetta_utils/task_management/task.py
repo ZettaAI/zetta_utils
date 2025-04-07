@@ -42,6 +42,7 @@ def get_task(project_name: str, task_id: str) -> Task:
     return doc.to_dict()
 
 
+@typechecked
 def update_task(project_name: str, task_id: str, data: TaskUpdate) -> bool:
     """
     Update a task record in the project's Task collection.
@@ -49,59 +50,68 @@ def update_task(project_name: str, task_id: str, data: TaskUpdate) -> bool:
     :param project_name: The name of the project.
     :param task_id: The unique identifier of the task.
     :param data: The task data to update.
-    :return: True on success.
-    :raises ValueError: If the update data is invalid.
+    :return: True if the update was successful.
     :raises KeyError: If the task does not exist.
+    :raises ValueError: If the task data is invalid.
     :raises RuntimeError: If the Firestore transaction fails.
     """
-    # Validate status if it's being updated
-    if "status" in data and data["status"] not in [
-        "pending_ingestion",
-        "ingested",
-        "fully_processed",
-    ]:
-        raise ValueError("Invalid status value")
-
-    collection = get_collection(project_name, "tasks")
-    doc_ref = collection.document(task_id)
+    client = get_firestore_client()
+    transaction = get_transaction()
+    task_ref = client.collection(f"{project_name}_tasks").document(task_id)
 
     @firestore.transactional
     def update_in_transaction(transaction):
-        doc = doc_ref.get(transaction=transaction)
+        doc = task_ref.get(transaction=transaction)
         if not doc.exists:
             raise KeyError(f"Task {task_id} not found")
 
-        transaction.update(doc_ref, data)
+        # Validate status if it's being updated
+        if "status" in data and data["status"] not in [
+            "pending_ingestion",
+            "ingested",
+            "fully_processed",
+        ]:
+            raise ValueError(f"Invalid status value: {data['status']}")
+
+        transaction.update(task_ref, data)
         return True
 
-    return update_in_transaction(get_transaction())
+    return update_in_transaction(transaction)
 
 
-def create_tasks_batch(project_name: str, tasks: list[Task], batch_size: int = 500) -> list[str]:
+def create_tasks_batch(project_name: str, tasks: list["Task"], batch_size: int = 500) -> list[str]:
     """
-    Create multiple tasks in a single batch write.
+    Create a batch of tasks in the project's Task collection.
 
     :param project_name: The name of the project.
-    :param tasks: List of tasks to create.
-    :param batch_size: Maximum number of operations per batch (default 500).
-    :return: List of created task IDs.
+    :param tasks: The list of task data to create.
+    :param batch_size: The maximum number of tasks to create in a single batch.
+    :return: The list of task_ids of the created tasks.
+    :raises ValueError: If any task data is invalid or a task already exists.
+    :raises RuntimeError: If the Firestore transaction fails.
     """
     client = get_firestore_client()
+    collection = client.collection(f"{project_name}_tasks")
     task_ids = []
 
-    # Process tasks in batches
+    # Process in batches to avoid Firestore limits
     for i in range(0, len(tasks), batch_size):
         batch = client.batch()
-        chunk = tasks[i : i + batch_size]
+        batch_tasks = tasks[i : i + batch_size]
+        batch_task_ids = []
 
-        for task in chunk:
-            doc_ref = client.collection(f"{project_name}_tasks").document(task["task_id"])
-            # Check if task exists before adding to batch
+        for task in batch_tasks:
+            task_id = task["task_id"]
+
+            # Check if task already exists
+            doc_ref = collection.document(task_id)
             if doc_ref.get().exists:
-                raise ValueError(f"Task {task['task_id']} already exists")
-            task_ids.append(task["task_id"])
+                raise ValueError(f"Task {task_id} already exists")
+
+            batch_task_ids.append(task_id)
             batch.set(doc_ref, task)
 
         batch.commit()
+        task_ids.extend(batch_task_ids)
 
     return task_ids

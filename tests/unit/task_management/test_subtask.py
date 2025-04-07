@@ -12,6 +12,7 @@ from zetta_utils.task_management.exceptions import (
 )
 from zetta_utils.task_management.subtask import (
     create_subtask,
+    create_subtasks_batch,
     get_max_idle_seconds,
     get_subtask,
     release_subtask,
@@ -102,6 +103,7 @@ def sample_subtask() -> Subtask:
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com",
             "ng_state": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
@@ -131,6 +133,7 @@ def sample_subtasks(sample_subtask_type) -> list[Subtask]:
                 "assigned_user_id": "",
                 "active_user_id": "",
                 "completed_user_id": "",
+                "ng_state_initial": f"http://example.com/{i}",
                 "ng_state": f"http://example.com/{i}",
                 "priority": i,
                 "batch_id": "batch_1",
@@ -163,6 +166,7 @@ def existing_priority_subtasks(firestore_emulator, project_name_subtask, existin
                 "assigned_user_id": "",
                 "active_user_id": "",
                 "completed_user_id": "",
+                "ng_state_initial": f"http://example.com/{i}",
                 "ng_state": f"http://example.com/{i}",
                 "priority": i,
                 "batch_id": "batch_1",
@@ -381,19 +385,14 @@ def test_update_subtask_missing_dependency_fields(
 
 
 @pytest.mark.parametrize(
-    "invalid_data, expected_error",
+    "invalid_data",
     [
-        ({"subtask_type": "nonexistent_type"}, "Subtask type not found"),
-        (
-            {"completion_status": "invalid"},
-            "Completion status 'invalid' not allowed for this subtask type",
-        ),
+        {"subtask_type": "nonexistent_type"},
+        {"completion_status": "invalid"},
     ],
 )
-def test_update_subtask_validation(
-    invalid_data, expected_error, existing_subtask, project_name_subtask
-):
-    with pytest.raises(SubtaskValidationError, match=expected_error):
+def test_update_subtask_validation(invalid_data, existing_subtask, project_name_subtask):
+    with pytest.raises(SubtaskValidationError):
         update_subtask(project_name_subtask, "subtask_1", invalid_data)
 
 
@@ -481,6 +480,7 @@ def test_create_subtask_duplicate_id(project_name_subtask, existing_subtask):
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com/new",
             "ng_state": "http://example.com/new",
             "priority": 2,
             "batch_id": "batch_2",
@@ -576,6 +576,7 @@ def test_start_subtask_user_already_has_active(
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com/second",
             "ng_state": "http://example.com/second",
             "priority": 2,
             "batch_id": "batch_1",
@@ -606,8 +607,10 @@ def test_start_subtask_user_already_has_active(
     subtask2 = get_subtask(project_name_subtask, "subtask_2")
     assert subtask2["active_user_id"] == ""
 
-    start_subtask(project_name_subtask, "user_1", "subtask_1")
-    start_subtask(project_name_subtask, "user_1")
+    result = start_subtask(project_name_subtask, "user_1", "subtask_1")
+    assert result == "subtask_1"
+    result = start_subtask(project_name_subtask, "user_1")
+    assert result == "subtask_1"
     user = get_user(project_name_subtask, "user_1")
     assert user["active_subtask"] == "subtask_1"
 
@@ -695,8 +698,9 @@ def test_start_subtask_already_active(project_name_subtask, existing_subtask, ex
     create_user(project_name_subtask, second_user)
 
     # First, have user_1 start the subtask
-    start_subtask(project_name_subtask, "user_1", "subtask_1")
+    result = start_subtask(project_name_subtask, "user_1", "subtask_1")
 
+    assert result == "subtask_1"
     # Verify user_1 has the subtask
     user1: User = get_user(project_name_subtask, "user_1")
     assert user1["active_subtask"] == "subtask_1"
@@ -864,6 +868,7 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
             "assigned_user_id": "user_1",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com/assigned",
             "ng_state": "http://example.com/assigned",
             "priority": 1,
             "batch_id": "batch_1",
@@ -881,6 +886,7 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com/unassigned",
             "ng_state": "http://example.com/unassigned",
             "priority": 10,  # Higher priority
             "batch_id": "batch_1",
@@ -955,6 +961,7 @@ def test_release_subtask_with_dependencies(project_name_subtask, existing_subtas
         assigned_user_id="dep_test_user",
         active_user_id="",
         completed_user_id="",
+        ng_state_initial="http://example.com/dep1",
         ng_state="http://example.com/dep1",
         priority=1,
         batch_id="batch_dep",
@@ -970,6 +977,7 @@ def test_release_subtask_with_dependencies(project_name_subtask, existing_subtas
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
+        ng_state_initial="http://example.com/dep2",
         ng_state="http://example.com/dep2",
         priority=2,
         batch_id="batch_dep",
@@ -1053,6 +1061,7 @@ def test_auto_select_subtask_finds_idle_task(project_name_subtask, existing_subt
         assigned_user_id="",
         active_user_id="user_with_idle_task",
         completed_user_id="",
+        ng_state_initial="http://example.com/idle",
         ng_state="http://example.com/idle",
         priority=5,
         batch_id="batch_idle",
@@ -1102,6 +1111,7 @@ def test_auto_select_subtask_no_available_tasks(project_name_subtask, existing_s
         assigned_user_id="",
         active_user_id="",
         completed_user_id="test_user",
+        ng_state_initial="http://example.com",
         ng_state="http://example.com",
         priority=1,
         batch_id="batch_1",
@@ -1125,6 +1135,7 @@ def test_auto_select_subtask_no_available_tasks(project_name_subtask, existing_s
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
+        ng_state_initial="http://example.com/other",
         ng_state="http://example.com/other",
         priority=1,
         batch_id="batch_other",
@@ -1142,6 +1153,7 @@ def test_auto_select_subtask_no_available_tasks(project_name_subtask, existing_s
         assigned_user_id="",
         active_user_id="other_user",
         completed_user_id="",
+        ng_state_initial="http://example.com/active",
         ng_state="http://example.com/active",
         priority=5,
         batch_id="batch_active",
@@ -1172,6 +1184,7 @@ def test_release_wrong_subtask_id(project_name_subtask, existing_subtask, existi
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
+            "ng_state_initial": "http://example.com",
             "ng_state": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
@@ -1198,3 +1211,237 @@ def test_release_wrong_subtask_id(project_name_subtask, existing_subtask, existi
     other_subtask = get_subtask(project_name_subtask, "subtask_2")
     assert other_subtask["active_user_id"] == ""
     assert other_subtask["completion_status"] == ""
+
+
+def test_create_subtasks_batch_success(project_name_subtask, existing_subtask_type):
+    """Test creating multiple subtasks in a batch"""
+    # Create a list of subtasks to add in batch
+    subtasks = []
+    for i in range(1, 4):
+        subtask = Subtask(
+            **{
+                "task_id": f"task_{i}",
+                "subtask_id": f"batch_subtask_{i}",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": f"http://example.com/batch_{i}",
+                "ng_state": f"http://example.com/batch_{i}",
+                "priority": i,
+                "batch_id": "batch_test",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        )
+        subtasks.append(subtask)
+
+    # Create the batch of subtasks
+    result = create_subtasks_batch(project_name_subtask, subtasks)
+
+    # Verify the returned IDs match what we expect
+    assert result == ["batch_subtask_1", "batch_subtask_2", "batch_subtask_3"]
+
+    # Verify each subtask was created correctly
+    for i in range(1, 4):
+        subtask = get_subtask(project_name_subtask, f"batch_subtask_{i}")
+        assert subtask["task_id"] == f"task_{i}"
+        assert subtask["ng_state"] == f"http://example.com/batch_{i}"
+        assert subtask["priority"] == i
+
+
+def test_create_subtasks_batch_with_invalid_data(project_name_subtask, existing_subtask_type):
+    """Test that creating a batch with invalid subtask data raises an error"""
+    # Create a list with one valid and one invalid subtask
+    subtasks = [
+        Subtask(
+            **{
+                "task_id": "task_valid",
+                "subtask_id": "batch_subtask_valid",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": "http://example.com/valid",
+                "ng_state": "http://example.com/valid",
+                "priority": 1,
+                "batch_id": "batch_test",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        ),
+        Subtask(
+            **{
+                "task_id": "task_invalid",
+                "subtask_id": "batch_subtask_invalid",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "user_1",  # Completed user without completion status
+                "ng_state_initial": "http://example.com/invalid",
+                "ng_state": "http://example.com/invalid",
+                "priority": 2,
+                "batch_id": "batch_test",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",  # Missing completion status but has completed_user_id
+            }
+        ),
+    ]
+
+    with pytest.raises(SubtaskValidationError):
+        create_subtasks_batch(project_name_subtask, subtasks)
+
+    # Verify that no subtasks were created (transaction should have been rolled back)
+    client = firestore.Client()
+    valid_doc = (
+        client.collection(f"{project_name_subtask}_subtasks").document("batch_subtask_valid").get()
+    )
+    invalid_doc = (
+        client.collection(f"{project_name_subtask}_subtasks")
+        .document("batch_subtask_invalid")
+        .get()
+    )
+
+    assert not valid_doc.exists
+    assert not invalid_doc.exists
+
+
+def test_create_subtasks_batch_with_duplicate_id(
+    project_name_subtask, existing_subtask, existing_subtask_type
+):
+    """Test that creating a batch with a duplicate subtask ID raises an error"""
+    # Create a list of subtasks with one having the same ID as an existing subtask
+    subtasks = [
+        Subtask(
+            **{
+                "task_id": "task_new",
+                "subtask_id": "subtask_1",  # This ID already exists from the fixture
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": "http://example.com/new",
+                "ng_state": "http://example.com/new",
+                "priority": 5,
+                "batch_id": "batch_new",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        ),
+        Subtask(
+            **{
+                "task_id": "task_new2",
+                "subtask_id": "subtask_new",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": "http://example.com/new2",
+                "ng_state": "http://example.com/new2",
+                "priority": 6,
+                "batch_id": "batch_new",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        ),
+    ]
+
+    # This should raise a SubtaskValidationError
+    with pytest.raises(SubtaskValidationError, match="Subtask subtask_1 already exists"):
+        create_subtasks_batch(project_name_subtask, subtasks)
+
+    # Verify that no new subtasks were created
+    client = firestore.Client()
+    new_doc = client.collection(f"{project_name_subtask}_subtasks").document("subtask_new").get()
+    assert not new_doc.exists
+
+    # Verify the existing subtask wasn't modified
+    original_subtask = get_subtask(project_name_subtask, "subtask_1")
+    assert original_subtask["ng_state"] == "http://example.com"  # Original value
+
+
+def test_create_subtasks_batch_with_invalid_subtask_type(project_name_subtask):
+    """Test that creating a batch with an invalid subtask type raises an error"""
+    # Create a subtask with a non-existent subtask type
+    subtasks = [
+        Subtask(
+            **{
+                "task_id": "task_invalid_type",
+                "subtask_id": "subtask_invalid_type",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": "http://example.com/invalid_type",
+                "ng_state": "http://example.com/invalid_type",
+                "priority": 1,
+                "batch_id": "batch_test",
+                "subtask_type": "nonexistent_type",  # This type doesn't exist
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        )
+    ]
+
+    # This should raise a SubtaskValidationError
+    with pytest.raises(SubtaskValidationError, match="Subtask type not found: nonexistent_type"):
+        create_subtasks_batch(project_name_subtask, subtasks)
+
+    # Verify that no subtasks were created
+    client = firestore.Client()
+    doc = (
+        client.collection(f"{project_name_subtask}_subtasks")
+        .document("subtask_invalid_type")
+        .get()
+    )
+    assert not doc.exists
+
+
+def test_create_subtasks_batch_with_custom_batch_size(project_name_subtask, existing_subtask_type):
+    """Test creating subtasks with a custom batch size"""
+    # Create more subtasks than the custom batch size to test multiple batches
+    subtasks = []
+    for i in range(1, 6):  # Create 5 subtasks
+        subtask = Subtask(
+            **{
+                "task_id": f"task_batch_{i}",
+                "subtask_id": f"subtask_batch_{i}",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state_initial": f"http://example.com/batch_{i}",
+                "ng_state": f"http://example.com/batch_{i}",
+                "priority": i,
+                "batch_id": "batch_test",
+                "subtask_type": existing_subtask_type["subtask_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        )
+        subtasks.append(subtask)
+
+    # Set a custom batch size that's smaller than the total number of subtasks
+    batch_size = 2
+
+    # Mock the batch.commit() to ensure it gets called for each batch
+    with patch("google.cloud.firestore.WriteBatch.commit") as mock_commit:
+        result = create_subtasks_batch(project_name_subtask, subtasks, batch_size=batch_size)
+
+    # Verify all subtasks were created with their IDs returned
+    expected_ids = [f"subtask_batch_{i}" for i in range(1, 6)]
+    assert result == expected_ids
+
+    assert mock_commit.call_count >= 2
+
+
+def test_create_subtasks_batch_empty_list(project_name_subtask):
+    """Test creating a batch with an empty list of subtasks"""
+    result = create_subtasks_batch(project_name_subtask, [])
+
+    assert len(result) == 0

@@ -1,9 +1,12 @@
+import random
 import time
-from typing import Optional
+from typing import Mapping, Optional
 
 from google.cloud import firestore
 from google.cloud.firestore_v1.base_document import DocumentSnapshot
 from typeguard import typechecked
+
+from zetta_utils.log import get_logger
 
 from .exceptions import SubtaskValidationError, UserValidationError
 from .helpers import get_transaction, retry_transient_errors
@@ -13,12 +16,14 @@ from .types import Subtask, SubtaskUpdate
 
 _MAX_IDLE_SECONDS = 90
 
+logger = get_logger("zetta_utils")
+
 
 def get_max_idle_seconds() -> float:
     return _MAX_IDLE_SECONDS
 
 
-def _validate_subtask(subtask: dict) -> Subtask:
+def _validate_subtask(subtask: Mapping) -> Subtask:
     """
     Validate that a subtask's data is consistent and valid.
 
@@ -48,37 +53,101 @@ def _validate_subtask(subtask: dict) -> Subtask:
             )
         if completion_status not in subtask_type["completion_statuses"]:
             raise SubtaskValidationError(
-                f"Completion status '{completion_status}' not allowed for this subtask type"
+                f"Invalid completion status '{completion_status}' for subtask type "
+                f"{subtask['subtask_type']}"
             )
 
-        # If there's a completion status, must have completed user
         if not subtask.get("completed_user_id"):
             raise SubtaskValidationError("Completed subtask must have completed_user_id")
-
+    elif subtask.get("completed_user_id"):
+        raise SubtaskValidationError(
+            "Subtask with completed_user_id must have a completion status"
+        )
     return Subtask(**subtask)  # type: ignore # typeguard will check for us
 
 
 @typechecked
 def create_subtask(project_name: str, data: Subtask) -> str:
-    """Create a new subtask record"""
-    get_subtask_type(data["subtask_type"])
+    """
+    Create a new subtask record in the project's Subtask collection.
 
-    collection = get_collection(project_name, "subtasks")
-    doc_ref = collection.document(data["subtask_id"])
+    :param project_name: The name of the project.
+    :param data: The subtask data to create.
+    :return: The subtask_id of the created subtask.
+    :raises SubtaskValidationError: If the subtask data is invalid.
+    :raises RuntimeError: If the Firestore transaction fails.
+    """
+    client = get_firestore_client()
+    transaction = get_transaction()
+    subtask_ref = client.collection(f"{project_name}_subtasks").document(data["subtask_id"])
 
     @firestore.transactional
     def create_in_transaction(transaction):
-        doc = doc_ref.get(transaction=transaction)
+        # Validate the subtask data
+        _validate_subtask(data)
+
+        # Check if subtask already exists
+        doc = subtask_ref.get(transaction=transaction)
         if doc.exists:
             raise SubtaskValidationError(f"Subtask {data['subtask_id']} already exists")
-        transaction.set(doc_ref, data)
+
+        # Create the subtask
+        transaction.set(subtask_ref, {**data, "_id_nonunique": random.randint(0, 2 ** 32 - 1)})
         return data["subtask_id"]
 
-    return create_in_transaction(get_transaction())
+    return create_in_transaction(transaction)
 
 
 @typechecked
-def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate) -> bool:
+def create_subtasks_batch(
+    project_name: str, subtasks: list[Subtask], batch_size: int = 500
+) -> list[str]:
+    """
+    Create a batch of subtasks in the project's Subtask collection.
+
+    :param project_name: The name of the project.
+    :param subtasks: The list of subtask data to create.
+    :param batch_size: The maximum number of subtasks to create in a single batch.
+    :return: The list of subtask_ids of the created subtasks.
+    :raises SubtaskValidationError: If any subtask data is invalid or a subtask already exists.
+    :raises RuntimeError: If the Firestore transaction fails.
+    """
+    client = get_firestore_client()
+    collection = client.collection(f"{project_name}_subtasks")
+    subtask_ids = []
+
+    # Process in batches to avoid Firestore limits
+    for i in range(0, len(subtasks), batch_size):
+        batch = client.batch()
+        batch_subtasks = subtasks[i : i + batch_size]
+        batch_subtask_ids = []
+
+        for subtask in batch_subtasks:
+            # Add random ID if not already present
+            # if "_id_nonunique" not in subtask:
+            #    subtask["_id_nonunique"] = random.randint(0, 2 ** 64 - 1)
+
+            # Validate the subtask data
+            _validate_subtask(subtask)
+
+            subtask_id = subtask["subtask_id"]
+            batch_subtask_ids.append(subtask_id)
+            doc_ref = collection.document(subtask_id)
+
+            # Check if subtask already exists
+            if doc_ref.get().exists:
+                raise SubtaskValidationError(f"Subtask {subtask_id} already exists")
+
+            batch.set(doc_ref, subtask)
+
+        batch.commit()
+        subtask_ids.extend(batch_subtask_ids)
+
+    return subtask_ids
+
+
+@typechecked
+def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate):
     """Update a subtask record"""
     collection = get_collection(project_name, "subtasks")
     doc_ref = collection.document(subtask_id)
@@ -95,6 +164,10 @@ def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate) -> b
 
         # If completion status is changing, handle side effects
         if "completion_status" in data and "completed_user_id" in data:
+            logger.info(
+                f"[{project_name}] Updating subtask {subtask_id} with completion "
+                f"status {data['completion_status']}"
+            )
             updates = _handle_subtask_completion(
                 transaction,
                 project_name,
@@ -103,11 +176,11 @@ def update_subtask(project_name: str, subtask_id: str, data: SubtaskUpdate) -> b
             )
             # Apply all completion-related updates
             for ref, update_data in updates:
+                logger.info(f"Updating {ref} with {update_data}")
                 transaction.update(ref, update_data)
 
         # Apply the main update
         transaction.update(doc_ref, data)
-        return True
 
     return update_in_transaction(get_transaction())
 
@@ -125,19 +198,20 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
 
         user_data = user_doc.to_dict()
         current_active_subtask_id = user_data.get("active_subtask")
-        if (
-            subtask_id is not None
-            and current_active_subtask_id != ""
-            and current_active_subtask_id != subtask_id
-        ):
-            raise UserValidationError(
-                f"User already has an active subtask {current_active_subtask_id} "
-                f"which is different from requested subtask {subtask_id}"
-            )
 
         if subtask_id is None and current_active_subtask_id == "":
+            logger.info(f"[{project_name}] Auto-selecting subtask for user {user_id}")
             selected_subtask = _auto_select_subtask(client, project_name, user_id, transaction)
         elif subtask_id is not None:
+            logger.info(
+                f"[{project_name}] Starting the requested subtask {subtask_id} "
+                f"for user {user_id}"
+            )
+            if current_active_subtask_id not in ["", subtask_id]:
+                raise UserValidationError(
+                    f"User already has an active subtask {current_active_subtask_id} "
+                    f"which is different from requested subtask {subtask_id}"
+                )
             selected_subtask = (
                 client.collection(f"{project_name}_subtasks")
                 .document(subtask_id)
@@ -147,6 +221,10 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             if not selected_subtask.exists:
                 raise SubtaskValidationError(f"Subtask {subtask_id} not found")
         else:
+            logger.info(
+                f"[{project_name}] Starting the user's active subtask "
+                f"{current_active_subtask_id} for user {user_id}"
+            )
             selected_subtask = (
                 client.collection(f"{project_name}_subtasks")
                 .document(current_active_subtask_id)
@@ -169,10 +247,18 @@ def start_subtask(project_name: str, user_id: str, subtask_id: Optional[str] = N
             current_time = time.time()
             # Check if task is idle and can be taken over
             if subtask_data["active_user_id"] != "":
+                logger.info(
+                    f"[{project_name}] Subtask {subtask_id} is already active by "
+                    f"{subtask_data['active_user_id']}"
+                )
                 if (
                     subtask_data["last_leased_ts"] <= current_time - get_max_idle_seconds()
                     or subtask_data["active_user_id"] == user_id
                 ):
+                    logger.info(
+                        f"[{project_name}] Subtask {subtask_id} is idle or belongs to user "
+                        f"{user_id}, taking over"
+                    )
                     previous_user_ref = client.collection(f"{project_name}_users").document(
                         subtask_data["active_user_id"]
                     )
@@ -238,6 +324,10 @@ def release_subtask(
         # Prepare updates
         updates = []
         if completion_status:
+            logger.info(
+                f"[{project_name}] Releasing subtask {subtask_id} with completion status "
+                f"{completion_status}"
+            )
             updates.extend(
                 _handle_subtask_completion(
                     transaction,
@@ -286,6 +376,10 @@ def _handle_subtask_completion(
     :return: List of (doc_ref, update_data) tuples to be applied
     :raises RuntimeError: If the Firestore transaction fails
     """
+    logger.info(
+        f"[{project_name}] Handling subtask completion for {subtask_id} with status "
+        f"{completion_status}"
+    )
     client = get_firestore_client()
     updates: list[tuple[DocumentSnapshot, dict]] = []
 
@@ -306,6 +400,9 @@ def _handle_subtask_completion(
     for dep in deps:
         dep_data = dep.to_dict()
         if dep_data["required_completion_status"] == completion_status:
+            logger.info(
+                f"[{project_name}] Marking dependency {dep_data['subtask_id']} as satisfied"
+            )
             # Mark dependency satisfied
             updates.append((dep.reference, {"is_satisfied": True}))
 
@@ -323,8 +420,20 @@ def _handle_subtask_completion(
                 dependent_subtask_ref = client.collection(f"{project_name}_subtasks").document(
                     dependent_subtask_id
                 )
+                logger.info(
+                    f"[{project_name}] Activating dependent subtask {dependent_subtask_id}"
+                )
                 updates.append((dependent_subtask_ref, {"is_active": True}))
-
+            else:
+                logger.info(
+                    f"[{project_name}] Dependent subtask {dependent_subtask_id} has other "
+                    f"dependencies to satisfy"
+                )  # pragma: no cover
+        else:
+            logger.info(
+                f"[{project_name}] Dependency {dep_data['subtask_id']} is not satisfied with "
+                f"completion status {completion_status}"
+            )
     # Check if task is complete
     task_id = subtask_data["task_id"]
     incomplete_subtasks = (
@@ -337,9 +446,14 @@ def _handle_subtask_completion(
 
     # If this was the last incomplete subtask
     if len(list(incomplete_subtasks)) == 1:
+        logger.info(
+            f"[{project_name}] Last incomplete subtask {subtask_id} for task {task_id}, "
+            f"marking task as fully processed"
+        )
         task_ref = client.collection(f"{project_name}_tasks").document(task_id)
         task_doc = task_ref.get(transaction=transaction)
         if task_doc.exists:
+            logger.info(f"[{project_name}] Marking task {task_id} as fully processed")
             updates.append((task_ref, {"status": "fully_processed"}))
 
     return updates
@@ -369,6 +483,10 @@ def _auto_select_subtask(
 
     # 1. Check for tasks already assigned to user
     for subtask_type in qualified_types:
+        logger.info(
+            f"[{project_name}] Checking for tasks assigned to user {user_id} of type "
+            f"{subtask_type}"
+        )
         query = (
             subtasks_collection.where("is_active", "==", True)
             .where("assigned_user_id", "==", user_id)
@@ -380,10 +498,15 @@ def _auto_select_subtask(
         )
         results = list(query.get(transaction=transaction))
         if results:
+            logger.info(
+                f"[{project_name}] Found task {results[0].id} assigned to user {user_id} "
+                f"of type {subtask_type}"
+            )
             return results[0]
 
     # 2. Check for unassigned tasks
     for subtask_type in qualified_types:
+        logger.info(f"[{project_name}] Checking for unassigned tasks of type {subtask_type}")
         query = (
             subtasks_collection.where("is_active", "==", True)
             .where("assigned_user_id", "==", "")
@@ -395,11 +518,15 @@ def _auto_select_subtask(
         )
         results = list(query.get(transaction=transaction))
         if results:
+            logger.info(
+                f"[{project_name}] Found task {results[0].id} unassigned of type {subtask_type}"
+            )
             return results[0]
 
     # 3. Check for idle tasks
     oldest_allowed_ts = current_time - get_max_idle_seconds()
     for subtask_type in qualified_types:
+        logger.info(f"[{project_name}] Checking for idle tasks of type {subtask_type}")
         query = (
             subtasks_collection.where("is_active", "==", True)
             .where("completion_status", "==", "")
@@ -410,8 +537,10 @@ def _auto_select_subtask(
         )
         results = list(query.get(transaction=transaction))
         if results:
+            logger.info(f"[{project_name}] Found task {results[0].id} idle of type {subtask_type}")
             return results[0]
 
+    logger.info(f"[{project_name}] No idle tasks found for user {user_id}")
     return None
 
 

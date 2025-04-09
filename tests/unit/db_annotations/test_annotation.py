@@ -125,7 +125,7 @@ def test_add_update_annotations(
         layer_group_id=layer_group_id,
         comment="this is a test",
         tags=["tag0", "tag1"],
-        selected_segments=[{"yo": [0, -1]} for _ in annotations_raw],
+        selected_segments=[{"yo": ["0", "1"]} for _ in annotations_raw],
     )
 
     _annotations = annotation.read_annotations(annotation_ids=_ids)
@@ -133,7 +133,7 @@ def test_add_update_annotations(
     assert _annotations[1].ng_annotation.type == "point"
     assert len(_annotations[0].tags) == 2
     assert len(_annotations[1].tags) == 2
-    assert _annotations[0].selected_segments == {"yo": [0, -1]}
+    assert _annotations[0].selected_segments == {"yo": ["0", "1"]}
 
     annotation.update_annotations(
         _ids,

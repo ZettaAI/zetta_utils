@@ -1,4 +1,3 @@
-from re import sub
 import time
 from typing import Optional
 
@@ -290,7 +289,7 @@ def _handle_subtask_completion(
     :raises RuntimeError: If the Firestore transaction fails
     """
     logger.info(f"Handling subtask completion side effects for `{subtask_id}`")
-    print (f"Handling subtask completion side effects for `{subtask_id}`")
+    print(f"Handling subtask completion side effects for `{subtask_id}`")
     updates: list[tuple[DocumentSnapshot, dict]] = []
 
     # Get the subtask and its dependencies
@@ -306,12 +305,12 @@ def _handle_subtask_completion(
         .get(transaction=transaction)
     )
     logger.info(f"Got the following dependencies: {deps}")
-    print (f"Got the following dependencies: {deps}")
+    print(f"Got the following dependencies: {deps}")
     # Update dependencies and dependent subtasks
     for dep in deps:
         dep_data = dep.to_dict()
         logger.info(f"Dep data: {dep_data}")
-        print (f"Dep data: {dep_data}")
+        print(f"Dep data: {dep_data}")
         if dep_data["required_completion_status"] == completion_status:
             logger.info(f"Dependency {dep} satisfied")
             print(f"Dependency {dep} satisfied")

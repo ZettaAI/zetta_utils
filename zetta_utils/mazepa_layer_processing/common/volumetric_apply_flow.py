@@ -85,23 +85,21 @@ class ReduceNaive(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
-            res = torch.zeros(
+            res = np.zeros(
                 (dst.backend.num_channels, *red_idx.shape),
-                dtype=convert.to_torch_dtype(dst.backend.dtype),
+                dtype=dst.backend.dtype,
             )
             assert len(src_layers) > 0
             if processing_blend_pad != Vec3D[int](0, 0, 0):
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    subidx_channels = (slice(0, res.shape[0]), *subidx)
                     with semaphore("read"):
-                        res[subidx_channels] = torch.maximum(
-                            res[subidx_channels], convert.to_torch(layer[intscn], res.device)
-                        )
+                        res[subidx_channels] = np.maximum(res[subidx_channels], layer[intscn])
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    subidx_channels = (slice(0, res.shape[0]), *subidx)
                     with semaphore("read"):
                         res[subidx_channels] = layer[intscn]
             with semaphore("write"):
@@ -735,7 +733,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
+            (
+                tasks,
+                _,
+                _,
+                dst_temps,
+            ) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
             logger.info(
@@ -829,3 +832,5 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
             clear_cache(*op_args, **op_kwargs)
+
+        return tasks

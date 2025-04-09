@@ -3,7 +3,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-from google.cloud import firestore
 
 from zetta_utils.task_management.dependency import create_dependency
 from zetta_utils.task_management.exceptions import (
@@ -32,36 +31,6 @@ from zetta_utils.task_management.user import create_user, get_user, update_user
 
 
 @pytest.fixture
-def sample_subtasks(sample_subtask_type) -> list[Subtask]:
-    return [
-        Subtask(
-            **{
-                "task_id": "task_1",
-                "subtask_id": f"subtask_{i}",
-                "assigned_user_id": "",
-                "active_user_id": "",
-                "completed_user_id": "",
-                "ng_state": f"http://example.com/{i}",
-                "priority": i,
-                "batch_id": "batch_1",
-                "subtask_type": sample_subtask_type["subtask_type"],
-                "is_active": True,
-                "last_leased_ts": 0.0,
-                "completion_status": "",
-            }
-        )
-        for i in range(1, 4)
-    ]
-
-
-@pytest.fixture
-def existing_subtasks(firestore_emulator, project_name, sample_subtasks, existing_subtask_type):
-    for subtask in sample_subtasks:
-        create_subtask(project_name, subtask)
-    yield sample_subtasks
-
-
-@pytest.fixture
 def existing_priority_subtasks(firestore_emulator, project_name, existing_subtask_type):
     subtasks = [
         Subtask(
@@ -72,6 +41,7 @@ def existing_priority_subtasks(firestore_emulator, project_name, existing_subtas
                 "active_user_id": "",
                 "completed_user_id": "",
                 "ng_state": f"http://example.com/{i}",
+                "ng_state_initial": f"http://example.com/{i}",
                 "priority": i,
                 "batch_id": "batch_1",
                 "subtask_type": existing_subtask_type["subtask_type"],
@@ -160,7 +130,7 @@ def test_update_subtask_not_found(project_name):
 def test_start_subtask_success(existing_subtask, existing_user, project_name):
     """Test starting work on a subtask"""
     before_time = time.time()
-    result = start_subtask(project_name, "test_user_1", "subtask_1")
+    result = start_subtask(project_name, "test_user", "subtask_1")
     after_time = time.time()
 
     assert result == "subtask_1"
@@ -168,17 +138,17 @@ def test_start_subtask_success(existing_subtask, existing_user, project_name):
     # Check that the subtask was updated in Firestore
     updated_subtask = get_subtask(project_name, "subtask_1")
     assert updated_subtask["completion_status"] == ""
-    assert updated_subtask["active_user_id"] == "test_user_1"
+    assert updated_subtask["active_user_id"] == "test_user"
     assert before_time <= updated_subtask["last_leased_ts"] <= after_time
 
     # Check that the user was updated in Firestore
-    updated_user = get_user(project_name, "test_user_1")
+    updated_user = get_user(project_name, "test_user")
     assert updated_user["active_subtask"] == "subtask_1"
 
 
 def test_start_subtask_auto_select(existing_subtasks, existing_user, project_name):
     """Test auto-selecting a subtask to work on"""
-    result = start_subtask(project_name, "test_user_1", None)
+    result = start_subtask(project_name, "test_user", None)
 
     # Should select the highest priority subtask (subtask_3)
     assert result == "subtask_3"
@@ -186,20 +156,20 @@ def test_start_subtask_auto_select(existing_subtasks, existing_user, project_nam
     # Check that the subtask was updated in Firestore
     updated_subtask = get_subtask(project_name, "subtask_3")
     assert updated_subtask["completion_status"] == ""
-    assert updated_subtask["active_user_id"] == "test_user_1"
+    assert updated_subtask["active_user_id"] == "test_user"
 
     # Check that the user was updated in Firestore
-    updated_user = get_user(project_name, "test_user_1")
+    updated_user = get_user(project_name, "test_user")
     assert updated_user["active_subtask"] == "subtask_3"
 
 
 def test_release_subtask_success(project_name, existing_subtask, existing_user):
     """Test releasing a subtask"""
     # First start work on the subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Now release it with an empty completion status
-    result = release_subtask(project_name, "test_user_1", "subtask_1")
+    result = release_subtask(project_name, "test_user", "subtask_1")
     assert result is True
 
     # Check that the subtask was updated in Firestore
@@ -208,27 +178,27 @@ def test_release_subtask_success(project_name, existing_subtask, existing_user):
     assert updated_subtask["active_user_id"] == ""
 
     # Check that the user was updated in Firestore
-    updated_user = get_user(project_name, "test_user_1")
+    updated_user = get_user(project_name, "test_user")
     assert updated_user["active_subtask"] == ""
 
 
 def test_release_subtask_with_completion(project_name, existing_subtask, existing_user):
     """Test releasing a subtask with completion"""
     # First start work on the subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Now release it with completion
-    result = release_subtask(project_name, "test_user_1", "subtask_1", "done")
+    result = release_subtask(project_name, "test_user", "subtask_1", "done")
     assert result is True
 
     # Check that the subtask was updated in Firestore
     updated_subtask = get_subtask(project_name, "subtask_1")
     assert updated_subtask["completion_status"] == "done"
     assert updated_subtask["active_user_id"] == ""
-    assert updated_subtask["completed_user_id"] == "test_user_1"
+    assert updated_subtask["completed_user_id"] == "test_user"
 
     # Check that the user was updated in Firestore
-    updated_user = get_user(project_name, "test_user_1")
+    updated_user = get_user(project_name, "test_user")
     assert updated_user["active_subtask"] == ""
 
 
@@ -360,6 +330,7 @@ def test_create_subtask_duplicate_id(project_name, existing_subtask):
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com/new",
+            "ng_state_initial": "http://example.com/",
             "priority": 2,
             "batch_id": "batch_2",
             "subtask_type": "segmentation_proofread",
@@ -382,9 +353,8 @@ def test_create_subtask_duplicate_id(project_name, existing_subtask):
 def test_subtask_type_without_completion_statuses(project_name, existing_subtask):
     """Test that a subtask with a type that has no completion statuses cannot be completed"""
     # Create a subtask type without completion_statuses
-    client = firestore.Client()
     invalid_type = {"subtask_type": "no_completion_type"}
-    client.collection("subtask_types").document("no_completion_type").set(invalid_type)
+    get_collection(project_name, "subtask_types").document("no_completion_type").set(invalid_type)
 
     # First update the subtask to use this type
     update_subtask(project_name, "subtask_1", SubtaskUpdate(subtask_type="no_completion_type"))
@@ -403,7 +373,7 @@ def test_subtask_type_without_completion_statuses(project_name, existing_subtask
     assert subtask["completed_user_id"] == ""
 
     # Clean up the test subtask type
-    client.collection("subtask_types").document("no_completion_type").delete()
+    get_collection(project_name, "subtask_types").document("no_completion_type").delete()
 
 
 def test_update_nonexistent_subtask(project_name):
@@ -449,6 +419,7 @@ def test_start_subtask_user_already_has_active(project_name, existing_subtask, e
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com/second",
+            "ng_state_initial": "http://example.com/",
             "priority": 2,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -460,27 +431,27 @@ def test_start_subtask_user_already_has_active(project_name, existing_subtask, e
     create_subtask(project_name, second_subtask)
 
     # First, start one subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Verify the user has an active subtask
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "subtask_1"
 
     # Now try to start another subtask
     with pytest.raises(UserValidationError, match="User already has an active subtask"):
-        start_subtask(project_name, "test_user_1", "subtask_2")
+        start_subtask(project_name, "test_user", "subtask_2")
 
     # Verify the user's active subtask hasn't changed
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "subtask_1"
 
     # Verify the second subtask wasn't modified
     subtask2 = get_subtask(project_name, "subtask_2")
     assert subtask2["active_user_id"] == ""
 
-    start_subtask(project_name, "test_user_1", "subtask_1")
-    start_subtask(project_name, "test_user_1")
-    user = get_user(project_name, "test_user_1")
+    start_subtask(project_name, "test_user", "subtask_1")
+    start_subtask(project_name, "test_user")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "subtask_1"
 
 
@@ -493,10 +464,10 @@ def test_start_nonexistent_subtask(project_name, existing_user):
     with pytest.raises(
         SubtaskValidationError, match=f"Subtask {nonexistent_subtask_id} not found"
     ):
-        start_subtask(project_name, "test_user_1", nonexistent_subtask_id)
+        start_subtask(project_name, "test_user", nonexistent_subtask_id)
 
     # Verify the user's active_subtask wasn't modified
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == ""
 
     # Verify that no subtask was created with this ID
@@ -519,10 +490,10 @@ def test_start_subtask_takeover_idle(project_name, existing_subtask, existing_us
     create_user(project_name, second_user)
 
     # First, have user_1 start the subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Verify user_1 has the subtask
-    user1: User = get_user(project_name, "test_user_1")
+    user1: User = get_user(project_name, "test_user")
     assert user1["active_subtask"] == "subtask_1"
 
     # Manually update the last_leased_ts to be older than max idle seconds
@@ -538,7 +509,7 @@ def test_start_subtask_takeover_idle(project_name, existing_subtask, existing_us
     assert user2["active_subtask"] == "subtask_1"
 
     # Verify user_1 no longer has the subtask
-    user1 = get_user(project_name, "test_user_1")
+    user1 = get_user(project_name, "test_user")
     assert user1["active_subtask"] == ""
 
     # Verify the subtask is now assigned to user_2
@@ -561,10 +532,10 @@ def test_start_subtask_already_active(project_name, existing_subtask, existing_u
     create_user(project_name, second_user)
 
     # First, have user_1 start the subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Verify user_1 has the subtask
-    user1: User = get_user(project_name, "test_user_1")
+    user1: User = get_user(project_name, "test_user")
     assert user1["active_subtask"] == "subtask_1"
 
     # Now have user_2 try to take over the subtask (which is still active)
@@ -572,7 +543,7 @@ def test_start_subtask_already_active(project_name, existing_subtask, existing_u
         start_subtask(project_name, "user_2", "subtask_1")
 
     # Verify user_1 still has the subtask
-    user1 = get_user(project_name, "test_user_1")
+    user1 = get_user(project_name, "test_user")
     assert user1["active_subtask"] == "subtask_1"
 
     # Verify user_2 still has no active subtask
@@ -581,7 +552,7 @@ def test_start_subtask_already_active(project_name, existing_subtask, existing_u
 
     # Verify the subtask is still assigned to user_1
     subtask: Subtask = get_subtask(project_name, "subtask_1")
-    assert subtask["active_user_id"] == "test_user_1"
+    assert subtask["active_user_id"] == "test_user"
 
 
 def test_release_subtask_nonexistent_user(project_name, existing_subtask):
@@ -609,7 +580,7 @@ def test_start_subtask_requires_qualification(
     # Update user to have empty qualifications list
     update_user(
         project_name,
-        "test_user_1",
+        "test_user",
         UserUpdate(
             hourly_rate=50.0,
             active_subtask="",
@@ -619,10 +590,10 @@ def test_start_subtask_requires_qualification(
 
     # Try to start subtask - this should raise an error
     with pytest.raises(UserValidationError, match="User not qualified for this subtask type"):
-        start_subtask(project_name, "test_user_1", "subtask_1")
+        start_subtask(project_name, "test_user", "subtask_1")
 
     # Verify the user's active_subtask wasn't modified
-    user: User = get_user(project_name, "test_user_1")
+    user: User = get_user(project_name, "test_user")
     assert user["active_subtask"] == ""
 
     # Verify the subtask wasn't modified
@@ -632,15 +603,15 @@ def test_start_subtask_requires_qualification(
     # Now update the user to have the qualification and try again
     update_user(
         project_name,
-        "test_user_1",
+        "test_user",
         UserUpdate(qualified_subtask_types=["segmentation_proofread"]),
     )
 
     # This should now succeed
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Verify the user now has the subtask
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "subtask_1"
 
     # Verify the subtask is now assigned to the user
@@ -648,19 +619,19 @@ def test_start_subtask_requires_qualification(
 
 def test_release_subtask_nonexistent_subtask(project_name, existing_user):
     """Test that releasing a nonexistent subtask raises an error"""
-    user_ref = get_collection(project_name, "users").document("test_user_1")
+    user_ref = get_collection(project_name, "users").document("test_user")
     user_ref.update({"active_subtask": "nonexistent_subtask"})
 
     # Verify the user has been updated
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "nonexistent_subtask"
 
     # Now try to release the subtask
     with pytest.raises(SubtaskValidationError, match="Subtask nonexistent_subtask not found"):
-        release_subtask(project_name, "test_user_1", "nonexistent_subtask")
+        release_subtask(project_name, "test_user", "nonexistent_subtask")
 
     # Verify the user's active_subtask wasn't modified
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "nonexistent_subtask"
     # Verify that no subtask was created with this ID
     subtask_ref = get_collection(project_name, "subtasks").document("nonexistent_subtask")
@@ -720,10 +691,11 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
         **{
             "task_id": "task_1",
             "subtask_id": "assigned_subtask",
-            "assigned_user_id": "test_user_1",
+            "assigned_user_id": "test_user",
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com/assigned",
+            "ng_state_initial": "http://example.com/",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": existing_subtask_type["subtask_type"],
@@ -741,6 +713,7 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com/unassigned",
+            "ng_state_initial": "http://example.com/",
             "priority": 10,  # Higher priority
             "batch_id": "batch_1",
             "subtask_type": existing_subtask_type["subtask_type"],
@@ -755,18 +728,18 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
     create_subtask(project_name, unassigned_subtask)
 
     # Auto-select a subtask (by not specifying a subtask_id)
-    result = start_subtask(project_name, "test_user_1")
+    result = start_subtask(project_name, "test_user")
 
     # Verify that the assigned subtask was selected, even though it has lower priority
     assert result == "assigned_subtask"
 
     # Verify the user now has the assigned subtask
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == "assigned_subtask"
 
     # Verify the subtask is now assigned to the user
     subtask = get_subtask(project_name, "assigned_subtask")
-    assert subtask["active_user_id"] == "test_user_1"
+    assert subtask["active_user_id"] == "test_user"
 
     # Verify the unassigned subtask wasn't modified
     unassigned = get_subtask(project_name, "unassigned_subtask")
@@ -778,19 +751,19 @@ def test_auto_select_subtask_prioritizes_assigned_to_user(
 def test_release_subtask_no_active_subtask(project_name, existing_user):
     """Test that releasing a subtask fails when the user doesn't have an active subtask"""
     # Verify the user doesn't have an active subtask
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == ""
 
     # Try to release a subtask
     with pytest.raises(UserValidationError, match="User does not have an active subtask"):
-        release_subtask(project_name, "test_user_1", "subtask_1")
+        release_subtask(project_name, "test_user", "subtask_1")
 
     # Try to release with a completion status
     with pytest.raises(UserValidationError, match="User does not have an active subtask"):
-        release_subtask(project_name, "test_user_1", "subtask_1", "done")
+        release_subtask(project_name, "test_user", "subtask_1", "done")
 
     # Verify the user's active_subtask is still empty
-    user = get_user(project_name, "test_user_1")
+    user = get_user(project_name, "test_user")
     assert user["active_subtask"] == ""
 
 
@@ -813,6 +786,7 @@ def test_release_subtask_with_dependencies(project_name, existing_subtask_type):
         active_user_id="",
         completed_user_id="",
         ng_state="http://example.com/dep1",
+        ng_state_initial="http://example.com/dep1",
         priority=1,
         batch_id="batch_dep",
         subtask_type=existing_subtask_type["subtask_type"],
@@ -828,6 +802,7 @@ def test_release_subtask_with_dependencies(project_name, existing_subtask_type):
         active_user_id="",
         completed_user_id="",
         ng_state="http://example.com/dep2",
+        ng_state_initial="http://example.com/dep2",
         priority=2,
         batch_id="batch_dep",
         subtask_type=existing_subtask_type["subtask_type"],
@@ -911,6 +886,7 @@ def test_auto_select_subtask_finds_idle_task(project_name, existing_subtask_type
         active_user_id="user_with_idle_task",
         completed_user_id="",
         ng_state="http://example.com/idle",
+        ng_state_initial="http://example.com/idle",
         priority=5,
         batch_id="batch_idle",
         subtask_type=existing_subtask_type["subtask_type"],
@@ -960,6 +936,7 @@ def test_auto_select_subtask_no_available_tasks(project_name, existing_subtask_t
         active_user_id="",
         completed_user_id="test_user",
         ng_state="http://example.com",
+        ng_state_initial="http://example.com/idle",
         priority=1,
         batch_id="batch_1",
         subtask_type=existing_subtask_type["subtask_type"],
@@ -973,7 +950,7 @@ def test_auto_select_subtask_no_available_tasks(project_name, existing_subtask_t
     different_type = SubtaskType(
         subtask_type="different_type", completion_statuses=["done", "rejected"]
     )
-    create_subtask_type(different_type)
+    create_subtask_type(project_name, different_type)
 
     # Create a subtask with a different type that the user isn't qualified for
     other_type_subtask = Subtask(
@@ -983,6 +960,7 @@ def test_auto_select_subtask_no_available_tasks(project_name, existing_subtask_t
         active_user_id="",
         completed_user_id="",
         ng_state="http://example.com/other",
+        ng_state_initial="http://example.com/idle",
         priority=1,
         batch_id="batch_other",
         subtask_type="different_type",
@@ -1000,6 +978,7 @@ def test_auto_select_subtask_no_available_tasks(project_name, existing_subtask_t
         active_user_id="other_user",
         completed_user_id="",
         ng_state="http://example.com/active",
+        ng_state_initial="http://example.com/idle",
         priority=5,
         batch_id="batch_active",
         subtask_type=existing_subtask_type["subtask_type"],
@@ -1019,7 +998,7 @@ def test_auto_select_subtask_no_available_tasks(project_name, existing_subtask_t
 def test_release_wrong_subtask_id(project_name, existing_subtask, existing_user):
     """Test that releasing a different subtask than active raises error"""
     # First start work on the subtask
-    start_subtask(project_name, "test_user_1", "subtask_1")
+    start_subtask(project_name, "test_user", "subtask_1")
 
     # Create another subtask
     other_subtask = Subtask(
@@ -1030,6 +1009,7 @@ def test_release_wrong_subtask_id(project_name, existing_subtask, existing_user)
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -1044,11 +1024,11 @@ def test_release_wrong_subtask_id(project_name, existing_subtask, existing_user)
     with pytest.raises(
         UserValidationError, match="Subtask ID does not match user's active subtask"
     ):
-        release_subtask(project_name, "test_user_1", "subtask_2", "done")
+        release_subtask(project_name, "test_user", "subtask_2", "done")
 
     # Verify original subtask is still active
     active_subtask = get_subtask(project_name, "subtask_1")
-    assert active_subtask["active_user_id"] == "test_user_1"
+    assert active_subtask["active_user_id"] == "test_user"
     assert active_subtask["completion_status"] == ""
 
     # Verify other subtask wasn't modified

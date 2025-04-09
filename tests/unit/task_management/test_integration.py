@@ -43,12 +43,12 @@ def test_environment():
     for collection in collections:
         if collection.id in [
             "projects",
-            "subtask_types",
-            f"{project_name}_tasks",
-            f"{project_name}_subtasks",
-            f"{project_name}_timesheets",
-            f"{project_name}_dependencies",
-            f"{project_name}_users",
+            f"projects/{project_name}/tasks",
+            f"projects/{project_name}/subtasks",
+            f"projects/{project_name}/subtask_types",
+            f"projects/{project_name}/timesheets",
+            f"projects/{project_name}/dependencies",
+            f"projects/{project_name}/users",
         ]:
             docs = collection.stream()
             for doc in docs:
@@ -77,7 +77,7 @@ def test_environment():
     )
 
     for subtask_type in [proofread_type, verify_type, expert_type]:
-        create_subtask_type(subtask_type)
+        create_subtask_type(project_name, subtask_type)
 
     yield project_name, client  # Return both project name and client
 

@@ -5,13 +5,14 @@ from zetta_utils.task_management.subtask import (
     get_subtask,
     release_subtask,
     start_subtask,
+    update_subtask,
 )
 from zetta_utils.task_management.subtask_type import (
     create_subtask_type,
     get_subtask_type,
 )
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.types import Subtask, SubtaskType
+from zetta_utils.task_management.types import Subtask, SubtaskType, SubtaskUpdate
 
 from .utils import generic_exception_handler
 
@@ -23,26 +24,26 @@ async def generic_handler(request: Request, exc: Exception):
     return generic_exception_handler(request, exc)
 
 
-@api.post("/subtask_types/{subtask_type_id}")
-async def create_subtask_type_api(data: SubtaskType) -> str:
+@api.post("/projects/{project_name}/subtask_types/{subtask_type_id}")
+async def create_subtask_type_api(project_name: str, data: SubtaskType) -> str:
     """
     Create a new subtask type.
 
     :param data: The subtask type data to create
     :return: The ID of the created subtask type
     """
-    return create_subtask_type(data)
+    return create_subtask_type(project_name, data)
 
 
-@api.get("/subtask_types/{subtask_type_id}")
-async def get_subtask_type_api(subtask_type_id: str) -> SubtaskType:
+@api.get("/projects/{project_name}/subtask_types/{subtask_type_id}")
+async def get_subtask_type_api(project_name: str, subtask_type_id: str) -> SubtaskType:
     """
     Get a subtask type by ID.
 
     :param subtask_type_id: The ID of the subtask type to get
     :return: The subtask type data
     """
-    return get_subtask_type(subtask_type_id)
+    return get_subtask_type(project_name, subtask_type_id)
 
 
 @api.get("/projects/{project_name}/subtasks/{subtask_id}")
@@ -72,6 +73,23 @@ async def start_subtask_api(
     :return: The ID of the started subtask, or None if no subtask available
     """
     return start_subtask(project_name, user_id, subtask_id)
+
+
+@api.post("/projects/{project_name}/set_subtask_ng_state")
+async def set_subtask_ng_state_api(
+    project_name: str,
+    subtask_id: str,
+    ng_state: str,
+):
+    """
+    Update the neuroglancer state for a subtask.
+    :param project_name: The name of the project
+    :param subtask_id: The ID of the subtask to update
+    :param ng_state: The new neuroglancer state URL
+    """
+
+    update_data = SubtaskUpdate(ng_state=ng_state)
+    update_subtask(project_name, subtask_id, update_data)
 
 
 @api.put("/projects/{project_name}/release_subtask")

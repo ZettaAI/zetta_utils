@@ -1,0 +1,148 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools >= 66.0.1", "wheel"]
+
+[project]
+authors = [{name = "Zetta AI Team", email = "sergiy@zetta.ai"}]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+  "zetta_utils",
+]
+description = "Zetta AI Connectomics Toolkit"
+keywords = ["neuroscience connectomics EM"]
+license = {text = "Apache 2.0"}
+name = "internal"
+readme = "README.rst"
+requires-python = ">3.10,<3.13"
+urls = {Homepage = "https://github.com/ZettaAI/internal"}
+version = "0.0.1"
+
+[project.optional-dependencies]
+alignment = [
+  "zetta_utils[tensor_ops]",
+  "metroem @ git+https://github.com/ZettaAI/metroem.git",
+  "torch >= 2.0",
+]
+all = ["internal[modules,test]"]
+meshing = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "mapbuffer >= 0.7.2",
+  "pyfqmr >= 0.2.0",
+  "shard-computer >= 1.1.1",
+  "trimesh >= 4.4.0",
+  "zmesh >= 1.7.1",
+]
+modules = [
+  # put them in order of dependencies
+  "internal[alignment, meshing, montaging, segmentation, skeletonization, regimes]",
+]
+montaging = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "torch >= 2.0",
+]
+regimes = [
+  "zetta_utils[tensor_ops,cloudvol,tensorstore,convnet,viz,gcs,augmentations]",
+  "torch >= 2.0",
+  "pytorch-lightning ~= 2.0.0", # mp dataloader causes segmentation faults with 2.1.0
+  "torchmetrics == 0.11.4",
+  "wandb >= 0.13.1",
+  "kubernetes",
+  "onnx",
+]
+segmentation = [
+  "zetta_utils[tensor_ops]",
+  "onnx >= 1.13.0",
+  "scikit-learn >= 1.2.2",
+  "networkx",
+  "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
+  "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
+  "waterz @ git+https://github.com/ZettaAI/waterz.git@c61190d",
+]
+skeletonization = [
+  "zetta_utils[cloudvol, databackends, mazepa]",
+  "mapbuffer >= 0.7.2",
+  "shard-computer >= 1.1.1",
+  "kimimaro>=4.0.2",
+  "dbscan>=0.0.12",
+]
+test = [
+  "zetta_utils[types]",
+  "docker == 6.0.0",
+  "black == 21.9b0",
+  "click == 8.0.1", # for black to work
+  "pydocstyle == 6.1.1",
+  "flake8 == 4.0.1",
+  "mypy == 1.10.1",
+  "mypy-extensions == 1.0.0",
+  "pytest == 7.1.1",
+  "pytest-cov == 3.0.0",
+  "coverage == 6.5.0",
+  "pytest-mock == 3.8.2",
+  "pylint == 3.1.0",
+  "isort == 5.10.1",
+  "pre-commit == 2.19.0",
+  "moto == 4.1.0",
+]
+types = [
+  "types-Pillow == 9.3.0.1",
+  "types-cachetools == 5.2.1",
+  "types-requests == 2.28.11.7",
+  "types-PyYAML == 6.0.12.12",
+]
+
+[tool.setuptools]
+py-modules = ["alignment", "segmentation", "regimes"]
+
+[tool.black]
+line-length = 99
+target-version = ["py38", "py39"]
+
+[tool.pylint.format]
+max-line-length = 99
+max-locals = 25
+
+[tool.pylint.basic]
+additional-builtins = '''reveal_type'''
+good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn,fp,op,q,cf,tb,dx,dy,dz'''
+[tool.pylint.message_control]
+disable = '''duplicate-code,C0103,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,logging-not-lazy,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable,no-else-return,unsupported-membership-test,abstract-class-instantiated,unpacking-non-sequence,no-self-use'''
+extension-pkg-allow-list = ["pymssql._mssql", "abiss"]
+
+[tool.pylint.miscellaneous]
+notes = '''FIXME,XXX'''
+
+[tool.pylint.similarities]
+ignore-comments = "yes"
+ignore-docstrings = "yes"
+ignore-imports = "yes"
+min-similarity-lines = 4
+
+[tool.pylint.main]
+extension-pkg-whitelist = "numpy,cc3d,fastremap,abiss"
+ignore-paths = ["^docs/*"]
+load-plugins = "pylint.extensions.no_self_use"
+
+[tool.pylint.options]
+generated-members = "torch.*"
+
+[tool.mypy]
+check_untyped_defs = true
+ignore_missing_imports = true
+implicit_reexport = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[tool.isort]
+known_first_party = ["zetta_utils"]
+known_third_party = "wandb"
+profile = "black"
+skip = ["__init__.py"]

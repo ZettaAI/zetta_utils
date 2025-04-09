@@ -1,0 +1,5 @@
+from typing import Final
+
+DEFAULT_UPKEEP_INTERVAL: Final = 5
+DEFAULT_UPKEEPS_PER_LEASE: Final = 5
+UNKNOWN_TASK_ID: Final = "UNKNOWN_TASK_ID"

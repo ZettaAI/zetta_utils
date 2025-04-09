@@ -6,6 +6,7 @@ from coolname import generate_slug
 from google.cloud import firestore
 
 from zetta_utils.task_management.project import get_collection
+from zetta_utils.task_management.utils import generate_id_nonunique
 
 # Registry to store all registered subtask structures
 _SUBTASK_STRUCTURES: dict[str, Callable] = {}
@@ -132,12 +133,14 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
+        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread_id), proofread_subtask)
 
@@ -149,12 +152,14 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
+        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_verify",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(verify_id), verify_subtask)
 
@@ -166,12 +171,14 @@ def segmentation_proofread_simple(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
+        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread_expert",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(expert_id), expert_subtask)
 
@@ -266,12 +273,14 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": ng_state,
+        "ng_state_initial": ng_state,
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread1_id), proofread1_subtask)
 
@@ -283,12 +292,14 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": json.dumps(ng_state_val),
+        "ng_state_initial": json.dumps(ng_state_val),
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_proofread",
         "is_active": True,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(proofread2_id), proofread2_subtask)
 
@@ -300,12 +311,14 @@ def segmentation_proofread_two_path(
         "active_user_id": "",
         "completed_user_id": "",
         "ng_state": json.dumps(ng_state_cons),
+        "ng_state_initial": json.dumps(ng_state_cons),
         "priority": priority,
         "batch_id": batch_id,
         "subtask_type": "segmentation_consolidate",
         "is_active": False,
         "last_leased_ts": 0.0,
         "completion_status": "",
+        "_id_nonunique": generate_id_nonunique(),
     }
     transaction.set(subtasks_coll.document(consolidate_id), consolidate_subtask)
 

@@ -31,7 +31,7 @@ def get_collection(project_name: str, collection_type: str) -> firestore.Collect
 
 
 def _create_indexes(
-    admin_client: firestore_admin_v1.FirestoreAdminClient,
+    project_name: str, admin_client: firestore_admin_v1.FirestoreAdminClient
 ) -> None:  # pragma: no cover
     """Create required indexes for a project's collections.
 
@@ -168,7 +168,7 @@ def _create_indexes(
     for parent, indexes in [(subtasks_parent, subtask_indexes), (deps_parent, dependency_indexes)]:
         for index in indexes:
             try:
-                print(parent, index)
+                print (parent, index)
                 admin_client.create_index(parent=parent, index=index)
                 print(f"Created index: {index}")
             except exceptions.AlreadyExists:
@@ -192,7 +192,7 @@ def create_project_tables(project_name: str) -> None:
 
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):  # pragma: no cover
         admin_client = firestore_admin_v1.FirestoreAdminClient()
-        _create_indexes(admin_client)
+        _create_indexes(project_name, admin_client)
 
 
 def get_project(project_name: str) -> dict[str, Any]:

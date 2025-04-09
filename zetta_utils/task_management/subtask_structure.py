@@ -56,7 +56,7 @@ def create_subtask_dag(
     suffix = generate_slug(4)
 
     # Get the task reference
-    task_ref = client.collection(f"{project_name}_tasks").document(task_id)
+    task_ref = get_collection(project_name, "tasks").document(task_id)
 
     task_doc = task_ref.get()
     if not task_doc.exists:
@@ -121,8 +121,8 @@ def segmentation_proofread_simple(
     dep_expert_id = f"{task_id}_dep_expert{id_suffix}"
 
     # Collection references
-    subtasks_coll = client.collection(f"{project_name}_subtasks")
-    deps_coll = client.collection(f"{project_name}_dependencies")
+    subtasks_coll = get_collection(project_name, "subtasks")
+    deps_coll = get_collection(project_name, "dependencies")
 
     # 1. Create segmentation_proofread subtask (active)
     proofread_subtask = {

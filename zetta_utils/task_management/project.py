@@ -26,7 +26,7 @@ CollectionType = Literal["users", "subtasks", "timesheets", "dependencies", "tas
 def get_collection(project_name: str, collection_type: str) -> firestore.CollectionReference:
     """Get a collection reference with the proper project prefix"""
     client = get_firestore_client()
-    return client.collection(f"{project_name}_{collection_type}")
+    return client.collection(f"projects/{project_name}/{collection_type}")
 
 
 def _create_indexes(
@@ -41,7 +41,7 @@ def _create_indexes(
     subtasks_parent = (
         f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
         f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"{project_name}_subtasks"
+        f"{project_name}/subtasks"
     )
     subtask_indexes = [
         firestore_admin_v1.Index(
@@ -145,7 +145,7 @@ def _create_indexes(
     deps_parent = (
         f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
         f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"{project_name}_dependencies"
+        f"{project_name}/dependencies"
     )
     dependency_indexes = [
         firestore_admin_v1.Index(
@@ -186,7 +186,7 @@ def create_project_tables(project_name: str) -> None:
         project_doc.set({"project_name": project_name, "created_ts": firestore.SERVER_TIMESTAMP})
 
     for coll_name in collections:
-        client.collection(f"{project_name}_{coll_name}")
+        client.collection(f"{project_name}/{coll_name}")
 
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):  # pragma: no cover
         admin_client = firestore_admin_v1.FirestoreAdminClient()

@@ -95,7 +95,7 @@ def sample_subtask_type() -> SubtaskType:
 def existing_subtask_type(sample_subtask_type):
     # First try to clean up any existing subtask type
     client = firestore.Client()
-    doc_ref = client.collection("subtask_types").document(sample_subtask_type["subtask_type"])
+    doc_ref =get_collection(project_name, "subtask_types").document(sample_subtask_type["subtask_type"])
 
     # Delete if exists
     if doc_ref.get().exists:

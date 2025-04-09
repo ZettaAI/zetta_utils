@@ -84,7 +84,7 @@ def existing_user(project_name_timesheet, sample_user):
 def existing_subtask_type(sample_subtask_type):
     """Create the subtask type in Firestore"""
     client = firestore.Client()
-    doc_ref = client.collection("subtask_types").document(sample_subtask_type["subtask_type"])
+    doc_ref =get_collection(project_name, "subtask_types").document(sample_subtask_type["subtask_type"])
 
     # Delete if exists
     if doc_ref.get().exists:

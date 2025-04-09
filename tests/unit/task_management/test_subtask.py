@@ -84,7 +84,7 @@ def sample_subtask_type() -> SubtaskType:
 @pytest.fixture
 def existing_subtask_type(sample_subtask_type):
     client = firestore.Client()
-    doc_ref = client.collection("subtask_types").document(sample_subtask_type["subtask_type"])
+    doc_ref =get_collection(project_name, "subtask_types").document(sample_subtask_type["subtask_type"])
 
     if doc_ref.get().exists:
         doc_ref.delete()
@@ -506,7 +506,7 @@ def test_subtask_type_without_completion_statuses(project_name_subtask, existing
     # Create a subtask type without completion_statuses
     client = firestore.Client()
     invalid_type = {"subtask_type": "no_completion_type"}
-    client.collection("subtask_types").document("no_completion_type").set(invalid_type)
+   get_collection(project_name, "subtask_types").document("no_completion_type").set(invalid_type)
 
     # First update the subtask to use this type
     update_subtask(
@@ -527,7 +527,7 @@ def test_subtask_type_without_completion_statuses(project_name_subtask, existing
     assert subtask["completed_user_id"] == ""
 
     # Clean up the test subtask type
-    client.collection("subtask_types").document("no_completion_type").delete()
+   get_collection(project_name, "subtask_types").document("no_completion_type").delete()
 
 
 def test_update_nonexistent_subtask(project_name_subtask):

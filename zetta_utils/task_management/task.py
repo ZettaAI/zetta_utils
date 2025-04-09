@@ -57,7 +57,7 @@ def update_task(project_name: str, task_id: str, data: TaskUpdate) -> bool:
     """
     client = get_firestore_client()
     transaction = get_transaction()
-    task_ref = client.collection(f"{project_name}_tasks").document(task_id)
+    task_ref = get_collection(project_name, "tasks").document(task_id)
 
     @firestore.transactional
     def update_in_transaction(transaction):
@@ -91,7 +91,7 @@ def create_tasks_batch(project_name: str, tasks: list["Task"], batch_size: int =
     :raises RuntimeError: If the Firestore transaction fails.
     """
     client = get_firestore_client()
-    collection = client.collection(f"{project_name}_tasks")
+    collection = get_collection(project_name, "tasks")
     task_ids = []
 
     # Process in batches to avoid Firestore limits

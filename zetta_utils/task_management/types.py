@@ -45,7 +45,6 @@ class SubtaskUpdate(TypedDict, total=False):
     last_leased_ts: float
     is_active: bool
     subtask_type: str
-    _id_nonunique: int
 
 
 class Timesheet(TypedDict):

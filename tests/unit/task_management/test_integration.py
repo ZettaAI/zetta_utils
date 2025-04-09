@@ -237,7 +237,7 @@ def concurrent_task_processing(test_environment, short_idle_timeout):
         for task_id in task_ids:
             # Find all subtasks for this task
             task_subtasks = (
-                client.collection(f"{project_name}_subtasks")
+                get_collection(project_name, "subtasks")
                 .where("task_id", "==", task_id)
                 .where("subtask_type", "==", "segmentation_proofread")
                 .stream()

@@ -13,7 +13,7 @@ from zetta_utils.task_management.types import SubtaskType
 def clean_subtask_types(firestore_emulator):
     """Clean the global subtask_types collection before and after each test"""
     client = firestore.Client()
-    collection = client.collection("subtask_types")
+    collection =get_collection(project_name, "subtask_types")
     for doc in collection.list_documents():
         doc.delete()
     yield

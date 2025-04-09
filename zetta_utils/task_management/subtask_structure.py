@@ -178,7 +178,7 @@ def segmentation_proofread_simple(
     # 4. Create dependency for verify (depends on proofread → done)
     verify_dependency = {
         "dependency_id": dep_verify_id,
-        "subtask_id": verify_id,
+        "dependent_subtask_id": verify_id,
         "dependent_on_subtask_id": proofread_id,
         "required_completion_status": "done",
         "is_satisfied": False,
@@ -188,7 +188,7 @@ def segmentation_proofread_simple(
     # 5. Create dependency for expert (depends on proofread → need_help)
     expert_dependency = {
         "dependency_id": dep_expert_id,
-        "subtask_id": expert_id,
+        "dependent_subtask_id": expert_id,
         "dependent_on_subtask_id": proofread_id,
         "required_completion_status": "need_help",
         "is_satisfied": False,
@@ -312,7 +312,7 @@ def segmentation_proofread_two_path(
     # 4. Create dependency for consolidate (depends on proofread1 → done)
     consolidate_dependency1 = {
         "dependency_id": dep_consolidate_from_p1_id,
-        "subtask_id": consolidate_id,
+        "dependent_subtask_id": consolidate_id,
         "dependent_on_subtask_id": proofread1_id,
         "required_completion_status": "done",
         "is_satisfied": False,
@@ -322,7 +322,7 @@ def segmentation_proofread_two_path(
     # 5. Create dependency for consolidate (depends on proofread2 → done)
     consolidate_dependency2 = {
         "dependency_id": dep_consolidate_from_p2_id,
-        "subtask_id": consolidate_id,
+        "dependent_subtask_id": consolidate_id,
         "dependent_on_subtask_id": proofread2_id,
         "required_completion_status": "done",
         "is_satisfied": False,

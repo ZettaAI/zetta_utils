@@ -26,11 +26,12 @@ CollectionType = Literal["users", "subtasks", "timesheets", "dependencies", "tas
 def get_collection(project_name: str, collection_type: str) -> firestore.CollectionReference:
     """Get a collection reference with the proper project prefix"""
     client = get_firestore_client()
-    return client.collection(f"{project_name}_{collection_type}")
+    result = client.collection(f"projects/{project_name}/{collection_type}")
+    return result
 
 
 def _create_indexes(
-    project_name: str, admin_client: firestore_admin_v1.FirestoreAdminClient
+    admin_client: firestore_admin_v1.FirestoreAdminClient,
 ) -> None:  # pragma: no cover
     """Create required indexes for a project's collections.
 
@@ -41,7 +42,7 @@ def _create_indexes(
     subtasks_parent = (
         f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
         f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"{project_name}_subtasks"
+        f"subtasks"
     )
     subtask_indexes = [
         firestore_admin_v1.Index(
@@ -145,7 +146,7 @@ def _create_indexes(
     deps_parent = (
         f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
         f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"{project_name}_dependencies"
+        f"dependencies"
     )
     dependency_indexes = [
         firestore_admin_v1.Index(
@@ -167,6 +168,7 @@ def _create_indexes(
     for parent, indexes in [(subtasks_parent, subtask_indexes), (deps_parent, dependency_indexes)]:
         for index in indexes:
             try:
+                print(parent, index)
                 admin_client.create_index(parent=parent, index=index)
                 print(f"Created index: {index}")
             except exceptions.AlreadyExists:
@@ -186,11 +188,11 @@ def create_project_tables(project_name: str) -> None:
         project_doc.set({"project_name": project_name, "created_ts": firestore.SERVER_TIMESTAMP})
 
     for coll_name in collections:
-        client.collection(f"{project_name}_{coll_name}")
+        get_collection(project_name, coll_name)
 
     if not os.environ.get("FIRESTORE_EMULATOR_HOST"):  # pragma: no cover
         admin_client = firestore_admin_v1.FirestoreAdminClient()
-        _create_indexes(project_name, admin_client)
+        _create_indexes(admin_client)
 
 
 def get_project(project_name: str) -> dict[str, Any]:

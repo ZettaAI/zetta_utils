@@ -23,6 +23,7 @@ class Subtask(TypedDict):
     active_user_id: str  # Empty string when inactive
     completed_user_id: str  # Empty string when not completed
     ng_state: str
+    ng_state_initial: str
     priority: int
     batch_id: str  # Changed from batch_name
     last_leased_ts: float  # 0 for never leased

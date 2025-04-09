@@ -22,6 +22,7 @@ def sample_subtasks() -> list[Subtask]:
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": f"http://example.com/{i}",
+            "ng_state_initial": f"http://example.com/{i}",
             "priority": i,
             "batch_id": "batch_1",
             "last_leased_ts": 0.0,
@@ -73,8 +74,8 @@ def test_task_completion_when_all_subtasks_done(
     update_task(project_name, "task_1", {"status": "ingested"})
 
     for subtask in existing_subtasks:
-        start_subtask(project_name, "test_user_1", subtask["subtask_id"])
-        release_subtask(project_name, "test_user_1", subtask["subtask_id"], "done")
+        start_subtask(project_name, "test_user", subtask["subtask_id"])
+        release_subtask(project_name, "test_user", subtask["subtask_id"], "done")
 
     task = get_task(project_name, "task_1")
     assert task["status"] == "fully_processed"
@@ -90,7 +91,7 @@ def test_task_not_complete_with_pending_subtasks(
             update_subtask(
                 project_name,
                 subtask["subtask_id"],
-                {"completion_status": "done", "completed_user_id": "test_user_1"},
+                {"completion_status": "done", "completed_user_id": "test_user"},
             )
 
     task = get_task(project_name, "task_1")

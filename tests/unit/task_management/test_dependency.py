@@ -33,6 +33,7 @@ def sample_subtasks() -> list[Subtask]:
                 "active_user_id": "",
                 "completed_user_id": "",
                 "ng_state": "http://example.com",
+                "ng_state_initial": "http://example.com",
                 "priority": 1,
                 "batch_id": "batch_1",
                 "subtask_type": "segmentation_proofread",
@@ -49,6 +50,7 @@ def sample_subtasks() -> list[Subtask]:
                 "active_user_id": "",
                 "completed_user_id": "",
                 "ng_state": "http://example.com",
+                "ng_state_initial": "http://example.com",
                 "priority": 1,
                 "batch_id": "batch_1",
                 "subtask_type": "segmentation_proofread",
@@ -168,8 +170,8 @@ def test_dependent_subtask_activation(
     assert subtask_before["is_active"] is False
 
     # Start and complete subtask_1
-    start_subtask(project_name, "test_user_1", "subtask_1")
-    release_subtask(project_name, "test_user_1", "subtask_1", "done")
+    start_subtask(project_name, "test_user", "subtask_1")
+    release_subtask(project_name, "test_user", "subtask_1", "done")
 
     # Verify subtask_2 was activated
     subtask_after = get_subtask(project_name, "subtask_2")
@@ -212,7 +214,7 @@ def test_create_dependency_nonexistent_dependent_on_subtask(clean_collections, p
     subtask_type = SubtaskType(
         **{"subtask_type": "segmentation_proofread", "completion_statuses": ["done", "need_help"]}
     )
-    create_subtask_type(subtask_type)
+    create_subtask_type(project_name, subtask_type)
 
     # Then create the dependent subtask
     subtask_data = Subtask(
@@ -223,6 +225,7 @@ def test_create_dependency_nonexistent_dependent_on_subtask(clean_collections, p
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -260,6 +263,7 @@ def test_dependency_satisfaction_complex_conditions(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -276,6 +280,7 @@ def test_dependency_satisfaction_complex_conditions(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 2,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -292,6 +297,7 @@ def test_dependency_satisfaction_complex_conditions(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 3,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -342,6 +348,7 @@ def test_check_dependencies_satisfied_wrong_status(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 1,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -358,6 +365,7 @@ def test_check_dependencies_satisfied_wrong_status(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 2,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -374,6 +382,7 @@ def test_check_dependencies_satisfied_wrong_status(
             "active_user_id": "",
             "completed_user_id": "",
             "ng_state": "http://example.com",
+            "ng_state_initial": "http://example.com",
             "priority": 3,
             "batch_id": "batch_1",
             "subtask_type": "segmentation_proofread",
@@ -409,8 +418,8 @@ def test_check_dependencies_satisfied_wrong_status(
     create_dependency(project_name, dependency2)
 
     # Start and complete subtask1 with "need_help" status
-    start_subtask(project_name, "test_user_1", "subtask_status_1")
-    release_subtask(project_name, "test_user_1", "subtask_status_1", "need_help")
+    start_subtask(project_name, "test_user", "subtask_status_1")
+    release_subtask(project_name, "test_user", "subtask_status_1", "need_help")
 
     # Verify dependency1 (requiring "done") is not satisfied
     dep1_after = get_dependency(project_name, "dep_status_1")
@@ -421,8 +430,8 @@ def test_check_dependencies_satisfied_wrong_status(
     assert dep2_after["is_satisfied"]
 
     # Now complete with "done" status
-    start_subtask(project_name, "test_user_1", "subtask_status_1")
-    release_subtask(project_name, "test_user_1", "subtask_status_1", "done")
+    start_subtask(project_name, "test_user", "subtask_status_1")
+    release_subtask(project_name, "test_user", "subtask_status_1", "done")
 
     # Verify dependency1 (requiring "done") is now satisfied
     dep1_final = get_dependency(project_name, "dep_status_1")

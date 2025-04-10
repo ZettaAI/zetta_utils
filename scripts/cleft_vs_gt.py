@@ -14,9 +14,9 @@ import sys
 from math import ceil, floor
 from typing import Any, Dict, List, Optional, Sequence, cast
 
+import cc3d
 import nglui
 import numpy as np
-import cc3d
 from caveclient import CAVEclient
 from cloudfiles import CloudFile
 from cloudvolume import CloudVolume
@@ -25,9 +25,9 @@ from scipy.ndimage import center_of_mass
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 
-from zetta_utils.db_annotations.precomp_annotations import build_annotation_layer
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
+from zetta_utils.layer.volumetric.annotation.build import build_annotation_layer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 
 client: Optional[CAVEclient] = None
@@ -212,20 +212,23 @@ def load_segmentation(purpose: str):
 
         assert client is not None
         state = client.state.get_state_json(state_id)
-        print(f"Select segmentation layer to use for identifying cells:")
+        print(f"Select segmentation layer to use for {purpose}:")
         seg_layer_name = get_segmentation_layer_name(state)
         layer_data = nglui.parser.get_layer(state, seg_layer_name)
         source_path = layer_data["source"]
         if isinstance(source_path, dict):  # type: ignore[unreachable]
             source_path = source_path["url"]  # type: ignore[unreachable]
-        # resolution = get_resolution(layer_data)
+        resolution = get_resolution(layer_data)
     if "/|neuroglancer-precomputed:" in source_path:
         source_path = source_path.split("/|neuroglancer-precomputed:")[0]
     print(f"Loading segmentation from {source_path}...")
-    seg_cvl = CloudVolume(source_path)
-    seg_cvl.agglomerate = True  # get root IDs, not supervoxel IDs
-    seg_cvl.fill_missing = True # and don't crash for no good reason
-    return seg_cvl, Vec3D(*seg_cvl.resolution)
+
+    return build_cv_layer(source_path, default_desired_resolution=resolution), resolution
+
+    # seg_cvl = CloudVolume(source_path)
+    # seg_cvl.agglomerate = True  # get root IDs, not supervoxel IDs
+    # seg_cvl.fill_missing = True # and don't crash for no good reason
+    # return seg_cvl, Vec3D(*seg_cvl.resolution)
 
 
 def analyze_points(points_A, points_B, valid_test=None) -> dict:
@@ -240,7 +243,7 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
     result["count_A"] = len(points_A)
     result["count_B"] = len(points_B)
 
-    max_distance = 250  # (nm)
+    max_distance = 10  # (voxels)
 
     # Build KD-tree for set B; this lets us efficiently query for the point in B closest
     # to any other point (e.g., points in A), or even get ALL the distances to points in
@@ -360,23 +363,15 @@ def lookup_seg_ids(points, seg_data, idx, result_map):
             result_map[points[i]] = id
 
 
-def print_as_annotations(points, items, key, resolution):
+def print_as_annotations(points, items, offset: Vec3D):
     result = []
+    id = 1
     for p in points:
-        matching_items = [item for item in items if item[key] * resolution == p]
-        if len(matching_items) == 1:
-            m = matching_items[0]
-            pointA = list(m["pointA"])
-            pointB = list(m["pointB"])
-            result.append(
-                "{"
-                + f""""type": "line", "id": "{m['id']}", "pointA": {pointA}, "pointB": {pointB}"""
-                + "}"
-            )
-        else:
-            print(f"{p}: {matching_items}")
-
+        pos = Vec3D(*p) + offset
+        result.append("{" + f""""type": "point", "id": "{id}", "point": {list(pos)}""" + "}")
+        id += 1
     print(",\n".join(result))
+
 
 # def centroid(binary_image_array):
 #     # Find the interior pixels (all pixels with a value of 1),
@@ -389,10 +384,13 @@ def centroid(binary_image_array):
     return coords.mean(axis=0) if coords.size else np.array([np.nan] * binary_image_array.ndim)
 
 
-def find_clusters(data: np.ndarray) -> Dict[np.integer, Vec3D]:
+def find_clusters(
+    data: np.ndarray, offset: Vec3D, within_bounds: VolumetricIndex
+) -> Dict[np.integer, Vec3D]:
     """
     Find the centroid of each cluster in the data using numpy operations.
-    Return a dict mapping each cluster ID to its centroid.
+    Discard any that (after adding offset) fall outside of the given bounds.
+    Return a dict mapping each remaining cluster ID to its centroid.
     """
     if data.dtype == np.uint8:
         # Run connected components on this data to get clusters
@@ -402,37 +400,52 @@ def find_clusters(data: np.ndarray) -> Dict[np.integer, Vec3D]:
     labels = labels[labels != 0]  # Skip background
     print(f"Finding centroids for {len(labels)} clusters")
     centroids = center_of_mass(np.ones_like(data), labels=data, index=labels)
-    return dict(zip(labels, centroids))
+    d = dict(zip(labels, centroids))
+    for k in labels:
+        p = Vec3D(*d[k]) + offset
+        if not within_bounds.contains(p):
+            del d[k]
+    print(f"Found {len(d)} centroids within bounds")
+    return d
 
 
-if __name__ == "__main__": #def main():
+if __name__ == "__main__":  # def main():
     pred_vol, pred_resolution = load_segmentation("PREDICTIONS")
     gt_vol, gt_resolution = load_segmentation("GROUND TRUTH")
 
-    bbox_start: Vec3D = input_vec3Di("Bounding box start")
-    bbox_end: Vec3D = input_vec3Di("Bounding box end  ")
-    bbox_res: Vec3D  = input_vec3Di("...at Resolution  ")
+    bbox_start: Vec3D | None = input_vec3Di("Bounding box start")
+    bbox_end: Vec3D | None = input_vec3Di("Bounding box end  ")
+    bbox_res: Vec3D | None = input_vec3Di("...at Resolution  ")
+
+    if bbox_start is None or bbox_end is None or bbox_res is None:
+        print("No bounding box specified")
+        sys.exit()
 
     idx = VolumetricIndex.from_coords(bbox_start, bbox_end, bbox_res)
 
     # Pad the seg data so that we can handle synapses slightly out of bounds.
-    idx = idx.padded(Vec3D(16, 16, 8))
+    padded_idx = idx.padded(Vec3D(16, 16, 8))
     print(f"Reading seg data for: {idx}")
     # seg_data = seg_vol[idx][0]
-    s = idx.start
-    e = idx.stop
-    pred_data = pred_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
-    gt_data = gt_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
-    
+    s = padded_idx.start
+    e = padded_idx.stop
+    pred_data = pred_vol[bbox_res, s[0] : e[0], s[1] : e[1], s[2] : e[2]][0]
+    gt_data = gt_vol[bbox_res, s[0] : e[0], s[1] : e[1], s[2] : e[2]][0]
+
     # Get the centroids of the clusters in the data
-    pred_centroids = find_clusters(pred_data)
-    gt_centroids = find_clusters(gt_data)
+    pred_centroids = find_clusters(pred_data, padded_idx.start, idx)
+    gt_centroids = find_clusters(gt_data, padded_idx.start, idx)
     print(f"Found {len(pred_centroids)} predicted and {len(gt_centroids)} ground truth synapses")
 
     # Analyze predictions vs ground truth
     stats = analyze_points(list(gt_centroids.values()), list(pred_centroids.values()))
     print_stats(stats, "PRESYNAPTIC SITES")
 
+    print("\n\nFP:")
+    print_as_annotations(stats["fp_points_B"], pred_centroids, padded_idx.start)
+
+    print("\n\nFN:")
+    print_as_annotations(stats["fn_points_A"], gt_centroids, padded_idx.start)
 
 
 # if __name__ == "__main__":

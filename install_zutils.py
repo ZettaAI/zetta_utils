@@ -611,7 +611,7 @@ def main():
     parser.add_argument(
         "--pcg", action="store_true", default=False, help="Whether or not to install PCG"
     )
-    parser.add_argument("--pcgtag", default="v2.18.3", help="PCG repo tag to use")
+    parser.add_argument("--pcgtag", default="stitch_test_x6", help="PCG repo tag to use")
 
     args = parser.parse_args()
 
@@ -645,7 +645,7 @@ def main():
             "libtbb-dev",  # abiss
             "libboost-dev",  # waterz
             "unixodbc-dev",  # ???
-            "wget", # cue
+            "wget",  # cue
         ]
         apt_install_flags = '-y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
         run_command(
@@ -666,7 +666,7 @@ def main():
 
         run_command(
             "curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash",
-            "Installing Helm"
+            "Installing Helm",
         )
 
     if not args.skip_pip:

@@ -85,6 +85,7 @@ def add_collection(name: str, user: str, comment: str | None = None) -> str:
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {
         "name": name,
+        "name_lowercase": name.lower(),
         "created_by": user,
         "created_at": time.time(),
         "modified_by": user,
@@ -103,6 +104,7 @@ def update_collection(
     row: DBRowDataT = {"modified_by": user, "modified_at": time.time()}
     if name:
         row["name"] = name
+        row["name_lowercase"] = name.lower()
     if comment:
         row["comment"] = comment
     COLLECTIONS_DB[(collection_id, col_keys)] = row

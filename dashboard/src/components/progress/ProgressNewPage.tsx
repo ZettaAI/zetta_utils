@@ -49,10 +49,9 @@ interface ChartData {
     }[];
 }
 
-interface StatusPieChartProps {
+interface GenericPieChartProps {
     data: ChartData;
     title?: string;
-    isSubtask?: boolean;
 }
 
 const typeColors = [
@@ -66,7 +65,7 @@ const typeColors = [
     '#26A69A', // Teal
 ];
 
-const StatusPieChart: React.FC<StatusPieChartProps> = ({ data, title, isSubtask = false }) => {
+const GenericPieChart: React.FC<GenericPieChartProps> = ({ data, title }) => {
     const options = {
         responsive: true,
         maintainAspectRatio: false,
@@ -110,55 +109,6 @@ const NoDataDisplay: React.FC<{ type?: string }> = ({ type = 'data' }) => (
         </Typography>
     </Box>
 );
-
-interface TypeDistributionChartProps {
-    typeInfos: SubtaskTypeInfo[];
-    title: string;
-}
-
-const TypeDistributionChart: React.FC<TypeDistributionChartProps> = ({ typeInfos, title }) => {
-    const data: ChartData = {
-        labels: typeInfos.map(info => info.type),
-        datasets: [{
-            data: typeInfos.map(info => info.count),
-            backgroundColor: typeInfos.map((_, index) => typeColors[index % typeColors.length]),
-            borderColor: typeInfos.map((_, index) => typeColors[index % typeColors.length]),
-            borderWidth: 1
-        }]
-    };
-
-    return (
-        <Box sx={{ height: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-                <StatusPieChart data={data} title={title} />
-            </Box>
-        </Box>
-    );
-};
-
-interface BatchDistributionChartProps {
-    title: string;
-}
-
-const BatchDistributionChart: React.FC<BatchDistributionChartProps> = ({ title }) => {
-    const data: ChartData = {
-        labels: ['Batch 1', 'Batch 2'],
-        datasets: [{
-            data: [30, 70],
-            backgroundColor: [typeColors[2], typeColors[0]], // Orange and Blue
-            borderColor: [typeColors[2], typeColors[0]],
-            borderWidth: 1
-        }]
-    };
-
-    return (
-        <Box sx={{ height: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-                <StatusPieChart data={data} title={title} />
-            </Box>
-        </Box>
-    );
-};
 
 export default function ProgressNewPage() {
     const router = useRouter();
@@ -352,6 +302,36 @@ export default function ProgressNewPage() {
         }]
     };
 
+    // Prepare type distribution chart data
+    const typeDistributionData: ChartData = {
+        labels: subtaskTypeInfos
+            .filter(t => appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0)
+            .map(info => info.type),
+        datasets: [{
+            data: subtaskTypeInfos
+                .filter(t => appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0)
+                .map(info => info.count),
+            backgroundColor: subtaskTypeInfos
+                .filter(t => appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0)
+                .map((_, index) => typeColors[index % typeColors.length]),
+            borderColor: subtaskTypeInfos
+                .filter(t => appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0)
+                .map((_, index) => typeColors[index % typeColors.length]),
+            borderWidth: 1
+        }]
+    };
+
+    // Prepare batch distribution chart data
+    const batchDistributionData: ChartData = {
+        labels: ['Batch 1', 'Batch 2'],
+        datasets: [{
+            data: [30, 70],
+            backgroundColor: [typeColors[2], typeColors[0]], // Orange and Blue
+            borderColor: [typeColors[2], typeColors[0]],
+            borderWidth: 1
+        }]
+    };
+
     if (!projectId) {
         return (
             <Box sx={{ p: 3 }}>
@@ -435,7 +415,7 @@ export default function ProgressNewPage() {
                                         width: { xs: '100%', md: 'calc(50% - 16px)' },
                                         mb: { xs: 4, md: 0 }
                                     }}>
-                                        <StatusPieChart
+                                        <GenericPieChart
                                             data={taskChartData}
                                             title="Task Status Distribution"
                                         />
@@ -443,7 +423,10 @@ export default function ProgressNewPage() {
                                     <Box sx={{
                                         width: { xs: '100%', md: 'calc(50% - 16px)' }
                                     }}>
-                                        <BatchDistributionChart title="Task Batch Distribution" />
+                                        <GenericPieChart
+                                            data={batchDistributionData}
+                                            title="Task Batch Distribution"
+                                        />
                                     </Box>
                                 </Box>
                             ) : (
@@ -512,27 +495,27 @@ export default function ProgressNewPage() {
                                         width: { xs: '100%', md: 'calc(33% - 16px)' },
                                         mb: { xs: 4, md: 0 }
                                     }}>
-                                        <StatusPieChart
+                                        <GenericPieChart
                                             data={subtaskChartData}
                                             title="Subtask Status Distribution"
-                                            isSubtask={true}
                                         />
                                     </Box>
                                     <Box sx={{
                                         width: { xs: '100%', md: 'calc(33% - 16px)' },
                                         mb: { xs: 4, md: 0 }
                                     }}>
-                                        <TypeDistributionChart
-                                            typeInfos={subtaskTypeInfos.filter(t =>
-                                                appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0
-                                            )}
+                                        <GenericPieChart
+                                            data={typeDistributionData}
                                             title="Subtask Type Distribution"
                                         />
                                     </Box>
                                     <Box sx={{
                                         width: { xs: '100%', md: 'calc(33% - 16px)' }
                                     }}>
-                                        <BatchDistributionChart title="Batch Distribution" />
+                                        <GenericPieChart
+                                            data={batchDistributionData}
+                                            title="Batch Distribution"
+                                        />
                                     </Box>
                                 </Box>
                             ) : (

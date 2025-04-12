@@ -57,38 +57,48 @@ interface StatusPieChartProps {
     isSubtask?: boolean;
 }
 
+const typeColors = [
+    '#42A5F5', // Blue
+    '#66BB6A', // Green  
+    '#FFA726', // Orange
+    '#EF5350', // Red
+    '#AB47BC', // Purple
+    '#EC407A', // Pink
+    '#7E57C2', // Deep Purple
+    '#26A69A', // Teal
+];
+
 const StatusPieChart: React.FC<StatusPieChartProps> = ({ data, title, isSubtask = false }) => {
     const options = {
         responsive: true,
-        maintainAspectRatio: true,
-        aspectRatio: 1.6,
-        animation: false as const,
+        maintainAspectRatio: false,
+        animation: false,
         plugins: {
             legend: {
                 position: 'right' as const,
             },
             tooltip: {
                 callbacks: {
-                    label: (context: any) => {
+                    label: function (context: any) {
                         const label = context.label || '';
                         const value = context.raw || 0;
                         const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return `${label}: ${value} (${percentage}%)`;
+                        const percentage = total > 0 ? ((value / total) * 100).toFixed(1) + '%' : '0%';
+                        return `${label}: ${value} (${percentage})`;
                     }
                 }
             }
-        }
+        },
     };
 
     return (
-        <Box>
+        <Box sx={{ height: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
             {title && (
                 <Typography variant="h6" gutterBottom align="center">
                     {title}
                 </Typography>
             )}
-            <Box sx={{ width: '100%' }}>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
                 <Pie data={data} options={options} />
             </Box>
         </Box>
@@ -113,18 +123,17 @@ const TypeDistributionChart: React.FC<TypeDistributionChartProps> = ({ typeInfos
         labels: typeInfos.map(info => info.type),
         datasets: [{
             data: typeInfos.map(info => info.count),
-            backgroundColor: typeInfos.map(() => '#42A5F5'),
-            borderColor: typeInfos.map(() => '#42A5F5'),
+            backgroundColor: typeInfos.map((_, index) => typeColors[index % typeColors.length]),
+            borderColor: typeInfos.map((_, index) => typeColors[index % typeColors.length]),
             borderWidth: 1
         }]
     };
 
     return (
-        <Box>
-            <Typography variant="h6" gutterBottom align="center">
-                {title}
-            </Typography>
-            <StatusPieChart data={data} />
+        <Box sx={{ height: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+                <StatusPieChart data={data} title={title} />
+            </Box>
         </Box>
     );
 };
@@ -138,18 +147,17 @@ const BatchDistributionChart: React.FC<BatchDistributionChartProps> = ({ title }
         labels: ['Batch 1', 'Batch 2'],
         datasets: [{
             data: [30, 70],
-            backgroundColor: ['#FFA726', '#42A5F5'],
-            borderColor: ['#FFA726', '#42A5F5'],
+            backgroundColor: [typeColors[2], typeColors[0]], // Orange and Blue
+            borderColor: [typeColors[2], typeColors[0]],
             borderWidth: 1
         }]
     };
 
     return (
-        <Box>
-            <Typography variant="h6" gutterBottom align="center">
-                {title}
-            </Typography>
-            <StatusPieChart data={data} />
+        <Box sx={{ height: 300, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+                <StatusPieChart data={data} title={title} />
+            </Box>
         </Box>
     );
 };

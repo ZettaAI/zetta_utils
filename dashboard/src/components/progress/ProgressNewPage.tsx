@@ -20,9 +20,8 @@ const taskStatusColors = {
 };
 
 const subtaskStatusColors = {
-    'not_started': '#FFA726',    // Orange
-    'in_progress': '#42A5F5',    // Blue
-    'done': '#66BB6A'           // Green
+    'pending_ingestion': '#FFA726',    // Orange
+    'fully_processed': '#66BB6A'       // Green
 };
 
 const taskStatusLabels = {
@@ -32,14 +31,13 @@ const taskStatusLabels = {
 };
 
 const subtaskStatusLabels = {
-    'not_started': 'Not Started',
-    'in_progress': 'In Progress',
-    'done': 'Done'
+    'pending_ingestion': 'Pending',
+    'fully_processed': 'Completed'
 };
 
 // Task status types
 export type TaskStatus = 'pending_ingestion' | 'ingested' | 'fully_processed';
-export type SubtaskStatus = 'done' | 'in_progress' | 'not_started';
+export type SubtaskStatus = 'fully_processed' | 'pending_ingestion';
 
 interface ChartData {
     labels: string[];

@@ -14,6 +14,11 @@ export default function PageContent() {
     }
 
     const renderPageContent = () => {
+        // If currentPage is empty (initial load), don't show any page
+        if (!currentPage) {
+            return null;
+        }
+
         switch (currentPage) {
             case 'progress':
                 return <ProgressPage />;

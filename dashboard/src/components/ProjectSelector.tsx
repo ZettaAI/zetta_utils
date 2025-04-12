@@ -88,7 +88,7 @@ export default function ProjectSelector() {
                 <div className="h-16 flex items-center gap-4">
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-600">Project:</span>
-                        <FormControl sx={{ minWidth: 200 }}>
+                        <FormControl sx={{ minWidth: 300 }}>
                             <Select
                                 value={selectedProject}
                                 onChange={handleProjectChange}

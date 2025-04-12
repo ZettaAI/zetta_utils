@@ -73,6 +73,7 @@ const GenericPieChart: React.FC<GenericPieChartProps> = ({ data, title }) => {
         plugins: {
             legend: {
                 position: 'right' as const,
+                align: 'center' as const,
             },
             tooltip: {
                 callbacks: {

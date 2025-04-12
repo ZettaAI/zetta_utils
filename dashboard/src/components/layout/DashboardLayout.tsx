@@ -14,7 +14,7 @@ interface DashboardContextType {
 export const DashboardContext = createContext<DashboardContextType>({
     currentProject: null,
     setCurrentProject: () => { },
-    currentPage: 'progress',
+    currentPage: '',
     setCurrentPage: () => { },
 });
 
@@ -30,21 +30,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [currentProject, setCurrentProject] = useState<string | null>(null);
-    const [currentPage, setCurrentPage] = useState('progress');
+    const [currentPage, setCurrentPage] = useState('');
     const [sideNavOpen, setSideNavOpen] = useState(false);
 
-    // Read initial values from URL
+    // Read initial values from URL or localStorage
     useEffect(() => {
         const pageFromUrl = searchParams.get('page');
         const projectFromUrl = searchParams.get('project');
+        const lastPage = localStorage.getItem('lastPage');
 
         if (pageFromUrl) {
             setCurrentPage(pageFromUrl);
+            localStorage.setItem('lastPage', pageFromUrl);
+        } else if (lastPage) {
+            setCurrentPage(lastPage);
+            // Update URL to reflect the restored page
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('page', lastPage);
+            router.push(`?${params.toString()}`);
+        } else {
+            setCurrentPage('progress');
+            localStorage.setItem('lastPage', 'progress');
         }
+
         if (projectFromUrl) {
             setCurrentProject(projectFromUrl);
         }
-    }, [searchParams]);
+    }, [searchParams, router]);
 
     // Update URL when values change
     const handleSetCurrentProject = (project: string) => {
@@ -56,6 +68,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     const handleSetCurrentPage = (page: string) => {
         setCurrentPage(page);
+        localStorage.setItem('lastPage', page);
         const params = new URLSearchParams(searchParams.toString());
         params.set('page', page);
         router.push(`?${params.toString()}`);

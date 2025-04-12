@@ -1,3 +1,7 @@
+'use client';
+
+import React from 'react';
+import type { JSX } from 'react';
 import { Drawer, List, ListItem, ListItemIcon, ListItemText, Box, Typography, Divider } from '@mui/material';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import InsightsIcon from '@mui/icons-material/Insights';
@@ -14,6 +18,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
     { id: 'progress', label: 'Progress', icon: <BarChartIcon /> },
+    { id: 'progress-new', label: 'Progress New', icon: <BarChartIcon /> },
     { id: 'insights', label: 'Insights', icon: <InsightsIcon /> },
     { id: 'tasks', label: 'Tasks', icon: <TaskIcon /> },
     { id: 'subtasks', label: 'Subtasks', icon: <FormatListBulletedIcon /> },

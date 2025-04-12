@@ -2,7 +2,9 @@
 
 import { Box } from '@mui/material';
 import { useDashboard } from './layout/DashboardLayout';
-import ProgressPage from './ProgressPage';
+import ProgressPage from './progress/ProgressPage';
+import ProgressNewPage from './progress/ProgressNewPage';
+import UsersPage from './users/UsersPage';
 
 export default function PageContent() {
     const { currentPage, currentProject } = useDashboard();
@@ -15,6 +17,8 @@ export default function PageContent() {
         switch (currentPage) {
             case 'progress':
                 return <ProgressPage />;
+            case 'progress-new':
+                return <ProgressNewPage />;
             case 'insights':
                 return (
                     <Box sx={{ p: 3 }}>
@@ -37,12 +41,7 @@ export default function PageContent() {
                     </Box>
                 );
             case 'users':
-                return (
-                    <Box sx={{ p: 3 }}>
-                        <h1>Users Page</h1>
-                        <p>Project: {currentProject}</p>
-                    </Box>
-                );
+                return <UsersPage />;
             default:
                 return (
                     <Box sx={{ p: 3 }}>

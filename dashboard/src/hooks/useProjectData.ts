@@ -1,28 +1,31 @@
 import { useState, useEffect } from 'react';
 import { StatusCount, SubtaskTypeInfo, FilterOption } from '@/services/types';
-import { getTaskStatusCounts, getSubtaskStatusCounts, getSubtaskTypesWithCounts } from '@/services/FirebaseService';
+import firebaseService from '@/services/FirebaseService';
 
 export function useProjectData(projectId: string) {
     const [taskCounts, setTaskCounts] = useState<StatusCount[]>([]);
     const [subtaskCounts, setSubtaskCounts] = useState<StatusCount[]>([]);
     const [subtaskTypeInfos, setSubtaskTypeInfos] = useState<SubtaskTypeInfo[]>([]);
     const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         let isMounted = true;
 
         const fetchData = async () => {
-            if (!projectId) return;
+            if (!projectId) {
+                setIsLoading(false);
+                return;
+            }
 
             try {
                 setIsLoading(true);
                 setError(null);
 
                 const [taskData, subtaskData, typeData] = await Promise.all([
-                    getTaskStatusCounts(projectId),
-                    getSubtaskStatusCounts(projectId),
-                    getSubtaskTypesWithCounts(projectId)
+                    firebaseService.getTaskStatusCounts(projectId),
+                    firebaseService.getSubtaskStatusCounts(projectId),
+                    firebaseService.getSubtaskTypesWithCounts(projectId)
                 ]);
 
                 if (isMounted) {
@@ -50,7 +53,10 @@ export function useProjectData(projectId: string) {
     }, [projectId]);
 
     const fetchFilteredData = async (filters: FilterOption[]) => {
-        if (!projectId) return;
+        if (!projectId) {
+            setIsLoading(false);
+            return;
+        }
 
         try {
             setIsLoading(true);
@@ -61,8 +67,8 @@ export function useProjectData(projectId: string) {
                 .map(f => f.value);
 
             const [taskData, subtaskData] = await Promise.all([
-                getTaskStatusCounts(projectId),
-                getSubtaskStatusCounts(projectId, subtaskTypes)
+                firebaseService.getTaskStatusCounts(projectId),
+                firebaseService.getSubtaskStatusCounts(projectId, subtaskTypes)
             ]);
 
             setTaskCounts(taskData);

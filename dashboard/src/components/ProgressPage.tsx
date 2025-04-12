@@ -5,8 +5,8 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Box, Paper, Tabs, Tab, Typography, CircularProgress, Alert, FormControl, Select, MenuItem, InputLabel, Chip, OutlinedInput, Checkbox, ListItemText, Button } from '@mui/material';
 import { Pie } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, Title } from 'chart.js';
-import { getTaskStatusCounts, getSubtaskStatusCounts, getSubtaskTypesWithCounts, StatusCount, SubtaskTypeInfo } from '@/services/FirebaseService';
-import ProgressNewPage from './ProgressNewPage';
+import firebaseService from '@/services/FirebaseService';
+import { StatusCount, SubtaskTypeInfo } from '@/services/types';
 
 // Register ChartJS components
 ChartJS.register(ArcElement, Tooltip, Legend, Title);
@@ -493,7 +493,7 @@ export default function ProgressPage() {
     const [appliedBatches, setAppliedBatches] = useState<string[]>([]);
     const [appliedTaskBatches, setAppliedTaskBatches] = useState<string[]>([]);
 
-    const [loading, setLoading] = useState(true);
+    // Remove the main loading state and only keep chart-specific loading states
     const [chartLoading, setChartLoading] = useState(false);
     const [taskChartLoading, setTaskChartLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -504,7 +504,7 @@ export default function ProgressPage() {
             if (!projectId) return;
 
             try {
-                const typeInfos = await getSubtaskTypesWithCounts(projectId);
+                const typeInfos = await firebaseService.getSubtaskTypesWithCounts(projectId);
                 setSubtaskTypeInfos(typeInfos);
 
                 // By default select all subtask types if there are any
@@ -527,25 +527,21 @@ export default function ProgressPage() {
         async function fetchData() {
             if (!projectId) return;
 
-            console.log('Starting to fetch data for project:', projectId);
-            setLoading(true);
-            setTaskChartLoading(true);
-            setChartLoading(true);
-            setError(null);
-
             try {
-                // Fetch task status counts
+                // Start loading only when actually fetching
+                setTaskChartLoading(true);
                 console.log('Fetching task counts...');
-                const tasks = await getTaskStatusCounts(projectId);
+                const tasks = await firebaseService.getTaskStatusCounts(projectId);
                 if (isMounted) {
                     console.log('Setting task counts:', tasks);
                     setTaskCounts(tasks);
                     setTaskChartLoading(false);
                 }
 
-                // Fetch subtask status counts with type filter
+                // Fetch subtask status counts separately
+                setChartLoading(true);
                 console.log(`Fetching subtask counts for types: ${appliedSubtaskTypes.join(', ')}...`);
-                const subtasks = await getSubtaskStatusCounts(projectId, appliedSubtaskTypes);
+                const subtasks = await firebaseService.getSubtaskStatusCounts(projectId, appliedSubtaskTypes);
                 if (isMounted) {
                     console.log('Setting subtask counts:', subtasks);
                     setSubtaskCounts(subtasks);
@@ -559,20 +555,17 @@ export default function ProgressPage() {
                             ? error.message
                             : 'An unexpected error occurred while fetching data'
                     );
-                    setTaskChartLoading(false);
-                    setChartLoading(false);
                 }
             } finally {
                 if (isMounted) {
-                    console.log('Setting loading to false');
-                    setLoading(false);
+                    setTaskChartLoading(false);
+                    setChartLoading(false);
                 }
             }
         }
 
         fetchData();
 
-        // Cleanup function to prevent state updates if the component unmounts
         return () => {
             isMounted = false;
         };
@@ -588,7 +581,7 @@ export default function ProgressPage() {
         try {
             // Fetch subtask status counts with type filter
             console.log(`Fetching subtask counts for types: ${appliedSubtaskTypes.join(', ')}...`);
-            const subtasks = await getSubtaskStatusCounts(projectId, appliedSubtaskTypes);
+            const subtasks = await firebaseService.getSubtaskStatusCounts(projectId, appliedSubtaskTypes);
             console.log('Setting subtask counts:', subtasks);
             setSubtaskCounts(subtasks);
         } catch (error) {
@@ -614,7 +607,7 @@ export default function ProgressPage() {
             // For now, we'll just fetch all tasks since the API doesn't have batch filtering
             // In a real implementation, you would pass batch filters to the API
             console.log('Fetching task counts with filters...');
-            const tasks = await getTaskStatusCounts(projectId);
+            const tasks = await firebaseService.getTaskStatusCounts(projectId);
             console.log('Setting task counts:', tasks);
             setTaskCounts(tasks);
         } catch (error) {
@@ -734,184 +727,162 @@ export default function ProgressPage() {
                     <Tab label="Subtasks" />
                 </Tabs>
 
-                {error ? (
+                {error && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {error}
                     </Alert>
-                ) : (
-                    <>
-                        <Box sx={{ position: 'relative' }}>
-                            <TabPanel value={tabValue} index={0}>
-                                {/* Task Filters */}
-                                <FilterBox
-                                    filters={taskFilters.map(f => ({
-                                        type: f.type,
-                                        value: f.value
-                                    }))}
-                                    onClear={() => setSelectedTaskBatches([])}
-                                    onApply={applyTaskFilters}
-                                    onFilterRemove={handleFilterRemove}
-                                >
-                                    {/* Batch Filter Button for Tasks */}
-                                    <FilterDropdown
-                                        id="add-task-batch-filter"
-                                        label="Add batch filter"
-                                        values={batchOptions}
-                                        selected={selectedTaskBatches}
-                                        onChange={handleTaskBatchChange}
-                                    />
-                                </FilterBox>
-
-                                {/* Task Charts */}
-                                <Box sx={{
-                                    minHeight: 340,
-                                    position: 'relative'
-                                }}>
-                                    {taskChartLoading ? (
-                                        <Box sx={{
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            bottom: 0,
-                                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                                            zIndex: 10
-                                        }}>
-                                            <CircularProgress size={40} />
-                                        </Box>
-                                    ) : (
-                                        taskCounts.length > 0 && taskCounts.some(item => item.count > 0) ? (
-                                            <Box sx={{
-                                                display: 'flex',
-                                                flexWrap: 'wrap',
-                                                justifyContent: 'space-between',
-                                                gap: 2
-                                            }}>
-                                                {/* Task Status Distribution */}
-                                                <Box sx={{
-                                                    width: { xs: '100%', md: 'calc(50% - 16px)' },
-                                                    mb: { xs: 4, md: 0 }
-                                                }}>
-                                                    <StatusPieChart data={taskCounts} title="Task Status Distribution" />
-                                                </Box>
-
-                                                {/* Task Batch Distribution */}
-                                                <Box sx={{
-                                                    width: { xs: '100%', md: 'calc(50% - 16px)' }
-                                                }}>
-                                                    <BatchDistributionChart title="Task Batch Distribution" />
-                                                </Box>
-                                            </Box>
-                                        ) : (
-                                            <NoDataDisplay type="tasks" />
-                                        )
-                                    )}
-                                </Box>
-                            </TabPanel>
-
-                            <TabPanel value={tabValue} index={1}>
-                                {/* GCP-style Filter Bar for Subtasks */}
-                                {subtaskTypeInfos.length > 0 && (
-                                    <FilterBox
-                                        filters={subtaskFilters.map(f => ({
-                                            type: f.type,
-                                            value: f.value
-                                        }))}
-                                        onClear={() => {
-                                            setSelectedSubtaskTypes([]);
-                                            setSelectedBatches([]);
-                                        }}
-                                        onApply={applyFilters}
-                                        onFilterRemove={handleFilterRemove}
-                                    >
-                                        {/* Batch Filter Button */}
-                                        <FilterDropdown
-                                            id="add-batch-filter"
-                                            label="Add batch filter"
-                                            values={batchOptions}
-                                            selected={selectedBatches}
-                                            onChange={handleBatchChange}
-                                        />
-
-                                        {/* Type Filter Button */}
-                                        <FilterDropdown
-                                            id="add-type-filter"
-                                            label="Add type filter"
-                                            values={subtaskTypeInfos.map(ti => ({ value: ti.type, label: ti.type }))}
-                                            selected={selectedSubtaskTypes}
-                                            onChange={handleSubtaskTypeChange}
-                                        />
-                                    </FilterBox>
-                                )}
-
-                                {/* Multiple Pie Charts */}
-                                <Box sx={{
-                                    minHeight: 340,
-                                    position: 'relative'
-                                }}>
-                                    {chartLoading ? (
-                                        <Box sx={{
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            alignItems: 'center',
-                                            position: 'absolute',
-                                            top: 0,
-                                            left: 0,
-                                            right: 0,
-                                            bottom: 0,
-                                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                                            zIndex: 10
-                                        }}>
-                                            <CircularProgress size={40} />
-                                        </Box>
-                                    ) : (
-                                        subtaskCounts.length > 0 && subtaskCounts.some(item => item.count > 0) ? (
-                                            <Box sx={{
-                                                display: 'flex',
-                                                flexWrap: 'wrap',
-                                                justifyContent: 'space-between',
-                                                gap: 2
-                                            }}>
-                                                {/* Subtask Status Distribution */}
-                                                <Box sx={{
-                                                    width: { xs: '100%', md: 'calc(33% - 16px)' },
-                                                    mb: { xs: 4, md: 0 }
-                                                }}>
-                                                    <StatusPieChart data={subtaskCounts} title="Subtask Status Distribution" isSubtask={true} />
-                                                </Box>
-
-                                                {/* Subtask Type Distribution */}
-                                                <Box sx={{
-                                                    width: { xs: '100%', md: 'calc(33% - 16px)' },
-                                                    mb: { xs: 4, md: 0 }
-                                                }}>
-                                                    <TypeDistributionChart
-                                                        typeInfos={subtaskTypeInfos.filter(t =>
-                                                            appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0
-                                                        )}
-                                                        title="Subtask Type Distribution"
-                                                    />
-                                                </Box>
-
-                                                {/* Batch Distribution (Dummy) */}
-                                                <Box sx={{
-                                                    width: { xs: '100%', md: 'calc(33% - 16px)' }
-                                                }}>
-                                                    <BatchDistributionChart title="Batch Distribution" />
-                                                </Box>
-                                            </Box>
-                                        ) : (
-                                            <NoDataDisplay type="subtasks" />
-                                        )
-                                    )}
-                                </Box>
-                            </TabPanel>
-                        </Box>
-                    </>
                 )}
+
+                <Box sx={{ position: 'relative' }}>
+                    <TabPanel value={tabValue} index={0}>
+                        {/* Always show Task Filters */}
+                        <FilterBox
+                            filters={taskFilters}
+                            onClear={() => setSelectedTaskBatches([])}
+                            onApply={applyTaskFilters}
+                            onFilterRemove={handleFilterRemove}
+                        >
+                            <FilterDropdown
+                                id="add-task-batch-filter"
+                                label="Add batch filter"
+                                values={batchOptions}
+                                selected={selectedTaskBatches}
+                                onChange={handleTaskBatchChange}
+                            />
+                        </FilterBox>
+
+                        {/* Task Charts */}
+                        <Box sx={{
+                            minHeight: 340,
+                            position: 'relative'
+                        }}>
+                            {taskChartLoading ? (
+                                <Box sx={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                    zIndex: 10
+                                }}>
+                                    <CircularProgress size={40} />
+                                </Box>
+                            ) : (
+                                taskCounts.length > 0 && taskCounts.some(item => item.count > 0) ? (
+                                    <Box sx={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        justifyContent: 'space-between',
+                                        gap: 2
+                                    }}>
+                                        <Box sx={{
+                                            width: { xs: '100%', md: 'calc(50% - 16px)' },
+                                            mb: { xs: 4, md: 0 }
+                                        }}>
+                                            <StatusPieChart data={taskCounts} title="Task Status Distribution" />
+                                        </Box>
+                                        <Box sx={{
+                                            width: { xs: '100%', md: 'calc(50% - 16px)' }
+                                        }}>
+                                            <BatchDistributionChart title="Task Batch Distribution" />
+                                        </Box>
+                                    </Box>
+                                ) : (
+                                    <NoDataDisplay type="tasks" />
+                                )
+                            )}
+                        </Box>
+                    </TabPanel>
+
+                    <TabPanel value={tabValue} index={1}>
+                        {/* Always show Subtask Filters */}
+                        <FilterBox
+                            filters={subtaskFilters}
+                            onClear={() => {
+                                setSelectedSubtaskTypes([]);
+                                setSelectedBatches([]);
+                            }}
+                            onApply={applyFilters}
+                            onFilterRemove={handleFilterRemove}
+                        >
+                            <FilterDropdown
+                                id="add-batch-filter"
+                                label="Add batch filter"
+                                values={batchOptions}
+                                selected={selectedBatches}
+                                onChange={handleBatchChange}
+                            />
+                            <FilterDropdown
+                                id="add-type-filter"
+                                label="Add type filter"
+                                values={subtaskTypeInfos.map(ti => ({ value: ti.type, label: ti.type }))}
+                                selected={selectedSubtaskTypes}
+                                onChange={handleSubtaskTypeChange}
+                            />
+                        </FilterBox>
+
+                        {/* Subtask Charts */}
+                        <Box sx={{
+                            minHeight: 340,
+                            position: 'relative'
+                        }}>
+                            {chartLoading ? (
+                                <Box sx={{
+                                    display: 'flex',
+                                    justifyContent: 'center',
+                                    alignItems: 'center',
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                    zIndex: 10
+                                }}>
+                                    <CircularProgress size={40} />
+                                </Box>
+                            ) : (
+                                subtaskCounts.length > 0 && subtaskCounts.some(item => item.count > 0) ? (
+                                    <Box sx={{
+                                        display: 'flex',
+                                        flexWrap: 'wrap',
+                                        justifyContent: 'space-between',
+                                        gap: 2
+                                    }}>
+                                        <Box sx={{
+                                            width: { xs: '100%', md: 'calc(33% - 16px)' },
+                                            mb: { xs: 4, md: 0 }
+                                        }}>
+                                            <StatusPieChart data={subtaskCounts} title="Subtask Status Distribution" isSubtask={true} />
+                                        </Box>
+                                        <Box sx={{
+                                            width: { xs: '100%', md: 'calc(33% - 16px)' },
+                                            mb: { xs: 4, md: 0 }
+                                        }}>
+                                            <TypeDistributionChart
+                                                typeInfos={subtaskTypeInfos.filter(t =>
+                                                    appliedSubtaskTypes.includes(t.type) || appliedSubtaskTypes.length === 0
+                                                )}
+                                                title="Subtask Type Distribution"
+                                            />
+                                        </Box>
+                                        <Box sx={{
+                                            width: { xs: '100%', md: 'calc(33% - 16px)' }
+                                        }}>
+                                            <BatchDistributionChart title="Batch Distribution" />
+                                        </Box>
+                                    </Box>
+                                ) : (
+                                    <NoDataDisplay type="subtasks" />
+                                )
+                            )}
+                        </Box>
+                    </TabPanel>
+                </Box>
             </Paper>
         </Box>
     );

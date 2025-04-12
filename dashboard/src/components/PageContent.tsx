@@ -5,6 +5,7 @@ import { useDashboard } from './layout/DashboardLayout';
 import ProgressPage from './progress/ProgressPage';
 import ProgressNewPage from './progress/ProgressNewPage';
 import UsersPage from './users/UsersPage';
+import SubtasksPage from './subtasks/SubtasksPage';
 
 export default function PageContent() {
     const { currentPage, currentProject } = useDashboard();
@@ -39,12 +40,7 @@ export default function PageContent() {
                     </Box>
                 );
             case 'subtasks':
-                return (
-                    <Box sx={{ p: 3 }}>
-                        <h1>Subtasks Page</h1>
-                        <p>Project: {currentProject}</p>
-                    </Box>
-                );
+                return <SubtasksPage />;
             case 'users':
                 return <UsersPage />;
             default:

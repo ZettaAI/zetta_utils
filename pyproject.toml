@@ -50,15 +50,15 @@ all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
-  "imgaug @ git+https://github.com/u7122029/imgaug.git@418f22d4275e9f90274900e27b595ed678bb4bcc",
-  "imagecorruptions == 1.1.2",
+  "imaug @ git+https://github.com/imaug/imaug.git",  # not a typo, fork of imgaug
+  "imagecorruptions >= 1.1.2",
   "torchvision",
 ]
 cli = ["click == 8.0.1"]
 cloudvol = ["cloud-volume[all_codecs] ~= 12.1.0", "zetta_utils[tensor_ops]"]
 tensorstore = [
   "boto3 == 1.28.4",
-  "tensorstore == 0.1.71",
+  "tensorstore >= 0.1.73",
   "zetta_utils[tensor_ops]",
 ]
 convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch"]
@@ -180,7 +180,7 @@ skeletonization = [
   "mapbuffer >= 0.7.2",
   "shard-computer >= 1.1.1",
   "kimimaro>=4.0.2",
-  "dbscan>=0.0.12",
+  "scikit-learn >= 1.2.2",
 ]
 slurm = ["simple_slurm"]
 sql = ["SQLAlchemy >= 2.0.36"]
@@ -197,7 +197,7 @@ tensor-ops = [
 
 tensor-typing = [
   "torch >= 2.0",
-  "numpy >= 1.23.4, < 2", # tensorstore currently broken with 2.0
+  "numpy",
 ]
 
 test = [

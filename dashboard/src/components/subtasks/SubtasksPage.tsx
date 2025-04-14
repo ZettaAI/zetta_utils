@@ -45,6 +45,7 @@ interface ExtendedSubtask extends Subtask {
     is_complete?: boolean;
     time_spent?: string;
     subtask_id: string; // Ensure this is defined explicitly
+    time_spent_column?: any; // Add this for the new column ID
 }
 
 // Add interface for time spent data
@@ -210,13 +211,13 @@ const allColumns: Column[] = [
     },
     // Add Time Spent column (using type assertion)
     {
-        id: 'subtask_id' as keyof ExtendedSubtask,
+        id: 'time_spent_column' as keyof ExtendedSubtask,
         label: 'Time Spent',
         minWidth: 120,
         sortable: false,
         format: (value: string, subtask: ExtendedSubtask) => (
             <TimeSpentCell
-                subtaskId={value}
+                subtaskId={subtask.subtask_id}
                 projectId={new URLSearchParams(window.location.search).get('project') || ''}
             />
         )

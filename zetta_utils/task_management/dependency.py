@@ -35,7 +35,7 @@ def create_dependency(project_name: str, data: Dependency) -> str:
     :raises RuntimeError: If the Firestore transaction fails.
     """
 
-    if data["subtask_id"] == data["dependent_on_subtask_id"]:
+    if data["dependent_subtask_id"] == data["dependent_on_subtask_id"]:
         raise ValueError("Subtask cannot depend on itself")
 
     collection = get_collection(project_name, "dependencies")
@@ -49,9 +49,11 @@ def create_dependency(project_name: str, data: Dependency) -> str:
 
         # Verify both subtasks exist
         subtask_collection = get_collection(project_name, "subtasks")
-        subtask_doc = subtask_collection.document(data["subtask_id"]).get(transaction=transaction)
+        subtask_doc = subtask_collection.document(data["dependent_subtask_id"]).get(
+            transaction=transaction
+        )
         if not subtask_doc.exists:
-            raise ValueError(f"Subtask {data['subtask_id']} not found")
+            raise ValueError(f"Subtask {data['dependent_subtask_id']} not found")
 
         dependent_on_doc = subtask_collection.document(data["dependent_on_subtask_id"]).get(
             transaction=transaction

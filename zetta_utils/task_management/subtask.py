@@ -319,7 +319,7 @@ def _handle_subtask_completion(
             updates.append((dep.reference, {"is_satisfied": True}))
 
             # Check if dependent subtask can be activated
-            dependent_subtask_id = dep_data["subtask_id"]
+            dependent_subtask_id = dep_data["dependent_subtask_id"]
             other_deps = (
                 get_collection(project_name, "dependencies")
                 .where("subtask_id", "==", dependent_subtask_id)

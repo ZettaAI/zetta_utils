@@ -62,7 +62,7 @@ def sample_dependency() -> Dependency:
     return Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_2",
+            "dependent_subtask_id": "subtask_2",
             "dependent_on_subtask_id": "subtask_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -208,7 +208,7 @@ def test_update_subtask_missing_dependency_fields(
     dep1 = Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_2",
+            "dependent_subtask_id": "subtask_2",
             "dependent_on_subtask_id": "subtask_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -818,7 +818,7 @@ def test_release_subtask_with_dependencies(project_name, existing_subtask_type):
     # Create a dependency between them
     dependency_data = Dependency(
         dependency_id="dep_test_1",
-        subtask_id="subtask_dep_2",  # This subtask depends on subtask_dep_1
+        dependent_subtask_id="subtask_dep_2",  # This subtask depends on subtask_dep_1
         dependent_on_subtask_id="subtask_dep_1",
         required_completion_status="done",
         is_satisfied=False,

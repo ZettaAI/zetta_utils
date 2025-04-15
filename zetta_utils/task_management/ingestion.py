@@ -69,15 +69,20 @@ def ingest_tasks(
     :raises KeyError: If any task does not exist.
     """
     client = get_firestore_client()
+    print("Getting tasks...")
     task_refs = [get_collection(project_name, "tasks").document(task_id) for task_id in task_ids]
+    print("Getall call...")
     task_docs = list(client.get_all(task_refs))
+    print("Getall call done")
     tasks = {doc.id: doc.to_dict() for doc in task_docs}
+    print(tasks)
     missing_task_ids = set(task_ids) - set(
         task_id for task_id, task in tasks.items() if task is not None
     )
 
     if missing_task_ids:
         raise KeyError(f"Tasks not found: {', '.join(missing_task_ids)}")
+    print("Filtering tasks...")
     task_ids_to_ingest = [
         task_id
         for task_id, task in tasks.items()
@@ -85,15 +90,17 @@ def ingest_tasks(
         or (task["status"] == "ingested" and re_ingest is not None)
         or (task["status"] == "fully_processed" and re_ingest == "all")
     ]
+    print(f"Tasks to ingest: {len(task_ids_to_ingest)}")
 
     if not task_ids_to_ingest:
         return False
 
-    for i in range(0, len(task_ids_to_ingest), bundle_size):
-        task_bundle = task_ids_to_ingest[i : i + bundle_size]
+    @firestore.transactional
+    def ingest_batch_in_transaction(transaction):
+        for i in range(0, len(task_ids_to_ingest), bundle_size):
+            task_bundle = task_ids_to_ingest[i * bundle_size : (i + 1) * bundle_size]
+            print(f"Ingjesting a task bunlde of len {len(task_bundle)}...")
 
-        @firestore.transactional
-        def ingest_batch_in_transaction(transaction):
             ingested_task_ids = [
                 task_id
                 for task_id in task_bundle  # pylint: disable=cell-var-from-loop
@@ -119,7 +126,7 @@ def ingest_tasks(
                 create_subtask_structure(
                     transaction=transaction,
                     project_name=project_name,
-                    task_id=task_id,
+                    task_data=tasks[task_id],
                     subtask_structure=subtask_structure,
                     priority=priority,
                     subtask_structure_kwargs=subtask_structure_kwargs,
@@ -127,7 +134,7 @@ def ingest_tasks(
 
             return True
 
-        ingest_batch_in_transaction(client.transaction())
+    ingest_batch_in_transaction(client.transaction())
 
     return True
 
@@ -166,6 +173,7 @@ def ingest_batch(
 
     # Get task IDs and ingest in bundles
     task_ids = [task_doc.id for task_doc in tasks]
+    print(f"Tasks to ingest: {len(task_ids)}")
     return ingest_tasks(
         project_name=project_name,
         task_ids=task_ids,

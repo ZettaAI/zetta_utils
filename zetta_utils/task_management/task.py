@@ -105,7 +105,7 @@ def create_tasks_batch(project_name: str, tasks: list[Task], batch_size: int = 5
                 raise ValueError(f"Task {task['task_id']} already exists")
             task_ids.append(task["task_id"])
             batch.set(doc_ref, {**task, "_id_nonunique": generate_id_nonunique()})
-
+        print("committing...")
         batch.commit()
-
+        print("committed...")
     return task_ids

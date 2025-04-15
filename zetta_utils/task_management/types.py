@@ -60,7 +60,7 @@ class TimesheetUpdate(TypedDict, total=False):
 
 class Dependency(TypedDict):
     dependency_id: str
-    subtask_id: str
+    dependent_subtask_id: str
     dependent_on_subtask_id: str
     is_satisfied: bool
     required_completion_status: str
@@ -69,7 +69,7 @@ class Dependency(TypedDict):
 class DependencyUpdate(TypedDict, total=False):
     is_satisfied: bool
     required_completion_status: str
-    subtask_id: str
+    dependent_subtask_id: str
     dependent_on_subtask_id: str
 
 

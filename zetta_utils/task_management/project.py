@@ -1,6 +1,7 @@
 import os
 from typing import Any, Literal
 
+import cachetools
 from google.api_core import exceptions
 from google.cloud import firestore, firestore_admin_v1
 
@@ -23,6 +24,7 @@ def get_firestore_client() -> firestore.Client:  # pragma: no cover
 CollectionType = Literal["users", "subtasks", "timesheets", "dependencies", "tasks"]
 
 
+@cachetools.cached(cachetools.LRUCache(maxsize=100))
 def get_collection(project_name: str, collection_type: str) -> firestore.CollectionReference:
     """Get a collection reference with the proper project prefix"""
     client = get_firestore_client()

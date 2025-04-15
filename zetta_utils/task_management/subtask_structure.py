@@ -39,7 +39,7 @@ def get_available_structures() -> list[str]:  # pragma: no cover
 def create_subtask_structure(
     transaction: firestore.Transaction,
     project_name: str,
-    task_id: str,
+    task_data: Mapping[str, Any],
     subtask_structure: str,
     subtask_structure_kwargs: Mapping[str, Any],
     priority: int = 1,
@@ -60,13 +60,10 @@ def create_subtask_structure(
     suffix = generate_slug(4)
 
     # Get the task reference
-    task_ref = get_collection(project_name, "tasks").document(task_id)
 
-    task_doc = task_ref.get()
-    if not task_doc.exists:
-        raise KeyError(f"Task {task_id} not found")
-
-    task_data = task_doc.to_dict()
+    # task_doc = task_ref.get()
+    # if not task_doc.exists:
+    # raise KeyError(f"Task {task_id} not found")
 
     ng_state = task_data["ng_state"]
 
@@ -75,7 +72,7 @@ def create_subtask_structure(
     structure_func(
         transaction=transaction,
         project_name=project_name,
-        task_id=task_id,
+        task_id=task_data["task_id"],
         batch_id=task_data["batch_id"],
         ng_state=ng_state,
         priority=priority,
@@ -83,6 +80,7 @@ def create_subtask_structure(
         **subtask_structure_kwargs,
     )
 
+    task_ref = get_collection(project_name, "tasks").document(task_data["task_id"])
     transaction.update(task_ref, {"status": "ingested"})
     return True
 

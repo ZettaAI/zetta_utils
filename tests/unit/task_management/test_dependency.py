@@ -77,7 +77,7 @@ def sample_dependency() -> Dependency:
     return Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_2",
+            "dependent_subtask_id": "subtask_2",
             "dependent_on_subtask_id": "subtask_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -107,7 +107,7 @@ def test_create_dependency_success(clean_collections, existing_subtasks, project
     """Test creating a new dependency"""
     dependency_data: Dependency = {
         "dependency_id": "dep_1",
-        "subtask_id": "subtask_2",
+        "dependent_subtask_id": "subtask_2",
         "dependent_on_subtask_id": "subtask_1",
         "required_completion_status": "done",
         "is_satisfied": False,
@@ -131,7 +131,7 @@ def test_create_dependency_nonexistent_subtask(
     dependency_data = Dependency(
         **{
             "dependency_id": "dep_nonexistent",
-            "subtask_id": "nonexistent_subtask",
+            "dependent_subtask_id": "nonexistent_subtask",
             "dependent_on_subtask_id": "another_nonexistent_subtask",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -183,7 +183,7 @@ def test_create_dependency_duplicate(clean_collections, existing_dependency, pro
     duplicate_dependency = Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_2",
+            "dependent_subtask_id": "subtask_2",
             "dependent_on_subtask_id": "subtask_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -198,7 +198,7 @@ def test_create_dependency_same_subtask(clean_collections, existing_subtasks, pr
     invalid_dependency = Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_1",
+            "dependent_subtask_id": "subtask_1",
             "dependent_on_subtask_id": "subtask_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -240,7 +240,7 @@ def test_create_dependency_nonexistent_dependent_on_subtask(clean_collections, p
     dependency_data = Dependency(
         **{
             "dependency_id": "dep_1",
-            "subtask_id": "subtask_1",
+            "dependent_subtask_id": "subtask_1",
             "dependent_on_subtask_id": "nonexistent_subtask",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -315,7 +315,7 @@ def test_dependency_satisfaction_complex_conditions(
     dependency1 = Dependency(
         **{
             "dependency_id": "dep_complex_1",
-            "subtask_id": "subtask_complex_3",
+            "dependent_subtask_id": "subtask_complex_3",
             "dependent_on_subtask_id": "subtask_complex_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -324,7 +324,7 @@ def test_dependency_satisfaction_complex_conditions(
     dependency2 = Dependency(
         **{
             "dependency_id": "dep_complex_2",
-            "subtask_id": "subtask_complex_3",
+            "dependent_subtask_id": "subtask_complex_3",
             "dependent_on_subtask_id": "subtask_complex_2",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -399,7 +399,7 @@ def test_check_dependencies_satisfied_wrong_status(
     dependency1 = Dependency(
         **{
             "dependency_id": "dep_status_1",
-            "subtask_id": "subtask_status_2",
+            "dependent_subtask_id": "subtask_status_2",
             "dependent_on_subtask_id": "subtask_status_1",
             "required_completion_status": "done",
             "is_satisfied": False,
@@ -408,7 +408,7 @@ def test_check_dependencies_satisfied_wrong_status(
     dependency2 = Dependency(
         **{
             "dependency_id": "dep_status_2",
-            "subtask_id": "subtask_status_3",
+            "dependent_subtask_id": "subtask_status_3",
             "dependent_on_subtask_id": "subtask_status_1",
             "required_completion_status": "need_help",
             "is_satisfied": False,

@@ -1,7 +1,9 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import pytest
 from google.cloud import firestore
+from sqlalchemy.orm import Session
 
+from zetta_utils.task_management.db import create_tables, get_db_session
 from zetta_utils.task_management.project import get_collection
 from zetta_utils.task_management.subtask import create_subtask
 from zetta_utils.task_management.subtask_type import create_subtask_type
@@ -33,6 +35,17 @@ def clean_collections(firestore_emulator, project_name):
     for coll in collections:
         for doc in client.collection(coll).list_documents():
             doc.delete()
+
+
+@pytest.fixture
+def db_session() -> Session:
+    """
+    Create a SQLite database session for testing.
+    The session is closed after the test.
+    """
+    session = get_db_session(use_sqlite=True)
+    yield session
+    session.close()
 
 
 @pytest.fixture

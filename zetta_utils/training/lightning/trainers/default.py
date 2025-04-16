@@ -7,12 +7,13 @@ import time
 from typing import Any, Dict, List, Optional
 
 import fsspec
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import typeguard
 import wandb
-from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.strategies import ddp
+from lightning.pytorch.loggers import WandbLogger
+from lightning.pytorch.strategies import ddp
+from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 from zetta_utils import builder, log
 from zetta_utils.builder import get_initial_builder_spec
@@ -280,7 +281,7 @@ class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
         self,
         trainer: pl.Trainer,
         pl_module: pl.LightningModule,
-        outputs: torch.Tensor | dict[str, Any],
+        outputs: STEP_OUTPUT,
         batch: Any,
         batch_idx: int,
     ) -> None:

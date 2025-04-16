@@ -1,4 +1,4 @@
-from lightning_fabric import seed_everything
+from lightning import seed_everything
 from torch.utils.data import RandomSampler
 
 from zetta_utils.training.sampler import SamplerWrapper

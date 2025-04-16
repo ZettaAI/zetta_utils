@@ -221,7 +221,7 @@ test = [
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
   "torch >= 2.0",
-  "pytorch-lightning ~= 2.0.0",                                     # mp dataloader causes segmentation faults with 2.1.0
+  "lightning[pytorch] ~= 2.2",
   "torchmetrics == 0.11.4",
   "wandb >= 0.13.1",
   "kubernetes",

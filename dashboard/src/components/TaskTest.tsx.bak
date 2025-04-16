@@ -1,0 +1,133 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { getSingleTask, Task } from '@/services/FirebaseService';
+import { Box, Card, CardContent, Typography, CircularProgress, Alert, Divider } from '@mui/material';
+
+interface TaskTestProps {
+    projectId: string;
+}
+
+export default function TaskTest({ projectId }: TaskTestProps) {
+    const [task, setTask] = useState<Task | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [logs, setLogs] = useState<string[]>([]);
+
+    // Function to add logs
+    const addLog = (message: string) => {
+        setLogs(prevLogs => [...prevLogs, `${new Date().toISOString().substring(11, 23)} - ${message}`]);
+        console.log(`TaskTest: ${message}`);
+    };
+
+    useEffect(() => {
+        const fetchTask = async () => {
+            if (!projectId) {
+                addLog('No project ID provided');
+                setError('No project ID provided');
+                setLoading(false);
+                return;
+            }
+
+            try {
+                setLoading(true);
+                addLog(`Starting to fetch task from project: ${projectId}`);
+
+                const result = await getSingleTask(projectId);
+
+                if (!result) {
+                    addLog('No tasks found in this project');
+                    setError('No tasks found in this project');
+                } else {
+                    addLog(`Successfully fetched task: ${result.task_id}`);
+                    setTask(result);
+                    setError(null);
+                }
+            } catch (err) {
+                const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+                addLog(`Error fetching task: ${errorMessage}`);
+                console.error('Error fetching task:', err);
+                setError('Failed to fetch task data');
+            } finally {
+                addLog('Fetch operation completed');
+                setLoading(false);
+            }
+        };
+
+        // Reset state when projectId changes
+        setLogs([]);
+        setTask(null);
+        setError(null);
+
+        fetchTask();
+    }, [projectId]);
+
+    return (
+        <>
+            {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                    <CircularProgress />
+                </Box>
+            ) : error ? (
+                <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+                    {error}
+                </Alert>
+            ) : !task ? (
+                <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+                    No task data available
+                </Alert>
+            ) : (
+                <Card sx={{ mt: 2, mb: 2 }}>
+                    <CardContent>
+                        <Typography variant="h6" gutterBottom>
+                            Task Details
+                        </Typography>
+                        <Typography variant="body1">
+                            <strong>Task ID:</strong> {task.task_id}
+                        </Typography>
+                        <Typography variant="body1">
+                            <strong>Status:</strong> {task.status}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                            <pre style={{ whiteSpace: 'pre-wrap' }}>
+                                {JSON.stringify(task, null, 2)}
+                            </pre>
+                        </Typography>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Log Display Section */}
+            <Card sx={{ mt: 2 }}>
+                <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                        Operation Logs
+                    </Typography>
+                    <Divider />
+                    <Box sx={{
+                        mt: 2,
+                        p: 2,
+                        bgcolor: 'background.paper',
+                        borderRadius: 1,
+                        fontFamily: 'monospace',
+                        fontSize: '0.875rem',
+                        maxHeight: '200px',
+                        overflow: 'auto'
+                    }}>
+                        {logs.length > 0 ? (
+                            logs.map((log, index) => (
+                                <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                                    {log}
+                                </Typography>
+                            ))
+                        ) : (
+                            <Typography variant="body2" color="text.secondary">
+                                No logs available yet
+                            </Typography>
+                        )}
+                    </Box>
+                </CardContent>
+            </Card>
+        </>
+    );
+} 

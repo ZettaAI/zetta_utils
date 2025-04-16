@@ -85,7 +85,7 @@ def configure_logger(level=None, third_party_level="ERROR"):
 
     for _ in (
         "python_jsonschema_objects",
-        "pytorch_lightning",
+        "lightning",
         "urllib3",
         "urllib3.connectionpool",
         "google",

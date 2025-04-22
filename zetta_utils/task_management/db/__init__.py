@@ -1,4 +1,4 @@
-from .models import Base, SubtaskTypeModel
+from .models import Base, SubtaskTypeModel, UserModel, TaskModel
 from .session import (
     get_engine,
     get_session_factory,
@@ -9,6 +9,8 @@ from .session import (
 __all__ = [
     "Base",
     "SubtaskTypeModel",
+    "UserModel",
+    "TaskModel",
     "get_engine",
     "get_session_factory",
     "create_tables",

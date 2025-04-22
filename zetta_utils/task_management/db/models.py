@@ -78,3 +78,82 @@ class SubtaskTypeModel(Base):
             completion_statuses=data["completion_statuses"],
             description=data.get("description"),
         )
+
+
+class UserModel(Base):
+    """
+    SQLAlchemy model for the users table.
+    """
+
+    __tablename__ = "users"
+
+    # Composite primary key of project_name and user_id
+    project_name = Column(String, primary_key=True)
+    user_id = Column(String, primary_key=True)
+
+    # Columns
+    hourly_rate = Column(Float, nullable=False)
+    active_subtask = Column(String, nullable=False, default="")
+    qualified_subtask_types = Column(ArrayType, nullable=False)
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary matching the User TypedDict structure"""
+        return {
+            "user_id": self.user_id,
+            "hourly_rate": self.hourly_rate,
+            "active_subtask": self.active_subtask,
+            "qualified_subtask_types": self.qualified_subtask_types,
+        }
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "UserModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            user_id=data["user_id"],
+            hourly_rate=data["hourly_rate"],
+            active_subtask=data["active_subtask"],
+            qualified_subtask_types=data["qualified_subtask_types"],
+        )
+
+
+class TaskModel(Base):
+    """
+    SQLAlchemy model for the tasks table.
+    """
+
+    __tablename__ = "tasks"
+
+    # Composite primary key of project_name and task_id
+    project_name = Column(String, primary_key=True)
+    task_id = Column(String, primary_key=True)
+
+    # Columns
+    batch_id = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    task_type = Column(String, nullable=False)
+    ng_state = Column(String, nullable=False)
+    id_nonunique = Column(String, nullable=True)  # For compatibility with Firestore
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary matching the Task TypedDict structure"""
+        return {
+            "task_id": self.task_id,
+            "batch_id": self.batch_id,
+            "status": self.status,
+            "task_type": self.task_type,
+            "ng_state": self.ng_state,
+        }
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "TaskModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            task_id=data["task_id"],
+            batch_id=data["batch_id"],
+            status=data["status"],
+            task_type=data["task_type"],
+            ng_state=data["ng_state"],
+            id_nonunique=data.get("_id_nonunique"),
+        )

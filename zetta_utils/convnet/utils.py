@@ -94,7 +94,7 @@ def load_weights_file(
 @overload
 def load_and_run_model(
     path: str,
-    data_in: torch.Tensor,
+    data_in: Union[torch.Tensor, tuple[torch.Tensor, ...]],
     device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
     use_cache: bool = ...,
 ) -> torch.Tensor:
@@ -104,7 +104,7 @@ def load_and_run_model(
 @overload
 def load_and_run_model(
     path: str,
-    data_in: npt.NDArray,
+    data_in: Union[npt.NDArray, tuple[npt.NDArray, ...]],
     device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
     use_cache: bool = ...,
 ) -> npt.NDArray:
@@ -122,6 +122,14 @@ def load_and_run_model(path, data_in, device=None, use_cache=True):  # pragma: n
     autocast_device = device.type if isinstance(device, torch.device) else str(device)
     with torch.inference_mode():  # uses less memory when used with JITs
         with torch.autocast(device_type=autocast_device):
-            output = model(tensor_ops.convert.to_torch(data_in, device=device))
-            output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
+            if isinstance(data_in, tuple):
+                data_in_torch = tuple(
+                    tensor_ops.convert.to_torch(x, device=device)
+                    for x in data_in
+                )
+                output = model(*data_in_torch)
+                output = tensor_ops.convert.astype(output, reference=data_in[0], cast=True)
+            else:
+                output = model(tensor_ops.convert.to_torch(data_in, device=device))
+                output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
     return output

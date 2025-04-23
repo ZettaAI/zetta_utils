@@ -351,12 +351,16 @@ def _lightning_train_remote(
 
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)
-    secrets, env_secret_mapping, adc_available = resource_allocation.k8s.get_secrets_and_mapping(
-        run.RUN_ID, REQUIRED_ENV_VARS
+    secrets, env_secret_mapping, adc_available, cave_secret_avilable = (
+        resource_allocation.k8s.get_secrets_and_mapping(run.RUN_ID, REQUIRED_ENV_VARS)
     )
 
-    volumes = [vol] + resource_allocation.k8s.get_common_volumes()
-    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts()
+    volumes = [vol] + resource_allocation.k8s.get_common_volumes(
+        cave_secret_available=cave_secret_avilable
+    )
+    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts(
+        cave_secret_available=cave_secret_avilable
+    )
 
     envs = []
     env_vars = env_vars or {}

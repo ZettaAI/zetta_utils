@@ -32,6 +32,9 @@ def main():
     print(f"Running: \n{push_command}")
     subprocess.call(push_command, shell=True)
 
+    print(f"\nAdding git tag {args.tag}.")
+    subprocess.call(f"git tag {args.tag} && git push origin {args.tag}", shell=True)
+
 
 if __name__ == "__main__":
     main()

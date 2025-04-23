@@ -1,9 +1,9 @@
-from typing import Literal
+from typing import Any, Literal
 
 from google.cloud import firestore
 from typeguard import typechecked
 
-from .project import get_firestore_client
+from .project import get_collection, get_firestore_client
 from .subtask_structure import create_subtask_structure
 
 
@@ -12,6 +12,7 @@ def ingest_task(
     project_name: str,
     task_id: str,
     subtask_structure: str,
+    subtask_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
 ) -> bool:
@@ -37,6 +38,7 @@ def ingest_task(
         re_ingest=re_ingest,
         priority=priority,
         bundle_size=1,
+        subtask_structure_kwargs=subtask_structure_kwargs,
     )
 
 
@@ -45,6 +47,7 @@ def ingest_tasks(
     project_name: str,
     task_ids: list[str],
     subtask_structure: str,
+    subtask_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
     bundle_size: int = 500,
@@ -66,9 +69,7 @@ def ingest_tasks(
     :raises KeyError: If any task does not exist.
     """
     client = get_firestore_client()
-    task_refs = [
-        client.collection(f"{project_name}_tasks").document(task_id) for task_id in task_ids
-    ]
+    task_refs = [get_collection(project_name, "tasks").document(task_id) for task_id in task_ids]
     task_docs = list(client.get_all(task_refs))
     tasks = {doc.id: doc.to_dict() for doc in task_docs}
     missing_task_ids = set(task_ids) - set(
@@ -103,25 +104,25 @@ def ingest_tasks(
                 task_batch = ingested_task_ids[i : i + 30]
 
                 subtasks_query = (
-                    client.collection(f"{project_name}_subtasks")
+                    get_collection(project_name, "subtasks")
                     .where("task_id", "in", task_batch)
                     .where("is_active", "==", True)
                 )
                 batch_subtasks = list(subtasks_query.stream(transaction=transaction))
                 active_subtasks.extend(batch_subtasks)
 
-            subtasks = client.collection(f"{project_name}_subtasks")
+            subtasks = get_collection(project_name, "subtasks")
             for subtask in active_subtasks:
                 transaction.update(subtasks.document(subtask.id), {"is_active": False})
 
             for task_id in task_bundle:  # pylint: disable=cell-var-from-loop
                 create_subtask_structure(
-                    client=client,
                     transaction=transaction,
                     project_name=project_name,
                     task_id=task_id,
                     subtask_structure=subtask_structure,
                     priority=priority,
+                    subtask_structure_kwargs=subtask_structure_kwargs,
                 )
 
             return True
@@ -135,6 +136,7 @@ def ingest_batch(
     project_name: str,
     batch_id: str,
     subtask_structure: str,
+    subtask_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
 ) -> bool:
@@ -151,8 +153,7 @@ def ingest_batch(
     :param priority: Priority for subtasks (default: 1)
     :return: True if any tasks were ingested, False otherwise.
     """
-    client = get_firestore_client()
-    tasks_query = client.collection(f"{project_name}_tasks").where("batch_id", "==", batch_id)
+    tasks_query = get_collection(project_name, "tasks").where("batch_id", "==", batch_id)
 
     if re_ingest is None:
         tasks_query = tasks_query.where("status", "==", "pending_ingestion")
@@ -169,6 +170,7 @@ def ingest_batch(
         project_name=project_name,
         task_ids=task_ids,
         subtask_structure=subtask_structure,
+        subtask_structure_kwargs=subtask_structure_kwargs,
         re_ingest=re_ingest,
         priority=priority,
     )

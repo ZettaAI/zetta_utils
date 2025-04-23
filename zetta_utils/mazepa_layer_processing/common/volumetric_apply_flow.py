@@ -85,23 +85,21 @@ class ReduceNaive(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
-            res = torch.zeros(
+            res = np.zeros(
                 (dst.backend.num_channels, *red_idx.shape),
-                dtype=convert.to_torch_dtype(dst.backend.dtype),
+                dtype=dst.backend.dtype,
             )
             assert len(src_layers) > 0
             if processing_blend_pad != Vec3D[int](0, 0, 0):
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    subidx_channels = (slice(0, res.shape[0]), *subidx)
                     with semaphore("read"):
-                        res[subidx_channels] = torch.maximum(
-                            res[subidx_channels], convert.to_torch(layer[intscn], res.device)
-                        )
+                        res[subidx_channels] = np.maximum(res[subidx_channels], layer[intscn])
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
-                    subidx_channels = [slice(0, res.shape[0])] + list(subidx)
+                    subidx_channels = (slice(0, res.shape[0]), *subidx)
                     with semaphore("read"):
                         res[subidx_channels] = layer[intscn]
             with semaphore("write"):
@@ -615,37 +613,23 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     )
                 tasks += tasks_split
 
-                red_ind = 0
-                last_x_rollover = 0
-                last_xy_rollover = 0
+                # TODO: Turn into O(n) algorithm by making everything into 3D arrays
+                # Typing will have to be less strict.
                 for i, task_idx in enumerate(task_idxs):
-                    # test rollover in X, and then XY - note that this
-                    # also catches situations where the task_idx intersects
-                    # the current reduction chunk but is hanging off the
-                    # `left` edge
-                    if task_idx.intersects(red_chunks[last_xy_rollover]):
-                        red_ind = last_xy_rollover
-                    elif task_idx.intersects(red_chunks[last_x_rollover]):
-                        red_ind = last_x_rollover
-                    # all other cases
-                    else:
-                        try:
-                            while not task_idx.intersects(red_chunks[red_ind]):
-                                red_ind += 1
-                            if red_ind % (red_shape[0] * red_shape[1]) == 0:
-                                last_xy_rollover = red_ind
-                            if red_ind % red_shape[0] == 0:
-                                last_x_rollover = red_ind
-                        # This case catches the case where the chunk is entirely outside
-                        # any reduction chunk; this can happen if, for instance,
-                        # roi_crop_pad is set to [0, 0, 1] and the processing_chunk_size
-                        # is [X, X, 1].
-                        except IndexError as e:
-                            raise ValueError(
-                                f"The processing chunk `{task_idx.pformat()}` does not "
-                                " correspond to any reduction chunk; please check the "
-                                "`roi_crop_pad` and the `processing_chunk_size`."
-                            ) from e
+                    red_ind = 0
+                    try:
+                        while not task_idx.intersects(red_chunks[red_ind]):
+                            red_ind += 1
+                    # This case catches the case where the chunk is entirely outside
+                    # any reduction chunk; this can happen if, for instance,
+                    # roi_crop_pad is set to [0, 0, 1] and the processing_chunk_size
+                    # is [X, X, 1].
+                    except IndexError as e:
+                        raise ValueError(
+                            f"The processing chunk `{task_idx.pformat()}` does not "
+                            " correspond to any reduction chunk; please check the "
+                            "`roi_crop_pad` and the `processing_chunk_size`."
+                        ) from e
                     if task_idx.contained_in(red_chunks[red_ind]):
                         red_chunks_task_idxs[red_ind].append(task_idx)
                         red_chunks_temps[red_ind].append(dst_temp)
@@ -735,7 +719,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
+            (
+                tasks,
+                _,
+                _,
+                dst_temps,
+            ) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
             logger.info(
@@ -829,3 +818,5 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             delete_if_local(*dst_temps)
         if self.clear_cache_on_return:
             clear_cache(*op_args, **op_kwargs)
+
+        return tasks

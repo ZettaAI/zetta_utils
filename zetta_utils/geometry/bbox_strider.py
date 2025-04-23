@@ -106,7 +106,7 @@ class BBoxStrider:
         bbox_snapped_size_in_unit = bbox_snapped.shape
         step_limits_snapped = Vec3D[float](
             *(
-                (b - s) / st + 1
+                max((b - s) / st + 1, 0)
                 for b, s, st in zip(
                     bbox_snapped_size_in_unit,
                     self.chunk_size_in_unit,
@@ -161,7 +161,7 @@ class BBoxStrider:
         bbox_snapped_size_in_unit = bbox_snapped.end - bbox_snapped.start
         step_limits_snapped = Vec3D[float](
             *(
-                (b - s) / st + 1
+                max((b - s) / st + 1, 0)
                 for b, s, st in zip(
                     bbox_snapped_size_in_unit,
                     self.chunk_size_in_unit,
@@ -172,7 +172,7 @@ class BBoxStrider:
         bbox_size_in_unit = self.bbox.end - self.bbox.start
         step_limits_raw = Vec3D[float](
             *(
-                (b - s) / st + 1
+                max((b - s) / st + 1, 0)
                 for b, s, st in zip(
                     bbox_size_in_unit,
                     self.chunk_size_in_unit,

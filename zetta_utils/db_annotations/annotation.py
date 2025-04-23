@@ -19,6 +19,7 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry.bbox import BBox3D
+from zetta_utils.geometry.vec import Vec3D
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.parsing.ngl_state import AnnotationKeys
@@ -148,7 +149,7 @@ def _make_annotation_row(
     collection_id: str,
     layer_group_id: str,
     comment: str | None,
-    selected_segments: Mapping[str, Sequence[int]],
+    selected_segments: Mapping[str, Sequence[str]],
     tags: list[str] | None,
 ) -> tuple[str, dict]:
     row = annotation.to_json()
@@ -171,7 +172,7 @@ def add_annotation(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
-    selected_segments: Mapping[str, Sequence[int]] | None = None,
+    selected_segments: Mapping[str, Sequence[str]] | None = None,
     tags: list[str] | None = None,
 ) -> str:
     annotation_id, row = _make_annotation_row(
@@ -193,13 +194,13 @@ def add_annotations(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
-    selected_segments: Sequence[Mapping[str, Sequence[int]]] | None = None,
+    selected_segments: Sequence[Mapping[str, Sequence[str]]] | None = None,
     tags: list[str] | None = None,
 ) -> list[str]:
     rows = []
     annotation_ids = []
     for i, annotation in enumerate(annotations):
-        segments: Mapping[str, Sequence[int]] = {}
+        segments: Mapping[str, Sequence[str]] = {}
         if selected_segments is not None:
             segments = selected_segments[i]
         annotation_id, row = _make_annotation_row(
@@ -302,13 +303,36 @@ def add_bbox_annotation(
     collection_id: str,
     layer_group_id: str,
     comment: str | None = None,
-    selected_segments: Mapping[str, Sequence[int]] | None = None,
+    selected_segments: Mapping[str, Sequence[str]] | None = None,
     tags: list[str] | None = None,
 ) -> str:  # pragma: no cover # delegation
     return add_annotation(
         AxisAlignedBoundingBoxAnnotation(
             point_a=bbox.start,
             point_b=bbox.end,
+        ),
+        collection_id=collection_id,
+        layer_group_id=layer_group_id,
+        selected_segments=selected_segments,
+        comment=comment,
+        tags=tags,
+    )
+
+
+@typechecked
+@builder.register("add_point_annotation")
+def add_point_annotation(
+    coord: Vec3D,
+    *,
+    collection_id: str,
+    layer_group_id: str,
+    comment: str | None = None,
+    selected_segments: Mapping[str, Sequence[str]] | None = None,
+    tags: list[str] | None = None,
+) -> str:  # pragma: no cover # delegation
+    return add_annotation(
+        PointAnnotation(
+            point=list(coord),
         ),
         collection_id=collection_id,
         layer_group_id=layer_group_id,

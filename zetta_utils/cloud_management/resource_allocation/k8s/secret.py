@@ -3,9 +3,12 @@ Helpers for k8s secrets.
 """
 
 import base64
+import json
 import os
 from contextlib import contextmanager
 from typing import Dict, Iterable, List, Optional, Tuple
+
+from cloudvolume.secrets import cave_credentials
 
 from kubernetes import client as k8s_client
 from zetta_utils import log
@@ -52,30 +55,39 @@ def get_worker_env_vars(env_secret_mapping: Optional[Dict[str, str]] = None) -> 
     return envs
 
 
-def _get_user_adc() -> str | None:
+def _get_user_adc() -> Optional[str]:
     """
-    Reads credentials file created by ` gcloud auth application-default login`.
+    Reads credentials file created by `gcloud auth application-default login`.
+    Returns base64 encoded credentials or None if not found.
     """
-    file_name = ".config/gcloud/application_default_credentials.json"
-    home_dir = os.path.expanduser("~")
-    file_path = os.path.join(home_dir, file_name)
-    data = None
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = f.read()
-                data = base64.b64encode(data.encode()).decode()
-        except Exception:  # pylint: disable=broad-exception-caught
-            ...
-    return data
+    # Try environment variable path first, then default location
+    credential_paths = [
+        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"),
+        os.path.join(
+            os.path.expanduser("~"), ".config/gcloud/application_default_credentials.json"
+        ),
+    ]
+
+    # Find first existing path
+    file_path = next((path for path in credential_paths if path and os.path.exists(path)), None)
+
+    if not file_path:
+        return None
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return base64.b64encode(f.read().encode()).decode()
+    except Exception:  # pylint: disable=broad-exception-caught
+        return None
 
 
 def get_secrets_and_mapping(
     run_id: str, share_envs: Iterable[str] = ()
-) -> Tuple[List[k8s_client.V1Secret], Dict[str, str], bool]:
+) -> Tuple[List[k8s_client.V1Secret], Dict[str, str], bool, bool]:
     env_secret_mapping: Dict[str, str] = {}
     secrets_kv: Dict[str, str] = {}
     adc_available: bool = False
+    cave_secret_available: bool = False
 
     combined_secret_data = {}
     for env_k in share_envs:
@@ -113,8 +125,19 @@ def get_secrets_and_mapping(
         metadata=k8s_client.V1ObjectMeta(name=f"run-{run_id}-adc"),
         data={"adc.json": adc_content},
     )
+    cave_secret_content = cave_credentials()
+    cave_secret_available = cave_secret_content != {}
+    cave_secret_base64 = base64.b64encode(json.dumps(cave_secret_content).encode("utf-8")).decode(
+        "utf-8"
+    )
+    cave_secret_creds = k8s_client.V1Secret(
+        metadata=k8s_client.V1ObjectMeta(name=f"run-{run_id}-cave-secret"),
+        data={"cave-secret.json": cave_secret_base64},
+    )
+
     secrets.append(adc_creds)
-    return secrets, env_secret_mapping, adc_available
+    secrets.append(cave_secret_creds)
+    return secrets, env_secret_mapping, adc_available, cave_secret_available
 
 
 @contextmanager

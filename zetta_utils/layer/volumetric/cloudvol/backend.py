@@ -21,8 +21,8 @@ from .. import VolumetricBackend, VolumetricIndex
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
-# IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 0
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+# IN_MEM_CACHE_NUM_BYTES_PER_CV = 0
 
 
 
@@ -45,11 +45,13 @@ def _get_cv_cached(
             # only resize LRU cache if requested a smaller size than previously created
             cvol.image.lru.resize(cache_bytes_limit)
         return cvol
+
+    info = get_info(path_) if not path_.startswith("graphene://") else None
     if resolution is not None:
         try:
             result = CloudVolume(
                 path_,
-                info=get_info(path_),
+                info=info,
                 provenance={},
                 mip=tuple(resolution),
                 lru_bytes=cache_bytes_limit,
@@ -60,7 +62,7 @@ def _get_cv_cached(
     else:
         result = CloudVolume(
             path_,
-            info=get_info(path_),
+            info=info,
             provenance={},
             lru_bytes=cache_bytes_limit,
             **kwargs,
@@ -118,15 +120,17 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             )
 
         self._set_cv_defaults()
-        if self.info_spec is None:
-            self.info_spec = PrecomputedInfoSpec(info_path=self.path)
-        overwritten = self.info_spec.update_info(
-            self.path,
-            overwrite=self.info_overwrite,
-            keep_existing_scales=self.info_keep_existing_scales,
-        )
-        if overwritten:
-            _clear_cv_cache(self.path)
+
+        if not self.path.startswith("graphene://"):
+            if self.info_spec is None:
+                self.info_spec = PrecomputedInfoSpec(info_path=self.path)
+            overwritten = self.info_spec.update_info(
+                self.path,
+                overwrite=self.info_overwrite,
+                keep_existing_scales=self.info_keep_existing_scales,
+            )
+            if overwritten:
+                _clear_cv_cache(self.path)
 
     def _set_cv_defaults(self):
         self.cv_kwargs.setdefault("bounded", False)

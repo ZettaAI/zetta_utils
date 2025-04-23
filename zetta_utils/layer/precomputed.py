@@ -10,6 +10,7 @@ import attrs
 import cachetools
 from cachetools.keys import hashkey
 from cloudfiles import CloudFile
+from cloudvolume import CloudVolume
 from typeguard import typechecked
 
 from zetta_utils.common import abspath, is_local
@@ -352,7 +353,7 @@ class PrecomputedInfoSpec:
                     if existing_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'expect_same'. Some scales present "
+                            "while `info_overwrite` is set to False. Some scales present "
                             f"in `{path}` would be overwritten."
                         )
                     existing_info_no_scales = copy.deepcopy(existing_info)
@@ -363,7 +364,7 @@ class PrecomputedInfoSpec:
                     if non_scales_changed:
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `on_info_exists` is set to 'expect_same'. Some non-scale keys "
+                            "while `info_overwrite` is set to False. Some non-scale keys "
                             f"in `{path}` would be overwritten."
                         )
 
@@ -396,7 +397,7 @@ class PrecomputedInfoSpec:
 def _get_info_from_info_path(info_path: str) -> dict[str, Any]:
     cf = CloudFile(info_path)
     if cf.exists():
-        result = CloudFile(info_path).get_json()
+        result = CloudVolume(info_path[: -len("/info")]).info
         assert isinstance(result, dict)
     else:
         raise FileNotFoundError(f"The infofile at '{info_path}' does not exist.")

@@ -28,10 +28,12 @@ def aws_credentials():
 
 @pytest.fixture(scope="module")
 def sqs_endpoint(aws_credentials):
-    """Ensure that SQS service i s up and responsive."""
+    """Ensure that SQS service is up and responsive."""
     with mock_sqs():
         client = docker.from_env()  # type: ignore
-        container = client.containers.run("graze/sqs-local", detach=True, ports={"9324": "9324"})
+        container = client.containers.run(
+            "softwaremill/elasticmq-native", detach=True, ports={"9324/tcp": 9324}, remove=True
+        )
 
         timeout = 120
         stop_time = 1

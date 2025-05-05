@@ -59,7 +59,7 @@ def receive_msgs(
             VisibilityTimeout=visibility_timeout,
             WaitTimeSeconds=1,
         )
-        if "Messages" not in resp:
+        if "Messages" not in resp or len(resp["Messages"]) == 0:
             break
 
         message_batch = [

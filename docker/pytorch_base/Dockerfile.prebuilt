@@ -14,8 +14,8 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 ENV NVIDIA_REQUIRE_CUDA="cuda>=$CUDA_VERSION"
 
-ENV PATH /usr/local/nvidia/bin:/usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
-ENV LD_LIBRARY_PATH /usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
+ENV PATH=/usr/local/nvidia/bin:/usr/local/cuda-${CUDA_VERSION}/bin:/opt/conda/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
@@ -31,8 +31,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm ~/miniconda.sh \
     && /opt/conda/bin/conda install -y python=${PYTHON_VERSION} \
     && /opt/conda/bin/conda clean -ya \
-    && /opt/conda/bin/pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} --index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | tr -d .) \
-    && /opt/conda/bin/pip install tensorrt torch-tensorrt==${TORCH_TENSORRT_VERSION} -f https://github.com/NVIDIA/Torch-TensorRT/releases \
+    && /opt/conda/bin/pip install torch==${TORCH_VERSION} torchvision==${TORCHVISION_VERSION} \
+      tensorrt torch-tensorrt==${TORCH_TENSORRT_VERSION} --extra-index-url https://download.pytorch.org/whl/cu$(echo $CUDA_VERSION | tr -d .) \
+    # && /opt/conda/bin/pip install tensorrt torch-tensorrt==${TORCH_TENSORRT_VERSION} -f https://github.com/NVIDIA/Torch-TensorRT/releases \
     && apt-mark auto '.*' > /dev/null \
     && apt-mark manual $preexistingAptMark ca-certificates > /dev/null \
     && find /usr/local/lib /opt/conda -type f -executable -exec ldd '{}' ';' \

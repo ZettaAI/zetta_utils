@@ -35,33 +35,33 @@ class CustomVolOp:  # implements VolumetricOpProtocol
         data_np = convert.to_np(src[idx][0])  # (use channel 0) # pylint: disable=unused-variable
 
 
-d = {
-    "@type": "build_subchunkable_apply_flow",
-    "bbox": {
-        "@type": "BBox3D.from_coords",
-        "start_coord": [13996, 10633, 3062],
-        "end_coord": [14124, 10761, 3102],
-        "resolution": [16, 16, 42],
-    },
-    "dst_resolution": [16, 16, 42],
-    "processing_chunk_sizes": [[128, 128, 40]],
-    "skip_intermediaries": True,
-    "expand_bbox_processing": True,
-    "op": {"@type": "CustomVolOp"},
-    "op_kwargs": {
-        "src": {
-            "@type": "build_cv_layer",
-            "path": "gs://dkronauer-ant-001-synapse/test/syndet20240802",
-        }
-    },
-    "dst": {
-        "@type": "build_cv_layer",
-        "path": "gs://dkronauer-ant-001-synapse/test/synseg20240802",
-        "info_reference_path": "gs://dkronauer-ant-001-synapse/test/syndet20240802",
-        "on_info_exists": "overwrite",
-        "info_field_overrides": {"num_channels": 1, "data_type": "int32"},
-        "info_add_scales": [[16, 16, 42]],
-        "info_add_scales_mode": "replace",
-    },
-}
-flow = zetta_utils.builder.build(d)
+# d = {
+#     "@type": "build_subchunkable_apply_flow",
+#     "bbox": {
+#         "@type": "BBox3D.from_coords",
+#         "start_coord": [13996, 10633, 3062],
+#         "end_coord": [14124, 10761, 3102],
+#         "resolution": [16, 16, 42],
+#     },
+#     "dst_resolution": [16, 16, 42],
+#     "processing_chunk_sizes": [[128, 128, 40]],
+#     "skip_intermediaries": True,
+#     "expand_bbox_processing": True,
+#     "op": {"@type": "CustomVolOp"},
+#     "op_kwargs": {
+#         "src": {
+#             "@type": "build_cv_layer",
+#             "path": "gs://dkronauer-ant-001-synapse/test/syndet20240802",
+#         }
+#     },
+#     "dst": {
+#         "@type": "build_cv_layer",
+#         "path": "gs://dkronauer-ant-001-synapse/test/synseg20240802",
+#         "info_reference_path": "gs://dkronauer-ant-001-synapse/test/syndet20240802",
+#         "on_info_exists": "overwrite",
+#         "info_field_overrides": {"num_channels": 1, "data_type": "int32"},
+#         "info_add_scales": [[16, 16, 42]],
+#         "info_add_scales_mode": "replace",
+#     },
+# }
+# flow = zetta_utils.builder.build(d)

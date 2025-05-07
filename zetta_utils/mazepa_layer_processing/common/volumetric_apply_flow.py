@@ -613,10 +613,12 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     )
                 tasks += tasks_split
 
+                red_ind = 0
                 # TODO: Turn into O(n) algorithm by making everything into 3D arrays
                 # Typing will have to be less strict.
                 for i, task_idx in enumerate(task_idxs):
-                    red_ind = 0
+                    red_ind -= 2 * red_shape[0] * red_shape[1]
+                    red_ind = max(red_ind, 0)
                     try:
                         while not task_idx.intersects(red_chunks[red_ind]):
                             red_ind += 1

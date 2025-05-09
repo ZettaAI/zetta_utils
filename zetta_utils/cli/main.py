@@ -11,6 +11,7 @@ import zetta_utils
 from zetta_utils import log
 from zetta_utils.run import run_ctx_manager
 from zetta_utils.run.cli import run_info_cli
+from zetta_utils.run.cli_update import run_update_cli
 
 logger = log.get_logger("zetta_utils")
 
@@ -151,4 +152,8 @@ def show_registry():
 
 
 for cmd in run_info_cli.commands.values():
+    cli.add_command(cmd)
+
+
+for cmd in run_update_cli.commands.values():
     cli.add_command(cmd)

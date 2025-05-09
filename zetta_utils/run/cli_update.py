@@ -22,6 +22,7 @@ def run_update(run_id: str, max_workers: int, worker_groups: list[str] | None = 
     """
 
     def _patch(job_name: str, patch_body: dict):
+        job_name = job_name.replace("_", "-")
         try:
             k8s.patch_scaledjob(job_name, patch_body=patch_body)
         except ApiException as exc:

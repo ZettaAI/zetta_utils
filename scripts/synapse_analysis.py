@@ -307,6 +307,8 @@ def load_segmentation():
         if isinstance(source_path, dict):  # type: ignore[unreachable]
             source_path = source_path["url"]  # type: ignore[unreachable]
         # resolution = get_resolution(layer_data)
+    if "/|neuroglancer-precomputed:" in source_path:
+        source_path = source_path.split("/|neuroglancer-precomputed:")[0]
     print(f"Loading segmentation from {source_path}...")
     seg_cvl = CloudVolume(source_path)
     seg_cvl.agglomerate = True  # get root IDs, not supervoxel IDs
@@ -348,6 +350,9 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
         distances, indices = kdtree.query(
             point, k=len(points_B), distance_upper_bound=max_distance
         )
+        if isinstance(distances, float):
+            distances = [distances]
+            indices = [indices]
         for dist, j in zip(distances, indices):
             if dist < max_distance and (
                 valid_test is None or valid_test(points_A[i], points_B[j])
@@ -382,10 +387,16 @@ def analyze_points(points_A, points_B, valid_test=None) -> dict:
 
     distances = [distance_matrix[m[0], m[1]] for m in matches]
     distances = sorted(distances)
-    result["mean_dist"] = sum(distances) / len(distances)
-    result["median_dist"] = distances[len(distances) // 2]
-    result["max_dist"] = distances[-1]
-    result["min_dist"] = distances[0]
+    if len(distances) > 0:
+        result["mean_dist"] = sum(distances) / len(distances)
+        result["median_dist"] = distances[len(distances) // 2]
+        result["max_dist"] = distances[-1]
+        result["min_dist"] = distances[0]
+    else:
+        result["mean_dist"] = "-"
+        result["median_dist"] = "-"
+        result["max_dist"] = "-"
+        result["min_dist"] = "-"
 
     # Detailed match info, for debugging
     result["matches_list"] = matches
@@ -406,10 +417,11 @@ def print_stats(stats: dict, title: str):
     print(f"False Negatives: {stats['false_neg']}")
     print(f"Precision:       {round(stats['precision'], 3)}")
     print(f"Recall:          {round(stats['recall'], 3)}")
-    print(f"F1 Score:        {round(stats['f1'], 3)}")
-    print(f"Distance Range:  {round(stats['min_dist'])} - {round(stats['max_dist'])}")
-    print(f"Mean Distance:   {round(stats['mean_dist'])}")
-    print(f"Median Distance: {round(stats['median_dist'])}")
+    if isinstance(stats["f1"], float):
+        print(f"F1 Score:        {round(stats['f1'], 3)}")
+        print(f"Distance Range:  {round(stats['min_dist'])} - {round(stats['max_dist'])}")
+        print(f"Mean Distance:   {round(stats['mean_dist'])}")
+        print(f"Median Distance: {round(stats['median_dist'])}")
 
 
 def get_points(items: Sequence[dict], key: str, resolution: Vec3D) -> List[Vec3D]:
@@ -470,6 +482,12 @@ def print_as_annotations(points, items, key, resolution):
     print(",\n".join(result))
 
 
+def line_in_bounds(line, line_res, idx):
+    a = Vec3D(*line["pointA"]) * line_res / idx.resolution
+    b = Vec3D(*line["pointB"]) * line_res / idx.resolution
+    return idx.line_intersects(a, b)
+
+
 def main():
     gt_items, gt_resolution, bbox = load_annotations("GROUND TRUTH")
     print(f"{len(gt_items)} lines loaded as ground-truth synapses")
@@ -507,6 +525,11 @@ def main():
     e = idx.stop
     seg_data = seg_vol[s[0] : e[0], s[1] : e[1], s[2] : e[2]][:, :, :, 0]
     print(f"Seg data shape: {seg_data.shape}")
+
+    # Further filter synapse lines to final bbox
+    gt_items = list(filter(lambda x: line_in_bounds(x, gt_resolution, idx), gt_items))
+    pred_items = list(filter(lambda x: line_in_bounds(x, pred_resolution, idx), pred_items))
+    print(f"Within bounds are {len(gt_items)} GT items and {len(pred_items)} predictions")
 
     # Analyze presynaptic points
     gt_points = get_points(gt_items, "pointA", gt_resolution)
@@ -573,6 +596,7 @@ def main():
     if not pr_points:
         print("No prediction points within bounding box (resolution error?)")
         sys.exit()
+    breakpoint()
     stats = analyze_points(gt_points, pr_points, lambda a, b: point_segs[a] == point_segs[b])
     print_stats(stats, "SYNAPSES")
 

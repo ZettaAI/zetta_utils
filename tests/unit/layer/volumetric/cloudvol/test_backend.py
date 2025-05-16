@@ -194,6 +194,7 @@ def test_cv_backend_write(clear_caches_reset_mocks, mocker):
     cv_m.voxel_offset = [0, 1, 2]
     cv_m.chunk_size = [1, 1, 1]
     cv_m.volume_size = [16, 16, 16]
+    cv_m.image.lru.size = 0
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     with tempfile.TemporaryDirectory() as tmp_dir:
         cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
@@ -225,6 +226,7 @@ def test_cv_backend_write_scalar(clear_caches_reset_mocks, mocker):
     cv_m.voxel_offset = [0, 1, 2]
     cv_m.chunk_size = [1, 1, 1]
     cv_m.volume_size = [16, 16, 16]
+    cv_m.image.lru.size = 0
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     with tempfile.TemporaryDirectory() as tmp_dir:
         cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
@@ -280,6 +282,7 @@ def test_cv_backend_write_scalar_uint63(clear_caches_reset_mocks, mocker):
     cv_m.chunk_size = [1, 1, 1]
     cv_m.volume_size = [16, 16, 16]
     cv_m.dtype = "uint64"
+    cv_m.image.lru.size = 0
     with tempfile.TemporaryDirectory() as tmp_dir:
         mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
         cvb = CVBackend(
@@ -315,6 +318,7 @@ def test_cv_backend_write_scalar_uint63_exc(clear_caches_reset_mocks, mocker):
     cv_m.chunk_size = [1, 1, 1]
     cv_m.volume_size = [16, 16, 16]
     cv_m.dtype = "uint64"
+    cv_m.image.lru.size = 0
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     with tempfile.TemporaryDirectory() as tmp_dir:
         cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
@@ -348,6 +352,7 @@ def test_cv_backend_write_exc(clear_caches_reset_mocks, data_in, expected_exc, m
     cv_m.voxel_offset = [0, 0, 0]
     cv_m.chunk_size = [1, 1, 1]
     cv_m.volume_size = [16, 16, 16]
+    cv_m.image.lru.size = 0
     mocker.patch("cloudvolume.CloudVolume.__new__", return_value=cv_m)
     with tempfile.TemporaryDirectory() as tmp_dir:
         cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
@@ -575,3 +580,17 @@ def test_cv_assert_idx_is_chunk_aligned_crop_preorigin_exc(clear_caches_reset_mo
 
         with pytest.raises(ValueError):
             cvb.assert_idx_is_chunk_aligned(index)
+
+
+def test_cv_lru_resize(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+        )
+    )
+    cvb = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, info_overwrite=True)
+    assert cvb.dtype == np.dtype("uint8")
+    cvc = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, cache_bytes_limit=0)
+    assert cvc.dtype == np.dtype("uint8")

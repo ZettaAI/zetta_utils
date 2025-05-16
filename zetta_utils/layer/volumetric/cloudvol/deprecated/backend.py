@@ -34,15 +34,18 @@ def _get_cv_cached(
     cache_bytes_limit: Optional[int] = None,
     **kwargs,
 ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
+
     path_ = abspath(path)
-    if cache_bytes_limit is None:
-        cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
     if (path_, resolution) in _cv_cache:
         cvol = _cv_cache[(path_, resolution)]
-        if cvol.image.lru.size > cache_bytes_limit:
-            # only resize LRU cache if requested a smaller size than previously created
+        if cache_bytes_limit is not None and cvol.image.lru.size != cache_bytes_limit:
+            # resize LRU cache if explicitly requested
             cvol.image.lru.resize(cache_bytes_limit)
         return cvol
+
+    if cache_bytes_limit is None:
+        cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
+
     if resolution is not None:
         try:
             result = CloudVolume(

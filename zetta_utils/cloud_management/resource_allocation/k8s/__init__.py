@@ -26,6 +26,7 @@ from .job import (
     wait_for_job_completion,
 )
 from .keda import (
+    patch_scaledjob,
     scaled_deployment_ctx_mngr,
     scaled_job_ctx_mngr,
     sqs_trigger_ctx_mngr,

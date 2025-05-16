@@ -8,6 +8,7 @@ from zetta_utils.task_management import project, subtask
 from zetta_utils.task_management.ingestion import ingest_batch
 from zetta_utils.task_management.project import (
     create_project_tables,
+    get_collection,
     get_firestore_client,
 )
 from zetta_utils.task_management.subtask_type import create_subtask_type
@@ -42,12 +43,12 @@ def test_environment():
     for collection in collections:
         if collection.id in [
             "projects",
-            "subtask_types",
-            f"{project_name}_tasks",
-            f"{project_name}_subtasks",
-            f"{project_name}_timesheets",
-            f"{project_name}_dependencies",
-            f"{project_name}_users",
+            f"projects/{project_name}/tasks",
+            f"projects/{project_name}/subtasks",
+            f"projects/{project_name}/subtask_types",
+            f"projects/{project_name}/timesheets",
+            f"projects/{project_name}/dependencies",
+            f"projects/{project_name}/users",
         ]:
             docs = collection.stream()
             for doc in docs:
@@ -76,7 +77,7 @@ def test_environment():
     )
 
     for subtask_type in [proofread_type, verify_type, expert_type]:
-        create_subtask_type(subtask_type)
+        create_subtask_type(project_name, subtask_type)
 
     yield project_name, client  # Return both project name and client
 
@@ -180,7 +181,7 @@ def bad_worker(project_name: str, user_id: str, results_dict):
 
 def concurrent_task_processing(test_environment, short_idle_timeout):
     """Test concurrent task processing with good and bad workers"""
-    project_name, client = test_environment
+    project_name, _ = test_environment
     num_tasks = 200
     num_good_workers = 20
     num_bad_workers = 1
@@ -195,6 +196,7 @@ def concurrent_task_processing(test_environment, short_idle_timeout):
             batch_id="test_batch",
             subtask_structure="segmentation_proofread_simple",
             priority=1,
+            subtask_structure_kwargs={},
         )
         assert success, "Failed to ingest tasks"
         print(f"Ingested {num_tasks} tasks")
@@ -237,7 +239,7 @@ def concurrent_task_processing(test_environment, short_idle_timeout):
         for task_id in task_ids:
             # Find all subtasks for this task
             task_subtasks = (
-                client.collection(f"{project_name}_subtasks")
+                get_collection(project_name, "subtasks")
                 .where("task_id", "==", task_id)
                 .where("subtask_type", "==", "segmentation_proofread")
                 .stream()

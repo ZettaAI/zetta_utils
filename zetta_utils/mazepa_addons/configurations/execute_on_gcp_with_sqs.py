@@ -94,6 +94,7 @@ def _get_group_taskqueue_and_contexts(
     outcome_queue_spec: dict[str, Any],
     env_secret_mapping: dict[str, str],
     adc_available: bool = False,
+    cave_secret_available: bool = False,
 ) -> tuple[PushMessageQueue[Task], list[AbstractContextManager]]:
     ctx_managers: list[AbstractContextManager] = []
 
@@ -121,6 +122,7 @@ def _get_group_taskqueue_and_contexts(
             restart_policy="Never",
             gpu_accelerator_type=group.gpu_accelerator_type,
             adc_available=adc_available,
+            cave_secret_available=cave_secret_available,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
@@ -150,6 +152,7 @@ def _get_group_taskqueue_and_contexts(
             provisioning_model=group.provisioning_model,
             gpu_accelerator_type=group.gpu_accelerator_type,
             adc_available=adc_available,
+            cave_secret_available=cave_secret_available,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,
@@ -169,8 +172,8 @@ def get_gcp_with_sqs_config(
     ctx_managers: list[AbstractContextManager],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     task_queues = []
-    secrets, env_secret_mapping, adc_available = k8s.get_secrets_and_mapping(
-        execution_id, REQUIRED_ENV_VARS
+    secrets, env_secret_mapping, adc_available, cave_secret_available = (
+        k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
     )
 
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -195,6 +198,7 @@ def get_gcp_with_sqs_config(
             outcome_queue_spec=outcome_queue_spec,
             env_secret_mapping=env_secret_mapping,
             adc_available=adc_available,
+            cave_secret_available=cave_secret_available,
         )
         task_queues.append(task_queue)
         ctx_managers.extend(group_ctx_managers)

@@ -4,11 +4,11 @@ import os
 from contextlib import ExitStack
 from typing import Any, Dict, Final, List, Literal, Optional
 
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 import torch
 import typeguard
-from lightning_fabric.utilities.cloud_io import get_filesystem
-from pytorch_lightning.strategies import ddp
+from lightning.fabric.utilities.cloud_io import get_filesystem
+from lightning.pytorch.strategies import ddp
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client
@@ -211,11 +211,14 @@ def _lightning_train_local(
     else:
         logger.warning("Invoked without builder: Unable to save configuration.")
 
-    if full_state_ckpt_path == "last":
-        if get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path):
-            ckpt_path = trainer.ckpt_path
-        else:
-            ckpt_path = None
+    if (
+        full_state_ckpt_path == "last"
+        and trainer.ckpt_path is not None
+        and get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path)
+    ):
+        ckpt_path = trainer.ckpt_path
+    else:
+        ckpt_path = None
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,
@@ -351,12 +354,19 @@ def _lightning_train_remote(
 
     specs = {"train": train_spec}
     vol, mount, spec_ctx = _spec_configmap_vol_and_ctx(cluster_info, specs)
-    secrets, env_secret_mapping, adc_available = resource_allocation.k8s.get_secrets_and_mapping(
-        run.RUN_ID, REQUIRED_ENV_VARS
-    )
+    (
+        secrets,
+        env_secret_mapping,
+        adc_available,
+        cave_secret_avilable,
+    ) = resource_allocation.k8s.get_secrets_and_mapping(run.RUN_ID, REQUIRED_ENV_VARS)
 
-    volumes = [vol] + resource_allocation.k8s.get_common_volumes()
-    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts()
+    volumes = [vol] + resource_allocation.k8s.get_common_volumes(
+        cave_secret_available=cave_secret_avilable
+    )
+    mounts = [mount] + resource_allocation.k8s.get_common_volume_mounts(
+        cave_secret_available=cave_secret_avilable
+    )
 
     envs = []
     env_vars = env_vars or {}

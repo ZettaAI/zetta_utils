@@ -20,8 +20,9 @@ from typing import IO, ClassVar, Optional, Sequence
 import attrs
 import numpy as np
 from cloudfiles import CloudFile, CloudFiles
+from typeguard import typechecked
 
-from zetta_utils import builder, log, mazepa
+from zetta_utils import builder, log
 from zetta_utils.common import is_local
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.geometry.vec import VEC3D_PRECISION
@@ -49,6 +50,7 @@ def path_join(*paths: str):
 
 
 @attrs.mutable
+@typechecked
 class LineAnnotation:
     """
     :param id: An integer representing the ID of the annotation.
@@ -872,14 +874,3 @@ class AnnotationLayerBackend(
 
     def pformat(self) -> str:
         return self.index.pformat()  # pragma: no cover
-
-
-@mazepa.taskable_operation
-def post_process_annotation_layer_op(target: AnnotationLayerBackend):  # pragma: no cover
-    target.post_process()
-
-
-@builder.register("post_process_annotation_layer_flow")
-@mazepa.flow_schema
-def post_process_annotation_layer_flow(target: AnnotationLayerBackend):  # pragma: no cover
-    yield post_process_annotation_layer_op.make_task(target)

@@ -13,7 +13,7 @@ from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from . import constants
 
 DB_NAME = "collections"
-INDEXED_COLS = ("name", "created_by", "created_at", "modified_by", "modified_at")
+INDEXED_COLS = ("name", "name_lowercase", "created_by", "created_at", "modified_by", "modified_at")
 NON_INDEXED_COLS = ("comment",)
 
 COLLECTIONS_DB = build_firestore_layer(
@@ -29,6 +29,7 @@ class CollectionDBEntry:
     name: str
     created_by: str
     created_at: float
+    name_lowercase: str | None
     modified_by: str | None
     modified_at: float | None
     comment: str | None
@@ -40,6 +41,7 @@ class CollectionDBEntry:
             name=raw_dict["name"],
             created_by=raw_dict["created_by"],
             created_at=raw_dict["created_at"],
+            name_lowercase=raw_dict.get("name_lowercase"),
             modified_by=raw_dict.get("modified_by"),
             modified_at=raw_dict.get("modified_at"),
             comment=raw_dict.get("comment"),
@@ -83,6 +85,7 @@ def add_collection(name: str, user: str, comment: str | None = None) -> str:
     col_keys = INDEXED_COLS + NON_INDEXED_COLS
     row: DBRowDataT = {
         "name": name,
+        "name_lowercase": name.lower(),
         "created_by": user,
         "created_at": time.time(),
         "modified_by": user,
@@ -101,6 +104,7 @@ def update_collection(
     row: DBRowDataT = {"modified_by": user, "modified_at": time.time()}
     if name:
         row["name"] = name
+        row["name_lowercase"] = name.lower()
     if comment:
         row["comment"] = comment
     COLLECTIONS_DB[(collection_id, col_keys)] = row

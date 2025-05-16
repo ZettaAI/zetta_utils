@@ -42,7 +42,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
@@ -107,7 +107,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
@@ -158,7 +158,7 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
@@ -206,13 +206,13 @@ jobs:
           token: ${{ steps.app_token.outputs.token }}
       - name: Get changed files
         id: changed-py-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
       - name: Get changed files
         id: changed-docs-files
-        uses: tj-actions/changed-files@v41
+        uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.rst
@@ -237,7 +237,7 @@ jobs:
         run:  make -C docs html
 
   all-checks-test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs: [mypy, pytest, pylint-isort, test-docs]
     if: always()
     steps:

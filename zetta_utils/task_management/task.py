@@ -4,6 +4,7 @@ from google.cloud import firestore
 from typeguard import typechecked
 
 from zetta_utils.task_management.helpers import get_transaction
+from zetta_utils.task_management.utils import generate_id_nonunique
 
 from .project import get_collection, get_firestore_client
 from .types import Task, TaskUpdate
@@ -39,7 +40,10 @@ def get_task(project_name: str, task_id: str) -> Task:
     doc = collection.document(task_id).get()
     if not doc.exists:
         raise KeyError(f"Task {task_id} not found")
-    return doc.to_dict()
+
+    result = doc.to_dict()
+    del result["_id_nonunique"]
+    return result
 
 
 def update_task(project_name: str, task_id: str, data: TaskUpdate) -> bool:
@@ -95,12 +99,12 @@ def create_tasks_batch(project_name: str, tasks: list[Task], batch_size: int = 5
         chunk = tasks[i : i + batch_size]
 
         for task in chunk:
-            doc_ref = client.collection(f"{project_name}_tasks").document(task["task_id"])
+            doc_ref = get_collection(project_name, "tasks").document(task["task_id"])
             # Check if task exists before adding to batch
             if doc_ref.get().exists:
                 raise ValueError(f"Task {task['task_id']} already exists")
             task_ids.append(task["task_id"])
-            batch.set(doc_ref, task)
+            batch.set(doc_ref, {**task, "_id_nonunique": generate_id_nonunique()})
 
         batch.commit()
 

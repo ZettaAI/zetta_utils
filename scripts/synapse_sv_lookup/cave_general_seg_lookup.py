@@ -1,7 +1,7 @@
 """
-This script looks up the segment (supervoxel) IDs for the endpoints of synapses
-which are not already in the supervoxel table, and stuffs those ids into the
-supervoxel table, in a CAVE annotation DB.
+This script looks up the segment (supervoxel) IDs for the points in a CAVE
+table, and stuffs those ids into the supervoxel table.  Should be general
+enough to work for any such table.
 
 Command-line options:
     --dry-run: do everything except actually write to the DB
@@ -14,6 +14,7 @@ from getpass import getpass
 from math import floor
 from typing import Dict, List, Tuple
 
+import numpy as np
 from google.cloud import storage
 from sqlalchemy import create_engine
 from sqlalchemy import text as sql
@@ -26,7 +27,7 @@ from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
 
 # Database connection parameters
 DB_USER = "postgres"
-DB_PASS = ""  # We'll ask for this below
+DB_PASS = ""  # we'll ask for DB password below
 DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
@@ -35,11 +36,14 @@ DB_PORT = 5432  # Default PostgreSQL port
 
 # Globals
 engine = None
-synapse_table = ""  # e.g. ipl_ribbon_synapses
-supervox_table = ""  # e.g. ipl_ribbon_synapses__dacey_human_fovea_2404
-synapse_resolution = Vec3D(0, 0, 0)
+base_table = ""  # e.g. cell_points
+supervox_table = ""  # e.g. cell_points__dacey_human_fovea_2404
+point_field_name = "pt_position"
+supervoxel_field_name = "pt_supervoxel_id"
+point_resolution = Vec3D(0, 0, 0)
 seg_layer = None
 seg_bounds = None
+args = None
 
 seg_resolution = Vec3D(0, 0, 0)
 seg_chunk_size = Vec3D(0, 0, 0)
@@ -51,12 +55,6 @@ syn_to_seg = Vec3D(0.0, 0.0, 0.0)
 engine = None
 chunk = None
 chunk_bounds = None
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--dry-run", action="store_true")
-args = parser.parse_args()
-if args.dry_run:
-    print("Dry Run mode active.")
 
 
 def read_gcs_json(bucket_path):
@@ -115,32 +113,22 @@ def bin_index_for_point(seg_point):
     return floor((seg_point - seg_offset) / seg_chunk_size)
 
 
-def bin_synapses(to_do):
+def bin_points(to_do):
     """
-    Bins synapses based on their pointA and pointB coordinates.  Note that each
-    synapse may appear in one or two bins, but it should never be included
-    twice.
+    Bins points based on their coordinates.
 
     Args:
-        to_do: List of synapse dicts
+        to_do: List of seg point dicts (including "id" and "point")
 
     Returns:
-        Dictionary mapping bin indices to list of synapses
+        Dictionary mapping bin indices to list of points
     """
     # Use defaultdict to automatically create new bins as needed
     bins = defaultdict(list)
 
-    for synapse in to_do:
-        # Get bin indices for both points
-        bin_a = bin_index_for_point(synapse["pointA"])
-        bin_b = bin_index_for_point(synapse["pointB"])
-
-        # Add synapse to bin_a
-        bins[bin_a].append(synapse)
-
-        # If points are in different bins, add to bin_b as well
-        if bin_b != bin_a:
-            bins[bin_b].append(synapse)
+    for point in to_do:
+        bin_idx = bin_index_for_point(point["point"])
+        bins[bin_idx].append(point)
 
     # Convert defaultdict to regular dict for return
     return dict(bins)
@@ -148,30 +136,23 @@ def bin_synapses(to_do):
 
 def row_to_dict(row: Tuple, keys: Tuple[str, ...]) -> Dict:
     """
-    Convert a database row containing synapse data into a dict containing
-    'id', 'pointA' and 'pointB' (Vec3Ds in segmentation volume coordinates),
-    and 'segA' and 'segB' set to None.
+    Convert a database row containing point data into a dict containing
+    'id' and 'point' (Vec3Ds in segmentation volume coordinates),
+    and 'sv_id' set to None.
     """
     row_dict = dict(zip(keys, row))
     result = {
         "id": row_dict["id"],
-        "pointA": Vec3D(
-            float(row_dict["pre_x"]), float(row_dict["pre_y"]), float(row_dict["pre_z"])
-        )
+        "point": Vec3D(float(row_dict["pt_x"]), float(row_dict["pt_y"]), float(row_dict["pt_z"]))
         * syn_to_seg,
-        "pointB": Vec3D(
-            float(row_dict["post_x"]), float(row_dict["post_y"]), float(row_dict["post_z"])
-        )
-        * syn_to_seg,
-        "segA": None,
-        "segB": None,
+        "sv_id": None,
     }
     return result
 
 
-def read_synapses(conn, table_name, where_clause) -> List[Dict]:
+def read_points(conn, table_name, where_clause) -> List[Dict]:
     """
-    Read synapse records, extracting coordinates from PostGIS points
+    Read point records, extracting coordinates from PostGIS points
     and converting them immediately into segmentation volume coordinates.
 
     Returns:
@@ -181,17 +162,13 @@ def read_synapses(conn, table_name, where_clause) -> List[Dict]:
         f"""
         SELECT
             id,
-            ST_X(pre_pt_position) as pre_x,
-            ST_Y(pre_pt_position) as pre_y,
-            ST_Z(pre_pt_position) as pre_z,
-            ST_X(post_pt_position) as post_x,
-            ST_Y(post_pt_position) as post_y,
-            ST_Z(post_pt_position) as post_z
+            ST_X({point_field_name}) as pt_x,
+            ST_Y({point_field_name}) as pt_y,
+            ST_Z({point_field_name}) as pt_z
         FROM {table_name}
     """
         + (f"WHERE {where_clause}" if where_clause else "")
     )
-
     record_set = conn.execute(query)
     keys = record_set.keys()
     result = []
@@ -200,12 +177,12 @@ def read_synapses(conn, table_name, where_clause) -> List[Dict]:
     return result
 
 
-def bulk_insert_seg_ids(items: List[Dict], table_name: str, batch_size: int = 1000) -> None:
+def bulk_insert_sv_ids(items: List[Dict], table_name: str, batch_size: int = 1000) -> None:
     """
-    Bulk insert supervoxel (segment) IDs into the database.
+    Bulk insert supervoxel IDs into the database.
 
     Parameters:
-        items: List of dictionaries, each containing 'id', 'segA', and 'segB'
+        items: List of dictionaries, each containing 'id', 'sv_id', and 'segB'
         table_name: Name of the target table
         batch_size: Number of rows to insert in each batch (default 1000)
     """
@@ -213,17 +190,16 @@ def bulk_insert_seg_ids(items: List[Dict], table_name: str, batch_size: int = 10
     def create_batch_query(batch_items: List[Dict]) -> str:
         value_entries = []
         for item in batch_items:
-            value_entries.append(f"({item['id']},{item['segA']},NULL,{item['segB']},NULL)")
+            value_entries.append(f"({item['id']},{item['sv_id']})")
 
         values_clause = ",\n".join(value_entries)
 
         return f"""
-            INSERT INTO {table_name} (id, pre_pt_supervoxel_id, pre_pt_root_id, post_pt_supervoxel_id, post_pt_root_id)
+            INSERT INTO {table_name} (id, {supervoxel_field_name})
             VALUES
                 {values_clause}
             ON CONFLICT (id) DO UPDATE
-            SET pre_pt_supervoxel_id = EXCLUDED.pre_pt_supervoxel_id,
-                post_pt_supervoxel_id = EXCLUDED.post_pt_supervoxel_id;
+            SET {supervoxel_field_name} = EXCLUDED.{supervoxel_field_name};
         """
 
     assert engine is not None
@@ -260,18 +236,6 @@ def input_vec3Di(prompt="", default=None):
     return round(v)
 
 
-# Create the connection URL
-DB_PASS = getpass(f"{DB_NAME} password: ")
-connection_url = URL.create(
-    drivername="postgresql+psycopg2",
-    username=DB_USER,
-    password=DB_PASS,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME,
-)
-
-
 def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
     """
     Try to look up the given point (in global segmentation coordinates) in
@@ -286,65 +250,58 @@ def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
         if not load_data_if_needed:
             return None
         chunk_bounds = chunk_index_for_point(seg_point)
-        # print(f'Loading new chunk: {chunk_bounds.bbox}...', end='', flush=True)
+        print(f"Loading new chunk: {chunk_bounds.bbox}...", end="", flush=True)
         assert seg_layer is not None
         assert seg_layer[chunk_bounds] is not None  # type: ignore[unreachable]
         chunk = seg_layer[chunk_bounds][0]
-        # print('Chunk loaded.')
+        print("Chunk loaded.")
     relative_point = floor(seg_point - chunk_bounds.start)  # type: ignore[unreachable]
-    return chunk[relative_point[0], relative_point[1], relative_point[2]]
+    result = chunk[relative_point[0], relative_point[1], relative_point[2]]
+    return result
 
 
-def process_synapses(to_do):
+def process_points(to_do):
     total_to_do = len(to_do)
-    print(f"Looking up supervoxel IDs for {total_to_do} synapses...")
+    print(f"Looking up supervoxel IDs for {total_to_do} points...")
     done = []
     while to_do:
-        # Process the top synapse.  Always fill in "A" if it wasn't
-        # already known; and if we can fill in "B" at the same time
-        # (usually the case), then it's done.
-        synapse = to_do.pop()
-        if synapse["segA"] is None:
-            synapse["segA"] = lookup_segment_id(synapse["pointA"], True)
-            if synapse["segB"] is None:
-                synapse["segB"] = lookup_segment_id(synapse["pointB"], False)
-        else:
-            synapse["segB"] = lookup_segment_id(synapse["pointB"], True)
-        if synapse["segB"] is None:
-            to_do.append(synapse)
-        else:
-            done.append(synapse)
+        point = to_do.pop()
+        point["sv_id"] = lookup_segment_id(point["point"], True)
+        done.append(point)
 
-        # Now, see what other points we can fill in from the same chunk.
-        for i in range(len(to_do) - 1, -1, -1):
-            synapse = to_do[i]
-            if synapse["segA"] is None:
-                synapse["segA"] = lookup_segment_id(synapse["pointA"], False)
-            if synapse["segB"] is None:
-                synapse["segB"] = lookup_segment_id(synapse["pointB"], False)
-            if synapse["segA"] is not None and synapse["segB"] is not None:
-                del to_do[i]
-                done.append(synapse)
-        print(
-            f"To-Do: {len(to_do)}/{total_to_do} "
-            f"({round(100.0 - len(to_do)*100 / total_to_do)}% complete)"
-            f"   Done: {len(done)}"
-        )
         if len(done) > 500:
             print(f"Saving done records to {supervox_table}...")
-            bulk_insert_seg_ids(done, supervox_table)
+            bulk_insert_sv_ids(done, supervox_table)
             done = []
 
     if done:
         print(f"Saving last done records to {supervox_table}...")
-        bulk_insert_seg_ids(done, supervox_table)
-    print(f"Finished processing {total_to_do} synapses!")
+        bulk_insert_sv_ids(done, supervox_table)
+    print(f"Finished processing {total_to_do} points!")
 
 
 def main():
-    global engine, synapse_table, supervox_table, synapse_resolution
+    global args, engine, base_table, supervox_table, point_resolution
     global seg_layer, seg_bounds, seg_resolution, seg_chunk_size, seg_offset
     global syn_to_seg
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    if args.dry_run:
+        print("Dry Run mode active.")
+
+    DB_PASS = getpass(f"{DB_NAME} password: ")
+
+    # Create the connection URL
+    connection_url = URL.create(
+        drivername="postgresql+psycopg2",
+        username=DB_USER,
+        password=DB_PASS,
+        host=DB_HOST,
+        port=DB_PORT,
+        database=DB_NAME,
+    )
 
     # Create the engine
     engine = create_engine(
@@ -369,46 +326,46 @@ def main():
         if len(supervox_table.split("__")) == 2:
             break
         print(
-            "This should look something like, for example: "
-            "ipl_ribbon_synapses__dacey_human_fovea_2404"
+            "This should look something like, for example: " "cell_points__dacey_human_fovea_2404"
         )
-    synapse_table = supervox_table.split("__")[0]
-    synapse_resolution = input_vec3Di("Synapse voxel scale (resolution)")
+    base_table = supervox_table.split("__")[0]
+    point_resolution = input_vec3Di("Synapse voxel scale (resolution)")
 
     print()
-    seg_path = input("Segmentation volume path: ")
+    seg_path = input("Supervoxel volume path: ")
     data = read_gcs_json(seg_path + "/info")
     scale0 = data["scales"][0]
     seg_resolution = Vec3D(*scale0["resolution"])
     seg_chunk_size = Vec3D(*scale0["chunk_sizes"][0])
     seg_offset = Vec3D(*scale0["voxel_offset"])
-    print(f"   Segmentation resolution: {seg_resolution}")
-    print(f"   Segmentation chunk size: {seg_chunk_size}")
-    print(f"   Segmentation offset:     {seg_offset}")
+    print(f"   Supervoxel resolution: {seg_resolution}")
+    print(f"   Supervoxel chunk size: {seg_chunk_size}")
+    print(f"   Supervoxel offset:     {seg_offset}")
 
-    syn_to_seg = synapse_resolution / seg_resolution
-    print(f"   Conversion factor from synapse to segmentation: {syn_to_seg}")
+    syn_to_seg = point_resolution / seg_resolution
+    print(f"   Conversion factor from point to segmentation: {syn_to_seg}")
 
     # Load the segmentation layer
     seg_layer, seg_bounds = load_volume(seg_path)
 
     to_do: List[dict] = []
     with engine.connect() as conn1:
-        print("Reading synapses...")
+        print("Reading points...")
         where_clause = f"""
-NOT EXISTS (SELECT 1 FROM {supervox_table} b WHERE b.id = {synapse_table}.id);
+NOT EXISTS (SELECT 1 FROM {supervox_table} b WHERE b.id = {base_table}.id
+AND b.{supervoxel_field_name} <> 0);
 """
-        to_do = read_synapses(conn1, synapse_table, where_clause)
+        to_do = read_points(conn1, base_table, where_clause)
 
-    print(f"Read {len(to_do)} synapses from {synapse_table}")
-    print("Sorting synapses into chunks...")
-    bins = bin_synapses(to_do)
+    print(f"Read {len(to_do)} points from {base_table}")
+    print("Sorting points into chunks...")
+    bins = bin_points(to_do)
     print(f"Divided them into {len(bins)} bins")
     sorted_indexes = sorted(bins.keys())
     for i, bin_idx in enumerate(sorted_indexes):
         print()
         print(f"STARTING BIN {i}/{len(sorted_indexes)} (bin {bin_idx})...")
-        process_synapses(bins[bin_idx])
+        process_points(bins[bin_idx])
 
 
 if __name__ == "__main__":

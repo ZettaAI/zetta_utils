@@ -8,12 +8,12 @@ the precomputed file are using the same resolution.
 
 import argparse
 import json
+import readline
 import sys
 from collections import defaultdict
 from math import floor
 from typing import Dict, List, Tuple
 
-import readline
 import psycopg2
 from google.cloud import storage
 from sqlalchemy import create_engine, inspect
@@ -27,7 +27,6 @@ from zetta_utils.db_annotations.precomp_annotations import (
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Database connection parameters
 DB_USER = "postgres"

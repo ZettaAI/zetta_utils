@@ -2,11 +2,11 @@
 Reads a CSV file containing full synapse data (positions and supervoxel IDs),
 and writes this data to CAVE (base table and supervox table).
 """
+import readline
 from datetime import datetime
 from io import StringIO
 from typing import Any
 
-import readline
 import pandas as pd
 from cloudfiles import CloudFile
 from geoalchemy2 import Geometry
@@ -22,7 +22,7 @@ from sqlalchemy.orm import (
 
 # Database connection parameters
 DB_USER = "postgres"
-db_pass = ''
+db_pass = ""
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
 

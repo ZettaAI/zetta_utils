@@ -20,9 +20,23 @@ def _center_pole(binary_image_array: npt.NDArray, interior_coords: npt.NDArray) 
     perimeter_image = dilated_image ^ binary_image_array  # XOR to find perimeter pixels
     perimeter_coords = np.argwhere(perimeter_image == 1)
 
-    # Convert the coordinates to lists of tuples (needed by cdist)
+    # If no perimeter found (e.g., if shape fills the entire array)
+    if len(perimeter_coords) == 0:
+        # Create an artificial perimeter around the edge of the array
+        h, w = binary_image_array.shape
+        artificial_perimeter = []
+        for i in range(h):
+            artificial_perimeter.append((i, 0))
+            artificial_perimeter.append((i, w - 1))
+        for j in range(1, w - 1):
+            artificial_perimeter.append((0, j))
+            artificial_perimeter.append((h - 1, j))
+        perimeter_coords_list = artificial_perimeter
+    else:
+        perimeter_coords_list = [tuple(coord) for coord in perimeter_coords]
+
+    # Convert interior coords to tuples
     interior_coords_list = [tuple(coord) for coord in interior_coords]
-    perimeter_coords_list = [tuple(coord) for coord in perimeter_coords]
 
     # Calculate the distance between each interior pixel and all perimeter pixels
     distances = distance.cdist(interior_coords_list, perimeter_coords_list, metric="euclidean")

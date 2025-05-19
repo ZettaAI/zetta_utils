@@ -3,23 +3,24 @@ This script looks up the segment (supervoxel) IDs for the endpoints of synapses
 which are not already in the supervoxel table, and stuffs those ids into the
 supervoxel table, in a CAVE annotation DB.
 """
+import readline
 import sys
+from getpass import getpass
 from math import floor
 from typing import Dict, List, Tuple
-import readline
 
 from sqlalchemy import create_engine
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Database connection parameters
 DB_USER = "postgres"
-DB_PASS = "" # Put DB password here
+DB_PASS = ""  # Put DB password here
 DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
@@ -40,12 +41,13 @@ SEG_OFFSET = Vec3D(0, 512, 1)
 SYN_TO_SEG = SYNAPSE_RESOLUTION / SEG_RESOLUTION
 SEG_TO_SYN = SEG_RESOLUTION / SYNAPSE_RESOLUTION
 
+
 def load_volume(path, scale_index=0):
     """
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a BBox3D describing the data bounds.
     """
-    spec = PrecomputedInfoSpec(reference_path=path)
+    spec = PrecomputedInfoSpec(info_path=path)
     info = spec.make_info()
     assert info is not None
     scale = info["scales"][scale_index]
@@ -181,6 +183,7 @@ def bulk_insert_seg_ids(items: List[Dict], table_name: str, batch_size: int = 10
 
 
 # Create the connection URL
+DB_PASS = getpass(f"{DB_NAME} password: ")
 connection_url = URL.create(
     drivername="postgresql+psycopg2",
     username=DB_USER,

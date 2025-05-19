@@ -10,23 +10,24 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from getpass import getpass
 from math import floor
-import numpy as np
 from typing import Dict, List, Tuple
 
+import numpy as np
 from google.cloud import storage
 from sqlalchemy import create_engine
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Database connection parameters
 DB_USER = "postgres"
-DB_PASS = ""  # Put DB password here
+DB_PASS = ""  # we'll ask for DB password below
 DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
@@ -55,6 +56,7 @@ engine = None
 chunk = None
 chunk_bounds = None
 
+
 def read_gcs_json(bucket_path):
     # Parse bucket and blob path
     bucket_name = bucket_path.split("/")[2]
@@ -76,7 +78,7 @@ def load_volume(path, scale_index=0):
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a BBox3D describing the data bounds.
     """
-    spec = PrecomputedInfoSpec(reference_path=path)
+    spec = PrecomputedInfoSpec(info_path=path)
     info = spec.make_info()
     assert info is not None
     scale = info["scales"][scale_index]
@@ -141,11 +143,9 @@ def row_to_dict(row: Tuple, keys: Tuple[str, ...]) -> Dict:
     row_dict = dict(zip(keys, row))
     result = {
         "id": row_dict["id"],
-        "point": Vec3D(
-            float(row_dict["pt_x"]), float(row_dict["pt_y"]), float(row_dict["pt_z"])
-        )
+        "point": Vec3D(float(row_dict["pt_x"]), float(row_dict["pt_y"]), float(row_dict["pt_z"]))
         * syn_to_seg,
-        "sv_id": None
+        "sv_id": None,
     }
     return result
 
@@ -250,11 +250,11 @@ def lookup_segment_id(seg_point: Vec3D, load_data_if_needed: bool = False):
         if not load_data_if_needed:
             return None
         chunk_bounds = chunk_index_for_point(seg_point)
-        print(f'Loading new chunk: {chunk_bounds.bbox}...', end='', flush=True)
+        print(f"Loading new chunk: {chunk_bounds.bbox}...", end="", flush=True)
         assert seg_layer is not None
         assert seg_layer[chunk_bounds] is not None  # type: ignore[unreachable]
         chunk = seg_layer[chunk_bounds][0]
-        print('Chunk loaded.')
+        print("Chunk loaded.")
     relative_point = floor(seg_point - chunk_bounds.start)  # type: ignore[unreachable]
     result = chunk[relative_point[0], relative_point[1], relative_point[2]]
     return result
@@ -273,7 +273,7 @@ def process_points(to_do):
             print(f"Saving done records to {supervox_table}...")
             bulk_insert_sv_ids(done, supervox_table)
             done = []
-            
+
     if done:
         print(f"Saving last done records to {supervox_table}...")
         bulk_insert_sv_ids(done, supervox_table)
@@ -291,7 +291,7 @@ def main():
     if args.dry_run:
         print("Dry Run mode active.")
 
-    DB_PASS = input(f"{DB_NAME} password: ")
+    DB_PASS = getpass(f"{DB_NAME} password: ")
 
     # Create the connection URL
     connection_url = URL.create(
@@ -326,8 +326,7 @@ def main():
         if len(supervox_table.split("__")) == 2:
             break
         print(
-            "This should look something like, for example: "
-            "cell_points__dacey_human_fovea_2404"
+            "This should look something like, for example: " "cell_points__dacey_human_fovea_2404"
         )
     base_table = supervox_table.split("__")[0]
     point_resolution = input_vec3Di("Synapse voxel scale (resolution)")

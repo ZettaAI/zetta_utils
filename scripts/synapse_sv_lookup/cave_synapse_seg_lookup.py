@@ -10,6 +10,7 @@ import argparse
 import json
 import sys
 from collections import defaultdict
+from getpass import getpass
 from math import floor
 from typing import Dict, List, Tuple
 
@@ -19,13 +20,13 @@ from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Database connection parameters
 DB_USER = "postgres"
-DB_PASS = ""  # Put DB password here
+DB_PASS = ""  # We'll ask for this below
 DB_NAME = "dacey_human_fovea"
 DB_HOST = "127.0.0.1"  # Local proxy address; run Cloud SQL Auth Proxy
 DB_PORT = 5432  # Default PostgreSQL port
@@ -79,7 +80,7 @@ def load_volume(path, scale_index=0):
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a BBox3D describing the data bounds.
     """
-    spec = PrecomputedInfoSpec(reference_path=path)
+    spec = PrecomputedInfoSpec(info_path=path)
     info = spec.make_info()
     assert info is not None
     scale = info["scales"][scale_index]
@@ -260,6 +261,7 @@ def input_vec3Di(prompt="", default=None):
 
 
 # Create the connection URL
+DB_PASS = getpass(f"{DB_NAME} password: ")
 connection_url = URL.create(
     drivername="postgresql+psycopg2",
     username=DB_USER,

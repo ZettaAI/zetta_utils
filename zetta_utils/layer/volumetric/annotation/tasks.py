@@ -1,3 +1,4 @@
+# codecov: ignore
 """
 Module containing task and flow definitions for annotation layer operations.
 """

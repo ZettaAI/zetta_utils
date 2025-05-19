@@ -61,6 +61,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             JointIndexDataProcessor[npt.NDArray | torch.Tensor, VolumetricIndex],
         ]
     ] = (),
+    cache_bytes_limit: int | None = None,
 ) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only
     """Build a CloudVolume layer.
 
@@ -115,6 +116,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         returning it to the user.
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
+    :param cache_bytes_limit: Cache size limit in bytes.
     :return: Layer built according to the spec.
 
     """
@@ -145,6 +147,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             add_scales_exclude_fields=info_add_scales_exclude_fields,
             only_retain_scales=info_only_retain_scales,
         ),
+        cache_bytes_limit=cache_bytes_limit,
     )
 
     result = build_volumetric_layer(

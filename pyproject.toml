@@ -204,8 +204,8 @@ tensor-typing = [
 test = [
   "zetta_utils[types]",
   "docker ~= 6.0",
-  "black == 21.9b0",
-  "click == 8.0.1",           # for black to work
+  "black == 25.1.0",
+  "click == 8.0.1",
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",
   "mypy == 1.10.1",

@@ -649,7 +649,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 red_ind_offsets = [
                     Vec3D(i, j, k) for i, j, k in itertools.product(range(3), repeat=3)
                 ]
-
                 for i, task_ind in enumerate(np.ndindex(task_idxs.shape)):
                     task_idx = task_idxs[*task_ind]
                     red_ind = Vec3D(

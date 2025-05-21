@@ -277,9 +277,9 @@ We initialise the ``VolumetricLayer`` with this ``DataProcessor``, and compare t
    ...     resolution = Vec3D(64, 64, 40)
    ... )
    >>> cvl_without_proc[idx].min()
-   -2.9491823
+   np.float32(-2.9491823)
    >>> cvl_with_proc[idx].min()
-   0.0
+   np.float32(0.0)
 
 This ``VolumetricLayer`` will now apply the ``__call__`` from the ``ThresholdProcessor`` before returning the output for each read.
 

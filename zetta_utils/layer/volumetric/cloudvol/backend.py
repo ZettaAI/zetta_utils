@@ -22,8 +22,6 @@ _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
 IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
-# IN_MEM_CACHE_NUM_BYTES_PER_CV = 0
-
 
 
 # To avoid reloading info file - note that an empty provenance is passed
@@ -36,17 +34,20 @@ def _get_cv_cached(
     cache_bytes_limit: Optional[int] = None,
     **kwargs,
 ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
+
     path_ = abspath(path)
-    if cache_bytes_limit is None:
-        cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
     if (path_, resolution) in _cv_cache:
         cvol = _cv_cache[(path_, resolution)]
-        if cvol.image.lru.size > cache_bytes_limit:
-            # only resize LRU cache if requested a smaller size than previously created
+        if cache_bytes_limit is not None and cvol.image.lru.size != cache_bytes_limit:
+            # resize LRU cache if explicitly requested
             cvol.image.lru.resize(cache_bytes_limit)
         return cvol
 
+    if cache_bytes_limit is None:
+        cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
+
     info = get_info(path_) if not path_.startswith("graphene://") else None
+
     if resolution is not None:
         try:
             result = CloudVolume(

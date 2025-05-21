@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from kubernetes.client import ApiClient
 
 from kubernetes import client as k8s_client
+from kubernetes import config  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation.k8s.secret import secrets_ctx_mngr
 from zetta_utils.message_queues.sqs import utils as sqs_utils
@@ -133,6 +134,24 @@ def _get_scaled_job_manifest(
         },
     }
     return manifest
+
+
+def patch_scaledjob(name: str, patch_body: dict):
+    config.load_kube_config()
+    api = k8s_client.CustomObjectsApi()
+    group = "keda.sh"
+    version = "v1alpha1"
+    namespace = "default"
+    plural = "scaledjobs"
+    response = api.patch_namespaced_custom_object(
+        group=group,
+        version=version,
+        namespace=namespace,
+        plural=plural,
+        name=name,
+        body=patch_body,
+    )
+    logger.info(response)
 
 
 @contextmanager

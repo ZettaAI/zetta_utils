@@ -29,7 +29,7 @@ def load_model(
 
 
 def _load_model(
-    path: str, device: Union[str, torch.device] = "cpu"
+    path: str, device: Union[str, torch.device] = "cpu",
 ) -> torch.nn.Module:  # pragma: no cover
     logger.debug(f"Loading model from '{path}'")
     if path.endswith(".json"):
@@ -64,6 +64,7 @@ def load_weights_file(
     component_names: Optional[Sequence[str]] = None,
     remove_component_prefix: bool = True,
     strict: bool = True,
+    reinitialize_last_layer: bool = False,
 ) -> torch.nn.Module:  # pragma: no cover
     if ckpt_path is None:
         return model
@@ -88,6 +89,19 @@ def load_weights_file(
                 if k.startswith(tuple(f"{e}." for e in component_names))
             }
         model.load_state_dict(loaded_state, strict=strict)
+
+        if reinitialize_last_layer:
+            # breakpoint()
+            last = model[-1]
+            replacement = torch.nn.Conv3d(
+                in_channels=last.in_channels,
+                out_channels=last.out_channels,
+                kernel_size=last.kernel_size,
+                stride=last.stride,
+                padding=last.padding,
+                bias=last.bias,
+            )
+            last.load_state_dict(replacement.state_dict())
     return model
 
 

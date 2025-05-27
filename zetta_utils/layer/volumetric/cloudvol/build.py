@@ -135,6 +135,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
                 "specified path is assumed to exist and will be used without modifications. "
                 "Therefore, all other 'info_*' parameters must be None as they won't be used."
             )
+
         info_spec = PrecomputedInfoSpec(info_path=path)
 
     backend = CVBackend(

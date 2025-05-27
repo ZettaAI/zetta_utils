@@ -78,7 +78,7 @@ def build_collection_dataset(  # pylint: disable=too-many-locals
         this_resolution = [resolution[0], resolution[1], z_resolution]
         if isinstance(annotation.ng_annotation, AxisAlignedBoundingBoxAnnotation):
             bbox = BBox3D.from_ng_bbox(annotation.ng_annotation, (1, 1, 1)).snapped(
-                (0, 0, 0), this_resolution, "shrink"
+                (0, 0, 0), this_resolution, "round_down"
             )
 
             this_dset = LayerDataset(
@@ -94,7 +94,8 @@ def build_collection_dataset(  # pylint: disable=too-many-locals
             if len(this_dset) == 0:
                 raise RuntimeError(
                     f"The following annotation indicates bounding box {bbox} "
-                    f"which is smaller than the chunk size {chunk_size}"
+                    f"which is smaller than the chunk size {chunk_size} at "
+                    f"resolution {this_resolution} ({bbox.to_slices(this_resolution)})"
                 )
             datasets[str(i)] = this_dset
     dset = JointDataset(mode="vertical", datasets=datasets)

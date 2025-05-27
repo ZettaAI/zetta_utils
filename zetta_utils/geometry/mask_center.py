@@ -10,11 +10,16 @@ def centroid(binary_image_array: npt.NDArray) -> npt.NDArray:
     # Find the interior pixels (all pixels with a value of 1),
     # and average to find the centroid
     interior_coords = np.argwhere(binary_image_array == 1)
+    if interior_coords.size == 0:
+        return np.full(2, np.nan, dtype=np.float64)
     result = np.mean(interior_coords, axis=0)
     return result
 
 
-def _center_pole(binary_image_array: npt.NDArray, interior_coords: npt.NDArray) -> tuple:
+def _center_pole(
+    binary_image_array: npt.NDArray,
+    interior_coords: npt.NDArray,
+) -> tuple[int, int]:
     # Find the perimeter pixels
     dilated_image = binary_dilation(binary_image_array)
     perimeter_image = dilated_image ^ binary_image_array  # XOR to find perimeter pixels
@@ -50,16 +55,17 @@ def _center_pole(binary_image_array: npt.NDArray, interior_coords: npt.NDArray) 
     return pole_of_inaccessibility
 
 
-def center_pole(binary_image_array: npt.NDArray) -> tuple:
+def center_pole(binary_image_array: npt.NDArray) -> tuple[int, int]:
     interior_coords = np.argwhere(binary_image_array == 1)
     return _center_pole(binary_image_array, interior_coords)
 
 
-def interior_point(binary_image_array: npt.NDArray) -> Optional[tuple]:
+def interior_point(binary_image_array: npt.NDArray) -> Optional[tuple[int, int]]:
     """
-    Return a quick but reliable interior point: use the centroid if
-    the given mask actually includes its own centroid, otherwise fall
-    back on the (more expensive) center pole.
+    Return a quick but reliable interior point for a 2D binary
+    mask: use the centroid if the given mask actually includes
+    its own centroid, otherwise fall back on the (more expensive)
+    center pole.
 
     If the given array is entirely 0 (false), this returns None.
     """

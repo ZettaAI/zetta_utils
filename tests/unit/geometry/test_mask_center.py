@@ -45,7 +45,6 @@ class TestMaskCenter:
         mask = np.zeros((5, 17), dtype=int)
         mask[1:4, 1:16] = 1
         result = center_pole(mask)
-        print(f"result: {result}")
         assert result == (2, 2)
 
     def test_center_pole_donut(self):

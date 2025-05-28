@@ -109,14 +109,19 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         # checkpoints on GCP.
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
-    @pl.utilities.rank_zero.rank_zero_only
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
     ):  # pylint: disable=too-many-locals
         if filepath.startswith("./"):
             filepath = f"{self.default_root_dir}/{filepath[2:]}"
+
+        # Lightning requires save_checkpoint to be called on all ranks!
         super().save_checkpoint(filepath, weights_only, storage_options)
 
+        if not self.is_global_zero:
+            return
+
+        # Remaining code is only executed on rank 0
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
             model_spec: JsonSerializableValue = get_initial_builder_spec(v)

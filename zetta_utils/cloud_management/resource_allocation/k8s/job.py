@@ -126,28 +126,32 @@ def follow_job_logs(
     if wait_until_start:
         _wait_for_job_start(job, namespace, batch_v1_api)
 
-    core_api = k8s_client.CoreV1Api()
-    podlist = core_api.list_namespaced_pod(
-        namespace=namespace, label_selector=f"job-name={job.metadata.name}"
-    )
-    job_name = podlist.items[0].metadata.name
-    log_stream = watch.Watch().stream(
-        core_api.read_namespaced_pod_log,
-        name=job_name,
-        namespace=namespace,
-        tail_lines=tail_lines,
-    )
-    if tail_lines is None:
-        for output in log_stream:
-            logger.info(output)
-    else:
-        result = []
-        for output in log_stream:
-            result.append(output)
-            if len(result) == tail_lines:
-                logger.info("\n".join(result))
-                result = []
-        logger.info("\n".join(result))
+    try:
+        core_api = k8s_client.CoreV1Api()
+        podlist = core_api.list_namespaced_pod(
+            namespace=namespace, label_selector=f"job-name={job.metadata.name}"
+        )
+        job_name = podlist.items[0].metadata.name
+        log_stream = watch.Watch().stream(
+            core_api.read_namespaced_pod_log,
+            name=job_name,
+            namespace=namespace,
+            tail_lines=tail_lines,
+        )
+        if tail_lines is None:
+            for output in log_stream:
+                logger.info(output)
+        else:
+            result = []
+            for output in log_stream:
+                result.append(output)
+                if len(result) == tail_lines:
+                    logger.info("\n".join(result))
+                    result = []
+            logger.info("\n".join(result))
+    except ApiException:
+        # resets credential config after timeout
+        follow_job_logs(job, cluster_info, namespace, tail_lines, wait_until_start)
 
 
 def get_job_pod(

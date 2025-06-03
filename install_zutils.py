@@ -611,7 +611,7 @@ def main():
     parser.add_argument(
         "--pcg", action="store_true", default=False, help="Whether or not to install PCG"
     )
-    parser.add_argument("--pcgtag", default="stitch_test_x6", help="PCG repo tag to use")
+    parser.add_argument("--pcgtag", default="v3_stitch_test_x3", help="PCG repo tag to use")
 
     args = parser.parse_args()
 

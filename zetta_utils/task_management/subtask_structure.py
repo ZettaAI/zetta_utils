@@ -12,6 +12,7 @@ from zetta_utils.task_management.db.models import (
     SubtaskModel,
     TaskModel,
 )
+from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.utils import generate_id_nonunique
 
 logger = get_logger(__name__)
@@ -45,78 +46,81 @@ def get_available_structures() -> list[str]:  # pragma: no cover
 
 
 def create_subtask_structure(
-    db_session: Session,
+    *,
     project_name: str,
     task_id: str,
     subtask_structure: str,
     subtask_structure_kwargs: Mapping[str, Any],
     priority: int = 1,
+    db_session: Session | None = None,
 ) -> bool:
     """
     Create a predefined subtask structure for a task.
 
-    :param db_session: Database session to use
     :param project_name: The name of the project
     :param task_id: The ID of the task
     :param subtask_structure: The name of the subtask structure to create
+    :param subtask_structure_kwargs: Keyword arguments for the subtask structure
     :param priority: The priority of the subtask
+    :param db_session: Database session to use (optional)
     :return: True if successful
     :raises ValueError: If the subtask structure is not registered
     :raises KeyError: If the task does not exist
     :raises RuntimeError: If the database operation fails
     """
-    logger.info(f"Creating atomic subtask structure '{subtask_structure}' for task {task_id}")
-    suffix = generate_slug(4)
+    with get_session_context(db_session) as session:
+        logger.info(f"Creating atomic subtask structure '{subtask_structure}' for task {task_id}")
+        suffix = generate_slug(4)
 
-    # ATOMIC BULK OPERATION: Lock the task and create all subtasks/dependencies atomically
-    try:
-        # Lock the task to prevent concurrent modifications
-        task_lock_query = (
-            select(TaskModel)
-            .where(TaskModel.project_name == project_name)
-            .where(TaskModel.task_id == task_id)
-            .with_for_update()
-        )
-        locked_task = db_session.execute(task_lock_query).scalar_one()
-        task_data = locked_task.to_dict()
-        ng_state = task_data["ng_state"]
+        # ATOMIC BULK OPERATION: Lock the task and create all subtasks/dependencies atomically
+        try:
+            # Lock the task to prevent concurrent modifications
+            task_lock_query = (
+                select(TaskModel)
+                .where(TaskModel.project_name == project_name)
+                .where(TaskModel.task_id == task_id)
+                .with_for_update()
+            )
+            locked_task = session.execute(task_lock_query).scalar_one()
+            task_data = locked_task.to_dict()
+            ng_state = task_data["ng_state"]
 
-        if subtask_structure not in _SUBTASK_STRUCTURES:
-            raise ValueError(f"Subtask structure '{subtask_structure}' is not registered")
+            if subtask_structure not in _SUBTASK_STRUCTURES:
+                raise ValueError(f"Subtask structure '{subtask_structure}' is not registered")
 
-        structure_func = _SUBTASK_STRUCTURES[subtask_structure]
+            structure_func = _SUBTASK_STRUCTURES[subtask_structure]
 
-        # Call the structure function to create all subtasks and dependencies
-        # This happens within the same transaction as the task lock
-        # Any errors here (like missing subtask types) will cause rollback
-        structure_func(
-            db_session=db_session,
-            project_name=project_name,
-            task_id=task_id,
-            batch_id=task_data["batch_id"],
-            ng_state=ng_state,
-            priority=priority,
-            suffix=suffix,
-            **subtask_structure_kwargs,
-        )
+            # Call the structure function to create all subtasks and dependencies
+            # This happens within the same transaction as the task lock
+            # Any errors here (like missing subtask types) will cause rollback
+            structure_func(
+                db_session=session,
+                project_name=project_name,
+                task_id=task_id,
+                batch_id=task_data["batch_id"],
+                ng_state=ng_state,
+                priority=priority,
+                suffix=suffix,
+                **subtask_structure_kwargs,
+            )
 
-        # Update task status to ingested atomically
-        locked_task.status = "ingested"
+            # Update task status to ingested atomically
+            locked_task.status = "ingested"
 
-        # Commit all changes atomically - if this fails, everything rolls back
-        db_session.commit()
-        logger.info(
-            f"Successfully created subtask structure '{subtask_structure}' for task {task_id}"
-        )
+            # Commit all changes atomically - if this fails, everything rolls back
+            session.commit()
+            logger.info(
+                f"Successfully created subtask structure '{subtask_structure}' for task {task_id}"
+            )
 
-        return True
+            return True
 
-    except Exception as e:
-        db_session.rollback()
-        logger.error(
-            f"Failed to create subtask structure '{subtask_structure}' for task {task_id}: {e}"
-        )
-        raise RuntimeError(f"Failed to create subtask structure: {e}") from e
+        except Exception as e:
+            session.rollback()
+            logger.error(
+                f"Failed to create subtask structure '{subtask_structure}' for task {task_id}: {e}"
+            )
+            raise RuntimeError(f"Failed to create subtask structure: {e}") from e
 
 
 @register_subtask_structure("segmentation_proofread_1pass")
@@ -215,9 +219,9 @@ def segmentation_proofread_simple(
     )
     db_session.add(expert_subtask)
 
-    # 4. Create dependency for verify (depends on proofread → done)
-    print("Creating dependency for verify")
-    verify_dependency = DependencyModel(
+    # 4. Create dependency: verify depends on proofread being "done"
+    print("Creating dependency for segmentation_verify")
+    dep_verify = DependencyModel(
         project_name=project_name,
         dependency_id=dep_verify_id,
         subtask_id=verify_id,
@@ -225,11 +229,11 @@ def segmentation_proofread_simple(
         required_completion_status="done",
         is_satisfied=False,
     )
-    db_session.add(verify_dependency)
+    db_session.add(dep_verify)
 
-    # 5. Create dependency for expert (depends on proofread → need_help)
-    print("Creating dependency for expert")
-    expert_dependency = DependencyModel(
+    # 5. Create dependency: expert depends on proofread being "need_help"
+    print("Creating dependency for segmentation_proofread_expert")
+    dep_expert = DependencyModel(
         project_name=project_name,
         dependency_id=dep_expert_id,
         subtask_id=expert_id,
@@ -237,7 +241,7 @@ def segmentation_proofread_simple(
         required_completion_status="need_help",
         is_satisfied=False,
     )
-    db_session.add(expert_dependency)
+    db_session.add(dep_expert)
 
 
 @register_subtask_structure("segmentation_proofread_simple_1pass")
@@ -251,8 +255,7 @@ def segmentation_proofread_simple_1pass(
     suffix: str,
 ):
     """
-    Create a simple segmentation proofread structure with just one subtask:
-    1. segmentation_proofread (active)
+    Create a simple 1-pass segmentation proofread structure with one subtask.
 
     :param db_session: Database session to use
     :param project_name: Project name
@@ -264,10 +267,11 @@ def segmentation_proofread_simple_1pass(
     """
     id_suffix = f"_{suffix}"
 
-    # Create base ID for the subtask
+    # Create base IDs for subtasks
     proofread_id = f"{task_id}_proofread{id_suffix}"
 
     # Create segmentation_proofread subtask (active)
+    print("Creating segmentation_proofread subtask")
     proofread_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=proofread_id,
@@ -300,55 +304,47 @@ def segmentation_proofread_two_path(
     validation_layer_path: str,
 ):
     """
-    Create a two-path segmentation proofread structure with a consolidation step.
-
-    This structure creates two independent proofread subtasks. When both are completed,
-    a consolidation subtask becomes active to merge the results.
+    Create a two-path segmentation proofread structure with validation layer.
 
     :param db_session: Database session to use
     :param project_name: Project name
-    :param task_id: ID of the parent task
-    :param batch_id: ID of the batch
-    :param ng_state: Neuroglancer state JSON
-    :param priority: Priority of the subtasks
-    :param suffix: Suffix for the subtask IDs
+    :param task_id: Task ID
+    :param batch_id: Batch ID
+    :param ng_state: The ng_state for the subtask
+    :param priority: The priority of the subtask
+    :param suffix: The suffix for the subtask
+    :param validation_layer_path: Path to the validation layer
     """
-    ng_state_parsed = json.loads(ng_state)
-    ng_state_val = copy.deepcopy(ng_state_parsed)
-    ng_state_cons = copy.deepcopy(ng_state_parsed)
+    id_suffix = f"_{suffix}"
 
-    segmentation_found = False
-    for layer in ng_state_val["layers"]:
-        if layer["name"] == "Segmentation":
-            segmentation_found = True
-            layer["source"] = validation_layer_path
-            break
+    # Modify ng_state to include validation layer
+    ng_state_dict = json.loads(ng_state) if isinstance(ng_state, str) else ng_state
 
-    if not segmentation_found:
-        raise ValueError("No `Segmentation` layer found in Neuroglancer state")
-
-    ng_state_cons["layers"].append(
-        {
-            "type": "segmentation",
+    # Create validation version of ng_state
+    ng_state_validation = copy.deepcopy(ng_state_dict)
+    if "layers" in ng_state_validation:
+        # Add validation layer
+        validation_layer = {
             "source": validation_layer_path,
-            "segments": [],
-            "name": "Validation Segmentation",
+            "type": "segmentation",
+            "name": "validation",
         }
-    )
+        ng_state_validation["layers"].append(validation_layer)
 
-    # Generate IDs
-    proofread1_id = f"{task_id}_proofread_{suffix}"
-    proofread2_id = f"{task_id}_proofread_val_{suffix}"
-    consolidate_id = f"{task_id}_consolidate_{suffix}"
+    ng_state_validation_str = json.dumps(ng_state_validation)
 
-    # Dependency IDs
-    dep_consolidate_from_p1_id = f"{consolidate_id}_from_p1_{suffix}"
-    dep_consolidate_from_p2_id = f"{consolidate_id}_from_p2_{suffix}"
+    # Create base IDs for subtasks and dependencies
+    proofread_id = f"{task_id}_proofread{id_suffix}"
+    verify_id = f"{task_id}_verify{id_suffix}"
+    expert_id = f"{task_id}_proofread_expert{id_suffix}"
+    dep_verify_id = f"{task_id}_dep_verify{id_suffix}"
+    dep_expert_id = f"{task_id}_dep_expert{id_suffix}"
 
-    # 1. Create first proofread subtask
-    proofread1_subtask = SubtaskModel(
+    # 1. Create segmentation_proofread subtask (active)
+    print("Creating segmentation_proofread subtask")
+    proofread_subtask = SubtaskModel(
         project_name=project_name,
-        subtask_id=proofread1_id,
+        subtask_id=proofread_id,
         task_id=task_id,
         assigned_user_id="",
         active_user_id="",
@@ -363,66 +359,70 @@ def segmentation_proofread_two_path(
         completion_status="",
         id_nonunique=generate_id_nonunique(),
     )
-    db_session.add(proofread1_subtask)
+    db_session.add(proofread_subtask)
 
-    # 2. Create second proofread subtask
-    proofread2_subtask = SubtaskModel(
+    # 2. Create segmentation_verify subtask with validation layer (inactive)
+    print("Creating segmentation_verify subtask with validation layer")
+    verify_subtask = SubtaskModel(
         project_name=project_name,
-        subtask_id=proofread2_id,
+        subtask_id=verify_id,
         task_id=task_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
-        ng_state=json.dumps(ng_state_val),
-        ng_state_initial=json.dumps(ng_state_val),
+        ng_state=ng_state_validation_str,
+        ng_state_initial=ng_state_validation_str,
         priority=priority,
         batch_id=batch_id,
-        subtask_type="segmentation_proofread",
-        is_active=True,
-        last_leased_ts=0.0,
-        completion_status="",
-        id_nonunique=generate_id_nonunique(),
-    )
-    db_session.add(proofread2_subtask)
-
-    # 3. Create consolidation subtask (inactive until both proofreads are done)
-    consolidate_subtask = SubtaskModel(
-        project_name=project_name,
-        subtask_id=consolidate_id,
-        task_id=task_id,
-        assigned_user_id="",
-        active_user_id="",
-        completed_user_id="",
-        ng_state=json.dumps(ng_state_cons),
-        ng_state_initial=json.dumps(ng_state_cons),
-        priority=priority,
-        batch_id=batch_id,
-        subtask_type="segmentation_consolidate",
+        subtask_type="segmentation_verify",
         is_active=False,
         last_leased_ts=0.0,
         completion_status="",
         id_nonunique=generate_id_nonunique(),
     )
-    db_session.add(consolidate_subtask)
+    db_session.add(verify_subtask)
 
-    # 4. Create dependency for consolidate (depends on proofread1 → done)
-    consolidate_dependency1 = DependencyModel(
+    # 3. Create segmentation_proofread_expert subtask (inactive)
+    print("Creating segmentation_proofread_expert subtask")
+    expert_subtask = SubtaskModel(
         project_name=project_name,
-        dependency_id=dep_consolidate_from_p1_id,
-        subtask_id=consolidate_id,
-        dependent_on_subtask_id=proofread1_id,
+        subtask_id=expert_id,
+        task_id=task_id,
+        assigned_user_id="",
+        active_user_id="",
+        completed_user_id="",
+        ng_state=ng_state,
+        ng_state_initial=ng_state,
+        priority=priority,
+        batch_id=batch_id,
+        subtask_type="segmentation_proofread_expert",
+        is_active=False,
+        last_leased_ts=0.0,
+        completion_status="",
+        id_nonunique=generate_id_nonunique(),
+    )
+    db_session.add(expert_subtask)
+
+    # 4. Create dependency: verify depends on proofread being "done"
+    print("Creating dependency for segmentation_verify")
+    dep_verify = DependencyModel(
+        project_name=project_name,
+        dependency_id=dep_verify_id,
+        subtask_id=verify_id,
+        dependent_on_subtask_id=proofread_id,
         required_completion_status="done",
         is_satisfied=False,
     )
-    db_session.add(consolidate_dependency1)
+    db_session.add(dep_verify)
 
-    # 5. Create dependency for consolidate (depends on proofread2 → done)
-    consolidate_dependency2 = DependencyModel(
+    # 5. Create dependency: expert depends on proofread being "need_help"
+    print("Creating dependency for segmentation_proofread_expert")
+    dep_expert = DependencyModel(
         project_name=project_name,
-        dependency_id=dep_consolidate_from_p2_id,
-        subtask_id=consolidate_id,
-        dependent_on_subtask_id=proofread2_id,
-        required_completion_status="done",
+        dependency_id=dep_expert_id,
+        subtask_id=expert_id,
+        dependent_on_subtask_id=proofread_id,
+        required_completion_status="need_help",
         is_satisfied=False,
     )
-    db_session.add(consolidate_dependency2)
+    db_session.add(dep_expert)

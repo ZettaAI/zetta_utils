@@ -1,16 +1,13 @@
 # pylint: disable=redefined-outer-name,unused-argument
-import multiprocessing as mp
 import time
 
 import pytest
+from sqlalchemy import select
 
-from zetta_utils.task_management import project, subtask
+from zetta_utils.task_management import subtask
+from zetta_utils.task_management.db.models import SubtaskModel
 from zetta_utils.task_management.ingestion import ingest_batch
-from zetta_utils.task_management.project import (
-    create_project_tables,
-    get_collection,
-    get_firestore_client,
-)
+from zetta_utils.task_management.project import create_project_tables
 from zetta_utils.task_management.subtask_type import create_subtask_type
 from zetta_utils.task_management.task import create_tasks_batch
 from zetta_utils.task_management.timesheet import submit_timesheet
@@ -18,12 +15,9 @@ from zetta_utils.task_management.types import SubtaskType, Task, User
 from zetta_utils.task_management.user import create_user
 
 
-def get_test_results():
-    return {"completed_tasks": {}, "failed_tasks": {}, "stolen_tasks": {}}
-
-
 @pytest.fixture
 def short_idle_timeout():
+    """Set a short idle timeout for testing takeover functionality"""
     original_timeout = subtask._MAX_IDLE_SECONDS  # pylint: disable=protected-access
     subtask._MAX_IDLE_SECONDS = 5  # pylint: disable=protected-access
     yield
@@ -31,32 +25,14 @@ def short_idle_timeout():
 
 
 @pytest.fixture
-def test_environment():
+def test_environment(clean_db, db_session):
     """Set up test environment with required subtask types and structures"""
     project_name = "test_project"
-    project.DEFAULT_CLIENT_CONFIG["project"] = "zetta-research"
-    project.DEFAULT_CLIENT_CONFIG["database"] = "zetta-utils"
-    client = get_firestore_client()
-    print(f"Client config: {project.DEFAULT_CLIENT_CONFIG}")
-    # Clear ALL collections at the start
-    collections = client.collections()
-    for collection in collections:
-        if collection.id in [
-            "projects",
-            f"projects/{project_name}/tasks",
-            f"projects/{project_name}/subtasks",
-            f"projects/{project_name}/subtask_types",
-            f"projects/{project_name}/timesheets",
-            f"projects/{project_name}/dependencies",
-            f"projects/{project_name}/users",
-        ]:
-            docs = collection.stream()
-            for doc in docs:
-                doc.reference.delete()
-    print("Cleared collections")
+
+    print("Setting up SQL test environment")
 
     # Create project tables
-    create_project_tables(project_name)
+    create_project_tables(project_name=project_name, db_session=db_session)
     print("Created project tables")
 
     # Create required subtask types
@@ -77,21 +53,12 @@ def test_environment():
     )
 
     for subtask_type in [proofread_type, verify_type, expert_type]:
-        create_subtask_type(project_name, subtask_type)
+        create_subtask_type(project_name=project_name, data=subtask_type, db_session=db_session)
 
-    yield project_name, client  # Return both project name and client
-
-    # Clean up after test
-    for collection in collections:
-        docs = collection.stream()
-        for doc in docs:
-            doc.reference.delete()
-
-    del project.DEFAULT_CLIENT_CONFIG["project"]
-    del project.DEFAULT_CLIENT_CONFIG["database"]
+    yield project_name, db_session
 
 
-def create_test_tasks(project_name: str, num_tasks: int) -> list[str]:
+def create_test_tasks(project_name: str, num_tasks: int, db_session) -> list[str]:
     """Create test tasks and return their IDs"""
     tasks = []
     for i in range(num_tasks):
@@ -104,159 +71,235 @@ def create_test_tasks(project_name: str, num_tasks: int) -> list[str]:
         )
         tasks.append(task_data)
 
-    return create_tasks_batch(project_name, tasks, batch_size=100)
+    return create_tasks_batch(
+        project_name=project_name, tasks=tasks, batch_size=100, db_session=db_session
+    )
 
 
-def good_worker(project_name: str, user_id: str, num_tasks: int, results_dict, lock):
-    """Worker that properly completes tasks with timesheets"""
-    try:
-        print(f"Good worker {user_id} starting")
-        # Create user with proper qualifications
-        user_data = User(
-            user_id=user_id,
-            hourly_rate=20.0,
-            active_subtask="",
-            qualified_subtask_types=["segmentation_proofread"],
+def test_basic_task_workflow(test_environment, short_idle_timeout):
+    """Test basic task workflow: create tasks -> ingest -> assign -> complete"""
+    project_name, db_session = test_environment
+    num_tasks = 5
+
+    # Create a test user
+    user_data = User(
+        user_id="test_user",
+        hourly_rate=20.0,
+        active_subtask="",
+        qualified_subtask_types=["segmentation_proofread"],
+    )
+    create_user(project_name=project_name, data=user_data, db_session=db_session)
+    print("Created test user")
+
+    # Create test tasks
+    create_test_tasks(project_name, num_tasks, db_session)
+    success = ingest_batch(
+        project_name=project_name,
+        batch_id="test_batch",
+        subtask_structure="segmentation_proofread_simple_1pass",
+        priority=1,
+        subtask_structure_kwargs={},
+        db_session=db_session,
+    )
+    assert success, "Failed to ingest tasks"
+    print(f"Ingested {num_tasks} tasks")
+
+    # Verify tasks were created using SQL queries
+    query = (
+        select(SubtaskModel)
+        .where(SubtaskModel.project_name == project_name)
+        .where(SubtaskModel.subtask_type == "segmentation_proofread")
+    )
+    all_subtasks = db_session.execute(query).scalars().all()
+
+    assert (
+        len(all_subtasks) == num_tasks
+    ), f"Expected {num_tasks} subtasks, got {len(all_subtasks)}"
+    print(f"Verified {len(all_subtasks)} subtasks were created")
+
+    # Test subtask assignment and completion
+    completed_subtasks = []
+    for i in range(num_tasks):
+        # Start a subtask
+        subtask_id = subtask.start_subtask(
+            project_name=project_name, user_id="test_user", db_session=db_session
         )
-        create_user(project_name, user_data)
-        print(f"Good worker {user_id} created user")
+        assert subtask_id is not None, f"Failed to get subtask {i}"
+        print(f"Started subtask {subtask_id}")
 
-        my_completed = []
-        while True:
-            # Check if all tasks are completed
-            total_completed = sum(len(tasks) for tasks in results_dict["completed_tasks"].values())
-            if total_completed >= num_tasks:
-                break
-
-            # Try to get a task
-            subtask_id = subtask.start_subtask(project_name, user_id)
-            if subtask_id:
-                print(f"Good worker {user_id} got subtask {subtask_id}")
-                for _ in range(1):
-                    time.sleep(0.1)
-                    submit_timesheet(project_name, user_id, 1.0, subtask_id)
-                    print(f"Good worker {user_id} submitted timesheet for {subtask_id}")
-
-                # Complete the task
-                subtask.release_subtask(project_name, user_id, "done")
-                print(f"Good worker {user_id} completed subtask {subtask_id}")
-
-                # Update the shared dictionary
-                my_completed.append(subtask_id)
-                with lock:
-                    completed_tasks = dict(results_dict["completed_tasks"])
-                    completed_tasks[user_id] = my_completed.copy()
-                    results_dict["completed_tasks"] = completed_tasks
-            else:
-                time.sleep(0.01)
-
-    except Exception as e:
-        print(f"Error in good worker {user_id}: {e}")
-        raise e
-
-
-def bad_worker(project_name: str, user_id: str, results_dict):
-    """Worker that takes tasks but doesn't submit timesheets"""
-    try:
-        # Create user with proper qualifications
-        user_data = User(
-            user_id=user_id,
-            hourly_rate=20.0,
-            active_subtask="",
-            qualified_subtask_types=["segmentation_proofread"],
-        )
-        create_user(project_name, user_data)
-
-        while True:
-            subtask_id = subtask.start_subtask(project_name, user_id)
-            if subtask_id:
-                print(f"Bad worker {user_id}    got subtask {subtask_id}")
-                time.sleep(4)
-            else:
-                time.sleep(0.01)
-    except Exception as e:
-        print(f"Error in bad worker {user_id}: {e}")
-        raise e
-
-
-def concurrent_task_processing(test_environment, short_idle_timeout):
-    """Test concurrent task processing with good and bad workers"""
-    project_name, _ = test_environment
-    num_tasks = 200
-    num_good_workers = 20
-    num_bad_workers = 1
-
-    with mp.Manager() as manager:
-        results_dict = manager.dict(get_test_results())
-        lock = manager.Lock()
-
-        task_ids = create_test_tasks(project_name, num_tasks)
-        success = ingest_batch(
+        # Submit a timesheet
+        submit_timesheet(
             project_name=project_name,
-            batch_id="test_batch",
-            subtask_structure="segmentation_proofread_simple",
-            priority=1,
-            subtask_structure_kwargs={},
+            user_id="test_user",
+            duration_seconds=10.0,
+            subtask_id=subtask_id,
+            db_session=db_session,
         )
-        assert success, "Failed to ingest tasks"
-        print(f"Ingested {num_tasks} tasks")
+        print(f"Submitted timesheet for {subtask_id}")
 
-        processes = []
-        for i in range(num_good_workers):
-            p = mp.Process(
-                target=good_worker,
-                args=(project_name, f"good_worker_{i}", num_tasks, results_dict, lock),
+        # Complete the subtask
+        success = subtask.release_subtask(
+            project_name=project_name,
+            user_id="test_user",
+            subtask_id=subtask_id,
+            completion_status="done",
+            db_session=db_session,
+        )
+        assert success, f"Failed to complete subtask {subtask_id}"
+        print(f"Completed subtask {subtask_id}")
+        completed_subtasks.append(subtask_id)
+
+    # Verify all subtasks are completed
+    completed_query = (
+        select(SubtaskModel)
+        .where(SubtaskModel.project_name == project_name)
+        .where(SubtaskModel.completion_status == "done")
+    )
+    completed_in_db = db_session.execute(completed_query).scalars().all()
+
+    assert (
+        len(completed_in_db) == num_tasks
+    ), f"Expected {num_tasks} completed subtasks, got {len(completed_in_db)}"
+    print(f"Verified all {num_tasks} subtasks were completed")
+
+
+def test_subtask_idle_takeover(test_environment, short_idle_timeout):
+    """Test that idle subtasks can be taken over by another user"""
+    project_name, db_session = test_environment
+
+    # Create two users
+    user1_data = User(
+        user_id="user1",
+        hourly_rate=20.0,
+        active_subtask="",
+        qualified_subtask_types=["segmentation_proofread"],
+    )
+    user2_data = User(
+        user_id="user2",
+        hourly_rate=20.0,
+        active_subtask="",
+        qualified_subtask_types=["segmentation_proofread"],
+    )
+    create_user(project_name=project_name, data=user1_data, db_session=db_session)
+    create_user(project_name=project_name, data=user2_data, db_session=db_session)
+
+    # Create and ingest a task
+    create_test_tasks(project_name, 1, db_session)
+    ingest_batch(
+        project_name=project_name,
+        batch_id="test_batch",
+        subtask_structure="segmentation_proofread_simple_1pass",
+        priority=1,
+        subtask_structure_kwargs={},
+        db_session=db_session,
+    )
+
+    # User1 starts the subtask
+    subtask_id = subtask.start_subtask(
+        project_name=project_name, user_id="user1", db_session=db_session
+    )
+    assert subtask_id is not None, "User1 should be able to start the subtask"
+    print(f"User1 started subtask {subtask_id}")
+
+    # Wait for it to become idle
+    time.sleep(6)  # Wait longer than the 5-second idle timeout
+
+    # User2 should be able to take over the idle subtask
+    taken_subtask_id = subtask.start_subtask(
+        project_name=project_name, user_id="user2", db_session=db_session
+    )
+    assert taken_subtask_id == subtask_id, "User2 should take over the idle subtask"
+    print(f"User2 took over subtask {taken_subtask_id}")
+
+    # Verify the subtask is now assigned to user2
+    subtask_data = subtask.get_subtask(
+        project_name=project_name, subtask_id=subtask_id, db_session=db_session
+    )
+    assert subtask_data["active_user_id"] == "user2", "Subtask should be assigned to user2"
+    print("Verified subtask takeover worked correctly")
+
+
+def test_multiple_users_concurrent_workflow(test_environment):
+    """Test multiple users working on different subtasks concurrently"""
+    project_name, db_session = test_environment
+    num_users = 3
+    num_tasks = 6
+
+    # Create multiple users
+    for i in range(num_users):
+        user_data = User(
+            user_id=f"worker_{i}",
+            hourly_rate=25.0,
+            active_subtask="",
+            qualified_subtask_types=["segmentation_proofread"],
+        )
+        create_user(project_name=project_name, data=user_data, db_session=db_session)
+
+    # Create and ingest tasks
+    create_test_tasks(project_name, num_tasks, db_session)
+    ingest_batch(
+        project_name=project_name,
+        batch_id="test_batch",
+        subtask_structure="segmentation_proofread_simple_1pass",
+        priority=1,
+        subtask_structure_kwargs={},
+        db_session=db_session,
+    )
+
+    # Each user picks up and completes tasks
+    completed_by_user: dict[str, list[str]] = {}
+    for user_idx in range(num_users):
+        user_id = f"worker_{user_idx}"
+        completed_by_user[user_id] = []
+
+        # Each user completes 2 tasks
+        for _ in range(2):
+            subtask_id = subtask.start_subtask(
+                project_name=project_name, user_id=user_id, db_session=db_session
             )
-            processes.append(p)
-            print(f"About to start good worker {i}")
-            p.start()
-        print(f"Started {num_good_workers} good workers")
+            if subtask_id:
+                print(f"{user_id} got subtask {subtask_id}")
 
-        # Start bad workers
-        for i in range(num_bad_workers):
-            p = mp.Process(target=bad_worker, args=(project_name, f"bad_worker_{i}", results_dict))
-            processes.append(p)
-            p.start()
-        print(f"Started {num_bad_workers} bad workers")
+                # Submit timesheet and complete
+                submit_timesheet(
+                    project_name=project_name,
+                    user_id=user_id,
+                    duration_seconds=15.0,
+                    subtask_id=subtask_id,
+                    db_session=db_session,
+                )
 
-        # Wait for good workers to finish
-        for p in processes[:num_good_workers]:
-            p.join(timeout=120)
-        print("Good workers finished")
+                subtask.release_subtask(
+                    project_name=project_name,
+                    user_id=user_id,
+                    subtask_id=subtask_id,
+                    completion_status="done",
+                    db_session=db_session,
+                )
 
-        # Terminate bad workers
-        for p in processes[num_good_workers:]:
-            p.terminate()
-            p.join()
-        print("Bad workers finished")
+                completed_by_user[user_id].append(subtask_id)
+                print(f"{user_id} completed subtask {subtask_id}")
 
-        # Get all completed subtask IDs
-        all_completed_subtasks = set()
-        for completed_tasks in results_dict["completed_tasks"].values():
-            all_completed_subtasks.update(completed_tasks)
+    # Verify all tasks are completed
+    completed_query = (
+        select(SubtaskModel)
+        .where(SubtaskModel.project_name == project_name)
+        .where(SubtaskModel.completion_status == "done")
+    )
+    completed_subtasks = db_session.execute(completed_query).scalars().all()
 
-        # Verify each task was completed exactly once
-        for task_id in task_ids:
-            # Find all subtasks for this task
-            task_subtasks = (
-                get_collection(project_name, "subtasks")
-                .where("task_id", "==", task_id)
-                .where("subtask_type", "==", "segmentation_proofread")
-                .stream()
-            )
+    assert (
+        len(completed_subtasks) == num_tasks
+    ), f"Expected {num_tasks} completed subtasks, got {len(completed_subtasks)}"
 
-            # Each task should have exactly one proofread subtask
-            task_subtask_ids = [s.id for s in task_subtasks]
-            assert len(task_subtask_ids) == 1, f"Task {task_id} has wrong number of subtasks"
+    # Verify each subtask was completed by exactly one user
+    all_completed = []
+    for user_completed in completed_by_user.values():
+        all_completed.extend(user_completed)
 
-            # That subtask should be in our completed set
-            assert (
-                task_subtask_ids[0] in all_completed_subtasks
-            ), f"Task {task_id}'s subtask {task_subtask_ids[0]} was not completed"
+    assert len(all_completed) == num_tasks, "All tasks should be completed"
+    assert len(set(all_completed)) == num_tasks, "No task should be completed more than once"
 
-        # Verify no subtask was completed more than once
-        assert (
-            len(all_completed_subtasks) == num_tasks
-        ), "Some subtasks were completed multiple times or not all tasks were completed"
-
-        print("All tasks were completed exactly once")
+    print(f"Successfully completed {num_tasks} tasks across {num_users} users")
+    for user_id, tasks in completed_by_user.items():
+        print(f"  {user_id}: {len(tasks)} tasks")

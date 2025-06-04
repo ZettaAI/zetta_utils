@@ -1,86 +1,168 @@
 from datetime import datetime
-from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from typeguard import typechecked
 
+from .db.models import ProjectModel
 from .db.session import create_tables, get_session_context
 
 
-def create_project_tables(project_name: str, db_session: Session | None = None) -> None:
-    """Create any missing SQL tables and setup for a project.
-
-    In SQL, we don't need per-project collections like Firestore,
-    but we use this function to ensure all tables exist and are properly set up.
-
-    :param project_name: The name of the project (used for validation/logging)
-    :param db_session: Optional database session to use
+@typechecked
+def create_project(
+    *,
+    project_name: str,
+    description: str = "",
+    db_session: Session | None = None,
+) -> str:
     """
+    :param project_name: The name of the project
+    :param description: Optional project description
+    :param db_session: Optional database session
+    :return: The project name
+    :raises ValueError: If project already exists
+    """
+
     with get_session_context(db_session) as session:
         try:
-            # Create all tables if they don't exist
-            create_tables(session.bind)
+            existing = session.execute(
+                select(ProjectModel).where(ProjectModel.project_name == project_name)
+            ).first()
 
-            # For SQL, we don't need a separate project record since project_name
-            # is embedded in each table record. But we could add a projects table
-            # later if needed.
+            if existing:
+                raise ValueError(f"Project '{project_name}' already exists")
 
-        except Exception as exc:
+            project = ProjectModel(
+                project_name=project_name,
+                description=description,
+                created_at=datetime.now().isoformat(),
+                status="active",
+            )
+
+            session.add(project)
+            session.commit()
+
+            return project_name
+
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
             session.rollback()
-            raise RuntimeError(
-                f"Failed to create project tables for {project_name}: {exc}"
-            ) from exc
+            raise
 
 
-def get_project(project_name: str, db_session: Session | None = None) -> dict[str, Any]:
+@typechecked
+def list_all_projects(
+    *,
+    db_session: Session | None = None,
+) -> list[str]:
     """
-    Get a project by name.
-
-    For now, this returns basic project info since we don't have a dedicated
-    projects table. In the future, we could add a ProjectModel to track metadata.
-
-    :param project_name: The name of the project.
-    :param db_session: Optional database session to use
-    :return: The project data.
-    :raises KeyError: If the project does not exist (has no data).
+    :param db_session: Optional database session
+    :return: List of project names sorted alphabetically
     """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel.project_name)
+            .where(ProjectModel.status == "active")
+            .order_by(ProjectModel.project_name)
+        ).fetchall()
+
+        return [row[0] for row in result]
+
+
+@typechecked
+def get_project(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> dict:
+    """
+    :param project_name: The name of the project
+    :param db_session: Optional database session
+    :return: Project details dictionary
+    :raises KeyError: If project doesn't exist
+    """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel).where(ProjectModel.project_name == project_name)
+        ).first()
+
+        if not result:
+            raise KeyError(f"Project '{project_name}' not found")
+
+        return result[0].to_dict()
+
+
+@typechecked
+def delete_project(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> bool:
+    """
+    Note: This only removes from projects registry.
+    Project data in other tables remains.
+
+    :param project_name: The name of the project to delete
+    :param db_session: Optional database session
+    :return: True if deleted, False if didn't exist
+    """
+
     with get_session_context(db_session) as session:
         try:
-            # Check if project has any data by looking for any records with this
-            # project_name. We'll check the users table as a proxy for existence
-            query = text("SELECT EXISTS(SELECT 1 FROM users WHERE project_name = :project_name)")
-            result = session.execute(query, {"project_name": project_name}).scalar()
+            result = session.execute(
+                select(ProjectModel).where(ProjectModel.project_name == project_name)
+            ).first()
 
             if not result:
-                # Check other tables to see if project exists anywhere
-                tables_to_check = ["tasks", "subtask_types"]
-                project_exists = False
+                return False
 
-                for table in tables_to_check:
-                    try:
-                        query = text(
-                            f"SELECT EXISTS(SELECT 1 FROM {table} "
-                            "WHERE project_name = :project_name)"
-                        )
-                        result = session.execute(query, {"project_name": project_name}).scalar()
-                        if result:
-                            project_exists = True
-                            break
-                    except Exception:  # pylint: disable=broad-exception-caught
-                        # Table might not exist yet, skip
-                        continue
+            session.delete(result[0])
+            session.commit()
 
-                if not project_exists:
-                    raise KeyError(f"Project {project_name} not found")
+            return True
 
-            # Return basic project information
-            return {
-                "project_name": project_name,
-                "created_ts": datetime.now(),
-                "database_type": "sql",
-            }
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
+            session.rollback()
+            raise
 
-        except Exception as exc:
-            if isinstance(exc, KeyError):
-                raise
-            raise RuntimeError(f"Failed to get project {project_name}: {exc}") from exc
+
+@typechecked
+def project_exists(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> bool:
+    """
+    :param project_name: The name of the project
+    :param db_session: Optional database session
+    :return: True if project exists, False otherwise
+    """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel.project_name).where(ProjectModel.project_name == project_name)
+        ).first()
+
+        return result is not None
+
+
+@typechecked
+def create_project_tables(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> None:
+    """
+    Create all project-specific tables for the given project.
+
+    :param project_name: The name of the project
+    :param db_session: Optional database session (uses default session if None)
+    """
+    with get_session_context(db_session) as session:
+        create_project(project_name=project_name)
+        try:
+            create_tables(session.bind)
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
+            session.rollback()
+            raise

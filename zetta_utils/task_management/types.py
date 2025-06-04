@@ -28,6 +28,7 @@ class Subtask(TypedDict):
     batch_id: str  # Changed from batch_name
     last_leased_ts: float  # 0 for never leased
     is_active: bool  # Whether the subtask can be worked on
+    is_paused: NotRequired[bool]  # Whether the subtask is paused (not auto-selectable)
     subtask_type: str  # Reference to SubtaskType.subtask_type
 
 
@@ -43,6 +44,7 @@ class SubtaskUpdate(TypedDict, total=False):
     batch_id: str
     last_leased_ts: float
     is_active: bool
+    is_paused: bool
     subtask_type: str
 
 

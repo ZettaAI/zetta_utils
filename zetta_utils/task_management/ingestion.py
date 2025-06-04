@@ -1,14 +1,17 @@
 from typing import Any, Literal
 
-from google.cloud import firestore
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+from tqdm import tqdm
 from typeguard import typechecked
 
-from .project import get_collection, get_firestore_client
+from .db.models import SubtaskModel, TaskModel
 from .subtask_structure import create_subtask_structure
 
 
 @typechecked
 def ingest_task(
+    db_session: Session,
     project_name: str,
     task_id: str,
     subtask_structure: str,
@@ -19,6 +22,7 @@ def ingest_task(
     """
     Ingest a task, changing its status from pending_ingestion to ingested.
 
+    :param db_session: Database session to use
     :param project_name: The name of the project.
     :param task_id: The ID of the task to ingest.
     :param subtask_structure: Name of subtask structure to create
@@ -32,6 +36,7 @@ def ingest_task(
     :raises KeyError: If the task does not exist.
     """
     return ingest_tasks(
+        db_session=db_session,
         project_name=project_name,
         task_ids=[task_id],
         subtask_structure=subtask_structure,
@@ -44,6 +49,7 @@ def ingest_task(
 
 @typechecked
 def ingest_tasks(
+    db_session: Session,
     project_name: str,
     task_ids: list[str],
     subtask_structure: str,
@@ -55,6 +61,7 @@ def ingest_tasks(
     """
     Ingest multiple tasks in bundles.
 
+    :param db_session: Database session to use
     :param project_name: The name of the project.
     :param task_ids: List of task IDs to ingest.
     :param subtask_structure: Name of subtask structure to create
@@ -63,21 +70,27 @@ def ingest_tasks(
                       "not_processed" - ingest pending_ingestion and ingested tasks
                       "all" - ingest all tasks including fully_processed ones
     :param priority: Priority for subtasks (default: 1)
-    :param bundle_size: Maximum number of operations per atch (default 500)
+    :param bundle_size: Maximum number of operations per batch (default 500)
     :return: True if all tasks with appropriate status were ingested, False otherwise.
     :raises ValueError: If any task is not in a valid status for ingestion.
     :raises KeyError: If any task does not exist.
     """
-    client = get_firestore_client()
-    task_refs = [get_collection(project_name, "tasks").document(task_id) for task_id in task_ids]
-    task_docs = list(client.get_all(task_refs))
-    tasks = {doc.id: doc.to_dict() for doc in task_docs}
-    missing_task_ids = set(task_ids) - set(
-        task_id for task_id, task in tasks.items() if task is not None
-    )
+    print(f"Ingesting {len(task_ids)} tasks")
 
+    # Get all tasks
+    tasks_query = (
+        select(TaskModel)
+        .where(TaskModel.project_name == project_name)
+        .where(TaskModel.task_id.in_(task_ids))
+    )
+    task_models = db_session.execute(tasks_query).scalars().all()
+    tasks = {str(task.task_id): task.to_dict() for task in task_models}
+
+    missing_task_ids = set(task_ids) - set(tasks.keys())
     if missing_task_ids:
         raise KeyError(f"Tasks not found: {', '.join(missing_task_ids)}")
+
+    # Filter tasks based on re_ingest parameter
     task_ids_to_ingest = [
         task_id
         for task_id, task in tasks.items()
@@ -89,60 +102,68 @@ def ingest_tasks(
     if not task_ids_to_ingest:
         return False
 
-    for i in range(0, len(task_ids_to_ingest), bundle_size):
+    print(f"Ingesting {len(task_ids_to_ingest)} tasks")
+
+    # Process in bundles
+    for i in tqdm(list(range(0, len(task_ids_to_ingest), bundle_size))):
         task_bundle = task_ids_to_ingest[i : i + bundle_size]
 
-        @firestore.transactional
-        def ingest_batch_in_transaction(transaction):
-            ingested_task_ids = [
-                task_id
-                for task_id in task_bundle  # pylint: disable=cell-var-from-loop
-                if tasks[task_id]["status"] == "ingested"
-            ]
-            active_subtasks = []
-            for i in range(0, len(ingested_task_ids), 30):
-                task_batch = ingested_task_ids[i : i + 30]
+        # For tasks that are already ingested, deactivate existing subtasks
+        ingested_task_ids = [
+            task_id for task_id in task_bundle if tasks[task_id]["status"] == "ingested"
+        ]
 
-                subtasks_query = (
-                    get_collection(project_name, "subtasks")
-                    .where("task_id", "in", task_batch)
-                    .where("is_active", "==", True)
-                )
-                batch_subtasks = list(subtasks_query.stream(transaction=transaction))
-                active_subtasks.extend(batch_subtasks)
+        if ingested_task_ids:
+            # Deactivate existing active subtasks for re-ingestion
+            deactivate_query = (
+                update(SubtaskModel)
+                .where(SubtaskModel.project_name == project_name)
+                .where(SubtaskModel.task_id.in_(ingested_task_ids))
+                .where(SubtaskModel.is_active.is_(True))
+                .values(is_active=False)
+            )
+            db_session.execute(deactivate_query)
 
-            subtasks = get_collection(project_name, "subtasks")
-            for subtask in active_subtasks:
-                transaction.update(subtasks.document(subtask.id), {"is_active": False})
-
-            for task_id in task_bundle:  # pylint: disable=cell-var-from-loop
+        # Create subtask structure for each task
+        for task_id in task_bundle:
+            try:
                 create_subtask_structure(
-                    transaction=transaction,
+                    db_session=db_session,
                     project_name=project_name,
-                    task_id=task_id,
+                    task_id=str(task_id),
                     subtask_structure=subtask_structure,
                     priority=priority,
                     subtask_structure_kwargs=subtask_structure_kwargs,
                 )
+            except RuntimeError as e:
+                # Extract the original error message from the nested RuntimeError
+                # Note: create_subtask_structure already handles rollback internally
+                original_error = str(e).replace("Failed to create subtask structure: ", "")
+                raise RuntimeError(f"Failed to ingest task bundle: {original_error}") from e
 
-            return True
-
-        ingest_batch_in_transaction(client.transaction())
+        try:
+            db_session.commit()
+        except Exception as exc:
+            db_session.rollback()
+            raise RuntimeError(f"Failed to ingest task bundle: {exc}") from exc
 
     return True
 
 
 def ingest_batch(
+    db_session: Session,
     project_name: str,
     batch_id: str,
     subtask_structure: str,
     subtask_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
+    bundle_size: int = 100,
 ) -> bool:
     """
     Ingest all tasks in a batch, changing their status from pending_ingestion to ingested.
 
+    :param db_session: Database session to use
     :param project_name: The name of the project.
     :param batch_id: The ID of the batch to ingest.
     :param subtask_structure: Name of subtask structure to create
@@ -151,26 +172,36 @@ def ingest_batch(
                       "not_processed" - ingest pending_ingestion and ingested tasks
                       "all" - ingest all tasks including fully_processed ones
     :param priority: Priority for subtasks (default: 1)
+    :param bundle_size: Maximum number of operations per batch
     :return: True if any tasks were ingested, False otherwise.
     """
-    tasks_query = get_collection(project_name, "tasks").where("batch_id", "==", batch_id)
+    # Build query based on re_ingest parameter
+    tasks_query = (
+        select(TaskModel)
+        .where(TaskModel.project_name == project_name)
+        .where(TaskModel.batch_id == batch_id)
+    )
 
     if re_ingest is None:
-        tasks_query = tasks_query.where("status", "==", "pending_ingestion")
+        tasks_query = tasks_query.where(TaskModel.status == "pending_ingestion")
     elif re_ingest == "not_processed":
-        tasks_query = tasks_query.where("status", "in", ["pending_ingestion", "ingested"])
+        tasks_query = tasks_query.where(TaskModel.status.in_(["pending_ingestion", "ingested"]))
+    # For "all", no additional filter needed
 
-    tasks = list(tasks_query.stream())
-    if not tasks:
+    task_models = db_session.execute(tasks_query).scalars().all()
+    if not task_models:
         return False
 
     # Get task IDs and ingest in bundles
-    task_ids = [task_doc.id for task_doc in tasks]
+    task_ids = [str(task.task_id) for task in task_models]
+    print(f"Ingesting {len(task_ids)} tasks")
     return ingest_tasks(
+        db_session=db_session,
         project_name=project_name,
         task_ids=task_ids,
         subtask_structure=subtask_structure,
         subtask_structure_kwargs=subtask_structure_kwargs,
         re_ingest=re_ingest,
         priority=priority,
+        bundle_size=bundle_size,
     )

@@ -9,7 +9,7 @@ def get_total_subtask_time(
     :param subtask_ids: A single subtask ID or a list of subtask IDs.
     :return: The total time spent on the subtask(s) in seconds.
     :raises KeyError: If any of the subtasks do not exist.
-    :raises RuntimeError: If the Firestore transaction fails.
+    :raises RuntimeError: If the database transaction fails.
     """
     return 0
 
@@ -24,6 +24,6 @@ def get_total_subtask_cost(
     :param subtask_ids: A single subtask ID or a list of subtask IDs.
     :return: The total cost for the subtask(s).
     :raises KeyError: If any of the subtasks do not exist.
-    :raises RuntimeError: If the Firestore transaction fails.
+    :raises RuntimeError: If the database transaction fails.
     """
     return 0

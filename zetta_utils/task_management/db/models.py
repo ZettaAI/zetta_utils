@@ -9,6 +9,33 @@ class Base(DeclarativeBase):
     """Modern SQLAlchemy 2.0 declarative base with proper typing support."""
 
 
+class ProjectModel(Base):
+    """
+    SQLAlchemy model for the projects table.
+
+    This table maintains a registry of all projects for O(1) lookups.
+    """
+
+    __tablename__ = "projects"
+
+    # Primary key - just the project name
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+
+    # Metadata columns
+    created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary"""
+        return {
+            "project_name": self.project_name,
+            "created_at": self.created_at,
+            "description": self.description,
+            "status": self.status,
+        }
+
+
 class SubtaskTypeModel(Base):
     """
     SQLAlchemy model for the subtask_types table.

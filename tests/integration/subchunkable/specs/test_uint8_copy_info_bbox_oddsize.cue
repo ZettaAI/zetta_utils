@@ -1,5 +1,6 @@
+"@version": "0.4"
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_copy_dst_tighten_bounds_oddsize"
+#DST_PATH: "assets/outputs/test_uint8_copy_info_bbox_oddsize"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -31,8 +32,10 @@
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
+		info_bbox:           #BBOX
+		info_scales:         [[128, 128, 40]]
+		info_inherit_all_params:  true
 	}
-    dst_tighten_bounds: true
 }
 
 "@type": "mazepa.execute"

@@ -1,5 +1,5 @@
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_copy_dst_tighten_bounds"
+#DST_PATH: "assets/outputs/test_uint8_exc_dst_tighten_bounds"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"

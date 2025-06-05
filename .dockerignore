@@ -1,15 +1,16 @@
 specs/**
-
+*.gz
 # Traing data logging
 **/wandb/**
 **/.neptune/**
 **/tensorboard/**
-
+task_dashboard
+tests
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
+.git/
 # C extensions
 *.so
 

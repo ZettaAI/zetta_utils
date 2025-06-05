@@ -129,7 +129,7 @@ def render_fld(  # pylint: disable=too-many-locals,too-many-arguments
     fld: Tensor,
     figsize: tuple[int, int] = (8, 8),
     dpi: int = 80,
-    grid_size: int = 50,
+    grid_size: int = 20,
     alpha: float = 0.6,
     linewidth: float = 0.5,
 ) -> npt.NDArray:  # pragma: no cover

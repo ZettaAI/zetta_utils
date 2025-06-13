@@ -71,12 +71,12 @@ def test_create_user_with_qualifications(clean_db, project_name, db_session, sam
     user = get_user(
         project_name=project_name, user_id=sample_user["user_id"], db_session=db_session
     )
-    assert user["qualified_subtask_types"] == ["segmentation_proofread"]
+    assert user["qualified_task_types"] == ["segmentation_proofread"]
 
 
-def test_update_user_qualified_subtask_types(project_name, existing_user, db_session):
+def test_update_user_qualified_task_types(project_name, existing_user, db_session):
     new_qualifications = ["segmentation_proofread", "segmentation_verify"]
-    update_data = UserUpdate(qualified_subtask_types=new_qualifications)
+    update_data = UserUpdate(qualified_task_types=new_qualifications)
 
     result = update_user(
         project_name=project_name, user_id="test_user", data=update_data, db_session=db_session
@@ -84,11 +84,11 @@ def test_update_user_qualified_subtask_types(project_name, existing_user, db_ses
     assert result is True
 
     user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
-    assert user["qualified_subtask_types"] == new_qualifications
+    assert user["qualified_task_types"] == new_qualifications
 
 
-def test_update_user_active_subtask(project_name, existing_user, db_session):
-    update_data = UserUpdate(active_subtask="subtask_123")
+def test_update_user_active_task(project_name, existing_user, db_session):
+    update_data = UserUpdate(active_task="task_123")
 
     result = update_user(
         project_name=project_name, user_id="test_user", data=update_data, db_session=db_session
@@ -96,4 +96,4 @@ def test_update_user_active_subtask(project_name, existing_user, db_session):
     assert result is True
 
     user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
-    assert user["active_subtask"] == "subtask_123"
+    assert user["active_task"] == "task_123"

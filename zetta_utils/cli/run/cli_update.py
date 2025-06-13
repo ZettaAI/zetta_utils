@@ -1,7 +1,5 @@
 import click
-from kubernetes.client import ApiException
 
-from zetta_utils.cloud_management.resource_allocation import k8s
 from zetta_utils.log import get_logger
 
 logger = get_logger("zetta_utils")
@@ -20,7 +18,10 @@ def run_update(run_id: str, max_workers: int, worker_groups: list[str] | None = 
     """
     Update max workers for a given `run_id` and/or group names.
     """
+    from kubernetes.client import ApiException
 
+    from zetta_utils.cloud_management.resource_allocation import k8s
+    
     def _patch(job_name: str, patch_body: dict):
         job_name = job_name.replace("_", "-")
         try:

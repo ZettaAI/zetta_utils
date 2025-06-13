@@ -5,22 +5,22 @@ from sqlalchemy import select
 
 from zetta_utils.task_management.db.models import TimesheetModel
 from zetta_utils.task_management.exceptions import UserValidationError
-from zetta_utils.task_management.subtask import start_subtask
+from zetta_utils.task_management.task import start_task
 from zetta_utils.task_management.timesheet import submit_timesheet
 from zetta_utils.task_management.types import User
 from zetta_utils.task_management.user import create_user, update_user
 
 
 def test_submit_timesheet_success(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
     """Test successful timesheet submission"""
-    # Start the subtask
-    start_subtask(
+    # Start the task
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     submit_timesheet(
@@ -28,22 +28,22 @@ def test_submit_timesheet_success(
         project_name=project_name,
         user_id="test_user",
         duration_seconds=3600,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # TODO: Add verification once we have a get_timesheet function
 
 
 def test_submit_timesheet_update_existing(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
     """Test updating an existing timesheet entry with additional duration"""
-    # Start the subtask
-    start_subtask(
+    # Start the task
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Submit first timesheet entry
@@ -53,56 +53,56 @@ def test_submit_timesheet_update_existing(
         project_name=project_name,
         user_id="test_user",
         duration_seconds=initial_duration,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
-    # Submit second timesheet entry for the same subtask
+    # Submit second timesheet entry for the same task
     additional_duration = 1800
     submit_timesheet(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
         duration_seconds=additional_duration,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # TODO: Add verification once we have a get_timesheet function
 
 
-def test_submit_timesheet_no_active_subtask(clean_db, project_name, db_session, existing_user):
-    """Test submitting timesheet without an active subtask"""
-    with pytest.raises(UserValidationError, match="User does not have an active subtask"):
+def test_submit_timesheet_no_active_task(clean_db, project_name, db_session, existing_user):
+    """Test submitting timesheet without an active task"""
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
-def test_submit_timesheet_no_user_subtask(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+def test_submit_timesheet_no_user_task(
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    with pytest.raises(UserValidationError, match="User does not have an active subtask"):
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
 def test_submit_timesheet_negative_duration(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
     """Test submitting timesheet with negative duration"""
-    start_subtask(
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     with pytest.raises(ValueError, match="Duration must be positive"):
@@ -111,11 +111,11 @@ def test_submit_timesheet_negative_duration(
             project_name=project_name,
             user_id="test_user",
             duration_seconds=-3600,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
-def test_submit_timesheet_nonexistent_user(clean_db, project_name, db_session, existing_subtask):
+def test_submit_timesheet_nonexistent_user(clean_db, project_name, db_session, existing_task):
     """Test submitting timesheet for a user that doesn't exist"""
     with pytest.raises(UserValidationError, match="User nonexistent_user not found"):
         submit_timesheet(
@@ -123,34 +123,34 @@ def test_submit_timesheet_nonexistent_user(clean_db, project_name, db_session, e
             project_name=project_name,
             user_id="nonexistent_user",
             duration_seconds=3600,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
-def test_submit_timesheet_nonexistent_subtask(clean_db, project_name, db_session, existing_user):
-    """Test submitting timesheet when user has nonexistent subtask"""
-    # This test needs to be adjusted since we can't manually set active_subtask without SQL
-    # We'll test when the user claims to have a different active subtask
-    with pytest.raises(UserValidationError, match="User does not have an active subtask"):
+def test_submit_timesheet_nonexistent_task(clean_db, project_name, db_session, existing_user):
+    """Test submitting timesheet when user has nonexistent task"""
+    # This test needs to be adjusted since we can't manually set active_task without SQL
+    # We'll test when the user claims to have a different active task
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600,
-            subtask_id="nonexistent_subtask",
+            task_id="nonexistent_task",
         )
 
 
 def test_submit_timesheet_wrong_user(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    """Test submitting timesheet for subtask assigned to different user"""
-    # Start subtask with one user
-    start_subtask(
+    """Test submitting timesheet for task assigned to different user"""
+    # Start task with one user
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Create another user
@@ -158,53 +158,53 @@ def test_submit_timesheet_wrong_user(
         **{
             "user_id": "other_user",
             "hourly_rate": 50.0,
-            "active_subtask": "",
-            "qualified_subtask_types": ["segmentation_proofread"],
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
         }
     )
     create_user(db_session=db_session, project_name=project_name, data=other_user)
 
-    with pytest.raises(UserValidationError, match="User does not have an active subtask"):
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="other_user",
             duration_seconds=3600,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
-def test_submit_timesheet_mismatched_subtask_id(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+def test_submit_timesheet_mismatched_task_id(
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    """Test submitting timesheet with a subtask_id that doesn't match user's active subtask"""
-    # Start subtask with one ID
-    start_subtask(
+    """Test submitting timesheet with a task_id that doesn't match user's active task"""
+    # Start task with one ID
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
-    # Try to submit timesheet with a different subtask_id - this should fail since
-    # user's active subtask is subtask_1 but we're submitting for subtask_2
+    # Try to submit timesheet with a different task_id - this should fail since
+    # user's active task is task_1 but we're submitting for task_2
     with pytest.raises(
         UserValidationError,
-        match="Provided subtask_id subtask_2 does not match user's active subtask subtask_1",
+        match="Provided task_id task_2 does not match user's active task task_1",
     ):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600,
-            subtask_id="subtask_2",
+            task_id="task_2",
         )
 
 
-def test_submit_timesheet_subtask_not_assigned_to_user(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+def test_submit_timesheet_task_not_assigned_to_user(
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    """Test that timesheet submission fails when user does not have an active subtask"""
+    """Test that timesheet submission fails when user does not have an active task"""
     # Create another user
     create_user(
         db_session=db_session,
@@ -212,34 +212,34 @@ def test_submit_timesheet_subtask_not_assigned_to_user(
         data={
             "user_id": "another_user",
             "hourly_rate": 50.0,
-            "active_subtask": "",
-            "qualified_subtask_types": ["segmentation_proofread"],
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
         },
     )
 
-    # Start the subtask with a different user
-    start_subtask(
+    # Start the task with a different user
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="another_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Try to submit timesheet as the original user (should fail)
-    with pytest.raises(UserValidationError, match="User does not have an active subtask"):
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600.0,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
-def test_submit_timesheet_subtask_assigned_to_different_user(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+def test_submit_timesheet_task_assigned_to_different_user(
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    """Test that timesheet submission fails when subtask is assigned to a different user"""
+    """Test that timesheet submission fails when task is assigned to a different user"""
     # Create another user
     create_user(
         db_session=db_session,
@@ -247,48 +247,48 @@ def test_submit_timesheet_subtask_assigned_to_different_user(
         data={
             "user_id": "another_user",
             "hourly_rate": 50.0,
-            "active_subtask": "",
-            "qualified_subtask_types": ["segmentation_proofread"],
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
         },
     )
 
-    # Start the subtask with another user
-    start_subtask(
+    # Start the task with another user
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="another_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
-    # Update the first user to have this subtask as active (simulating inconsistent state)
+    # Update the first user to have this task as active (simulating inconsistent state)
     update_user(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        data={"active_subtask": "subtask_1"},
+        data={"active_task": "task_1"},
     )
 
     # Try to submit timesheet as the first user (should fail)
-    with pytest.raises(UserValidationError, match="Subtask not assigned to this user"):
+    with pytest.raises(UserValidationError, match="Task not assigned to this user"):
         submit_timesheet(
             db_session=db_session,
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600.0,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
 
 def test_submit_timesheet_database_failure(
-    clean_db, project_name, db_session, existing_user, existing_subtask, mocker
+    clean_db, project_name, db_session, existing_user, existing_task, mocker
 ):
     """Test that timesheet submission handles database failures gracefully"""
-    # Start the subtask
-    start_subtask(
+    # Start the task
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Mock the commit to raise an exception
@@ -302,7 +302,7 @@ def test_submit_timesheet_database_failure(
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600.0,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
     # Verify rollback was called
@@ -310,14 +310,14 @@ def test_submit_timesheet_database_failure(
 
 
 def test_submit_timesheet_session_add_failure(
-    clean_db, project_name, db_session, existing_user, existing_subtask, mocker
+    clean_db, project_name, db_session, existing_user, existing_task, mocker
 ):
-    # Start the subtask
-    start_subtask(
+    # Start the task
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Mock session.add to raise an exception to trigger the exception handling path
@@ -333,7 +333,7 @@ def test_submit_timesheet_session_add_failure(
             project_name=project_name,
             user_id="test_user",
             duration_seconds=3600.0,
-            subtask_id="subtask_1",
+            task_id="task_1",
         )
 
     # Verify rollback was called (this should cover line 86)
@@ -341,13 +341,13 @@ def test_submit_timesheet_session_add_failure(
 
 
 def test_submit_timesheet_update_existing_entry_verification(
-    clean_db, project_name, db_session, existing_user, existing_subtask
+    clean_db, project_name, db_session, existing_user, existing_task
 ):
-    start_subtask(
+    start_task(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Submit first timesheet entry
@@ -357,7 +357,7 @@ def test_submit_timesheet_update_existing_entry_verification(
         project_name=project_name,
         user_id="test_user",
         duration_seconds=initial_duration,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Verify one timesheet entry exists with correct duration
@@ -365,20 +365,20 @@ def test_submit_timesheet_update_existing_entry_verification(
         select(TimesheetModel)
         .where(TimesheetModel.project_name == project_name)
         .where(TimesheetModel.user == "test_user")
-        .where(TimesheetModel.subtask_id == "subtask_1")
+        .where(TimesheetModel.task_id == "task_1")
     )
     timesheets = db_session.execute(query).scalars().all()
     assert len(timesheets) == 1
     assert timesheets[0].seconds_spent == initial_duration
 
-    # Submit second timesheet entry for the same subtask (should update existing)
+    # Submit second timesheet entry for the same task (should update existing)
     additional_duration = 1800
     submit_timesheet(
         db_session=db_session,
         project_name=project_name,
         user_id="test_user",
         duration_seconds=additional_duration,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Verify still only one timesheet entry exists with accumulated duration
@@ -395,7 +395,7 @@ def test_submit_timesheet_update_existing_entry_verification(
         project_name=project_name,
         user_id="test_user",
         duration_seconds=third_duration,
-        subtask_id="subtask_1",
+        task_id="task_1",
     )
 
     # Verify accumulation continues to work

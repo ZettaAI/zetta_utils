@@ -1,6 +1,6 @@
 from typing import Literal, cast
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 from typeguard import typechecked
@@ -160,3 +160,67 @@ def update_job(
 
         session.commit()
         return True
+
+
+def list_jobs_summary(
+    *, project_name: str, db_session: Session | None = None
+) -> dict:
+    """
+    Get a summary of jobs in a project with counts and sample job IDs.
+    
+    :param project_name: The name of the project
+    :param db_session: Database session to use (optional)
+    :return: Dictionary with counts and job ID lists
+    """
+    with get_session_context(db_session) as session:
+        # Count pending ingestion jobs
+        pending_count_query = (
+            select(func.count(JobModel.job_id))
+            .where(JobModel.project_name == project_name)
+            .where(JobModel.status == "pending_ingestion")
+        )
+        pending_count = session.execute(pending_count_query).scalar() or 0
+        
+        # Count ingested jobs  
+        ingested_count_query = (
+            select(func.count(JobModel.job_id))
+            .where(JobModel.project_name == project_name)
+            .where(JobModel.status == "ingested")
+        )
+        ingested_count = session.execute(ingested_count_query).scalar() or 0
+        
+        # Count fully processed jobs
+        completed_count_query = (
+            select(func.count(JobModel.job_id))
+            .where(JobModel.project_name == project_name)
+            .where(JobModel.status == "fully_processed")
+        )
+        completed_count = session.execute(completed_count_query).scalar() or 0
+        
+        # Get first 5 pending ingestion job IDs
+        pending_ids_query = (
+            select(JobModel.job_id)
+            .where(JobModel.project_name == project_name)
+            .where(JobModel.status == "pending_ingestion")
+            .order_by(JobModel.job_id)
+            .limit(5)
+        )
+        pending_ids = list(session.execute(pending_ids_query).scalars().all())
+        
+        # Get first 5 ingested job IDs
+        ingested_ids_query = (
+            select(JobModel.job_id)
+            .where(JobModel.project_name == project_name)
+            .where(JobModel.status == "ingested")
+            .order_by(JobModel.job_id)
+            .limit(5)
+        )
+        ingested_ids = list(session.execute(ingested_ids_query).scalars().all())
+        
+        return {
+            "pending_ingestion_count": pending_count,
+            "ingested_count": ingested_count,
+            "completed_count": completed_count,
+            "pending_ingestion_ids": pending_ids,
+            "ingested_ids": ingested_ids,
+        }

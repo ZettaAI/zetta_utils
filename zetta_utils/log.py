@@ -136,7 +136,7 @@ def configure_logger(level=None, third_party_level="ERROR"):
     logging.getLogger("zetta_utils").setLevel(level)
 
 
-def get_logger(name):
+def get_logger(name="zetta_utils"):
     """
     Get a logger with the specified name, creating it if necessary.
 

@@ -7,11 +7,11 @@ from sqlalchemy import select
 from zetta_utils.task_management import subtask
 from zetta_utils.task_management.db.models import SubtaskModel
 from zetta_utils.task_management.ingestion import ingest_batch
+from zetta_utils.task_management.job import create_jobs_batch
 from zetta_utils.task_management.project import create_project_tables
 from zetta_utils.task_management.subtask_type import create_subtask_type
-from zetta_utils.task_management.task import create_tasks_batch
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.types import SubtaskType, Task, User
+from zetta_utils.task_management.types import Job, SubtaskType, User
 from zetta_utils.task_management.user import create_user
 
 
@@ -58,28 +58,28 @@ def test_environment(clean_db, db_session):
     yield project_name, db_session
 
 
-def create_test_tasks(project_name: str, num_tasks: int, db_session) -> list[str]:
-    """Create test tasks and return their IDs"""
-    tasks = []
-    for i in range(num_tasks):
-        task_data = Task(
-            task_id=f"test_task_{i}",
+def create_test_jobs(project_name: str, num_jobs: int, db_session) -> list[str]:
+    """Create test jobs and return their IDs"""
+    jobs = []
+    for i in range(num_jobs):
+        job_data = Job(
+            job_id=f"test_job_{i}",
             batch_id="test_batch",
             status="pending_ingestion",
-            task_type="test",
-            ng_state=f"http://test.com/task_{i}",
+            job_type="test",
+            ng_state=f"http://test.com/job_{i}",
         )
-        tasks.append(task_data)
+        jobs.append(job_data)
 
-    return create_tasks_batch(
-        project_name=project_name, tasks=tasks, batch_size=100, db_session=db_session
+    return create_jobs_batch(
+        project_name=project_name, jobs=jobs, batch_size=100, db_session=db_session
     )
 
 
-def test_basic_task_workflow(test_environment, short_idle_timeout):
-    """Test basic task workflow: create tasks -> ingest -> assign -> complete"""
+def test_basic_job_workflow(test_environment, short_idle_timeout):
+    """Test basic job workflow: create jobs -> ingest -> assign -> complete"""
     project_name, db_session = test_environment
-    num_tasks = 5
+    num_jobs = 5
 
     # Create a test user
     user_data = User(
@@ -91,8 +91,8 @@ def test_basic_task_workflow(test_environment, short_idle_timeout):
     create_user(project_name=project_name, data=user_data, db_session=db_session)
     print("Created test user")
 
-    # Create test tasks
-    create_test_tasks(project_name, num_tasks, db_session)
+    # Create test jobs
+    create_test_jobs(project_name, num_jobs, db_session)
     success = ingest_batch(
         project_name=project_name,
         batch_id="test_batch",
@@ -101,10 +101,10 @@ def test_basic_task_workflow(test_environment, short_idle_timeout):
         subtask_structure_kwargs={},
         db_session=db_session,
     )
-    assert success, "Failed to ingest tasks"
-    print(f"Ingested {num_tasks} tasks")
+    assert success, "Failed to ingest jobs"
+    print(f"Ingested {num_jobs} jobs")
 
-    # Verify tasks were created using SQL queries
+    # Verify jobs were created using SQL queries
     query = (
         select(SubtaskModel)
         .where(SubtaskModel.project_name == project_name)
@@ -112,14 +112,12 @@ def test_basic_task_workflow(test_environment, short_idle_timeout):
     )
     all_subtasks = db_session.execute(query).scalars().all()
 
-    assert (
-        len(all_subtasks) == num_tasks
-    ), f"Expected {num_tasks} subtasks, got {len(all_subtasks)}"
+    assert len(all_subtasks) == num_jobs, f"Expected {num_jobs} subtasks, got {len(all_subtasks)}"
     print(f"Verified {len(all_subtasks)} subtasks were created")
 
     # Test subtask assignment and completion
     completed_subtasks = []
-    for i in range(num_tasks):
+    for i in range(num_jobs):
         # Start a subtask
         subtask_id = subtask.start_subtask(
             project_name=project_name, user_id="test_user", db_session=db_session
@@ -158,9 +156,9 @@ def test_basic_task_workflow(test_environment, short_idle_timeout):
     completed_in_db = db_session.execute(completed_query).scalars().all()
 
     assert (
-        len(completed_in_db) == num_tasks
-    ), f"Expected {num_tasks} completed subtasks, got {len(completed_in_db)}"
-    print(f"Verified all {num_tasks} subtasks were completed")
+        len(completed_in_db) == num_jobs
+    ), f"Expected {num_jobs} completed subtasks, got {len(completed_in_db)}"
+    print(f"Verified all {num_jobs} subtasks were completed")
 
 
 def test_subtask_idle_takeover(test_environment, short_idle_timeout):
@@ -183,8 +181,8 @@ def test_subtask_idle_takeover(test_environment, short_idle_timeout):
     create_user(project_name=project_name, data=user1_data, db_session=db_session)
     create_user(project_name=project_name, data=user2_data, db_session=db_session)
 
-    # Create and ingest a task
-    create_test_tasks(project_name, 1, db_session)
+    # Create and ingest a job
+    create_test_jobs(project_name, 1, db_session)
     ingest_batch(
         project_name=project_name,
         batch_id="test_batch",
@@ -223,7 +221,7 @@ def test_multiple_users_concurrent_workflow(test_environment):
     """Test multiple users working on different subtasks concurrently"""
     project_name, db_session = test_environment
     num_users = 3
-    num_tasks = 6
+    num_jobs = 6
 
     # Create multiple users
     for i in range(num_users):
@@ -235,8 +233,8 @@ def test_multiple_users_concurrent_workflow(test_environment):
         )
         create_user(project_name=project_name, data=user_data, db_session=db_session)
 
-    # Create and ingest tasks
-    create_test_tasks(project_name, num_tasks, db_session)
+    # Create and ingest jobs
+    create_test_jobs(project_name, num_jobs, db_session)
     ingest_batch(
         project_name=project_name,
         batch_id="test_batch",
@@ -252,7 +250,7 @@ def test_multiple_users_concurrent_workflow(test_environment):
         user_id = f"worker_{user_idx}"
         completed_by_user[user_id] = []
 
-        # Each user completes 2 tasks
+        # Each user completes 2 jobs
         for _ in range(2):
             subtask_id = subtask.start_subtask(
                 project_name=project_name, user_id=user_id, db_session=db_session
@@ -280,7 +278,7 @@ def test_multiple_users_concurrent_workflow(test_environment):
                 completed_by_user[user_id].append(subtask_id)
                 print(f"{user_id} completed subtask {subtask_id}")
 
-    # Verify all tasks are completed
+    # Verify all jobs are completed
     completed_query = (
         select(SubtaskModel)
         .where(SubtaskModel.project_name == project_name)
@@ -289,17 +287,17 @@ def test_multiple_users_concurrent_workflow(test_environment):
     completed_subtasks = db_session.execute(completed_query).scalars().all()
 
     assert (
-        len(completed_subtasks) == num_tasks
-    ), f"Expected {num_tasks} completed subtasks, got {len(completed_subtasks)}"
+        len(completed_subtasks) == num_jobs
+    ), f"Expected {num_jobs} completed subtasks, got {len(completed_subtasks)}"
 
     # Verify each subtask was completed by exactly one user
     all_completed = []
     for user_completed in completed_by_user.values():
         all_completed.extend(user_completed)
 
-    assert len(all_completed) == num_tasks, "All tasks should be completed"
-    assert len(set(all_completed)) == num_tasks, "No task should be completed more than once"
+    assert len(all_completed) == num_jobs, "All jobs should be completed"
+    assert len(set(all_completed)) == num_jobs, "No job should be completed more than once"
 
-    print(f"Successfully completed {num_tasks} tasks across {num_users} users")
-    for user_id, tasks in completed_by_user.items():
-        print(f"  {user_id}: {len(tasks)} tasks")
+    print(f"Successfully completed {num_jobs} jobs across {num_users} users")
+    for user_id, jobs in completed_by_user.items():
+        print(f"  {user_id}: {len(jobs)} jobs")

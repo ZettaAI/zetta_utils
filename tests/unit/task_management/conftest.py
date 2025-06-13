@@ -4,10 +4,10 @@ from testcontainers.postgres import PostgresContainer
 
 from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base
+from zetta_utils.task_management.job import create_job
 from zetta_utils.task_management.subtask import create_subtask
 from zetta_utils.task_management.subtask_type import create_subtask_type
-from zetta_utils.task_management.task import create_task
-from zetta_utils.task_management.types import Subtask, SubtaskType, Task, User
+from zetta_utils.task_management.types import Job, Subtask, SubtaskType, User
 from zetta_utils.task_management.user import create_user
 
 
@@ -97,23 +97,23 @@ def existing_user(clean_db, db_session, project_name, sample_user):
 
 
 @pytest.fixture
-def sample_task() -> Task:
-    return Task(
+def sample_job() -> Job:
+    return Job(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "batch_id": "batch_1",
             "status": "pending_ingestion",
-            "task_type": "segmentation",
-            "ng_state": "http://example.com/task_1",
+            "job_type": "segmentation",
+            "ng_state": "http://example.com/job_1",
         }
     )
 
 
 @pytest.fixture
-def existing_task(db_session, project_name, sample_task):
-    """Fixture that creates a task in the database"""
-    create_task(project_name=project_name, data=sample_task, db_session=db_session)
-    return sample_task
+def existing_job(db_session, project_name, sample_job):
+    """Fixture that creates a job in the database"""
+    create_job(project_name=project_name, data=sample_job, db_session=db_session)
+    return sample_job
 
 
 @pytest.fixture
@@ -134,7 +134,7 @@ def existing_subtask_type(clean_db, db_session, project_name, sample_subtask_typ
 def sample_subtasks() -> list[Subtask]:
     return [
         {
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": f"subtask_{i}",
             "completion_status": "",
             "assigned_user_id": "",
@@ -154,9 +154,9 @@ def sample_subtasks() -> list[Subtask]:
 
 @pytest.fixture
 def existing_subtasks(
-    clean_db, db_session, project_name, sample_subtasks, existing_subtask_type, existing_task
+    clean_db, db_session, project_name, sample_subtasks, existing_subtask_type, existing_job
 ):
-    # Task is already created by existing_task fixture
+    # Job is already created by existing_job fixture
     for subtask in sample_subtasks:
         create_subtask(project_name=project_name, data=subtask, db_session=db_session)
     yield sample_subtasks
@@ -165,7 +165,7 @@ def existing_subtasks(
 @pytest.fixture
 def sample_subtask(existing_subtask_type) -> Subtask:
     return {
-        "task_id": "task_1",
+        "job_id": "job_1",
         "subtask_id": "subtask_1",
         "completion_status": "",
         "assigned_user_id": "",
@@ -183,44 +183,44 @@ def sample_subtask(existing_subtask_type) -> Subtask:
 
 @pytest.fixture
 def existing_subtask(
-    clean_db, db_session, project_name, existing_subtask_type, sample_subtask, existing_task
+    clean_db, db_session, project_name, existing_subtask_type, sample_subtask, existing_job
 ):
-    # Task is already created by existing_task fixture
+    # Job is already created by existing_job fixture
     create_subtask(project_name=project_name, data=sample_subtask, db_session=db_session)
     yield sample_subtask
 
 
 @pytest.fixture
-def task_factory(db_session, project_name):
-    """Factory fixture to create tasks with custom IDs"""
+def job_factory(db_session, project_name):
+    """Factory fixture to create jobs with custom IDs"""
 
-    def _create_task(task_id: str, batch_id: str | None = None, status: str = "ingested"):
+    def _create_job(job_id: str, batch_id: str | None = None, status: str = "ingested"):
         if batch_id is None:
-            batch_id = task_id.replace("task_", "batch_")
+            batch_id = job_id.replace("job_", "batch_")
 
-        task_data = Task(
+        job_data = Job(
             **{
-                "task_id": task_id,
+                "job_id": job_id,
                 "batch_id": batch_id,
                 "status": status,
-                "task_type": "segmentation",
-                "ng_state": f"http://example.com/{task_id}",
+                "job_type": "segmentation",
+                "ng_state": f"http://example.com/{job_id}",
             }
         )
-        create_task(project_name=project_name, data=task_data, db_session=db_session)
-        return task_data
+        create_job(project_name=project_name, data=job_data, db_session=db_session)
+        return job_data
 
-    return _create_task
+    return _create_job
 
 
 @pytest.fixture
 def subtask_factory(db_session, project_name, existing_subtask_type):
     """Factory fixture to create subtasks with custom IDs"""
 
-    def _create_subtask(task_id: str, subtask_id: str, **kwargs):
+    def _create_subtask(job_id: str, subtask_id: str, **kwargs):
         subtask_data = Subtask(
             **{
-                "task_id": task_id,
+                "job_id": job_id,
                 "subtask_id": subtask_id,
                 "completion_status": "",
                 "assigned_user_id": "",
@@ -229,7 +229,7 @@ def subtask_factory(db_session, project_name, existing_subtask_type):
                 "ng_state": f"http://example.com/{subtask_id}",
                 "ng_state_initial": f"http://example.com/{subtask_id}",
                 "priority": 1,
-                "batch_id": task_id.replace("task_", "batch_"),
+                "batch_id": job_id.replace("job_", "batch_"),
                 "subtask_type": existing_subtask_type["subtask_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,

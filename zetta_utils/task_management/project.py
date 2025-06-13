@@ -160,7 +160,14 @@ def create_project_tables(
     :param db_session: Optional database session (uses default session if None)
     """
     with get_session_context(db_session) as session:
-        create_project(project_name=project_name)
+        try:
+            create_project(project_name=project_name)
+        except ValueError as e:
+            if "already exists" in str(e):
+                # Project already exists, that's fine - just ensure tables exist
+                pass
+            else:
+                raise
         try:
             create_tables(session.bind)
         except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover

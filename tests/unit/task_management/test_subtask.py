@@ -34,7 +34,7 @@ def existing_priority_subtasks(clean_db, project_name, existing_subtask_type, db
     subtasks = [
         Subtask(
             **{
-                "task_id": "task_1",
+                "job_id": "job_1",
                 "subtask_id": f"subtask_{i}",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -100,7 +100,7 @@ def test_create_subtask_nonexistent_type(db_session, project_name):
     # Try to create a subtask with a nonexistent subtask type
     subtask_with_invalid_type = Subtask(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": "test_subtask",
             "assigned_user_id": "",
             "active_user_id": "",
@@ -129,7 +129,7 @@ def test_get_subtask_success(db_session, existing_subtask, project_name):
     """Test retrieving a subtask that exists"""
     result = get_subtask(project_name=project_name, subtask_id="subtask_1", db_session=db_session)
     assert result["subtask_id"] == existing_subtask["subtask_id"]
-    assert result["task_id"] == existing_subtask["task_id"]
+    assert result["job_id"] == existing_subtask["job_id"]
     assert result["completion_status"] == existing_subtask["completion_status"]
 
 
@@ -461,7 +461,7 @@ def test_create_subtask_duplicate_id(db_session, project_name, existing_subtask)
     # Try to create a subtask with the same ID as an existing one
     duplicate_subtask = Subtask(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": "subtask_1",  # This ID already exists
             "assigned_user_id": "",
             "active_user_id": "",
@@ -599,7 +599,7 @@ def test_start_subtask_user_already_has_active(
     # Create a second subtask
     second_subtask = Subtask(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": "subtask_2",
             "assigned_user_id": "",
             "active_user_id": "",
@@ -854,7 +854,7 @@ def test_start_subtask_user_not_qualified_for_specific_type(
 
     # Create a subtask with the existing subtask type (which user is not qualified for)
     test_subtask = Subtask(
-        task_id="task_1",
+        job_id="job_1",
         subtask_id="unqualified_subtask",
         assigned_user_id="",
         active_user_id="",
@@ -981,14 +981,14 @@ def test_auto_select_subtask_no_qualified_types(db_session, project_name, existi
 
 
 def test_auto_select_subtask_prioritizes_assigned_to_user(
-    db_session, project_name, existing_user, existing_subtask_type, task_factory, subtask_factory
+    db_session, project_name, existing_user, existing_subtask_type, job_factory, subtask_factory
 ):
-    task_factory("task_1")
+    job_factory("job_1")
 
-    subtask_factory("task_1", "assigned_subtask", assigned_user_id="test_user", priority=1)
+    subtask_factory("job_1", "assigned_subtask", assigned_user_id="test_user", priority=1)
 
     subtask_factory(
-        "task_1", "unassigned_subtask", assigned_user_id="", priority=10  # Higher priority
+        "job_1", "unassigned_subtask", assigned_user_id="", priority=10  # Higher priority
     )
 
     # Auto-select a subtask (by not specifying a subtask_id)
@@ -1050,7 +1050,7 @@ def test_release_subtask_no_active_subtask(db_session, project_name, existing_us
 
 
 def test_release_subtask_with_dependencies(
-    db_session, project_name, existing_subtask_type, task_factory, subtask_factory
+    db_session, project_name, existing_subtask_type, job_factory, subtask_factory
 ):
     """Test releasing a subtask with dependencies updates the dependent subtasks"""
     # Create a user
@@ -1062,11 +1062,11 @@ def test_release_subtask_with_dependencies(
     )
     create_user(project_name=project_name, data=user_data, db_session=db_session)
 
-    # Create task and subtasks using factory fixtures
-    task_factory("task_dep")
-    subtask_factory("task_dep", "subtask_dep_1", assigned_user_id="dep_test_user", is_active=True)
+    # Create job and subtasks using factory fixtures
+    job_factory("job_dep")
+    subtask_factory("job_dep", "subtask_dep_1", assigned_user_id="dep_test_user", is_active=True)
     subtask_factory(
-        "task_dep",
+        "job_dep",
         "subtask_dep_2",
         is_active=False,  # Initially inactive until dependency is satisfied
     )
@@ -1151,7 +1151,7 @@ def test_release_subtask_mismatched_id(db_session, project_name, existing_subtas
     # Create a second subtask
     subtask2 = Subtask(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": "subtask_2",
             "assigned_user_id": "",
             "active_user_id": "",

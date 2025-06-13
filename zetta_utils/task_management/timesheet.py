@@ -81,7 +81,7 @@ def submit_timesheet(
                     project_name=project_name,
                     entry_id=entry_id,
                     subtask_id=subtask_id,
-                    task_id=subtask_data["task_id"],
+                    job_id=subtask_data["job_id"],
                     user=user_id,
                     seconds_spent=int(duration_seconds),
                 )

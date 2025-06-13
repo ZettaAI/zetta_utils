@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 from zetta_utils.log import get_logger
 from zetta_utils.task_management.db.models import (
     DependencyModel,
+    JobModel,
     SubtaskModel,
-    TaskModel,
 )
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.utils import generate_id_nonunique
@@ -48,42 +48,42 @@ def get_available_structures() -> list[str]:  # pragma: no cover
 def create_subtask_structure(
     *,
     project_name: str,
-    task_id: str,
+    job_id: str,
     subtask_structure: str,
     subtask_structure_kwargs: Mapping[str, Any],
     priority: int = 1,
     db_session: Session | None = None,
 ) -> bool:
     """
-    Create a predefined subtask structure for a task.
+    Create a predefined subtask structure for a job.
 
     :param project_name: The name of the project
-    :param task_id: The ID of the task
+    :param job_id: The ID of the job
     :param subtask_structure: The name of the subtask structure to create
     :param subtask_structure_kwargs: Keyword arguments for the subtask structure
     :param priority: The priority of the subtask
     :param db_session: Database session to use (optional)
     :return: True if successful
     :raises ValueError: If the subtask structure is not registered
-    :raises KeyError: If the task does not exist
+    :raises KeyError: If the job does not exist
     :raises RuntimeError: If the database operation fails
     """
     with get_session_context(db_session) as session:
-        logger.info(f"Creating atomic subtask structure '{subtask_structure}' for task {task_id}")
+        logger.info(f"Creating atomic subtask structure '{subtask_structure}' for job {job_id}")
         suffix = generate_slug(4)
 
-        # ATOMIC BULK OPERATION: Lock the task and create all subtasks/dependencies atomically
+        # ATOMIC BULK OPERATION: Lock the job and create all subtasks/dependencies atomically
         try:
-            # Lock the task to prevent concurrent modifications
-            task_lock_query = (
-                select(TaskModel)
-                .where(TaskModel.project_name == project_name)
-                .where(TaskModel.task_id == task_id)
+            # Lock the job to prevent concurrent modifications
+            job_lock_query = (
+                select(JobModel)
+                .where(JobModel.project_name == project_name)
+                .where(JobModel.job_id == job_id)
                 .with_for_update()
             )
-            locked_task = session.execute(task_lock_query).scalar_one()
-            task_data = locked_task.to_dict()
-            ng_state = task_data["ng_state"]
+            locked_job = session.execute(job_lock_query).scalar_one()
+            job_data = locked_job.to_dict()
+            ng_state = job_data["ng_state"]
 
             if subtask_structure not in _SUBTASK_STRUCTURES:
                 raise ValueError(f"Subtask structure '{subtask_structure}' is not registered")
@@ -91,26 +91,26 @@ def create_subtask_structure(
             structure_func = _SUBTASK_STRUCTURES[subtask_structure]
 
             # Call the structure function to create all subtasks and dependencies
-            # This happens within the same transaction as the task lock
+            # This happens within the same transaction as the job lock
             # Any errors here (like missing subtask types) will cause rollback
             structure_func(
                 db_session=session,
                 project_name=project_name,
-                task_id=task_id,
-                batch_id=task_data["batch_id"],
+                job_id=job_id,
+                batch_id=job_data["batch_id"],
                 ng_state=ng_state,
                 priority=priority,
                 suffix=suffix,
                 **subtask_structure_kwargs,
             )
 
-            # Update task status to ingested atomically
-            locked_task.status = "ingested"
+            # Update job status to ingested atomically
+            locked_job.status = "ingested"
 
             # Commit all changes atomically - if this fails, everything rolls back
             session.commit()
             logger.info(
-                f"Successfully created subtask structure '{subtask_structure}' for task {task_id}"
+                f"Successfully created subtask structure '{subtask_structure}' for job {job_id}"
             )
 
             return True
@@ -118,7 +118,7 @@ def create_subtask_structure(
         except Exception as e:
             session.rollback()
             logger.error(
-                f"Failed to create subtask structure '{subtask_structure}' for task {task_id}: {e}"
+                f"Failed to create subtask structure '{subtask_structure}' for job {job_id}: {e}"
             )
             raise RuntimeError(f"Failed to create subtask structure: {e}") from e
 
@@ -127,7 +127,7 @@ def create_subtask_structure(
 def segmentation_proofread_simple(
     db_session: Session,
     project_name: str,
-    task_id: str,
+    job_id: str,
     batch_id: str,
     ng_state: str,
     priority: int,
@@ -141,7 +141,7 @@ def segmentation_proofread_simple(
 
     :param db_session: Database session to use
     :param project_name: Project name
-    :param task_id: Task ID
+    :param job_id: Job ID
     :param batch_id: Batch ID
     :param ng_state: The ng_state for the subtask
     :param priority: The priority of the subtask
@@ -150,18 +150,18 @@ def segmentation_proofread_simple(
     id_suffix = f"_{suffix}"
 
     # Create base IDs for subtasks and dependencies
-    proofread_id = f"{task_id}_proofread{id_suffix}"
-    verify_id = f"{task_id}_verify{id_suffix}"
-    expert_id = f"{task_id}_proofread_expert{id_suffix}"
-    dep_verify_id = f"{task_id}_dep_verify{id_suffix}"
-    dep_expert_id = f"{task_id}_dep_expert{id_suffix}"
+    proofread_id = f"{job_id}_proofread{id_suffix}"
+    verify_id = f"{job_id}_verify{id_suffix}"
+    expert_id = f"{job_id}_proofread_expert{id_suffix}"
+    dep_verify_id = f"{job_id}_dep_verify{id_suffix}"
+    dep_expert_id = f"{job_id}_dep_expert{id_suffix}"
 
     # 1. Create segmentation_proofread subtask (active)
     print("Creating segmentation_proofread subtask")
     proofread_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=proofread_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -182,7 +182,7 @@ def segmentation_proofread_simple(
     verify_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=verify_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -203,7 +203,7 @@ def segmentation_proofread_simple(
     expert_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=expert_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -248,7 +248,7 @@ def segmentation_proofread_simple(
 def segmentation_proofread_simple_1pass(
     db_session: Session,
     project_name: str,
-    task_id: str,
+    job_id: str,
     batch_id: str,
     ng_state: str,
     priority: int,
@@ -259,7 +259,7 @@ def segmentation_proofread_simple_1pass(
 
     :param db_session: Database session to use
     :param project_name: Project name
-    :param task_id: Task ID
+    :param job_id: Job ID
     :param batch_id: Batch ID
     :param ng_state: The ng_state for the subtask
     :param priority: The priority of the subtask
@@ -268,14 +268,14 @@ def segmentation_proofread_simple_1pass(
     id_suffix = f"_{suffix}"
 
     # Create base IDs for subtasks
-    proofread_id = f"{task_id}_proofread{id_suffix}"
+    proofread_id = f"{job_id}_proofread{id_suffix}"
 
     # Create segmentation_proofread subtask (active)
     print("Creating segmentation_proofread subtask")
     proofread_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=proofread_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -296,7 +296,7 @@ def segmentation_proofread_simple_1pass(
 def segmentation_proofread_two_path(
     db_session: Session,
     project_name: str,
-    task_id: str,
+    job_id: str,
     batch_id: str,
     ng_state: str,
     priority: int,
@@ -308,7 +308,7 @@ def segmentation_proofread_two_path(
 
     :param db_session: Database session to use
     :param project_name: Project name
-    :param task_id: Task ID
+    :param job_id: Job ID
     :param batch_id: Batch ID
     :param ng_state: The ng_state for the subtask
     :param priority: The priority of the subtask
@@ -334,18 +334,18 @@ def segmentation_proofread_two_path(
     ng_state_validation_str = json.dumps(ng_state_validation)
 
     # Create base IDs for subtasks and dependencies
-    proofread_id = f"{task_id}_proofread{id_suffix}"
-    verify_id = f"{task_id}_verify{id_suffix}"
-    expert_id = f"{task_id}_proofread_expert{id_suffix}"
-    dep_verify_id = f"{task_id}_dep_verify{id_suffix}"
-    dep_expert_id = f"{task_id}_dep_expert{id_suffix}"
+    proofread_id = f"{job_id}_proofread{id_suffix}"
+    verify_id = f"{job_id}_verify{id_suffix}"
+    expert_id = f"{job_id}_proofread_expert{id_suffix}"
+    dep_verify_id = f"{job_id}_dep_verify{id_suffix}"
+    dep_expert_id = f"{job_id}_dep_expert{id_suffix}"
 
     # 1. Create segmentation_proofread subtask (active)
     print("Creating segmentation_proofread subtask")
     proofread_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=proofread_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -366,7 +366,7 @@ def segmentation_proofread_two_path(
     verify_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=verify_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",
@@ -387,7 +387,7 @@ def segmentation_proofread_two_path(
     expert_subtask = SubtaskModel(
         project_name=project_name,
         subtask_id=expert_id,
-        task_id=task_id,
+        job_id=job_id,
         assigned_user_id="",
         active_user_id="",
         completed_user_id="",

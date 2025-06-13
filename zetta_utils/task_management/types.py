@@ -16,7 +16,7 @@ class UserUpdate(TypedDict, total=False):
 
 
 class Subtask(TypedDict):
-    task_id: str
+    job_id: str
     subtask_id: str
     completion_status: str  # Changed from status
     assigned_user_id: str  # Empty string when unassigned
@@ -33,7 +33,7 @@ class Subtask(TypedDict):
 
 
 class SubtaskUpdate(TypedDict, total=False):
-    task_id: str
+    job_id: str
     subtask_id: str
     completion_status: str
     assigned_user_id: str
@@ -50,7 +50,7 @@ class SubtaskUpdate(TypedDict, total=False):
 
 class Timesheet(TypedDict):
     entry_id: str
-    task_id: str
+    job_id: str
     subtask_id: str
     user: str
     seconds_spent: int
@@ -90,23 +90,23 @@ class SubtaskTypeUpdate(TypedDict, total=False):
     description: str
 
 
-class Task(TypedDict):
-    """A task that contains subtasks."""
+class Job(TypedDict):
+    """A job that contains subtasks."""
 
-    task_id: str
+    job_id: str
     batch_id: str
     status: str
-    task_type: str
+    job_type: str
     ng_state: str
 
 
-class TaskUpdate(TypedDict, total=False):
-    """Update type for tasks."""
+class JobUpdate(TypedDict, total=False):
+    """Update type for jobs."""
 
     status: str
     batch_id: str
     ng_state: str
-    task_type: str
+    job_type: str
 
 
 class TimesheetEntry(TypedDict):

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base, TimesheetModel
 from zetta_utils.task_management.dependency import create_dependency
+from zetta_utils.task_management.job import create_job, get_job
 from zetta_utils.task_management.subtask import (
     _handle_subtask_completion,
     create_subtask,
@@ -17,13 +18,12 @@ from zetta_utils.task_management.subtask import (
     unpause_subtask,
 )
 from zetta_utils.task_management.subtask_type import create_subtask_type
-from zetta_utils.task_management.task import create_task, get_task
 from zetta_utils.task_management.timesheet import submit_timesheet
 from zetta_utils.task_management.types import (
     Dependency,
+    Job,
     Subtask,
     SubtaskType,
-    Task,
     User,
     UserUpdate,
 )
@@ -36,10 +36,10 @@ def setup_simple_scenario(db_session, project_name):
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=db_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="t", batch_id="b", status="ingested", task_type="test", ng_state="http://x"
+        data=Job(
+            job_id="j", batch_id="b", status="ingested", job_type="test", ng_state="http://x"
         ),
         db_session=db_session,
     )
@@ -48,7 +48,7 @@ def setup_simple_scenario(db_session, project_name):
         create_subtask(
             project_name=project_name,
             data=Subtask(
-                task_id="t",
+                job_id="j",
                 subtask_id=letter,
                 assigned_user_id="",
                 active_user_id="",
@@ -87,13 +87,13 @@ def setup_takeover_scenario(db_session, project_name):
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=db_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="takeover_task",
+        data=Job(
+            job_id="takeover_job",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=db_session,
@@ -116,7 +116,7 @@ def setup_takeover_scenario(db_session, project_name):
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="takeover_task",
+            job_id="takeover_job",
             subtask_id="idle_subtask",
             assigned_user_id="",
             active_user_id="user_1",
@@ -149,13 +149,13 @@ def setup_timesheet_scenario(db_session, project_name):
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=db_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="timesheet_task",
+        data=Job(
+            job_id="timesheet_job",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=db_session,
@@ -177,7 +177,7 @@ def setup_timesheet_scenario(db_session, project_name):
         create_subtask(
             project_name=project_name,
             data=Subtask(
-                task_id="timesheet_task",
+                job_id="timesheet_job",
                 subtask_id=f"timesheet_subtask_{i}",
                 assigned_user_id="",
                 active_user_id=f"timesheet_user_{i}",
@@ -471,13 +471,13 @@ def test_auto_selection_race_condition(
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=postgres_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="auto_task",
+        data=Job(
+            job_id="auto_task",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=postgres_session,
@@ -498,7 +498,7 @@ def test_auto_selection_race_condition(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="auto_task",
+            job_id="auto_task",
             subtask_id="available_subtask",
             assigned_user_id="",
             active_user_id="",
@@ -561,13 +561,13 @@ def test_task_completion_race_condition(
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=postgres_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="completion_task",
+        data=Job(
+            job_id="completion_task",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=postgres_session,
@@ -598,7 +598,7 @@ def test_task_completion_race_condition(
         create_subtask(
             project_name=project_name,
             data=Subtask(
-                task_id="completion_task",
+                job_id="completion_task",
                 subtask_id=f"completion_subtask_{i}",
                 assigned_user_id="",
                 active_user_id=f"completion_user_{i}",
@@ -630,12 +630,12 @@ def test_task_completion_race_condition(
         len(successes) == 2
     ), f"Expected 2 successful completions, got {len(successes)}: {results}"
 
-    final_task = get_task(
-        project_name=project_name, task_id="completion_task", db_session=postgres_session
+    final_job = get_job(
+        project_name=project_name, job_id="completion_task", db_session=postgres_session
     )
     assert (
-        final_task["status"] == "fully_processed"
-    ), f"Task should be fully_processed, got {final_task['status']}"
+        final_job["status"] == "fully_processed"
+    ), f"Job should be fully_processed, got {final_job['status']}"
 
 
 def test_pause_unpause_subtask_functionality(
@@ -646,13 +646,13 @@ def test_pause_unpause_subtask_functionality(
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=postgres_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="pause_task",
+        data=Job(
+            job_id="pause_task",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=postgres_session,
@@ -672,7 +672,7 @@ def test_pause_unpause_subtask_functionality(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="pause_task",
+            job_id="pause_task",
             subtask_id="pausable_subtask",
             assigned_user_id="",
             active_user_id="",
@@ -779,13 +779,13 @@ def test_pause_unpause_race_condition(
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=postgres_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="race_pause_task",
+        data=Job(
+            job_id="race_pause_task",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=postgres_session,
@@ -794,7 +794,7 @@ def test_pause_unpause_race_condition(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="race_pause_task",
+            job_id="race_pause_task",
             subtask_id="race_pause_subtask",
             assigned_user_id="",
             active_user_id="",
@@ -846,13 +846,13 @@ def test_paused_subtasks_excluded_from_auto_selection_comprehensive(
         data=SubtaskType(subtask_type="test", completion_statuses=["done"]),
         db_session=postgres_session,
     )
-    create_task(
+    create_job(
         project_name=project_name,
-        data=Task(
-            task_id="auto_select_task",
+        data=Job(
+            job_id="auto_select_task",
             batch_id="b",
             status="ingested",
-            task_type="test",
+            job_type="test",
             ng_state="http://x",
         ),
         db_session=postgres_session,
@@ -872,7 +872,7 @@ def test_paused_subtasks_excluded_from_auto_selection_comprehensive(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="auto_select_task",
+            job_id="auto_select_task",
             subtask_id="assigned_subtask",
             assigned_user_id="auto_user",
             active_user_id="",
@@ -892,7 +892,7 @@ def test_paused_subtasks_excluded_from_auto_selection_comprehensive(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="auto_select_task",
+            job_id="auto_select_task",
             subtask_id="unassigned_subtask",
             assigned_user_id="",
             active_user_id="",
@@ -913,7 +913,7 @@ def test_paused_subtasks_excluded_from_auto_selection_comprehensive(
     create_subtask(
         project_name=project_name,
         data=Subtask(
-            task_id="auto_select_task",
+            job_id="auto_select_task",
             subtask_id="idle_subtask",
             assigned_user_id="",
             active_user_id="other_user",

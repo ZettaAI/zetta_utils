@@ -1,17 +1,17 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import pytest
 
-from zetta_utils.task_management.ingestion import ingest_batch, ingest_task
+from zetta_utils.task_management.ingestion import ingest_batch, ingest_job
+from zetta_utils.task_management.job import create_job, get_job, update_job
 from zetta_utils.task_management.subtask import create_subtask
-from zetta_utils.task_management.task import create_task, get_task, update_task
-from zetta_utils.task_management.types import Subtask, Task
+from zetta_utils.task_management.types import Job, Subtask
 
 
 def sample_subtasks(existing_subtask_type) -> list[Subtask]:
     return [
         Subtask(
             **{
-                "task_id": f"task_{i}",
+                "job_id": f"job_{i}",
                 "subtask_id": f"subtask_{i}",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -37,11 +37,11 @@ def existing_subtasks(clean_db, project_name, db_session, sample_subtasks):
     yield sample_subtasks
 
 
-def test_ingest_task(clean_db, project_name, db_session, existing_task, existing_subtask_type):
+def test_ingest_job(clean_db, project_name, db_session, existing_job, existing_subtask_type):
     """Test ingesting a task"""
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="task_1",
+        job_id="job_1",
         subtask_structure="segmentation_proofread_1pass",
         priority=2,
         subtask_structure_kwargs={},
@@ -49,26 +49,26 @@ def test_ingest_task(clean_db, project_name, db_session, existing_task, existing
     )
     assert result is True
 
-    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
-    assert task["status"] == "ingested"
+    job = get_job(project_name=project_name, job_id="job_1", db_session=db_session)
+    assert job["status"] == "ingested"
 
 
-def test_ingest_task_already_ingested(
-    clean_db, project_name, db_session, existing_task, existing_subtask_type
+def test_ingest_job_already_ingested(
+    clean_db, project_name, db_session, existing_job, existing_subtask_type
 ):
     """Test that ingesting an already ingested task returns False"""
-    ingest_task(
+    ingest_job(
         project_name=project_name,
-        task_id="task_1",
+        job_id="job_1",
         subtask_structure="segmentation_proofread_1pass",
         priority=2,
         subtask_structure_kwargs={},
         db_session=db_session,
     )
 
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="task_1",
+        job_id="job_1",
         subtask_structure="segmentation_proofread_1pass",
         priority=2,
         subtask_structure_kwargs={},
@@ -77,22 +77,22 @@ def test_ingest_task_already_ingested(
     assert result is False
 
 
-def test_ingest_task_re_ingest(
-    clean_db, project_name, db_session, existing_task, existing_subtask_type
+def test_ingest_job_re_ingest(
+    clean_db, project_name, db_session, existing_job, existing_subtask_type
 ):
     """Test re-ingesting a task"""
-    ingest_task(
+    ingest_job(
         project_name=project_name,
-        task_id="task_1",
+        job_id="job_1",
         subtask_structure="segmentation_proofread_1pass",
         priority=2,
         subtask_structure_kwargs={},
         db_session=db_session,
     )
 
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="task_1",
+        job_id="job_1",
         subtask_structure="segmentation_proofread_1pass",
         re_ingest="not_processed",
         priority=2,
@@ -103,22 +103,22 @@ def test_ingest_task_re_ingest(
 
 
 def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type):
-    """Test ingesting a batch of tasks"""
-    tasks = [
-        Task(
+    """Test ingesting a batch of jobs"""
+    jobs = [
+        Job(
             **{
-                "task_id": f"task_{i}",
+                "job_id": f"job_{i}",
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
-                "task_type": "segmentation",
-                "ng_state": f"http://example.com/task_{i}",
+                "job_type": "segmentation",
+                "ng_state": f"http://example.com/job_{i}",
             }
         )
         for i in range(1, 4)
     ]
 
-    for task in tasks:
-        create_task(project_name=project_name, data=task, db_session=db_session)
+    for job in jobs:
+        create_job(project_name=project_name, data=job, db_session=db_session)
 
     result = ingest_batch(
         project_name=project_name,
@@ -130,26 +130,26 @@ def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type)
     assert result is True
 
     for i in range(1, 4):
-        task = get_task(project_name=project_name, task_id=f"task_{i}", db_session=db_session)
-        assert task["status"] == "ingested"
+        job = get_job(project_name=project_name, job_id=f"job_{i}", db_session=db_session)
+        assert job["status"] == "ingested"
 
 
 def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_subtask_type):
-    tasks = [
-        Task(
+    jobs = [
+        Job(
             **{
-                "task_id": f"task_{i}",
+                "job_id": f"job_{i}",
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
-                "task_type": "segmentation",
-                "ng_state": f"http://example.com/task_{i}",
+                "job_type": "segmentation",
+                "ng_state": f"http://example.com/job_{i}",
             }
         )
         for i in range(1, 4)
     ]
 
-    for task in tasks:
-        create_task(project_name=project_name, data=task, db_session=db_session)
+    for job in jobs:
+        create_job(project_name=project_name, data=job, db_session=db_session)
 
     ingest_batch(
         project_name=project_name,
@@ -159,9 +159,9 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
         db_session=db_session,
     )
 
-    update_task(
+    update_job(
         project_name=project_name,
-        task_id="task_3",
+        job_id="job_3",
         data={"status": "fully_processed"},
         db_session=db_session,
     )
@@ -175,17 +175,17 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
         db_session=db_session,
     )
     assert result is True
-    # Check that task_1 and task_2 were re-ingested (they were in 'ingested' state)
-    task_1 = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
-    task_2 = get_task(project_name=project_name, task_id="task_2", db_session=db_session)
-    assert task_1["status"] == "ingested"
-    assert task_2["status"] == "ingested"
+    # Check that job_1 and job_2 were re-ingested (they were in 'ingested' state)
+    job_1 = get_job(project_name=project_name, job_id="job_1", db_session=db_session)
+    job_2 = get_job(project_name=project_name, job_id="job_2", db_session=db_session)
+    assert job_1["status"] == "ingested"
+    assert job_2["status"] == "ingested"
 
-    # Check that task_3 was not re-ingested (it was in 'fully_processed' state)
-    task_3 = get_task(project_name=project_name, task_id="task_3", db_session=db_session)
-    assert task_3["status"] == "fully_processed"
+    # Check that job_3 was not re-ingested (it was in 'fully_processed' state)
+    job_3 = get_job(project_name=project_name, job_id="job_3", db_session=db_session)
+    assert job_3["status"] == "fully_processed"
 
-    # Test re-ingesting all tasks including fully_processed
+    # Test re-ingesting all jobs including fully_processed
     result = ingest_batch(
         project_name=project_name,
         batch_id="batch_1",
@@ -196,17 +196,17 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
     )
     assert result is True
 
-    # Verify all tasks were re-ingested including task_3
-    task_3 = get_task(project_name=project_name, task_id="task_3", db_session=db_session)
-    assert task_3["status"] == "ingested"
+    # Verify all jobs were re-ingested including job_3
+    job_3 = get_job(project_name=project_name, job_id="job_3", db_session=db_session)
+    assert job_3["status"] == "ingested"
 
 
-def test_ingest_task_nonexistent(clean_db, project_name, db_session):
-    """Test that ingesting a nonexistent task raises KeyError"""
-    with pytest.raises(KeyError, match="Tasks not found: task_nonexistent"):
-        ingest_task(
+def test_ingest_job_nonexistent(clean_db, project_name, db_session):
+    """Test that ingesting a nonexistent job raises KeyError"""
+    with pytest.raises(KeyError, match="Jobs not found: job_nonexistent"):
+        ingest_job(
             project_name=project_name,
-            task_id="task_nonexistent",
+            job_id="job_nonexistent",
             subtask_structure="segmentation_proofread_1pass",
             priority=2,
             subtask_structure_kwargs={},
@@ -214,24 +214,24 @@ def test_ingest_task_nonexistent(clean_db, project_name, db_session):
         )
 
 
-def test_ingest_task_fully_processed_no_reingest(
+def test_ingest_job_fully_processed_no_reingest(
     clean_db, project_name, db_session, existing_subtask_type
 ):
-    """Test that ingesting a fully processed task without re_ingest returns False"""
-    task_data = Task(
+    """Test that ingesting a fully processed job without re_ingest returns False"""
+    job_data = Job(
         **{
-            "task_id": "fully_processed_task",
+            "job_id": "fully_processed_job",
             "batch_id": "batch_1",
             "status": "fully_processed",
-            "task_type": "segmentation",
-            "ng_state": "http://example.com/fully_processed_task",
+            "job_type": "segmentation",
+            "ng_state": "http://example.com/fully_processed_job",
         }
     )
-    create_task(project_name=project_name, data=task_data, db_session=db_session)
+    create_job(project_name=project_name, data=job_data, db_session=db_session)
 
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="fully_processed_task",
+        job_id="fully_processed_job",
         subtask_structure="segmentation_proofread_1pass",
         priority=2,
         subtask_structure_kwargs={},
@@ -239,9 +239,9 @@ def test_ingest_task_fully_processed_no_reingest(
     )
     assert result is False
 
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="fully_processed_task",
+        job_id="fully_processed_job",
         subtask_structure="segmentation_proofread_1pass",
         re_ingest="not_processed",
         priority=2,
@@ -250,9 +250,9 @@ def test_ingest_task_fully_processed_no_reingest(
     )
     assert result is False
 
-    result = ingest_task(
+    result = ingest_job(
         project_name=project_name,
-        task_id="fully_processed_task",
+        job_id="fully_processed_job",
         subtask_structure="segmentation_proofread_1pass",
         re_ingest="all",
         priority=2,
@@ -263,7 +263,7 @@ def test_ingest_task_fully_processed_no_reingest(
 
 
 def test_ingest_batch_no_tasks(clean_db, project_name, db_session):
-    """Test that ingesting a batch with no tasks returns False"""
+    """Test that ingesting a batch with no jobs returns False"""
     result = ingest_batch(
         project_name=project_name,
         batch_id="nonexistent_batch",
@@ -275,19 +275,19 @@ def test_ingest_batch_no_tasks(clean_db, project_name, db_session):
     assert result is False
 
 
-def test_ingest_batch_no_matching_tasks(clean_db, project_name, db_session):
-    """Test that ingesting a batch with no matching tasks returns False"""
+def test_ingest_batch_no_matching_jobs(clean_db, project_name, db_session):
+    """Test that ingesting a batch with no matching jobs returns False"""
     for i in range(1, 4):
-        task_data = Task(
+        job_data = Job(
             **{
-                "task_id": f"task_{i}",
+                "job_id": f"job_{i}",
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
-                "task_type": "segmentation",
-                "ng_state": f"http://example.com/task_{i}",
+                "job_type": "segmentation",
+                "ng_state": f"http://example.com/job_{i}",
             }
         )
-        create_task(project_name=project_name, data=task_data, db_session=db_session)
+        create_job(project_name=project_name, data=job_data, db_session=db_session)
 
     result = ingest_batch(
         project_name=project_name,
@@ -300,8 +300,8 @@ def test_ingest_batch_no_matching_tasks(clean_db, project_name, db_session):
     assert result is False
 
 
-def test_ingest_tasks_database_failure(
-    clean_db, project_name, db_session, existing_task, existing_subtask_type, mocker
+def test_ingest_jobs_database_failure(
+    clean_db, project_name, db_session, existing_job, existing_subtask_type, mocker
 ):
     """Test that ingestion handles database failures gracefully"""
     # Mock the commit to raise an exception
@@ -310,11 +310,11 @@ def test_ingest_tasks_database_failure(
     mock_commit.side_effect = Exception("Database connection lost")
 
     with pytest.raises(
-        RuntimeError, match="Failed to ingest task bundle: Database connection lost"
+        RuntimeError, match="Failed to ingest job bundle: Database connection lost"
     ):
-        ingest_task(
+        ingest_job(
             project_name=project_name,
-            task_id="task_1",
+            job_id="job_1",
             subtask_structure="segmentation_proofread_1pass",
             priority=2,
             subtask_structure_kwargs={},

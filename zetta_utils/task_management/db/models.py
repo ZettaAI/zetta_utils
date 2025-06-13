@@ -111,49 +111,49 @@ class UserModel(Base):
         )
 
 
-class TaskModel(Base):
+class JobModel(Base):
     """
-    SQLAlchemy model for the tasks table.
+    SQLAlchemy model for the jobs table.
     """
 
-    __tablename__ = "tasks"
+    __tablename__ = "jobs"
 
-    # Composite primary key of project_name and task_id
+    # Composite primary key of project_name and job_id
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
-    task_id: Mapped[str] = mapped_column(String, primary_key=True)
+    job_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
     batch_id: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    job_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     ng_state: Mapped[str] = mapped_column(String, nullable=False)
     id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     # Additional indexes for performance
     __table_args__ = (
-        Index("idx_tasks_project_batch", "project_name", "batch_id"),
-        Index("idx_tasks_project_status", "project_name", "status"),
+        Index("idx_jobs_project_batch", "project_name", "batch_id"),
+        Index("idx_jobs_project_status", "project_name", "status"),
     )
 
     def to_dict(self) -> dict:
-        """Convert the model to a dictionary matching the Task TypedDict structure"""
+        """Convert the model to a dictionary matching the Job TypedDict structure"""
         return {
-            "task_id": self.task_id,
+            "job_id": self.job_id,
             "batch_id": self.batch_id,
             "status": self.status,
-            "task_type": self.task_type,
+            "job_type": self.job_type,
             "ng_state": self.ng_state,
         }
 
     @classmethod
-    def from_dict(cls, project_name: str, data: dict) -> "TaskModel":
+    def from_dict(cls, project_name: str, data: dict) -> "JobModel":
         """Create a model instance from a dictionary"""
         return cls(
             project_name=project_name,
-            task_id=data["task_id"],
+            job_id=data["job_id"],
             batch_id=data["batch_id"],
             status=data["status"],
-            task_type=data["task_type"],
+            job_type=data["job_type"],
             ng_state=data["ng_state"],
             id_nonunique=data.get("id_nonunique"),
         )
@@ -223,7 +223,7 @@ class TimesheetModel(Base):
     entry_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    task_id: Mapped[str] = mapped_column(String, nullable=False)
+    job_id: Mapped[str] = mapped_column(String, nullable=False)
     subtask_id: Mapped[str] = mapped_column(String, nullable=False)
     user: Mapped[str] = mapped_column(
         String, nullable=False
@@ -234,14 +234,14 @@ class TimesheetModel(Base):
     __table_args__ = (
         Index("idx_timesheet_project_subtask", "project_name", "subtask_id"),
         Index("idx_timesheet_project_user", "project_name", "user"),
-        Index("idx_timesheet_project_task", "project_name", "task_id"),
+        Index("idx_timesheet_project_job", "project_name", "job_id"),
     )
 
     def to_dict(self) -> dict:
         """Convert the model to a dictionary matching the Timesheet TypedDict structure"""
         return {
             "entry_id": self.entry_id,
-            "task_id": self.task_id,
+            "job_id": self.job_id,
             "subtask_id": self.subtask_id,
             "user": self.user,
             "seconds_spent": self.seconds_spent,
@@ -253,7 +253,7 @@ class TimesheetModel(Base):
         return cls(
             project_name=project_name,
             entry_id=data["entry_id"],
-            task_id=data["task_id"],
+            job_id=data["job_id"],
             subtask_id=data["subtask_id"],
             user=data["user"],
             seconds_spent=data["seconds_spent"],
@@ -272,7 +272,7 @@ class SubtaskModel(Base):
     subtask_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    task_id: Mapped[str] = mapped_column(String, nullable=False)
+    job_id: Mapped[str] = mapped_column(String, nullable=False)
     completion_status: Mapped[str] = mapped_column(String, nullable=False, default="")
     assigned_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
     active_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
@@ -290,7 +290,7 @@ class SubtaskModel(Base):
     # Performance indexes for common query patterns
     __table_args__ = (
         # Basic lookup indexes
-        Index("idx_subtasks_project_task", "project_name", "task_id"),
+        Index("idx_subtasks_project_job", "project_name", "job_id"),
         Index("idx_subtasks_project_assigned_user", "project_name", "assigned_user_id"),
         Index("idx_subtasks_project_active_user", "project_name", "active_user_id"),
         Index("idx_subtasks_project_type_priority", "project_name", "subtask_type", "priority"),
@@ -333,7 +333,7 @@ class SubtaskModel(Base):
         """Convert the model to a dictionary matching the Subtask TypedDict structure"""
         return {
             "subtask_id": self.subtask_id,
-            "task_id": self.task_id,
+            "job_id": self.job_id,
             "completion_status": self.completion_status,
             "assigned_user_id": self.assigned_user_id,
             "active_user_id": self.active_user_id,
@@ -354,7 +354,7 @@ class SubtaskModel(Base):
         return cls(
             project_name=project_name,
             subtask_id=data["subtask_id"],
-            task_id=data["task_id"],
+            job_id=data["job_id"],
             completion_status=data.get("completion_status", ""),
             assigned_user_id=data.get("assigned_user_id", ""),
             active_user_id=data.get("active_user_id", ""),

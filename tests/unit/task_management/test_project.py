@@ -2,6 +2,7 @@
 import pytest
 
 from zetta_utils.task_management.db.models import ProjectModel
+from zetta_utils.task_management.job import create_job
 from zetta_utils.task_management.project import (
     create_project,
     create_project_tables,
@@ -10,8 +11,7 @@ from zetta_utils.task_management.project import (
     list_all_projects,
     project_exists,
 )
-from zetta_utils.task_management.task import create_task
-from zetta_utils.task_management.types import Task, User
+from zetta_utils.task_management.types import Job, User
 from zetta_utils.task_management.user import create_user
 
 
@@ -64,15 +64,15 @@ def test_get_project_found_in_other_tables(project_name, clean_db, db_session):
     # Create the project first
     create_project(project_name=project_name, description="Test project", db_session=db_session)
 
-    # Create a task (which will create project data in tasks table)
-    task_data: Task = {
-        "task_id": "test_task",
+    # Create a job (which will create project data in jobs table)
+    job_data: Job = {
+        "job_id": "test_job",
         "batch_id": "batch_1",
         "status": "pending_ingestion",
-        "task_type": "segmentation",
-        "ng_state": "http://example.com/test_task",
+        "job_type": "segmentation",
+        "ng_state": "http://example.com/test_job",
     }
-    create_task(project_name=project_name, data=task_data, db_session=db_session)
+    create_job(project_name=project_name, data=job_data, db_session=db_session)
 
     # Now get_project should find the project
     project = get_project(project_name=project_name, db_session=db_session)
@@ -86,15 +86,15 @@ def test_get_project_with_table_exception_handling(project_name, clean_db, db_se
     # Create the project first so it exists in the ProjectModel table
     create_project(project_name=project_name, description="Test project", db_session=db_session)
 
-    # Create a task so project exists in the tasks table
-    task_data: Task = {
-        "task_id": "test_task",
+    # Create a job so project exists in the jobs table
+    job_data: Job = {
+        "job_id": "test_job",
         "batch_id": "batch_1",
         "status": "pending_ingestion",
-        "task_type": "segmentation",
-        "ng_state": "http://example.com/test_task",
+        "job_type": "segmentation",
+        "ng_state": "http://example.com/test_job",
     }
-    create_task(project_name=project_name, data=task_data, db_session=db_session)
+    create_job(project_name=project_name, data=job_data, db_session=db_session)
 
     # This should succeed because the project exists in ProjectModel table
     project = get_project(project_name=project_name, db_session=db_session)

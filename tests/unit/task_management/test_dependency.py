@@ -29,7 +29,7 @@ def sample_subtasks() -> list[Subtask]:
     return [
         Subtask(
             **{
-                "task_id": "task_1",
+                "job_id": "job_1",
                 "subtask_id": "subtask_1",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -46,7 +46,7 @@ def sample_subtasks() -> list[Subtask]:
         ),
         Subtask(
             **{
-                "task_id": "task_1",
+                "job_id": "job_1",
                 "subtask_id": "subtask_2",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -66,10 +66,10 @@ def sample_subtasks() -> list[Subtask]:
 
 @pytest.fixture
 def existing_subtasks(
-    project_name, existing_subtask_type, sample_subtasks, db_session, task_factory
+    project_name, existing_subtask_type, sample_subtasks, db_session, job_factory
 ):
-    # Create the task first using factory
-    task_factory("task_1")
+    # Create the job first using factory
+    job_factory("job_1")
 
     # Create the subtasks
     for subtask in sample_subtasks:
@@ -257,7 +257,7 @@ def test_create_dependency_nonexistent_dependent_on_subtask(clean_db, project_na
     # Then create the dependent subtask
     subtask_data = Subtask(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "subtask_id": "subtask_1",
             "assigned_user_id": "",
             "active_user_id": "",
@@ -289,15 +289,15 @@ def test_create_dependency_nonexistent_dependent_on_subtask(clean_db, project_na
 
 
 def test_dependency_satisfaction_complex_conditions(
-    project_name, clean_db, existing_subtask_type, db_session, task_factory, subtask_factory
+    project_name, clean_db, existing_subtask_type, db_session, job_factory, subtask_factory
 ):
     """Test complex dependency satisfaction conditions"""
-    # Create task and subtasks using factory fixtures
-    task_factory("task_1")
+    # Create job and subtasks using factory fixtures
+    job_factory("job_1")
 
-    subtask_factory("task_1", "subtask_complex_1", is_active=True)
-    subtask_factory("task_1", "subtask_complex_2", is_active=True)
-    subtask_factory("task_1", "subtask_complex_3", is_active=False)
+    subtask_factory("job_1", "subtask_complex_1", is_active=True)
+    subtask_factory("job_1", "subtask_complex_2", is_active=True)
+    subtask_factory("job_1", "subtask_complex_3", is_active=False)
 
     # Create dependencies
     dependency1 = Dependency(
@@ -329,16 +329,16 @@ def test_check_dependencies_satisfied_wrong_status(
     existing_user,
     existing_subtask_type,
     db_session,
-    task_factory,
+    job_factory,
     subtask_factory,
 ):
     """Test that dependencies are not satisfied when completion status doesn't match"""
-    # Create task and subtasks using factory fixtures
-    task_factory("task_1")
+    # Create job and subtasks using factory fixtures
+    job_factory("job_1")
 
-    subtask_factory("task_1", "subtask_status_1", is_active=True)
-    subtask_factory("task_1", "subtask_status_2", is_active=False)
-    subtask_factory("task_1", "subtask_status_3", is_active=False)
+    subtask_factory("job_1", "subtask_status_1", is_active=True)
+    subtask_factory("job_1", "subtask_status_2", is_active=False)
+    subtask_factory("job_1", "subtask_status_3", is_active=False)
 
     # Create dependencies
     dependency1 = Dependency(

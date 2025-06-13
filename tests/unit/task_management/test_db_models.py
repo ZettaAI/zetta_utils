@@ -2,9 +2,9 @@
 
 from zetta_utils.task_management.db.models import (
     DependencyModel,
+    JobModel,
     SubtaskModel,
     SubtaskTypeModel,
-    TaskModel,
     TimesheetModel,
     UserModel,
 )
@@ -35,18 +35,18 @@ def test_subtask_type_model_without_description():
     assert "description" not in result_dict
 
 
-def test_task_model_with_id_nonunique():
-    """Test TaskModel with id_nonunique field"""
+def test_job_model_with_id_nonunique():
+    """Test JobModel with id_nonunique field"""
     data = {
-        "task_id": "test_task",
+        "job_id": "test_job",
         "batch_id": "batch_1",
         "status": "pending",
-        "task_type": "segmentation",
+        "job_type": "segmentation",
         "ng_state": "http://example.com",
         "id_nonunique": 1,
     }
 
-    model = TaskModel.from_dict("test_project", data)
+    model = JobModel.from_dict("test_project", data)
     assert model.id_nonunique == 1
 
 
@@ -54,7 +54,7 @@ def test_subtask_model_with_id_nonunique():
     """Test SubtaskModel with id_nonunique field"""
     data = {
         "subtask_id": "test_subtask",
-        "task_id": "test_task",
+        "job_id": "test_job",
         "ng_state": "http://example.com",
         "ng_state_initial": "http://example.com/initial",
         "priority": 1,
@@ -97,7 +97,7 @@ def test_all_models_to_dict():
     # Test TimesheetModel
     timesheet_data = {
         "entry_id": "entry_1",
-        "task_id": "task_1",
+        "job_id": "job_1",
         "subtask_id": "subtask_1",
         "user": "test_user",
         "seconds_spent": 3600,

@@ -12,9 +12,9 @@ from zetta_utils.task_management.utils import generate_id_nonunique
 
 from .db.models import (
     DependencyModel,
+    JobModel,
     SubtaskModel,
     SubtaskTypeModel,
-    TaskModel,
     UserModel,
 )
 from .db.session import get_session_context
@@ -411,7 +411,7 @@ def _handle_subtask_completion(  # pylint: disable=too-many-locals
             .with_for_update()
         )
         locked_subtask = db_session.execute(locked_subtask_query).scalar_one()
-        locked_subtasks[subtask_id] = locked_subtask
+        locked_subtasks[affected_subtask_id] = locked_subtask
 
     # Pre-lock all dependencies in alphabetical order by dependency_id to avoid deadlocks
     locked_dependencies: dict[str, Any] = {}
@@ -437,22 +437,22 @@ def _handle_subtask_completion(  # pylint: disable=too-many-locals
                 dep, dep_data, locked_dependencies, locked_subtasks
             )
 
-    # Check if task is complete
-    task_id = subtask_data["task_id"]
+    # Check if job is complete
+    job_id = subtask_data["job_id"]
 
-    # Lock the task to prevent race conditions
-    task_lock_query = (
-        select(TaskModel)
-        .where(TaskModel.task_id == task_id)
-        .where(TaskModel.project_name == project_name)
+    # Lock the job to prevent race conditions
+    job_lock_query = (
+        select(JobModel)
+        .where(JobModel.job_id == job_id)
+        .where(JobModel.project_name == project_name)
         .with_for_update()
     )
-    locked_task = db_session.execute(task_lock_query).scalar_one()
+    locked_job = db_session.execute(job_lock_query).scalar_one()
 
-    # Count incomplete subtasks for this task (excluding the current one being completed)
+    # Count incomplete subtasks for this job (excluding the current one being completed)
     incomplete_subtasks_query = (
         select(func.count(SubtaskModel.subtask_id))
-        .where(SubtaskModel.task_id == task_id)
+        .where(SubtaskModel.job_id == job_id)
         .where(SubtaskModel.project_name == project_name)
         .where(SubtaskModel.is_active == True)
         .where(SubtaskModel.completion_status == "")
@@ -460,12 +460,12 @@ def _handle_subtask_completion(  # pylint: disable=too-many-locals
     )
     incomplete_count = db_session.execute(incomplete_subtasks_query).scalar()
 
-    logger.info(f"Task {task_id} has {incomplete_count} remaining incomplete subtasks")
+    logger.info(f"Job {job_id} has {incomplete_count} remaining incomplete subtasks")
 
-    # If this was the last incomplete subtask, mark task as fully_processed
+    # If this was the last incomplete subtask, mark job as fully_processed
     if incomplete_count == 0:
-        logger.info(f"Marking task {task_id} as fully_processed")
-        locked_task.status = "fully_processed"
+        logger.info(f"Marking job {job_id} as fully_processed")
+        locked_job.status = "fully_processed"
 
 
 def _auto_select_subtask(

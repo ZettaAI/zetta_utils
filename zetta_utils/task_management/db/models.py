@@ -1,7 +1,7 @@
 # pylint: disable=singleton-comparison
 from typing import Any, Optional
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Float, Index, Integer, String
+from sqlalchemy import ARRAY, BigInteger, Boolean, Float, Index, Integer, JSON, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -36,16 +36,16 @@ class ProjectModel(Base):
         }
 
 
-class SubtaskTypeModel(Base):
+class TaskTypeModel(Base):
     """
-    SQLAlchemy model for the subtask_types table.
+    SQLAlchemy model for the task_types table.
     """
 
-    __tablename__ = "subtask_types"
+    __tablename__ = "task_types"
 
-    # Composite primary key of project_name and subtask_type
+    # Composite primary key of project_name and task_type
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
-    subtask_type: Mapped[str] = mapped_column(String, primary_key=True)
+    task_type: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
     completion_statuses: Mapped[list[Any]] = mapped_column(ARRAY(String), nullable=False)
@@ -54,7 +54,7 @@ class SubtaskTypeModel(Base):
     def to_dict(self) -> dict:
         """Convert the model to a dictionary matching the TypedDict structure"""
         result = {
-            "subtask_type": self.subtask_type,
+            "task_type": self.task_type,
             "completion_statuses": self.completion_statuses,
         }
 
@@ -64,11 +64,11 @@ class SubtaskTypeModel(Base):
         return result
 
     @classmethod
-    def from_dict(cls, project_name: str, data: dict) -> "SubtaskTypeModel":
+    def from_dict(cls, project_name: str, data: dict) -> "TaskTypeModel":
         """Create a model instance from a dictionary"""
         return cls(
             project_name=project_name,
-            subtask_type=data["subtask_type"],
+            task_type=data["task_type"],
             completion_statuses=data["completion_statuses"],
             description=data.get("description"),
         )
@@ -87,16 +87,16 @@ class UserModel(Base):
 
     # Columns
     hourly_rate: Mapped[float] = mapped_column(Float, nullable=False)
-    active_subtask: Mapped[str] = mapped_column(String, nullable=False, default="")
-    qualified_subtask_types: Mapped[list[Any]] = mapped_column(ARRAY(String), nullable=False)
+    active_task: Mapped[str] = mapped_column(String, nullable=False, default="")
+    qualified_task_types: Mapped[list[Any]] = mapped_column(ARRAY(String), nullable=False)
 
     def to_dict(self) -> dict:
         """Convert the model to a dictionary matching the User TypedDict structure"""
         return {
             "user_id": self.user_id,
             "hourly_rate": self.hourly_rate,
-            "active_subtask": self.active_subtask,
-            "qualified_subtask_types": self.qualified_subtask_types,
+            "active_task": self.active_task,
+            "qualified_task_types": self.qualified_task_types,
         }
 
     @classmethod
@@ -106,8 +106,8 @@ class UserModel(Base):
             project_name=project_name,
             user_id=data["user_id"],
             hourly_rate=data["hourly_rate"],
-            active_subtask=data["active_subtask"],
-            qualified_subtask_types=data["qualified_subtask_types"],
+            active_task=data["active_task"],
+            qualified_task_types=data["qualified_task_types"],
         )
 
 
@@ -123,10 +123,10 @@ class JobModel(Base):
     job_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    batch_id: Mapped[str] = mapped_column(String, nullable=False)
+    batch_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
     job_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    ng_state: Mapped[str] = mapped_column(String, nullable=False)
+    ng_state: Mapped[dict] = mapped_column(JSON, nullable=False)
     id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
 
     # Additional indexes for performance
@@ -171,19 +171,19 @@ class DependencyModel(Base):
     dependency_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    subtask_id: Mapped[str] = mapped_column(String, nullable=False)
-    dependent_on_subtask_id: Mapped[str] = mapped_column(String, nullable=False)
+    task_id: Mapped[str] = mapped_column(String, nullable=False)
+    dependent_on_task_id: Mapped[str] = mapped_column(String, nullable=False)
     is_satisfied: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     required_completion_status: Mapped[str] = mapped_column(String, nullable=False)
 
     # Performance indexes for dependency lookups
     __table_args__ = (
-        Index("idx_dependencies_project_subtask", "project_name", "subtask_id"),
-        Index("idx_dependencies_project_dependent_on", "project_name", "dependent_on_subtask_id"),
+        Index("idx_dependencies_project_task", "project_name", "task_id"),
+        Index("idx_dependencies_project_dependent_on", "project_name", "dependent_on_task_id"),
         Index(
-            "idx_dependencies_project_subtask_unsatisfied",
+            "idx_dependencies_project_task_unsatisfied",
             "project_name",
-            "subtask_id",
+            "task_id",
             "is_satisfied",
         ),
     )
@@ -192,8 +192,8 @@ class DependencyModel(Base):
         """Convert the model to a dictionary matching the Dependency TypedDict structure"""
         return {
             "dependency_id": self.dependency_id,
-            "subtask_id": self.subtask_id,
-            "dependent_on_subtask_id": self.dependent_on_subtask_id,
+            "task_id": self.task_id,
+            "dependent_on_task_id": self.dependent_on_task_id,
             "is_satisfied": self.is_satisfied,
             "required_completion_status": self.required_completion_status,
         }
@@ -204,8 +204,8 @@ class DependencyModel(Base):
         return cls(
             project_name=project_name,
             dependency_id=data["dependency_id"],
-            subtask_id=data["subtask_id"],
-            dependent_on_subtask_id=data["dependent_on_subtask_id"],
+            task_id=data["task_id"],
+            dependent_on_task_id=data["dependent_on_task_id"],
             is_satisfied=data.get("is_satisfied", False),
             required_completion_status=data["required_completion_status"],
         )
@@ -223,8 +223,8 @@ class TimesheetModel(Base):
     entry_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    job_id: Mapped[str] = mapped_column(String, nullable=False)
-    subtask_id: Mapped[str] = mapped_column(String, nullable=False)
+    job_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user: Mapped[str] = mapped_column(
         String, nullable=False
     )  # Using 'user' to match the TypedDict
@@ -232,7 +232,7 @@ class TimesheetModel(Base):
 
     # Performance indexes for timesheet queries
     __table_args__ = (
-        Index("idx_timesheet_project_subtask", "project_name", "subtask_id"),
+        Index("idx_timesheet_project_task", "project_name", "task_id"),
         Index("idx_timesheet_project_user", "project_name", "user"),
         Index("idx_timesheet_project_job", "project_name", "job_id"),
     )
@@ -242,7 +242,7 @@ class TimesheetModel(Base):
         return {
             "entry_id": self.entry_id,
             "job_id": self.job_id,
-            "subtask_id": self.subtask_id,
+            "task_id": self.task_id,
             "user": self.user,
             "seconds_spent": self.seconds_spent,
         }
@@ -254,85 +254,86 @@ class TimesheetModel(Base):
             project_name=project_name,
             entry_id=data["entry_id"],
             job_id=data["job_id"],
-            subtask_id=data["subtask_id"],
+            task_id=data["task_id"],
             user=data["user"],
             seconds_spent=data["seconds_spent"],
         )
 
 
-class SubtaskModel(Base):
+class TaskModel(Base):
     """
-    SQLAlchemy model for the subtasks table.
+    SQLAlchemy model for the tasks table.
     """
 
-    __tablename__ = "subtasks"
+    __tablename__ = "tasks"
 
-    # Composite primary key of project_name and subtask_id
+    # Composite primary key of project_name and task_id
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
-    subtask_id: Mapped[str] = mapped_column(String, primary_key=True)
+    task_id: Mapped[str] = mapped_column(String, primary_key=True)
 
     # Columns
-    job_id: Mapped[str] = mapped_column(String, nullable=False)
-    completion_status: Mapped[str] = mapped_column(String, nullable=False, default="")
-    assigned_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
-    active_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
-    completed_user_id: Mapped[str] = mapped_column(String, nullable=False, default="")
-    ng_state: Mapped[str] = mapped_column(String, nullable=False)
-    ng_state_initial: Mapped[str] = mapped_column(String, nullable=False)
-    priority: Mapped[int] = mapped_column(Integer, nullable=False)
-    batch_id: Mapped[str] = mapped_column(String, nullable=False)
-    last_leased_ts: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    subtask_type: Mapped[str] = mapped_column(String, nullable=False)
+    job_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    completion_status: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    assigned_user_id: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    active_user_id: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    completed_user_id: Mapped[str] = mapped_column(String, nullable=False, default="", index=True)
+    ng_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    ng_state_initial: Mapped[dict] = mapped_column(JSON, nullable=False)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    batch_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    last_leased_ts: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Performance indexes for common query patterns
     __table_args__ = (
         # Basic lookup indexes
-        Index("idx_subtasks_project_job", "project_name", "job_id"),
-        Index("idx_subtasks_project_assigned_user", "project_name", "assigned_user_id"),
-        Index("idx_subtasks_project_active_user", "project_name", "active_user_id"),
-        Index("idx_subtasks_project_type_priority", "project_name", "subtask_type", "priority"),
+        Index("idx_tasks_project_job", "project_name", "job_id"),
+        Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
+        Index("idx_tasks_project_active_user", "project_name", "active_user_id"),
+        Index("idx_tasks_project_type_priority", "project_name", "task_type", "priority"),
         Index(
-            "idx_subtasks_project_active_status", "project_name", "is_active", "completion_status"
+            "idx_tasks_project_active_status", "project_name", "is_active", "completion_status"
         ),
-        Index("idx_subtasks_project_lease_time", "project_name", "last_leased_ts"),
+        Index("idx_tasks_project_lease_time", "project_name", "last_leased_ts"),
         # Composite indexes for auto-select queries (most critical for performance)
         Index(
-            "idx_subtasks_assigned_search",
+            "idx_tasks_assigned_search",
             "project_name",
             "is_active",
             "assigned_user_id",
             "active_user_id",
             "completion_status",
-            "subtask_type",
+            "task_type",
             "priority",
         ),
         Index(
-            "idx_subtasks_unassigned_search",
+            "idx_tasks_unassigned_search",
             "project_name",
             "is_active",
             "assigned_user_id",
             "active_user_id",
             "completion_status",
-            "subtask_type",
+            "task_type",
             "priority",
         ),
         Index(
-            "idx_subtasks_idle_search",
+            "idx_tasks_idle_search",
             "project_name",
             "is_active",
             "completion_status",
-            "subtask_type",
+            "task_type",
             "last_leased_ts",
         ),
     )
 
     def to_dict(self) -> dict:
-        """Convert the model to a dictionary matching the Subtask TypedDict structure"""
-        return {
-            "subtask_id": self.subtask_id,
+        """Convert the model to a dictionary matching the Task TypedDict structure"""
+        result = {
+            "task_id": self.task_id,
             "job_id": self.job_id,
             "completion_status": self.completion_status,
             "assigned_user_id": self.assigned_user_id,
@@ -345,15 +346,20 @@ class SubtaskModel(Base):
             "last_leased_ts": self.last_leased_ts,
             "is_active": self.is_active,
             "is_paused": self.is_paused,
-            "subtask_type": self.subtask_type,
+            "task_type": self.task_type,
         }
+        
+        if self.extra_data is not None:
+            result["extra_data"] = self.extra_data
+            
+        return result
 
     @classmethod
-    def from_dict(cls, project_name: str, data: dict) -> "SubtaskModel":
+    def from_dict(cls, project_name: str, data: dict) -> "TaskModel":
         """Create a model instance from a dictionary"""
         return cls(
             project_name=project_name,
-            subtask_id=data["subtask_id"],
+            task_id=data["task_id"],
             job_id=data["job_id"],
             completion_status=data.get("completion_status", ""),
             assigned_user_id=data.get("assigned_user_id", ""),
@@ -366,6 +372,7 @@ class SubtaskModel(Base):
             last_leased_ts=data.get("last_leased_ts", 0.0),
             is_active=data.get("is_active", True),
             is_paused=data.get("is_paused", False),
-            subtask_type=data["subtask_type"],
+            task_type=data["task_type"],
             id_nonunique=data.get("id_nonunique"),
+            extra_data=data.get("extra_data"),
         )

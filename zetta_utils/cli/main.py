@@ -9,9 +9,10 @@ import click
 
 import zetta_utils
 from zetta_utils import log
-from zetta_utils.run import run_ctx_manager
-from zetta_utils.run.cli import run_info_cli
-from zetta_utils.run.cli_update import run_update_cli
+from zetta_utils.cli.task_mgmt import task_mgmt
+
+from zetta_utils.cli.run.cli import run_info_cli
+from zetta_utils.cli.run.cli_update import run_update_cli
 
 logger = log.get_logger("zetta_utils")
 
@@ -104,21 +105,7 @@ def run(
     ctx = click.get_current_context()
     load_mode = ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all"
 
-    if path is not None:
-        assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
-        try:
-            spec = zetta_utils.parsing.cue.load(path)
-        except subprocess.CalledProcessError as err:  # pragma: no cover
-            logger.error("Aborting due to CUE validation failure.")
-            sys.exit(err.returncode)
-        os.environ["ZETTA_RUN_SPEC_PATH"] = path
-    else:
-        assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
-        spec = zetta_utils.parsing.cue.loads(str_spec)
-        with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
-            f.write(str_spec)
-            os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
-
+    # Load modules first
     if load_mode == "all":
         zetta_utils.load_all_modules()
     elif load_mode == "inference":  # pragma: no cover
@@ -129,6 +116,25 @@ def run(
         assert load_mode == "training"
         zetta_utils.load_training_modules()
 
+    # Now import the modules we need
+    from zetta_utils.run import run_ctx_manager
+    from zetta_utils import parsing, builder
+
+    if path is not None:
+        assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
+        try:
+            spec = parsing.cue.load(path)
+        except subprocess.CalledProcessError as err:  # pragma: no cover
+            logger.error("Aborting due to CUE validation failure.")
+            sys.exit(err.returncode)
+        os.environ["ZETTA_RUN_SPEC_PATH"] = path
+    else:
+        assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
+        spec = parsing.cue.loads(str_spec)
+        with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
+            f.write(str_spec)
+            os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
+
     for import_path in extra_imports:
         assert import_path.endswith(".py")
         with open(import_path, "r", encoding="utf-8") as f:
@@ -136,10 +142,10 @@ def run(
             exec(code)  # pylint: disable=exec-used
 
     if parallel_builder:
-        zetta_utils.builder.PARALLEL_BUILD_ALLOWED = True
+        builder.PARALLEL_BUILD_ALLOWED = True
 
     with run_ctx_manager(spec=spec, run_id=run_id, main_run_process=main_run_process):
-        result = zetta_utils.builder.build(spec, parallel=parallel_builder)
+        result = builder.build(spec, parallel=parallel_builder)
         logger.debug(f"Outcome: {pprint.pformat(result, indent=4)}")
         if pdb:
             breakpoint()  # pylint: disable=forgotten-debug-statement # pragma: no cover
@@ -148,7 +154,8 @@ def run(
 @cli.command()
 def show_registry():
     """Display builder registry."""
-    logger.critical(pprint.pformat(zetta_utils.builder.REGISTRY, indent=4))
+    from zetta_utils import builder
+    logger.critical(pprint.pformat(builder.REGISTRY, indent=4))
 
 
 for cmd in run_info_cli.commands.values():
@@ -157,3 +164,6 @@ for cmd in run_info_cli.commands.values():
 
 for cmd in run_update_cli.commands.values():
     cli.add_command(cmd)
+
+# Add task management commands
+cli.add_command(task_mgmt)

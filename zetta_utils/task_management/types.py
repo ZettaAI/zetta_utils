@@ -5,53 +5,56 @@ from typing import NotRequired, TypedDict
 class User(TypedDict):
     user_id: str
     hourly_rate: float
-    active_subtask: str  # Empty string when no active task
-    qualified_subtask_types: list[str]  # List of subtask types user can work on
+    active_task: str  # Empty string when no active task
+    qualified_task_types: list[str]  # List of task types user can work on
 
 
 class UserUpdate(TypedDict, total=False):
     hourly_rate: float
-    active_subtask: str
-    qualified_subtask_types: list[str]
+    active_task: str
+    qualified_task_types: list[str]
 
 
-class Subtask(TypedDict):
+class Task(TypedDict):
     job_id: str
-    subtask_id: str
+    task_id: str
     completion_status: str  # Changed from status
     assigned_user_id: str  # Empty string when unassigned
     active_user_id: str  # Empty string when inactive
     completed_user_id: str  # Empty string when not completed
-    ng_state: str
-    ng_state_initial: str
+    ng_state: dict
+    ng_state_initial: dict
     priority: int
     batch_id: str  # Changed from batch_name
     last_leased_ts: float  # 0 for never leased
-    is_active: bool  # Whether the subtask can be worked on
-    is_paused: NotRequired[bool]  # Whether the subtask is paused (not auto-selectable)
-    subtask_type: str  # Reference to SubtaskType.subtask_type
+    is_active: bool  # Whether the task can be worked on
+    is_paused: NotRequired[bool]  # Whether the task is paused (not auto-selectable)
+    task_type: str  # Reference to TaskType.task_type
+    extra_data: NotRequired[dict | None]  # Additional task-specific data
 
 
-class SubtaskUpdate(TypedDict, total=False):
+class TaskUpdate(TypedDict, total=False):
     job_id: str
-    subtask_id: str
+    task_id: str
     completion_status: str
     assigned_user_id: str
     active_user_id: str
     completed_user_id: str
-    ng_state: str
+    ng_state: dict
+    ng_state_initial: dict
     priority: int
     batch_id: str
     last_leased_ts: float
     is_active: bool
     is_paused: bool
-    subtask_type: str
+    task_type: str
+    extra_data: dict | None
 
 
 class Timesheet(TypedDict):
     entry_id: str
     job_id: str
-    subtask_id: str
+    task_id: str
     user: str
     seconds_spent: int
 
@@ -62,8 +65,8 @@ class TimesheetUpdate(TypedDict, total=False):
 
 class Dependency(TypedDict):
     dependency_id: str
-    subtask_id: str
-    dependent_on_subtask_id: str
+    task_id: str
+    dependent_on_task_id: str
     is_satisfied: bool
     required_completion_status: str
 
@@ -71,33 +74,33 @@ class Dependency(TypedDict):
 class DependencyUpdate(TypedDict, total=False):
     is_satisfied: bool
     required_completion_status: str
-    subtask_id: str
-    dependent_on_subtask_id: str
+    task_id: str
+    dependent_on_task_id: str
 
 
-class SubtaskType(TypedDict):
-    """A type of subtask and its allowed completion statuses."""
+class TaskType(TypedDict):
+    """A type of task and its allowed completion statuses."""
 
-    subtask_type: str
+    task_type: str
     completion_statuses: list[str]
     description: NotRequired[str]
 
 
-class SubtaskTypeUpdate(TypedDict, total=False):
-    """Update type for subtask types."""
+class TaskTypeUpdate(TypedDict, total=False):
+    """Update type for task types."""
 
     completion_statuses: list[str]
     description: str
 
 
 class Job(TypedDict):
-    """A job that contains subtasks."""
+    """A job that contains tasks."""
 
     job_id: str
     batch_id: str
     status: str
     job_type: str
-    ng_state: str
+    ng_state: dict
 
 
 class JobUpdate(TypedDict, total=False):
@@ -105,12 +108,12 @@ class JobUpdate(TypedDict, total=False):
 
     status: str
     batch_id: str
-    ng_state: str
+    ng_state: dict
     job_type: str
 
 
 class TimesheetEntry(TypedDict):
-    """A timesheet entry for work done on a subtask"""
+    """A timesheet entry for work done on a task"""
 
     start_time: datetime
     duration_seconds: float

@@ -25,8 +25,8 @@ def test_create_project_tables(project_name, clean_db, db_session):
     sample_user: User = {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
 
     user_id = create_user(project_name=project_name, data=sample_user, db_session=db_session)
@@ -42,8 +42,8 @@ def test_get_project_success(project_name, clean_db, db_session):
     sample_user: User = {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
     create_user(project_name=project_name, data=sample_user, db_session=db_session)
 
@@ -70,7 +70,7 @@ def test_get_project_found_in_other_tables(project_name, clean_db, db_session):
         "batch_id": "batch_1",
         "status": "pending_ingestion",
         "job_type": "segmentation",
-        "ng_state": "http://example.com/test_job",
+        "ng_state": {"url": "http://example.com/test_job"},
     }
     create_job(project_name=project_name, data=job_data, db_session=db_session)
 
@@ -92,7 +92,7 @@ def test_get_project_with_table_exception_handling(project_name, clean_db, db_se
         "batch_id": "batch_1",
         "status": "pending_ingestion",
         "job_type": "segmentation",
-        "ng_state": "http://example.com/test_job",
+        "ng_state": {"url": "http://example.com/test_job"},
     }
     create_job(project_name=project_name, data=job_data, db_session=db_session)
 

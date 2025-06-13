@@ -75,7 +75,7 @@ def test_create_job_duplicate(project_name, clean_db, db_session):
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/duplicate_job",
+            "ng_state": {"url": "http://example.com/duplicate_job"},
         }
     )
 
@@ -89,7 +89,7 @@ def test_create_job_duplicate(project_name, clean_db, db_session):
     job = get_job(project_name=project_name, job_id="duplicate_job", db_session=db_session)
     assert job["batch_id"] == "batch_1"
     assert job["status"] == "pending_ingestion"
-    assert job["ng_state"] == "http://example.com/duplicate_job"
+    assert job["ng_state"] == {"url": "http://example.com/duplicate_job"}
 
 
 def test_get_job_error_case(project_name, clean_db, db_session):
@@ -105,7 +105,7 @@ def test_create_job(project_name, clean_db, db_session):
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_1",
+            "ng_state": {"url": "http://example.com/job_1"},
         }
     )
 
@@ -115,7 +115,7 @@ def test_create_job(project_name, clean_db, db_session):
     job = get_job(project_name=project_name, job_id="job_1", db_session=db_session)
     assert job["batch_id"] == "batch_1"
     assert job["status"] == "pending_ingestion"
-    assert job["ng_state"] == "http://example.com/job_1"
+    assert job["ng_state"] == {"url": "http://example.com/job_1"}
 
 
 def test_update_job(project_name, clean_db, db_session):
@@ -125,18 +125,18 @@ def test_update_job(project_name, clean_db, db_session):
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_2",
+            "ng_state": {"url": "http://example.com/job_2"},
         }
     )
     create_job(project_name=project_name, data=job_data, db_session=db_session)
 
     # Update with JobUpdate type
-    update_data = JobUpdate(status="ingested", ng_state="http://updated.com")
+    update_data = JobUpdate(status="ingested", ng_state={"url": "http://updated.com"})
     update_job(project_name=project_name, job_id="job_2", data=update_data, db_session=db_session)
 
     updated_job = get_job(project_name=project_name, job_id="job_2", db_session=db_session)
     assert updated_job["status"] == "ingested"
-    assert updated_job["ng_state"] == "http://updated.com"
+    assert updated_job["ng_state"] == {"url": "http://updated.com"}
 
 
 def test_create_jobs_batch_success(project_name, clean_db, db_session):
@@ -148,7 +148,7 @@ def test_create_jobs_batch_success(project_name, clean_db, db_session):
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
                 "job_type": "segmentation",
-                "ng_state": "http://example.com/batch_job_1",
+                "ng_state": {"url": "http://example.com/batch_job_1"},
             }
         ),
         Job(
@@ -157,7 +157,7 @@ def test_create_jobs_batch_success(project_name, clean_db, db_session):
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
                 "job_type": "segmentation",
-                "ng_state": "http://example.com/batch_job_2",
+                "ng_state": {"url": "http://example.com/batch_job_2"},
             }
         ),
     ]
@@ -181,7 +181,7 @@ def test_create_jobs_batch_conflicting_content(project_name, clean_db, db_sessio
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_1",
+            "ng_state": {"url": "http://example.com/job_1"},
         }
     )
 
@@ -195,7 +195,7 @@ def test_create_jobs_batch_conflicting_content(project_name, clean_db, db_sessio
             "batch_id": "batch_1",
             "status": "ingested",  # Different status
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_1_different",  # Different ng_state
+            "ng_state": {"url": "http://example.com/job_1_different"},  # Different ng_state
         }
     )
 
@@ -211,18 +211,18 @@ def test_update_job_with_different_data_types(project_name, clean_db, db_session
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_1",
+            "ng_state": {"url": "http://example.com/job_1"},
         }
     )
     create_job(project_name=project_name, data=job_data, db_session=db_session)
 
     # Update with JobUpdate type
-    update_data = JobUpdate(status="ingested", ng_state="http://updated.com")
+    update_data = JobUpdate(status="ingested", ng_state={"url": "http://updated.com"})
     update_job(project_name=project_name, job_id="job_1", data=update_data, db_session=db_session)
 
     updated_job = get_job(project_name=project_name, job_id="job_1", db_session=db_session)
     assert updated_job["status"] == "ingested"
-    assert updated_job["ng_state"] == "http://updated.com"
+    assert updated_job["ng_state"] == {"url": "http://updated.com"}
 
 
 def test_update_job_nonexistent_job(project_name, clean_db, db_session):

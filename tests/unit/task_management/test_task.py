@@ -1,0 +1,1314 @@
+# pylint: disable=redefined-outer-name,unused-argument,too-many-lines
+import time
+
+import pytest
+
+from zetta_utils.task_management.dependency import create_dependency
+from zetta_utils.task_management.exceptions import (
+    TaskValidationError,
+    UserValidationError,
+)
+from zetta_utils.task_management.task import (
+    _validate_task,
+    create_task,
+    get_max_idle_seconds,
+    get_task,
+    reactivate_task,
+    release_task,
+    start_task,
+    update_task,
+)
+from zetta_utils.task_management.task_type import create_task_type
+from zetta_utils.task_management.types import (
+    Dependency,
+    Task,
+    TaskType,
+    TaskUpdate,
+    User,
+    UserUpdate,
+)
+from zetta_utils.task_management.user import create_user, get_user, update_user
+
+
+@pytest.fixture
+def existing_priority_tasks(clean_db, project_name, existing_task_type, db_session):
+    tasks = [
+        Task(
+            **{
+                "job_id": "job_1",
+                "task_id": f"task_{i}",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state": {"url": f"http://example.com/{i}"},
+                "ng_state_initial": {"url": f"http://example.com/{i}"},
+                "priority": i,
+                "batch_id": "batch_1",
+                "task_type": existing_task_type["task_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                "completion_status": "",
+            }
+        )
+        for i in range(1, 3)
+    ]
+    for task in tasks:
+        create_task(project_name=project_name, data=task, db_session=db_session)
+    yield tasks
+
+
+@pytest.fixture
+def sample_dependency() -> Dependency:
+    return Dependency(
+        **{
+            "dependency_id": "dep_1",
+            "task_id": "task_2",
+            "dependent_on_task_id": "task_1",
+            "required_completion_status": "done",
+            "is_satisfied": False,
+        }
+    )
+
+
+@pytest.fixture
+def existing_dependency_chain(
+    clean_db, project_name, existing_priority_tasks, sample_dependency, db_session
+):
+    create_dependency(project_name=project_name, data=sample_dependency, db_session=db_session)
+    update_task(
+        project_name=project_name,
+        task_id="task_2",
+        data=TaskUpdate(completion_status="waiting_for_dependencies"),
+        db_session=db_session,
+    )
+    yield sample_dependency
+
+
+def test_create_task_success(project_name, sample_task, existing_task_type, db_session):
+    """Test creating a new task"""
+    result = create_task(project_name=project_name, data=sample_task, db_session=db_session)
+    assert result == sample_task["task_id"]
+
+    # Verify the task was created by retrieving it
+    created_task = get_task(
+        project_name=project_name, task_id=sample_task["task_id"], db_session=db_session
+    )
+    assert created_task["task_id"] == sample_task["task_id"]
+
+
+def test_create_task_nonexistent_type(db_session, project_name):
+    """Test creating a task with a nonexistent task type raises TaskValidationError"""
+    # Try to create a task with a nonexistent task type
+    task_with_invalid_type = Task(
+        **{
+            "job_id": "job_1",
+            "task_id": "test_task",
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"url": "http://example.com"},
+            "ng_state_initial": {"url": "http://example.com"},
+            "priority": 1,
+            "batch_id": "batch_1",
+            "task_type": "nonexistent_task_type",  # This type doesn't exist
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+
+    # This should raise a TaskValidationError with the specific message
+    with pytest.raises(
+        TaskValidationError, match="Task type nonexistent_task_type not found"
+    ):
+        create_task(
+            project_name=project_name, data=task_with_invalid_type, db_session=db_session
+        )
+
+
+def test_get_task_success(db_session, existing_task, project_name):
+    """Test retrieving a task that exists"""
+    result = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert result["task_id"] == existing_task["task_id"]
+    assert result["job_id"] == existing_task["job_id"]
+    assert result["completion_status"] == existing_task["completion_status"]
+
+
+def test_get_task_not_found(db_session, project_name):
+    """Test retrieving a task that doesn't exist"""
+    with pytest.raises(KeyError, match="Task nonexistent not found"):
+        get_task(project_name=project_name, task_id="nonexistent", db_session=db_session)
+
+
+def test_update_task_success(db_session, project_name, existing_task, existing_task_type):
+    """Test updating a task"""
+    update_data = TaskUpdate(**{"priority": 5, "assigned_user_id": "user_2"})
+    result = update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=update_data,
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Check that the task was updated
+    updated_task = get_task(
+        project_name=project_name, task_id="task_1", db_session=db_session
+    )
+    assert updated_task["priority"] == 5
+    assert updated_task["assigned_user_id"] == "user_2"
+
+
+def test_update_task_not_found(db_session, project_name):
+    """Test updating a task that doesn't exist"""
+    update_data = TaskUpdate(completion_status="in_progress")
+    with pytest.raises(KeyError, match="Task nonexistent not found"):
+        update_task(
+            project_name=project_name,
+            task_id="nonexistent",
+            data=update_data,
+            db_session=db_session,
+        )
+
+
+def test_start_task_success(db_session, existing_task, existing_user, project_name):
+    """Test starting work on a task"""
+    before_time = time.time()
+    result = start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    after_time = time.time()
+
+    assert result == "task_1"
+
+    # Check that the task was updated
+    updated_task = get_task(
+        project_name=project_name, task_id="task_1", db_session=db_session
+    )
+    assert updated_task["completion_status"] == ""
+    assert updated_task["active_user_id"] == "test_user"
+    assert before_time <= updated_task["last_leased_ts"] <= after_time
+
+    # Check that the user was updated
+    updated_user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert updated_user["active_task"] == "task_1"
+
+
+def test_start_task_auto_select(db_session, existing_tasks, existing_user, project_name):
+    """Test auto-selecting a task to work on"""
+    result = start_task(
+        project_name=project_name, user_id="test_user", task_id=None, db_session=db_session
+    )
+
+    # Should select the highest priority task (task_3)
+    assert result == "task_3"
+
+    # Check that the task was updated
+    updated_task = get_task(
+        project_name=project_name, task_id="task_3", db_session=db_session
+    )
+    assert updated_task["completion_status"] == ""
+    assert updated_task["active_user_id"] == "test_user"
+
+    # Check that the user was updated
+    updated_user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert updated_user["active_task"] == "task_3"
+
+
+def test_release_task_success(db_session, project_name, existing_task, existing_user):
+    """Test releasing a task"""
+    # First start work on the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Now release it with an empty completion status
+    result = release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Check that the task was updated
+    updated_task = get_task(
+        project_name=project_name, task_id="task_1", db_session=db_session
+    )
+    assert updated_task["completion_status"] == ""  # Empty status instead of "todo"
+    assert updated_task["active_user_id"] == ""
+
+    # Check that the user was updated
+    updated_user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert updated_user["active_task"] == ""
+
+
+def test_release_task_with_completion(
+    db_session, project_name, existing_task, existing_user
+):
+    """Test releasing a task with completion"""
+    # First start work on the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Now release it with completion
+    result = release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        completion_status="done",
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Check that the task was updated
+    updated_task = get_task(
+        project_name=project_name, task_id="task_1", db_session=db_session
+    )
+    assert updated_task["completion_status"] == "done"
+    assert updated_task["active_user_id"] == ""
+    assert updated_task["completed_user_id"] == "test_user"
+
+    # Check that the user was updated
+    updated_user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert updated_user["active_task"] == ""
+
+
+def test_update_task_missing_dependency_fields(
+    db_session, project_name, existing_tasks, existing_task_type
+):
+    dep1 = Dependency(
+        **{
+            "dependency_id": "dep_1",
+            "task_id": "task_2",
+            "dependent_on_task_id": "task_1",
+            "required_completion_status": "done",
+            "is_satisfied": False,
+        }
+    )
+    create_dependency(project_name=project_name, data=dep1, db_session=db_session)
+
+    # Make task_2 inactive initially
+    update_task(
+        project_name=project_name,
+        task_id="task_2",
+        data=TaskUpdate(is_active=False),
+        db_session=db_session,
+    )
+
+    # Now complete task_1
+    update_data = TaskUpdate(completion_status="done", completed_user_id="test_user")
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=update_data,
+        db_session=db_session,
+    )
+
+    # Check if dependent task was activated
+    task2 = get_task(
+        project_name=project_name, task_id="task_2", db_session=db_session
+    )
+    assert task2["is_active"] is True
+    assert task2["completion_status"] == ""
+
+
+@pytest.mark.parametrize(
+    "invalid_data, expected_error",
+    [
+        ({"task_type": "nonexistent_type"}, "Task type not found"),
+        (
+            {"completion_status": "invalid"},
+            "Completion status 'invalid' not allowed for this task type",
+        ),
+    ],
+)
+def test_update_task_validation(
+    db_session, invalid_data, expected_error, existing_task, project_name
+):
+    with pytest.raises(TaskValidationError, match=expected_error):
+        update_task(
+            project_name=project_name,
+            task_id="task_1",
+            data=invalid_data,
+            db_session=db_session,
+        )
+
+
+def test_inactive_task_rejects_completion_status(db_session, project_name, existing_task):
+    """Test that inactive tasks reject completion status updates"""
+    # First make the task inactive
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(is_active=False),
+        db_session=db_session,
+    )
+
+    # Try to complete it
+    update_data = TaskUpdate(completion_status="done", completed_user_id="test_user")
+    with pytest.raises(
+        TaskValidationError, match="Inactive task cannot have completion status"
+    ):
+        update_task(
+            project_name=project_name,
+            task_id="task_1",
+            data=update_data,
+            db_session=db_session,
+        )
+
+    # Check that completion_status didn't change and completed_user_id is empty
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == ""  # Should remain empty
+    assert task["completed_user_id"] == ""
+
+
+def test_setting_task_inactive_clears_completion_status(
+    db_session, project_name, existing_task
+):
+    """Test that setting a task to inactive clears its completion status"""
+    # First set it to active and complete it
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(is_active=True),
+        db_session=db_session,
+    )
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(completion_status="done", completed_user_id="test_user"),
+        db_session=db_session,
+    )
+
+    # Verify it was completed
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == "done"
+    assert task["completed_user_id"] == "test_user"
+
+
+def test_inactive_task_rejects_completed_user(db_session, project_name, existing_task):
+    """Test that inactive tasks reject completed_user_id updates"""
+    # First make the task inactive
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(is_active=False),
+        db_session=db_session,
+    )
+
+    # Try to set a completed_user_id without completion status
+    update_data = TaskUpdate(completed_user_id="test_user")
+    with pytest.raises(
+        TaskValidationError, match="Inactive task cannot have completed user"
+    ):
+        update_task(
+            project_name=project_name,
+            task_id="task_1",
+            data=update_data,
+            db_session=db_session,
+        )
+
+    # Check that completed_user_id is still empty
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completed_user_id"] == ""
+
+
+def test_completed_task_requires_completed_user(db_session, project_name, existing_task):
+    """Test that completed tasks must have a completed_user_id"""
+    # Try to set a completion status without a completed_user_id
+    update_data = TaskUpdate(completion_status="done")
+    with pytest.raises(
+        TaskValidationError, match="Completed task must have completed_user_id"
+    ):
+        update_task(
+            project_name=project_name,
+            task_id="task_1",
+            data=update_data,
+            db_session=db_session,
+        )
+
+    # Check that completion_status didn't change
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == ""  # Should remain empty
+
+    # Now try with both fields set - this should work
+    update_data = TaskUpdate(completion_status="done", completed_user_id="test_user")
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=update_data,
+        db_session=db_session,
+    )
+
+    # Verify both fields were updated
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == "done"
+    assert task["completed_user_id"] == "test_user"
+
+
+def test_create_task_duplicate_id(db_session, project_name, existing_task):
+    """Test that creating a task with an existing ID raises an error"""
+    # Try to create a task with the same ID as an existing one
+    duplicate_task = Task(
+        **{
+            "job_id": "job_1",
+            "task_id": "task_1",  # This ID already exists
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"url": "http://example.com/new"},
+            "ng_state_initial": {"url": "http://example.com/"},
+            "priority": 2,
+            "batch_id": "batch_2",
+            "task_type": "segmentation_proofread",
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+
+    # This should raise a TaskValidationError with a specific message
+    with pytest.raises(TaskValidationError, match="Task task_1 already exists"):
+        create_task(project_name=project_name, data=duplicate_task, db_session=db_session)
+
+    # Verify the original task wasn't modified
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["ng_state"] == {"url": "http://example.com"}  # Original ng_state, not the new one
+    assert task["priority"] == 1  # Original priority, not the new one
+
+
+def test_task_type_without_completion_statuses(db_session, project_name, existing_task):
+    """Test that a task with a type that has no completion statuses cannot be completed"""
+    # Create a task type without completion_statuses
+    invalid_type = TaskType(task_type="no_completion_type", completion_statuses=[])
+    create_task_type(project_name=project_name, data=invalid_type, db_session=db_session)
+
+    # First update the task to use this type
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(task_type="no_completion_type"),
+        db_session=db_session,
+    )
+
+    # Now try to set a completion status
+    update_data = TaskUpdate(completion_status="done", completed_user_id="test_user")
+    with pytest.raises(
+        TaskValidationError,
+        match="Completion status 'done' not allowed for this task type",
+    ):
+        update_task(
+            project_name=project_name,
+            task_id="task_1",
+            data=update_data,
+            db_session=db_session,
+        )
+
+    # Check that completion_status didn't change
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == ""  # Should remain empty
+    assert task["completed_user_id"] == ""
+
+
+def test_task_type_missing_completion_statuses_key(
+    db_session, project_name, existing_task, mocker
+):
+    """Test validation when task type dict is missing completion_statuses key entirely"""
+    # Create a mock task type that doesn't have completion_statuses in its to_dict result
+    mock_task_type = mocker.Mock()
+    mock_task_type.to_dict.return_value = {
+        "task_type": "test_type",
+        "description": "Test type"
+        # Missing "completion_statuses" key
+    }
+
+    # Mock the database query to return our mock task type
+    mock_execute = mocker.patch.object(db_session, "execute")
+    mock_result = mocker.Mock()
+    mock_result.scalar_one.return_value = mock_task_type
+    mock_execute.return_value = mock_result
+
+    # Test task data that would trigger the validation
+    test_task = {
+        "task_type": "test_type",
+        "completion_status": "done",
+        "completed_user_id": "test_user",
+        "is_active": True,
+    }
+
+    # This should raise the specific validation error we're testing
+    with pytest.raises(
+        TaskValidationError,
+        match="Task type test_type has no valid completion statuses",
+    ):
+        _validate_task(db_session, project_name, test_task)
+
+
+def test_update_nonexistent_task(db_session, project_name):
+    """Test that updating a nonexistent task raises an error"""
+    # Try to update a task that doesn't exist
+    update_data = TaskUpdate(priority=5, assigned_user_id="user_2")
+
+    # This should raise a KeyError with a specific message
+    with pytest.raises(KeyError, match="Task nonexistent_task not found"):
+        update_task(
+            project_name=project_name,
+            task_id="nonexistent_task",
+            data=update_data,
+            db_session=db_session,
+        )
+
+
+def test_start_task_nonexistent_user(db_session, project_name, existing_task):
+    """Test that starting a task with a nonexistent user raises an error"""
+    # Try to start a task with a user that doesn't exist
+    nonexistent_user_id = "nonexistent_user"
+
+    # This should raise a UserValidationError with a specific message
+    with pytest.raises(UserValidationError, match=f"User {nonexistent_user_id} not found"):
+        start_task(
+            project_name=project_name,
+            user_id=nonexistent_user_id,
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+    # Verify that the task wasn't modified
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["active_user_id"] == ""  # Should remain empty
+
+    # Verify no user was created by trying to get the user and expecting an error
+    with pytest.raises(KeyError):
+        get_user(project_name=project_name, user_id=nonexistent_user_id, db_session=db_session)
+
+
+def test_start_task_user_already_has_active(
+    db_session, project_name, existing_task, existing_user
+):
+    """Test that a user with an active task cannot start another one"""
+    # Create a second task
+    second_task = Task(
+        **{
+            "job_id": "job_1",
+            "task_id": "task_2",
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"url": "http://example.com/second"},
+            "ng_state_initial": {"url": "http://example.com/"},
+            "priority": 2,
+            "batch_id": "batch_1",
+            "task_type": "segmentation_proofread",
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+    create_task(project_name=project_name, data=second_task, db_session=db_session)
+
+    # First, start one task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Now try to start a second task with the same user
+    with pytest.raises(
+        UserValidationError,
+        match="User already has an active task task_1 which is different "
+        "from requested task task_2",
+    ):
+        start_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_2",
+            db_session=db_session,
+        )
+
+    # Verify the first task is still active for the user
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "task_1"
+
+    # Verify the second task wasn't started
+    task2 = get_task(
+        project_name=project_name, task_id="task_2", db_session=db_session
+    )
+    assert task2["active_user_id"] == ""  # Should remain empty
+
+
+def test_start_nonexistent_task(db_session, project_name, existing_user):
+    """Test that starting a nonexistent task raises an error"""
+    # Try to start a task that doesn't exist
+    nonexistent_task_id = "nonexistent_task"
+
+    # This should raise a TaskValidationError with a specific message
+    with pytest.raises(
+        TaskValidationError, match=f"Task {nonexistent_task_id} not found"
+    ):
+        start_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id=nonexistent_task_id,
+            db_session=db_session,
+        )
+
+    # Verify the user's active_task wasn't modified
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == ""
+
+    # Verify that no task was created with this ID by trying to get it and expecting an error
+    with pytest.raises(KeyError):
+        get_task(
+            project_name=project_name,
+            task_id=nonexistent_task_id,
+            db_session=db_session,
+        )
+
+
+def test_start_task_takeover_idle(db_session, project_name, existing_task, existing_user):
+    """Test taking over an idle task from another user"""
+    second_user = User(
+        **{
+            "user_id": "user_2",
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
+        }
+    )
+    create_user(project_name=project_name, data=second_user, db_session=db_session)
+
+    # First, have user_1 start the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Verify user_1 has the task
+    user1 = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user1["active_task"] == "task_1"
+
+    # Manually update the last_leased_ts to be older than max idle seconds
+    old_time = time.time() - (get_max_idle_seconds() + 10)
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(last_leased_ts=old_time),
+        db_session=db_session,
+    )
+
+    # Now have user_2 take over the task
+    start_task(
+        project_name=project_name,
+        user_id="user_2",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Verify user_2 now has the task
+    user2 = get_user(project_name=project_name, user_id="user_2", db_session=db_session)
+    assert user2["active_task"] == "task_1"
+
+    # Verify user_1 no longer has the task
+    user1 = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user1["active_task"] == ""
+
+    # Verify the task is now assigned to user_2
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["active_user_id"] == "user_2"
+    assert task["last_leased_ts"] > old_time
+
+
+def test_start_task_already_active(db_session, project_name, existing_task, existing_user):
+    """Test that starting an already active task raises an error"""
+    # Create a second user
+    second_user = User(
+        **{
+            "user_id": "user_2",
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
+        }
+    )
+    create_user(project_name=project_name, data=second_user, db_session=db_session)
+
+    # First, have user_1 start the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Verify user_1 has the task
+    user1 = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user1["active_task"] == "task_1"
+
+    # Now have user_2 try to take over the task (which is still active)
+    with pytest.raises(
+        TaskValidationError, match="Task is no longer available for takeover"
+    ):
+        start_task(
+            project_name=project_name,
+            user_id="user_2",
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+    # Verify user_1 still has the task
+    user1 = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user1["active_task"] == "task_1"
+
+    # Verify user_2 still has no active task
+    user2 = get_user(project_name=project_name, user_id="user_2", db_session=db_session)
+    assert user2["active_task"] == ""
+
+    # Verify the task is still assigned to user_1
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["active_user_id"] == "test_user"
+
+
+def test_start_task_requires_qualification(
+    db_session, project_name, existing_user, existing_task, existing_task_type
+):
+    """Test that a user can't start a task if they're not qualified for it"""
+    # Update user to have empty qualifications list
+    update_user(
+        project_name=project_name,
+        user_id="test_user",
+        data=UserUpdate(
+            hourly_rate=50.0,
+            active_task="",
+            qualified_task_types=[],  # Empty list means no qualifications
+        ),
+        db_session=db_session,
+    )
+
+    # Try to start task - this should raise an error
+    with pytest.raises(UserValidationError, match="User not qualified for this task type"):
+        start_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+    # Verify the user's active_task wasn't modified
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == ""
+
+    # Verify the task wasn't modified
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["active_user_id"] == ""
+
+    # Now update the user to have the qualification and try again
+    update_user(
+        project_name=project_name,
+        user_id="test_user",
+        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        db_session=db_session,
+    )
+
+    # This should now succeed
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Verify the user now has the task
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "task_1"
+
+    # Verify the task is now assigned to the user
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["active_user_id"] == "test_user"
+
+
+def test_start_task_user_not_qualified_for_specific_type(
+    db_session, project_name, existing_task_type
+):
+    """Test that a user with qualifications can't start a task they're not qualified for"""
+    # Create a user qualified for one type but not another
+    qualified_user = User(
+        user_id="partially_qualified_user",
+        hourly_rate=50.0,
+        active_task="",
+        qualified_task_types=["different_type"],  # Qualified for different type only
+    )
+    create_user(project_name=project_name, data=qualified_user, db_session=db_session)
+
+    # Create a task with the existing task type (which user is not qualified for)
+    test_task = Task(
+        job_id="job_1",
+        task_id="unqualified_task",
+        assigned_user_id="",
+        active_user_id="",
+        completed_user_id="",
+        ng_state={"url": "http://example.com/unqualified"},
+        ng_state_initial={"url": "http://example.com/unqualified"},
+        priority=1,
+        batch_id="batch_1",
+        task_type=existing_task_type["task_type"],  # User not qualified for this type
+        is_active=True,
+        last_leased_ts=0.0,
+        completion_status="",
+    )
+    create_task(project_name=project_name, data=test_task, db_session=db_session)
+
+    # Try to start the task - should fail because user not qualified for this specific type
+    with pytest.raises(UserValidationError, match="User not qualified for this task type"):
+        start_task(
+            project_name=project_name,
+            user_id="partially_qualified_user",
+            task_id="unqualified_task",
+            db_session=db_session,
+        )
+
+    # Verify the user's active_task wasn't modified
+    user = get_user(
+        project_name=project_name,
+        user_id="partially_qualified_user",
+        db_session=db_session,
+    )
+    assert user["active_task"] == ""
+
+    # Verify the task wasn't modified
+    task = get_task(
+        project_name=project_name,
+        task_id="unqualified_task",
+        db_session=db_session,
+    )
+    assert task["active_user_id"] == ""
+
+
+def test_release_task_nonexistent_task(db_session, project_name, existing_user):
+    """Test that releasing a nonexistent task raises an error"""
+    # Update user to have nonexistent active task
+    update_user(
+        project_name=project_name,
+        user_id="test_user",
+        data=UserUpdate(active_task="nonexistent_task"),
+        db_session=db_session,
+    )
+
+    # Verify the user has been updated
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "nonexistent_task"
+
+    # Now try to release the task
+    with pytest.raises(TaskValidationError, match="Task nonexistent_task not found"):
+        release_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="nonexistent_task",
+            db_session=db_session,
+        )
+
+    # Verify the user's active_task wasn't modified
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "nonexistent_task"
+
+
+def test_auto_select_task_no_qualified_types(db_session, project_name, existing_task):
+    """Test that auto-selecting a task returns None when user has no qualified types"""
+    # Create a user with no qualified task types
+    unqualified_user = User(
+        **{
+            "user_id": "unqualified_user",
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": [],  # Empty list means no qualifications
+        }
+    )
+    create_user(project_name=project_name, data=unqualified_user, db_session=db_session)
+
+    # Try to auto-select a task (by not specifying a task_id)
+    result = start_task(
+        project_name=project_name,
+        user_id="unqualified_user",
+        task_id=None,
+        db_session=db_session,
+    )
+
+    # Verify that no task was selected
+    assert result is None
+
+    # Verify the user's active_task wasn't modified
+    user = get_user(project_name=project_name, user_id="unqualified_user", db_session=db_session)
+    assert user["active_task"] == ""
+
+    # Now update the user to have a qualification and try again
+    update_user(
+        project_name=project_name,
+        user_id="unqualified_user",
+        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        db_session=db_session,
+    )
+
+    # This should now succeed
+    result = start_task(
+        project_name=project_name,
+        user_id="unqualified_user",
+        task_id=None,
+        db_session=db_session,
+    )
+
+    # Verify a task was selected
+    assert result is not None
+
+    # Verify the user now has the task
+    user = get_user(project_name=project_name, user_id="unqualified_user", db_session=db_session)
+    assert user["active_task"] == result
+
+    # Verify the task is now assigned to the user
+    task = get_task(project_name=project_name, task_id=result, db_session=db_session)
+    assert task["active_user_id"] == "unqualified_user"
+
+
+def test_auto_select_task_prioritizes_assigned_to_user(
+    db_session, project_name, existing_user, existing_task_type, job_factory, task_factory
+):
+    job_factory("job_1")
+
+    task_factory("job_1", "assigned_task", assigned_user_id="test_user", priority=1)
+
+    task_factory(
+        "job_1", "unassigned_task", assigned_user_id="", priority=10  # Higher priority
+    )
+
+    # Auto-select a task (by not specifying a task_id)
+    result = start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id=None,
+        db_session=db_session,
+    )
+
+    # Verify that the assigned task was selected, even though it has lower priority
+    assert result == "assigned_task"
+
+    # Verify the user now has the assigned task
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "assigned_task"
+
+    # Verify the task is now assigned to the user
+    task = get_task(
+        project_name=project_name, task_id="assigned_task", db_session=db_session
+    )
+    assert task["active_user_id"] == "test_user"
+
+    # Verify the unassigned task wasn't modified
+    unassigned = get_task(
+        project_name=project_name, task_id="unassigned_task", db_session=db_session
+    )
+    assert unassigned["active_user_id"] == ""
+
+
+def test_release_task_no_active_task(db_session, project_name, existing_user):
+    """Test that releasing a task fails when the user doesn't have an active task"""
+    # Verify the user doesn't have an active task
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == ""
+
+    # Try to release a task
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
+        release_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+    # Try to release with a completion status
+    with pytest.raises(UserValidationError, match="User does not have an active task"):
+        release_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_1",
+            completion_status="done",
+            db_session=db_session,
+        )
+
+    # Verify the user's active_task is still empty
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == ""
+
+
+def test_release_task_with_dependencies(
+    db_session, project_name, existing_task_type, job_factory, task_factory
+):
+    """Test releasing a task with dependencies updates the dependent tasks"""
+    # Create a user
+    user_data = User(
+        user_id="dep_test_user",
+        hourly_rate=50.0,
+        active_task="",
+        qualified_task_types=[existing_task_type["task_type"]],
+    )
+    create_user(project_name=project_name, data=user_data, db_session=db_session)
+
+    # Create job and tasks using factory fixtures
+    job_factory("job_dep")
+    task_factory("job_dep", "task_dep_1", assigned_user_id="dep_test_user", is_active=True)
+    task_factory(
+        "job_dep",
+        "task_dep_2",
+        is_active=False,  # Initially inactive until dependency is satisfied
+    )
+
+    # Create a dependency between them
+    dependency_data = Dependency(
+        dependency_id="dep_test_1",
+        task_id="task_dep_2",  # This task depends on task_dep_1
+        dependent_on_task_id="task_dep_1",
+        required_completion_status="done",
+        is_satisfied=False,
+    )
+    create_dependency(project_name=project_name, data=dependency_data, db_session=db_session)
+
+    # Start work on task1
+    start_task(
+        project_name=project_name,
+        user_id="dep_test_user",
+        task_id="task_dep_1",
+        db_session=db_session,
+    )
+
+    # Verify task2 is still inactive
+    task2_before = get_task(
+        project_name=project_name, task_id="task_dep_2", db_session=db_session
+    )
+    assert task2_before["is_active"] is False
+
+    # Release task1 with completion status "done"
+    result = release_task(
+        project_name=project_name,
+        user_id="dep_test_user",
+        task_id="task_dep_1",
+        completion_status="done",
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Verify task1 was updated correctly
+    task1_after = get_task(
+        project_name=project_name, task_id="task_dep_1", db_session=db_session
+    )
+    assert task1_after["completion_status"] == "done"
+    assert task1_after["active_user_id"] == ""
+    assert task1_after["completed_user_id"] == "dep_test_user"
+
+
+def test_start_task_returns_current_active_when_auto_selecting(
+    db_session, project_name, existing_task, existing_user
+):
+    # First, start a task for the user
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Verify the user has an active task
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "task_1"
+
+    # Now call start_task with task_id=None (auto-select mode)
+    # This should return the user's current active task
+    result = start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id=None,  # Auto-select mode
+        db_session=db_session,
+    )
+
+    # Should return the same task the user already has active
+    assert result == "task_1"
+
+    # User should still have the same active task
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "task_1"
+
+
+def test_release_task_mismatched_id(db_session, project_name, existing_task, existing_user):
+    """Test that releasing a task with wrong ID raises validation error"""
+    # Create a second task
+    task2 = Task(
+        **{
+            "job_id": "job_1",
+            "task_id": "task_2",
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"url": "http://example.com/2"},
+            "ng_state_initial": {"url": "http://example.com/2"},
+            "priority": 2,
+            "batch_id": "batch_1",
+            "task_type": "segmentation_proofread",
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+    create_task(project_name=project_name, data=task2, db_session=db_session)
+
+    # Start task_1 for the user
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Try to release task_2 (which is not the user's active task)
+    with pytest.raises(
+        UserValidationError,
+        match="Task ID does not match user's active task",
+    ):
+        release_task(
+            project_name=project_name,
+            user_id="test_user",
+            task_id="task_2",  # Wrong task ID
+            db_session=db_session,
+        )
+
+
+def test_reactivate_task_success(db_session, project_name, existing_task, existing_user):
+    """Test successfully reactivating a completed task"""
+    # First start and complete the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        completion_status="pass",
+        db_session=db_session,
+    )
+    
+    # Verify task is completed
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == "pass"
+    assert task["completed_user_id"] == "test_user"
+    
+    # Now reactivate it
+    result = reactivate_task(
+        project_name=project_name,
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    assert result is True
+    
+    # Verify task is now active again
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == ""
+    assert task["completed_user_id"] == ""
+
+
+def test_reactivate_task_already_active(db_session, project_name, existing_task, existing_user):
+    """Test that reactivating an already active task raises an error"""
+    # Task is already active (not completed)
+    task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert task["completion_status"] == ""
+    
+    # Try to reactivate - should fail
+    with pytest.raises(TaskValidationError, match="Task task_1 is already active"):
+        reactivate_task(
+            project_name=project_name,
+            task_id="task_1",
+            db_session=db_session,
+        )
+
+
+def test_reactivate_task_nonexistent(db_session, project_name):
+    """Test that reactivating a nonexistent task raises KeyError"""
+    with pytest.raises(KeyError, match="Task nonexistent_task not found"):
+        reactivate_task(
+            project_name=project_name,
+            task_id="nonexistent_task",
+            db_session=db_session,
+        )
+
+
+def test_reactivate_task_reactivates_job(
+    db_session, project_name, existing_task_type, job_factory, task_factory
+):
+    """Test that reactivating a task also reactivates a fully_processed job"""
+    from zetta_utils.task_management.job import get_job, update_job
+    from zetta_utils.task_management.types import JobUpdate
+    from zetta_utils.task_management.user import create_user
+    
+    # Create a user
+    user_data = User(
+        user_id="reactivate_test_user",
+        hourly_rate=50.0,
+        active_task="",
+        qualified_task_types=[existing_task_type["task_type"]],
+    )
+    create_user(project_name=project_name, data=user_data, db_session=db_session)
+    
+    # Create job and task
+    job_factory("job_reactivate")
+    task_factory("job_reactivate", "task_reactivate", is_active=True)
+    
+    # Complete the task and mark job as fully_processed
+    start_task(
+        project_name=project_name,
+        user_id="reactivate_test_user", 
+        task_id="task_reactivate",
+        db_session=db_session,
+    )
+    
+    release_task(
+        project_name=project_name,
+        user_id="reactivate_test_user",
+        task_id="task_reactivate", 
+        completion_status="pass",
+        db_session=db_session,
+    )
+    
+    # Manually set job status to fully_processed to simulate job completion
+    update_job(
+        project_name=project_name,
+        job_id="job_reactivate",
+        data=JobUpdate(status="fully_processed"),
+        db_session=db_session,
+    )
+    
+    # Verify job is fully_processed
+    job = get_job(project_name=project_name, job_id="job_reactivate", db_session=db_session)
+    assert job["status"] == "fully_processed"
+    
+    # Reactivate the task
+    reactivate_task(
+        project_name=project_name,
+        task_id="task_reactivate",
+        db_session=db_session,
+    )
+    
+    # Verify job is now reactivated back to ingested status
+    job = get_job(project_name=project_name, job_id="job_reactivate", db_session=db_session)
+    assert job["status"] == "ingested"

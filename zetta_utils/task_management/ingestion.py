@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from tqdm import tqdm
 from typeguard import typechecked
 
-from .db.models import JobModel, SubtaskModel
+from .db.models import JobModel, TaskModel
 from .db.session import get_session_context
-from .subtask_structure import create_subtask_structure
+from .task_structure import create_task_structure
 
 
 @typechecked
@@ -15,8 +15,8 @@ def ingest_job(
     *,
     project_name: str,
     job_id: str,
-    subtask_structure: str,
-    subtask_structure_kwargs: dict[str, Any],
+    task_structure: str,
+    task_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
     db_session: Session | None = None,
@@ -26,13 +26,13 @@ def ingest_job(
 
     :param project_name: The name of the project.
     :param job_id: The ID of the job to ingest.
-    :param subtask_structure: Name of subtask structure to create
-    :param subtask_structure_kwargs: Keyword arguments for the subtask structure
+    :param task_structure: Name of task structure to create
+    :param task_structure_kwargs: Keyword arguments for the task structure
     :param re_ingest: Controls re-ingestion behavior:
                       None - only ingest pending_ingestion jobs
                       "not_processed" - ingest pending_ingestion and ingested jobs
                       "all" - ingest all jobs including fully_processed ones
-    :param priority: Priority for subtasks (default: 1)
+    :param priority: Priority for tasks (default: 1)
     :param db_session: Database session to use (optional)
     :return: True if the job was ingested, False otherwise.
     :raises ValueError: If the job is not in a valid status for ingestion.
@@ -41,11 +41,11 @@ def ingest_job(
     return ingest_jobs(
         project_name=project_name,
         job_ids=[job_id],
-        subtask_structure=subtask_structure,
+        task_structure=task_structure,
         re_ingest=re_ingest,
         priority=priority,
         bundle_size=1,
-        subtask_structure_kwargs=subtask_structure_kwargs,
+        task_structure_kwargs=task_structure_kwargs,
         db_session=db_session,
     )
 
@@ -55,8 +55,8 @@ def ingest_jobs(
     *,
     project_name: str,
     job_ids: list[str],
-    subtask_structure: str,
-    subtask_structure_kwargs: dict[str, Any],
+    task_structure: str,
+    task_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
     bundle_size: int = 500,
@@ -67,13 +67,13 @@ def ingest_jobs(
 
     :param project_name: The name of the project.
     :param job_ids: List of job IDs to ingest.
-    :param subtask_structure: Name of subtask structure to create
-    :param subtask_structure_kwargs: Keyword arguments for the subtask structure
+    :param task_structure: Name of task structure to create
+    :param task_structure_kwargs: Keyword arguments for the task structure
     :param re_ingest: Controls re-ingestion behavior:
                       None - only ingest pending_ingestion jobs
                       "not_processed" - ingest pending_ingestion and ingested jobs
                       "all" - ingest all jobs including fully_processed ones
-    :param priority: Priority for subtasks (default: 1)
+    :param priority: Priority for tasks (default: 1)
     :param bundle_size: Maximum number of operations per batch (default 500)
     :param db_session: Database session to use (optional)
     :return: True if all jobs with appropriate status were ingested, False otherwise.
@@ -114,37 +114,37 @@ def ingest_jobs(
         for i in tqdm(list(range(0, len(job_ids_to_ingest), bundle_size))):
             job_bundle = job_ids_to_ingest[i : i + bundle_size]
 
-            # For jobs that are already ingested, deactivate existing subtasks
+            # For jobs that are already ingested, deactivate existing tasks
             ingested_job_ids = [
                 job_id for job_id in job_bundle if jobs[job_id]["status"] == "ingested"
             ]
 
             if ingested_job_ids:
-                # Deactivate existing active subtasks for re-ingestion
+                # Deactivate existing active tasks for re-ingestion
                 deactivate_query = (
-                    update(SubtaskModel)
-                    .where(SubtaskModel.project_name == project_name)
-                    .where(SubtaskModel.job_id.in_(ingested_job_ids))
-                    .where(SubtaskModel.is_active.is_(True))
+                    update(TaskModel)
+                    .where(TaskModel.project_name == project_name)
+                    .where(TaskModel.job_id.in_(ingested_job_ids))
+                    .where(TaskModel.is_active.is_(True))
                     .values(is_active=False)
                 )
                 session.execute(deactivate_query)
 
-            # Create subtask structure for each job
+            # Create task structure for each job
             for job_id in job_bundle:
                 try:
-                    create_subtask_structure(
+                    create_task_structure(
                         project_name=project_name,
                         job_id=str(job_id),
-                        subtask_structure=subtask_structure,
+                        task_structure=task_structure,
                         priority=priority,
-                        subtask_structure_kwargs=subtask_structure_kwargs,
+                        task_structure_kwargs=task_structure_kwargs,
                         db_session=session,
                     )
                 except RuntimeError as e:
                     # Extract the original error message from the nested RuntimeError
-                    # Note: create_subtask_structure already handles rollback internally
-                    original_error = str(e).replace("Failed to create subtask structure: ", "")
+                    # Note: create_task_structure already handles rollback internally
+                    original_error = str(e).replace("Failed to create task structure: ", "")
                     raise RuntimeError(f"Failed to ingest job bundle: {original_error}") from e
 
             try:
@@ -160,8 +160,8 @@ def ingest_batch(
     *,
     project_name: str,
     batch_id: str,
-    subtask_structure: str,
-    subtask_structure_kwargs: dict[str, Any],
+    task_structure: str,
+    task_structure_kwargs: dict[str, Any],
     re_ingest: Literal["not_processed", "all"] | None = None,
     priority: int = 1,
     bundle_size: int = 100,
@@ -172,13 +172,13 @@ def ingest_batch(
 
     :param project_name: The name of the project.
     :param batch_id: The ID of the batch to ingest.
-    :param subtask_structure: Name of subtask structure to create
-    :param subtask_structure_kwargs: Keyword arguments for the subtask structure
+    :param task_structure: Name of task structure to create
+    :param task_structure_kwargs: Keyword arguments for the task structure
     :param re_ingest: Controls re-ingestion behavior:
                       None - only ingest pending_ingestion jobs
                       "not_processed" - ingest pending_ingestion and ingested jobs
                       "all" - ingest all jobs including fully_processed ones
-    :param priority: Priority for subtasks (default: 1)
+    :param priority: Priority for tasks (default: 1)
     :param bundle_size: Maximum number of operations per batch
     :param db_session: Database session to use (optional)
     :return: True if any jobs were ingested, False otherwise.
@@ -207,8 +207,8 @@ def ingest_batch(
         return ingest_jobs(
             project_name=project_name,
             job_ids=job_ids,
-            subtask_structure=subtask_structure,
-            subtask_structure_kwargs=subtask_structure_kwargs,
+            task_structure=task_structure,
+            task_structure_kwargs=task_structure_kwargs,
             re_ingest=re_ingest,
             priority=priority,
             bundle_size=bundle_size,

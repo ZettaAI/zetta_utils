@@ -50,7 +50,7 @@ def create_user(
     Create a new user record in the database.
 
     :param project_name: The name of the project.
-    :param data: The user data to create, must contain user_id, hourly_rate, and active_subtask.
+    :param data: The user data to create, must contain user_id, hourly_rate, and active_task.
     :param db_session: SQLAlchemy session (optional).
     :return: The user_id of the created user.
     :raises ValueError: If the user data is invalid or user already exists with different data.

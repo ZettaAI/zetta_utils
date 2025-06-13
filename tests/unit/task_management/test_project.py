@@ -25,8 +25,8 @@ def test_create_project_tables(project_name, clean_db, db_session):
     sample_user: User = {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
 
     user_id = create_user(project_name=project_name, data=sample_user, db_session=db_session)
@@ -42,8 +42,8 @@ def test_get_project_success(project_name, clean_db, db_session):
     sample_user: User = {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
     create_user(project_name=project_name, data=sample_user, db_session=db_session)
 

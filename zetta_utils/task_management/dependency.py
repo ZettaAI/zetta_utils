@@ -5,7 +5,7 @@ from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 from typeguard import typechecked
 
-from .db.models import DependencyModel, SubtaskModel
+from .db.models import DependencyModel, TaskModel
 from .db.session import get_session_context
 from .types import Dependency, DependencyUpdate
 
@@ -51,8 +51,8 @@ def create_dependency(
     :raises RuntimeError: If the database operation fails.
     """
     with get_session_context(db_session) as session:
-        if data["subtask_id"] == data["dependent_on_subtask_id"]:
-            raise ValueError("Subtask cannot depend on itself")
+        if data["task_id"] == data["dependent_on_task_id"]:
+            raise ValueError("Task cannot depend on itself")
 
         # Check if dependency already exists
         query = (
@@ -65,24 +65,24 @@ def create_dependency(
         if existing:
             raise ValueError(f"Dependency {data['dependency_id']} already exists")
 
-        # Verify both subtasks exist
-        subtask_query = (
-            select(SubtaskModel)
-            .where(SubtaskModel.subtask_id == data["subtask_id"])
-            .where(SubtaskModel.project_name == project_name)
+        # Verify both tasks exist
+        task_query = (
+            select(TaskModel)
+            .where(TaskModel.task_id == data["task_id"])
+            .where(TaskModel.project_name == project_name)
         )
-        subtask = session.execute(subtask_query).scalar_one_or_none()
-        if not subtask:
-            raise ValueError(f"Subtask {data['subtask_id']} not found")
+        task = session.execute(task_query).scalar_one_or_none()
+        if not task:
+            raise ValueError(f"Task {data['task_id']} not found")
 
         dependent_on_query = (
-            select(SubtaskModel)
-            .where(SubtaskModel.subtask_id == data["dependent_on_subtask_id"])
-            .where(SubtaskModel.project_name == project_name)
+            select(TaskModel)
+            .where(TaskModel.task_id == data["dependent_on_task_id"])
+            .where(TaskModel.project_name == project_name)
         )
         dependent_on = session.execute(dependent_on_query).scalar_one_or_none()
         if not dependent_on:
-            raise ValueError(f"Subtask {data['dependent_on_subtask_id']} not found")
+            raise ValueError(f"Task {data['dependent_on_task_id']} not found")
 
         # Create new dependency
         dependency_data = {**data}
@@ -136,63 +136,63 @@ def update_dependency(
         return True
 
 
-def get_dependencies_for_subtask(
-    *, project_name: str, subtask_id: str, db_session: Session | None = None
+def get_dependencies_for_task(
+    *, project_name: str, task_id: str, db_session: Session | None = None
 ) -> list[Dependency]:
     """
-    Get all dependencies for a specific subtask.
+    Get all dependencies for a specific task.
 
     :param project_name: The name of the project.
-    :param subtask_id: The subtask ID to get dependencies for.
+    :param task_id: The task ID to get dependencies for.
     :param db_session: Database session to use (optional).
-    :return: List of dependencies for the subtask.
+    :return: List of dependencies for the task.
     """
     with get_session_context(db_session) as session:
         query = (
             select(DependencyModel)
-            .where(DependencyModel.subtask_id == subtask_id)
+            .where(DependencyModel.task_id == task_id)
             .where(DependencyModel.project_name == project_name)
         )
         dependencies = session.execute(query).scalars().all()
         return [cast(Dependency, dep.to_dict()) for dep in dependencies]
 
 
-def get_dependencies_depending_on_subtask(
-    *, project_name: str, dependent_on_subtask_id: str, db_session: Session | None = None
+def get_dependencies_depending_on_task(
+    *, project_name: str, dependent_on_task_id: str, db_session: Session | None = None
 ) -> list[Dependency]:
     """
-    Get all dependencies that depend on a specific subtask.
+    Get all dependencies that depend on a specific task.
 
     :param project_name: The name of the project.
-    :param dependent_on_subtask_id: The subtask ID that others depend on.
+    :param dependent_on_task_id: The task ID that others depend on.
     :param db_session: Database session to use (optional).
-    :return: List of dependencies that depend on the specified subtask.
+    :return: List of dependencies that depend on the specified task.
     """
     with get_session_context(db_session) as session:
         query = (
             select(DependencyModel)
-            .where(DependencyModel.dependent_on_subtask_id == dependent_on_subtask_id)
+            .where(DependencyModel.dependent_on_task_id == dependent_on_task_id)
             .where(DependencyModel.project_name == project_name)
         )
         dependencies = session.execute(query).scalars().all()
         return [cast(Dependency, dep.to_dict()) for dep in dependencies]
 
 
-def get_unsatisfied_dependencies_for_subtask(
-    *, project_name: str, subtask_id: str, db_session: Session | None = None
+def get_unsatisfied_dependencies_for_task(
+    *, project_name: str, task_id: str, db_session: Session | None = None
 ) -> list[Dependency]:
     """
-    Get all unsatisfied dependencies for a specific subtask.
+    Get all unsatisfied dependencies for a specific task.
 
     :param project_name: The name of the project.
-    :param subtask_id: The subtask ID to get unsatisfied dependencies for.
+    :param task_id: The task ID to get unsatisfied dependencies for.
     :param db_session: Database session to use (optional).
-    :return: List of unsatisfied dependencies for the subtask.
+    :return: List of unsatisfied dependencies for the task.
     """
     with get_session_context(db_session) as session:
         query = (
             select(DependencyModel)
-            .where(DependencyModel.subtask_id == subtask_id)
+            .where(DependencyModel.task_id == task_id)
             .where(DependencyModel.project_name == project_name)
             .where(DependencyModel.is_satisfied == False)  # pylint: disable=singleton-comparison
         )

@@ -5,9 +5,9 @@ from testcontainers.postgres import PostgresContainer
 from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base
 from zetta_utils.task_management.job import create_job
-from zetta_utils.task_management.subtask import create_subtask
-from zetta_utils.task_management.subtask_type import create_subtask_type
-from zetta_utils.task_management.types import Job, Subtask, SubtaskType, User
+from zetta_utils.task_management.task import create_task
+from zetta_utils.task_management.task_type import create_task_type
+from zetta_utils.task_management.types import Job, Task, TaskType, User
 from zetta_utils.task_management.user import create_user
 
 
@@ -85,8 +85,8 @@ def sample_user() -> User:
     return {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
 
 
@@ -104,7 +104,7 @@ def sample_job() -> Job:
             "batch_id": "batch_1",
             "status": "pending_ingestion",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/job_1",
+            "ng_state": {"url": "http://example.com/job_1"},
         }
     )
 
@@ -117,77 +117,77 @@ def existing_job(db_session, project_name, sample_job):
 
 
 @pytest.fixture
-def sample_subtask_type() -> SubtaskType:
+def sample_task_type() -> TaskType:
     return {
-        "subtask_type": "segmentation_proofread",
+        "task_type": "segmentation_proofread",
         "completion_statuses": ["done", "need_help"],
     }
 
 
 @pytest.fixture
-def existing_subtask_type(clean_db, db_session, project_name, sample_subtask_type):
-    create_subtask_type(project_name=project_name, data=sample_subtask_type, db_session=db_session)
-    yield sample_subtask_type
+def existing_task_type(clean_db, db_session, project_name, sample_task_type):
+    create_task_type(project_name=project_name, data=sample_task_type, db_session=db_session)
+    yield sample_task_type
 
 
 @pytest.fixture
-def sample_subtasks() -> list[Subtask]:
+def sample_tasks() -> list[Task]:
     return [
         {
             "job_id": "job_1",
-            "subtask_id": f"subtask_{i}",
+            "task_id": f"task_{i}",
             "completion_status": "",
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
-            "ng_state": f"http://example.com/{i}",
-            "ng_state_initial": f"http://example.com/{i}",
+            "ng_state": {"url": f"http://example.com/{i}"},
+            "ng_state_initial": {"url": f"http://example.com/{i}"},
             "priority": i,
             "batch_id": "batch_1",
             "last_leased_ts": 0.0,
             "is_active": True,
-            "subtask_type": "segmentation_proofread",
+            "task_type": "segmentation_proofread",
         }
         for i in range(1, 4)
     ]
 
 
 @pytest.fixture
-def existing_subtasks(
-    clean_db, db_session, project_name, sample_subtasks, existing_subtask_type, existing_job
+def existing_tasks(
+    clean_db, db_session, project_name, sample_tasks, existing_task_type, existing_job
 ):
     # Job is already created by existing_job fixture
-    for subtask in sample_subtasks:
-        create_subtask(project_name=project_name, data=subtask, db_session=db_session)
-    yield sample_subtasks
+    for task in sample_tasks:
+        create_task(project_name=project_name, data=task, db_session=db_session)
+    yield sample_tasks
 
 
 @pytest.fixture
-def sample_subtask(existing_subtask_type) -> Subtask:
+def sample_task(existing_task_type) -> Task:
     return {
         "job_id": "job_1",
-        "subtask_id": "subtask_1",
+        "task_id": "task_1",
         "completion_status": "",
         "assigned_user_id": "",
         "active_user_id": "",
         "completed_user_id": "",
-        "ng_state": "http://example.com",
-        "ng_state_initial": "http://example.com",
+        "ng_state": {"url": "http://example.com"},
+        "ng_state_initial": {"url": "http://example.com"},
         "priority": 1,
         "batch_id": "batch_1",
-        "subtask_type": existing_subtask_type["subtask_type"],
+        "task_type": existing_task_type["task_type"],
         "is_active": True,
         "last_leased_ts": 0.0,
     }
 
 
 @pytest.fixture
-def existing_subtask(
-    clean_db, db_session, project_name, existing_subtask_type, sample_subtask, existing_job
+def existing_task(
+    clean_db, db_session, project_name, existing_task_type, sample_task, existing_job
 ):
     # Job is already created by existing_job fixture
-    create_subtask(project_name=project_name, data=sample_subtask, db_session=db_session)
-    yield sample_subtask
+    create_task(project_name=project_name, data=sample_task, db_session=db_session)
+    yield sample_task
 
 
 @pytest.fixture
@@ -204,7 +204,7 @@ def job_factory(db_session, project_name):
                 "batch_id": batch_id,
                 "status": status,
                 "job_type": "segmentation",
-                "ng_state": f"http://example.com/{job_id}",
+                "ng_state": {"url": f"http://example.com/{job_id}"},
             }
         )
         create_job(project_name=project_name, data=job_data, db_session=db_session)
@@ -214,29 +214,29 @@ def job_factory(db_session, project_name):
 
 
 @pytest.fixture
-def subtask_factory(db_session, project_name, existing_subtask_type):
-    """Factory fixture to create subtasks with custom IDs"""
+def task_factory(db_session, project_name, existing_task_type):
+    """Factory fixture to create tasks with custom IDs"""
 
-    def _create_subtask(job_id: str, subtask_id: str, **kwargs):
-        subtask_data = Subtask(
+    def _create_task(job_id: str, task_id: str, **kwargs):
+        task_data = Task(
             **{
                 "job_id": job_id,
-                "subtask_id": subtask_id,
+                "task_id": task_id,
                 "completion_status": "",
                 "assigned_user_id": "",
                 "active_user_id": "",
                 "completed_user_id": "",
-                "ng_state": f"http://example.com/{subtask_id}",
-                "ng_state_initial": f"http://example.com/{subtask_id}",
+                "ng_state": {"url": f"http://example.com/{task_id}"},
+                "ng_state_initial": {"url": f"http://example.com/{task_id}"},
                 "priority": 1,
                 "batch_id": job_id.replace("job_", "batch_"),
-                "subtask_type": existing_subtask_type["subtask_type"],
+                "task_type": existing_task_type["task_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,
                 **kwargs,  # type: ignore
             }
         )
-        create_subtask(project_name=project_name, data=subtask_data, db_session=db_session)
-        return subtask_data
+        create_task(project_name=project_name, data=task_data, db_session=db_session)
+        return task_data
 
-    return _create_subtask
+    return _create_task

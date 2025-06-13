@@ -3,24 +3,24 @@ import pytest
 
 from zetta_utils.task_management.ingestion import ingest_batch, ingest_job
 from zetta_utils.task_management.job import create_job, get_job, update_job
-from zetta_utils.task_management.subtask import create_subtask
-from zetta_utils.task_management.types import Job, Subtask
+from zetta_utils.task_management.task import create_task
+from zetta_utils.task_management.types import Job, Task
 
 
-def sample_subtasks(existing_subtask_type) -> list[Subtask]:
+def sample_tasks(existing_task_type) -> list[Task]:
     return [
-        Subtask(
+        Task(
             **{
                 "job_id": f"job_{i}",
-                "subtask_id": f"subtask_{i}",
+                "task_id": f"task_{i}",
                 "assigned_user_id": "",
                 "active_user_id": "",
                 "completed_user_id": "",
-                "ng_state": f"http://example.com/{i}",
-                "ng_state_initial": f"http://example.com/{i}",
+                "ng_state": {"url": f"http://example.com/{i}"},
+                "ng_state_initial": {"url": f"http://example.com/{i}"},
                 "priority": i,
                 "batch_id": "batch_1",
-                "subtask_type": existing_subtask_type["subtask_type"],
+                "task_type": existing_task_type["task_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,
                 "completion_status": "",
@@ -31,20 +31,20 @@ def sample_subtasks(existing_subtask_type) -> list[Subtask]:
 
 
 @pytest.fixture
-def existing_subtasks(clean_db, project_name, db_session, sample_subtasks):
-    for subtask in sample_subtasks:
-        create_subtask(db_session=db_session, project_name=project_name, data=subtask)
-    yield sample_subtasks
+def existing_tasks(clean_db, project_name, db_session, sample_tasks):
+    for task in sample_tasks:
+        create_task(db_session=db_session, project_name=project_name, data=task)
+    yield sample_tasks
 
 
-def test_ingest_job(clean_db, project_name, db_session, existing_job, existing_subtask_type):
+def test_ingest_job(clean_db, project_name, db_session, existing_job, existing_task_type):
     """Test ingesting a task"""
     result = ingest_job(
         project_name=project_name,
         job_id="job_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
@@ -54,55 +54,55 @@ def test_ingest_job(clean_db, project_name, db_session, existing_job, existing_s
 
 
 def test_ingest_job_already_ingested(
-    clean_db, project_name, db_session, existing_job, existing_subtask_type
+    clean_db, project_name, db_session, existing_job, existing_task_type
 ):
     """Test that ingesting an already ingested task returns False"""
     ingest_job(
         project_name=project_name,
         job_id="job_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
 
     result = ingest_job(
         project_name=project_name,
         job_id="job_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is False
 
 
 def test_ingest_job_re_ingest(
-    clean_db, project_name, db_session, existing_job, existing_subtask_type
+    clean_db, project_name, db_session, existing_job, existing_task_type
 ):
     """Test re-ingesting a task"""
     ingest_job(
         project_name=project_name,
         job_id="job_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
 
     result = ingest_job(
         project_name=project_name,
         job_id="job_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         re_ingest="not_processed",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
 
 
-def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type):
+def test_ingest_batch(clean_db, project_name, db_session, existing_task_type):
     """Test ingesting a batch of jobs"""
     jobs = [
         Job(
@@ -111,7 +111,7 @@ def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type)
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
                 "job_type": "segmentation",
-                "ng_state": f"http://example.com/job_{i}",
+                "ng_state": {"url": f"http://example.com/job_{i}"},
             }
         )
         for i in range(1, 4)
@@ -123,8 +123,8 @@ def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type)
     result = ingest_batch(
         project_name=project_name,
         batch_id="batch_1",
-        subtask_structure="segmentation_proofread_1pass",
-        subtask_structure_kwargs={},
+        task_structure="segmentation_proofread_1pass",
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
@@ -134,7 +134,7 @@ def test_ingest_batch(clean_db, project_name, db_session, existing_subtask_type)
         assert job["status"] == "ingested"
 
 
-def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_subtask_type):
+def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_task_type):
     jobs = [
         Job(
             **{
@@ -142,7 +142,7 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
                 "job_type": "segmentation",
-                "ng_state": f"http://example.com/job_{i}",
+                "ng_state": {"url": f"http://example.com/job_{i}"},
             }
         )
         for i in range(1, 4)
@@ -154,8 +154,8 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
     ingest_batch(
         project_name=project_name,
         batch_id="batch_1",
-        subtask_structure="segmentation_proofread_1pass",
-        subtask_structure_kwargs={},
+        task_structure="segmentation_proofread_1pass",
+        task_structure_kwargs={},
         db_session=db_session,
     )
 
@@ -169,9 +169,9 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
     result = ingest_batch(
         project_name=project_name,
         batch_id="batch_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         re_ingest="not_processed",
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
@@ -189,9 +189,9 @@ def test_ingest_batch_re_ingest(clean_db, project_name, db_session, existing_sub
     result = ingest_batch(
         project_name=project_name,
         batch_id="batch_1",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         re_ingest="all",
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
@@ -207,15 +207,15 @@ def test_ingest_job_nonexistent(clean_db, project_name, db_session):
         ingest_job(
             project_name=project_name,
             job_id="job_nonexistent",
-            subtask_structure="segmentation_proofread_1pass",
+            task_structure="segmentation_proofread_1pass",
             priority=2,
-            subtask_structure_kwargs={},
+            task_structure_kwargs={},
             db_session=db_session,
         )
 
 
 def test_ingest_job_fully_processed_no_reingest(
-    clean_db, project_name, db_session, existing_subtask_type
+    clean_db, project_name, db_session, existing_task_type
 ):
     """Test that ingesting a fully processed job without re_ingest returns False"""
     job_data = Job(
@@ -224,7 +224,7 @@ def test_ingest_job_fully_processed_no_reingest(
             "batch_id": "batch_1",
             "status": "fully_processed",
             "job_type": "segmentation",
-            "ng_state": "http://example.com/fully_processed_job",
+            "ng_state": {"url": "http://example.com/fully_processed_job"},
         }
     )
     create_job(project_name=project_name, data=job_data, db_session=db_session)
@@ -232,9 +232,9 @@ def test_ingest_job_fully_processed_no_reingest(
     result = ingest_job(
         project_name=project_name,
         job_id="fully_processed_job",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is False
@@ -242,10 +242,10 @@ def test_ingest_job_fully_processed_no_reingest(
     result = ingest_job(
         project_name=project_name,
         job_id="fully_processed_job",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         re_ingest="not_processed",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is False
@@ -253,10 +253,10 @@ def test_ingest_job_fully_processed_no_reingest(
     result = ingest_job(
         project_name=project_name,
         job_id="fully_processed_job",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         re_ingest="all",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is True
@@ -267,9 +267,9 @@ def test_ingest_batch_no_tasks(clean_db, project_name, db_session):
     result = ingest_batch(
         project_name=project_name,
         batch_id="nonexistent_batch",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is False
@@ -284,7 +284,7 @@ def test_ingest_batch_no_matching_jobs(clean_db, project_name, db_session):
                 "batch_id": "batch_1",
                 "status": "pending_ingestion",
                 "job_type": "segmentation",
-                "ng_state": f"http://example.com/job_{i}",
+                "ng_state": {"url": f"http://example.com/job_{i}"},
             }
         )
         create_job(project_name=project_name, data=job_data, db_session=db_session)
@@ -292,16 +292,16 @@ def test_ingest_batch_no_matching_jobs(clean_db, project_name, db_session):
     result = ingest_batch(
         project_name=project_name,
         batch_id="batch_2",
-        subtask_structure="segmentation_proofread_1pass",
+        task_structure="segmentation_proofread_1pass",
         priority=2,
-        subtask_structure_kwargs={},
+        task_structure_kwargs={},
         db_session=db_session,
     )
     assert result is False
 
 
 def test_ingest_jobs_database_failure(
-    clean_db, project_name, db_session, existing_job, existing_subtask_type, mocker
+    clean_db, project_name, db_session, existing_job, existing_task_type, mocker
 ):
     """Test that ingestion handles database failures gracefully"""
     # Mock the commit to raise an exception
@@ -315,9 +315,9 @@ def test_ingest_jobs_database_failure(
         ingest_job(
             project_name=project_name,
             job_id="job_1",
-            subtask_structure="segmentation_proofread_1pass",
+            task_structure="segmentation_proofread_1pass",
             priority=2,
-            subtask_structure_kwargs={},
+            task_structure_kwargs={},
             db_session=db_session,
         )
 

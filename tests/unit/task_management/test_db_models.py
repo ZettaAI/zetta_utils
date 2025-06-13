@@ -3,33 +3,33 @@
 from zetta_utils.task_management.db.models import (
     DependencyModel,
     JobModel,
-    SubtaskModel,
-    SubtaskTypeModel,
+    TaskModel,
+    TaskTypeModel,
     TimesheetModel,
     UserModel,
 )
 
 
-def test_subtask_type_model_with_description():
-    """Test SubtaskTypeModel with description"""
+def test_task_type_model_with_description():
+    """Test TaskTypeModel with description"""
     data = {
-        "subtask_type": "test_type",
+        "task_type": "test_type",
         "completion_statuses": ["pending", "completed"],
         "description": "Test description",
     }
 
-    model = SubtaskTypeModel.from_dict("test_project", data)
+    model = TaskTypeModel.from_dict("test_project", data)
     result_dict = model.to_dict()
 
     assert "description" in result_dict
     assert result_dict["description"] == "Test description"
 
 
-def test_subtask_type_model_without_description():
-    """Test SubtaskTypeModel without description"""
-    data = {"subtask_type": "test_type", "completion_statuses": ["pending", "completed"]}
+def test_task_type_model_without_description():
+    """Test TaskTypeModel without description"""
+    data = {"task_type": "test_type", "completion_statuses": ["pending", "completed"]}
 
-    model = SubtaskTypeModel.from_dict("test_project", data)
+    model = TaskTypeModel.from_dict("test_project", data)
     result_dict = model.to_dict()
 
     assert "description" not in result_dict
@@ -42,7 +42,7 @@ def test_job_model_with_id_nonunique():
         "batch_id": "batch_1",
         "status": "pending",
         "job_type": "segmentation",
-        "ng_state": "http://example.com",
+        "ng_state": {"url": "http://example.com"},
         "id_nonunique": 1,
     }
 
@@ -50,20 +50,20 @@ def test_job_model_with_id_nonunique():
     assert model.id_nonunique == 1
 
 
-def test_subtask_model_with_id_nonunique():
-    """Test SubtaskModel with id_nonunique field"""
+def test_task_model_with_id_nonunique():
+    """Test TaskModel with id_nonunique field"""
     data = {
-        "subtask_id": "test_subtask",
+        "task_id": "test_task",
         "job_id": "test_job",
-        "ng_state": "http://example.com",
-        "ng_state_initial": "http://example.com/initial",
+        "ng_state": {"url": "http://example.com"},
+        "ng_state_initial": {"url": "http://example.com/initial"},
         "priority": 1,
         "batch_id": "batch_1",
-        "subtask_type": "segmentation",
+        "task_type": "segmentation",
         "id_nonunique": 1,
     }
 
-    model = SubtaskModel.from_dict("test_project", data)
+    model = TaskModel.from_dict("test_project", data)
     assert model.id_nonunique == 1
 
 
@@ -71,8 +71,8 @@ def test_dependency_model_with_is_satisfied():
     """Test DependencyModel with is_satisfied field"""
     data = {
         "dependency_id": "dep_1",
-        "subtask_id": "subtask_1",
-        "dependent_on_subtask_id": "subtask_2",
+        "task_id": "task_1",
+        "dependent_on_task_id": "task_2",
         "required_completion_status": "completed",
         "is_satisfied": True,
     }
@@ -87,8 +87,8 @@ def test_all_models_to_dict():
     user_data = {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["type1"],
+        "active_task": "",
+        "qualified_task_types": ["type1"],
     }
     user_model = UserModel.from_dict("test_project", user_data)
     user_dict = user_model.to_dict()
@@ -98,7 +98,7 @@ def test_all_models_to_dict():
     timesheet_data = {
         "entry_id": "entry_1",
         "job_id": "job_1",
-        "subtask_id": "subtask_1",
+        "task_id": "task_1",
         "user": "test_user",
         "seconds_spent": 3600,
     }

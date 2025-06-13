@@ -200,6 +200,7 @@ tensor-typing = ["torch >= 2.0", "numpy"]
 
 test = [
   "zetta_utils[types]",
+  "testcontainers-4.11.0",
   "docker ~= 6.0",
   "black == 21.9b0",
   "click == 8.0.1",

@@ -1,4 +1,5 @@
 """Output logging."""
+
 # pylint: disable=global-statement
 from __future__ import annotations
 
@@ -109,7 +110,9 @@ def configure_logger(level=None, third_party_level="ERROR"):
         SAVED_LEVEL = level
 
     stream_handler = logging.StreamHandler()
-    formatter = logging.Formatter("%(asctime)s %(name)s %(pathname)s:%(lineno)d: %(message)s")
+    formatter = logging.Formatter(
+        "%(asctime)s [PID %(process)d] %(name)s %(pathname)s:%(lineno)d: %(message)s"
+    )
     stream_handler.setFormatter(formatter)
 
     rich_handler = RichHandler(
@@ -130,7 +133,9 @@ def configure_logger(level=None, third_party_level="ERROR"):
     # if LOKI_HANDLER is not None:
     #    handlers.append(LOKI_HANDLER)
     logging.basicConfig(
-        level=level, format="%(name)s %(pathname)20s:%(lineno)4d \n%(message)s", handlers=handlers
+        level=level,
+        format="[PID %(process)d] %(name)s %(pathname)20s:%(lineno)4d \n%(message)s",
+        handlers=handlers,
     )
     logging.getLogger("mazepa").setLevel(level)
     logging.getLogger("zetta_utils").setLevel(level)

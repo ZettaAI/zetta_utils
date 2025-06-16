@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing
-import sys
 import time
 from contextlib import ExitStack
 from itertools import repeat
@@ -17,25 +16,7 @@ from zetta_utils.message_queues import FileQueue, SQSQueue
 logger = log.get_logger("mazepa")
 
 
-class DummyBuffer:
-    def read(self, data):
-        pass
-
-    def write(self, data):
-        pass
-
-    def flush(self):
-        pass
-
-
-def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing.FileIO
-    sys.stdin = DummyBuffer()  # type: ignore
-    sys.stdout = DummyBuffer()  # type: ignore
-    sys.stderr = DummyBuffer()  # type: ignore
-
-
 def worker_init() -> None:
-    redirect_buffers()
     try_load_train_inference()
 
 

@@ -1,7 +1,7 @@
 # pylint: disable=singleton-comparison
 from typing import Any, Optional
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Float, Index, Integer, JSON, String
+from sqlalchemy import ARRAY, JSON, BigInteger, Boolean, Float, Index, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -21,6 +21,12 @@ class ProjectModel(Base):
     # Primary key - just the project name
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
 
+    # Segmentation configuration (mandatory)
+    segmentation_link: Mapped[str] = mapped_column(String, nullable=False)
+    sv_resolution_x: Mapped[float] = mapped_column(Float, nullable=False)
+    sv_resolution_y: Mapped[float] = mapped_column(Float, nullable=False)
+    sv_resolution_z: Mapped[float] = mapped_column(Float, nullable=False)
+
     # Metadata columns
     created_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -30,10 +36,28 @@ class ProjectModel(Base):
         """Convert to dictionary"""
         return {
             "project_name": self.project_name,
+            "segmentation_link": self.segmentation_link,
+            "sv_resolution_x": self.sv_resolution_x,
+            "sv_resolution_y": self.sv_resolution_y,
+            "sv_resolution_z": self.sv_resolution_z,
             "created_at": self.created_at,
             "description": self.description,
             "status": self.status,
         }
+    
+    @classmethod
+    def from_dict(cls, data: dict) -> "ProjectModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            segmentation_link=data["segmentation_link"],
+            sv_resolution_x=data["sv_resolution_x"],
+            sv_resolution_y=data["sv_resolution_y"],
+            sv_resolution_z=data["sv_resolution_z"],
+            created_at=data.get("created_at"),
+            description=data.get("description"),
+            status=data.get("status", "active"),
+        )
 
 
 class TaskTypeModel(Base):
@@ -127,7 +151,7 @@ class JobModel(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, index=True)
     job_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     ng_state: Mapped[dict] = mapped_column(JSON, nullable=False)
-    id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True, index=True)
 
     # Additional indexes for performance
     __table_args__ = (
@@ -260,6 +284,154 @@ class TimesheetModel(Base):
         )
 
 
+class SegmentTypeModel(Base):
+    """
+    SQLAlchemy model for the segment_types table.
+    
+    This table stores the available segment types that can be assigned to segments.
+    """
+
+    __tablename__ = "segment_types"
+
+    # Composite primary key - project_name and auto-incrementing id
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    type_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    description: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[float] = mapped_column(Float, nullable=False)
+    
+    # Unique constraint on project_name + type_name
+    __table_args__ = (
+        Index("idx_segment_types_project_name", "project_name", "type_name", unique=True),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        result = {
+            "id": self.id,
+            "type_name": self.type_name,
+            "created_at": self.created_at,
+        }
+        
+        if self.description is not None:
+            result["description"] = self.description
+        
+        return result
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "SegmentTypeModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            type_name=data["type_name"],
+            description=data.get("description"),
+            created_at=data["created_at"],
+        )
+
+
+class SegmentModel(Base):
+    """
+    SQLAlchemy model for the segments table.
+    
+    This table stores segment data with root locations and synapse counts.
+    """
+
+    __tablename__ = "segments"
+
+    # Composite primary key - project_name and auto-incrementing segment_id
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    internal_segment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    
+    # Seed location coordinates
+    seed_x: Mapped[float] = mapped_column(Float, nullable=False)
+    seed_y: Mapped[float] = mapped_column(Float, nullable=False)
+    seed_z: Mapped[float] = mapped_column(Float, nullable=False)
+    
+    # Segment type references (foreign keys to segment_types table)
+    segment_type_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    expected_segment_type_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    
+    # Segment IDs (BigInteger to handle uint64)
+    current_segment_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    seed_sv_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    
+    # Skeleton and synapse data
+    skeleton_length: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    pre_synapse_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    post_synapse_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    
+    # Task tracking
+    task_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    
+    # Timestamps
+    created_at: Mapped[float] = mapped_column(Float, nullable=False)
+    updated_at: Mapped[float] = mapped_column(Float, nullable=False, index=True)
+    
+    # Optional extra data
+    extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    # Performance indexes
+    __table_args__ = (
+        Index("idx_segments_project_seed_location", "project_name", "seed_x", "seed_y", "seed_z"),
+        Index("idx_segments_project_type_ids", "project_name", "segment_type_id", "expected_segment_type_id"),
+        Index("idx_segments_project_current_segment", "project_name", "current_segment_id"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        result = {
+            "internal_segment_id": self.internal_segment_id,
+            "seed_x": self.seed_x,
+            "seed_y": self.seed_y,
+            "seed_z": self.seed_z,
+            "seed_sv_id": self.seed_sv_id,
+            "current_segment_id": self.current_segment_id,
+            "task_ids": self.task_ids,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+        
+        if self.segment_type_id is not None:
+            result["segment_type_id"] = self.segment_type_id
+            
+        if self.expected_segment_type_id is not None:
+            result["expected_segment_type_id"] = self.expected_segment_type_id
+        
+        if self.skeleton_length is not None:
+            result["skeleton_length"] = self.skeleton_length
+        
+        if self.pre_synapse_count is not None:
+            result["pre_synapse_count"] = self.pre_synapse_count
+            
+        if self.post_synapse_count is not None:
+            result["post_synapse_count"] = self.post_synapse_count
+            
+        if self.extra_data is not None:
+            result["extra_data"] = self.extra_data
+        
+        return result
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "SegmentModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            seed_x=data["seed_x"],
+            seed_y=data["seed_y"],
+            seed_z=data["seed_z"],
+            seed_sv_id=data["seed_sv_id"],
+            current_segment_id=data["current_segment_id"],
+            segment_type_id=data.get("segment_type_id"),
+            expected_segment_type_id=data.get("expected_segment_type_id"),
+            skeleton_length=data.get("skeleton_length"),
+            pre_synapse_count=data.get("pre_synapse_count"),
+            post_synapse_count=data.get("post_synapse_count"),
+            created_at=data["created_at"],
+            updated_at=data["updated_at"],
+            extra_data=data.get("extra_data"),
+        )
+
+
 class TaskModel(Base):
     """
     SQLAlchemy model for the tasks table.
@@ -284,6 +456,7 @@ class TaskModel(Base):
     last_leased_ts: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    is_tagged: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     id_nonunique: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -346,12 +519,13 @@ class TaskModel(Base):
             "last_leased_ts": self.last_leased_ts,
             "is_active": self.is_active,
             "is_paused": self.is_paused,
+            "is_tagged": self.is_tagged,
             "task_type": self.task_type,
         }
-        
+
         if self.extra_data is not None:
             result["extra_data"] = self.extra_data
-            
+
         return result
 
     @classmethod
@@ -372,6 +546,7 @@ class TaskModel(Base):
             last_leased_ts=data.get("last_leased_ts", 0.0),
             is_active=data.get("is_active", True),
             is_paused=data.get("is_paused", False),
+            is_tagged=data.get("is_tagged", False),
             task_type=data["task_type"],
             id_nonunique=data.get("id_nonunique"),
             extra_data=data.get("extra_data"),

@@ -76,7 +76,7 @@ def test_create_task_structure_nonexistent_structure(
         data=TaskType(task_type="segmentation_proofread", completion_statuses=["done", "need_help"]),
         db_session=postgres_session,
     )
-    
+
     # Create a job
     create_job(
         project_name=project_name,
@@ -89,7 +89,7 @@ def test_create_task_structure_nonexistent_structure(
         ),
         db_session=postgres_session,
     )
-    
+
     # Try to create task structure with nonexistent structure name
     with pytest.raises(RuntimeError, match="Failed to create task structure: Task structure 'nonexistent_structure' is not registered"):
         create_task_structure(
@@ -109,7 +109,7 @@ def test_create_task_structure_two_path(
     # Create required task types first
     for task_type in [
         "segmentation_proofread",
-        "segmentation_verify", 
+        "segmentation_verify",
         "segmentation_proofread_expert",
     ]:
         create_task_type(
@@ -117,7 +117,7 @@ def test_create_task_structure_two_path(
             data=TaskType(task_type=task_type, completion_statuses=["done", "need_help"]),
             db_session=postgres_session,
         )
-    
+
     # Create a job
     create_job(
         project_name=project_name,
@@ -130,7 +130,7 @@ def test_create_task_structure_two_path(
         ),
         db_session=postgres_session,
     )
-    
+
     # Create task structure with validation layer path
     result = create_task_structure(
         project_name=project_name,
@@ -140,13 +140,13 @@ def test_create_task_structure_two_path(
         priority=1,
         db_session=postgres_session,
     )
-    
+
     assert result is True
-    
+
     # Check that job status was updated
     job = get_job(project_name=project_name, job_id="test_job_two_path", db_session=postgres_session)
     assert job["status"] == "ingested"
-    
+
     # Check that all expected tasks were created
     task_query = (
         select(TaskModel)
@@ -154,10 +154,10 @@ def test_create_task_structure_two_path(
         .where(TaskModel.job_id == "test_job_two_path")
     )
     tasks = postgres_session.execute(task_query).scalars().all()
-    
+
     # Should have exactly 3 tasks for this structure
     assert len(tasks) == 3
-    
+
     # Check that all task types are correct
     task_types = [s.task_type for s in tasks]
     expected_types = [
@@ -166,7 +166,7 @@ def test_create_task_structure_two_path(
         "segmentation_proofread_expert",
     ]
     assert set(task_types) == set(expected_types)
-    
+
     # Check that the verify task has the validation layer in ng_state
     verify_task = next(t for t in tasks if t.task_type == "segmentation_verify")
     ng_state = verify_task.ng_state

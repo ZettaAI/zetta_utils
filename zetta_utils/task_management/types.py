@@ -2,6 +2,30 @@ from datetime import datetime
 from typing import NotRequired, TypedDict
 
 
+class Project(TypedDict):
+    """A project with segmentation configuration."""
+    
+    project_name: str
+    segmentation_link: str
+    sv_resolution_x: float
+    sv_resolution_y: float
+    sv_resolution_z: float
+    created_at: NotRequired[str | None]
+    description: NotRequired[str | None]
+    status: str
+
+
+class ProjectUpdate(TypedDict, total=False):
+    """Update type for projects."""
+    
+    segmentation_link: str
+    sv_resolution_x: float
+    sv_resolution_y: float
+    sv_resolution_z: float
+    description: str | None
+    status: str
+
+
 class User(TypedDict):
     user_id: str
     hourly_rate: float
@@ -29,6 +53,7 @@ class Task(TypedDict):
     last_leased_ts: float  # 0 for never leased
     is_active: bool  # Whether the task can be worked on
     is_paused: NotRequired[bool]  # Whether the task is paused (not auto-selectable)
+    is_tagged: NotRequired[bool]  # Whether the task is tagged for special attention
     task_type: str  # Reference to TaskType.task_type
     extra_data: NotRequired[dict | None]  # Additional task-specific data
 
@@ -47,6 +72,7 @@ class TaskUpdate(TypedDict, total=False):
     last_leased_ts: float
     is_active: bool
     is_paused: bool
+    is_tagged: bool
     task_type: str
     extra_data: dict | None
 
@@ -118,3 +144,56 @@ class TimesheetEntry(TypedDict):
     start_time: datetime
     duration_seconds: float
     description: str
+
+
+class SegmentType(TypedDict):
+    """A segment type that can be assigned to segments."""
+
+    id: int
+    type_name: str
+    created_at: float
+    description: NotRequired[str | None]
+
+
+class SegmentTypeUpdate(TypedDict, total=False):
+    """Update type for segment types."""
+
+    description: str | None
+
+
+class Segment(TypedDict):
+    """A segment with seed location and synapse counts."""
+
+    internal_segment_id: int
+    seed_x: float
+    seed_y: float
+    seed_z: float
+    seed_sv_id: int  # BigInteger for uint64, non-nullable
+    current_segment_id: int  # BigInteger for uint64, non-nullable
+    task_ids: list[str]  # List of task IDs that worked on this segment
+    created_at: float
+    updated_at: float
+    segment_type_id: NotRequired[int | None]  # Reference to segment_types.id
+    expected_segment_type_id: NotRequired[int | None]  # Reference to segment_types.id
+    skeleton_length: NotRequired[float | None]
+    pre_synapse_count: NotRequired[int | None]
+    post_synapse_count: NotRequired[int | None]
+    extra_data: NotRequired[dict | None]
+
+
+class SegmentUpdate(TypedDict, total=False):
+    """Update type for segments."""
+
+    seed_x: float
+    seed_y: float
+    seed_z: float
+    seed_sv_id: int
+    current_segment_id: int
+    task_ids: list[str]
+    segment_type_id: int | None
+    expected_segment_type_id: int | None
+    skeleton_length: float | None
+    pre_synapse_count: int | None
+    post_synapse_count: int | None
+    updated_at: float
+    extra_data: dict | None

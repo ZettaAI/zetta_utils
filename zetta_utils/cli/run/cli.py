@@ -47,7 +47,7 @@ def run_info(run_ids: list[str]):
     """
     Display information about `run_id [[run_id] ...]`
     """
-    
+
     from zetta_utils.run import RUN_DB, RUN_INFO_BUCKET, RunInfo, get_latest_checkpoint
 
     info_path = os.environ.get("RUN_INFO_BUCKET", RUN_INFO_BUCKET)

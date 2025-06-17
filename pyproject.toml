@@ -112,7 +112,11 @@ meshing = [
   "trimesh >= 4.4.0",
   "zmesh >= 1.7.1",
 ]
-task_management = ["zetta_utils[databackends]", "tenacity"]
+task_management = [
+  "zetta_utils[databackends,sql]",
+  "tenacity",
+  "psycopg2-binary >= 2.9.0",
+]
 modules = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm, sql]",
@@ -216,6 +220,7 @@ test = [
   "isort == 5.10.1",
   "pre-commit == 2.19.0",
   "moto == 4.1.0",
+  "psycopg2-binary >= 2.9.0",  # for task_management tests
 ]
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",

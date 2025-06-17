@@ -1,4 +1,5 @@
 # pylint: disable=all # type: ignore
+import json
 from fastapi import FastAPI, Request
 
 from zetta_utils.task_management.task import (
@@ -24,45 +25,49 @@ async def generic_handler(request: Request, exc: Exception):
     return generic_exception_handler(request, exc)
 
 
-@api.post("/projects/{project_name}/task_types/{task_type_id}")
-async def create_task_type_api(project_name: str, data: TaskType) -> str:
-    """
-    Create a new task type.
-
-    :param data: The task type data to create
-    :return: The ID of the created task type
-    """
-    return create_task_type(project_name, data)
-
-
-@api.get("/projects/{project_name}/task_types/{task_type_id}")
-async def get_task_type_api(project_name: str, task_type_id: str) -> TaskType:
+@api.get("/projects/{project_name}/subtask_types/{subtask_type_id}")
+async def get_subtask_type_api(project_name: str, subtask_type_id: str) -> dict:
     """
     Get a task type by ID.
 
     :param task_type_id: The ID of the task type to get
     :return: The task type data
     """
-    return get_task_type(project_name, task_type_id)
+    task_type = get_task_type(
+        project_name=project_name,
+        task_type=subtask_type_id
+    )
+    result = {
+        k.replace("task", "subtask"): v for k, v in task_type.items() 
+    }
+    return result
 
 
-@api.get("/projects/{project_name}/tasks/{task_id}")
-async def get_task_api(project_name: str, task_id: str) -> Task:
+@api.get("/projects/{project_name}/subtasks/{subtask_id}")
+async def get_subtask_api(project_name: str, subtask_id: str) -> dict:
     """
-    Get a task by ID.
+    Get a subtask by ID.
 
     :param project_name: The name of the project
-    :param task_id: The ID of the task to get
+    :param subtask_id: The ID of the subtask to get
     :return: The task data
     """
-    return get_task(project_name, task_id)
+    task = get_task(
+        project_name=project_name,
+        task_id=subtask_id
+    )
+    result = {
+        k.replace("task", "subtask"): v for k, v in task.items() 
+    }
+    result["ng_state"] = json.dumps(result["ng_state"])
+    return result
 
 
-@api.post("/projects/{project_name}/start_task")
-async def start_task_api(
+@api.post("/projects/{project_name}/start_subtask")
+async def start_subtask_api(
     project_name: str,
     user_id: str,
-    task_id: str | None = None,
+    subtask_id: str | None = None,
 ) -> str | None:
     """
     Start a task for a user.
@@ -72,13 +77,17 @@ async def start_task_api(
     :param task_id: Optional specific task ID to start
     :return: The ID of the started task, or None if no task available
     """
-    return start_task(project_name, user_id, task_id)
+    return start_task(
+        project_name=project_name,
+        user_id=user_id,
+        task_id=subtask_id
+    )
 
 
-@api.post("/projects/{project_name}/set_task_ng_state")
-async def set_task_ng_state_api(
+@api.post("/projects/{project_name}/set_subtask_ng_state")
+async def set_subtask_ng_state_api(
     project_name: str,
-    task_id: str,
+    subtask_id: str,
     ng_state: str,
 ):
     """
@@ -88,14 +97,18 @@ async def set_task_ng_state_api(
     :param ng_state: The new neuroglancer state URL
     """
 
-    update_data = TaskUpdate(ng_state=ng_state)
-    update_task(project_name, task_id, update_data)
+    update_data = TaskUpdate(ng_state=json.loads(ng_state))
+    update_task(
+        project_name=project_name,
+        task_id=subtask_id,
+        data=update_data
+    )
 
 
-@api.put("/projects/{project_name}/release_task")
-async def release_task_api(
+@api.put("/projects/{project_name}/release_subtask")
+async def release_subtask_api(
     project_name: str,
-    task_id: str,
+    subtask_id: str,
     user_id: str,
     completion_status: str,
 ) -> bool:
@@ -111,7 +124,7 @@ async def release_task_api(
     return release_task(
         project_name=project_name,
         user_id=user_id,
-        task_id=task_id,
+        task_id=subtask_id,
         completion_status=completion_status,
     )
 
@@ -121,7 +134,7 @@ async def submit_timesheet_api(
     project_name: str,
     user_id: str,
     duration_seconds: float,
-    task_id: str,
+    subtask_id: str,
 ) -> None:
     """
     Submit a timesheet entry for a user.
@@ -135,5 +148,5 @@ async def submit_timesheet_api(
         project_name=project_name,
         user_id=user_id,
         duration_seconds=duration_seconds,
-        task_id=task_id,
+        task_id=subtask_id,
     )

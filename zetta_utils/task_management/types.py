@@ -1,5 +1,35 @@
 from datetime import datetime
-from typing import NotRequired, TypedDict
+from typing import Literal, NotRequired, TypedDict
+
+
+class Project(TypedDict):
+    """A project with segmentation configuration."""
+    
+    project_name: str
+    segmentation_path: str
+    sv_resolution_x: float
+    sv_resolution_y: float
+    sv_resolution_z: float
+    created_at: NotRequired[str | None]
+    description: NotRequired[str | None]
+    status: str
+    brain_mesh_path: NotRequired[str | None]
+    datastack_name: NotRequired[str | None]
+    extra_layers: NotRequired[dict | None]
+
+
+class ProjectUpdate(TypedDict, total=False):
+    """Update type for projects."""
+    
+    segmentation_path: str
+    sv_resolution_x: float
+    sv_resolution_y: float
+    sv_resolution_z: float
+    description: str | None
+    status: str
+    brain_mesh_path: str | None
+    datastack_name: str | None
+    extra_layers: dict | None
 
 
 class User(TypedDict):
@@ -29,7 +59,9 @@ class Task(TypedDict):
     last_leased_ts: float  # 0 for never leased
     is_active: bool  # Whether the task can be worked on
     is_paused: NotRequired[bool]  # Whether the task is paused (not auto-selectable)
+    is_checked: NotRequired[bool]  # Whether the task has been checked/reviewed
     task_type: str  # Reference to TaskType.task_type
+    segment_id: NotRequired[int | None]  # Reference to segments.internal_segment_id
     extra_data: NotRequired[dict | None]  # Additional task-specific data
 
 
@@ -47,7 +79,9 @@ class TaskUpdate(TypedDict, total=False):
     last_leased_ts: float
     is_active: bool
     is_paused: bool
+    is_checked: bool
     task_type: str
+    segment_id: int | None
     extra_data: dict | None
 
 
@@ -118,3 +152,73 @@ class TimesheetEntry(TypedDict):
     start_time: datetime
     duration_seconds: float
     description: str
+
+
+class SegmentType(TypedDict):
+    """A segment type that can be assigned to segments."""
+
+    type_name: str
+    project_name: str
+    reference_segment_ids: list[int]
+    created_at: str  # ISO format timestamp
+    updated_at: str  # ISO format timestamp
+    description: NotRequired[str | None]
+
+
+class SegmentTypeUpdate(TypedDict, total=False):
+    """Update type for segment types."""
+
+    reference_segment_ids: list[int]
+    description: str | None
+    updated_at: str  # ISO format timestamp
+
+
+class Segment(TypedDict):
+    """A segment with seed location and synapse counts."""
+
+    internal_segment_id: int
+    project_name: str
+    seed_x: float
+    seed_y: float
+    seed_z: float
+    root_x: NotRequired[float | None]  # Root location x coordinate
+    root_y: NotRequired[float | None]  # Root location y coordinate
+    root_z: NotRequired[float | None]  # Root location z coordinate
+    seed_sv_id: NotRequired[int | None]  # BigInteger for uint64
+    current_segment_id: NotRequired[int | None]  # BigInteger for uint64
+    task_ids: list[str]  # List of task IDs that worked on this segment
+    created_at: str  # ISO format timestamp
+    updated_at: str  # ISO format timestamp
+    segment_type: NotRequired[str | None]  # Reference to segment_types.type_name
+    expected_segment_type: NotRequired[str | None]  # Reference to segment_types.type_name
+    batch: NotRequired[str | None]  # Batch identifier
+    skeleton_path_length_mm: NotRequired[float | None]
+    pre_synapse_count: NotRequired[int | None]
+    post_synapse_count: NotRequired[int | None]
+    status: Literal['wip', 'complete', 'retired', 'abandoned']  # Segment status
+    is_exported: bool  # Whether the segment has been exported
+    extra_data: NotRequired[dict | None]
+
+
+class Endpoint(TypedDict):
+    """An endpoint location for a segment."""
+    
+    endpoint_id: int
+    segment_id: int
+    x: float
+    y: float
+    z: float
+    status: Literal['CERTAIN', 'UNCERTAIN', 'CONTINUED', 'BREADCRUMB']
+    user: str
+    created_at: str  # ISO format timestamp
+    updated_at: str  # ISO format timestamp
+
+
+class EndpointUpdate(TypedDict):
+    """A record of an endpoint status change."""
+    
+    update_id: int
+    endpoint_id: int
+    user: str
+    new_status: Literal['CERTAIN', 'UNCERTAIN', 'CONTINUED', 'BREADCRUMB']
+    timestamp: str  # ISO format timestamp

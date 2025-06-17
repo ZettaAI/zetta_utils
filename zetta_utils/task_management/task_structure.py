@@ -7,11 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from zetta_utils.log import get_logger
-from zetta_utils.task_management.db.models import (
-    DependencyModel,
-    JobModel,
-    TaskModel,
-)
+from zetta_utils.task_management.db.models import DependencyModel, JobModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.utils import generate_id_nonunique
 
@@ -460,9 +456,6 @@ def seg_v0_auto_verify(
     dep_expert_id = f"{job_id}_dep_expert{id_suffix}"
 
     # 1. Create seg_trace task (active)
-    print (ng_state)
-    print (type(ng_state))
-    print("Creating seg_trace task")
     trace_task = TaskModel(
         project_name=project_name,
         task_id=trace_id,
@@ -476,6 +469,8 @@ def seg_v0_auto_verify(
         batch_id=batch_id,
         task_type="seg_trace",
         is_active=True,
+        is_paused=False,
+        is_checked=False,
         last_leased_ts=0.0,
         completion_status="",
         id_nonunique=generate_id_nonunique(),
@@ -483,7 +478,6 @@ def seg_v0_auto_verify(
     db_session.add(trace_task)
 
     # 2. Create seg_auto_verify task (inactive)
-    print("Creating seg_auto_verify task")
     auto_verify_task = TaskModel(
         project_name=project_name,
         task_id=auto_verify_id,
@@ -497,6 +491,8 @@ def seg_v0_auto_verify(
         batch_id=batch_id,
         task_type="seg_auto_verify",
         is_active=False,
+        is_paused=False,
+        is_checked=False,
         last_leased_ts=0.0,
         completion_status="",
         id_nonunique=generate_id_nonunique(),
@@ -505,7 +501,6 @@ def seg_v0_auto_verify(
     db_session.add(auto_verify_task)
 
     # 3. Create seg_trace_expert task (inactive)
-    print("Creating seg_trace_expert task")
     expert_task = TaskModel(
         project_name=project_name,
         task_id=expert_id,
@@ -519,6 +514,8 @@ def seg_v0_auto_verify(
         batch_id=batch_id,
         task_type="seg_trace_expert",
         is_active=False,
+        is_paused=False,
+        is_checked=False,
         last_leased_ts=0.0,
         completion_status="",
         id_nonunique=generate_id_nonunique(),
@@ -526,7 +523,6 @@ def seg_v0_auto_verify(
     db_session.add(expert_task)
 
     # 4. Create dependency: auto_verify depends on trace being "done"
-    print("Creating dependency for seg_auto_verify")
     dep_auto_verify = DependencyModel(
         project_name=project_name,
         dependency_id=dep_auto_verify_id,
@@ -538,7 +534,6 @@ def seg_v0_auto_verify(
     db_session.add(dep_auto_verify)
 
     # 5. Create dependency: expert depends on auto_verify being "fail"
-    print("Creating dependency for seg_trace_expert")
     dep_expert = DependencyModel(
         project_name=project_name,
         dependency_id=dep_expert_id,

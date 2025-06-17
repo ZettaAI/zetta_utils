@@ -167,7 +167,7 @@ def list_jobs_summary(
 ) -> dict:
     """
     Get a summary of jobs in a project with counts and sample job IDs.
-    
+
     :param project_name: The name of the project
     :param db_session: Database session to use (optional)
     :return: Dictionary with counts and job ID lists
@@ -180,15 +180,15 @@ def list_jobs_summary(
             .where(JobModel.status == "pending_ingestion")
         )
         pending_count = session.execute(pending_count_query).scalar() or 0
-        
-        # Count ingested jobs  
+
+        # Count ingested jobs
         ingested_count_query = (
             select(func.count(JobModel.job_id))
             .where(JobModel.project_name == project_name)
             .where(JobModel.status == "ingested")
         )
         ingested_count = session.execute(ingested_count_query).scalar() or 0
-        
+
         # Count fully processed jobs
         completed_count_query = (
             select(func.count(JobModel.job_id))
@@ -196,7 +196,7 @@ def list_jobs_summary(
             .where(JobModel.status == "fully_processed")
         )
         completed_count = session.execute(completed_count_query).scalar() or 0
-        
+
         # Get first 5 pending ingestion job IDs
         pending_ids_query = (
             select(JobModel.job_id)
@@ -206,7 +206,7 @@ def list_jobs_summary(
             .limit(5)
         )
         pending_ids = list(session.execute(pending_ids_query).scalars().all())
-        
+
         # Get first 5 ingested job IDs
         ingested_ids_query = (
             select(JobModel.job_id)
@@ -216,7 +216,7 @@ def list_jobs_summary(
             .limit(5)
         )
         ingested_ids = list(session.execute(ingested_ids_query).scalars().all())
-        
+
         return {
             "pending_ingestion_count": pending_count,
             "ingested_count": ingested_count,

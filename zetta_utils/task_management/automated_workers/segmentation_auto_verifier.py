@@ -6,26 +6,25 @@ and automatically releases them with "pass" status.
 """
 
 import json
+import os
 import time
 
 import attrs
-import os
 import click
+import meshparty
 import numpy as np
+import pcg_skel
+from caveclient import CAVEclient
 from cloudvolume import CloudVolume
 from rich.console import Console
 from rich.json import JSON
 from rich.panel import Panel
 from rich.text import Text
-from caveclient import CAVEclient
-import pcg_skel
-import meshparty
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
 from zetta_utils import log
 from zetta_utils.task_management.task import get_task, release_task, start_task
-
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 slack_client = WebClient(token=os.environ["ZETTA_PROOFREDING_BOT_SLACK_TOKEN"])
 
@@ -41,24 +40,24 @@ class SegmentSkeleton:
 
 def get_skeleton(ng_dict: dict) -> SegmentSkeleton | None:
     """Get skeleton from segmentation layer."""
-    
+
     for layer in ng_dict["layers"]:
         if layer["name"] == "Segmentation":
             source = layer["source"]
             segments = layer["segments"]
-            
+
             if source and segments:
                 segment_id = int(segments[0])
                 client = CAVEclient(
-                    datastack_name="kronauer_ant", 
+                    datastack_name="kronauer_ant",
                     server_address="https://proofreading.zetta.ai",
-                    auth_token_file="~/.cloudvolume/secrets/cave-secret.json"   
+                    auth_token_file="~/.cloudvolume/secrets/cave-secret.json"
                 )
                 skel = pcg_skel.pcg_skeleton(root_id=segment_id, client=client)
                 pathlength = skel.path_length()
                 cv = CloudVolume(source)
                 skeleton = cv.skeleton.get(segment_id)
-                
+
                 return SegmentSkeleton(segment_id=segment_id, skeleton=skeleton)
     return None
 
@@ -70,7 +69,7 @@ def get_skeleton(ng_dict: dict) -> SegmentSkeleton | None:
     help="User ID for the automated worker"
 )
 @click.option(
-    "--project_name", "-p", 
+    "--project_name", "-p",
     required=True,
     help="Name of the project to process tasks from"
 )
@@ -104,12 +103,12 @@ def run_worker(user_id: str, project_name: str, polling_period: float, min_skele
         border_style="blue"
     )
     console.print(startup_panel)
-    
+
     logger.info(f"Starting segmentation auto verifier worker for project '{project_name}' with user '{user_id}'")
-    
+
     had_task_last_time = False
     task_count = 0
-    
+
     try:
         while True:
             task_id = None
@@ -123,7 +122,7 @@ def run_worker(user_id: str, project_name: str, polling_period: float, min_skele
                 if task_id:
                     task_count += 1
                     logger.info(f"Started processing task {task_id}")
-                    
+
                     # Create processing panel
                     processing_text = Text(f"Processing Task #{task_count}", style="bold green")
                     processing_panel = Panel(
@@ -133,18 +132,18 @@ def run_worker(user_id: str, project_name: str, polling_period: float, min_skele
                         border_style="green"
                     )
                     console.print(processing_panel)
-                    
+
                     # Get and parse ng_state
                     task_details = get_task(project_name=project_name, task_id=task_id)
                     task_type = task_details.get("task_type", "unknown")
-                    
+
                     logger.info(f"Processing task {task_id} (type: {task_type})")
                     console.print(f"[cyan]Task Type:[/cyan] {task_type}")
-                    
+
                     ng_state = task_details.get("ng_state", "")
                     logger.info(f"Successfully parsed ng_state for task {task_id}")
-                    
-                    slack_client.chat_postMessage(channel=slack_channel, text="") 
+
+                    slack_client.chat_postMessage(channel=slack_channel, text="")
                     # Get skeleton from segmentation layer
                     breakpoint()
                     skeleton_info = get_skeleton(ng_state)
@@ -152,49 +151,49 @@ def run_worker(user_id: str, project_name: str, polling_period: float, min_skele
                         # Convert skeleton length from nm to mm (1 mm = 1,000,000 nm)
                         skeleton_length_nm = skeleton_info.skeleton.path_length()
                         skeleton_length_mm = skeleton_length_nm / 1_000_000
-                        
+
                         console.print(f"[green]✅ Got skeleton for segment {skeleton_info.segment_id}[/green]")
                         console.print(f"[cyan]Skeleton length:[/cyan] {skeleton_length_mm:.2f}mm ({skeleton_length_nm:.0f}nm)")
                         console.print(f"[cyan]Minimum required:[/cyan] {min_skeleton_length_mm}mm")
-                        
+
                         if skeleton_length_mm >= min_skeleton_length_mm:
                             console.print(f"[green]✅ Skeleton meets minimum length requirement[/green]")
                         else:
                             console.print(f"[red]❌ Skeleton below minimum length requirement[/red]")
                     # Release task with "pass" status
                     logger.info(f"Releasing task {task_id} with 'pass' status")
-                    
+
                     #success = release_task(
                     #    project_name=project_name,
                     #    task_id=task_id,
                     #    user_id=user_id,
                     #    completion_status="pass"
                     #)
-                    
+
                     #if success:
                     #    logger.info(f"Successfully released task {task_id}")
                     #    console.print(f"[green]✅ Released task {task_id} with status: [bold]pass[/bold][/green]\n")
                     #else:
                     #    logger.error(f"Failed to release task {task_id}")
                     #    console.print(f"[red]❌ Failed to release task {task_id}[/red]\n")
-                    
+
                     # had_task_last_time = True
-                    
+
                 else:
                     if had_task_last_time:  # Only log when transitioning from having tasks to no tasks
                         logger.info("No tasks available, entering wait mode")
                     console.print("[dim]⏳ No tasks available, waiting...[/dim]")
                     had_task_last_time = False
-                    
+
             except Exception as e:
                 logger.error(f"Error processing task {task_id}: {e}", exc_info=True)
                 console.print(f"[red]❌ Error processing task: {e}[/red]")
                 had_task_last_time = False
-            
+
             # Sleep only if we didn't have a task last time
             if not had_task_last_time:
                 time.sleep(polling_period)
-            
+
     except KeyboardInterrupt:
         logger.info(f"Worker stopped by user after processing {task_count} tasks")
         shutdown_panel = Panel(

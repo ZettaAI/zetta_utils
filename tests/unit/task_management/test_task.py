@@ -1199,7 +1199,7 @@ def test_reactivate_task_success(db_session, project_name, existing_task, existi
         task_id="task_1",
         db_session=db_session,
     )
-    
+
     release_task(
         project_name=project_name,
         user_id="test_user",
@@ -1207,21 +1207,21 @@ def test_reactivate_task_success(db_session, project_name, existing_task, existi
         completion_status="pass",
         db_session=db_session,
     )
-    
+
     # Verify task is completed
     task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert task["completion_status"] == "pass"
     assert task["completed_user_id"] == "test_user"
-    
+
     # Now reactivate it
     result = reactivate_task(
         project_name=project_name,
         task_id="task_1",
         db_session=db_session,
     )
-    
+
     assert result is True
-    
+
     # Verify task is now active again
     task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert task["completion_status"] == ""
@@ -1233,7 +1233,7 @@ def test_reactivate_task_already_active(db_session, project_name, existing_task,
     # Task is already active (not completed)
     task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert task["completion_status"] == ""
-    
+
     # Try to reactivate - should fail
     with pytest.raises(TaskValidationError, match="Task task_1 is already active"):
         reactivate_task(
@@ -1260,7 +1260,7 @@ def test_reactivate_task_reactivates_job(
     from zetta_utils.task_management.job import get_job, update_job
     from zetta_utils.task_management.types import JobUpdate
     from zetta_utils.task_management.user import create_user
-    
+
     # Create a user
     user_data = User(
         user_id="reactivate_test_user",
@@ -1269,27 +1269,27 @@ def test_reactivate_task_reactivates_job(
         qualified_task_types=[existing_task_type["task_type"]],
     )
     create_user(project_name=project_name, data=user_data, db_session=db_session)
-    
+
     # Create job and task
     job_factory("job_reactivate")
     task_factory("job_reactivate", "task_reactivate", is_active=True)
-    
+
     # Complete the task and mark job as fully_processed
     start_task(
         project_name=project_name,
-        user_id="reactivate_test_user", 
+        user_id="reactivate_test_user",
         task_id="task_reactivate",
         db_session=db_session,
     )
-    
+
     release_task(
         project_name=project_name,
         user_id="reactivate_test_user",
-        task_id="task_reactivate", 
+        task_id="task_reactivate",
         completion_status="pass",
         db_session=db_session,
     )
-    
+
     # Manually set job status to fully_processed to simulate job completion
     update_job(
         project_name=project_name,
@@ -1297,18 +1297,18 @@ def test_reactivate_task_reactivates_job(
         data=JobUpdate(status="fully_processed"),
         db_session=db_session,
     )
-    
+
     # Verify job is fully_processed
     job = get_job(project_name=project_name, job_id="job_reactivate", db_session=db_session)
     assert job["status"] == "fully_processed"
-    
+
     # Reactivate the task
     reactivate_task(
         project_name=project_name,
         task_id="task_reactivate",
         db_session=db_session,
     )
-    
+
     # Verify job is now reactivated back to ingested status
     job = get_job(project_name=project_name, job_id="job_reactivate", db_session=db_session)
     assert job["status"] == "ingested"

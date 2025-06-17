@@ -7,11 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from zetta_utils.log import get_logger
-from zetta_utils.task_management.db.models import (
-    DependencyModel,
-    JobModel,
-    TaskModel,
-)
+from zetta_utils.task_management.db.models import DependencyModel, JobModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.utils import generate_id_nonunique
 

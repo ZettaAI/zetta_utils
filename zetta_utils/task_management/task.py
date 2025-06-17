@@ -10,13 +10,7 @@ from typeguard import typechecked
 from zetta_utils import log
 from zetta_utils.task_management.utils import generate_id_nonunique
 
-from .db.models import (
-    DependencyModel,
-    JobModel,
-    TaskModel,
-    TaskTypeModel,
-    UserModel,
-)
+from .db.models import DependencyModel, JobModel, TaskModel, TaskTypeModel, UserModel
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError
 from .types import Task, TaskUpdate
@@ -597,7 +591,7 @@ def get_task(
         )
         try:
             task = session.execute(query).scalar_one()
-            
+
             result = task.to_dict()
             return cast(Task, result)
         except NoResultFound as exc:
@@ -670,7 +664,7 @@ def reactivate_task(
     """
     Reactivate a completed task by clearing its completion status and completed user.
     Also reactivates the parent job if it was marked as fully_processed.
-    
+
     :param project_name: The name of the project
     :param task_id: The ID of the task to reactivate
     :param db_session: Database session to use (optional)
@@ -690,15 +684,15 @@ def reactivate_task(
             task = session.execute(task_query).scalar_one()
         except NoResultFound as exc:
             raise KeyError(f"Task {task_id} not found") from exc
-        
+
         # Validate task can be reactivated
         if task.completion_status == "":
             raise TaskValidationError(f"Task {task_id} is already active (not completed)")
-        
+
         # Clear completion status and completed user
         task.completion_status = ""
         task.completed_user_id = ""
-        
+
         # Get and potentially reactivate the parent job
         job_query = (
             select(JobModel)
@@ -707,12 +701,12 @@ def reactivate_task(
             .with_for_update()
         )
         job = session.execute(job_query).scalar_one()
-        
+
         # If job was marked as fully_processed, reactivate it back to ingested
         if job.status == "fully_processed":
             logger.info(f"Reactivating job {job.job_id} from fully_processed back to ingested status")
             job.status = "ingested"
-        
+
         session.commit()
         logger.info(f"Reactivated task {task_id} in project {project_name}")
         return True
@@ -723,7 +717,7 @@ def list_tasks_summary(
 ) -> dict:
     """
     Get a summary of tasks in a project with counts and sample task IDs.
-    
+
     :param project_name: The name of the project
     :param db_session: Database session to use (optional)
     :return: Dictionary with counts and task ID lists
@@ -737,7 +731,7 @@ def list_tasks_summary(
             .where(TaskModel.completion_status == "")
         )
         active_count = session.execute(active_count_query).scalar() or 0
-        
+
         # Count completed tasks (non-empty completion status)
         completed_count_query = (
             select(func.count(TaskModel.task_id))
@@ -746,7 +740,7 @@ def list_tasks_summary(
             .where(TaskModel.completion_status != "")
         )
         completed_count = session.execute(completed_count_query).scalar() or 0
-        
+
         # Count paused tasks
         paused_count_query = (
             select(func.count(TaskModel.task_id))
@@ -754,7 +748,7 @@ def list_tasks_summary(
             .where(TaskModel.is_paused == True)
         )
         paused_count = session.execute(paused_count_query).scalar() or 0
-        
+
         # Get first 5 active unpaused task IDs
         active_unpaused_query = (
             select(TaskModel.task_id)
@@ -766,7 +760,7 @@ def list_tasks_summary(
             .limit(5)
         )
         active_unpaused_ids = list(session.execute(active_unpaused_query).scalars().all())
-        
+
         # Get first 5 active paused task IDs
         active_paused_query = (
             select(TaskModel.task_id)
@@ -778,7 +772,7 @@ def list_tasks_summary(
             .limit(5)
         )
         active_paused_ids = list(session.execute(active_paused_query).scalars().all())
-        
+
         return {
             "active_count": active_count,
             "completed_count": completed_count,

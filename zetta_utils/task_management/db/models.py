@@ -1,7 +1,7 @@
 # pylint: disable=singleton-comparison
 from typing import Any, Optional
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Float, Index, Integer, JSON, String
+from sqlalchemy import ARRAY, JSON, BigInteger, Boolean, Float, Index, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -348,10 +348,10 @@ class TaskModel(Base):
             "is_paused": self.is_paused,
             "task_type": self.task_type,
         }
-        
+
         if self.extra_data is not None:
             result["extra_data"] = self.extra_data
-            
+
         return result
 
     @classmethod

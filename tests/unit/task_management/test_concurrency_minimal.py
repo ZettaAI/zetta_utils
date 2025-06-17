@@ -7,7 +7,7 @@ from sqlalchemy import select
 from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base, TimesheetModel
 from zetta_utils.task_management.dependency import create_dependency
-from zetta_utils.task_management.job import create_job, get_job
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import (
     _handle_task_completion,
     create_task,
@@ -21,7 +21,6 @@ from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.timesheet import submit_timesheet
 from zetta_utils.task_management.types import (
     Dependency,
-    Job,
     Task,
     TaskType,
     User,
@@ -31,16 +30,19 @@ from zetta_utils.task_management.user import create_user, get_user, update_user
 
 
 def setup_simple_scenario(db_session, project_name):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=db_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="j", batch_id="b", status="ingested", job_type="test", ng_state={"url": "http://x"}
-        ),
         db_session=db_session,
     )
 
@@ -48,7 +50,6 @@ def setup_simple_scenario(db_session, project_name):
         create_task(
             project_name=project_name,
             data=Task(
-                job_id="j",
                 task_id=letter,
                 assigned_user_id="",
                 active_user_id="",
@@ -82,20 +83,19 @@ def setup_simple_scenario(db_session, project_name):
 
 
 def setup_takeover_scenario(db_session, project_name):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=db_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="takeover_job",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=db_session,
     )
 
@@ -116,7 +116,6 @@ def setup_takeover_scenario(db_session, project_name):
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="takeover_job",
             task_id="idle_task",
             assigned_user_id="",
             active_user_id="user_1",
@@ -144,20 +143,19 @@ def setup_takeover_scenario(db_session, project_name):
 
 
 def setup_timesheet_scenario(db_session, project_name):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=db_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="timesheet_job",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=db_session,
     )
 
@@ -177,7 +175,6 @@ def setup_timesheet_scenario(db_session, project_name):
         create_task(
             project_name=project_name,
             data=Task(
-                job_id="timesheet_job",
                 task_id=f"timesheet_task_{i}",
                 assigned_user_id="",
                 active_user_id=f"timesheet_user_{i}",
@@ -297,9 +294,7 @@ def test_concurrent_race_condition(clean_db, postgres_container, postgres_sessio
         time.sleep(0.1)
 
         # Check result for this iteration
-        final_c = get_task(
-            project_name=project_name, task_id="c", db_session=postgres_session
-        )
+        final_c = get_task(project_name=project_name, task_id="c", db_session=postgres_session)
         assert final_c[
             "is_active"
         ], f"C should be active after A and B complete (iteration {iteration + 1})"
@@ -466,20 +461,19 @@ def test_auto_selection_race_condition(
             session.close()
 
     # Set up scenario - single task, 3 users
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=postgres_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=postgres_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="auto_task",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=postgres_session,
     )
 
@@ -498,7 +492,6 @@ def test_auto_selection_race_condition(
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="auto_task",
             task_id="available_task",
             assigned_user_id="",
             active_user_id="",
@@ -539,9 +532,7 @@ def test_task_completion_race_condition(
         session = get_db_session(engine_url=connection_url)
         try:
 
-            user_id = (
-                f"completion_user_{task_id.split('_')[-1]}"  # Extract user from task_id
-            )
+            user_id = f"completion_user_{task_id.split('_')[-1]}"  # Extract user from task_id
             release_task(
                 project_name=project_name,
                 user_id=user_id,
@@ -556,20 +547,19 @@ def test_task_completion_race_condition(
         finally:
             session.close()
 
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=postgres_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=postgres_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="completion_task",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=postgres_session,
     )
 
@@ -598,7 +588,6 @@ def test_task_completion_race_condition(
         create_task(
             project_name=project_name,
             data=Task(
-                job_id="completion_task",
                 task_id=f"completion_task_{i}",
                 assigned_user_id="",
                 active_user_id=f"completion_user_{i}",
@@ -618,9 +607,7 @@ def test_task_completion_race_condition(
     postgres_session.commit()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [
-            executor.submit(complete_worker, f"completion_task_{i}") for i in range(1, 3)
-        ]
+        futures = [executor.submit(complete_worker, f"completion_task_{i}") for i in range(1, 3)]
         results = [future.result(timeout=10) for future in futures]
 
     print(f"Completion results: {results}")
@@ -630,31 +617,26 @@ def test_task_completion_race_condition(
         len(successes) == 2
     ), f"Expected 2 successful completions, got {len(successes)}: {results}"
 
-    final_job = get_job(
-        project_name=project_name, job_id="completion_task", db_session=postgres_session
-    )
-    assert (
-        final_job["status"] == "fully_processed"
-    ), f"Job should be fully_processed, got {final_job['status']}"
+    # Job status check removed as jobs no longer exist
+    # Test passes if both tasks complete successfully
 
 
 def test_pause_unpause_task_functionality(
     clean_db, postgres_container, postgres_session, project_name
 ):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=postgres_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=postgres_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="pause_task",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=postgres_session,
     )
 
@@ -672,7 +654,6 @@ def test_pause_unpause_task_functionality(
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="pause_task",
             task_id="pausable_task",
             assigned_user_id="",
             active_user_id="",
@@ -706,9 +687,7 @@ def test_pause_unpause_task_functionality(
         db_session=postgres_session,
     )
 
-    pause_task(
-        project_name=project_name, task_id="pausable_task", db_session=postgres_session
-    )
+    pause_task(project_name=project_name, task_id="pausable_task", db_session=postgres_session)
 
     auto_selected_paused = start_task(
         project_name=project_name, user_id="pause_user", db_session=postgres_session
@@ -735,9 +714,7 @@ def test_pause_unpause_task_functionality(
         db_session=postgres_session,
     )
 
-    unpause_task(
-        project_name=project_name, task_id="pausable_task", db_session=postgres_session
-    )
+    unpause_task(project_name=project_name, task_id="pausable_task", db_session=postgres_session)
 
     auto_selected_unpaused = start_task(
         project_name=project_name, user_id="pause_user", db_session=postgres_session
@@ -774,27 +751,25 @@ def test_pause_unpause_race_condition(
         finally:
             session.close()
 
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=postgres_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=postgres_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="race_pause_task",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=postgres_session,
     )
 
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="race_pause_task",
             task_id="race_pause_task",
             assigned_user_id="",
             active_user_id="",
@@ -841,20 +816,19 @@ def test_pause_unpause_race_condition(
 def test_paused_tasks_excluded_from_auto_selection_comprehensive(
     clean_db, postgres_container, postgres_session, project_name
 ):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=postgres_session,
+    )
+
     create_task_type(
         project_name=project_name,
         data=TaskType(task_type="test", completion_statuses=["done"]),
-        db_session=postgres_session,
-    )
-    create_job(
-        project_name=project_name,
-        data=Job(
-            job_id="auto_select_task",
-            batch_id="b",
-            status="ingested",
-            job_type="test",
-            ng_state={"url": "http://x"},
-        ),
         db_session=postgres_session,
     )
 
@@ -872,7 +846,6 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="auto_select_task",
             task_id="assigned_task",
             assigned_user_id="auto_user",
             active_user_id="",
@@ -892,7 +865,6 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="auto_select_task",
             task_id="unassigned_task",
             assigned_user_id="",
             active_user_id="",
@@ -913,7 +885,6 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
     create_task(
         project_name=project_name,
         data=Task(
-            job_id="auto_select_task",
             task_id="idle_task",
             assigned_user_id="",
             active_user_id="other_user",
@@ -935,9 +906,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
     selected = start_task(
         project_name=project_name, user_id="auto_user", db_session=postgres_session
     )
-    assert (
-        selected == "assigned_task"
-    ), f"Expected to select assigned task first, got {selected}"
+    assert selected == "assigned_task", f"Expected to select assigned task first, got {selected}"
 
     release_task(
         project_name=project_name,
@@ -947,9 +916,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
         db_session=postgres_session,
     )
 
-    pause_task(
-        project_name=project_name, task_id="assigned_task", db_session=postgres_session
-    )
+    pause_task(project_name=project_name, task_id="assigned_task", db_session=postgres_session)
 
     selected = start_task(
         project_name=project_name, user_id="auto_user", db_session=postgres_session
@@ -965,9 +932,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
         completion_status="",
         db_session=postgres_session,
     )
-    pause_task(
-        project_name=project_name, task_id="unassigned_task", db_session=postgres_session
-    )
+    pause_task(project_name=project_name, task_id="unassigned_task", db_session=postgres_session)
 
     selected = start_task(
         project_name=project_name, user_id="auto_user", db_session=postgres_session
@@ -983,9 +948,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
         completion_status="",
         db_session=postgres_session,
     )
-    pause_task(
-        project_name=project_name, task_id="idle_task", db_session=postgres_session
-    )
+    pause_task(project_name=project_name, task_id="idle_task", db_session=postgres_session)
 
     # Should now select nothing
     selected = start_task(

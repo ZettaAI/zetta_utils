@@ -10,13 +10,7 @@ from typeguard import typechecked
 from zetta_utils import log
 from zetta_utils.task_management.utils import generate_id_nonunique
 
-from .db.models import (
-    DependencyModel,
-    JobModel,
-    TaskModel,
-    TaskTypeModel,
-    UserModel,
-)
+from .db.models import DependencyModel, TaskModel, TaskTypeModel, UserModel
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError
 from .types import Task, TaskUpdate
@@ -301,7 +295,18 @@ def release_task(
         except NoResultFound as exc:
             raise TaskValidationError(f"Task {task_id} not found") from exc
 
-        # Handle completion side effects if completing
+        # Update task status FIRST (before handling side effects)
+        # This prevents race conditions in task completion detection
+        task.active_user_id = ""
+        task.completion_status = completion_status
+        task.completed_user_id = user_id if completion_status else ""
+        user.active_task = ""
+
+        # Flush changes to ensure they're visible within this transaction
+        # (but not committed yet in case side effects fail)
+        session.flush()
+
+        # Handle completion side effects AFTER marking complete
         if completion_status:
             _handle_task_completion(
                 session,
@@ -309,12 +314,6 @@ def release_task(
                 task_id,
                 completion_status,
             )
-
-        # Release the task
-        task.active_user_id = ""
-        task.completion_status = completion_status
-        task.completed_user_id = user_id if completion_status else ""
-        user.active_task = ""
 
         session.commit()
         return True
@@ -344,9 +343,7 @@ def _satisfy_dependency_and_activate_if_ready(
 
     # Use pre-locked dependencies to count remaining unsatisfied
     remaining_unsatisfied = sum(
-        1
-        for locked_dep in locked_dependencies[dependent_task_id]
-        if not locked_dep.is_satisfied
+        1 for locked_dep in locked_dependencies[dependent_task_id] if not locked_dep.is_satisfied
     )
 
     logger.info(f"Remaining dependencies: {remaining_unsatisfied}")
@@ -383,8 +380,7 @@ def _handle_task_completion(  # pylint: disable=too-many-locals
         .where(TaskModel.task_id == task_id)
         .where(TaskModel.project_name == project_name)
     )
-    task = db_session.execute(task_query).scalar_one()
-    task_data = task.to_dict()
+    db_session.execute(task_query).scalar_one()
 
     # Get all dependencies that need to be checked/updated for this completion
     # We need to find all tasks that might be affected to implement proper lock ordering
@@ -442,40 +438,8 @@ def _handle_task_completion(  # pylint: disable=too-many-locals
                 dep, dep_data, locked_dependencies, locked_tasks
             )
 
-    # Check if job is complete
-    job_id = task_data["job_id"]
 
-    # Lock the job to prevent race conditions
-    job_lock_query = (
-        select(JobModel)
-        .where(JobModel.job_id == job_id)
-        .where(JobModel.project_name == project_name)
-        .with_for_update()
-    )
-    locked_job = db_session.execute(job_lock_query).scalar_one()
-
-    # Count incomplete tasks for this job (excluding the current one being completed)
-    incomplete_tasks_query = (
-        select(func.count(TaskModel.task_id))
-        .where(TaskModel.job_id == job_id)
-        .where(TaskModel.project_name == project_name)
-        .where(TaskModel.is_active == True)
-        .where(TaskModel.completion_status == "")
-        .where(TaskModel.task_id != task_data["task_id"])  # Exclude current task
-    )
-    incomplete_count = db_session.execute(incomplete_tasks_query).scalar()
-
-    logger.info(f"Job {job_id} has {incomplete_count} remaining incomplete tasks")
-
-    # If this was the last incomplete task, mark job as fully_processed
-    if incomplete_count == 0:
-        logger.info(f"Marking job {job_id} as fully_processed")
-        locked_job.status = "fully_processed"
-
-
-def _auto_select_task(
-    db_session: Session, project_name: str, user_id: str
-) -> TaskModel | None:
+def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> TaskModel | None:
     """
     Auto-select a task for a user atomically.
 
@@ -517,7 +481,7 @@ def _auto_select_task(
             .where(TaskModel.task_type == task_type)
             .where(TaskModel.assigned_user_id == user_id)
             .where(TaskModel.active_user_id == "")  # Not currently active
-            .order_by(TaskModel.priority.desc())
+            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
             .limit(1)
             .with_for_update(skip_locked=True)
         )
@@ -537,7 +501,7 @@ def _auto_select_task(
             .where(TaskModel.completion_status == "")
             .where(TaskModel.task_type == task_type)
             .where(TaskModel.active_user_id == "")  # Not currently active
-            .order_by(TaskModel.priority.desc())
+            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
             .limit(1)
             .with_for_update(skip_locked=True)
         )
@@ -576,9 +540,7 @@ def _auto_select_task(
     return None
 
 
-def get_task(
-    *, project_name: str, task_id: str, db_session: Session | None = None
-) -> Task:
+def get_task(*, project_name: str, task_id: str, db_session: Session | None = None) -> Task:
     """
     Retrieve a task record from the database.
 
@@ -597,7 +559,7 @@ def get_task(
         )
         try:
             task = session.execute(query).scalar_one()
-            
+
             result = task.to_dict()
             return cast(Task, result)
         except NoResultFound as exc:
@@ -605,9 +567,7 @@ def get_task(
 
 
 @typechecked
-def pause_task(
-    *, project_name: str, task_id: str, db_session: Session | None = None
-) -> bool:
+def pause_task(*, project_name: str, task_id: str, db_session: Session | None = None) -> bool:
     """
     Pause a task to prevent it from being auto-selected.
     Paused tasks can still be manually selected.
@@ -635,9 +595,7 @@ def pause_task(
 
 
 @typechecked
-def unpause_task(
-    *, project_name: str, task_id: str, db_session: Session | None = None
-) -> bool:
+def unpause_task(*, project_name: str, task_id: str, db_session: Session | None = None) -> bool:
     """
     Unpause a task to allow it to be auto-selected again.
 
@@ -664,13 +622,10 @@ def unpause_task(
 
 
 @typechecked
-def reactivate_task(
-    *, project_name: str, task_id: str, db_session: Session | None = None
-) -> bool:
+def reactivate_task(*, project_name: str, task_id: str, db_session: Session | None = None) -> bool:
     """
     Reactivate a completed task by clearing its completion status and completed user.
-    Also reactivates the parent job if it was marked as fully_processed.
-    
+
     :param project_name: The name of the project
     :param task_id: The ID of the task to reactivate
     :param db_session: Database session to use (optional)
@@ -690,40 +645,50 @@ def reactivate_task(
             task = session.execute(task_query).scalar_one()
         except NoResultFound as exc:
             raise KeyError(f"Task {task_id} not found") from exc
-        
+
         # Validate task can be reactivated
         if task.completion_status == "":
             raise TaskValidationError(f"Task {task_id} is already active (not completed)")
-        
+
         # Clear completion status and completed user
         task.completion_status = ""
         task.completed_user_id = ""
-        
-        # Get and potentially reactivate the parent job
-        job_query = (
-            select(JobModel)
-            .where(JobModel.job_id == task.job_id)
-            .where(JobModel.project_name == project_name)
-            .with_for_update()
-        )
-        job = session.execute(job_query).scalar_one()
-        
-        # If job was marked as fully_processed, reactivate it back to ingested
-        if job.status == "fully_processed":
-            logger.info(f"Reactivating job {job.job_id} from fully_processed back to ingested status")
-            job.status = "ingested"
-        
+
         session.commit()
         logger.info(f"Reactivated task {task_id} in project {project_name}")
         return True
 
 
-def list_tasks_summary(
-    *, project_name: str, db_session: Session | None = None
-) -> dict:
+def get_paused_tasks_by_user(
+    *, project_name: str, user_id: str, db_session: Session | None = None
+) -> list[Task]:
+    """
+    Get all paused tasks assigned to a specific user.
+
+    :param project_name: The name of the project
+    :param user_id: The ID of the user
+    :param db_session: Database session to use (optional)
+    :return: List of paused tasks assigned to the user
+    """
+    with get_session_context(db_session) as session:
+        query = (
+            select(TaskModel)
+            .where(TaskModel.project_name == project_name)
+            .where(TaskModel.assigned_user_id == user_id)
+            .where(TaskModel.is_paused == True)
+            .where(TaskModel.is_active == True)
+            .where(TaskModel.completion_status == "")
+            .order_by(TaskModel.priority.desc(), TaskModel.task_id)
+        )
+
+        tasks = session.execute(query).scalars().all()
+        return [cast(Task, task.to_dict()) for task in tasks]
+
+
+def list_tasks_summary(*, project_name: str, db_session: Session | None = None) -> dict:
     """
     Get a summary of tasks in a project with counts and sample task IDs.
-    
+
     :param project_name: The name of the project
     :param db_session: Database session to use (optional)
     :return: Dictionary with counts and task ID lists
@@ -737,7 +702,7 @@ def list_tasks_summary(
             .where(TaskModel.completion_status == "")
         )
         active_count = session.execute(active_count_query).scalar() or 0
-        
+
         # Count completed tasks (non-empty completion status)
         completed_count_query = (
             select(func.count(TaskModel.task_id))
@@ -746,7 +711,7 @@ def list_tasks_summary(
             .where(TaskModel.completion_status != "")
         )
         completed_count = session.execute(completed_count_query).scalar() or 0
-        
+
         # Count paused tasks
         paused_count_query = (
             select(func.count(TaskModel.task_id))
@@ -754,7 +719,7 @@ def list_tasks_summary(
             .where(TaskModel.is_paused == True)
         )
         paused_count = session.execute(paused_count_query).scalar() or 0
-        
+
         # Get first 5 active unpaused task IDs
         active_unpaused_query = (
             select(TaskModel.task_id)
@@ -766,7 +731,7 @@ def list_tasks_summary(
             .limit(5)
         )
         active_unpaused_ids = list(session.execute(active_unpaused_query).scalars().all())
-        
+
         # Get first 5 active paused task IDs
         active_paused_query = (
             select(TaskModel.task_id)
@@ -778,7 +743,7 @@ def list_tasks_summary(
             .limit(5)
         )
         active_paused_ids = list(session.execute(active_paused_query).scalars().all())
-        
+
         return {
             "active_count": active_count,
             "completed_count": completed_count,
@@ -868,8 +833,7 @@ def _atomic_task_takeover(
     if locked_prev_user:
         locked_prev_user.active_task = ""
         logger.info(
-            f"User {user_id}: Cleared active_task for previous user "
-            f"{locked_prev_user.user_id}"
+            f"User {user_id}: Cleared active_task for previous user " f"{locked_prev_user.user_id}"
         )
 
     # Assign to current user

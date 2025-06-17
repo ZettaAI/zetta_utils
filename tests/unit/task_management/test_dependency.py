@@ -9,6 +9,7 @@ from zetta_utils.task_management.dependency import (
     get_unsatisfied_dependencies_for_task,
     update_dependency,
 )
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import (
     create_task,
     get_task,
@@ -29,7 +30,6 @@ def sample_tasks() -> list[Task]:
     return [
         Task(
             **{
-                "job_id": "job_1",
                 "task_id": "task_1",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -46,7 +46,6 @@ def sample_tasks() -> list[Task]:
         ),
         Task(
             **{
-                "job_id": "job_1",
                 "task_id": "task_2",
                 "assigned_user_id": "",
                 "active_user_id": "",
@@ -65,11 +64,16 @@ def sample_tasks() -> list[Task]:
 
 
 @pytest.fixture
-def existing_tasks(
-    project_name, existing_task_type, sample_tasks, db_session, job_factory
-):
-    # Create the job first using factory
-    job_factory("job_1")
+def existing_tasks(project_name, existing_task_type, sample_tasks, db_session):
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # Create the tasks
     for task in sample_tasks:
@@ -185,9 +189,7 @@ def test_dependent_task_activation(
 ):
     """Test that completing a task activates dependent tasks"""
     # First verify task_2 is inactive
-    task_before = get_task(
-        db_session=db_session, project_name=project_name, task_id="task_2"
-    )
+    task_before = get_task(db_session=db_session, project_name=project_name, task_id="task_2")
     assert task_before["is_active"] is False
 
     # Start and complete task_1
@@ -206,9 +208,7 @@ def test_dependent_task_activation(
     )
 
     # Verify task_2 was activated
-    task_after = get_task(
-        db_session=db_session, project_name=project_name, task_id="task_2"
-    )
+    task_after = get_task(db_session=db_session, project_name=project_name, task_id="task_2")
     assert task_after["is_active"] is True
 
 
@@ -257,7 +257,6 @@ def test_create_dependency_nonexistent_dependent_on_task(clean_db, project_name,
     # Then create the dependent task
     task_data = Task(
         **{
-            "job_id": "job_1",
             "task_id": "task_1",
             "assigned_user_id": "",
             "active_user_id": "",
@@ -289,15 +288,23 @@ def test_create_dependency_nonexistent_dependent_on_task(clean_db, project_name,
 
 
 def test_dependency_satisfaction_complex_conditions(
-    project_name, clean_db, existing_task_type, db_session, job_factory, task_factory
+    project_name, clean_db, existing_task_type, db_session, task_factory
 ):
     """Test complex dependency satisfaction conditions"""
-    # Create job and tasks using factory fixtures
-    job_factory("job_1")
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
-    task_factory("job_1", "task_complex_1", is_active=True)
-    task_factory("job_1", "task_complex_2", is_active=True)
-    task_factory("job_1", "task_complex_3", is_active=False)
+    # Create tasks using factory fixtures
+    task_factory("task_complex_1", is_active=True)
+    task_factory("task_complex_2", is_active=True)
+    task_factory("task_complex_3", is_active=False)
 
     # Create dependencies
     dependency1 = Dependency(
@@ -329,16 +336,23 @@ def test_check_dependencies_satisfied_wrong_status(
     existing_user,
     existing_task_type,
     db_session,
-    job_factory,
     task_factory,
 ):
     """Test that dependencies are not satisfied when completion status doesn't match"""
-    # Create job and tasks using factory fixtures
-    job_factory("job_1")
+    # Create the project first
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
-    task_factory("job_1", "task_status_1", is_active=True)
-    task_factory("job_1", "task_status_2", is_active=False)
-    task_factory("job_1", "task_status_3", is_active=False)
+    # Create tasks using factory fixtures
+    task_factory("task_status_1", is_active=True)
+    task_factory("task_status_2", is_active=False)
+    task_factory("task_status_3", is_active=False)
 
     # Create dependencies
     dependency1 = Dependency(

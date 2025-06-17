@@ -21,7 +21,7 @@ def run_update(run_id: str, max_workers: int, worker_groups: list[str] | None = 
     from kubernetes.client import ApiException
 
     from zetta_utils.cloud_management.resource_allocation import k8s
-    
+
     def _patch(job_name: str, patch_body: dict):
         job_name = job_name.replace("_", "-")
         try:

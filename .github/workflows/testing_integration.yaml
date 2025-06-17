@@ -44,12 +44,14 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
+      - name: Install uv
+        run: pip install uv
       - name: Install Python dependencies
-        run: pip install -e '.[modules, test]'
+        run: uv sync --dev --extra modules --extra test
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Run pytest
-        run: cd tests/integration && coverage run -m pytest --run-integration .
+        run: cd tests/integration && uv run coverage run -m pytest --run-integration .
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         with:

@@ -203,8 +203,8 @@ tensor-typing = ["torch == 2.7.1", "numpy"]
 test = [
   "zetta_utils[types]",
   "docker ~= 6.0",
-  "black == 21.9b0",
-  "click == 8.0.1",           # for black to work
+  "black == 25.1.0",
+  "click == 8.0.1",
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",
   "mypy == 1.10.1",
@@ -296,6 +296,20 @@ warn_redundant_casts = true
 warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
+
+[tool.uv]
+dev-dependencies = [
+  "mypy==1.10.1",
+  "black==25.1.0",
+  "flake8==4.0.1",
+  "pylint==3.1.0",
+  "isort==5.10.1",
+  "pytest==7.1.1",
+  "pytest-cov==3.0.0",
+  "coverage==6.5.0",
+  "pytest-mock==3.8.2",
+  "pre-commit==2.19.0",
+]
 
 [tool.isort]
 known_third_party = "wandb"

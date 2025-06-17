@@ -673,14 +673,18 @@ def main():
         install_mode = args.mode
         if args.pcg:
             install_mode = f"{install_mode},pcg"
+        run_command("curl -LsSf https://astral.sh/uv/install.sh | sh", "Installing uv")
         run_command(
-            f"pip install --upgrade .[{install_mode}]", "Installing `zetta_utils` python package"
+            f"uv sync --dev --extra modules --extra {install_mode}",
+            "Installing `zetta_utils` python package",
         )
         if args.pcg:
             run_command(
-                f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
+                f"uv pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
                 "Install PCG package (do deps)",
             )
+        if args.tools:
+            run_command("./uv_install_tools.sh", "Installing tools")
 
     if not args.dockerfile:
         setup_paths()

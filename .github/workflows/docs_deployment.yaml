@@ -44,8 +44,10 @@ jobs:
 
       - name: Install libboost
         run: sudo apt install libboost-dev
+      - name: Install uv
+        run: pip install uv
       - name: Install Python dependencies
-        run: pip install -e '.[modules, docs]'
+        run: uv sync --dev --extra modules --extra docs  && ./uv_install_tools.sh
       - name: Build Docs
         run: cd ./docs; make html
       - name: Upload artifact

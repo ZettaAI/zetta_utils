@@ -2,7 +2,6 @@
 import pytest
 
 from zetta_utils.task_management.db.models import ProjectModel
-from zetta_utils.task_management.job import create_job
 from zetta_utils.task_management.project import (
     create_project,
     create_project_tables,
@@ -11,7 +10,7 @@ from zetta_utils.task_management.project import (
     list_all_projects,
     project_exists,
 )
-from zetta_utils.task_management.types import Job, User
+from zetta_utils.task_management.types import User
 from zetta_utils.task_management.user import create_user
 
 
@@ -36,7 +35,15 @@ def test_create_project_tables(project_name, clean_db, db_session):
 def test_get_project_success(project_name, clean_db, db_session):
     """Test getting a project that has been created"""
     # First create the project in the ProjectModel table
-    create_project(project_name=project_name, description="Test project", db_session=db_session)
+    create_project(
+        project_name=project_name,
+        description="Test project",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # Then create some data for the project
     sample_user: User = {
@@ -62,17 +69,15 @@ def test_get_project_not_found(project_name, clean_db, db_session):
 def test_get_project_found_in_other_tables(project_name, clean_db, db_session):
     """Test getting a project that exists in the projects table"""
     # Create the project first
-    create_project(project_name=project_name, description="Test project", db_session=db_session)
-
-    # Create a job (which will create project data in jobs table)
-    job_data: Job = {
-        "job_id": "test_job",
-        "batch_id": "batch_1",
-        "status": "pending_ingestion",
-        "job_type": "segmentation",
-        "ng_state": {"url": "http://example.com/test_job"},
-    }
-    create_job(project_name=project_name, data=job_data, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        description="Test project",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # Now get_project should find the project
     project = get_project(project_name=project_name, db_session=db_session)
@@ -84,17 +89,15 @@ def test_get_project_found_in_other_tables(project_name, clean_db, db_session):
 def test_get_project_with_table_exception_handling(project_name, clean_db, db_session, mocker):
     """Test get_project handles exceptions when checking specific tables during fallback search"""
     # Create the project first so it exists in the ProjectModel table
-    create_project(project_name=project_name, description="Test project", db_session=db_session)
-
-    # Create a job so project exists in the jobs table
-    job_data: Job = {
-        "job_id": "test_job",
-        "batch_id": "batch_1",
-        "status": "pending_ingestion",
-        "job_type": "segmentation",
-        "ng_state": {"url": "http://example.com/test_job"},
-    }
-    create_job(project_name=project_name, data=job_data, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        description="Test project",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # This should succeed because the project exists in ProjectModel table
     project = get_project(project_name=project_name, db_session=db_session)
@@ -118,7 +121,13 @@ def test_create_project_success(clean_db, db_session):
     description = "A test project"
 
     result = create_project(
-        project_name=project_name, description=description, db_session=db_session
+        project_name=project_name,
+        description=description,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
     )
 
     assert result == project_name
@@ -136,18 +145,39 @@ def test_create_project_duplicate(clean_db, db_session):
     project_name = "duplicate_project"
 
     # Create the project first time
-    create_project(project_name=project_name, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # Try to create again - should raise ValueError
     with pytest.raises(ValueError, match="Project 'duplicate_project' already exists"):
-        create_project(project_name=project_name, db_session=db_session)
+        create_project(
+            project_name=project_name,
+            segmentation_path="gs://test-bucket/segmentation",
+            sv_resolution_x=4.0,
+            sv_resolution_y=4.0,
+            sv_resolution_z=40.0,
+            db_session=db_session,
+        )
 
 
 def test_create_project_no_description(clean_db, db_session):
     """Test creating a project without description"""
     project_name = "no_desc_project"
 
-    result = create_project(project_name=project_name, db_session=db_session)
+    result = create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     assert result == project_name
     project = get_project(project_name=project_name, db_session=db_session)
@@ -163,7 +193,14 @@ def test_list_all_projects_empty(clean_db, db_session):
 def test_list_all_projects_single(clean_db, db_session):
     """Test listing projects with one project"""
     project_name = "single_project"
-    create_project(project_name=project_name, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     projects = list_all_projects(db_session=db_session)
     assert projects == [project_name]
@@ -175,7 +212,14 @@ def test_list_all_projects_multiple(clean_db, db_session):
 
     # Create projects in random order
     for name in project_names:
-        create_project(project_name=name, db_session=db_session)
+        create_project(
+            project_name=name,
+            segmentation_path="gs://test-bucket/segmentation",
+            sv_resolution_x=4.0,
+            sv_resolution_y=4.0,
+            sv_resolution_z=40.0,
+            db_session=db_session,
+        )
 
     projects = list_all_projects(db_session=db_session)
     # Should be returned in alphabetical order
@@ -186,13 +230,24 @@ def test_list_all_projects_only_active(clean_db, db_session):
     """Test that only active projects are listed"""
     # Create an active project
     active_project = "active_project"
-    create_project(project_name=active_project, db_session=db_session)
+    create_project(
+        project_name=active_project,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     inactive_project_model = ProjectModel(
         project_name="inactive_project",
         description="",
         created_at="2023-01-01T00:00:00",
         status="inactive",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
     )
     db_session.add(inactive_project_model)
     db_session.commit()
@@ -205,7 +260,14 @@ def test_list_all_projects_only_active(clean_db, db_session):
 def test_project_exists_true(clean_db, db_session):
     """Test project_exists returns True for existing project"""
     project_name = "existing_project"
-    create_project(project_name=project_name, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     assert project_exists(project_name=project_name, db_session=db_session) is True
 
@@ -218,7 +280,14 @@ def test_project_exists_false(clean_db, db_session):
 def test_delete_project_success(clean_db, db_session):
     """Test deleting an existing project"""
     project_name = "project_to_delete"
-    create_project(project_name=project_name, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # Verify it exists
     assert project_exists(project_name=project_name, db_session=db_session) is True
@@ -242,7 +311,15 @@ def test_get_project_from_model(clean_db, db_session):
     project_name = "model_project"
     description = "Project from model test"
 
-    create_project(project_name=project_name, description=description, db_session=db_session)
+    create_project(
+        project_name=project_name,
+        description=description,
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     project = get_project(project_name=project_name, db_session=db_session)
     assert project["project_name"] == project_name
@@ -269,8 +346,24 @@ def test_project_workflow_integration(clean_db, db_session):
     assert list_all_projects(db_session=db_session) == []
 
     # 2. Create projects
-    create_project(project_name=project1, description="First project", db_session=db_session)
-    create_project(project_name=project2, description="Second project", db_session=db_session)
+    create_project(
+        project_name=project1,
+        description="First project",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+    create_project(
+        project_name=project2,
+        description="Second project",
+        segmentation_path="gs://test-bucket/segmentation",
+        sv_resolution_x=4.0,
+        sv_resolution_y=4.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
 
     # 3. List should show both, sorted
     projects = list_all_projects(db_session=db_session)

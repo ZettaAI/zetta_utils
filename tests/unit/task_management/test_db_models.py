@@ -2,7 +2,6 @@
 
 from zetta_utils.task_management.db.models import (
     DependencyModel,
-    JobModel,
     TaskModel,
     TaskTypeModel,
     TimesheetModel,
@@ -33,21 +32,6 @@ def test_task_type_model_without_description():
     result_dict = model.to_dict()
 
     assert "description" not in result_dict
-
-
-def test_job_model_with_id_nonunique():
-    """Test JobModel with id_nonunique field"""
-    data = {
-        "job_id": "test_job",
-        "batch_id": "batch_1",
-        "status": "pending",
-        "job_type": "segmentation",
-        "ng_state": {"url": "http://example.com"},
-        "id_nonunique": 1,
-    }
-
-    model = JobModel.from_dict("test_project", data)
-    assert model.id_nonunique == 1
 
 
 def test_task_model_with_id_nonunique():
@@ -97,7 +81,6 @@ def test_all_models_to_dict():
     # Test TimesheetModel
     timesheet_data = {
         "entry_id": "entry_1",
-        "job_id": "job_1",
         "task_id": "task_1",
         "user": "test_user",
         "seconds_spent": 3600,

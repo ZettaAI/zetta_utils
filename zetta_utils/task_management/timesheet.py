@@ -1,5 +1,6 @@
 # pylint: disable=all
 import time
+from datetime import datetime, timedelta
 from typing import cast
 
 from sqlalchemy import select
@@ -10,7 +11,7 @@ from typeguard import typechecked
 from zetta_utils.log import get_logger
 from zetta_utils.task_management.utils import generate_id_nonunique
 
-from .db.models import TaskModel, TimesheetModel, UserModel
+from .db.models import TaskModel, TimesheetModel, TimesheetSubmissionModel, UserModel
 from .db.session import get_session_context
 from .exceptions import UserValidationError
 from .task import get_task
@@ -59,9 +60,7 @@ def submit_timesheet(
             )
 
         # Get the task and verify user is assigned (preserving original error handling)
-        task_data = get_task(
-            project_name=project_name, task_id=task_id, db_session=session
-        )
+        task_data = get_task(project_name=project_name, task_id=task_id, db_session=session)
         if task_data["active_user_id"] != user_id:
             raise UserValidationError("Task not assigned to this user")
 
@@ -81,7 +80,6 @@ def submit_timesheet(
                     project_name=project_name,
                     entry_id=entry_id,
                     task_id=task_id,
-                    job_id=task_data["job_id"],
                     user=user_id,
                     seconds_spent=int(duration_seconds),
                 )
@@ -118,14 +116,122 @@ def submit_timesheet(
             locked_task.last_leased_ts = time.time()
             logger.info(f"Updated last_leased_ts for task {task_id}")
 
-            session.commit()
-            logger.info(
-                f"Successfully submitted timesheet for user {user_id}, task {task_id}"
+            # Create individual submission record for audit trail
+            submission = TimesheetSubmissionModel(
+                project_name=project_name,
+                user_id=user_id,
+                task_id=task_id,
+                seconds_spent=int(duration_seconds),
+                submitted_at=datetime.utcnow(),
             )
+            session.add(submission)
+            logger.info(f"Created timesheet submission record for user {user_id}, task {task_id}")
+
+            session.commit()
+            logger.info(f"Successfully submitted timesheet for user {user_id}, task {task_id}")
 
         except Exception as e:
             session.rollback()
-            logger.error(
-                f"Failed to submit timesheet for user {user_id}, task {task_id}: {e}"
-            )
+            logger.error(f"Failed to submit timesheet for user {user_id}, task {task_id}: {e}")
             raise RuntimeError(f"Failed to submit timesheet: {e}")
+
+
+@typechecked
+def get_timesheet_submissions(
+    *,
+    project_name: str,
+    user_id: str | None = None,
+    task_id: str | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    db_session: Session | None = None,
+) -> list[dict]:
+    """Get timesheet submissions based on filters.
+
+    :param project_name: The name of the project
+    :param user_id: Filter by user ID (optional)
+    :param task_id: Filter by task ID (optional)
+    :param start_date: Filter submissions after this date (optional)
+    :param end_date: Filter submissions before this date (optional)
+    :param db_session: Database session to use (optional)
+    :return: List of timesheet submission dictionaries
+    """
+    with get_session_context(db_session) as session:
+        query = select(TimesheetSubmissionModel).where(
+            TimesheetSubmissionModel.project_name == project_name
+        )
+
+        if user_id is not None:
+            query = query.where(TimesheetSubmissionModel.user_id == user_id)
+
+        if task_id is not None:
+            query = query.where(TimesheetSubmissionModel.task_id == task_id)
+
+        if start_date is not None:
+            query = query.where(TimesheetSubmissionModel.submitted_at >= start_date)
+
+        if end_date is not None:
+            query = query.where(TimesheetSubmissionModel.submitted_at <= end_date)
+
+        query = query.order_by(TimesheetSubmissionModel.submitted_at.desc())
+
+        results = session.execute(query).scalars().all()
+        return [result.to_dict() for result in results]
+
+
+@typechecked
+def get_user_work_history(
+    *,
+    project_name: str,
+    user_id: str,
+    days: int = 7,
+    db_session: Session | None = None,
+) -> dict:
+    """Get detailed work history for a user.
+
+    :param project_name: The name of the project
+    :param user_id: The ID of the user
+    :param days: Number of days to look back (default 7)
+    :param db_session: Database session to use (optional)
+    :return: Dictionary with work history summary
+    """
+    with get_session_context(db_session) as session:
+        # Calculate date range
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        # Get all submissions in date range
+        submissions = get_timesheet_submissions(
+            project_name=project_name,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            db_session=session,
+        )
+
+        # Calculate summary stats
+        total_seconds = sum(sub["seconds_spent"] for sub in submissions)
+        total_hours = total_seconds / 3600
+        submission_count = len(submissions)
+
+        # Group by task
+        task_summary = {}
+        for sub in submissions:
+            task_id = sub["task_id"]
+            if task_id not in task_summary:
+                task_summary[task_id] = {
+                    "seconds_spent": 0,
+                    "submission_count": 0,
+                }
+            task_summary[task_id]["seconds_spent"] += sub["seconds_spent"]
+            task_summary[task_id]["submission_count"] += 1
+
+        return {
+            "user_id": user_id,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "total_hours": total_hours,
+            "submission_count": submission_count,
+            "task_summary": task_summary,
+            "submissions": submissions,
+        }

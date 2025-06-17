@@ -9,10 +9,9 @@ import click
 
 import zetta_utils
 from zetta_utils import log
-from zetta_utils.cli.task_mgmt import task_mgmt
-
 from zetta_utils.cli.run.cli import run_info_cli
 from zetta_utils.cli.run.cli_update import run_update_cli
+from zetta_utils.cli.task_mgmt import task_mgmt
 
 logger = log.get_logger("zetta_utils")
 
@@ -117,8 +116,8 @@ def run(
         zetta_utils.load_training_modules()
 
     # Now import the modules we need
+    from zetta_utils import builder, parsing
     from zetta_utils.run import run_ctx_manager
-    from zetta_utils import parsing, builder
 
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."

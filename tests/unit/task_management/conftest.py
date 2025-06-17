@@ -4,10 +4,9 @@ from testcontainers.postgres import PostgresContainer
 
 from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base
-from zetta_utils.task_management.job import create_job
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
-from zetta_utils.task_management.types import Job, Task, TaskType, User
+from zetta_utils.task_management.types import Task, TaskType, User
 from zetta_utils.task_management.user import create_user
 
 
@@ -97,26 +96,6 @@ def existing_user(clean_db, db_session, project_name, sample_user):
 
 
 @pytest.fixture
-def sample_job() -> Job:
-    return Job(
-        **{
-            "job_id": "job_1",
-            "batch_id": "batch_1",
-            "status": "pending_ingestion",
-            "job_type": "segmentation",
-            "ng_state": {"url": "http://example.com/job_1"},
-        }
-    )
-
-
-@pytest.fixture
-def existing_job(db_session, project_name, sample_job):
-    """Fixture that creates a job in the database"""
-    create_job(project_name=project_name, data=sample_job, db_session=db_session)
-    return sample_job
-
-
-@pytest.fixture
 def sample_task_type() -> TaskType:
     return {
         "task_type": "segmentation_proofread",
@@ -134,7 +113,6 @@ def existing_task_type(clean_db, db_session, project_name, sample_task_type):
 def sample_tasks() -> list[Task]:
     return [
         {
-            "job_id": "job_1",
             "task_id": f"task_{i}",
             "completion_status": "",
             "assigned_user_id": "",
@@ -153,10 +131,7 @@ def sample_tasks() -> list[Task]:
 
 
 @pytest.fixture
-def existing_tasks(
-    clean_db, db_session, project_name, sample_tasks, existing_task_type, existing_job
-):
-    # Job is already created by existing_job fixture
+def existing_tasks(clean_db, db_session, project_name, sample_tasks, existing_task_type):
     for task in sample_tasks:
         create_task(project_name=project_name, data=task, db_session=db_session)
     yield sample_tasks
@@ -165,7 +140,6 @@ def existing_tasks(
 @pytest.fixture
 def sample_task(existing_task_type) -> Task:
     return {
-        "job_id": "job_1",
         "task_id": "task_1",
         "completion_status": "",
         "assigned_user_id": "",
@@ -182,45 +156,18 @@ def sample_task(existing_task_type) -> Task:
 
 
 @pytest.fixture
-def existing_task(
-    clean_db, db_session, project_name, existing_task_type, sample_task, existing_job
-):
-    # Job is already created by existing_job fixture
+def existing_task(clean_db, db_session, project_name, existing_task_type, sample_task):
     create_task(project_name=project_name, data=sample_task, db_session=db_session)
     yield sample_task
-
-
-@pytest.fixture
-def job_factory(db_session, project_name):
-    """Factory fixture to create jobs with custom IDs"""
-
-    def _create_job(job_id: str, batch_id: str | None = None, status: str = "ingested"):
-        if batch_id is None:
-            batch_id = job_id.replace("job_", "batch_")
-
-        job_data = Job(
-            **{
-                "job_id": job_id,
-                "batch_id": batch_id,
-                "status": status,
-                "job_type": "segmentation",
-                "ng_state": {"url": f"http://example.com/{job_id}"},
-            }
-        )
-        create_job(project_name=project_name, data=job_data, db_session=db_session)
-        return job_data
-
-    return _create_job
 
 
 @pytest.fixture
 def task_factory(db_session, project_name, existing_task_type):
     """Factory fixture to create tasks with custom IDs"""
 
-    def _create_task(job_id: str, task_id: str, **kwargs):
+    def _create_task(task_id: str, **kwargs):
         task_data = Task(
             **{
-                "job_id": job_id,
                 "task_id": task_id,
                 "completion_status": "",
                 "assigned_user_id": "",
@@ -229,7 +176,7 @@ def task_factory(db_session, project_name, existing_task_type):
                 "ng_state": {"url": f"http://example.com/{task_id}"},
                 "ng_state_initial": {"url": f"http://example.com/{task_id}"},
                 "priority": 1,
-                "batch_id": job_id.replace("job_", "batch_"),
+                "batch_id": "batch_1",
                 "task_type": existing_task_type["task_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,

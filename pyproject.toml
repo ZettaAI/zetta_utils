@@ -112,7 +112,13 @@ meshing = [
   "trimesh >= 4.4.0",
   "zmesh >= 1.7.1",
 ]
-task_management = ["zetta_utils[databackends]", "tenacity"]
+task_management = [
+  "zetta_utils[databackends,sql]",
+  "tenacity",
+  "pcg_skel",
+  "psycopg2-binary >= 2.9.0",
+  "coolname >= 1.1.0",
+]
 modules = [
   # put them in order of dependencies
   "zetta_utils[tensor_ops, viz, cli, gcs, slurm, sql]",
@@ -184,7 +190,7 @@ skeletonization = [
   "scikit-learn >= 1.2.2",
 ]
 slurm = ["simple_slurm"]
-sql = ["SQLAlchemy >= 2.0.36"]
+sql = ["SQLAlchemy >= 2.0.36", "psycopg2-binary >= 2.9.0"]
 tensor-ops = [
   "zetta_utils[tensor_typing]",
   "tinybrain >= 1.7.0",
@@ -194,14 +200,16 @@ tensor-ops = [
   "einops >= 0.4.1",
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
+  "opencv-python-headless >= 4.5.5",
+  "scikit-image >= 0.19.3",
 ]
 
 tensor-typing = ["torch >= 2.0", "numpy"]
 
 test = [
   "zetta_utils[types]",
-  "testcontainers-4.11.0",
-  "docker ~= 6.0",
+  "testcontainers==4.11.0",
+  "docker>=7.0.0",
   "black == 21.9b0",
   "click == 8.0.1",
   "pydocstyle == 6.1.1",
@@ -216,6 +224,7 @@ test = [
   "isort == 5.10.1",
   "pre-commit == 2.19.0",
   "moto == 4.1.0",
+  "psycopg2-binary >= 2.9.0", # for task_management tests
 ]
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",

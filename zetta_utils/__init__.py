@@ -31,7 +31,7 @@ def _load_core_modules():
     """Load core modules that were previously imported at package level."""
     from . import log, typing, parsing, builder, common, constants
     from . import geometry, distributions, layer, ng
-    
+
     # Add builder module suppression now that it's loaded
     log.add_supress_traceback_module(builder)
 
@@ -48,7 +48,7 @@ def try_load_train_inference():  # pragma: no cover
         _load_core_modules()
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception(e)
-        
+
     try:
         load_inference_modules()
 

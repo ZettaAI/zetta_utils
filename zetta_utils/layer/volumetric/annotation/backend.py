@@ -11,153 +11,29 @@ import io
 import itertools
 import json
 import os
-import random
 import struct
 from math import ceil
 from random import shuffle
-from typing import IO, ClassVar, Optional, Sequence
+from typing import Optional, Sequence
 
 import attrs
 import numpy as np
 from cloudfiles import CloudFile, CloudFiles
-from typeguard import typechecked
 
 from zetta_utils import builder, log
 from zetta_utils.common import is_local
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.geometry.vec import VEC3D_PRECISION
+from zetta_utils.layer.volumetric.annotation.annotations import (  # Annotation,; PointAnnotation,
+    LineAnnotation,
+    SpatialEntry,
+    is_local_filesystem,
+    path_join,
+    write_bytes,
+)
 from zetta_utils.layer.volumetric.backend import VolumetricBackend
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
-
-
-def is_local_filesystem(path: str) -> bool:
-    return path.startswith("file://") or "://" not in path
-
-
-def path_join(*paths: str):
-    if not paths:
-        raise ValueError("At least one path is required")
-
-    if not is_local_filesystem(paths[0]):  # pragma: no cover
-        # Join paths using "/" for GCS or other URL-like paths
-        cleaned_paths = [path.strip("/") for path in paths]
-        return "/".join(cleaned_paths)
-    else:
-        # Use os.path.join for local file paths
-        return os.path.join(*paths)
-
-
-@attrs.mutable
-@typechecked
-class LineAnnotation:
-    """
-    :param id: An integer representing the ID of the annotation.
-    :param start: A tuple of three floats representing the start coordinate (x, y, z).
-    :param end: A tuple of three floats representing the end coordinate (x, y, z).
-
-    Coordinates are in units defined by "dimensions" in the info file, or some
-    other resolution specified by the user.  (Like a Vec3D, context is needed to
-    interpret these coordinates.)
-    """
-
-    start: Sequence[float]
-    end: Sequence[float]
-    id: int = attrs.field(factory=lambda: random.randint(0, 2 ** 64 - 1))
-
-    BYTES_PER_ENTRY: ClassVar[int] = 24  # start (3 floats), end (3 floats)
-
-    def write(self, output: IO[bytes]):
-        """
-        Write this annotation in binary format to the given output writer.
-        """
-        output.write(struct.pack("<3f", *self.start))
-        output.write(struct.pack("<3f", *self.end))
-        # NOTE: if you change or add to the above, be sure to also
-        # change BYTES_PER_ENTRY accordingly.
-
-    @staticmethod
-    def read(in_stream: IO[bytes]):
-        """
-        Read an annotation in binary format from the given input reader.
-        """
-        return LineAnnotation(
-            struct.unpack("<3f", in_stream.read(12)),
-            struct.unpack("<3f", in_stream.read(12)),
-        )
-
-    def in_bounds(self, bounds: VolumetricIndex):
-        """
-        Return whether either end of this line is in the given bounds.
-        (Assumes our coordinates match that of the given VolumetricIndex.)
-        """
-        return bounds.line_intersects(self.start, self.end)
-
-    def convert_coordinates(self, from_res: Vec3D, to_res: Vec3D):
-        """
-        Convert our start and end coordinates from one resolution to another.
-        Mutates the current instance.
-        """
-        self.start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
-        self.end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
-
-    def with_converted_coordinates(self, from_res: Vec3D, to_res: Vec3D):
-        """
-        Return a new LineAnnotation instance with converted coordinates.
-        Does not mutate the current instance.
-        """
-        new_start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
-        new_end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
-        return LineAnnotation(id=self.id, start=new_start, end=new_end)
-
-
-class SpatialEntry:
-    """
-    This is a helper class, mainly used internally, to define each level of subdivision
-    in a spatial (precomputed annotation) file.  A level is defined by:
-
-    chunk_size: 3-element list or tuple defining the size of a chunk in X, Y, and Z (in voxels).
-    grid_shape: 3-element list/tuple defining how many chunks there are in each dimension.
-    key: a string e.g. "spatial1" used as a prefix for the chunk file on disk.
-    limit: affects how the data is subsampled for display; should generally be the max number
-      of annotations in any chunk at this level, or 1 for no subsampling.  It's confusing, but
-      see:
-      https://github.com/google/neuroglancer/issues/227#issuecomment-2246350747
-    """
-
-    def __init__(self, chunk_size: Sequence[int], grid_shape: Sequence[int], key: str, limit: int):
-        self.chunk_size = tuple(chunk_size)
-        self.grid_shape = tuple(grid_shape)
-        self.key = key
-        self.limit = limit
-
-    def __repr__(self):
-        return (
-            f"SpatialEntry(chunk_size={self.chunk_size}, grid_shape={self.grid_shape}, "
-            f'key="{self.key}", limit={self.limit})'
-        )
-
-    def to_json(self):
-        return f"""{{
-            "chunk_size" : {list(self.chunk_size)},
-            "grid_shape" : {list(self.grid_shape)},
-            "key" : "{self.key}",
-            "limit": {self.limit}
-        }}"""
-
-
-def write_bytes(file_or_gs_path: str, data: bytes):
-    """
-    Write bytes to a local file or Google Cloud Storage.
-
-    :param file_or_gs_path: path to file to write (local or GCS path)
-    :param data: bytes to write
-    """
-    if "//" not in file_or_gs_path:
-        file_or_gs_path = "file://" + file_or_gs_path
-    cf = CloudFile(file_or_gs_path)
-    cf.put(data, cache_control="no-cache, no-store, max-age=0, must-revalidate")
 
 
 def write_lines(file_or_gs_path: str, lines: Sequence[LineAnnotation], randomize: bool = True):
@@ -198,7 +74,9 @@ def line_count_from_file_size(file_size: int) -> int:
     Provide a count (or at least a very good estimate) of the number of lines in
     a line chunk file of the given size in bytes.
     """
-    return round((file_size - 8) / (LineAnnotation.BYTES_PER_ENTRY + 8))
+    # ToDo: generalize this to handle any annotation type, and also
+    # account for space needed for properties.
+    return round((file_size - 8) / (LineAnnotation.GEOMETRY_BYTES + 8))
 
 
 def count_lines_in_file(file_or_gs_path: str) -> int:

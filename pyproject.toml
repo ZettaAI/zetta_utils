@@ -50,7 +50,7 @@ all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
-  "imaug @ git+https://github.com/imaug/imaug.git",  # not a typo, fork of imgaug
+  "imaug @ git+https://github.com/imaug/imaug.git", # not a typo, fork of imgaug
   "imagecorruptions >= 1.1.2",
   "torchvision",
 ]
@@ -65,7 +65,7 @@ convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch"]
 databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.11.1",
-  "sphinx ~= 6.2.1",  # can unpin this when awscli removes their docutils dependency
+  "sphinx ~= 6.2.1",                        # can unpin this when awscli removes their docutils dependency
   "sphinx-autodoc-typehints >= 1.23.0",
   "sphinx-notfound-page >= 1.1.0",
   "sphinx_copybutton >= 0.5.2",
@@ -132,7 +132,7 @@ pcg = [
   "protobuf>=4.22.0",
   "requests>=2.25.0",
   "grpcio>=1.36.1",
-  "numpy>=2.2.5",  # reinstall avoids "Core dumped" for tensorstore and neuroglancer?!
+  "numpy>=2.2.5",                  # reinstall avoids "Core dumped" for tensorstore and neuroglancer?!
   "pandas",
   "networkx>=2.1",
   "google-cloud-bigtable>=0.33.0",
@@ -150,7 +150,7 @@ pcg = [
   "multiwrapper",
   "middle-auth-client>=3.11.0",
   "zmesh>=1.7.0",
-  "fastremap>=1.14.0",
+  "fastremap==1.16.1",
   "task-queue>=2.13.0",
   "messagingclient",
   "dracopy>=1.3.0",
@@ -190,16 +190,13 @@ tensor-ops = [
   "tinybrain >= 1.7.0",
   "affine >= 2.3.1",
   "connected-components-3d == 3.23.0",
-  "fastremap >= 1.12.2",
+  "fastremap == 1.16.1",
   "einops >= 0.4.1",
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
 ]
 
-tensor-typing = [
-  "torch >= 2.0",
-  "numpy",
-]
+tensor-typing = ["torch >= 2.0", "numpy"]
 
 test = [
   "zetta_utils[types]",

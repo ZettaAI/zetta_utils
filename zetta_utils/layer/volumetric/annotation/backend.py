@@ -23,8 +23,11 @@ from cloudfiles import CloudFile, CloudFiles
 from zetta_utils import builder, log
 from zetta_utils.common import is_local
 from zetta_utils.geometry import BBox3D, Vec3D
-from zetta_utils.layer.volumetric.annotation.annotations import (  # Annotation,; PointAnnotation,
+from zetta_utils.layer.volumetric.annotation.annotations import (
+    Annotation,
     LineAnnotation,
+    PropertySpec,
+    Relationship,
     SpatialEntry,
     is_local_filesystem,
     path_join,
@@ -34,39 +37,6 @@ from zetta_utils.layer.volumetric.backend import VolumetricBackend
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 logger = log.get_logger("zetta_utils")
-
-
-def write_lines(file_or_gs_path: str, lines: Sequence[LineAnnotation], randomize: bool = True):
-    """
-    Write a set of lines to the given file, in 'multiple annotation encoding' format:
-            1. Line count (uint64le)
-            2. Data for each line (excluding ID), one after the other
-            3. The line IDs (also as uint64le)
-
-    :param file_path: local file or GS path of file to write
-    :param lines: iterable of LineAnnotation objects
-    :param randomize: if True, the lines will be written in random
-            order (without mutating the lines parameter)
-    """
-    lines = list(lines)
-    if randomize:
-        lines = lines[:]
-        shuffle(lines)
-
-    buffer = io.BytesIO()
-    # first write the count
-    buffer.write(struct.pack("<Q", len(lines)))
-
-    # then write the line data
-    for line in lines:
-        line.write(buffer)
-
-    # finally write the ids at the end of the buffer
-    for line in lines:
-        buffer.write(struct.pack("<Q", line.id))
-
-    buffer.seek(0)  # Rewind buffer to the beginning
-    write_bytes(file_or_gs_path, buffer.getvalue())
 
 
 def line_count_from_file_size(file_size: int) -> int:
@@ -103,41 +73,22 @@ def read_bytes(file_or_gs_path: str):
     return cf.get()
 
 
-def read_lines(file_or_gs_path: str) -> list[LineAnnotation]:
-    """
-    Read a set of lines from the given file, which should be in
-    'multiple annotation encoding' as defined in write_lines above.
-    """
-    data = read_bytes(file_or_gs_path)
-    lines: list[LineAnnotation] = []
-    if data is None or len(data) == 0:
-        return lines
-    with io.BytesIO(data) as buffer:
-        # first read the count
-        line_count = struct.unpack("<Q", buffer.read(8))[0]
-
-        # then read the line data
-        for _ in range(line_count):
-            line = LineAnnotation.read(buffer)
-            lines.append(line)
-
-        # finally read the ids at the end of the buffer
-        for i in range(line_count):
-            line_id = struct.unpack("<Q", buffer.read(8))[0]
-            lines[i].id = line_id
-    return lines
-
-
-def format_info(dimensions, lower_bound, upper_bound, spatial_data):
+def format_info(dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships):
     spatial_json = "    " + ",\n        ".join([se.to_json() for se in spatial_data])
+    property_json = "    " + ",\n        ".join([ps.to_json() for ps in property_specs])
+    relationship_json = "    " + ",\n        ".join([r.to_json() for r in relationships])
     return f"""{{
     "@type" : "neuroglancer_annotations_v1",
     "annotation_type" : "LINE",
     "by_id" : {{ "key" : "by_id" }},
     "dimensions" : {str(dimensions).replace("'", '"')},
     "lower_bound" : {list(lower_bound)},
-    "properties" : [],
-    "relationships" : [],
+        "properties" : [
+        {property_json}
+        ],
+        "relationships" : [
+        {relationship_json}
+        ],
     "spatial" : [
     {spatial_json}
     ],
@@ -146,7 +97,9 @@ def format_info(dimensions, lower_bound, upper_bound, spatial_data):
 """
 
 
-def write_info(dir_path, dimensions, lower_bound, upper_bound, spatial_data):
+def write_info(
+    dir_path, dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships
+):
     """
     Write out the info (JSON) file describing a precomputed annotation file
     into the given directory.
@@ -158,7 +111,9 @@ def write_info(dir_path, dimensions, lower_bound, upper_bound, spatial_data):
     :spatial_data: list of SpatialEntry objects
     """
     file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
-    info_content = format_info(dimensions, lower_bound, upper_bound, spatial_data)
+    info_content = format_info(
+        dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships
+    )
     write_bytes(file_path, info_content.encode("utf-8"))
 
 
@@ -166,7 +121,8 @@ def parse_info(info_json):
     """
     Parse the given info file (in JSON format), and return:
 
-     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry)
+     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry),
+     property_specs (tuple of PropertySpec), and relationships (tuple of Relationship)
     """
     data = json.loads(info_json)
 
@@ -177,17 +133,20 @@ def parse_info(info_json):
         SpatialEntry(entry["chunk_size"], entry["grid_shape"], entry["key"], entry["limit"])
         for entry in data["spatial"]
     )
+    properties = tuple(PropertySpec.from_dict(entry) for entry in data["properties"])
+    relationships = tuple(Relationship.from_dict(entry) for entry in data["relationships"])
 
-    return dimensions, lower_bound, upper_bound, spatial_data
+    return dimensions, lower_bound, upper_bound, spatial_data, properties, relationships
 
 
 def read_info(dir_path):
     """
     Read the info file within the given directory, and return:
 
-     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry)
+     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry),
+     property_specs (tuple of PropertySpec), and relationships (tuple of Relationship)
 
-    If the file is empty or does not exist, return (None, None, None, None)
+    If the file is empty or does not exist, return (None, None, None, None, None, None)
     """
     file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
     try:
@@ -195,98 +154,33 @@ def read_info(dir_path):
     except NotADirectoryError:
         data = None
     if data is None or len(data) == 0:
-        return (None, None, None, None)
+        return (None, None, None, None, None, None)
     return parse_info(data.decode("utf-8"))
 
 
-def read_data(dir_path, spatial_entry):
-    """
-    Read all the line annotations in the given precomputed file hierarchy
-    which are under the given spatial entry.  Normally this would be the
-    finest spatial entry (smallest chunk_size, biggest grid_shape), as that's
-    the only one guaranteed to contain all the data.  But it's up to the
-    caller; if you really want to read from some other chunk size, feel free.
-    """
-    se = spatial_entry
-    result = []
-    for x in range(0, se.grid_shape[0]):
-        for y in range(0, se.grid_shape[1]):
-            for z in range(0, se.grid_shape[2]):
-                level_dir = path_join(dir_path, se.key)
-                anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                result += read_lines(anno_file_path)
-    return result
-
-
-# pylint: disable=too-many-locals,too-many-nested-blocks,cell-var-from-loop
-def subdivide(data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, levels_to_write=None):
-    """
-    Subdivide the given data and bounds into chunks and subchunks of
-    arbitrary depth, per the given chunk_sizes.  Return a list of
-    SpatialEntry objects suitable for creating the info file.
-    If write_to_dir is not None, then also write out the binary
-    files ('multiple annotation encoding') for each chunk under
-    subdirectories named with the appropriate keys, for all levels
-    specified (by number) in levels_to_write (defaults to all).
-    """
-    if levels_to_write is None:
-        levels_to_write = range(0, len(chunk_sizes))
-    spatial_entries = []
-    bounds_size = bounds.shape
-    for level, chunk_size_seq in enumerate(chunk_sizes):
-        chunk_size: Vec3D = Vec3D(*chunk_size_seq)
-        limit = 0
-        grid_shape = ceil(bounds_size / chunk_size)
-        logger.info(f"subdividing {bounds} by {chunk_size}, for grid_shape {grid_shape}")
-        level_key = f"spatial{level}"
-        # total_qty = grid_shape[0] * grid_shape[1] * grid_shape[2]
-        qty_done = 0
-        for x in range(grid_shape[0]):
-            x_start = bounds.start[0] + x * chunk_size[0]
-            x_end = x_start + chunk_size[0]
-            x_idx = VolumetricIndex.from_coords(
-                (x_start, bounds.start[1], bounds.start[2]),
-                (x_end, bounds.stop[1], bounds.stop[2]),
-                bounds.resolution,
-            )
-            data_within_x = list(filter(lambda d: d.in_bounds(x_idx), data))
-            for y in range(grid_shape[1]):
-                y_start = bounds.start[1] + y * chunk_size[1]
-                y_end = y_start + chunk_size[1]
-                y_idx = VolumetricIndex.from_coords(
-                    (x_start, y_start, bounds.start[2]),
-                    (x_end, y_end, bounds.stop[2]),
-                    bounds.resolution,
-                )
-                data_within_xy = list(filter(lambda d: d.in_bounds(y_idx), data_within_x))
-                for z in range(grid_shape[2]):
-                    qty_done += 1
-                    chunk_start = bounds.start + Vec3D(x, y, z) * chunk_size
-                    chunk_end = chunk_start + chunk_size
-                    chunk_bounds = VolumetricIndex.from_coords(
-                        chunk_start, chunk_end, bounds.resolution
-                    )
-                    # pylint: disable=cell-var-from-loop
-                    chunk_data: Sequence[LineAnnotation] = list(
-                        filter(lambda d: d.in_bounds(chunk_bounds), data_within_xy)
-                    )
-                    # logger.info(f'spatial{level}/{x}_{y}_{z} contains {len(chunk_data)} lines')
-                    limit = max(limit, len(chunk_data))
-                    if write_to_dir is not None and level in levels_to_write:
-                        level_dir = path_join(write_to_dir, level_key)
-                        if not os.path.exists(level_dir):
-                            os.makedirs(level_dir)
-                        anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                        write_lines(anno_file_path, chunk_data)
-        spatial_entries.append(SpatialEntry(chunk_size, grid_shape, level_key, limit))
-
-    return spatial_entries
+# def read_data(dir_path, spatial_entry):
+#     """
+#     Read all the line annotations in the given precomputed file hierarchy
+#     which are under the given spatial entry.  Normally this would be the
+#     finest spatial entry (smallest chunk_size, biggest grid_shape), as that's
+#     the only one guaranteed to contain all the data.  But it's up to the
+#     caller; if you really want to read from some other chunk size, feel free.
+#     """
+#     se = spatial_entry
+#     result = []
+#     for x in range(0, se.grid_shape[0]):
+#         for y in range(0, se.grid_shape[1]):
+#             for z in range(0, se.grid_shape[2]):
+#                 level_dir = path_join(dir_path, se.key)
+#                 anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
+#                 result += read_lines(anno_file_path)
+#     return result
 
 
 @builder.register("AnnotationLayer")
 @attrs.define(frozen=False)
 class AnnotationLayerBackend(
-    VolumetricBackend[Sequence[LineAnnotation], Sequence[LineAnnotation]]
+    VolumetricBackend[Sequence[Annotation], Sequence[Annotation]]
 ):  # pylint: disable=too-many-public-methods
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
@@ -303,8 +197,13 @@ class AnnotationLayerBackend(
 
     path: str = attrs.field()
     index: VolumetricIndex = attrs.field()
+    annotation_type: str = attrs.field()
     # chunk_sizes will never be None after initialization
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
+    # same for property_specs and relationships — set these after creation
+    property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
+    relationships: Sequence[Relationship] = attrs.field(factory=list)
+
     name: str = attrs.field(init=False)
 
     @name.default
@@ -321,13 +220,42 @@ class AnnotationLayerBackend(
         if value is None:
             raise ValueError("index cannot be None")  # pragma: no cover
 
+    @annotation_type.validator
+    def _validate_annotation_type(self, _attribute, value):
+        if value not in ["POINT", "LINE"]:
+            raise ValueError(f"annotation_type must be 'POINT' or 'LINE', got '{value}'")
+
     def __attrs_post_init__(self):
-        # First check if we need to read chunk sizes from an existing file
-        if not self.chunk_sizes:  # If chunk_sizes is empty
+        # If info file exists, read it
+        self.path = os.path.expanduser(self.path)
+        dims, lower_bound, upper_bound, spatial_data, props, rels = read_info(self.path)
+        if dims is not None:
+            # Reconstruct VolumetricIndex from the info file data
+            resolution: Vec3D = Vec3D(
+                x=dims["x"][0],  # Extract the numeric value, ignore the unit
+                y=dims["y"][0],
+                z=dims["z"][0],
+            )
+            self.index = VolumetricIndex.from_coords(
+                start_coord=lower_bound, end_coord=upper_bound, resolution=resolution
+            )
+
+            # Reconstruct chunk_sizes from spatial_data
+            if spatial_data:
+                self.chunk_sizes = [
+                    tuple(entry.chunk_size)  # Convert Vec3D back to tuple/sequence
+                    for entry in spatial_data
+                ]
+
+            # Set property_specs and relationships from the file
+            if props:
+                self.property_specs = props
+            if rels:
+                self.relationships = rels
+
+        if not self.chunk_sizes:
             self.chunk_sizes = [tuple(self.index.shape)]
             logger.info(f"Using default chunk size: {self.chunk_sizes}")
-
-        self.path = os.path.expanduser(self.path)
 
     def __repr__(self):
         return (
@@ -400,11 +328,10 @@ class AnnotationLayerBackend(
             spatial_data = []
             bounds_size = self.index.shape
             for level, chunk_size_seq in enumerate(self.chunk_sizes):
-                chunk_size = Vec3D(*chunk_size_seq)
+                chunk_size: Vec3D = Vec3D(*chunk_size_seq)
                 grid_shape = ceil(bounds_size / chunk_size)
                 level_key = f"spatial{level}"
                 spatial_data.append(SpatialEntry(chunk_size, grid_shape, level_key, 1))
-
         write_info(
             dir_path=self.path,
             dimensions={
@@ -415,11 +342,54 @@ class AnnotationLayerBackend(
             lower_bound=self.index.start,
             upper_bound=self.index.stop,
             spatial_data=spatial_data,
+            property_specs=self.property_specs,
+            relationships=self.relationships,
         )
 
-    def write_annotations(
+    def write_multi_annotation_file(
         self,
-        annotations: Sequence[LineAnnotation],
+        file_or_gs_path: str,
+        annotations: Sequence[Annotation],
+        with_relations: bool = False,
+        randomize: bool = True,
+    ):
+        """
+        Write a set of annotations to the given file, in 'multiple annotation encoding' format:
+                1. Annotation count (uint64le)
+                2. Data for each annotation (excluding ID), one after the other
+                3. The annotation IDs (also as uint64le)
+
+        :param file_path: local file or GS path of file to write
+        :param lines: iterable of LineAnnotation objects
+        :param with_relations: whether to write out related IDs (by_id index only)
+        :param randomize: if True, the lines will be written in random
+                order (without mutating the lines parameter)
+        """
+        annotations = list(annotations)
+        if randomize:
+            annotations = annotations[:]
+            shuffle(annotations)
+
+        buffer = io.BytesIO()
+        # first write the count
+        buffer.write(struct.pack("<Q", len(annotations)))
+
+        # then write the line data
+        for anno in annotations:
+            anno.write(buffer, self.property_specs, self.relationships if with_relations else None)
+
+        # finally write the ids at the end of the buffer
+        for anno in annotations:
+            buffer.write(struct.pack("<Q", anno.id))
+
+        # Rewind buffer to the beginning, and write to disk
+        buffer.seek(0)
+        write_bytes(file_or_gs_path, buffer.getvalue())
+
+    # pylint: disable=too-many-locals
+    def _write_spatial_index(
+        self,
+        annotations: Sequence[Annotation],
         annotation_resolution: Optional[Vec3D] = None,
         all_levels: bool = True,
         clearing_bbox: Optional[BBox3D] = None,
@@ -485,7 +455,7 @@ class AnnotationLayerBackend(
                     self.index.resolution,
                 )
                 # pylint: disable=cell-var-from-loop
-                split_data_by_x: list[LineAnnotation] = list(
+                split_data_by_x: list[Annotation] = list(
                     filter(lambda d: d.in_bounds(split_by_x), annotations)
                 )
                 logger.debug(f":  {len(split_data_by_x)} lines")
@@ -507,7 +477,7 @@ class AnnotationLayerBackend(
                         self.index.resolution,
                     )
                     # pylint: disable=cell-var-from-loop
-                    split_data_by_y: list[LineAnnotation] = list(
+                    split_data_by_y: list[Annotation] = list(
                         filter(lambda d: d.in_bounds(split_by_y), split_data_by_x)
                     )
                     logger.debug(f":  {len(split_data_by_y)} lines")
@@ -536,20 +506,85 @@ class AnnotationLayerBackend(
                         )
                         assert chunk_bounds == split_by_z
                         # pylint: disable=cell-var-from-loop
-                        chunk_data: list[LineAnnotation] = list(
+                        chunk_data: list[Annotation] = list(
                             filter(lambda d: d.in_bounds(chunk_bounds), split_data_by_y)
                         )
                         if not chunk_data:
                             continue
                         anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                        old_data = read_lines(anno_file_path)
+                        old_data = self.read_annotations(anno_file_path)
                         if clearing_idx:
                             old_data = list(
                                 filter(lambda d: not d.in_bounds(clearing_idx), old_data)
                             )
-                        chunk_data += old_data
+                        chunk_data += list(old_data)
                         limit = max(limit, len(chunk_data))
-                        write_lines(anno_file_path, chunk_data)
+                        self.write_multi_annotation_file(anno_file_path, chunk_data)
+
+    def _write_by_id_index(
+        self, annotations: Sequence[Annotation], annotation_resolution: Optional[Vec3D] = None
+    ):
+        if annotation_resolution and annotation_resolution != self.index.resolution:
+            annotations = [
+                x.with_converted_coordinates(annotation_resolution, self.index.resolution)
+                for x in annotations
+            ]
+        by_id_path = path_join(self.path, "by_id")
+        for anno in annotations:
+            file_path = path_join(by_id_path, str(anno.id))
+            buffer = io.BytesIO()
+            anno.write(buffer, self.property_specs, self.relationships)
+            write_bytes(file_path, buffer.getvalue())
+
+    def write_annotations(
+        self,
+        annotations: Sequence[Annotation],
+        annotation_resolution: Optional[Vec3D] = None,
+        all_levels: bool = True,
+        clearing_bbox: Optional[BBox3D] = None,
+    ):
+        """
+        Write a set of line annotations to the file, adding to any already there.
+        This writes the spatial index and the by_id index.  It does NOT write any
+        related-id indexes; those will have to be done in postprocessing.
+
+        :param annotations: sequence of LineAnnotations to add.
+        :param annotation_resolution: resolution of given LineAnnotation coordinates;
+        if not specified, assumes native coordinates (i.e. self.index.resolution)
+        :param all_levels: if true, write to all spatial levels (chunk sizes).
+            If false, write only to the lowest level (smallest chunks).
+        :param clearing_bbox: if given, clear any existing data within these bounds.
+        """
+        # First, write the spatial index
+        self._write_spatial_index(annotations, annotation_resolution, all_levels, clearing_bbox)
+
+        # Then write the by_id index
+        self._write_by_id_index(annotations, annotation_resolution)
+
+    def read_annotations(self, file_or_gs_path: str) -> list[Annotation]:
+        """
+        Read a set of annotations from the given file, which should be in
+        'multiple annotation encoding' format.
+        """
+        data = read_bytes(file_or_gs_path)
+        result: list[Annotation] = []
+        if data is None or len(data) == 0:
+            return result
+        with io.BytesIO(data) as buffer:
+            # first read the count
+            anno_count = struct.unpack("<Q", buffer.read(8))[0]
+
+            # then read the annotation data
+            for _ in range(anno_count):
+                anno = Annotation.read(buffer, self.annotation_type, self.property_specs)
+                assert isinstance(anno, Annotation)
+                result.append(anno)
+
+            # finally read the ids at the end of the buffer
+            for i in range(anno_count):
+                anno_id = struct.unpack("<Q", buffer.read(8))[0]
+                result[i].id = anno_id
+        return result
 
     def read_all(
         self,
@@ -580,7 +615,7 @@ class AnnotationLayerBackend(
                 for z in range(0, grid_shape[2]):
                     chunks_read += 1
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                    result += read_lines(anno_file_path)
+                    result += self.read_annotations(anno_file_path)
         if filter_duplicates:
             result_dict = {line.id: line for line in result}
             result = list(result_dict.values())
@@ -646,17 +681,80 @@ class AnnotationLayerBackend(
             for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1] + 1)):
                 for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2] + 1)):
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
-                    result += read_lines(anno_file_path)
+                    result += self.read_annotations(anno_file_path)
         if strict:
-            result = list(
-                filter(lambda x: roi_index.contains(x.start) and roi_index.contains(x.end), result)
-            )
+            result = list(filter(lambda x: x.in_bounds(roi_index, strict=True), result))
         result_dict = {line.id: line for line in result}
         result = list(result_dict.values())
         if annotation_resolution:
             for line in result:
                 line.convert_coordinates(self.index.resolution, annotation_resolution)
         return result
+
+    # pylint: disable=too-many-locals,too-many-nested-blocks,cell-var-from-loop
+    def subdivide(
+        self, data, bounds: VolumetricIndex, chunk_sizes, write_to_dir=None, levels_to_write=None
+    ):
+        """
+        Subdivide the given data and bounds into chunks and subchunks of
+        arbitrary depth, per the given chunk_sizes.  Return a list of
+        SpatialEntry objects suitable for creating the info file.
+        If write_to_dir is not None, then also write out the binary
+        files ('multiple annotation encoding') for each chunk under
+        subdirectories named with the appropriate keys, for all levels
+        specified (by number) in levels_to_write (defaults to all).
+        """
+        if levels_to_write is None:
+            levels_to_write = range(0, len(chunk_sizes))
+        spatial_entries = []
+        bounds_size = bounds.shape
+        for level, chunk_size_seq in enumerate(chunk_sizes):
+            chunk_size: Vec3D = Vec3D(*chunk_size_seq)
+            limit = 0
+            grid_shape = ceil(bounds_size / chunk_size)
+            logger.info(f"subdividing {bounds} by {chunk_size}, for grid_shape {grid_shape}")
+            level_key = f"spatial{level}"
+            # total_qty = grid_shape[0] * grid_shape[1] * grid_shape[2]
+            qty_done = 0
+            for x in range(grid_shape[0]):
+                x_start = bounds.start[0] + x * chunk_size[0]
+                x_end = x_start + chunk_size[0]
+                x_idx = VolumetricIndex.from_coords(
+                    (x_start, bounds.start[1], bounds.start[2]),
+                    (x_end, bounds.stop[1], bounds.stop[2]),
+                    bounds.resolution,
+                )
+                data_within_x = list(filter(lambda d: d.in_bounds(x_idx), data))
+                for y in range(grid_shape[1]):
+                    y_start = bounds.start[1] + y * chunk_size[1]
+                    y_end = y_start + chunk_size[1]
+                    y_idx = VolumetricIndex.from_coords(
+                        (x_start, y_start, bounds.start[2]),
+                        (x_end, y_end, bounds.stop[2]),
+                        bounds.resolution,
+                    )
+                    data_within_xy = list(filter(lambda d: d.in_bounds(y_idx), data_within_x))
+                    for z in range(grid_shape[2]):
+                        qty_done += 1
+                        chunk_start = bounds.start + Vec3D(x, y, z) * chunk_size
+                        chunk_end = chunk_start + chunk_size
+                        chunk_bounds = VolumetricIndex.from_coords(
+                            chunk_start, chunk_end, bounds.resolution
+                        )
+                        # pylint: disable=cell-var-from-loop
+                        chunk_data: Sequence[Annotation] = list(
+                            filter(lambda d: d.in_bounds(chunk_bounds), data_within_xy)
+                        )
+                        limit = max(limit, len(chunk_data))
+                        if write_to_dir is not None and level in levels_to_write:
+                            level_dir = path_join(write_to_dir, level_key)
+                            if not os.path.exists(level_dir):
+                                os.makedirs(level_dir)
+                            anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
+                            self.write_multi_annotation_file(anno_file_path, chunk_data)
+            spatial_entries.append(SpatialEntry(chunk_size, grid_shape, level_key, limit))
+
+        return spatial_entries
 
     def post_process(self):
         """
@@ -672,7 +770,6 @@ class AnnotationLayerBackend(
             # Just iterate over the spatial entry files, getting the line
             # count in each one, and keep track of the max.
             max_line_count = self.find_max_size(0)
-            # print(f"Found max_line_count = {max_line_count}")
             spatial_entries = self.get_spatial_entries(max_line_count)
         else:
             # Multiple chunk sizes means we have to start at the lowest
@@ -683,7 +780,7 @@ class AnnotationLayerBackend(
 
             # subdivide as if writing data to all levels EXCEPT the last one
             levels_to_write = range(0, len(self.chunk_sizes) - 1)
-            spatial_entries = subdivide(
+            spatial_entries = self.subdivide(
                 all_data, self.index, self.chunk_sizes, self.path, levels_to_write
             )
 
@@ -691,13 +788,11 @@ class AnnotationLayerBackend(
         self.write_info_file(spatial_entries)
 
     # Required overrides for Backend interface
-    def read(self, idx: VolumetricIndex) -> Sequence[LineAnnotation]:  # pragma: no cover
+    def read(self, idx: VolumetricIndex) -> Sequence[Annotation]:  # pragma: no cover
         """Read annotations within the given bounds."""
         return self.read_in_bounds(BBox3D.from_coords(idx.start, idx.stop, idx.resolution))
 
-    def write(
-        self, idx: VolumetricIndex, data: Sequence[LineAnnotation]
-    ) -> None:  # pragma: no cover
+    def write(self, idx: VolumetricIndex, data: Sequence[Annotation]) -> None:  # pragma: no cover
         """Write annotations to the given bounds."""
         self.write_annotations(data, annotation_resolution=idx.resolution)
 

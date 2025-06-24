@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from typing import Any, Dict, Optional, Union
 
@@ -21,7 +22,12 @@ from .. import VolumetricBackend, VolumetricIndex
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024**2
+
+
+def _serialize_kwargs(kwargs: Dict[str, Any]) -> str:
+    """Serialize kwargs to a consistent JSON string for cache key."""
+    return json.dumps(kwargs, sort_keys=True, default=str)
 
 
 # To avoid reloading info file - note that an empty provenance is passed
@@ -36,8 +42,11 @@ def _get_cv_cached(
 ) -> cv.frontends.precomputed.CloudVolumePrecomputed:
 
     path_ = abspath(path)
-    if (path_, resolution) in _cv_cache:
-        cvol = _cv_cache[(path_, resolution)]
+    kwargs_key = _serialize_kwargs(kwargs)
+    cache_key = (path_, resolution, kwargs_key)
+
+    if cache_key in _cv_cache:
+        cvol = _cv_cache[cache_key]
         if cache_bytes_limit is not None and cvol.image.lru.size != cache_bytes_limit:
             # resize LRU cache if explicitly requested
             cvol.image.lru.resize(cache_bytes_limit)
@@ -68,10 +77,10 @@ def _get_cv_cached(
             lru_bytes=cache_bytes_limit,
             **kwargs,
         )
-    _cv_cache[(path_, resolution)] = result
+    _cv_cache[cache_key] = result
     if path_ not in _cv_cached:
         _cv_cached[path_] = set()
-    _cv_cached[path_].add(resolution)
+    _cv_cached[path_].add((resolution, kwargs_key))
     return result
 
 
@@ -81,10 +90,10 @@ def _clear_cv_cache(path: str | None = None) -> None:  # pragma: no cover
         _cv_cache.clear()
         return
     path_ = abspath(path)
-    resolutions = _cv_cached.pop(path_, None)
-    if resolutions is not None:
-        for resolution in resolutions:
-            _cv_cache.pop((path_, resolution), None)
+    resolution_kwargs_pairs = _cv_cached.pop(path_, None)
+    if resolution_kwargs_pairs is not None:
+        for resolution, kwargs_key in resolution_kwargs_pairs:
+            _cv_cache.pop((path_, resolution, kwargs_key), None)
 
 
 @attrs.mutable

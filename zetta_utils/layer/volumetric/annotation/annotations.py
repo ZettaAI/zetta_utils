@@ -376,14 +376,20 @@ class PointAnnotation(Annotation):
         return PointAnnotation.read_geometry(in_stream)
 
     def in_bounds(self, bounds, resolution: Optional[Sequence[float]] = None) -> bool:
-        """Return whether this point (assumed to be in nm) is in the given bounds.
+        """Return whether this point is in the given bounds.
 
-        :param bounds: Bounding box.
+        :param bounds: BBox3D or VolumetricIndex.
         :param point_resolution: Resolution of this point; defaults to [1,1,1].
         """
         if resolution is None:
             resolution = [1, 1, 1]
-        return bounds.contains(self.position, resolution)
+        if hasattr(bounds, "resolution"):
+            to_res = bounds.resolution
+            from_res = Vec3D(*resolution)
+            position = tuple(round(Vec3D(*self.position) * from_res / to_res, VEC3D_PRECISION))
+            return bounds.contains(position)
+        else:
+            return bounds.contains(self.position, resolution)
 
     def convert_coordinates(self, from_res, to_res) -> None:
         """Convert coordinates from one resolution to another (mutates instance).
@@ -439,14 +445,21 @@ class LineAnnotation(Annotation):
         return LineAnnotation.read_geometry(in_stream)
 
     def in_bounds(self, bounds, resolution: Optional[Sequence[float]] = None) -> bool:
-        """Return whether either end of this line is in the given bounds.
+        """Return whether this line anywhere intersects the given bounds.
 
-        :param bounds: Object with line_intersects method
+        :param bounds: VolumetricIndex or BBox3D
         :param line_resolution: Resolution of the start and end points of this line.
         """
         if resolution is None:
             resolution = [1, 1, 1]
-        return bounds.line_intersects(self.start, self.end, resolution)
+        if hasattr(bounds, "resolution"):
+            to_res = bounds.resolution
+            from_res = Vec3D(*resolution)
+            start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
+            end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
+            return bounds.line_intersects(start, end)
+        else:
+            return bounds.line_intersects(self.start, self.end, resolution)
 
     def convert_coordinates(self, from_res, to_res) -> None:
         """Convert coordinates from one resolution to another (mutates instance).

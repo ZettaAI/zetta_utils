@@ -164,6 +164,11 @@ class PropertySpec:
         """
         return json.dumps(self.to_dict(), indent=indent)
 
+    @classmethod
+    def from_json(cls, json_str: str) -> "PropertySpec":
+        """Create PropertySpec from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
 
 @dataclass
 class Relationship:
@@ -217,6 +222,11 @@ class Relationship:
         """
         return json.dumps(self.to_dict(), indent=indent)
 
+    @classmethod
+    def from_json(cls, json_str: str) -> "Relationship":
+        """Create Relationship from JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
 
 @dataclass
 class Annotation(ABC):
@@ -231,11 +241,14 @@ class Annotation(ABC):
     relations: Dict[str, int | List[int]] = field(default_factory=dict)
 
     @abstractmethod
-    def in_bounds(self, bounds, resolution: Optional[Sequence[float]] = None) -> bool:
+    def in_bounds(
+        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+    ) -> bool:
         """Return whether either end of this line is in the given bounds.
 
-        :param bounds: Object with line_intersects method
+        :param bounds: VolumetricIndex or BBox3D
         :param resolution: Resolution of the coordinates in this annotation.
+        :param strict: If true, return True only if entirely contained within the bounds.
         """
 
     @abstractmethod
@@ -259,7 +272,25 @@ class Annotation(ABC):
         but without properties or relationships.
         """
 
-    def write_properties(self, output: IO[bytes], property_specs: List["PropertySpec"]) -> None:
+    @abstractmethod
+    def convert_coordinates(self, from_res, to_res) -> None:
+        """Convert coordinates from one resolution to another (mutates instance).
+
+        :param from_res: Source resolution (Vec3D)
+        :param to_res: Target resolution (Vec3D)
+        """
+
+    @abstractmethod
+    def with_converted_coordinates(self, from_res, to_res) -> "Annotation":
+        """Return new Annotation with converted coordinates.
+
+        :param from_res: Source resolution (Vec3D)
+        :param to_res: Target resolution (Vec3D)
+        """
+
+    def write_properties(
+        self, output: IO[bytes], property_specs: Sequence["PropertySpec"]
+    ) -> None:
         """Write property values in the order specified by property_specs.
 
         Properties are written in order: uint32/int32/float32, then uint16/int16,
@@ -316,18 +347,71 @@ class Annotation(ABC):
             output.write(b"\x00" * padding_needed)
         # pylint: enable=too-many-branches
 
+    def read_properties(
+        self, in_stream: IO[bytes], property_specs: Sequence["PropertySpec"]
+    ) -> None:
+        """Read property values in the order specified by property_specs.
+
+        Properties are read in order: uint32/int32/float32, then uint16/int16,
+        then uint8/int8/rgb/rgba, followed by padding to 4-byte alignment.
+        """
+        # pylint: disable=too-many-branches
+        bytes_read = 0
+
+        # Read 4-byte properties
+        for spec in property_specs:
+            if spec.type == "uint32":
+                self.properties[spec.id] = struct.unpack("<I", in_stream.read(4))[0]
+            elif spec.type == "int32":
+                self.properties[spec.id] = struct.unpack("<i", in_stream.read(4))[0]
+            elif spec.type == "float32":
+                self.properties[spec.id] = struct.unpack("<f", in_stream.read(4))[0]
+            else:
+                continue
+            bytes_read += 4
+
+        # Read 2-byte properties
+        for spec in property_specs:
+            if spec.type == "uint16":
+                self.properties[spec.id] = struct.unpack("<H", in_stream.read(2))[0]
+            elif spec.type == "int16":
+                self.properties[spec.id] = struct.unpack("<h", in_stream.read(2))[0]
+            else:
+                continue
+            bytes_read += 2
+
+        # Write 1-byte properties and color properties
+        for spec in property_specs:
+            if spec.type in {"uint8", "int8"}:
+                if spec.type == "uint8":
+                    self.properties[spec.id] = struct.unpack("<B", in_stream.read(1))[0]
+                else:  # int8
+                    self.properties[spec.id] = struct.unpack("<b", in_stream.read(1))[0]
+                bytes_read += 1
+            elif spec.type == "rgb":
+                self.properties[spec.id] = list(struct.unpack("<3B", in_stream.read(3)))
+                bytes_read += 3
+            elif spec.type == "rgba":
+                self.properties[spec.id] = list(struct.unpack("<4B", in_stream.read(4)))
+                bytes_read += 4
+
+        # Read padding to reach 4-byte alignment
+        padding_needed = (4 - (bytes_read % 4)) % 4
+        if padding_needed > 0:
+            in_stream.read(padding_needed)
+        # pylint: enable=too-many-branches
+
     def write(
         self,
         output: IO[bytes],
-        property_specs: Optional[List[PropertySpec]] = None,
-        relationships: Optional[List[Relationship]] = None,
+        property_specs: Optional[Sequence[PropertySpec]] = None,
+        relationships: Optional[Sequence[Relationship]] = None,
     ) -> None:
         """Write complete annotation in binary format.
 
-        Args:
-            output: Binary output stream
-            property_specs: List of PropertySpec objects defining property order and types
-            relationships: List of lists of related object IDs (for annotation ID index only)
+        :param output: Binary output stream
+        :param property_specs: List of PropertySpec objects defining property order and types
+        :param relationships: List of lists of related object IDs (for annotation ID index only)
         """
         # Write geometry data
         self.write_geometry(output)
@@ -347,6 +431,25 @@ class Annotation(ABC):
                 for idnum in related_ids:
                     output.write(struct.pack("<Q", idnum))
 
+    @classmethod
+    def read(
+        cls,
+        in_stream: IO[bytes],
+        type: str,  # pylint: disable=redefined-builtin
+        property_specs: Optional[Sequence[PropertySpec]] = None,
+        relationships: Optional[Sequence[Relationship]] = None,  # pylint: disable=unused-argument
+    ) -> "Annotation":
+        result: Annotation
+        if type == "POINT":
+            result = PointAnnotation.read_geometry(in_stream)
+        elif type == "LINE":
+            result = LineAnnotation.read_geometry(in_stream)
+        else:
+            raise ValueError(f"type: expected POINT or LINE, but got '{type}'")
+        if property_specs:
+            result.read_properties(in_stream, property_specs)
+        return result
+
 
 @dataclass
 class PointAnnotation(Annotation):
@@ -355,6 +458,25 @@ class PointAnnotation(Annotation):
     position: Sequence[float] = field(default_factory=lambda: (0.0, 0.0, 0.0))
 
     GEOMETRY_BYTES: ClassVar[int] = 12  # position (3 floats)
+
+    # We define an explicit initializer in order to control the parameter order;
+    # id and points are required, properties and relations are optional.
+    def __init__(
+        self,
+        id: Optional[int] = None,  # pylint: disable=redefined-builtin
+        position: Sequence[float] = (0.0, 0.0, 0.0),
+        properties: Optional[Dict[str, Any]] = None,
+        relations: Optional[Dict[str, Union[int, List[int]]]] = None,
+    ):
+        if id is None:
+            id = random.randint(0, 2 ** 64 - 1)
+        if properties is None:
+            properties = {}
+        if relations is None:
+            relations = {}
+
+        super().__init__(id=id, properties=properties, relations=relations)
+        self.position = position
 
     def write_geometry(self, output: IO[bytes]) -> None:
         """Write position as float32le values."""
@@ -370,12 +492,9 @@ class PointAnnotation(Annotation):
         position = struct.unpack("<3f", in_stream.read(12))
         return cls(position=position)
 
-    @staticmethod
-    def read(in_stream: IO[bytes]) -> "PointAnnotation":
-        """Read a complete point annotation (backward compatibility method)."""
-        return PointAnnotation.read_geometry(in_stream)
-
-    def in_bounds(self, bounds, resolution: Optional[Sequence[float]] = None) -> bool:
+    def in_bounds(
+        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+    ) -> bool:
         """Return whether this point is in the given bounds.
 
         :param bounds: BBox3D or VolumetricIndex.
@@ -423,6 +542,28 @@ class LineAnnotation(Annotation):
 
     GEOMETRY_BYTES: ClassVar[int] = 24  # start (3 floats) + end (3 floats)
 
+    # We define an explicit initializer in order to control the parameter order;
+    # id and points are required, properties and relations are optional.
+    def __init__(
+        self,
+        id: Optional[int] = None,  # pylint: disable=redefined-builtin
+        start: Sequence[float] = (0.0, 0.0, 0.0),
+        end: Sequence[float] = (0.0, 0.0, 0.0),
+        properties: Optional[Dict[str, Any]] = None,
+        relations: Optional[Dict[str, Union[int, List[int]]]] = None,
+    ):
+        if id is None:
+            id = random.randint(0, 2 ** 64 - 1)
+        if properties is None:
+            properties = {}
+        if relations is None:
+            relations = {}
+
+        print(f"Creating LineAnnotation with id={id}")
+        super().__init__(id=id, properties=properties, relations=relations)
+        self.start = start
+        self.end = end
+
     def write_geometry(self, output: IO[bytes]) -> None:
         """Write start and end positions as float32le values."""
         output.write(struct.pack("<3f", *self.start))
@@ -439,12 +580,9 @@ class LineAnnotation(Annotation):
         end = struct.unpack("<3f", in_stream.read(12))
         return cls(start=start, end=end)
 
-    @staticmethod
-    def read(in_stream: IO[bytes]) -> "LineAnnotation":
-        """Read a complete line annotation (backward compatibility method)."""
-        return LineAnnotation.read_geometry(in_stream)
-
-    def in_bounds(self, bounds, resolution: Optional[Sequence[float]] = None) -> bool:
+    def in_bounds(
+        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+    ) -> bool:
         """Return whether this line anywhere intersects the given bounds.
 
         :param bounds: VolumetricIndex or BBox3D
@@ -457,9 +595,13 @@ class LineAnnotation(Annotation):
             from_res = Vec3D(*resolution)
             start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
             end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
-            return bounds.line_intersects(start, end)
         else:
-            return bounds.line_intersects(self.start, self.end, resolution)
+            start = tuple(self.start)
+            end = tuple(self.end)
+        if strict:
+            return bounds.contains(start) and bounds.contains(end)
+        else:
+            return bounds.line_intersects(start, end)
 
     def convert_coordinates(self, from_res, to_res) -> None:
         """Convert coordinates from one resolution to another (mutates instance).

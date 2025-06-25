@@ -1,6 +1,8 @@
 """
 Data classes and support code for Neuroglancer annotations (primarily
-in precomputed format).
+in precomputed format).  Reference:
+
+https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/annotations.md
 """
 
 import io
@@ -437,7 +439,7 @@ class Annotation(ABC):
         in_stream: IO[bytes],
         type: str,  # pylint: disable=redefined-builtin
         property_specs: Optional[Sequence[PropertySpec]] = None,
-        relationships: Optional[Sequence[Relationship]] = None,  # pylint: disable=unused-argument
+        relationships: Optional[Sequence[Relationship]] = None,
     ) -> "Annotation":
         result: Annotation
         if type == "POINT":
@@ -448,6 +450,14 @@ class Annotation(ABC):
             raise ValueError(f"type: expected POINT or LINE, but got '{type}'")
         if property_specs:
             result.read_properties(in_stream, property_specs)
+        if relationships is not None:
+            for rel in relationships:
+                count = struct.unpack("<I", in_stream.read(4))[0]
+                ids = []
+                for _ in range(0, count):
+                    ids.append(struct.unpack("<Q", in_stream.read(8))[0])
+                result.relations[rel.id] = ids
+
         return result
 
 
@@ -526,10 +536,7 @@ class PointAnnotation(Annotation):
         """
         new_position = tuple(round(Vec3D(*self.position) * from_res / to_res, VEC3D_PRECISION))
         return PointAnnotation(
-            id=self.id,
-            position=new_position,
-            properties=self.properties.copy(),
-            relations=self.relations.copy(),
+            id=self.id, position=new_position, properties=self.properties, relations=self.relations
         )
 
 
@@ -559,7 +566,6 @@ class LineAnnotation(Annotation):
         if relations is None:
             relations = {}
 
-        print(f"Creating LineAnnotation with id={id}")
         super().__init__(id=id, properties=properties, relations=relations)
         self.start = start
         self.end = end
@@ -621,7 +627,11 @@ class LineAnnotation(Annotation):
         new_start = tuple(round(Vec3D(*self.start) * from_res / to_res, VEC3D_PRECISION))
         new_end = tuple(round(Vec3D(*self.end) * from_res / to_res, VEC3D_PRECISION))
         return LineAnnotation(
-            id=self.id, start=new_start, end=new_end, properties=self.properties.copy()
+            id=self.id,
+            start=new_start,
+            end=new_end,
+            properties=self.properties,
+            relations=self.relations,
         )
 
 

@@ -14,7 +14,7 @@ import os
 import struct
 from math import ceil
 from random import shuffle
-from typing import Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import attrs
 import numpy as np
@@ -600,6 +600,9 @@ class AnnotationLayerBackend(
         then no annotation (by id) will appear in the results more than
         once, even if it spans chunk boundaries; but if it is False, then
         the same annotation may appear multiple times.
+
+        Note that the returned annotations do NOT include related segment
+        IDs; those are only found in the by_id files.
         """
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
         result = []
@@ -623,6 +626,22 @@ class AnnotationLayerBackend(
             for line in result:
                 line.convert_coordinates(self.index.resolution, annotation_resolution)
         return result
+
+    def all_by_id(self):
+        """Generator that yields all annotations including related-ID data)
+        by iterating over the by_id index."""
+        by_id_path = path_join(self.path, "by_id")
+        cf = CloudFiles(by_id_path)
+        for filename in cf.list():
+            file_cf = CloudFile(path_join(by_id_path, filename))
+            anno = Annotation.read(
+                io.BytesIO(file_cf.get()),
+                self.annotation_type,
+                self.property_specs,
+                self.relationships,
+            )
+            anno.id = int(filename)
+            yield anno
 
     def find_max_size(self, spatial_level: int = -1):
         """
@@ -756,14 +775,43 @@ class AnnotationLayerBackend(
 
         return spatial_entries
 
+    def write_related_index(self, relation: Relationship):
+        """
+        Write a related object ID index, where for each related object ID,
+        we have a file of annotations that contain that ID for that relation.
+
+        :param relation: the Relationship object to process
+        """
+        # This works by reading and iterating over all annotations in the by_id
+        # index.  ToDo: refactor this slightly so we iterate over annotations
+        # only once, and write out all related indexes at once.
+        rel_id_to_anno: Dict[int, List[Annotation]] = {}
+        for anno in self.all_by_id():
+            related_ids = anno.relations.get(relation.id, [])
+            if isinstance(related_ids, int):
+                related_ids = [related_ids]
+            for rel_id in related_ids:
+                anno_list = rel_id_to_anno.get(rel_id, None)
+                if anno_list is None:
+                    anno_list = []
+                    rel_id_to_anno[rel_id] = anno_list
+                anno_list.append(anno)
+        assert relation.key is not None
+        rel_dir_path = path_join(self.path, relation.key)
+        for related_id, anno_list in rel_id_to_anno.items():
+            file_path = path_join(rel_dir_path, str(related_id))
+            self.write_multi_annotation_file(file_path, anno_list, False, False)
+
     def post_process(self):
         """
         Read all our data from the lowest-level chunks on disk, then rewrite:
           1. The higher-level chunks, if any; and
           2. The info file, with correct limits for each level.
+          3. The related-ID indexes
         This is useful after writing out a bunch of data with
           write_annotations(data, False), which writes to only the lowest-level chunks.
         """
+        all_data: Optional[list] = None
         if len(self.chunk_sizes) == 1:
             # Special case: only one chunk size, no subdivision.
             # In this case, we can cheat considerably.
@@ -786,6 +834,10 @@ class AnnotationLayerBackend(
 
         # rewrite the info file, with the updated spatial entries
         self.write_info_file(spatial_entries)
+
+        # if we have any relationships, write out the related-ID indexes
+        for rel in self.relationships:
+            self.write_related_index(rel)
 
     # Required overrides for Backend interface
     def read(self, idx: VolumetricIndex) -> Sequence[Annotation]:  # pragma: no cover

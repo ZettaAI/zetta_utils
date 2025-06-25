@@ -32,8 +32,8 @@ for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
+builder.registry.MULTIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
+builder.registry.MULTIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
 log.add_supress_traceback_module(builder)
 
 

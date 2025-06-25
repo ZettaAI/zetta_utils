@@ -24,7 +24,7 @@ _info_hash_key = hashkey
 # wrapper to cache using absolute paths with '/info'.
 # invalidates the cached infofile if the infofile is local and has since been deleted.
 def get_info(path: str) -> dict[str, Any]:
-    info_path = _to_info_path(path)
+    info_path = to_info_path(path)
     if is_local(info_path):
         if not CloudFile(info_path).exists():
             _info_cache.pop(_info_hash_key(info_path), None)
@@ -126,8 +126,9 @@ class InfoSpecParams:
                     missing_params.append("bbox")
 
                 raise ValueError(
-                    f"When 'reference_path' is None, the following parameters must be "
-                    f"specified and cannot be None: {', '.join(missing_params)}"
+                    f"When not giving a reference info file through 'reference_path', "
+                    f"the following parameters must be specified and cannot be None: "
+                    f"{', '.join(missing_params)}"
                 )
             if inherit_all_params:
                 raise ValueError(
@@ -281,6 +282,13 @@ class PrecomputedInfoSpec:
         ):
             raise ValueError("Exactly one of `info_path`/`info_spec_params` must be provided")
 
+        if self.info_path is not None and not CloudFile(to_info_path(self.info_path)).exists():
+            raise FileNotFoundError(
+                f"The infofile at '{self.info_path}' does not exist. If you are trying to create "
+                "a new layer, you must provide 'info_scales' to specify the scales for the info "
+                "file. If you are trying to use an existing layer, make sure the path is correct."
+            )
+
     def make_info(self) -> dict:
         if self.info_path is not None:
             return get_info(self.info_path)
@@ -326,7 +334,7 @@ class PrecomputedInfoSpec:
         """
         try:
             existing_info = get_info(path)
-        except FileNotFoundError:
+        except (FileNotFoundError, KeyError):
             existing_info = None
 
         new_info = self.make_info()
@@ -370,7 +378,7 @@ class PrecomputedInfoSpec:
 
             if existing_info != new_info:
                 _write_info(new_info, path)
-                _info_cache[_info_hash_key(_to_info_path(path))] = new_info
+                _info_cache[_info_hash_key(to_info_path(path))] = new_info
                 return True
 
         return False
@@ -406,11 +414,11 @@ def _get_info_from_info_path(info_path: str) -> dict[str, Any]:
 
 
 def _write_info(info: dict[str, Any], path: str) -> None:  # pragma: no cover
-    info_path = _to_info_path(path)
+    info_path = to_info_path(path)
     CloudFile(info_path).put_json(info, cache_control="no-cache")
 
 
-def _to_info_path(path: str) -> str:
+def to_info_path(path: str) -> str:
     if not path.endswith("/info"):
         path = os.path.join(path, "info")
     return abspath(path)

@@ -1,38 +1,83 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import pytest
-from google.cloud import firestore
+from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.project import get_collection
-from zetta_utils.task_management.subtask import create_subtask
-from zetta_utils.task_management.subtask_type import create_subtask_type
+from zetta_utils.task_management.db import get_db_session
+from zetta_utils.task_management.db.models import Base
+from zetta_utils.task_management.job import create_job
 from zetta_utils.task_management.task import create_task
-from zetta_utils.task_management.types import Subtask, SubtaskType, Task, User
+from zetta_utils.task_management.task_type import create_task_type
+from zetta_utils.task_management.types import Job, Task, TaskType, User
 from zetta_utils.task_management.user import create_user
 
 
+@pytest.fixture(scope="session")
+def postgres_container():
+    """PostgreSQL container for testing"""
+    container = PostgresContainer("postgres:15")
+    container.start()
+    try:
+        yield container
+    finally:
+        try:
+            container.stop()
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass  # Ignore cleanup errors
+
+
 @pytest.fixture
-def project_name() -> str:
-    return "test_project"
+def db_session(postgres_container):
+    """
+    Create a PostgreSQL database session for testing.
+    """
+    connection_url = postgres_container.get_connection_url()
+    session = get_db_session(engine_url=connection_url)
+    try:
+        yield session
+    finally:
+        session.close()
 
 
-@pytest.fixture(autouse=True)
-def clean_collections(firestore_emulator, project_name):
-    client = firestore.Client()
-    collections = [
-        f"projects/{project_name}/tasks",
-        f"projects/{project_name}/subtasks",
-        f"projects/{project_name}/dependencies",
-        f"projects/{project_name}/timesheets",
-        f"projects/{project_name}/users",
-        f"projects/{project_name}/subtask_types",
-    ]
-    for coll in collections:
-        for doc in client.collection(coll).list_documents():
-            doc.delete()
+# Alias for compatibility with existing tests
+@pytest.fixture
+def postgres_session(postgres_container):
+    """PostgreSQL database session - alias for db_session"""
+    connection_url = postgres_container.get_connection_url()
+    session = get_db_session(engine_url=connection_url)
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+@pytest.fixture
+def clean_db(db_session):
+    """
+    Clean the database before and after each test.
+    """
+    # Clear existing data
+    Base.metadata.drop_all(db_session.bind)
+    Base.metadata.create_all(db_session.bind)
+    db_session.commit()
+
     yield
-    for coll in collections:
-        for doc in client.collection(coll).list_documents():
-            doc.delete()
+
+    # Clean up after test
+    try:
+        db_session.rollback()
+        Base.metadata.drop_all(db_session.bind)
+        db_session.commit()
+    except Exception:  # pylint: disable=broad-exception-caught
+        # If cleanup fails, just continue
+        pass
+
+
+@pytest.fixture
+def project_name():
+    """
+    Return a test project name.
+    """
+    return "test_project"
 
 
 @pytest.fixture
@@ -40,107 +85,158 @@ def sample_user() -> User:
     return {
         "user_id": "test_user",
         "hourly_rate": 50.0,
-        "active_subtask": "",
-        "qualified_subtask_types": ["segmentation_proofread"],
+        "active_task": "",
+        "qualified_task_types": ["segmentation_proofread"],
     }
 
 
 @pytest.fixture
-def existing_user(firestore_emulator, project_name, sample_user):
-    create_user(project_name, sample_user)
+def existing_user(clean_db, db_session, project_name, sample_user):
+    create_user(project_name=project_name, data=sample_user, db_session=db_session)
     yield sample_user
 
 
 @pytest.fixture
-def sample_task() -> Task:
-    return Task(
+def sample_job() -> Job:
+    return Job(
         **{
-            "task_id": "task_1",
+            "job_id": "job_1",
             "batch_id": "batch_1",
             "status": "pending_ingestion",
-            "task_type": "segmentation",
-            "ng_state": "http://example.com/task_1",
+            "job_type": "segmentation",
+            "ng_state": {"url": "http://example.com/job_1"},
         }
     )
 
 
 @pytest.fixture
-def existing_task(firestore_emulator, project_name, sample_task):
-    create_task(project_name, sample_task)
-    yield sample_task
+def existing_job(db_session, project_name, sample_job):
+    """Fixture that creates a job in the database"""
+    create_job(project_name=project_name, data=sample_job, db_session=db_session)
+    return sample_job
 
 
 @pytest.fixture
-def sample_subtask_type() -> SubtaskType:
+def sample_task_type() -> TaskType:
     return {
-        "subtask_type": "segmentation_proofread",
+        "task_type": "segmentation_proofread",
         "completion_statuses": ["done", "need_help"],
     }
 
 
 @pytest.fixture
-def existing_subtask_type(firestore_emulator, project_name, sample_subtask_type):
-    create_subtask_type(project_name, sample_subtask_type)
-    yield sample_subtask_type
+def existing_task_type(clean_db, db_session, project_name, sample_task_type):
+    create_task_type(project_name=project_name, data=sample_task_type, db_session=db_session)
+    yield sample_task_type
 
 
 @pytest.fixture
-def sample_subtasks() -> list[Subtask]:
+def sample_tasks() -> list[Task]:
     return [
         {
-            "task_id": "task_1",
-            "subtask_id": f"subtask_{i}",
+            "job_id": "job_1",
+            "task_id": f"task_{i}",
             "completion_status": "",
             "assigned_user_id": "",
             "active_user_id": "",
             "completed_user_id": "",
-            "ng_state": f"http://example.com/{i}",
-            "ng_state_initial": f"http://example.com/{i}",
+            "ng_state": {"url": f"http://example.com/{i}"},
+            "ng_state_initial": {"url": f"http://example.com/{i}"},
             "priority": i,
             "batch_id": "batch_1",
             "last_leased_ts": 0.0,
             "is_active": True,
-            "subtask_type": "segmentation_proofread",
+            "task_type": "segmentation_proofread",
         }
         for i in range(1, 4)
     ]
 
 
 @pytest.fixture
-def existing_subtasks(firestore_emulator, project_name, sample_subtasks, existing_subtask_type):
-    for subtask in sample_subtasks:
-        create_subtask(project_name, subtask)
-    yield sample_subtasks
+def existing_tasks(
+    clean_db, db_session, project_name, sample_tasks, existing_task_type, existing_job
+):
+    # Job is already created by existing_job fixture
+    for task in sample_tasks:
+        create_task(project_name=project_name, data=task, db_session=db_session)
+    yield sample_tasks
 
 
 @pytest.fixture
-def sample_subtask(existing_subtask_type) -> Subtask:
+def sample_task(existing_task_type) -> Task:
     return {
+        "job_id": "job_1",
         "task_id": "task_1",
-        "subtask_id": "subtask_1",
         "completion_status": "",
         "assigned_user_id": "",
         "active_user_id": "",
         "completed_user_id": "",
-        "ng_state": "http://example.com",
-        "ng_state_initial": "http://example.com",
+        "ng_state": {"url": "http://example.com"},
+        "ng_state_initial": {"url": "http://example.com"},
         "priority": 1,
         "batch_id": "batch_1",
-        "subtask_type": existing_subtask_type["subtask_type"],
+        "task_type": existing_task_type["task_type"],
         "is_active": True,
         "last_leased_ts": 0.0,
     }
 
 
 @pytest.fixture
-def existing_subtask(project_name, existing_subtask_type, sample_subtask):
-    doc_ref = get_collection(project_name, "subtasks").document(sample_subtask["subtask_id"])
+def existing_task(
+    clean_db, db_session, project_name, existing_task_type, sample_task, existing_job
+):
+    # Job is already created by existing_job fixture
+    create_task(project_name=project_name, data=sample_task, db_session=db_session)
+    yield sample_task
 
-    if doc_ref.get().exists:
-        doc_ref.delete()
 
-    create_subtask(project_name, sample_subtask)
+@pytest.fixture
+def job_factory(db_session, project_name):
+    """Factory fixture to create jobs with custom IDs"""
 
-    yield sample_subtask
+    def _create_job(job_id: str, batch_id: str | None = None, status: str = "ingested"):
+        if batch_id is None:
+            batch_id = job_id.replace("job_", "batch_")
 
-    doc_ref.delete()
+        job_data = Job(
+            **{
+                "job_id": job_id,
+                "batch_id": batch_id,
+                "status": status,
+                "job_type": "segmentation",
+                "ng_state": {"url": f"http://example.com/{job_id}"},
+            }
+        )
+        create_job(project_name=project_name, data=job_data, db_session=db_session)
+        return job_data
+
+    return _create_job
+
+
+@pytest.fixture
+def task_factory(db_session, project_name, existing_task_type):
+    """Factory fixture to create tasks with custom IDs"""
+
+    def _create_task(job_id: str, task_id: str, **kwargs):
+        task_data = Task(
+            **{
+                "job_id": job_id,
+                "task_id": task_id,
+                "completion_status": "",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state": {"url": f"http://example.com/{task_id}"},
+                "ng_state_initial": {"url": f"http://example.com/{task_id}"},
+                "priority": 1,
+                "batch_id": job_id.replace("job_", "batch_"),
+                "task_type": existing_task_type["task_type"],
+                "is_active": True,
+                "last_leased_ts": 0.0,
+                **kwargs,  # type: ignore
+            }
+        )
+        create_task(project_name=project_name, data=task_data, db_session=db_session)
+        return task_data
+
+    return _create_task

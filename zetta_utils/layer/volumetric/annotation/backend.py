@@ -29,6 +29,8 @@ from zetta_utils.layer.volumetric.annotation.annotations import (
     PropertySpec,
     Relationship,
     SpatialEntry,
+)
+from zetta_utils.layer.volumetric.annotation.utilities import (
     is_local_filesystem,
     path_join,
     write_bytes,

@@ -3,54 +3,140 @@ Data classes and support code for Neuroglancer annotations (primarily
 in precomputed format).  Reference:
 
 https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/annotations.md
+https://github.com/google/neuroglancer/issues/227#issuecomment-2246350747
 """
 
-import io
 import json
-import os
 import random
 import re
 import string
 import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from random import shuffle
-from typing import IO, Any, ClassVar, Dict, List, Optional, Sequence, Union
-
-from cloudfiles import CloudFile
+from typing import (
+    IO,
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from zetta_utils.geometry import Vec3D
 from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 
-def is_local_filesystem(path: str) -> bool:
-    return path.startswith("file://") or "://" not in path
-
-
-def path_join(*paths: str):
-    if not paths:
-        raise ValueError("At least one path is required")
-
-    if not is_local_filesystem(paths[0]):  # pragma: no cover
-        # Join paths using "/" for GCS or other URL-like paths
-        cleaned_paths = [path.strip("/") for path in paths]
-        return "/".join(cleaned_paths)
-    else:
-        # Use os.path.join for local file paths
-        return os.path.join(*paths)
-
-
-def write_bytes(file_or_gs_path: str, data: bytes):
+@dataclass
+class ShardingSpec:
     """
-    Write bytes to a local file or Google Cloud Storage.
+    Represents a Neuroglancer sharding specification.
 
-    :param file_or_gs_path: path to file to write (local or GCS path)
-    :param data: bytes to write
+    Based on the neuroglancer_uint64_sharded_v1 format.
     """
-    if "//" not in file_or_gs_path:
-        file_or_gs_path = "file://" + file_or_gs_path
-    cf = CloudFile(file_or_gs_path)
-    cf.put(data, cache_control="no-cache, no-store, max-age=0, must-revalidate")
+
+    preshift_bits: int = 0
+    hash: Literal["identity", "murmurhash3_x86_128"] = "identity"
+    minishard_bits: int = 3
+    shard_bits: int = 4
+    minishard_index_encoding: Optional[Literal["raw", "gzip"]] = "raw"
+    data_encoding: Optional[Literal["raw", "gzip"]] = "raw"
+
+    @property
+    def type(self) -> str:
+        """Always returns the required @type value."""
+        return "neuroglancer_uint64_sharded_v1"
+
+    @property
+    def num_shards(self) -> int:
+        """Number of shards: 2**shard_bits"""
+        return 2 ** self.shard_bits
+
+    @property
+    def num_minishards_per_shard(self) -> int:
+        """Number of minishards per shard: 2**minishard_bits"""
+        return 2 ** self.minishard_bits
+
+    def get_shard_number(self, chunk_id: int) -> int:
+        """
+        Compute the shard number for a given chunk_id.
+
+        :param chunk_id: The chunk identifier (uint64)
+        :return: Shard number in range [0, num_shards)
+        """
+        if self.hash == "identity":
+            hashed_chunk_id = chunk_id >> self.preshift_bits
+        elif self.hash == "murmurhash3_x86_128":
+            # Would need to implement MurmurHash3_x86_128 here
+            raise NotImplementedError("MurmurHash3_x86_128 not implemented")
+        else:
+            raise ValueError(f"Unknown hash function: {self.hash}")
+
+        # Extract shard bits: [minishard_bits, minishard_bits+shard_bits)
+        shard_number = (hashed_chunk_id >> self.minishard_bits) & ((1 << self.shard_bits) - 1)
+        return shard_number
+
+    def get_minishard_number(self, chunk_id: int) -> int:
+        """
+        Compute the minishard number for a given chunk_id.
+
+        :param chunk_id: The chunk identifier (uint64)
+        :return: Minishard number in range [0, num_minishards_per_shard)
+        """
+        if self.hash == "identity":
+            hashed_chunk_id = chunk_id >> self.preshift_bits
+        elif self.hash == "murmurhash3_x86_128":
+            # Would need to implement MurmurHash3_x86_128 here
+            raise NotImplementedError("MurmurHash3_x86_128 not implemented")
+        else:
+            raise ValueError(f"Unknown hash function: {self.hash}")
+
+        # Extract minishard bits: [0, minishard_bits)
+        minishard_number = hashed_chunk_id & ((1 << self.minishard_bits) - 1)
+        return minishard_number
+
+    def get_shard_filename(self, shard_number: int) -> str:
+        """
+        Get the filename for a given shard number.
+
+        :param shard_number: Shard number in range [0, num_shards)
+        :return: Filename in format: {shard_number:0{width}x}.shard
+        """
+        if not 0 <= shard_number < self.num_shards:
+            raise ValueError(f"Shard number {shard_number} out of range [0, {self.num_shards})")
+
+        # Zero-pad to ceil(shard_bits/4) digits
+        width = (self.shard_bits + 3) // 4  # equivalent to ceil(shard_bits/4)
+        return f"{shard_number:0{width}x}.shard"
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary format matching the JSON specification."""
+        result = {
+            "@type": self.type,
+            "preshift_bits": self.preshift_bits,
+            "hash": self.hash,
+            "minishard_bits": self.minishard_bits,
+            "shard_bits": self.shard_bits,
+        }
+
+        if self.minishard_index_encoding != "raw":
+            result["minishard_index_encoding"] = self.minishard_index_encoding
+
+        if self.data_encoding != "raw":
+            result["data_encoding"] = self.data_encoding
+
+        return result
+
+    def to_json(self, indent: Optional[int] = None) -> str:
+        """Convert to JSON string representation.
+
+        :param indent: number of spaces for indentation; None for compact JSON
+        :return: JSON string representation of the property specification.
+        """
+        return json.dumps(self.to_dict(), indent=indent)
 
 
 @dataclass
@@ -182,6 +268,7 @@ class Relationship:
 
     id: str
     key: Optional[str] = None
+    sharding: Optional[ShardingSpec] = None
 
     def __post_init__(self):
         """Generate key from id if not provided."""
@@ -209,7 +296,10 @@ class Relationship:
 
     def to_dict(self) -> dict:
         """Convert to dictionary format matching the JSON specification."""
-        return {"id": self.id, "key": self.key}
+        result: Dict[str, Any] = {"id": self.id, "key": self.key}
+        if self.sharding is not None:
+            result["sharding"] = self.sharding.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "Relationship":
@@ -607,7 +697,7 @@ class LineAnnotation(Annotation):
         if strict:
             return bounds.contains(start) and bounds.contains(end)
         else:
-            return bounds.line_intersects(start, end)
+            return bounds.line_intersects(start, end, resolution=(1, 1, 1))
 
     def convert_coordinates(self, from_res, to_res) -> None:
         """Convert coordinates from one resolution to another (mutates instance).
@@ -654,6 +744,7 @@ class SpatialEntry:
     grid_shape: Sequence[int]
     key: str
     limit: int
+    sharding: Optional[ShardingSpec] = None
 
     def __post_init__(self):
         # Convert sequences to tuples to maintain the original behavior
@@ -661,299 +752,86 @@ class SpatialEntry:
         self.grid_shape = tuple(self.grid_shape)
 
     def to_json(self):
-        return f"""{{
+        result = f"""{{
             "chunk_size" : {list(self.chunk_size)},
             "grid_shape" : {list(self.grid_shape)},
             "key" : "{self.key}",
-            "limit": {self.limit}
-        }}"""
+            "limit": {self.limit}"""
+        if self.sharding is not None:
+            result += ',\n            "sharding": ' + self.sharding.to_json()
+        return result + "\n}"
 
 
-# pylint: disable=too-many-instance-attributes
-class SimpleWriter:
-    def __init__(self, anno_type, dimensions, lower_bound, upper_bound):
-        """
-        Initialize SimpleWriter with required parameters.
-
-        :param anno_type: one of 'POINT', 'LINE' (and later others)
-        :param dimensions: dimensions for the annotation space
-        :param lower_bound: lower bound coordinates
-        :param upper_bound: upper bound coordinates
-        :param annotations: sequence of LineAnnotation objects (optional)
-        """
-        self.anno_type = anno_type
-        self.dimensions = dimensions
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
-        self.annotations = []  # list of Annotation objects
-        self.spatial_specs = []  # SpatialEntry objects
-        self.property_specs = []  # PropertySpec objects
-        self.relationships = []  # Relationship objects
-
-    def format_info(self):
-        """Format the info JSON structure using instance properties."""
-        spatial_json = "    " + ",\n        ".join([se.to_json() for se in self.spatial_specs])
-        property_json = "    " + ",\n        ".join([ps.to_json() for ps in self.property_specs])
-        relationship_json = "    " + ",\n        ".join([r.to_json() for r in self.relationships])
-        return f"""{{
-        "@type" : "neuroglancer_annotations_v1",
-        "annotation_type" : "{self.anno_type}",
-        "by_id" : {{ "key" : "by_id" }},
-        "dimensions" : {str(self.dimensions).replace("'", '"')},
-        "lower_bound" : {list(self.lower_bound)},
-        "properties" : [
-        {property_json}
-        ],
-        "relationships" : [
-        {relationship_json}
-        ],
-        "spatial" : [
-        {spatial_json}
-        ],
-        "upper_bound" : {list(self.upper_bound)}
-    }}
+def validate_spatial_entries(spatial_entries):
     """
+    Validate a sequence of SpatialEntry objects for multi-level spatial indexing.
 
-    def write(self, dir_path: str):
-        """
-        Write all annotation data to the specified directory.
+    :param spatial_entries: Sequence of SpatialEntry objects to validate
+    :type spatial_entries: Sequence[SpatialEntry]
+    :raises ValueError: If validation fails
+    :returns: True if all validation checks pass
+    :rtype: bool
+    """
+    if len(spatial_entries) < 2:
+        return True  # Single or empty entries are trivially valid
 
-        :param dir_path: path to the directory where files will be written
-        """
-        # Write info file
-        info_content = self.format_info()
-        info_file_path = path_join(dir_path, "info")
-        write_bytes(info_file_path, info_content.encode("utf-8"))
+    for i in range(1, len(spatial_entries)):
+        prev_entry = spatial_entries[i - 1]
+        curr_entry = spatial_entries[i]
+        dimensions = range(len(curr_entry.chunk_size))
 
-        # Write by-id index (including relationships)
-        self._write_by_id_index(path_join(dir_path, "by_id"))
+        # Check condition 1: chunk sizes should be equal or smaller in each dimension
+        for dim in dimensions:
+            if curr_entry.chunk_size[dim] > prev_entry.chunk_size[dim]:
+                raise ValueError(
+                    f"Entry {i}: chunk_size[{dim}] ({curr_entry.chunk_size[dim]}) "
+                    f"is larger than previous entry's chunk_size[{dim}] "
+                    f"({prev_entry.chunk_size[dim]})"
+                )
 
-        # Write the spatial index
-        self._write_spatial_index(dir_path)
+        # Check condition 2: grid_shape * chunk_size should equal previous grid_shape * chunk_size
+        for dim in dimensions:
+            prev_total = prev_entry.grid_shape[dim] * prev_entry.chunk_size[dim]
+            curr_total = curr_entry.grid_shape[dim] * curr_entry.chunk_size[dim]
 
-        # Write the related-object-id indexes
-        for rel in self.relationships:
-            self._write_related_index(dir_path, rel)
+            if prev_total != curr_total:
+                raise ValueError(
+                    f"Entry {i}: total size in dimension {dim} "
+                    f"({curr_entry.grid_shape[dim]} * "
+                    f"{curr_entry.chunk_size[dim]} = {curr_total}) "
+                    f"does not match previous entry's total size "
+                    f"({prev_entry.grid_shape[dim]} * "
+                    f"{prev_entry.chunk_size[dim]} = {prev_total})"
+                )
 
-    def _write_annotations(
-        self,
-        file_or_gs_path: str,
-        annotations: Optional[Sequence[Annotation]] = None,
-        randomize: bool = False,
-    ):
-        """
-        Write a set of lines to the given file, in 'multiple annotation encoding' format:
-                1. Line count (uint64le)
-                2. Data for each line (excluding ID), one after the other
-                3. The line IDs (also as uint64le)
-
-        :param file_or_gs_path: local file or GS path of file to write
-        :param annotations: iterable of Annotation objects (uses self.annotations if None)
-        :param randomize: if True, the annotations will be written in random
-                order (without mutating the lines parameter)
-        """
-        if annotations is None:
-            annotations = self.annotations
-
-        annotations = list(annotations)
-        if randomize:
-            annotations = annotations[:]
-            shuffle(annotations)
-
-        buffer = io.BytesIO()
-        # first write the count
-        buffer.write(struct.pack("<Q", len(annotations)))
-
-        # then write the annotation data
-        for anno in annotations:
-            anno.write(buffer, self.property_specs)
-
-        # finally write the ids at the end of the buffer
-        for anno in annotations:
-            buffer.write(struct.pack("<Q", anno.id))
-
-        buffer.seek(0)  # Rewind buffer to the beginning
-        write_bytes(file_or_gs_path, buffer.getvalue())
-
-    def _write_by_id_index(self, by_id_path: str):
-        """
-        Write the Annotation id index for the given set of annotations.
-        Currently, in unsharded uint64 index format.
-
-        :param by_id_path: complete path to the by_id directory.
-        """
-        # In unsharded format, the by_id directory simply contains a little
-        # binary file for each annotation, named with its id.
-        for anno in self.annotations:
-            file_path = path_join(by_id_path, str(anno.id))
-            buffer = io.BytesIO()
-            anno.write(buffer, self.property_specs, self.relationships)
-            write_bytes(file_path, buffer.getvalue())
-
-    def _write_spatial_index(self, dir_path: str):
-        """
-        Write the spatial index for the given set of annotations.  NOTE:
-        this implementation is a quick hack that assumes only 1 spatial
-        level, consisting of only 1 chunk (which contains all annotations).
-
-        :param dir_path: path to the directory containing the info file
-        """
-        level = 0
-        level_key = f"spatial{level}"
-        level_dir = path_join(dir_path, level_key)
-        anno_file_path = path_join(level_dir, "0_0_0")
-        self._write_annotations(anno_file_path, self.annotations, True)
-
-    def _write_related_index(self, dir_path: str, relation: Relationship):
-        """
-        Write a related object ID index, where for each related object ID,
-        we have a file of annotations that contain that ID for that relation.
-
-        :param dir_path: path to the directory containing the info file
-        :param relation: the Relationship object to process
-        """
-        rel_id_to_anno: Dict[int, List[Annotation]] = {}
-        for anno in self.annotations:
-            related_ids = anno.relations.get(relation.id, [])
-            if isinstance(related_ids, int):
-                related_ids = [related_ids]
-            for rel_id in related_ids:
-                anno_list = rel_id_to_anno.get(rel_id, None)
-                if anno_list is None:
-                    anno_list = []
-                    rel_id_to_anno[rel_id] = anno_list
-                anno_list.append(anno)
-        assert relation.key is not None  # which it can't be, silly black
-        rel_dir_path = path_join(dir_path, relation.key)
-        for related_id, anno_list in rel_id_to_anno.items():
-            file_path = path_join(rel_dir_path, str(related_id))
-            self._write_annotations(file_path, anno_list, False)
+    return True
 
 
-# pylint: enable=too-many-instance-attributes
+def get_child_cell_ranges(
+    spatial_specs: Sequence[SpatialEntry], parent_level: int, parent_cell_index: Tuple[int, ...]
+) -> Tuple[Tuple[int, int], ...]:
+    """
+    Calculate the range of child cell indices at level parent_level+1 that fall within
+    the given parent cell at parent_level.
 
+    :param spatial_specs: ordered list of SpatialEntry defining subdivision levels
+    :param parent_level: The level of the parent cell
+    :param parent_cell_index: The cell index of the parent cell
+    :returns: Tuple of (start, end) ranges for each dimension
+    """
+    parent_spec = spatial_specs[parent_level]
+    child_spec = spatial_specs[parent_level + 1]
 
-def _line_demo(path):
-    # Write out a simple line annotations file (with properties and relations)
-    # to demonstrate usage.
-    dimensions = {"x": [18, "nm"], "y": [18, "nm"], "z": [45, "nm"]}
-    lower_bound = [53092, 56657, 349]
-    upper_bound = [53730, 57135, 634]
+    ranges = []
+    dimensions = range(len(parent_cell_index))
+    for dim in dimensions:
+        # Calculate how many child cells fit in one parent cell for this dimension
+        cells_per_parent = child_spec.grid_shape[dim] // parent_spec.grid_shape[dim]
 
-    writer = SimpleWriter("LINE", dimensions, lower_bound, upper_bound)
+        # Calculate the start and end indices for child cells
+        start_idx = parent_cell_index[dim] * cells_per_parent
+        end_idx = start_idx + cells_per_parent
 
-    writer.spatial_specs.append(SpatialEntry([1024, 1024, 512], [1, 1, 1], "spatial0", 1))
+        ranges.append((start_idx, end_idx))
 
-    writer.property_specs.append(PropertySpec("score", "float32", "Score value in range [0,1]"))
-    writer.property_specs.append(PropertySpec("score_pct", "uint8", "Int score in range [0,100]"))
-    writer.property_specs.append(
-        PropertySpec(
-            "mood",
-            "uint8",
-            "Overall affect",
-            [0, 1, 2, 3, 4],
-            ["none", "sad", "neutral", "happy", "ecstatic"],
-        )
-    )
-
-    writer.relationships.append(Relationship("Presyn Cell"))
-    writer.relationships.append(Relationship("Postsyn Cell"))
-
-    writer.annotations.append(
-        LineAnnotation(
-            id=1001,
-            start=(53092, 56657, 349),
-            end=(53730, 57135, 634),
-            properties={"score": 0.95, "score_pct": 95, "mood": 1},
-        )
-    )
-    writer.annotations.append(
-        LineAnnotation(
-            id=1002,
-            start=(53400, 56900, 500),
-            end=(53420, 56900, 500),
-            properties={"score": 0.42, "score_pct": 42, "mood": 4},
-        )
-    )
-    writer.annotations.append(
-        LineAnnotation(
-            id=1003,
-            start=(53226, 56899, 460),
-            end=(53265, 56899, 458),
-            properties={"score": 0.5, "score_pct": 50, "mood": 2},
-            relations={"Presyn Cell": 648518346453391624, "Postsyn Cell": 648518346439350172},
-        )
-    )
-    writer.annotations.append(
-        LineAnnotation(
-            id=1004,
-            start=(53127, 56899, 457),
-            end=(53104, 56911, 457),
-            properties={"score": 0.8, "score_pct": 80, "mood": 3},
-            relations={"Presyn Cell": [648518346453391624], "Postsyn Cell": [648518346454006042]},
-        )
-    )
-
-    writer.write(path)
-    print(f"Wrote {path}")
-
-
-def _point_demo(path):
-    # Write out a simple point annotations file (with properties).
-    dimensions = {"x": [18, "nm"], "y": [18, "nm"], "z": [45, "nm"]}
-    lower_bound = [53092, 56657, 349]
-    upper_bound = [53730, 57135, 634]
-
-    writer = SimpleWriter("POINT", dimensions, lower_bound, upper_bound)
-
-    writer.spatial_specs.append(SpatialEntry([1024, 1024, 512], [1, 1, 1], "spatial0", 1))
-
-    writer.property_specs.append(PropertySpec("score", "float32", "Score value in range [0,1]"))
-    writer.property_specs.append(PropertySpec("score_pct", "uint8", "Int score in range [0,100]"))
-    writer.property_specs.append(
-        PropertySpec(
-            "mood",
-            "uint8",
-            "Overall affect",
-            [0, 1, 2, 3, 4],
-            ["none", "sad", "neutral", "happy", "ecstatic"],
-        )
-    )
-
-    writer.annotations.append(
-        PointAnnotation(
-            id=1001,
-            position=(53092, 56657, 349),
-            properties={"score": 0.95, "score_pct": 95, "mood": 1},
-        )
-    )
-    writer.annotations.append(
-        PointAnnotation(
-            id=1002,
-            position=(53400, 56900, 500),
-            properties={"score": 0.42, "score_pct": 42, "mood": 4},
-        )
-    )
-    writer.annotations.append(
-        PointAnnotation(
-            id=1003,
-            position=(53226, 56899, 460),
-            properties={"score": 0.5, "score_pct": 50, "mood": 2},
-        )
-    )
-    writer.annotations.append(
-        PointAnnotation(
-            id=1004,
-            position=(53127, 56899, 457),
-            properties={"score": 0.8, "score_pct": 80, "mood": 3},
-        )
-    )
-
-    path = os.path.expanduser("~/temp/simple_anno_points")
-    writer.write(path)
-    print(f"Wrote {path}")
-
-
-if __name__ == "__main__":
-    _line_demo("~/temp/simple_anno_lines")
-    _point_demo("~/temp/simple_anno_points")
+    return tuple(ranges)

@@ -3,7 +3,7 @@
 import argparse
 import subprocess
 
-BUILD_COMMAND_TMPL = "docker build --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/web_api:{TAG} -f web_api/Dockerfile ."
+BUILD_COMMAND_TMPL = "docker build --platform linux/amd64 --network=host -t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/web_api:{TAG} -f web_api/Dockerfile ."
 PUSH_COMMAND_TMPL = "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/web_api:{TAG}"
 
 

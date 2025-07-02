@@ -3,6 +3,7 @@ import json
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel
 
 from zetta_utils import log
 from zetta_utils.task_management.task import (
@@ -21,6 +22,10 @@ from .utils import generic_exception_handler
 logger = log.get_logger()
 
 api = FastAPI()
+
+
+class NgStateRequest(BaseModel):
+    ng_state: str
 
 
 @api.exception_handler(Exception)
@@ -77,16 +82,16 @@ async def start_task_api(
 async def set_task_ng_state_api(
     project_name: str,
     task_id: str,
-    ng_state: str,
+    request: NgStateRequest,
 ):
     """
     Update the neuroglancer state for a task.
     :param project_name: The name of the project
     :param task_id: The ID of the task to update
-    :param ng_state: The new neuroglancer state URL
+    :param request: Request body containing the neuroglancer state
     """
 
-    update_data = TaskUpdate(ng_state=json.loads(ng_state))
+    update_data = TaskUpdate(ng_state=json.loads(request.ng_state))
     update_task(project_name=project_name, task_id=task_id, data=update_data)
 
 

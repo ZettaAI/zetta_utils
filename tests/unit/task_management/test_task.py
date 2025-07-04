@@ -1,4 +1,7 @@
-# pylint: disable=redefined-outer-name,unused-argument,too-many-lines
+"""Tests for task management task module"""
+
+# pylint: disable=unused-argument,redefined-outer-name,too-many-lines
+
 import time
 
 import pytest
@@ -14,6 +17,7 @@ from zetta_utils.task_management.task import (
     create_task,
     get_max_idle_seconds,
     get_task,
+    list_tasks_summary,
     reactivate_task,
     release_task,
     start_task,
@@ -1221,3 +1225,106 @@ def test_reactivate_task_nonexistent(db_session, project_name):
             task_id="nonexistent_task",
             db_session=db_session,
         )
+
+
+def test_list_tasks_summary(db_session, project_name, existing_task_type, existing_user):
+    """Test getting task summary for a project"""
+    # Create some tasks with different states
+    # Active unpaused tasks
+    for i in range(7):
+        create_task(
+            project_name=project_name,
+            data={
+                "task_id": f"active_{i}",
+                "completion_status": "",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state": {"url": "http://example.com"},
+                "ng_state_initial": {"url": "http://example.com"},
+                "priority": i,
+                "batch_id": "batch_1",
+                "task_type": "segmentation_proofread",
+                "is_active": True,
+                "is_paused": False,
+                "last_leased_ts": 0.0,
+            },
+            db_session=db_session,
+        )
+
+    # Active paused tasks
+    for i in range(3):
+        create_task(
+            project_name=project_name,
+            data={
+                "task_id": f"paused_{i}",
+                "completion_status": "",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "",
+                "ng_state": {"url": "http://example.com"},
+                "ng_state_initial": {"url": "http://example.com"},
+                "priority": i,
+                "batch_id": "batch_1",
+                "task_type": "segmentation_proofread",
+                "is_active": True,
+                "is_paused": True,
+                "last_leased_ts": 0.0,
+            },
+            db_session=db_session,
+        )
+
+    # Completed tasks
+    for i in range(4):
+        create_task(
+            project_name=project_name,
+            data={
+                "task_id": f"completed_{i}",
+                "completion_status": "done",
+                "assigned_user_id": "",
+                "active_user_id": "",
+                "completed_user_id": "test_user",
+                "ng_state": {"url": "http://example.com"},
+                "ng_state_initial": {"url": "http://example.com"},
+                "priority": i,
+                "batch_id": "batch_1",
+                "task_type": "segmentation_proofread",
+                "is_active": True,
+                "is_paused": False,
+                "last_leased_ts": 0.0,
+            },
+            db_session=db_session,
+        )
+
+    # Get summary
+    summary = list_tasks_summary(project_name=project_name, db_session=db_session)
+
+    # Verify counts
+    assert summary["active_count"] == 10  # 7 unpaused + 3 paused
+    assert summary["completed_count"] == 4
+    assert summary["paused_count"] == 3
+
+    # Verify active unpaused IDs (should be top 5 by priority)
+    assert len(summary["active_unpaused_ids"]) == 5
+    assert summary["active_unpaused_ids"] == [
+        "active_6",
+        "active_5",
+        "active_4",
+        "active_3",
+        "active_2",
+    ]
+
+    # Verify active paused IDs
+    assert len(summary["active_paused_ids"]) == 3
+    assert summary["active_paused_ids"] == ["paused_2", "paused_1", "paused_0"]
+
+
+def test_list_tasks_summary_empty_project(db_session, project_name):
+    """Test getting task summary for empty project"""
+    summary = list_tasks_summary(project_name=project_name, db_session=db_session)
+
+    assert summary["active_count"] == 0
+    assert summary["completed_count"] == 0
+    assert summary["paused_count"] == 0
+    assert not summary["active_unpaused_ids"]
+    assert not summary["active_paused_ids"]

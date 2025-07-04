@@ -180,7 +180,7 @@ def read_info(dir_path):
 
 
 @builder.register("AnnotationLayer")
-@attrs.define(frozen=False)
+@attrs.define(frozen=False, kw_only=True)
 class AnnotationLayerBackend(
     VolumetricBackend[Sequence[Annotation], Sequence[Annotation]]
 ):  # pylint: disable=too-many-public-methods
@@ -198,11 +198,10 @@ class AnnotationLayerBackend(
     """
 
     path: str = attrs.field()
-    index: VolumetricIndex = attrs.field()
-    annotation_type: str = attrs.field()
-    # chunk_sizes will never be None after initialization
+    # the following will never be None after initialization
+    index: Optional[VolumetricIndex] = attrs.field(default=None)
+    annotation_type: Optional[str] = attrs.field(default=None)
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
-    # same for property_specs and relationships — set these after creation
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
 
@@ -215,17 +214,6 @@ class AnnotationLayerBackend(
     @path.validator
     def _validate_path(self, _, value):
         assert value, "path parameter is required"
-
-    @index.validator
-    def _validate_index(self, _, value):
-        """Ensure index is never None after initialization."""
-        if value is None:
-            raise ValueError("index cannot be None")  # pragma: no cover
-
-    @annotation_type.validator
-    def _validate_annotation_type(self, _attribute, value):
-        if value not in ["POINT", "LINE"]:
-            raise ValueError(f"annotation_type must be 'POINT' or 'LINE', got '{value}'")
 
     def __attrs_post_init__(self):
         # If info file exists, read it
@@ -255,9 +243,33 @@ class AnnotationLayerBackend(
             if rels:
                 self.relationships = rels
 
+        # Validate that required fields are now set (either from constructor or file)
+        if self.index is None:
+            raise ValueError("index must be provided or available in existing file")
+        if self.annotation_type is None:
+            raise ValueError("annotation_type must be provided or available in existing file")
+        if self.annotation_type not in ["POINT", "LINE"]:
+            raise ValueError(
+                f"annotation_type must be 'POINT' or 'LINE', got '{self.annotation_type}'"
+            )
+
         if not self.chunk_sizes:
             self.chunk_sizes = [tuple(self.index.shape)]
             logger.info(f"Using default chunk size: {self.chunk_sizes}")
+
+    @property
+    def _index(self) -> VolumetricIndex:
+        """Type-safe access to index."""
+        assert self.index is not None, "index should be set after initialization"
+        return self.index
+
+    @property
+    def _annotation_type(self) -> str:
+        """Type-safe access to annotation_type."""
+        assert (
+            self.annotation_type is not None
+        ), "annotation_type should be set after initialization"
+        return self.annotation_type
 
     def __repr__(self):
         return (
@@ -311,6 +323,7 @@ class AnnotationLayerBackend(
         'limit' for each entry.  (1 is a good value since it results in no
         subsampling at any level in Neuroglancer.)
         """
+        assert self.index is not None
         result = []
         bounds_size = self.index.shape
         for level, chunk_size_seq in enumerate(self.chunk_sizes):
@@ -325,6 +338,7 @@ class AnnotationLayerBackend(
         """
         Write out just the info (JSON) file, with current parameters.
         """
+        assert self.index is not None
         if spatial_data is None:
             # Create spatial entries with the chunk sizes
             spatial_data = []
@@ -406,6 +420,8 @@ class AnnotationLayerBackend(
             If false, write only to the lowest level (smallest chunks).
         :param clearing_bbox: if given, clear any existing data within these bounds.
         """
+        assert self.index is not None
+        assert self.annotation_type is not None
         if not annotations:
             logger.info("write_annotations called with 0 annotations to write")
             return
@@ -526,6 +542,7 @@ class AnnotationLayerBackend(
     def _write_by_id_index(
         self, annotations: Sequence[Annotation], annotation_resolution: Optional[Vec3D] = None
     ):
+        assert self.index is not None
         if annotation_resolution and annotation_resolution != self.index.resolution:
             annotations = [
                 x.with_converted_coordinates(annotation_resolution, self.index.resolution)
@@ -568,6 +585,7 @@ class AnnotationLayerBackend(
         Read a set of annotations from the given file, which should be in
         'multiple annotation encoding' format.
         """
+        assert self.annotation_type is not None
         data = read_bytes(file_or_gs_path)
         result: list[Annotation] = []
         if data is None or len(data) == 0:
@@ -606,6 +624,7 @@ class AnnotationLayerBackend(
         Note that the returned annotations do NOT include related segment
         IDs; those are only found in the by_id files.
         """
+        assert self.index is not None
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
         result = []
         bounds_size = self.index.shape
@@ -632,6 +651,7 @@ class AnnotationLayerBackend(
     def all_by_id(self):
         """Generator that yields all annotations including related-ID data)
         by iterating over the by_id index."""
+        assert self.annotation_type is not None
         by_id_path = path_join(self.path, "by_id")
         cf = CloudFiles(by_id_path)
         for filename in cf.list():
@@ -649,6 +669,7 @@ class AnnotationLayerBackend(
         """
         Find the maximum number of entries in any chunk at the given level.
         """
+        assert self.index is not None
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
         bounds_size = self.index.shape
         chunk_size = Vec3D(*self.chunk_sizes[level])
@@ -682,6 +703,7 @@ class AnnotationLayerBackend(
         outside the given bounds
         :return: list of LineAnnotation objects
         """
+        assert self.index is not None
         level = len(self.chunk_sizes) - 1
         result = []
         bounds_size_vx = self.index.shape
@@ -813,6 +835,7 @@ class AnnotationLayerBackend(
         This is useful after writing out a bunch of data with
           write_annotations(data, False), which writes to only the lowest-level chunks.
         """
+        assert self.index is not None
         all_data: Optional[list] = None
         if len(self.chunk_sizes) == 1:
             # Special case: only one chunk size, no subdivision.
@@ -844,10 +867,12 @@ class AnnotationLayerBackend(
     # Required overrides for Backend interface
     def read(self, idx: VolumetricIndex) -> Sequence[Annotation]:  # pragma: no cover
         """Read annotations within the given bounds."""
+        assert self.index is not None
         return self.read_in_bounds(BBox3D.from_coords(idx.start, idx.stop, idx.resolution))
 
     def write(self, idx: VolumetricIndex, data: Sequence[Annotation]) -> None:  # pragma: no cover
         """Write annotations to the given bounds."""
+        assert self.index is not None
         self.write_annotations(data, annotation_resolution=idx.resolution)
 
     def with_changes(self, **kwargs) -> "AnnotationLayerBackend":  # pragma: no cover
@@ -884,20 +909,25 @@ class AnnotationLayerBackend(
         pass  # pragma: no cover
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
+        assert self.index is not None
         return round(self.index.start * resolution / self.index.resolution)  # pragma: no cover
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         # Note: it's not clear which chunk size is wanted here; since there
         # are no docs about it, let's just return the first one.
+        assert self.index is not None
         return round(
             Vec3D(*self.chunk_sizes[0]) * resolution / self.index.resolution
         )  # pragma: no cover
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
+        assert self.index is not None
         return round(self.index.shape * resolution / self.index.resolution)  # pragma: no cover
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:
+        assert self.index is not None
         return self.index * resolution / self.index.resolution  # pragma: no cover
 
     def pformat(self) -> str:
+        assert self.index is not None
         return self.index.pformat()  # pragma: no cover

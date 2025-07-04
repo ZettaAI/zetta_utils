@@ -87,11 +87,6 @@ class SimpleWriter:
 
         :param dir_path: path to the directory where files will be written
         """
-        # Write info file
-        info_content = self.format_info()
-        info_file_path = path_join(dir_path, "info")
-        write_bytes(info_file_path, info_content.encode("utf-8"))
-
         # Write by-id index (including relationships)
         self._write_by_id_index(path_join(dir_path, "by_id"))
 
@@ -101,6 +96,11 @@ class SimpleWriter:
         # Write the related-object-id indexes
         for rel in self.relationships:
             self._write_related_index(dir_path, rel)
+
+        # Write info file (AFTER subdivision, so we have accurate limits)
+        info_content = self.format_info()
+        info_file_path = path_join(dir_path, "info")
+        write_bytes(info_file_path, info_content.encode("utf-8"))
 
     def compile_multi_annotation_buffer(
         self,
@@ -169,27 +169,33 @@ class SimpleWriter:
 
         :param by_id_path: complete path to the by_id directory.
         """
-        # In unsharded format, the by_id directory simply contains a little
-        # binary file for each annotation, named with its id.
-        for anno in self.annotations:
-            file_path = path_join(by_id_path, str(anno.id))
-            buffer = io.BytesIO()
-            anno.write(buffer, self.property_specs, self.relationships)
-            write_bytes(file_path, buffer.getvalue())
+        if self.by_id_sharding is None:
+            # In unsharded format, the by_id directory simply contains a little
+            # binary file for each annotation, named with its id.
+            for anno in self.annotations:
+                file_path = path_join(by_id_path, str(anno.id))
+                buffer = io.BytesIO()
+                anno.write(buffer, self.property_specs, self.relationships)
+                write_bytes(file_path, buffer.getvalue())
+        else:
+            # Otherwise, it's a chunk per annotation, shoved into shard files.
+            chunks = []
+            for anno in self.annotations:
+                buffer = io.BytesIO()
+                anno.write(buffer, self.property_specs, self.relationships)
+                chunks.append(Chunk(anno.id, buffer.getvalue()))
+            write_shard_files(by_id_path, self.by_id_sharding, chunks)
 
-    def _write_spatial_index(self, dir_path: str):
+    def _write_spatial_index(
+        self, dir_path: str, prob_per_level: Optional[Sequence[float]] = None
+    ):
         """
-        Write the spatial index for the given set of annotations.  NOTE:
-        this implementation is a quick hack that assumes only 1 spatial
-        level, consisting of only 1 chunk (which contains all annotations).
-
-        :param dir_path: path to the directory containing the info file
+        Write the spatial index for the given set of annotations.
         """
-        level = 0
-        level_key = f"spatial{level}"
-        level_dir = path_join(dir_path, level_key)
-        anno_file_path = path_join(level_dir, "0_0_0")
-        self.write_annotations(anno_file_path, self.annotations, True)
+        if prob_per_level is None:
+            levels = len(self.spatial_specs)
+            prob_per_level = [(i + 1) / float(levels) for i in range(0, levels)]
+        self.subdivide(dir_path, prob_per_level)
 
     def _write_related_index(self, dir_path: str, relation: Relationship):
         """

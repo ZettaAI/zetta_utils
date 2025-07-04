@@ -14,6 +14,8 @@ from zetta_utils.task_management.user import create_user
 def postgres_container():
     """PostgreSQL container for testing"""
     container = PostgresContainer("postgres:15")
+    # Configure with more connections for concurrent tests
+    container.with_command("-c max_connections=50")
     container.start()
     try:
         yield container

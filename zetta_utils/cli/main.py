@@ -115,9 +115,10 @@ def run(
         assert load_mode == "training"
         zetta_utils.load_training_modules()
 
-    # Now import the modules we need
-    from zetta_utils import builder, parsing
-    from zetta_utils.run import run_ctx_manager
+    from zetta_utils import builder, parsing  # pylint: disable=import-outside-toplevel
+    from zetta_utils.run import (  # pylint: disable=import-outside-toplevel
+        run_ctx_manager,
+    )
 
     if path is not None:
         assert str_spec is None, "Exactly one of `path` and `str_spec` must be provided."
@@ -153,7 +154,8 @@ def run(
 @cli.command()
 def show_registry():
     """Display builder registry."""
-    from zetta_utils import builder
+    from zetta_utils import builder  # pylint: disable=import-outside-toplevel
+
     logger.critical(pprint.pformat(builder.REGISTRY, indent=4))
 
 

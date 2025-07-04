@@ -2,7 +2,7 @@
 
 # pylint: disable=unused-argument,redefined-outer-name
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from click.testing import CliRunner
 
@@ -18,6 +18,9 @@ from zetta_utils.task_management.automated_workers.segmentation_auto_verifier im
     run_worker,
 )
 from zetta_utils.task_management.db.models import TimesheetModel
+
+# Module path constant to avoid long lines
+_SAV = "zetta_utils.task_management.automated_workers.segmentation_auto_verifier"
 
 
 class TestSegmentSkeleton:
@@ -84,15 +87,14 @@ class TestUtilityFunctions:
 class TestGetSkeleton:
     """Test get_skeleton function"""
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.pcg_skel")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.CAVEclient")
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier.build_cv_layer"
-    )
-    def test_get_skeleton_success(self, mock_build_cv, _, mock_pcg_skel):
+    def test_get_skeleton_success(self, mocker):
         """Test successfully getting skeleton"""
         # Setup mocks
         import numpy as np  # pylint: disable=import-outside-toplevel
+
+        mock_build_cv = mocker.patch(f"{_SAV}.build_cv_layer")
+        mocker.patch(f"{_SAV}.CAVEclient")
+        mock_pcg_skel = mocker.patch(f"{_SAV}.pcg_skel")
 
         mock_layer = Mock()
         # Mock the slicing operation to return a numpy array
@@ -115,25 +117,23 @@ class TestGetSkeleton:
         assert result.segment_id == 67890
         assert result.skeleton == mock_skeleton
 
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier.build_cv_layer"
-    )
-    def test_get_skeleton_no_target_location(self, mock_build_cv):
+    def test_get_skeleton_no_target_location(self, mocker):
         """Test get_skeleton with no target location"""
+        mock_build_cv = mocker.patch(f"{_SAV}.build_cv_layer")
+
         ng_dict: dict[str, list] = {"layers": []}
         result = get_skeleton(ng_dict, "gs://test", [8, 8, 40], [16, 16, 40])
         assert result is None
         mock_build_cv.assert_not_called()
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.pcg_skel")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.CAVEclient")
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier.build_cv_layer"
-    )
-    def test_get_skeleton_retry_on_unavailable(self, mock_build_cv, _, mock_pcg_skel):
+    def test_get_skeleton_retry_on_unavailable(self, mocker):
         """Test get_skeleton retries on unavailable error"""
         # Setup layer mock
         import numpy as np  # pylint: disable=import-outside-toplevel
+
+        mock_build_cv = mocker.patch(f"{_SAV}.build_cv_layer")
+        mocker.patch(f"{_SAV}.CAVEclient")
+        mock_pcg_skel = mocker.patch(f"{_SAV}.pcg_skel")
 
         mock_layer = Mock()
         mock_layer.__getitem__ = Mock(return_value=np.array([[[67890]]]))
@@ -158,18 +158,18 @@ class TestGetSkeleton:
 class TestProcessTask:
     """Test process_task function"""
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.release_task")
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier."
-        "get_task_timesheet_summary"
-    )
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_skeleton")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_task")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.slack_client")
-    def test_process_task_pass(
-        self, mock_slack, mock_get_task, mock_get_skeleton, mock_timesheet, mock_release
-    ):
+    def test_process_task_pass(self, mocker):
         """Test processing a task that passes verification"""
+        # Setup mocks
+        mock_get_slack_client = mocker.patch(f"{_SAV}.get_slack_client")
+        mock_slack = Mock()
+        mock_get_slack_client.return_value = mock_slack
+
+        mock_release = mocker.patch(f"{_SAV}.release_task")
+        mock_get_task = mocker.patch(f"{_SAV}.get_task")
+        mock_get_skeleton = mocker.patch(f"{_SAV}.get_skeleton")
+        mock_timesheet = mocker.patch(f"{_SAV}.get_task_timesheet_summary")
+
         # Setup task details
         mock_get_task.side_effect = [
             {
@@ -220,18 +220,18 @@ class TestProcessTask:
         assert "✅" in call_args["text"]
         assert "2.50 mm" in call_args["text"]
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.release_task")
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier."
-        "get_task_timesheet_summary"
-    )
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_skeleton")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_task")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.slack_client")
-    def test_process_task_fail(
-        self, mock_slack, mock_get_task, mock_get_skeleton, mock_timesheet, mock_release
-    ):
+    def test_process_task_fail(self, mocker):
         """Test processing a task that fails verification"""
+        # Setup mocks
+        mock_get_slack_client = mocker.patch(f"{_SAV}.get_slack_client")
+        mock_slack = Mock()
+        mock_get_slack_client.return_value = mock_slack
+
+        mock_release = mocker.patch(f"{_SAV}.release_task")
+        mock_get_task = mocker.patch(f"{_SAV}.get_task")
+        mock_get_skeleton = mocker.patch(f"{_SAV}.get_skeleton")
+        mock_timesheet = mocker.patch(f"{_SAV}.get_task_timesheet_summary")
+
         # Setup task details
         mock_get_task.side_effect = [
             {
@@ -288,17 +288,14 @@ class TestProcessTask:
         assert "<@user1>" in thread_call["text"]
         assert "<@user2>" in thread_call["text"]
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.release_task")
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier."
-        "get_task_timesheet_summary"
-    )
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_skeleton")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_task")
-    def test_process_task_no_skeleton(
-        self, mock_get_task, mock_get_skeleton, mock_timesheet, mock_release
-    ):
+    def test_process_task_no_skeleton(self, mocker):
         """Test processing task when skeleton retrieval fails"""
+        # Setup mocks
+        mock_release = mocker.patch(f"{_SAV}.release_task")
+        mock_get_task = mocker.patch(f"{_SAV}.get_task")
+        mock_get_skeleton = mocker.patch(f"{_SAV}.get_skeleton")
+        mock_timesheet = mocker.patch(f"{_SAV}.get_task_timesheet_summary")
+
         mock_get_task.side_effect = [
             {
                 "task_id": "verify123",
@@ -335,9 +332,10 @@ class TestProcessTask:
             completion_status="fail",
         )
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.get_task")
-    def test_process_task_missing_trace_id(self, mock_get_task):
+    def test_process_task_missing_trace_id(self, mocker):
         """Test processing task with missing trace_task_id"""
+        mock_get_task = mocker.patch(f"{_SAV}.get_task")
+
         mock_get_task.return_value = {
             "task_id": "verify123",
             "task_type": "segmentation_auto_verify",
@@ -372,12 +370,10 @@ class TestGetTaskTimesheetSummary:
         # but we can verify it works through the main function
         # Tested via test_get_task_timesheet_summary
 
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier."
-        "get_session_context"
-    )
-    def test_get_task_timesheet_summary(self, mock_session_context):
+    def test_get_task_timesheet_summary(self, mocker):
         """Test getting timesheet summary"""
+        mock_session_context = mocker.patch(f"{_SAV}.get_session_context")
+
         # Create mock timesheets
         timesheet1 = Mock(spec=TimesheetModel)
         timesheet1.seconds_spent = 1800
@@ -412,12 +408,10 @@ class TestGetTaskTimesheetSummary:
         assert "user2" in breakdown_str
         assert "1h 0m 0s" in breakdown_str
 
-    @patch(
-        "zetta_utils.task_management.automated_workers.segmentation_auto_verifier."
-        "get_session_context"
-    )
-    def test_get_task_timesheet_summary_no_entries(self, mock_session_context):
+    def test_get_task_timesheet_summary_no_entries(self, mocker):
         """Test timesheet summary with no entries"""
+        mock_session_context = mocker.patch(f"{_SAV}.get_session_context")
+
         mock_session = Mock()
         mock_session.execute.return_value.scalars.return_value.all.return_value = []
         mock_session_context.return_value.__enter__.return_value = mock_session
@@ -433,11 +427,13 @@ class TestGetTaskTimesheetSummary:
 class TestRunWorker:
     """Test run_worker function"""
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.time.sleep")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.process_task")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.start_task")
-    def test_run_worker_with_tasks(self, mock_start_task, mock_process_task, _):
+    def test_run_worker_with_tasks(self, mocker):
         """Test worker processing tasks"""
+        # Setup mocks
+        mocker.patch(f"{_SAV}.time.sleep")
+        mock_process_task = mocker.patch(f"{_SAV}.process_task")
+        mock_start_task = mocker.patch(f"{_SAV}.start_task")
+
         # Simulate getting a task then keyboard interrupt
         mock_start_task.side_effect = ["task123", KeyboardInterrupt]
 
@@ -468,10 +464,12 @@ class TestRunWorker:
         mock_process_task.assert_called_once()
         assert "Tasks Processed: 1" in result.output
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.time.sleep")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.start_task")
-    def test_run_worker_no_tasks(self, mock_start_task, mock_sleep):
+    def test_run_worker_no_tasks(self, mocker):
         """Test worker when no tasks available"""
+        # Setup mocks
+        mock_sleep = mocker.patch(f"{_SAV}.time.sleep")
+        mock_start_task = mocker.patch(f"{_SAV}.start_task")
+
         # Return None (no tasks) then keyboard interrupt
         mock_start_task.side_effect = [None, KeyboardInterrupt]
 
@@ -500,11 +498,13 @@ class TestRunWorker:
         mock_sleep.assert_called_with(5.0)
         assert "Tasks Processed: 0" in result.output
 
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.time.sleep")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.process_task")
-    @patch("zetta_utils.task_management.automated_workers.segmentation_auto_verifier.start_task")
-    def test_run_worker_with_error(self, mock_start_task, mock_process_task, mock_sleep):
+    def test_run_worker_with_error(self, mocker):
         """Test worker handling errors during processing"""
+        # Setup mocks
+        mock_sleep = mocker.patch(f"{_SAV}.time.sleep")
+        mock_process_task = mocker.patch(f"{_SAV}.process_task")
+        mock_start_task = mocker.patch(f"{_SAV}.start_task")
+
         mock_start_task.side_effect = ["task123", None, KeyboardInterrupt]
         mock_process_task.side_effect = Exception("Processing error")
 

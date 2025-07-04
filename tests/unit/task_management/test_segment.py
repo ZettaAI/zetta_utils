@@ -2,9 +2,9 @@
 
 # pylint: disable=unused-argument,redefined-outer-name
 
-import contextlib
 import os
 import random
+import uuid
 from datetime import datetime, timezone
 
 import numpy as np
@@ -69,7 +69,7 @@ def test_get_segment_id_current(existing_project, db_session, project_name, mock
 
     mocker.patch("zetta_utils.task_management.segment.build_cv_layer", return_value=mock_layer)
 
-    segment_id = get_segment_id(project_name, coordinate, initial=False)
+    segment_id = get_segment_id(project_name, coordinate, initial=False, db_session=db_session)
 
     assert segment_id == 67890
 
@@ -84,7 +84,7 @@ def test_get_segment_id_initial(existing_project, db_session, project_name, mock
 
     mocker.patch("zetta_utils.task_management.segment.build_cv_layer", return_value=mock_layer)
 
-    segment_id = get_segment_id(project_name, coordinate, initial=True)
+    segment_id = get_segment_id(project_name, coordinate, initial=True, db_session=db_session)
 
     assert segment_id == 12345
 
@@ -92,7 +92,7 @@ def test_get_segment_id_initial(existing_project, db_session, project_name, mock
 def test_get_segment_id_project_not_found(db_session):
     """Test getting segment ID when project doesn't exist"""
     with pytest.raises(ValueError, match="Project 'nonexistent' not found"):
-        get_segment_id("nonexistent", [100.0, 200.0, 300.0])
+        get_segment_id("nonexistent", [100.0, 200.0, 300.0], db_session=db_session)
 
 
 def test_convert_to_sv_resolution():
@@ -113,16 +113,6 @@ def test_get_skeleton_length_mm_success(existing_project, db_session, project_na
     # Set up the auth token
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # Mock the database query since the function creates its own session
-    mock_project = mocker.Mock()
-    mock_project.datastack_name = "test_datastack"
-
-    mock_session = mocker.Mock()
-    mock_session.query.return_value.filter_by.return_value.first.return_value = mock_project
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context"
-    ).__enter__.return_value = mock_session
-
     # Mock the external dependencies
     mock_skeleton = mocker.Mock()
     mock_skeleton.path_length.return_value = 1500000  # 1.5 mm (1,500,000 nm)
@@ -132,7 +122,7 @@ def test_get_skeleton_length_mm_success(existing_project, db_session, project_na
     )
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
-    length_mm = get_skeleton_length_mm(project_name, segment_id)
+    length_mm = get_skeleton_length_mm(project_name, segment_id, db_session=db_session)
 
     assert length_mm == 1.5
 
@@ -150,27 +140,20 @@ def test_get_skeleton_length_mm_no_datastack(clean_db, db_session, project_name)
     )
 
     with pytest.raises(ValueError, match="does not have a datastack_name configured"):
-        get_skeleton_length_mm(project_name, 67890)
+        get_skeleton_length_mm(project_name, 67890, db_session=db_session)
 
 
 def test_get_skeleton_length_mm_exception(existing_project, db_session, project_name, mocker):
     """Test handling exception when getting skeleton fails"""
-    # Mock the database query
-    mock_project = mocker.Mock()
-    mock_project.datastack_name = "test_datastack"
-
-    mock_session = mocker.Mock()
-    mock_session.query.return_value.filter_by.return_value.first.return_value = mock_project
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context"
-    ).__enter__.return_value = mock_session
+    # Set up the auth token
+    mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
     mocker.patch(
         "zetta_utils.task_management.segment.CAVEclient",
         side_effect=Exception("Connection failed"),
     )
 
-    length_mm = get_skeleton_length_mm(project_name, 67890)
+    length_mm = get_skeleton_length_mm(project_name, 67890, db_session=db_session)
 
     assert length_mm is None
 
@@ -183,27 +166,6 @@ def test_update_segment_statistics_success(
 
     # Set up auth token
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
-
-    # Mock the database queries since the function creates its own session
-    mock_project = mocker.Mock()
-    mock_project.datastack_name = "test_datastack"
-    mock_project.synapse_table = "test_synapse_table"
-
-    mock_segment = mocker.Mock()
-    mock_segment.current_segment_id = 67890
-
-    mock_session = mocker.Mock()
-    # Mock both project and segment queries
-    mock_session.query.return_value.filter_by.return_value.first.side_effect = [
-        mock_segment,
-        mock_project,
-    ]
-    # Mock the commit
-    mock_session.commit = mocker.Mock()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context"
-    ).__enter__.return_value = mock_session
 
     # Mock skeleton
     mock_skeleton = mocker.Mock()
@@ -220,7 +182,7 @@ def test_update_segment_statistics_success(
     ]
     mocker.patch("zetta_utils.task_management.segment.CAVEclient", return_value=mock_client)
 
-    result = update_segment_statistics(project_name, seed_id)
+    result = update_segment_statistics(project_name, seed_id, db_session=db_session)
 
     assert result == {
         "skeleton_path_length_mm": 2.5,
@@ -253,27 +215,10 @@ def test_update_segment_statistics_no_current_segment_id(
     # Mock environment variables to prevent CAVEclient from writing config files
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # The function creates its own session, so we need to mock get_session_context
-    # to return our test session that has the data
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
-
     # Mock CAVEclient to prevent config file creation (though it shouldn't be called)
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
-    result = update_segment_statistics(project_name, 99999)
+    result = update_segment_statistics(project_name, 99999, db_session=db_session)
 
     assert result == {"error": "No current_segment_id"}
 
@@ -317,7 +262,7 @@ def test_update_segment_statistics_skeleton_error(
     ]
     mocker.patch("zetta_utils.task_management.segment.CAVEclient", return_value=mock_client)
 
-    result = update_segment_statistics(project_name, 12345)
+    result = update_segment_statistics(project_name, 12345, db_session=db_session)
 
     assert "skeleton_error" in result
     assert result["pre_synapse_count"] == 1
@@ -361,7 +306,7 @@ def test_update_segment_statistics_synapse_error(
     mock_client.materialize.synapse_query.side_effect = Exception("Query failed")
     mocker.patch("zetta_utils.task_management.segment.CAVEclient", return_value=mock_client)
 
-    result = update_segment_statistics(project_name, 12345)
+    result = update_segment_statistics(project_name, 12345, db_session=db_session)
 
     assert result["skeleton_path_length_mm"] == 1.0
     assert "synapse_error" in result
@@ -374,28 +319,11 @@ def test_update_segment_statistics_segment_not_found(
     # Mock environment variables to prevent CAVEclient from writing config files
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # The function creates its own session, so we need to mock get_session_context
-    # to return our test session
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
-
     # Mock CAVEclient to prevent config file creation (though it shouldn't be called)
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
     with pytest.raises(ValueError, match="Segment with seed_id 99999 not found"):
-        update_segment_statistics(project_name, 99999)
+        update_segment_statistics(project_name, 99999, db_session=db_session)
 
 
 def test_update_segment_statistics_no_synapse_table(clean_db, db_session, project_name, mocker):
@@ -432,27 +360,11 @@ def test_update_segment_statistics_no_synapse_table(clean_db, db_session, projec
     # Mock environment variables to prevent CAVEclient from writing config files
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # The function creates its own session, so we need to mock get_session_context
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
-
     # Mock CAVEclient to prevent config file creation (though it shouldn't be called)
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
     with pytest.raises(ValueError, match="does not have a synapse_table configured"):
-        update_segment_statistics(project_name, 12345)
+        update_segment_statistics(project_name, 12345, db_session=db_session)
 
 
 def test_create_segment_from_coordinate_success(
@@ -464,21 +376,7 @@ def test_create_segment_from_coordinate_success(
     # Use a unique seed ID that doesn't exist in the database
     new_seed_id = random.randint(1000000, 9999999)
 
-    # Mock the database session to use the test database
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
+    # No need to mock session anymore
 
     # Mock the volume layer to return segment IDs
     mock_layer1 = mocker.Mock()
@@ -500,6 +398,7 @@ def test_create_segment_from_coordinate_success(
         segment_type="type_A",
         expected_segment_type="type_A",
         extra_data={"notes": "test segment"},
+        db_session=db_session,
     )
 
     assert segment["seed_id"] == new_seed_id
@@ -537,7 +436,7 @@ def test_create_segment_from_coordinate_no_supervoxel(
     mocker.patch("zetta_utils.task_management.segment.build_cv_layer", return_value=mock_layer)
 
     with pytest.raises(ValueError, match="No supervoxel found at coordinate"):
-        create_segment_from_coordinate(project_name, coordinate)
+        create_segment_from_coordinate(project_name, coordinate, db_session=db_session)
 
 
 def test_create_segment_from_coordinate_already_exists(
@@ -558,7 +457,7 @@ def test_create_segment_from_coordinate_already_exists(
     )
 
     with pytest.raises(ValueError, match="Segment with seed_id 12345 already exists"):
-        create_segment_from_coordinate(project_name, coordinate)
+        create_segment_from_coordinate(project_name, coordinate, db_session=db_session)
 
 
 def test_create_segment_from_coordinate_no_current_segment(
@@ -570,21 +469,7 @@ def test_create_segment_from_coordinate_no_current_segment(
     # Use unique seed ID
     new_seed_id = random.randint(10000000, 99999999)
 
-    # Mock the database session to use the test database
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
+    # No need to mock session anymore
 
     # Mock layer to return 0 for current_segment_id
     mock_layer1 = mocker.Mock()
@@ -599,7 +484,7 @@ def test_create_segment_from_coordinate_no_current_segment(
         side_effect=[mock_layer1, mock_layer2],
     )
 
-    segment = create_segment_from_coordinate(project_name, coordinate)
+    segment = create_segment_from_coordinate(project_name, coordinate, db_session=db_session)
 
     assert segment["seed_id"] == new_seed_id
     assert segment["current_segment_id"] is None  # Should be None when 0
@@ -613,14 +498,22 @@ def test_create_segment_from_coordinate_no_current_segment(
     assert saved_segment.current_segment_id is None
 
 
-def test_create_segment_from_coordinate_minimal(
-    existing_project, db_session, project_name, mocker
-):
+def test_create_segment_from_coordinate_minimal(clean_db, db_session, project_name, mocker):
     """Test creating segment with minimal parameters"""
+    # First create the project
+    create_project(
+        project_name=project_name,
+        segmentation_path="precomputed://gs://test-bucket/segmentation",
+        sv_resolution_x=8.0,
+        sv_resolution_y=8.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+
     coordinate = [100.0, 200.0, 300.0]
 
-    # Use unique seed ID
-    new_seed_id = random.randint(100000000, 999999999)
+    # Use a very large unique seed ID based on test run
+    new_seed_id = int(str(uuid.uuid4().int)[:9])
 
     # Mock layer
     mock_layer1 = mocker.Mock()
@@ -635,7 +528,7 @@ def test_create_segment_from_coordinate_minimal(
         side_effect=[mock_layer1, mock_layer2],
     )
 
-    segment = create_segment_from_coordinate(project_name, coordinate)
+    segment = create_segment_from_coordinate(project_name, coordinate, db_session=db_session)
 
     # Verify required fields are present
     assert segment["seed_id"] == new_seed_id
@@ -652,58 +545,35 @@ def test_create_segment_from_coordinate_minimal(
 
 def test_get_skeleton_length_mm_project_not_found(db_session, mocker):
     """Test getting skeleton length when project doesn't exist"""
-    # Mock the database query to return None
-    mock_session = mocker.Mock()
-    mock_session.query.return_value.filter_by.return_value.first.return_value = None
-
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield mock_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
-
+    # The project won't exist in our test database
     with pytest.raises(ValueError, match="Project 'nonexistent' not found!"):
-        get_skeleton_length_mm("nonexistent", 12345)
+        get_skeleton_length_mm("nonexistent", 12345, db_session=db_session)
 
 
-def test_update_segment_statistics_project_not_found(db_session, mocker):
+def test_update_segment_statistics_project_not_found(db_session, project_name, mocker):
     """Test updating statistics when project doesn't exist"""
     # Mock environment variables
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # First query returns segment, second returns None for project
-    mock_segment = mocker.Mock()
-    mock_segment.current_segment_id = 67890
-
-    mock_session = mocker.Mock()
-    mock_session.query.return_value.filter_by.return_value.first.side_effect = [mock_segment, None]
-
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield mock_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
+    # Create a segment but no project (simulating a bad state)
+    segment = SegmentModel(
+        project_name="nonexistent_project",
+        seed_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        current_segment_id=67890,
+        task_ids=[],
+        status="WIP",
+        is_exported=False,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
     )
+    db_session.add(segment)
+    db_session.commit()
 
-    with pytest.raises(ValueError, match="Project 'test_project' not found!"):
-        update_segment_statistics("test_project", 12345)
+    with pytest.raises(ValueError, match="Project 'nonexistent_project' not found!"):
+        update_segment_statistics("nonexistent_project", 12345, db_session=db_session)
 
 
 def test_update_segment_statistics_no_datastack_name(
@@ -734,24 +604,8 @@ def test_update_segment_statistics_no_datastack_name(
     # Mock environment variables
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # Mock get_session_context to use our test session
-    def mock_get_session_context():
-        @contextlib.contextmanager
-        def context():
-            try:
-                yield db_session
-            finally:
-                pass
-
-        return context()
-
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_session_context",
-        side_effect=mock_get_session_context,
-    )
-
     # Mock CAVEclient to prevent config file creation
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
     with pytest.raises(ValueError, match="does not have a datastack_name configured!"):
-        update_segment_statistics(project_name, 88888)
+        update_segment_statistics(project_name, 88888, db_session=db_session)

@@ -27,10 +27,16 @@ from zetta_utils.task_management.db.models import TimesheetModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.task import get_task, release_task, start_task
 
-slack_client = WebClient(token=os.environ["ZETTA_PROOFREDING_BOT_SLACK_TOKEN"])
-
 logger = log.get_logger()
 console = Console()
+
+
+def get_slack_client() -> WebClient | None:
+    """Get Slack client if token is available."""
+    token = os.environ.get("ZETTA_PROOFREDING_BOT_SLACK_TOKEN")
+    if token:
+        return WebClient(token=token)
+    return None
 
 
 @attrs.mutable
@@ -242,32 +248,40 @@ def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-
     # Send Slack notification
     logger.info(f"Sending Slack message for completed task {trace_task_id}")
     if slack_channel:
-        try:
-            # Send main message
-            response = slack_client.chat_postMessage(
-                channel=slack_channel, text=summary_message, unfurl_links=False, unfurl_media=False
-            )
-            console.print(f"[green]✅ Sent Slack notification to {slack_channel}[/green]")
-
-            # If verification failed and we have users to tag, create a thread
-            if not verification_pass and slack_users:
-                thread_ts = response["ts"]
-                # Create user mentions
-                user_mentions = " ".join([f"<@{user}>" for user in slack_users])
-                thread_message = (
-                    f"{user_mentions} This task failed skeleton verification. Please review."
+        slack_client = get_slack_client()
+        if slack_client:
+            try:
+                # Send main message
+                response = slack_client.chat_postMessage(
+                    channel=slack_channel,
+                    text=summary_message,
+                    unfurl_links=False,
+                    unfurl_media=False,
                 )
+                console.print(f"[green]✅ Sent Slack notification to {slack_channel}[/green]")
 
-                slack_client.chat_postMessage(
-                    channel=slack_channel, thread_ts=thread_ts, text=thread_message
-                )
-                console.print(
-                    f"[yellow]📢 Tagged users in thread: {', '.join(slack_users)}[/yellow]"
-                )
+                # If verification failed and we have users to tag, create a thread
+                if not verification_pass and slack_users:
+                    thread_ts = response["ts"]
+                    # Create user mentions
+                    user_mentions = " ".join([f"<@{user}>" for user in slack_users])
+                    thread_message = (
+                        f"{user_mentions} This task failed skeleton verification. Please review."
+                    )
 
-        except SlackApiError as e:
-            logger.error(f"Failed to send Slack message: {e}")
-            console.print(f"[red]❌ Failed to send Slack notification: {e}[/red]")
+                    slack_client.chat_postMessage(
+                        channel=slack_channel, thread_ts=thread_ts, text=thread_message
+                    )
+                    console.print(
+                        f"[yellow]📢 Tagged users in thread: {', '.join(slack_users)}[/yellow]"
+                    )
+
+            except SlackApiError as e:
+                logger.error(f"Failed to send Slack message: {e}")
+                console.print(f"[red]❌ Failed to send Slack notification: {e}[/red]")
+        else:
+            logger.warning("Slack token not found in environment, skipping notification")
+            console.print("[yellow]⚠️ Slack token not configured, skipping notification[/yellow]")
 
     # Display skeleton info in console
     if skeleton_info:

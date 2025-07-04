@@ -22,7 +22,9 @@ from zetta_utils.task_management.types import Segment
 logger = log.get_logger()
 
 
-def get_segment_id(project_name: str, coordinate: list[float], initial: bool = False) -> int:
+def get_segment_id(
+    project_name: str, coordinate: list[float], initial: bool = False, db_session: Any = None
+) -> int:
     """
     Get the segment ID at the given coordinate for a project.
 
@@ -30,11 +32,12 @@ def get_segment_id(project_name: str, coordinate: list[float], initial: bool = F
         project_name: Name of the project
         coordinate: [x, y, z] coordinate at SV resolution
         initial: If True, get initial supervoxel ID. If False, get current agglomerated segment ID.
+        db_session: Optional database session to use
 
     Returns:
         Segment ID at the coordinate
     """
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         project = session.query(ProjectModel).filter_by(project_name=project_name).first()
         if not project:
             raise ValueError(f"Project '{project_name}' not found!")
@@ -85,6 +88,7 @@ def get_skeleton_length_mm(
     project_name: str,
     segment_id: int,
     server_address: str = "https://proofreading.zetta.ai",
+    db_session: Any = None,
 ) -> float | None:
     """
     Get the skeleton length for a segment in millimeters.
@@ -93,12 +97,13 @@ def get_skeleton_length_mm(
         project_name: Name of the project
         segment_id: The segment ID to get the skeleton for
         server_address: CAVE server address (default: "https://proofreading.zetta.ai")
+        db_session: Optional database session to use
 
     Returns:
         Skeleton length in millimeters, or None if skeleton cannot be retrieved
     """
     # Get datastack name from project
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         project = session.query(ProjectModel).filter_by(project_name=project_name).first()
         if not project:
             raise ValueError(f"Project '{project_name}' not found!")
@@ -139,6 +144,7 @@ def update_segment_statistics(
     project_name: str,
     seed_id: int,
     server_address: str = "https://proofreading.zetta.ai",
+    db_session: Any = None,
 ) -> dict:
     """
     Compute and update skeleton length and synapse counts for a segment.
@@ -147,11 +153,12 @@ def update_segment_statistics(
         project_name: Name of the project
         seed_id: Seed supervoxel ID (primary key)
         server_address: CAVE server address
+        db_session: Optional database session to use
 
     Returns:
         Dictionary with updated statistics
     """
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         # Get segment and project
         segment = (
             session.query(SegmentModel)
@@ -240,6 +247,7 @@ def create_segment_from_coordinate(
     segment_type: str | None = None,
     expected_segment_type: str | None = None,
     extra_data: dict | None = None,
+    db_session: Any = None,
 ) -> Segment:
     """
     Create a new segment given a coordinate.
@@ -251,6 +259,7 @@ def create_segment_from_coordinate(
         segment_type: Optional segment type
         expected_segment_type: Optional expected segment type
         extra_data: Optional extra data dictionary
+        db_session: Optional database session to use
 
     Returns:
         The created Segment
@@ -259,15 +268,17 @@ def create_segment_from_coordinate(
         ValueError: If project not found or segment already exists
     """
     # Get the initial supervoxel ID at the coordinate (seed_id)
-    seed_id = get_segment_id(project_name, coordinate, initial=True)
+    seed_id = get_segment_id(project_name, coordinate, initial=True, db_session=db_session)
 
     if seed_id == 0:
         raise ValueError(f"No supervoxel found at coordinate {coordinate}")
 
     # Get the current agglomerated segment ID
-    current_segment_id = get_segment_id(project_name, coordinate, initial=False)
+    current_segment_id = get_segment_id(
+        project_name, coordinate, initial=False, db_session=db_session
+    )
 
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         # Check if segment already exists
         existing_segment = (
             session.query(SegmentModel)

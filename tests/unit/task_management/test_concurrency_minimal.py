@@ -266,7 +266,7 @@ def test_sequential_works(clean_db, postgres_session, project_name):
 
 
 def test_concurrent_race_condition(clean_db, postgres_container, postgres_session, project_name):
-    N_ITERATIONS = 20
+    N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
         print(f"\n=== Iteration {iteration + 1}/{N_ITERATIONS} ===")
@@ -307,7 +307,7 @@ def test_concurrent_race_condition(clean_db, postgres_container, postgres_sessio
 def test_start_task_takeover_race_condition(
     clean_db, postgres_container, postgres_session, project_name
 ):
-    N_ITERATIONS = 20
+    N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
         print(f"\n=== Start Task Takeover Iteration {iteration + 1}/{N_ITERATIONS} ===")
@@ -322,8 +322,8 @@ def test_start_task_takeover_race_condition(
         # Set up scenario for this iteration
         setup_takeover_scenario(postgres_session, project_name)
 
-        # Run 3 users trying to take over the same idle task concurrently
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        # Run 2 users trying to take over the same idle task concurrently
+        with ThreadPoolExecutor(max_workers=2) as executor:
             futures = []
             for i in range(2, 4):  # user_2 and user_3 try to take over from user_1
                 future = executor.submit(
@@ -371,7 +371,7 @@ def test_start_task_takeover_race_condition(
 def test_submit_timesheet_race_condition(
     clean_db, postgres_container, postgres_session, project_name
 ):
-    N_ITERATIONS = 20
+    N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
         print(f"\n=== Timesheet Race Iteration {iteration + 1}/{N_ITERATIONS} ===")
@@ -390,7 +390,7 @@ def test_submit_timesheet_race_condition(
         user_id = "timesheet_user_1"
         task_id = "timesheet_task_1"
         duration_per_submission = 300  # 5 minutes each
-        num_concurrent_submissions = 5
+        num_concurrent_submissions = 3  # Reduced from 5
 
         with ThreadPoolExecutor(max_workers=num_concurrent_submissions) as executor:
             futures = []

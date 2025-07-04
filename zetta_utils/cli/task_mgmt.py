@@ -20,18 +20,20 @@ Shorthand options:
 import json
 import time
 import urllib.parse
-from typing import Optional
+from typing import Any, Optional
 
 import click
 from rich.console import Console
 from rich.table import Table
-from rich.text import Text
+from sqlalchemy import func, select
 
 from zetta_utils.task_management.clear_project import (
     clear_project_data,
     clear_project_task_types,
     clear_project_users,
 )
+from zetta_utils.task_management.db.models import TaskModel
+from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment_link import get_segment_link
 
 # Job import removed - job concept no longer exists
@@ -58,7 +60,7 @@ def create_neuroglancer_link(ng_state: str) -> str:
     return f"https://spelunker.cave-explorer.org/#!{encoded_state}"
 
 
-def print_task_details(task_details: dict):
+def print_task_details(task_details: dict[str, Any]):
     """Print task details in a formatted table using rich."""
     table = Table(title="Task Details", show_header=True, header_style="bold magenta")
     table.add_column("Field", style="cyan", no_wrap=True, width=20)
@@ -99,14 +101,13 @@ def print_task_details(task_details: dict):
     # Add neuroglancer link outside table for easy clicking
     if "ng_state" in task_details and task_details["ng_state"]:
         ng_link = create_neuroglancer_link(task_details["ng_state"])
-        console.print(f"\n🔗 Neuroglancer Link:", style="bold cyan")
+        console.print("\n🔗 Neuroglancer Link:", style="bold cyan")
         console.print(ng_link, style="blue underline")
 
 
 @click.group()
 def task_mgmt():
     """Task management commands."""
-    pass
 
 
 @task_mgmt.command()
@@ -138,7 +139,7 @@ def start(project_name: str, user_id: str, task_id: Optional[str]):
 
         # Get and display task details
         task_details = get_task(project_name=project_name, task_id=result_task_id)
-        print_task_details(task_details)
+        print_task_details(dict(task_details))
         print_timing("start_task", elapsed_time)
 
     except Exception as e:
@@ -159,7 +160,7 @@ def get(project_name: str, task_id: str):
         task_details = get_task(project_name=project_name, task_id=task_id)
         elapsed_time = time.time() - start_time
         console.print(f"✅ Retrieved task: {task_id}", style="green")
-        print_task_details(task_details)
+        print_task_details(dict(task_details))
         print_timing("get_task", elapsed_time)
 
     except Exception as e:
@@ -215,7 +216,7 @@ def release(project_name: str, task_id: Optional[str], user_id: str, completion_
 
             # Get and display updated task details
             task_details = get_task(project_name=project_name, task_id=task_id)
-            print_task_details(task_details)
+            print_task_details(dict(task_details))
         else:
             console.print(f"❌ Failed to release task: {task_id}", style="red")
 
@@ -309,7 +310,7 @@ def reactivate(project_name: str, task_id: str):
 
             # Get and display updated task details
             task_details = get_task(project_name=project_name, task_id=task_id)
-            print_task_details(task_details)
+            print_task_details(dict(task_details))
         else:
             console.print(f"❌ Failed to reactivate task: {task_id}", style="red")
 
@@ -327,7 +328,9 @@ def reactivate(project_name: str, task_id: str):
 @click.option("--include-users", "-u", is_flag=True, help="Also clear users")
 @click.option("--include-task-types", "-t", is_flag=True, help="Also clear task types")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation prompt")
-def clear(project_name: str, include_users: bool, include_task_types: bool, force: bool):
+def clear(  # pylint: disable=too-many-statements
+    project_name: str, include_users: bool, include_task_types: bool, force: bool
+):
     """Clear all tasks and timesheets from a project.
 
     WARNING: This is a destructive operation that cannot be undone!
@@ -338,10 +341,6 @@ def clear(project_name: str, include_users: bool, include_task_types: bool, forc
     try:
         # Get task counts
         # Need to count ALL tasks, including inactive ones
-        from sqlalchemy import func, select
-
-        from zetta_utils.task_management.db.models import TaskModel
-        from zetta_utils.task_management.db.session import get_session_context
 
         with get_session_context() as session:
             # Count ALL tasks (active and inactive)
@@ -356,13 +355,13 @@ def clear(project_name: str, include_users: bool, include_task_types: bool, forc
                 select(func.count())
                 .select_from(TaskModel)
                 .where(TaskModel.project_name == project_name)
-                .where(TaskModel.is_active == True)
+                .where(TaskModel.is_active.is_(True))
             ).scalar_one()
 
             inactive_tasks = total_tasks - active_tasks
 
         # Show what will be deleted with counts
-        console.print(f"\n[bold red]⚠️  WARNING: Destructive Operation![/bold red]")
+        console.print("\n[bold red]⚠️  WARNING: Destructive Operation![/bold red]")
         console.print(f"\nThis will permanently delete from project '{project_name}':")
         console.print(f"  • [yellow]{total_tasks}[/yellow] tasks")
         # Jobs removed - job concept no longer exists
@@ -381,14 +380,15 @@ def clear(project_name: str, include_users: bool, include_task_types: bool, forc
             )
         # Job breakdown removed - job concept no longer exists
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         console.print(f"[yellow]⚠️  Could not fetch counts: {e}[/yellow]")
         console.print("Proceeding without count information...")
 
     # Confirmation prompt - always require typing project name unless --force
     if not force:
         console.print(
-            f"\n[bold yellow]To confirm deletion, type the project name: [red]{project_name}[/red][/bold yellow]"
+            f"\n[bold yellow]To confirm deletion, type the project name: "
+            f"[red]{project_name}[/red][/bold yellow]"
         )
         confirmation = input("> ")
 
@@ -455,7 +455,7 @@ def segment_link(project_name: str, seed_id: int, include_endpoints: bool):
         console.print(f"✅ Generated link for segment with seed_id {seed_id}", style="green")
         if not include_endpoints:
             console.print("   (endpoints excluded)", style="dim")
-        console.print(f"\n🔗 Neuroglancer Link:", style="bold cyan")
+        console.print("\n🔗 Neuroglancer Link:", style="bold cyan")
         console.print(link, style="blue underline")
 
         print_timing("segment_link", elapsed_time)

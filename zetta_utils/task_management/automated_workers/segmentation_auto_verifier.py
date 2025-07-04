@@ -18,14 +18,14 @@ from rich.panel import Panel
 from rich.text import Text
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-from tenacity import retry, stop_after_delay, wait_exponential, retry_if_exception
+from sqlalchemy import select
+from tenacity import retry, retry_if_exception, stop_after_delay, wait_exponential
 
 from zetta_utils import log
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
-from zetta_utils.task_management.task import get_task, release_task, start_task
-from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.db.models import TimesheetModel
-from sqlalchemy import select
+from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.task import get_task, release_task, start_task
 
 slack_client = WebClient(token=os.environ["ZETTA_PROOFREDING_BOT_SLACK_TOKEN"])
 
@@ -36,9 +36,9 @@ console = Console()
 @attrs.mutable
 class SegmentSkeleton:
     """Class to hold segment ID and skeleton data."""
+
     segment_id: int = attrs.field()
     skeleton: meshparty.skeleton.Skeleton = attrs.field()
-
 
 
 def create_task_dashboard_link(project_name: str, task_id: str) -> str:
@@ -85,7 +85,7 @@ def extract_target_location(ng_dict: dict) -> list | None:
     retry=retry_if_exception(is_unavailable_error),
     stop=stop_after_delay(300),
     wait=wait_exponential(multiplier=1, min=4, max=60),
-    reraise=True
+    reraise=True,
 )
 def get_skeleton(
     ng_dict: dict, graphene_path: str, ng_resolution: list, sv_resolution: list
@@ -110,7 +110,7 @@ def get_skeleton(
         cv_kwargs={"agglomerate": True},
         index_resolution=ng_resolution,
         default_desired_resolution=sv_resolution,
-        allow_slice_rounding=True
+        allow_slice_rounding=True,
     )
     # Convert float coordinates to integer voxel coordinates
     voxel_coords = [int(coord) for coord in target_location[:3]]
@@ -119,9 +119,11 @@ def get_skeleton(
     logger.info(f"Reading supervoxel at voxel coordinates: {voxel_coords}")
     console.print(f"[dim]Reading supervoxel at: {voxel_coords}[/dim]")
 
-    sv_data = sv_layer[voxel_coords[0]:voxel_coords[0]+1,
-                  voxel_coords[1]:voxel_coords[1]+1,
-                  voxel_coords[2]:voxel_coords[2]+1]
+    sv_data = sv_layer[
+        voxel_coords[0] : voxel_coords[0] + 1,
+        voxel_coords[1] : voxel_coords[1] + 1,
+        voxel_coords[2] : voxel_coords[2] + 1,
+    ]
 
     segment_id = int(sv_data[0, 0, 0])
     logger.info(f"Segment {segment_id}")
@@ -131,7 +133,7 @@ def get_skeleton(
     client = CAVEclient(
         datastack_name="kronauer_ant",
         server_address="https://proofreading.zetta.ai",
-        auth_token_file="~/.cloudvolume/secrets/cave-secret.json"
+        auth_token_file="~/.cloudvolume/secrets/cave-secret.json",
     )
 
     try:
@@ -143,18 +145,24 @@ def get_skeleton(
 
 
 def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
-    task_id: str, project_name: str, user_id: str,
-    min_skeleton_length_mm: int, slack_channel: str, task_count: int,
-    graphene_path: str, ng_resolution: list, sv_resolution: list, slack_users: tuple
+    task_id: str,
+    project_name: str,
+    user_id: str,
+    min_skeleton_length_mm: int,
+    slack_channel: str | None,
+    task_count: int,
+    graphene_path: str,
+    ng_resolution: list,
+    sv_resolution: list,
+    slack_users: tuple,
 ) -> None:
     """Process a single task - verify skeleton and send notifications."""
     # Create processing panel
     processing_text = Text(f"Processing Task #{task_count}", style="bold green")
     processing_panel = Panel(
-        f"[cyan]Task ID:[/cyan] {task_id}\n"
-        f"[cyan]Status:[/cyan] Analyzing ng_state...",
+        f"[cyan]Task ID:[/cyan] {task_id}\n" f"[cyan]Status:[/cyan] Analyzing ng_state...",
         title=processing_text,
-        border_style="green"
+        border_style="green",
     )
     console.print(processing_panel)
 
@@ -167,11 +175,11 @@ def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-
 
     # Get trace task information
     ng_state = task_details["ng_state"]
-    extra_data = task_details.get('extra_data')
-    if not extra_data or 'trace_task_id' not in extra_data:
+    extra_data = task_details.get("extra_data")
+    if not extra_data or "trace_task_id" not in extra_data:
         logger.error(f"Task {task_id} missing trace_task_id in extra_data")
         return
-    trace_task_id = extra_data['trace_task_id']
+    trace_task_id = extra_data["trace_task_id"]
     trace_task_details = get_task(project_name=project_name, task_id=trace_task_id)
     logger.info(f"Successfully parsed ng_state for task {task_id}")
 
@@ -228,7 +236,7 @@ def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         summary_message += "*No skeleton found in segmentation* ⚠️\n"
 
     # Time tracking section
-    if timesheet_summary['total_seconds'] > 0:
+    if timesheet_summary["total_seconds"] > 0:
         summary_message += f"\n*Time Spent:* {timesheet_summary['formatted_total']}"
 
     # Send Slack notification
@@ -237,26 +245,21 @@ def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         try:
             # Send main message
             response = slack_client.chat_postMessage(
-                channel=slack_channel,
-                text=summary_message,
-                unfurl_links=False,
-                unfurl_media=False
+                channel=slack_channel, text=summary_message, unfurl_links=False, unfurl_media=False
             )
             console.print(f"[green]✅ Sent Slack notification to {slack_channel}[/green]")
 
             # If verification failed and we have users to tag, create a thread
             if not verification_pass and slack_users:
-                thread_ts = response['ts']
+                thread_ts = response["ts"]
                 # Create user mentions
-                user_mentions = ' '.join([f"<@{user}>" for user in slack_users])
+                user_mentions = " ".join([f"<@{user}>" for user in slack_users])
                 thread_message = (
                     f"{user_mentions} This task failed skeleton verification. Please review."
                 )
 
                 slack_client.chat_postMessage(
-                    channel=slack_channel,
-                    thread_ts=thread_ts,
-                    text=thread_message
+                    channel=slack_channel, thread_ts=thread_ts, text=thread_message
                 )
                 console.print(
                     f"[yellow]📢 Tagged users in thread: {', '.join(slack_users)}[/yellow]"
@@ -284,7 +287,7 @@ def process_task(  # pylint: disable=too-many-locals,too-many-branches,too-many-
         project_name=project_name,
         task_id=task_id,
         user_id=user_id,
-        completion_status=completion_status
+        completion_status=completion_status,
     )
 
 
@@ -338,72 +341,74 @@ def get_task_timesheet_summary(project_name: str, task_id: str) -> dict:
             "total_seconds": total_seconds,
             "user_breakdown": user_breakdown,
             "formatted_total": format_duration(total_seconds),
-            "formatted_breakdown": formatted_breakdown
+            "formatted_breakdown": formatted_breakdown,
         }
 
 
 @click.command()
+@click.option("--user_id", "-u", required=True, help="User ID for the automated worker")
 @click.option(
-    "--user_id", "-u",
-    required=True,
-    help="User ID for the automated worker"
+    "--project_name", "-p", required=True, help="Name of the project to process tasks from"
 )
 @click.option(
-    "--project_name", "-p",
-    required=True,
-    help="Name of the project to process tasks from"
-)
-@click.option(
-    "--polling_period", "-t",
+    "--polling_period",
+    "-t",
     type=float,
     default=5.0,
-    help="Polling period in seconds (default: 5.0)"
+    help="Polling period in seconds (default: 5.0)",
 )
 @click.option(
-    "--min_skeleton_length_mm", "-m",
+    "--min_skeleton_length_mm",
+    "-m",
     type=int,
     default=0,
-    help="Minimum skeleton length in millimeters (default: 0)"
+    help="Minimum skeleton length in millimeters (default: 0)",
 )
+@click.option("--slack_channel", "-c", help="Slack channel to post messages to")
+@click.option("--graphene_path", "-g", required=True, help="Graphene segmentation path")
 @click.option(
-    "--slack_channel", "-c",
-    help="Slack channel to post messages to"
-)
-@click.option(
-    "--graphene_path", "-g",
-    required=True,
-    help="Graphene segmentation path"
-)
-@click.option(
-    "--ng_resolution", "-nr",
+    "--ng_resolution",
+    "-nr",
     nargs=3,
     type=int,
     required=True,
-    help="Neuroglancer state resolution (e.g. 8 8 42)"
+    help="Neuroglancer state resolution (e.g. 8 8 42)",
 )
 @click.option(
-    "--sv_resolution", "-sr",
+    "--sv_resolution",
+    "-sr",
     nargs=3,
     type=int,
     required=True,
-    help="Supervoxel resolution (e.g. 16 16 42)"
+    help="Supervoxel resolution (e.g. 16 16 42)",
 )
 @click.option(
-    "--slack_users", "-su",
+    "--slack_users",
+    "-su",
     multiple=True,
-    help="Slack user IDs to tag on failure (can be specified multiple times)"
+    help="Slack user IDs to tag on failure (can be specified multiple times)",
 )
 def run_worker(
-    user_id: str, project_name: str, polling_period: float, min_skeleton_length_mm: int,
-    slack_channel: str, graphene_path: str, ng_resolution: tuple, sv_resolution: tuple,
-    slack_users: tuple
+    user_id: str,
+    project_name: str,
+    polling_period: float,
+    min_skeleton_length_mm: int,
+    slack_channel: str,
+    graphene_path: str,
+    ng_resolution: tuple,
+    sv_resolution: tuple,
+    slack_users: tuple,
 ):
     """Run the segmentation auto verifier worker."""
     # Display startup banner
     users_info = (
-        f"[yellow]Slack Users to Tag:[/yellow] "
-        f"{', '.join(slack_users) if slack_users else 'None'}\n"
-    ) if slack_channel else ""
+        (
+            f"[yellow]Slack Users to Tag:[/yellow] "
+            f"{', '.join(slack_users) if slack_users else 'None'}\n"
+        )
+        if slack_channel
+        else ""
+    )
     startup_panel = Panel(
         f"[bold cyan]Segmentation Auto Verifier Worker[/bold cyan]\n\n"
         f"[yellow]User ID:[/yellow] {user_id}\n"
@@ -416,7 +421,7 @@ def run_worker(
         f"{users_info}\n"
         f"[dim]Press Ctrl+C to stop[/dim]",
         title="🤖 Worker Starting",
-        border_style="blue"
+        border_style="blue",
     )
     console.print(startup_panel)
     logger.info(
@@ -433,18 +438,22 @@ def run_worker(
             try:
                 # Try to start a task
                 logger.debug(f"Polling for tasks (user: {user_id}, project: {project_name})")
-                task_id = start_task(
-                    project_name=project_name,
-                    user_id=user_id
-                )
+                task_id = start_task(project_name=project_name, user_id=user_id)
                 if task_id:
                     task_count += 1
                     logger.info(f"Started processing task {task_id}")
 
                     process_task(
-                        task_id, project_name, user_id,
-                        min_skeleton_length_mm, slack_channel, task_count,
-                        graphene_path, list(ng_resolution), list(sv_resolution), slack_users
+                        task_id,
+                        project_name,
+                        user_id,
+                        min_skeleton_length_mm,
+                        slack_channel,
+                        task_count,
+                        graphene_path,
+                        list(ng_resolution),
+                        list(sv_resolution),
+                        slack_users,
                     )
 
                     had_task_last_time = True
@@ -472,7 +481,7 @@ def run_worker(
             f"[yellow]Tasks Processed:[/yellow] {task_count}\n"
             f"[dim]Thank you for using the auto verifier![/dim]",
             title="🛑 Goodbye",
-            border_style="red"
+            border_style="red",
         )
         console.print(shutdown_panel)
 

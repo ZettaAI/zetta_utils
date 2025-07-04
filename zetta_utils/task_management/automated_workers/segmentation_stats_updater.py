@@ -36,7 +36,7 @@ def create_task_dashboard_link(project_name: str, task_id: str) -> str:
 
 
 def send_slack_error_notification(
-    slack_channel: str, project_name: str, error_message: str, duration_minutes: int
+    slack_channel: str | None, project_name: str, error_message: str, duration_minutes: int
 ) -> None:
     """Send error notification to Slack channel."""
     if not slack_channel or not slack_client.token:

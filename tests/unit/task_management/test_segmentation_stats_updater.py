@@ -29,8 +29,8 @@ class TestUtilityFunctions:
 
     def test_send_slack_error_notification_success(self, mocker):
         """Test sending error notification to Slack"""
-        mock_slack = mocker.patch(f"{_SSU}.slack_client")
-        mock_slack.token = "test_token"
+        mock_slack = mocker.Mock()
+        mocker.patch(f"{_SSU}.get_slack_client", return_value=mock_slack)
 
         send_slack_error_notification("test-channel", "test_project", "Connection timeout", 35)
 
@@ -43,25 +43,24 @@ class TestUtilityFunctions:
 
     def test_send_slack_error_notification_no_channel(self, mocker):
         """Test skipping notification when no channel"""
-        mock_slack = mocker.patch(f"{_SSU}.slack_client")
+        mock_slack = mocker.Mock()
+        mocker.patch(f"{_SSU}.get_slack_client", return_value=mock_slack)
         send_slack_error_notification(None, "test_project", "Error", 30)
 
         mock_slack.chat_postMessage.assert_not_called()
 
     def test_send_slack_error_notification_no_token(self, mocker):
         """Test skipping notification when no token"""
-        mock_slack = mocker.patch(f"{_SSU}.slack_client")
-        mock_slack.token = None
+        mocker.patch(f"{_SSU}.get_slack_client", return_value=None)
 
         send_slack_error_notification("test-channel", "test_project", "Error", 30)
-
-        mock_slack.chat_postMessage.assert_not_called()
+        # Function should exit early without calling chat_postMessage
 
     def test_send_slack_error_notification_api_error(self, mocker):
         """Test handling Slack API error"""
-        mock_slack = mocker.patch(f"{_SSU}.slack_client")
-        mock_slack.token = "test_token"
+        mock_slack = mocker.Mock()
         mock_slack.chat_postMessage.side_effect = SlackApiError("Invalid channel", None)
+        mocker.patch(f"{_SSU}.get_slack_client", return_value=mock_slack)
 
         # Should not raise exception
         send_slack_error_notification("test-channel", "test_project", "Error", 30)

@@ -21,10 +21,16 @@ from zetta_utils import log
 from zetta_utils.task_management.segment import update_segment_statistics
 from zetta_utils.task_management.task import get_task, release_task, start_task
 
-slack_client = WebClient(token=os.environ.get("ZETTA_PROOFREDING_BOT_SLACK_TOKEN", ""))
-
 logger = log.get_logger()
 console = Console()
+
+
+def get_slack_client() -> WebClient | None:
+    """Get Slack client if token is available."""
+    token = os.environ.get("ZETTA_PROOFREDING_BOT_SLACK_TOKEN")
+    if token:
+        return WebClient(token=token)
+    return None
 
 
 def create_task_dashboard_link(project_name: str, task_id: str) -> str:
@@ -39,7 +45,11 @@ def send_slack_error_notification(
     slack_channel: str | None, project_name: str, error_message: str, duration_minutes: int
 ) -> None:
     """Send error notification to Slack channel."""
-    if not slack_channel or not slack_client.token:
+    if not slack_channel:
+        return
+
+    slack_client = get_slack_client()
+    if not slack_client:
         return
 
     try:

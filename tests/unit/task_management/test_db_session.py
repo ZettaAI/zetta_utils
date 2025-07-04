@@ -1,6 +1,5 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import os
-from unittest.mock import patch
 
 import pytest
 
@@ -14,11 +13,11 @@ from zetta_utils.task_management.db.session import (
 )
 
 
-def test_get_engine_without_password():
+def test_get_engine_without_password(mocker):
     """Test getting engine without DB_PASSWORD set"""
-    with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(ValueError, match="DB_PASSWORD environment variable not set"):
-            get_engine()
+    mocker.patch.dict(os.environ, {}, clear=True)
+    with pytest.raises(ValueError, match="DB_PASSWORD environment variable not set"):
+        get_engine()
 
 
 def test_get_session_factory():
@@ -54,19 +53,43 @@ def test_get_db_session_creates_tables():
         get_db_session(engine_url=custom_url)
 
 
-def test_get_session_context_with_provided_session():
+def test_get_session_context_with_provided_session(db_session):
     """Test session context with provided session"""
-    session = get_db_session()
-    with get_session_context(session) as ctx_session:
-        assert ctx_session is session
+    # Use the test database session from fixture
+    with get_session_context(db_session) as ctx_session:
+        assert ctx_session is db_session
     # Session should still be open since we provided it
-    assert session.is_active
-    session.close()
+    assert db_session.is_active
 
 
-def test_get_session_context_without_session():
+def test_get_session_context_without_session(postgres_container, mocker):
     """Test session context without provided session"""
+    # Use the test container's connection URL
+    connection_url = postgres_container.get_connection_url()
+
+    # Create a new session each time get_db_session is called
+    def create_test_session():
+        return get_db_session(engine_url=connection_url)
+
+    mock_get_db = mocker.patch("zetta_utils.task_management.db.session.get_db_session")
+    mock_get_db.side_effect = create_test_session
+
+    # Track if close was called
+    closed = False
+
     with get_session_context() as session:
         assert session is not None
         assert session.is_active
-    # Session should be closed after context
+
+        # Mock the close method to track if it was called
+        original_close = session.close
+
+        def mock_close():
+            nonlocal closed
+            closed = True
+            original_close()
+
+        session.close = mock_close
+
+    # Verify close was called
+    assert closed

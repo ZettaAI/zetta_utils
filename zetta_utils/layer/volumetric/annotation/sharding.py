@@ -11,6 +11,7 @@ import os
 import struct
 from collections import defaultdict
 from dataclasses import dataclass
+from math import ceil
 from typing import BinaryIO, Dict, List
 
 from zetta_utils.layer.volumetric.annotation.annotations import ShardingSpec
@@ -25,6 +26,17 @@ class Chunk:
 
     chunk_id: int
     data: bytes
+
+
+def get_shard_hex(shard_number: int, shard_bits: int) -> str:
+    """Convert shard number to zero-padded lowercase hex string.
+
+    :param shard_number: The shard number to convert
+    :param shard_bits: Number of bits for the shard
+    :return: Zero-padded lowercase hex string
+    """
+    padding = ceil(shard_bits / 4)
+    return f"{shard_number:0{padding}x}"
 
 
 def write_shard_file(
@@ -203,5 +215,6 @@ def write_shard_files(dir_path: str, sharding_spec: ShardingSpec, chunks: List[C
     dir_path = os.path.expanduser(dir_path)
     os.makedirs(dir_path, exist_ok=True)
     for i in range(0, qty_shards):
-        file_path = path_join(dir_path, f"{i}.shard")
+        shard_hex = get_shard_hex(i, sharding_spec.shard_bits)
+        file_path = path_join(dir_path, f"{shard_hex}.shard")
         write_shard_to_file(file_path, sharding_spec, i, shard_chunks[i])

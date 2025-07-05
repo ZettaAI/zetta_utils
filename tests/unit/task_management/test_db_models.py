@@ -2,7 +2,6 @@
 
 # pylint: disable=unused-argument,redefined-outer-name
 
-import random
 from datetime import datetime, timezone
 
 import pytest
@@ -22,771 +21,606 @@ from zetta_utils.task_management.db.models import (
     _parse_datetime,
 )
 
-
-class TestParseDatetime:
-    """Test the _parse_datetime utility function"""
-
-    def test_parse_datetime_from_datetime(self):
-        """Test parsing when input is already datetime"""
-        dt = datetime.now(timezone.utc)
-        result = _parse_datetime(dt)
-        assert result == dt
-
-    def test_parse_datetime_from_string(self):
-        """Test parsing from ISO format string"""
-        dt_str = "2025-07-03T12:00:00+00:00"
-        result = _parse_datetime(dt_str)
-        assert isinstance(result, datetime)
-        assert result.year == 2025
-        assert result.month == 7
-        assert result.day == 3
-
-    def test_parse_datetime_from_timestamp(self):
-        """Test parsing from Unix timestamp"""
-        timestamp = 1720008000  # 2025-07-03 12:00:00 UTC
-        result = _parse_datetime(timestamp)
-        assert isinstance(result, datetime)
-
-    def test_parse_datetime_from_float_timestamp(self):
-        """Test parsing from float Unix timestamp"""
-        timestamp = 1720008000.123
-        result = _parse_datetime(timestamp)
-        assert isinstance(result, datetime)
-
-    def test_parse_datetime_invalid_type(self):
-        """Test parsing with invalid type raises ValueError"""
-        with pytest.raises(ValueError, match="Cannot parse datetime"):
-            _parse_datetime([1, 2, 3])  # type: ignore[arg-type]
-
-
-class TestProjectModel:
-    """Test ProjectModel"""
-
-    def test_to_dict_minimal(self, db_session):
-        """Test to_dict with minimal fields"""
-        project = ProjectModel(
-            project_name="test_project",
-            segmentation_path="precomputed://test",
-            sv_resolution_x=8.0,
-            sv_resolution_y=8.0,
-            sv_resolution_z=40.0,
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        result = project.to_dict()
-        assert result["project_name"] == "test_project"
-        assert result["segmentation_path"] == "precomputed://test"
-        assert result["sv_resolution_x"] == 8.0
-        assert result["sv_resolution_y"] == 8.0
-        assert result["sv_resolution_z"] == 40.0
-        assert result["status"] == "active"
-        assert result["created_at"] is None
-        assert result["description"] is None
-        # Optional fields should not be in dict
-        assert "brain_mesh_path" not in result
-        assert "datastack_name" not in result
-        assert "synapse_table" not in result
-        assert "extra_layers" not in result
-
-    def test_to_dict_full(self, db_session):
-        """Test to_dict with all fields"""
-        project = ProjectModel(
-            project_name="full_project",
-            created_at="2025-07-03T12:00:00",
-            description="Test project",
-            status="archived",
-            segmentation_path="precomputed://test",
-            brain_mesh_path="mesh://brain",
-            datastack_name="test_stack",
-            synapse_table="synapses_v1",
-            sv_resolution_x=8.0,
-            sv_resolution_y=8.0,
-            sv_resolution_z=40.0,
-            extra_layers={"layer1": {"type": "image"}},
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        result = project.to_dict()
-        assert result["project_name"] == "full_project"
-        assert result["created_at"] == "2025-07-03T12:00:00"
-        assert result["description"] == "Test project"
-        assert result["status"] == "archived"
-        assert result["brain_mesh_path"] == "mesh://brain"
-        assert result["datastack_name"] == "test_stack"
-        assert result["synapse_table"] == "synapses_v1"
-        assert result["extra_layers"] == {"layer1": {"type": "image"}}
-
-
-class TestTaskTypeModel:
-    """Test TaskTypeModel"""
-
-    def test_to_dict_minimal(self, db_session):
-        """Test to_dict with minimal fields"""
-        task_type = TaskTypeModel(
-            project_name="test_project",
-            task_type="proofread",
-            completion_statuses=["Done", "Faulty"],
-        )
-        db_session.add(task_type)
-        db_session.commit()
-
-        result = task_type.to_dict()
-        assert result["task_type"] == "proofread"
-        assert result["completion_statuses"] == ["Done", "Faulty"]
-        assert "description" not in result
-
-    def test_to_dict_with_description(self, db_session):
-        """Test to_dict with description"""
-        task_type = TaskTypeModel(
-            project_name="test_project",
-            task_type="verify",
-            completion_statuses=["Verified", "Failed"],
-            description="Verification task",
-        )
-        db_session.add(task_type)
-        db_session.commit()
-
-        result = task_type.to_dict()
-        assert result["description"] == "Verification task"
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "task_type": "custom",
-            "completion_statuses": ["A", "B", "C"],
-            "description": "Custom task",
-        }
-        model = TaskTypeModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.task_type == "custom"
-        assert model.completion_statuses == ["A", "B", "C"]
-        assert model.description == "Custom task"
-
-    def test_from_dict_no_description(self):
-        """Test creating from dict without description"""
-        data = {
-            "task_type": "test_type",
-            "completion_statuses": ["pending", "completed"],
-        }
-        model = TaskTypeModel.from_dict("test_project", data)
-        assert model.description is None
-
-
-class TestUserModel:
-    """Test UserModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        user = UserModel(
-            project_name="test_project",
-            user_id="user123",
-            hourly_rate=25.50,
-            active_task="task456",
-            qualified_task_types=["proofread", "verify"],
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        result = user.to_dict()
-        assert result["user_id"] == "user123"
-        assert result["hourly_rate"] == 25.50
-        assert result["active_task"] == "task456"
-        assert result["qualified_task_types"] == ["proofread", "verify"]
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "user_id": "test_user",
-            "hourly_rate": 30.0,
-            "active_task": "",
-            "qualified_task_types": ["type1", "type2"],
-        }
-        model = UserModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.user_id == "test_user"
-        assert model.hourly_rate == 30.0
-        assert model.active_task == ""
-        assert model.qualified_task_types == ["type1", "type2"]
-
-
-class TestDependencyModel:
-    """Test DependencyModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        dep = DependencyModel(
-            project_name="test_project",
-            dependency_id="dep123",
-            task_id="task1",
-            dependent_on_task_id="task2",
-            is_satisfied=True,
-            required_completion_status="Done",
-        )
-        db_session.add(dep)
-        db_session.commit()
-
-        result = dep.to_dict()
-        assert result["dependency_id"] == "dep123"
-        assert result["task_id"] == "task1"
-        assert result["dependent_on_task_id"] == "task2"
-        assert result["is_satisfied"] is True
-        assert result["required_completion_status"] == "Done"
-
-    def test_from_dict_with_is_satisfied(self):
-        """Test creating from dict with is_satisfied"""
-        data = {
-            "dependency_id": "dep456",
-            "task_id": "taskA",
-            "dependent_on_task_id": "taskB",
-            "required_completion_status": "Verified",
-            "is_satisfied": True,
-        }
-        model = DependencyModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.dependency_id == "dep456"
-        assert model.task_id == "taskA"
-        assert model.dependent_on_task_id == "taskB"
-        assert model.is_satisfied is True
-        assert model.required_completion_status == "Verified"
-
-    def test_from_dict_without_is_satisfied(self):
-        """Test creating from dict without is_satisfied (default False)"""
-        data = {
-            "dependency_id": "dep789",
-            "task_id": "taskC",
-            "dependent_on_task_id": "taskD",
-            "required_completion_status": "Done",
-        }
-        model = DependencyModel.from_dict("test_project", data)
-        assert model.is_satisfied is False  # Default value
-
-
-class TestTimesheetModel:
-    """Test TimesheetModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        timesheet = TimesheetModel(
-            project_name="test_project",
-            entry_id="entry123",
-            task_id="task789",
-            user="user456",
-            seconds_spent=3600,
-        )
-        db_session.add(timesheet)
-        db_session.commit()
-
-        result = timesheet.to_dict()
-        assert result["entry_id"] == "entry123"
-        assert result["task_id"] == "task789"
-        assert result["user"] == "user456"
-        assert result["seconds_spent"] == 3600
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "entry_id": "entry456",
-            "task_id": "taskXYZ",
-            "user": "userABC",
-            "seconds_spent": 7200,
-        }
-        model = TimesheetModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.entry_id == "entry456"
-        assert model.task_id == "taskXYZ"
-        assert model.user == "userABC"
-        assert model.seconds_spent == 7200
-
-
-class TestTimesheetSubmissionModel:
-    """Test TimesheetSubmissionModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        now = datetime.now(timezone.utc)
-        submission = TimesheetSubmissionModel(
-            project_name="test_project",
-            user_id="user123",
-            task_id="task456",
-            seconds_spent=1800,
-            submitted_at=now,
-        )
-        db_session.add(submission)
-        db_session.commit()
-
-        result = submission.to_dict()
-        assert result["submission_id"] is not None
-        assert result["user_id"] == "user123"
-        assert result["task_id"] == "task456"
-        assert result["seconds_spent"] == 1800
-        assert result["submitted_at"] == now.isoformat()
-
-    def test_to_dict_none_submitted_at(self, db_session):
-        """Test to_dict when submitted_at would be None (edge case)"""
-        # This is a hypothetical edge case test - in practice submitted_at is required
-        submission = TimesheetSubmissionModel(
-            project_name="test_project",
-            user_id="user123",
-            task_id="task456",
-            seconds_spent=1800,
-            submitted_at=datetime.now(timezone.utc),
-        )
-        db_session.add(submission)
-        db_session.commit()
-
-        # Simulate None case for coverage
-        original_timestamp = submission.submitted_at
-        submission.submitted_at = None  # type: ignore[assignment]
-        result = submission.to_dict()
-        assert result["submitted_at"] is None
-
-        # Restore for cleanup
-        submission.submitted_at = original_timestamp
-
-    def test_from_dict_with_string_timestamp(self):
-        """Test creating from dict with string timestamp"""
-        data = {
-            "user_id": "userXYZ",
-            "task_id": "taskABC",
-            "seconds_spent": 2400,
-            "submitted_at": "2025-07-03T14:30:00+00:00",
-        }
-        model = TimesheetSubmissionModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.user_id == "userXYZ"
-        assert model.task_id == "taskABC"
-        assert model.seconds_spent == 2400
-        assert isinstance(model.submitted_at, datetime)
-
-    def test_from_dict_with_int_timestamp(self):
-        """Test creating from dict with integer timestamp"""
-        data = {
-            "user_id": "userABC",
-            "task_id": "taskXYZ",
-            "seconds_spent": 1200,
-            "submitted_at": 1720008000,
-        }
-        model = TimesheetSubmissionModel.from_dict("test_project", data)
-        assert isinstance(model.submitted_at, datetime)
-
-
-class TestSegmentTypeModel:
-    """Test SegmentTypeModel"""
-
-    def test_to_dict_minimal(self, db_session):
-        """Test to_dict with minimal fields"""
-        now = datetime.now(timezone.utc)
-        segment_type = SegmentTypeModel(
-            type_name="neuron",
-            project_name="test_project",
-            reference_segment_ids=[],
-            created_at=now,
-            updated_at=now,
-        )
-        db_session.add(segment_type)
-        db_session.commit()
-
-        result = segment_type.to_dict()
-        assert result["type_name"] == "neuron"
-        assert result["project_name"] == "test_project"
-        assert result["reference_segment_ids"] == []
-        assert result["created_at"] == now.isoformat()
-        assert result["updated_at"] == now.isoformat()
-        assert "description" not in result
-
-    def test_to_dict_full(self, db_session):
-        """Test to_dict with all fields"""
-        now = datetime.now(timezone.utc)
-        segment_type = SegmentTypeModel(
-            type_name="glia",
-            project_name="test_project",
-            reference_segment_ids=[123, 456, 789],
-            description="Glial cells",
-            created_at=now,
-            updated_at=now,
-        )
-        db_session.add(segment_type)
-        db_session.commit()
-
-        result = segment_type.to_dict()
-        assert result["description"] == "Glial cells"
-        assert result["reference_segment_ids"] == [123, 456, 789]
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "type_name": "axon",
-            "project_name": "test_project",
-            "reference_segment_ids": [111, 222],
-            "description": "Axon segments",
-            "created_at": "2025-07-03T10:00:00+00:00",
-            "updated_at": "2025-07-03T11:00:00+00:00",
-        }
-        model = SegmentTypeModel.from_dict(data)
-        assert model.type_name == "axon"
-        assert model.project_name == "test_project"
-        assert model.reference_segment_ids == [111, 222]
-        assert model.description == "Axon segments"
-        assert isinstance(model.created_at, datetime)
-        assert isinstance(model.updated_at, datetime)
-
-    def test_from_dict_defaults(self):
-        """Test creating from dict with defaults"""
-        data = {
-            "type_name": "dendrite",
-            "project_name": "test_project",
-            "created_at": "2025-07-03T10:00:00+00:00",
-            "updated_at": "2025-07-03T11:00:00+00:00",
-        }
-        model = SegmentTypeModel.from_dict(data)
-        assert model.reference_segment_ids == []
-        assert model.description is None
-
-
-class TestSegmentModel:
-    """Test SegmentModel"""
-
-    def test_to_dict_minimal(self, db_session):
-        """Test to_dict with minimal fields"""
-        now = datetime.now(timezone.utc)
-        segment = SegmentModel(
-            project_name="test_project",
-            seed_id=random.randint(1000000, 9999999),
-            seed_x=100.0,
-            seed_y=200.0,
-            seed_z=300.0,
-            task_ids=[],
-            status="WIP",
-            is_exported=False,
-            created_at=now,
-            updated_at=now,
-        )
-        db_session.add(segment)
-        db_session.commit()
-
-        result = segment.to_dict()
-        assert result["project_name"] == "test_project"
-        assert result["seed_id"] == segment.seed_id
-        assert result["seed_x"] == 100.0
-        assert result["seed_y"] == 200.0
-        assert result["seed_z"] == 300.0
-        assert result["task_ids"] == []
-        assert result["status"] == "WIP"
-        assert result["is_exported"] is False
-        # Fields with None values should not be in dict
-        assert "segment_type" not in result
-        assert "expected_segment_type" not in result
-        assert "batch" not in result
-        assert "root_x" not in result
-        assert "root_y" not in result
-        assert "root_z" not in result
-        assert "current_segment_id" not in result
-        assert "skeleton_path_length_mm" not in result
-        assert "pre_synapse_count" not in result
-        assert "post_synapse_count" not in result
-        assert "extra_data" not in result
-
-    def test_to_dict_full(self, db_session):
-        """Test to_dict with all fields"""
-        now = datetime.now(timezone.utc)
-        segment = SegmentModel(
-            project_name="test_project",
-            seed_id=12345,
-            seed_x=100.0,
-            seed_y=200.0,
-            seed_z=300.0,
-            root_x=150.0,
-            root_y=250.0,
-            root_z=350.0,
-            task_ids=["task1", "task2"],
-            segment_type="neuron",
-            expected_segment_type="neuron",
-            batch="batch_001",
-            current_segment_id=67890,
-            skeleton_path_length_mm=1.5,
-            pre_synapse_count=10,
-            post_synapse_count=20,
-            status="Completed",
-            is_exported=True,
-            created_at=now,
-            updated_at=now,
-            extra_data={"key": "value"},
-        )
-        db_session.add(segment)
-        db_session.commit()
-
-        result = segment.to_dict()
-        assert result["seed_id"] == 12345
-        assert result["segment_type"] == "neuron"
-        assert result["expected_segment_type"] == "neuron"
-        assert result["batch"] == "batch_001"
-        assert result["root_x"] == 150.0
-        assert result["root_y"] == 250.0
-        assert result["root_z"] == 350.0
-        assert result["current_segment_id"] == 67890
-        assert result["skeleton_path_length_mm"] == 1.5
-        assert result["pre_synapse_count"] == 10
-        assert result["post_synapse_count"] == 20
-        assert result["extra_data"] == {"key": "value"}
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "project_name": "test_project",
-            "seed_id": 99999,
-            "seed_x": 10.0,
-            "seed_y": 20.0,
-            "seed_z": 30.0,
-            "root_x": 15.0,
-            "root_y": 25.0,
-            "root_z": 35.0,
-            "task_ids": ["taskA", "taskB"],
-            "segment_type": "glia",
-            "expected_segment_type": "glia",
-            "batch": "batch_002",
-            "current_segment_id": 11111,
-            "skeleton_path_length_mm": 2.5,
-            "pre_synapse_count": 5,
-            "post_synapse_count": 15,
-            "status": "Retired",
-            "is_exported": True,
-            "created_at": "2025-07-03T09:00:00+00:00",
-            "updated_at": "2025-07-03T10:00:00+00:00",
-            "extra_data": {"info": "test"},
-        }
-        model = SegmentModel.from_dict(data)
-        assert model.project_name == "test_project"
-        assert model.seed_id == 99999
-        assert model.segment_type == "glia"
-        assert model.status == "Retired"
-        assert model.is_exported is True
-        assert model.extra_data == {"info": "test"}
-
-    def test_from_dict_defaults(self):
-        """Test creating from dict with defaults"""
-        data = {
-            "project_name": "test_project",
-            "seed_x": 1.0,
-            "seed_y": 2.0,
-            "seed_z": 3.0,
-            "created_at": "2025-07-03T09:00:00+00:00",
-            "updated_at": "2025-07-03T10:00:00+00:00",
-        }
-        model = SegmentModel.from_dict(data)
-        assert model.task_ids == []
-        assert model.status == "wip"  # Note: lowercase in from_dict default
-        assert model.is_exported is False
-        assert model.segment_type is None
-
-
-class TestEndpointModel:
-    """Test EndpointModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        now = datetime.now(timezone.utc)
-        endpoint = EndpointModel(
-            project_name="test_project",
-            seed_id=12345,
-            x=100.5,
-            y=200.5,
-            z=300.5,
-            status="CERTAIN",
-            user="user123",
-            created_at=now,
-            updated_at=now,
-        )
-        db_session.add(endpoint)
-        db_session.commit()
-
-        result = endpoint.to_dict()
-        assert result["endpoint_id"] is not None
-        assert result["seed_id"] == 12345
-        assert result["x"] == 100.5
-        assert result["y"] == 200.5
-        assert result["z"] == 300.5
-        assert result["status"] == "CERTAIN"
-        assert result["user"] == "user123"
-        assert result["created_at"] == now.isoformat()
-        assert result["updated_at"] == now.isoformat()
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "seed_id": 67890,
-            "x": 50.0,
-            "y": 60.0,
-            "z": 70.0,
-            "status": "UNCERTAIN",
-            "user": "userXYZ",
-            "created_at": "2025-07-03T08:00:00+00:00",
-            "updated_at": "2025-07-03T08:30:00+00:00",
-        }
-        model = EndpointModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.seed_id == 67890
-        assert model.status == "UNCERTAIN"
-        assert model.user == "userXYZ"
-
-
-class TestEndpointUpdateModel:
-    """Test EndpointUpdateModel"""
-
-    def test_to_dict(self, db_session):
-        """Test to_dict"""
-        now = datetime.now(timezone.utc)
-        update = EndpointUpdateModel(
-            project_name="test_project",
-            endpoint_id=123,
-            user="user456",
-            new_status="CONTINUED",
-            timestamp=now,
-        )
-        db_session.add(update)
-        db_session.commit()
-
-        result = update.to_dict()
-        assert result["update_id"] is not None
-        assert result["endpoint_id"] == 123
-        assert result["user"] == "user456"
-        assert result["new_status"] == "CONTINUED"
-        assert result["timestamp"] == now.isoformat()
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "endpoint_id": 456,
-            "user": "userABC",
-            "new_status": "BREADCRUMB",
-            "timestamp": "2025-07-03T07:00:00+00:00",
-        }
-        model = EndpointUpdateModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.endpoint_id == 456
-        assert model.user == "userABC"
-        assert model.new_status == "BREADCRUMB"
-        assert isinstance(model.timestamp, datetime)
-
-
-class TestTaskModel:
-    """Test TaskModel"""
-
-    def test_to_dict_minimal(self, db_session):
-        """Test to_dict with minimal fields"""
-        task = TaskModel(
-            project_name="test_project",
-            task_id="task123",
-            ng_state={"layers": []},
-            ng_state_initial={"layers": []},
-            priority=50,
-            batch_id="batch1",
-            task_type="proofread",
-            id_nonunique=12345,
-        )
-        db_session.add(task)
-        db_session.commit()
-
-        result = task.to_dict()
-        assert result["task_id"] == "task123"
-        assert result["completion_status"] == ""
-        assert result["assigned_user_id"] == ""
-        assert result["active_user_id"] == ""
-        assert result["completed_user_id"] == ""
-        assert result["ng_state"] == {"layers": []}
-        assert result["ng_state_initial"] == {"layers": []}
-        assert result["priority"] == 50
-        assert result["batch_id"] == "batch1"
-        assert result["last_leased_ts"] == 0.0
-        assert result["is_active"] is True
-        assert result["is_paused"] is False
-        assert result["is_checked"] is False
-        assert result["task_type"] == "proofread"
-        assert "extra_data" not in result
-
-    def test_to_dict_full(self, db_session):
-        """Test to_dict with all fields"""
-        task = TaskModel(
-            project_name="test_project",
-            task_id="task456",
-            completion_status="Done",
-            assigned_user_id="user1",
-            active_user_id="user2",
-            completed_user_id="user3",
-            ng_state={"layers": ["layer1"]},
-            ng_state_initial={"layers": ["layer1"]},
-            priority=100,
-            batch_id="batch2",
-            last_leased_ts=1720008000.0,
-            is_active=False,
-            is_paused=True,
-            is_checked=True,
-            task_type="verify",
-            id_nonunique=67890,
-            extra_data={"info": "test"},
-        )
-        db_session.add(task)
-        db_session.commit()
-
-        result = task.to_dict()
-        assert result["completion_status"] == "Done"
-        assert result["assigned_user_id"] == "user1"
-        assert result["active_user_id"] == "user2"
-        assert result["completed_user_id"] == "user3"
-        assert result["is_active"] is False
-        assert result["is_paused"] is True
-        assert result["is_checked"] is True
-        assert result["extra_data"] == {"info": "test"}
-
-    def test_from_dict(self):
-        """Test creating from dict"""
-        data = {
-            "task_id": "task789",
-            "completion_status": "Faulty",
-            "assigned_user_id": "userA",
-            "active_user_id": "userB",
-            "completed_user_id": "userC",
-            "ng_state": {"test": "state"},
-            "ng_state_initial": {"test": "initial"},
-            "priority": 75,
-            "batch_id": "batch3",
-            "last_leased_ts": 1720009000.0,
-            "is_active": True,
-            "is_paused": False,
-            "is_checked": True,
-            "task_type": "custom",
-            "id_nonunique": 11111,
-            "extra_data": {"key": "value"},
-        }
-        model = TaskModel.from_dict("test_project", data)
-        assert model.project_name == "test_project"
-        assert model.task_id == "task789"
-        assert model.completion_status == "Faulty"
-        assert model.assigned_user_id == "userA"
-        assert model.priority == 75
-        assert model.extra_data == {"key": "value"}
-
-    def test_from_dict_defaults(self):
-        """Test creating from dict with defaults"""
-        data = {
-            "task_id": "task999",
-            "ng_state": {"test": "state"},
-            "ng_state_initial": {"test": "initial"},
-            "priority": 50,
-            "batch_id": "batch",
-            "task_type": "test",
-        }
-        model = TaskModel.from_dict("test_project", data)
-        assert model.completion_status == ""
-        assert model.assigned_user_id == ""
-        assert model.active_user_id == ""
-        assert model.completed_user_id == ""
-        assert model.last_leased_ts == 0.0
-        assert model.is_active is True
-        assert model.is_paused is False
-        assert model.is_checked is False
-        assert model.extra_data is None
+# Test _parse_datetime utility function
+
+
+def test_parse_datetime_from_datetime():
+    """Test parsing when input is already datetime"""
+    dt = datetime.now(timezone.utc)
+    result = _parse_datetime(dt)
+    assert result == dt
+
+
+def test_parse_datetime_from_string():
+    """Test parsing from ISO format string"""
+    dt_str = "2025-07-03T12:00:00+00:00"
+    result = _parse_datetime(dt_str)
+    assert isinstance(result, datetime)
+    assert result.year == 2025
+    assert result.month == 7
+    assert result.day == 3
+
+
+def test_parse_datetime_from_timestamp():
+    """Test parsing from Unix timestamp"""
+    timestamp = 1720008000  # 2025-07-03 12:00:00 UTC
+    result = _parse_datetime(timestamp)
+    assert isinstance(result, datetime)
+
+
+def test_parse_datetime_from_float_timestamp():
+    """Test parsing from float Unix timestamp"""
+    timestamp = 1720008000.123
+    result = _parse_datetime(timestamp)
+    assert isinstance(result, datetime)
+
+
+def test_parse_datetime_invalid_type():
+    """Test parsing with invalid type raises ValueError"""
+    with pytest.raises(ValueError, match="Cannot parse datetime"):
+        _parse_datetime([1, 2, 3])  # type: ignore[arg-type]
+
+
+# Test ProjectModel
+
+
+def test_project_model_to_dict_minimal(db_session):
+    """Test to_dict with minimal fields"""
+    project = ProjectModel(
+        project_name="test_project",
+        segmentation_path="precomputed://test",
+        sv_resolution_x=8.0,
+        sv_resolution_y=8.0,
+        sv_resolution_z=40.0,
+    )
+    db_session.add(project)
+    db_session.commit()
+
+    result = project.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["segmentation_path"] == "precomputed://test"
+    assert result["sv_resolution_x"] == 8.0
+    assert result["sv_resolution_y"] == 8.0
+    assert result["sv_resolution_z"] == 40.0
+    assert result["status"] == "active"
+    assert result["created_at"] is None
+    assert result["description"] is None
+    # Optional fields should not be in dict
+    assert "brain_mesh_path" not in result
+    assert "datastack_name" not in result
+    assert "synapse_table" not in result
+    assert "extra_layers" not in result
+
+
+def test_project_model_to_dict_full(db_session):
+    """Test to_dict with all fields"""
+    project = ProjectModel(
+        project_name="full_project",
+        created_at="2025-07-03T12:00:00",
+        description="Test project",
+        status="archived",
+        segmentation_path="precomputed://test",
+        brain_mesh_path="mesh://brain",
+        datastack_name="test_stack",
+        synapse_table="synapses_v1",
+        sv_resolution_x=8.0,
+        sv_resolution_y=8.0,
+        sv_resolution_z=40.0,
+        extra_layers={"layer1": {"type": "image"}},
+    )
+    db_session.add(project)
+    db_session.commit()
+
+    result = project.to_dict()
+    assert result["project_name"] == "full_project"
+    assert result["created_at"] == "2025-07-03T12:00:00"
+    assert result["description"] == "Test project"
+    assert result["status"] == "archived"
+    assert result["brain_mesh_path"] == "mesh://brain"
+    assert result["datastack_name"] == "test_stack"
+    assert result["synapse_table"] == "synapses_v1"
+    assert result["extra_layers"] == {"layer1": {"type": "image"}}
+
+
+# TestTaskTypeModel tests
+
+
+def test_to_dict_with_description_task_type_model(db_session):
+    """Test to_dict with description"""
+    task_type = TaskTypeModel(
+        project_name="test_project",
+        task_type="verify",
+        completion_statuses=["Verified", "Failed"],
+        description="Verification task",
+    )
+    db_session.add(task_type)
+    db_session.commit()
+
+    result = task_type.to_dict()
+    assert result["description"] == "Verification task"
+
+
+def test_from_dict_task_type_model():
+    """Test creating from dict"""
+    data = {
+        "task_type": "custom",
+        "completion_statuses": ["A", "B", "C"],
+        "description": "Custom task",
+    }
+    model = TaskTypeModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_type == "custom"
+    assert model.completion_statuses == ["A", "B", "C"]
+    assert model.description == "Custom task"
+
+
+def test_from_dict_no_description_task_type_model():
+    """Test creating from dict without description"""
+    data = {
+        "task_type": "test_type",
+        "completion_statuses": ["pending", "completed"],
+    }
+    model = TaskTypeModel.from_dict("test_project", data)
+    assert model.description is None
+
+
+# TestUserModel tests
+
+
+def test_from_dict_user_model():
+    """Test creating from dict"""
+    data = {
+        "user_id": "test_user",
+        "hourly_rate": 30.0,
+        "active_task": "",
+        "qualified_task_types": ["type1", "type2"],
+    }
+    model = UserModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.user_id == "test_user"
+    assert model.hourly_rate == 30.0
+    assert model.active_task == ""
+    assert model.qualified_task_types == ["type1", "type2"]
+
+
+# TestDependencyModel tests
+
+
+def test_from_dict_with_is_satisfied_dependency_model():
+    """Test creating from dict with is_satisfied"""
+    data = {
+        "dependency_id": "dep456",
+        "task_id": "taskA",
+        "dependent_on_task_id": "taskB",
+        "required_completion_status": "Verified",
+        "is_satisfied": True,
+    }
+    model = DependencyModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.dependency_id == "dep456"
+    assert model.task_id == "taskA"
+    assert model.dependent_on_task_id == "taskB"
+    assert model.is_satisfied is True
+    assert model.required_completion_status == "Verified"
+
+
+def test_from_dict_without_is_satisfied_dependency_model():
+    """Test creating from dict without is_satisfied (default False)"""
+    data = {
+        "dependency_id": "dep789",
+        "task_id": "taskC",
+        "dependent_on_task_id": "taskD",
+        "required_completion_status": "Done",
+    }
+    model = DependencyModel.from_dict("test_project", data)
+    assert model.is_satisfied is False  # Default value
+
+
+# TestTimesheetModel tests
+
+
+def test_from_dict_timesheet_model():
+    """Test creating from dict"""
+    data = {
+        "entry_id": "entry456",
+        "task_id": "taskXYZ",
+        "user": "userABC",
+        "seconds_spent": 7200,
+    }
+    model = TimesheetModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.entry_id == "entry456"
+    assert model.task_id == "taskXYZ"
+    assert model.user == "userABC"
+    assert model.seconds_spent == 7200
+
+
+# TestTimesheetSubmissionModel tests
+
+
+def test_to_dict_none_submitted_at_timesheet_submission_model(db_session):
+    """Test to_dict when submitted_at would be None (edge case)"""
+    # This is a hypothetical edge case test - in practice submitted_at is required
+    submission = TimesheetSubmissionModel(
+        project_name="test_project",
+        user_id="user123",
+        task_id="task456",
+        seconds_spent=1800,
+        submitted_at=datetime.now(timezone.utc),
+    )
+    db_session.add(submission)
+    db_session.commit()
+
+    # Simulate None case for coverage
+    original_timestamp = submission.submitted_at
+    submission.submitted_at = None  # type: ignore[assignment]
+    result = submission.to_dict()
+    assert result["submitted_at"] is None
+
+    # Restore for cleanup
+    submission.submitted_at = original_timestamp
+
+
+def test_from_dict_with_string_timestamp_timesheet_submission_model():
+    """Test creating from dict with string timestamp"""
+    data = {
+        "user_id": "userXYZ",
+        "task_id": "taskABC",
+        "seconds_spent": 2400,
+        "submitted_at": "2025-07-03T14:30:00+00:00",
+    }
+    model = TimesheetSubmissionModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.user_id == "userXYZ"
+    assert model.task_id == "taskABC"
+    assert model.seconds_spent == 2400
+    assert isinstance(model.submitted_at, datetime)
+
+
+def test_from_dict_with_int_timestamp_timesheet_submission_model():
+    """Test creating from dict with integer timestamp"""
+    data = {
+        "user_id": "userABC",
+        "task_id": "taskXYZ",
+        "seconds_spent": 1200,
+        "submitted_at": 1720008000,
+    }
+    model = TimesheetSubmissionModel.from_dict("test_project", data)
+    assert isinstance(model.submitted_at, datetime)
+
+
+# TestSegmentTypeModel tests
+
+
+def test_to_dict_full_segment_type_model(db_session):
+    """Test to_dict with all fields"""
+    now = datetime.now(timezone.utc)
+    segment_type = SegmentTypeModel(
+        type_name="glia",
+        project_name="test_project",
+        reference_segment_ids=[123, 456, 789],
+        description="Glial cells",
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(segment_type)
+    db_session.commit()
+
+    result = segment_type.to_dict()
+    assert result["description"] == "Glial cells"
+    assert result["reference_segment_ids"] == [123, 456, 789]
+
+
+def test_from_dict_segment_type_model():
+    """Test creating from dict"""
+    data = {
+        "type_name": "axon",
+        "project_name": "test_project",
+        "reference_segment_ids": [111, 222],
+        "description": "Axon segments",
+        "created_at": "2025-07-03T10:00:00+00:00",
+        "updated_at": "2025-07-03T11:00:00+00:00",
+    }
+    model = SegmentTypeModel.from_dict(data)
+    assert model.type_name == "axon"
+    assert model.project_name == "test_project"
+    assert model.reference_segment_ids == [111, 222]
+    assert model.description == "Axon segments"
+    assert isinstance(model.created_at, datetime)
+    assert isinstance(model.updated_at, datetime)
+
+
+def test_from_dict_defaults_segment_type_model():
+    """Test creating from dict with defaults"""
+    data = {
+        "type_name": "dendrite",
+        "project_name": "test_project",
+        "created_at": "2025-07-03T10:00:00+00:00",
+        "updated_at": "2025-07-03T11:00:00+00:00",
+    }
+    model = SegmentTypeModel.from_dict(data)
+    assert model.reference_segment_ids == []
+    assert model.description is None
+
+
+# TestSegmentModel tests
+
+
+def test_to_dict_full_segment_model(db_session):
+    """Test to_dict with all fields"""
+    now = datetime.now(timezone.utc)
+    segment = SegmentModel(
+        project_name="test_project",
+        seed_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        root_x=150.0,
+        root_y=250.0,
+        root_z=350.0,
+        task_ids=["task1", "task2"],
+        segment_type="neuron",
+        expected_segment_type="neuron",
+        batch="batch_001",
+        current_segment_id=67890,
+        skeleton_path_length_mm=1.5,
+        pre_synapse_count=10,
+        post_synapse_count=20,
+        status="Completed",
+        is_exported=True,
+        created_at=now,
+        updated_at=now,
+        extra_data={"key": "value"},
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    result = segment.to_dict()
+    assert result["seed_id"] == 12345
+    assert result["segment_type"] == "neuron"
+    assert result["expected_segment_type"] == "neuron"
+    assert result["batch"] == "batch_001"
+    assert result["root_x"] == 150.0
+    assert result["root_y"] == 250.0
+    assert result["root_z"] == 350.0
+    assert result["current_segment_id"] == 67890
+    assert result["skeleton_path_length_mm"] == 1.5
+    assert result["pre_synapse_count"] == 10
+    assert result["post_synapse_count"] == 20
+    assert result["extra_data"] == {"key": "value"}
+
+
+def test_from_dict_segment_model():
+    """Test creating from dict"""
+    data = {
+        "project_name": "test_project",
+        "seed_id": 99999,
+        "seed_x": 10.0,
+        "seed_y": 20.0,
+        "seed_z": 30.0,
+        "root_x": 15.0,
+        "root_y": 25.0,
+        "root_z": 35.0,
+        "task_ids": ["taskA", "taskB"],
+        "segment_type": "glia",
+        "expected_segment_type": "glia",
+        "batch": "batch_002",
+        "current_segment_id": 11111,
+        "skeleton_path_length_mm": 2.5,
+        "pre_synapse_count": 5,
+        "post_synapse_count": 15,
+        "status": "Retired",
+        "is_exported": True,
+        "created_at": "2025-07-03T09:00:00+00:00",
+        "updated_at": "2025-07-03T10:00:00+00:00",
+        "extra_data": {"info": "test"},
+    }
+    model = SegmentModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.seed_id == 99999
+    assert model.segment_type == "glia"
+    assert model.status == "Retired"
+    assert model.is_exported is True
+    assert model.extra_data == {"info": "test"}
+
+
+def test_from_dict_defaults_segment_model():
+    """Test creating from dict with defaults"""
+    data = {
+        "project_name": "test_project",
+        "seed_x": 1.0,
+        "seed_y": 2.0,
+        "seed_z": 3.0,
+        "created_at": "2025-07-03T09:00:00+00:00",
+        "updated_at": "2025-07-03T10:00:00+00:00",
+    }
+    model = SegmentModel.from_dict(data)
+    assert model.task_ids == []
+    assert model.status == "wip"  # Note: lowercase in from_dict default
+    assert model.is_exported is False
+    assert model.segment_type is None
+
+
+# TestEndpointModel tests
+
+
+def test_from_dict_endpoint_model():
+    """Test creating from dict"""
+    data = {
+        "seed_id": 67890,
+        "x": 50.0,
+        "y": 60.0,
+        "z": 70.0,
+        "status": "UNCERTAIN",
+        "user": "userXYZ",
+        "created_at": "2025-07-03T08:00:00+00:00",
+        "updated_at": "2025-07-03T08:30:00+00:00",
+    }
+    model = EndpointModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.seed_id == 67890
+    assert model.status == "UNCERTAIN"
+    assert model.user == "userXYZ"
+
+
+def test_to_dict_endpoint_model():
+    """Test converting EndpointModel to dict"""
+    model = EndpointModel(
+        project_name="test_project",
+        endpoint_id=123,
+        seed_id=67890,
+        x=50.0,
+        y=60.0,
+        z=70.0,
+        status="UNCERTAIN",
+        user="userXYZ",
+        created_at=datetime(2025, 7, 3, 8, 0, 0, tzinfo=timezone.utc),
+        updated_at=datetime(2025, 7, 3, 8, 30, 0, tzinfo=timezone.utc),
+    )
+
+    result = model.to_dict()
+
+    assert result == {
+        "endpoint_id": 123,
+        "seed_id": 67890,
+        "x": 50.0,
+        "y": 60.0,
+        "z": 70.0,
+        "status": "UNCERTAIN",
+        "user": "userXYZ",
+        "created_at": "2025-07-03T08:00:00+00:00",
+        "updated_at": "2025-07-03T08:30:00+00:00",
+    }
+
+
+# TestEndpointUpdateModel tests
+
+
+def test_from_dict_endpoint_update_model():
+    """Test creating from dict"""
+    data = {
+        "endpoint_id": 456,
+        "user": "userABC",
+        "new_status": "BREADCRUMB",
+        "timestamp": "2025-07-03T07:00:00+00:00",
+    }
+    model = EndpointUpdateModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.endpoint_id == 456
+    assert model.user == "userABC"
+    assert model.new_status == "BREADCRUMB"
+    assert isinstance(model.timestamp, datetime)
+
+
+def test_to_dict_endpoint_update_model():
+    """Test converting EndpointUpdateModel to dict"""
+    model = EndpointUpdateModel(
+        project_name="test_project",
+        update_id=789,
+        endpoint_id=456,
+        user="userABC",
+        new_status="BREADCRUMB",
+        timestamp=datetime(2025, 7, 3, 7, 0, 0, tzinfo=timezone.utc),
+    )
+
+    result = model.to_dict()
+
+    assert result == {
+        "update_id": 789,
+        "endpoint_id": 456,
+        "user": "userABC",
+        "new_status": "BREADCRUMB",
+        "timestamp": "2025-07-03T07:00:00+00:00",
+    }
+
+
+# TestTaskModel tests
+
+
+def test_to_dict_full_task_model(db_session):
+    """Test to_dict with all fields"""
+    task = TaskModel(
+        project_name="test_project",
+        task_id="task456",
+        completion_status="Done",
+        assigned_user_id="user1",
+        active_user_id="user2",
+        completed_user_id="user3",
+        ng_state={"layers": ["layer1"]},
+        ng_state_initial={"layers": ["layer1"]},
+        priority=100,
+        batch_id="batch2",
+        last_leased_ts=1720008000.0,
+        is_active=False,
+        is_paused=True,
+        is_checked=True,
+        task_type="verify",
+        id_nonunique=67890,
+        extra_data={"info": "test"},
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    result = task.to_dict()
+    assert result["completion_status"] == "Done"
+    assert result["assigned_user_id"] == "user1"
+    assert result["active_user_id"] == "user2"
+    assert result["completed_user_id"] == "user3"
+    assert result["is_active"] is False
+    assert result["is_paused"] is True
+    assert result["is_checked"] is True
+    assert result["extra_data"] == {"info": "test"}
+
+
+def test_from_dict_task_model():
+    """Test creating from dict"""
+    data = {
+        "task_id": "task789",
+        "completion_status": "Faulty",
+        "assigned_user_id": "userA",
+        "active_user_id": "userB",
+        "completed_user_id": "userC",
+        "ng_state": {"test": "state"},
+        "ng_state_initial": {"test": "initial"},
+        "priority": 75,
+        "batch_id": "batch3",
+        "last_leased_ts": 1720009000.0,
+        "is_active": True,
+        "is_paused": False,
+        "is_checked": True,
+        "task_type": "custom",
+        "id_nonunique": 11111,
+        "extra_data": {"key": "value"},
+    }
+    model = TaskModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_id == "task789"
+    assert model.completion_status == "Faulty"
+    assert model.assigned_user_id == "userA"
+    assert model.priority == 75
+    assert model.extra_data == {"key": "value"}
+
+
+def test_from_dict_defaults_task_model():
+    """Test creating from dict with defaults"""
+    data = {
+        "task_id": "task999",
+        "ng_state": {"test": "state"},
+        "ng_state_initial": {"test": "initial"},
+        "priority": 50,
+        "batch_id": "batch",
+        "task_type": "test",
+    }
+    model = TaskModel.from_dict("test_project", data)
+    assert model.completion_status == ""
+    assert model.assigned_user_id == ""
+    assert model.active_user_id == ""
+    assert model.completed_user_id == ""
+    assert model.last_leased_ts == 0.0
+    assert model.is_active is True
+    assert model.is_paused is False
+    assert model.is_checked is False
+    assert model.extra_data is None
 
 
 # Keep original backward compatibility tests

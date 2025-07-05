@@ -4,8 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 
-from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base, TimesheetModel
+from zetta_utils.task_management.db.session import get_session_factory
 from zetta_utils.task_management.dependency import create_dependency
 from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import (
@@ -202,10 +202,10 @@ def setup_timesheet_scenario(db_session, project_name):
     db_session.commit()
 
 
-def complete_task(postgres_container, project_name, task_id):
+def complete_task(db_engine, project_name, task_id):
     """Worker function - creates its own session to avoid sharing"""
-    connection_url = postgres_container.get_connection_url()
-    session = get_db_session(engine_url=connection_url)
+    session_factory = get_session_factory(db_engine)
+    session = session_factory()
     try:
         _handle_task_completion(session, project_name, task_id, "done")
         session.commit()
@@ -213,10 +213,10 @@ def complete_task(postgres_container, project_name, task_id):
         session.close()
 
 
-def takeover_task(postgres_container, project_name, user_id, task_id):
+def takeover_task(db_engine, project_name, user_id, task_id):
     """Worker function to test start_task takeover race conditions"""
-    connection_url = postgres_container.get_connection_url()
-    session = get_db_session(engine_url=connection_url)
+    session_factory = get_session_factory(db_engine)
+    session = session_factory()
     try:
         result = start_task(
             project_name=project_name,
@@ -233,10 +233,10 @@ def takeover_task(postgres_container, project_name, user_id, task_id):
         session.close()
 
 
-def submit_concurrent_timesheet(postgres_container, project_name, user_id, task_id, duration):
+def submit_concurrent_timesheet(db_engine, project_name, user_id, task_id, duration):
     """Worker function to test submit_timesheet race conditions"""
-    connection_url = postgres_container.get_connection_url()
-    session = get_db_session(engine_url=connection_url)
+    session_factory = get_session_factory(db_engine)
+    session = session_factory()
     try:
         submit_timesheet(
             project_name=project_name,
@@ -265,7 +265,7 @@ def test_sequential_works(clean_db, postgres_session, project_name):
     assert final_c["is_active"], "C should be active"
 
 
-def test_concurrent_race_condition(clean_db, postgres_container, postgres_session, project_name):
+def test_concurrent_race_condition(clean_db, db_engine, postgres_session, project_name):
     N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
@@ -283,8 +283,8 @@ def test_concurrent_race_condition(clean_db, postgres_container, postgres_sessio
 
         # Run 2 workers concurrently
         with ThreadPoolExecutor(max_workers=2) as executor:
-            future_a = executor.submit(complete_task, postgres_container, project_name, "a")
-            future_b = executor.submit(complete_task, postgres_container, project_name, "b")
+            future_a = executor.submit(complete_task, db_engine, project_name, "a")
+            future_b = executor.submit(complete_task, db_engine, project_name, "b")
 
             # Wait for both to complete with timeout
             future_a.result(timeout=10)
@@ -304,9 +304,7 @@ def test_concurrent_race_condition(clean_db, postgres_container, postgres_sessio
     print(f"\nAll {N_ITERATIONS} iterations passed! 🎉")
 
 
-def test_start_task_takeover_race_condition(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_start_task_takeover_race_condition(clean_db, db_engine, postgres_session, project_name):
     N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
@@ -327,7 +325,7 @@ def test_start_task_takeover_race_condition(
             futures = []
             for i in range(2, 4):  # user_2 and user_3 try to take over from user_1
                 future = executor.submit(
-                    takeover_task, postgres_container, project_name, f"user_{i}", "idle_task"
+                    takeover_task, db_engine, project_name, f"user_{i}", "idle_task"
                 )
                 futures.append(future)
 
@@ -368,9 +366,7 @@ def test_start_task_takeover_race_condition(
     print(f"\nAll {N_ITERATIONS} takeover iterations passed! 🎉")
 
 
-def test_submit_timesheet_race_condition(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_submit_timesheet_race_condition(clean_db, db_engine, postgres_session, project_name):
     N_ITERATIONS = 5  # Reduced from 20 to avoid connection pool exhaustion
 
     for iteration in range(N_ITERATIONS):
@@ -397,7 +393,7 @@ def test_submit_timesheet_race_condition(
             for _ in range(num_concurrent_submissions):
                 future = executor.submit(
                     submit_concurrent_timesheet,
-                    postgres_container,
+                    db_engine,
                     project_name,
                     user_id,
                     task_id,
@@ -444,12 +440,10 @@ def test_submit_timesheet_race_condition(
     print(f"\nAll {N_ITERATIONS} timesheet iterations passed! 🎉")
 
 
-def test_auto_selection_race_condition(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_auto_selection_race_condition(clean_db, db_engine, postgres_session, project_name):
     def auto_select_worker(user_id):
-        connection_url = postgres_container.get_connection_url()
-        session = get_db_session(engine_url=connection_url)
+        session_factory = get_session_factory(db_engine)
+        session = session_factory()
         try:
             result = start_task(project_name=project_name, user_id=user_id, db_session=session)
             session.commit()
@@ -524,12 +518,10 @@ def test_auto_selection_race_condition(
     ), f"RACE CONDITION: Expected 1 success, got {len(successes)}: {results}"
 
 
-def test_task_completion_race_condition(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_task_completion_race_condition(clean_db, db_engine, postgres_session, project_name):
     def complete_worker(task_id):
-        connection_url = postgres_container.get_connection_url()
-        session = get_db_session(engine_url=connection_url)
+        session_factory = get_session_factory(db_engine)
+        session = session_factory()
         try:
 
             user_id = f"completion_user_{task_id.split('_')[-1]}"  # Extract user from task_id
@@ -621,9 +613,7 @@ def test_task_completion_race_condition(
     # Test passes if both tasks complete successfully
 
 
-def test_pause_unpause_task_functionality(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_pause_unpause_task_functionality(clean_db, db_engine, postgres_session, project_name):
     # Create the project first
     create_project(
         project_name=project_name,
@@ -724,12 +714,10 @@ def test_pause_unpause_task_functionality(
     ), f"Expected unpaused task to be auto-selectable, got {auto_selected_unpaused}"
 
 
-def test_pause_unpause_race_condition(
-    clean_db, postgres_container, postgres_session, project_name
-):
+def test_pause_unpause_race_condition(clean_db, db_engine, postgres_session, project_name):
     def pause_worker(task_id):
-        connection_url = postgres_container.get_connection_url()
-        session = get_db_session(engine_url=connection_url)
+        session_factory = get_session_factory(db_engine)
+        session = session_factory()
         try:
             pause_task(project_name=project_name, task_id=task_id, db_session=session)
             return "PAUSED"
@@ -740,8 +728,8 @@ def test_pause_unpause_race_condition(
             session.close()
 
     def unpause_worker(task_id):
-        connection_url = postgres_container.get_connection_url()
-        session = get_db_session(engine_url=connection_url)
+        session_factory = get_session_factory(db_engine)
+        session = session_factory()
         try:
             unpause_task(project_name=project_name, task_id=task_id, db_session=session)
             return "UNPAUSED"
@@ -814,7 +802,7 @@ def test_pause_unpause_race_condition(
 
 
 def test_paused_tasks_excluded_from_auto_selection_comprehensive(
-    clean_db, postgres_container, postgres_session, project_name
+    clean_db, db_engine, postgres_session, project_name
 ):
     # Create the project first
     create_project(

@@ -1,9 +1,11 @@
 # pylint: disable=redefined-outer-name,unused-argument
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.db import get_db_session
 from zetta_utils.task_management.db.models import Base
+from zetta_utils.task_management.db.session import create_tables, get_session_factory
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
@@ -15,7 +17,7 @@ def postgres_container():
     """PostgreSQL container for testing"""
     container = PostgresContainer("postgres:15")
     # Configure with more connections for concurrent tests
-    container.with_command("-c max_connections=50")
+    container.with_command("-c max_connections=100")
     container.start()
     try:
         yield container
@@ -26,13 +28,33 @@ def postgres_container():
             pass  # Ignore cleanup errors
 
 
+@pytest.fixture(scope="session")
+def db_engine(postgres_container):
+    """Shared database engine for all tests"""
+    connection_url = postgres_container.get_connection_url()
+    # Use NullPool to avoid connection pooling issues in tests
+    engine = create_engine(connection_url, poolclass=NullPool)
+    # Don't create tables here - let each test manage its own schema
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def ensure_tables(db_engine):
+    """Ensure database tables exist before each test"""
+    create_tables(db_engine)
+    yield
+
+
 @pytest.fixture
-def db_session(postgres_container):
+def db_session(db_engine):
     """
     Create a PostgreSQL database session for testing.
     """
-    connection_url = postgres_container.get_connection_url()
-    session = get_db_session(engine_url=connection_url)
+    session_factory = get_session_factory(db_engine)
+    session = session_factory()
     try:
         yield session
     finally:
@@ -41,10 +63,10 @@ def db_session(postgres_container):
 
 # Alias for compatibility with existing tests
 @pytest.fixture
-def postgres_session(postgres_container):
+def postgres_session(db_engine):
     """PostgreSQL database session - alias for db_session"""
-    connection_url = postgres_container.get_connection_url()
-    session = get_db_session(engine_url=connection_url)
+    session_factory = get_session_factory(db_engine)
+    session = session_factory()
     try:
         yield session
     finally:

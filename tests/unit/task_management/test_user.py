@@ -1,97 +1,99 @@
 # pylint: disable=redefined-outer-name,unused-argument
-from copy import deepcopy
 
 import pytest
 
-from zetta_utils.task_management.project import get_collection
-from zetta_utils.task_management.subtask import start_subtask
 from zetta_utils.task_management.types import User, UserUpdate
 from zetta_utils.task_management.user import create_user, get_user, update_user
 
 
-def test_get_user_success(existing_user, project_name):
-    result = get_user(project_name, "test_user")
+def test_get_user_success(existing_user, project_name, db_session):
+    result = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
     assert result == existing_user
 
 
-def test_get_user_not_found(clean_collections, project_name):
+def test_get_user_not_found(clean_db, project_name, db_session):
     with pytest.raises(KeyError, match="User test_user not found"):
-        get_user(project_name, "test_user")
+        get_user(project_name=project_name, user_id="test_user", db_session=db_session)
 
 
-def test_create_user_success(project_name, clean_collections, sample_user):
-    result = create_user(project_name, sample_user)
+def test_create_user_success(project_name, clean_db, sample_user, db_session):
+    result = create_user(project_name=project_name, data=sample_user, db_session=db_session)
     assert result == sample_user["user_id"]
-    doc = get_collection(project_name, "users").document("test_user").get()
-    assert doc.exists
-    assert doc.to_dict() == sample_user
 
-
-def test_create_user_already_exists(clean_collections, existing_user, sample_user, project_name):
-    with pytest.raises(ValueError, match="User test_user already exists"):
-        create_user(project_name, sample_user)
-
-
-def test_update_user_success(clean_collections, existing_user, project_name):
-    updated_data = deepcopy(existing_user)
-    updated_data["hourly_rate"] = 60.0
-    del updated_data["user_id"]
-
-    result = update_user(project_name, "test_user", updated_data)
-    assert result is True
-    doc = get_collection(project_name, "users").document("test_user").get()
-
-    # Compare with merged data instead of just update data
-    expected_data = {**existing_user, **updated_data}
-    assert doc.to_dict() == expected_data
-
-
-def test_update_user_not_found(clean_collections, sample_user, project_name):
-    with pytest.raises(KeyError, match="User test_user not found"):
-        update_user(project_name, "test_user", sample_user)
-
-
-def test_create_user_with_qualifications(clean_collections, project_name):
-    user_data = User(
-        **{
-            "user_id": "test_user",
-            "hourly_rate": 50.0,
-            "active_subtask": "",
-            "qualified_subtask_types": ["segmentation_proofread"],
-        }
+    user = get_user(
+        project_name=project_name, user_id=sample_user["user_id"], db_session=db_session
     )
-    result = create_user(project_name, user_data)
-    assert result == user_data["user_id"]
-
-    stored_user = get_user(project_name, "test_user")
-    assert stored_user == user_data
+    assert user == sample_user
 
 
-def test_update_user_qualifications(clean_collections, existing_user, project_name):
-    updated_data = UserUpdate(qualified_subtask_types=["segmentation_verify"])
+def test_create_user_already_exists(project_name, clean_db, sample_user, db_session):
+    # First creation
+    create_user(project_name=project_name, data=sample_user, db_session=db_session)
 
-    result = update_user(project_name, "test_user", updated_data)
+    # Second creation with same data should succeed
+    result = create_user(project_name=project_name, data=sample_user, db_session=db_session)
+    assert result == sample_user["user_id"]
+
+    # Creation with different data should raise ValueError
+    different_user_data = dict(sample_user)
+    different_user_data["hourly_rate"] = 99.0
+    different_user = User(**different_user_data)  # type: ignore
+    with pytest.raises(ValueError, match="already exists with different data"):
+        create_user(project_name=project_name, data=different_user, db_session=db_session)
+
+
+def test_update_user_success(project_name, existing_user, db_session):
+    update_data = UserUpdate(hourly_rate=75.0)
+    result = update_user(
+        project_name=project_name, user_id="test_user", data=update_data, db_session=db_session
+    )
     assert result is True
 
-    stored_user = get_user(project_name, "test_user")
-    assert stored_user["qualified_subtask_types"] == ["segmentation_verify"]
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["hourly_rate"] == 75.0
 
 
-def test_start_subtask_requires_qualification(
-    project_name, clean_collections, existing_user, existing_subtask, existing_subtask_type
-):
-    """Test that a user can't start a subtask if they're not qualified for it"""
-    # Update user to have empty qualifications list
-    update_user(
-        project_name,
-        "test_user",
-        {
-            "hourly_rate": 50.0,
-            "active_subtask": "",
-            "qualified_subtask_types": [],  # Empty list means no qualifications
-        },
+def test_update_user_not_found(project_name, clean_db, db_session):
+    update_data = UserUpdate(hourly_rate=75.0)
+    with pytest.raises(KeyError, match="User unknown_user not found"):
+        update_user(
+            project_name=project_name,
+            user_id="unknown_user",
+            data=update_data,
+            db_session=db_session,
+        )
+
+
+def test_create_user_with_qualifications(clean_db, project_name, db_session, sample_user):
+    result = create_user(project_name=project_name, data=sample_user, db_session=db_session)
+    assert result == sample_user["user_id"]
+
+    user = get_user(
+        project_name=project_name, user_id=sample_user["user_id"], db_session=db_session
     )
+    assert user["qualified_task_types"] == ["segmentation_proofread"]
 
-    # Try to start subtask - this should raise an error
-    with pytest.raises(Exception):
-        start_subtask(project_name, "test_user", "subtask_1")
+
+def test_update_user_qualified_task_types(project_name, existing_user, db_session):
+    new_qualifications = ["segmentation_proofread", "segmentation_verify"]
+    update_data = UserUpdate(qualified_task_types=new_qualifications)
+
+    result = update_user(
+        project_name=project_name, user_id="test_user", data=update_data, db_session=db_session
+    )
+    assert result is True
+
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["qualified_task_types"] == new_qualifications
+
+
+def test_update_user_active_task(project_name, existing_user, db_session):
+    update_data = UserUpdate(active_task="task_123")
+
+    result = update_user(
+        project_name=project_name, user_id="test_user", data=update_data, db_session=db_session
+    )
+    assert result is True
+
+    user = get_user(project_name=project_name, user_id="test_user", db_session=db_session)
+    assert user["active_task"] == "task_123"

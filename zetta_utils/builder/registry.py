@@ -103,3 +103,6 @@ def unregister(
         version_spec=version_spec,
     )
     REGISTRY[name].remove(entry)
+
+MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
+MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")

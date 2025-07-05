@@ -8,8 +8,7 @@ logger = get_logger("zetta_utils")
 
 
 @click.group()
-def run_update_cli():
-    ...
+def run_update_cli(): ...
 
 
 @run_update_cli.command()

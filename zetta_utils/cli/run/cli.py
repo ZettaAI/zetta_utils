@@ -11,8 +11,6 @@ from rich.panel import Panel
 from rich.pretty import pprint
 from rich.table import Table
 
-from . import RUN_DB, RUN_INFO_BUCKET, RunInfo, get_latest_checkpoint
-
 COLUMNS: Final = namedtuple(
     "COLUMNS", ["zetta_user", "state", "timestamp", "heartbeat", "run_id", "duration_s"]
 )
@@ -39,8 +37,7 @@ def _print_infos(infos: list) -> Table:
 
 
 @click.group()
-def run_info_cli():
-    ...
+def run_info_cli(): ...
 
 
 @run_info_cli.command()
@@ -49,6 +46,14 @@ def run_info(run_ids: list[str]):
     """
     Display information about `run_id [[run_id] ...]`
     """
+
+    from zetta_utils.run import (  # pylint: disable=import-outside-toplevel
+        RUN_DB,
+        RUN_INFO_BUCKET,
+        RunInfo,
+        get_latest_checkpoint,
+    )
+
     info_path = os.environ.get("RUN_INFO_BUCKET", RUN_INFO_BUCKET)
     infos = RUN_DB[(run_ids, (x.value for x in RunInfo))]
     for run_id, info in zip(run_ids, infos):
@@ -79,6 +84,8 @@ def run_list(user: str, days: int):
 
     Sorted by `timestamp` (desc). Can filter by `user`.
     """
+    from zetta_utils.run import RUN_DB  # pylint: disable=import-outside-toplevel
+
     _filter: dict[str, list] = {f">{COLUMNS._fields[2]}": [time.time() - 24 * 3600 * days]}
     if user:
         _filter[COLUMNS._fields[0]] = [user]

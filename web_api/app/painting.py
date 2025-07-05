@@ -32,7 +32,7 @@ async def read_cutout(
     is_fortran: Annotated[bool, Query()] = True,
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
-    layer = build_cv_layer(path, readonly=True)
+    layer = build_cv_layer(path, readonly=True, cv_kwargs={"cache": False}, cache_bytes_limit=0)
 
     data = np.ascontiguousarray(layer[index])
     if is_fortran:
@@ -60,8 +60,8 @@ async def write_cutout(
     is_fortran: Annotated[bool, Query()] = True,
 ):
     index = VolumetricIndex.from_coords(bbox_start, bbox_end, Vec3D(*resolution))
-    cv_kwargs = {"non_aligned_writes": True}
-    layer = build_cv_layer(path, cv_kwargs=cv_kwargs)
+    cv_kwargs = {"non_aligned_writes": True, "cache": False}
+    layer = build_cv_layer(path, cv_kwargs=cv_kwargs, cache_bytes_limit=0)
     shape = [layer.backend.num_channels, *(np.array(bbox_end) - np.array(bbox_start))]
 
     data = await request.body()

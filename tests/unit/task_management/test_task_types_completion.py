@@ -1,5 +1,5 @@
 # pylint: disable=redefined-outer-name,unused-argument
-from unittest.mock import MagicMock
+# Removed unittest.mock import - use mocker fixture
 
 import pytest
 
@@ -21,10 +21,10 @@ def test_register_completion_handler():
     assert _COMPLETION_HANDLERS["test_type"] is test_handler
 
 
-def test_handle_task_completion_with_handler():
+def test_handle_task_completion_with_handler(mocker):
     """Test handling task completion with a registered handler"""
     # Create a mock handler
-    mock_handler = MagicMock()
+    mock_handler = mocker.MagicMock()
 
     # Register the handler directly in the registry
     _COMPLETION_HANDLERS["test_task_type"] = mock_handler

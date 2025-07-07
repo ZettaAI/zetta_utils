@@ -101,8 +101,8 @@ def get_segment_ng_state(
         }
 
         # Add extra layers first if configured in project
-        if project.extra_layers and "layers" in project.extra_layers:
-            for layer in project.extra_layers["layers"]:
+        if project.extra_layers:
+            for layer in project.extra_layers:
                 ng_state["layers"].append(layer)
 
         # Add segmentation layer

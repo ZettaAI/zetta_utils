@@ -50,11 +50,13 @@ def test_add_standard_task_types(clean_db, db_session, project_name):
 
     # Verify the correct task types were created
     assert "trace_v0" in result
-    assert "seg_stats_update_v0" in result
+    assert "trace_postprocess_v0" in result
+    assert "trace_feedback_v0" in result
 
     # Verify completion statuses
     assert result["trace_v0"] == ["Done", "Can't Continue", "Merger", "Wrong Cell Type"]
-    assert result["seg_stats_update_v0"] == ["Done"]
+    assert result["trace_postprocess_v0"] == ["Done"]
+    assert result["trace_feedback_v0"] == ["Faulty Task", "Accurate", "Inaccurate", "Fair"]
 
     # Verify they exist in the database
     trace_type = get_task_type(
@@ -68,11 +70,22 @@ def test_add_standard_task_types(clean_db, db_session, project_name):
         "Wrong Cell Type",
     ]
 
-    seg_stats_type = get_task_type(
-        project_name=project_name, task_type="seg_stats_update_v0", db_session=db_session
+    trace_postprocess_type = get_task_type(
+        project_name=project_name, task_type="trace_postprocess_v0", db_session=db_session
     )
-    assert seg_stats_type["task_type"] == "seg_stats_update_v0"
-    assert seg_stats_type["completion_statuses"] == ["Done"]
+    assert trace_postprocess_type["task_type"] == "trace_postprocess_v0"
+    assert trace_postprocess_type["completion_statuses"] == ["Done"]
+
+    trace_feedback_type = get_task_type(
+        project_name=project_name, task_type="trace_feedback_v0", db_session=db_session
+    )
+    assert trace_feedback_type["task_type"] == "trace_feedback_v0"
+    assert trace_feedback_type["completion_statuses"] == [
+        "Faulty Task",
+        "Accurate",
+        "Inaccurate",
+        "Fair",
+    ]
 
 
 def test_add_standard_task_types_replaces_existing(
@@ -93,7 +106,7 @@ def test_add_standard_task_types_replaces_existing(
 
     # Verify standard types were created
     assert "trace_v0" in result
-    assert "seg_stats_update_v0" in result
+    assert "trace_postprocess_v0" in result
 
     # Verify the custom task type was deleted
     with pytest.raises(KeyError, match="TaskType segmentation_proofread not found"):

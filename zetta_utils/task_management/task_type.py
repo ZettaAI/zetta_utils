@@ -94,8 +94,14 @@ def add_standard_task_types(
             "completion_statuses": ["Done", "Can't Continue", "Merger", "Wrong Cell Type"],
         },
         {
-            "task_type": "seg_stats_update_v0",
+            "task_type": "trace_postprocess_v0",
             "completion_statuses": ["Done"],
+            "description": "Post-process completed trace to update segment statistics",
+        },
+        {
+            "task_type": "trace_feedback_v0",
+            "completion_statuses": ["Faulty Task", "Accurate", "Inaccurate", "Fair"],
+            "description": "Verify the results of this completed tracing task",
         },
     ]
 

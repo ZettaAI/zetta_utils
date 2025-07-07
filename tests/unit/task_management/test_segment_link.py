@@ -26,17 +26,23 @@ def existing_project_with_extra_layers(clean_db, db_session, project_name):
         sv_resolution_x=8.0,
         sv_resolution_y=8.0,
         sv_resolution_z=40.0,
-        extra_layers={
-            "layers": [
-                {
-                    "type": "image",
-                    "source": "precomputed://gs://test-bucket/image",
-                    "name": "EM",
-                }
-            ]
-        },
         db_session=db_session,
     )
+
+    # Update the project to have extra_layers as a list (bypassing type check)
+    # pylint: disable=import-outside-toplevel
+    from zetta_utils.task_management.db.models import ProjectModel
+
+    project = db_session.query(ProjectModel).filter_by(project_name=project_name).first()
+    project.extra_layers = [
+        {
+            "type": "image",
+            "source": "precomputed://gs://test-bucket/image",
+            "name": "EM",
+        }
+    ]
+    db_session.commit()
+
     yield project_name
 
 

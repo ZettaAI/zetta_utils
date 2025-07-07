@@ -697,3 +697,22 @@ def test_all_models_to_dict():
     timesheet_model = TimesheetModel.from_dict("test_project", timesheet_data)
     timesheet_dict = timesheet_model.to_dict()
     assert timesheet_dict["entry_id"] == "entry_1"
+
+
+def test_task_model_note_field(clean_db, db_session):
+    """Test TaskModel.to_dict() with note field to cover line 653"""
+    # Simplest test - just create a task with note and call to_dict()
+    task = TaskModel(
+        project_name="test",
+        task_id="t1",
+        ng_state={},
+        ng_state_initial={},
+        priority=1,
+        batch_id="b1",
+        task_type="test",
+        id_nonunique=1,
+        note="test note",  # This will trigger line 653
+    )
+
+    result = task.to_dict()
+    assert result["note"] == "test note"

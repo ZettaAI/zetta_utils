@@ -94,6 +94,8 @@ def get_img_from_fig(
     img_arr = np.frombuffer(buf.getvalue(), dtype=np.uint8)
     buf.close()
     img = cv2.imdecode(img_arr, 1)  # pylint: disable=E1101
+    if img is None:
+        raise ValueError("Failed to decode image from buffer")
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # pylint: disable=E1101
 
     return img

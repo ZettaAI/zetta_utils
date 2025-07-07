@@ -95,8 +95,56 @@ def extract_annotations_from_ng_state(ng_state: dict) -> dict[str, Any]:
     return annotations
 
 
+def verify_trace_layers(ng_state: dict, require_single_segment: bool = True) -> VerificationResult:
+    """Verify that neuroglancer state has required trace layers.
+
+    Args:
+        ng_state: The neuroglancer state to verify
+        require_single_segment: If True, require exactly 1 visible segment
+
+    Returns:
+        VerificationResult indicating pass/fail
+    """
+    # Check required layers exist
+    required_layers = [
+        "Segmentation",
+        "Breadcrumbs",
+        "Certain Ends",
+        "Uncertain Ends",
+        "Seed Location",
+    ]
+    missing_layers = []
+
+    for layer_name in required_layers:
+        if not get_layer_by_name(ng_state, layer_name):
+            missing_layers.append(layer_name)
+
+    if missing_layers:
+        return VerificationResult(
+            passed=False, message=f"Missing required layers: {', '.join(missing_layers)}"
+        )
+
+    # Check visible segments if required
+    if require_single_segment:
+        segmentation_layer = get_layer_by_name(ng_state, "Segmentation")
+        visible_segments = count_visible_segments(segmentation_layer) if segmentation_layer else 0
+
+        if visible_segments != 1:
+            return VerificationResult(
+                passed=False,
+                message=(
+                    f"Segmentation layer must have exactly 1 visible segment, "
+                    f"found {visible_segments}"
+                ),
+            )
+
+    return VerificationResult(passed=True, message="Trace layers validation passed")
+
+
 @register_completion_handler("trace_v0")
-def handle_trace_v0_completion(project_name: str, task: Task, completion_status: str) -> None:
+def handle_trace_v0_completion(  # pylint: disable=too-many-statements
+    project_name: str, task: Task, completion_status: str
+) -> None:
     """Handle completion of trace_v0 tasks.
 
     Updates segment data and saves endpoints to database.
@@ -196,6 +244,42 @@ def handle_trace_v0_completion(project_name: str, task: Task, completion_status:
 
         logger.info(f"Updated segment {seed_id} with status '{completion_status}'")
 
+        # Auto-create postprocess task for completed traces
+        if completion_status == "Done":
+            try:
+                # Generate unique task ID
+                postprocess_task_id = f"postprocess_{seed_id}_{generate_id_nonunique()}"
+
+                # Create minimal task data for postprocessing
+                postprocess_task = Task(
+                    task_id=postprocess_task_id,
+                    task_type="trace_postprocess_v0",
+                    ng_state={},  # Empty state, worker doesn't need it
+                    ng_state_initial={},
+                    completion_status="",
+                    assigned_user_id="",
+                    active_user_id="",
+                    completed_user_id="",
+                    priority=10,  # Low priority
+                    batch_id="postprocess",
+                    last_leased_ts=0.0,
+                    is_active=True,
+                    is_paused=False,
+                    is_checked=False,
+                    extra_data={"seed_id": seed_id},
+                )
+
+                # Create the task
+                created_task_id = create_task(
+                    project_name=project_name, data=postprocess_task, db_session=session
+                )
+
+                logger.info(f"Created postprocess task {created_task_id} for segment {seed_id}")
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                # Don't fail the trace completion if postprocess creation fails
+                logger.error(f"Failed to create postprocess task for segment {seed_id}: {e}")
+
 
 @register_verifier("trace_v0")
 def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-branches
@@ -210,37 +294,10 @@ def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-bran
 
     ng_state = task.get("ng_state", {})
 
-    # Check required layers exist
-    required_layers = [
-        "Segmentation",
-        "Breadcrumbs",
-        "Certain Ends",
-        "Uncertain Ends",
-        "Seed Location",
-    ]
-    missing_layers = []
-
-    for layer_name in required_layers:
-        if not get_layer_by_name(ng_state, layer_name):
-            missing_layers.append(layer_name)
-
-    if missing_layers:
-        return VerificationResult(
-            passed=False, message=f"Missing required layers: {', '.join(missing_layers)}"
-        )
-
-    # Check exactly one visible segment in Segmentation layer
-    segmentation_layer = get_layer_by_name(ng_state, "Segmentation")
-    visible_segments = count_visible_segments(segmentation_layer) if segmentation_layer else 0
-
-    if visible_segments != 1:
-        return VerificationResult(
-            passed=False,
-            message=(
-                f"Segmentation layer must have exactly 1 visible segment, "
-                f"found {visible_segments}"
-            ),
-        )
+    # Use shared verification logic
+    layers_result = verify_trace_layers(ng_state, require_single_segment=True)
+    if not layers_result.passed:
+        return layers_result
 
     # Status-specific validation
     if completion_status == "Done":

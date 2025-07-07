@@ -207,3 +207,12 @@ class EndpointUpdate(TypedDict):
     user: str
     new_status: Literal["CERTAIN", "UNCERTAIN", "CONTINUED", "BREADCRUMB"]
     timestamp: str  # ISO format timestamp
+
+
+class TaskFeedback(TypedDict):
+    """A feedback record linking a trace task to its review."""
+
+    feedback_id: int
+    task_id: str  # Original trace task
+    feedback_task_id: str  # The feedback task that reviewed it
+    created_at: str  # ISO format timestamp

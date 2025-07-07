@@ -1,11 +1,12 @@
 """
-Segmentation Stats Updater Worker
+Trace Postprocessor Worker
 
-An automated worker that polls for seg_stats_update_v0 tasks and updates segment statistics
+An automated worker that polls for trace_postprocess_v0 tasks and updates segment statistics
 (skeleton length and synapse counts) from CAVE.
 """
 
 import os
+import random
 import time
 import traceback
 from datetime import datetime
@@ -18,8 +19,17 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from zetta_utils import log
+from zetta_utils.task_management.db.models import TaskModel
+from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment import update_segment_statistics
-from zetta_utils.task_management.task import get_task, release_task, start_task
+from zetta_utils.task_management.task import (
+    create_task,
+    get_task,
+    release_task,
+    start_task,
+)
+from zetta_utils.task_management.types import Task
+from zetta_utils.task_management.utils import generate_id_nonunique
 
 logger = log.get_logger()
 console = Console()
@@ -54,7 +64,7 @@ def send_slack_error_notification(
 
     try:
         message = (
-            f"🚨 *Segmentation Stats Updater Worker Error*\n\n"
+            f"🚨 *Trace Postprocessor Worker Error*\n\n"
             f"*Project:* {project_name}\n"
             f"*Duration:* {duration_minutes} minutes of continuous errors\n"
             f"*Error:* ```{error_message}```\n"
@@ -74,7 +84,7 @@ def send_slack_error_notification(
 
 
 def process_task(task_id: str, project_name: str, user_id: str, task_count: int) -> None:
-    """Process a single seg_stats_update_v0 task."""
+    """Process a single trace_postprocess_v0 task."""
     # Create processing panel
     processing_text = Text(f"Processing Task #{task_count}", style="bold green")
     processing_panel = Panel(
@@ -158,6 +168,17 @@ def process_task(task_id: str, project_name: str, user_id: str, task_count: int)
 
     console.print(f"\n[bold cyan]Completed stats update task:[/bold cyan] {task_id}")
 
+    # Create feedback task with 10% probability
+    if random.random() < 0.1:  # 10% chance
+        try:
+            create_feedback_task(project_name, seed_id)
+            console.print(
+                "[green]✅ Created feedback task for quality control (10% sample)[/green]"
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to create feedback task: {e}")
+            console.print(f"[yellow]⚠️  Failed to create feedback task: {e}[/yellow]")
+
 
 @click.command()
 @click.option(
@@ -180,10 +201,10 @@ def process_task(task_id: str, project_name: str, user_id: str, task_count: int)
 def run_worker(  # pylint: disable=too-many-statements
     user_id: str, project_name: str, polling_period: float, slack_channel: str
 ):
-    """Run the segmentation stats updater worker."""
+    """Run the trace postprocessor worker."""
     # Display startup banner
     startup_panel = Panel(
-        f"[bold cyan]Segmentation Stats Updater Worker[/bold cyan]\n\n"
+        f"[bold cyan]Trace Postprocessor Worker[/bold cyan]\n\n"
         f"[yellow]User ID:[/yellow] {user_id}\n"
         f"[yellow]Project:[/yellow] {project_name}\n"
         f"[yellow]Polling Period:[/yellow] {polling_period}s\n"
@@ -194,7 +215,7 @@ def run_worker(  # pylint: disable=too-many-statements
     )
     console.print(startup_panel)
     logger.info(
-        f"Starting segmentation stats updater worker for project '{project_name}' "
+        f"Starting trace postprocessor worker for project '{project_name}' "
         f"with user '{user_id}'"
     )
 
@@ -295,11 +316,74 @@ def run_worker(  # pylint: disable=too-many-statements
         shutdown_panel = Panel(
             f"[bold red]Worker Shutdown[/bold red]\n\n"
             f"[yellow]Tasks Processed:[/yellow] {task_count}\n"
-            f"[dim]Thank you for using the stats updater![/dim]",
+            f"[dim]Thank you for using the trace postprocessor![/dim]",
             title="🛑 Goodbye",
             border_style="red",
         )
         console.print(shutdown_panel)
+
+
+def create_feedback_task(project_name: str, seed_id: int) -> None:
+    """Create a trace_feedback_v0 task for a completed trace.
+
+    Args:
+        project_name: The project name
+        seed_id: The seed_id of the segment that was traced
+    """
+    with get_session_context() as session:
+        # Find the original trace task for this segment
+        # Using JSONB field access
+        trace_task = (
+            session.query(TaskModel)
+            .filter(
+                TaskModel.project_name == project_name,
+                TaskModel.task_type == "trace_v0",
+                TaskModel.completion_status == "Done",
+            )
+            .filter(TaskModel.extra_data["seed_id"].astext == str(seed_id))
+            .order_by(TaskModel.last_leased_ts.desc())
+            .first()
+        )
+
+        if not trace_task:
+            logger.warning(f"No completed trace_v0 task found for seed_id {seed_id}")
+            return
+
+        # Generate feedback task ID
+        feedback_task_id = f"feedback_{seed_id}_{generate_id_nonunique()}"
+
+        # Create feedback task with the trace task's final ng_state
+        feedback_task = Task(
+            task_id=feedback_task_id,
+            task_type="trace_feedback_v0",
+            ng_state=trace_task.ng_state,  # Use the completed trace's state
+            ng_state_initial=trace_task.ng_state,  # Same for initial state
+            completion_status="",
+            assigned_user_id="",
+            active_user_id="",
+            completed_user_id="",
+            priority=70,  # High priority for feedback
+            batch_id="feedback",
+            last_leased_ts=0.0,
+            is_active=True,
+            is_paused=False,
+            is_checked=False,
+            extra_data={
+                "seed_id": seed_id,
+                "original_task_id": trace_task.task_id,
+                "original_user_id": trace_task.completed_user_id or trace_task.active_user_id,
+            },
+        )
+
+        # Create the task
+        created_task_id = create_task(
+            project_name=project_name, data=feedback_task, db_session=session
+        )
+
+        logger.info(
+            f"Created feedback task {created_task_id} for segment {seed_id} "
+            f"(original task: {trace_task.task_id})"
+        )
 
 
 if __name__ == "__main__":

@@ -589,6 +589,7 @@ class TaskModel(Base):
     task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     id_nonunique: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
         Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
@@ -648,6 +649,9 @@ class TaskModel(Base):
         if self.extra_data is not None:
             result["extra_data"] = self.extra_data
 
+        if self.note is not None:
+            result["note"] = self.note
+
         return result
 
     @classmethod
@@ -671,4 +675,37 @@ class TaskModel(Base):
             task_type=data["task_type"],
             id_nonunique=data.get("id_nonunique"),
             extra_data=data.get("extra_data"),
+            note=data.get("note"),
         )
+
+
+class TaskFeedbackModel(Base):
+    """
+    SQLAlchemy model for the task_feedback table.
+
+    Records feedback task completions (excluding Faulty Task status).
+    Links original trace tasks to their feedback review tasks.
+    """
+
+    __tablename__ = "task_feedback"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    feedback_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    feedback_task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("idx_task_feedback_project_task", "project_name", "task_id"),
+        Index("idx_task_feedback_project_feedback_task", "project_name", "feedback_task_id"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "feedback_id": self.feedback_id,
+            "task_id": self.task_id,
+            "feedback_task_id": self.feedback_task_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

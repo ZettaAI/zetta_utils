@@ -18,6 +18,7 @@ from .creation import (
 
 # Import task-specific handlers to register them
 from . import trace_v0
+from . import trace_feedback_v0
 
 __all__ = [
     # Completion exports

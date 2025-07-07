@@ -71,6 +71,15 @@ def test_read_write(firestore_emulator) -> None:
     assert data == data_user
     assert layer[("key0", "col1")] == "val0"
 
+    # test add and remove array item
+    layer["key2"] = {"+tags": ["tag2"]}
+    row_data = layer["key2"]
+    assert "tag2" in row_data["tags"]
+
+    layer["key2"] = {"-tags": ["tag2"]}
+    row_data = layer["key2"]
+    assert "tag2" not in row_data["tags"]
+
 
 def test_query_and_keys(firestore_emulator) -> None:
     layer = build_firestore_layer("test", project=firestore_emulator)

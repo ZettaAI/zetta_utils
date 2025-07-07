@@ -7,12 +7,9 @@ from __future__ import annotations
 from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes import client as k8s_client
-from zetta_utils import log
-from zetta_utils.cloud_management.resource_allocation.k8s import volume
+from zetta_utils.cloud_management.resource_allocation import k8s
 
 from .secret import get_worker_env_vars
-
-logger = log.get_logger("zetta_utils")
 
 
 def get_pod_spec(
@@ -37,6 +34,23 @@ def get_pod_spec(
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
+    env_secret_mapping = env_secret_mapping or {}
+
+    try:
+        run_id_env = k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID"))
+        envs.append(run_id_env)
+    except KeyError:
+        ...
+
+    pod_name_env = k8s_client.V1EnvVar(
+        name="POD_NAME",
+        value_from=k8s_client.V1EnvVarSource(
+            field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+        ),
+    )
+    envs.append(pod_name_env)
+    envs.extend(get_worker_env_vars(env_secret_mapping))
+
     host_aliases = host_aliases or []
     tolerations = tolerations or []
     volumes = volumes or []
@@ -45,7 +59,7 @@ def get_pod_spec(
     container = k8s_client.V1Container(
         command=command,
         args=command_args,
-        env=envs + get_worker_env_vars(env_secret_mapping),
+        env=envs,
         name=name,
         image=image,
         image_pull_policy=image_pull_policy,
@@ -59,8 +73,19 @@ def get_pod_spec(
         volume_mounts=volume_mounts,
     )
 
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
+    sidecar_container = k8s_client.V1Container(
+        command=["python", "-m", module],
+        env=envs,
+        name="log-pod-runtime",
+        image=image,
+        termination_message_path="/dev/termination-log",
+        termination_message_policy="File",
+        volume_mounts=volume_mounts,
+    )
+
     return k8s_client.V1PodSpec(
-        containers=[container],
+        containers=[container, sidecar_container],
         dns_policy=dns_policy,
         hostname=hostname,
         host_network=host_network,
@@ -98,7 +123,9 @@ def get_mazepa_pod_spec(
     envs = []
     if adc_available:
         envs.append(
-            k8s_client.V1EnvVar(name="GOOGLE_APPLICATION_CREDENTIALS", value=volume.ADC_MOUNT_PATH)
+            k8s_client.V1EnvVar(
+                name="GOOGLE_APPLICATION_CREDENTIALS", value=k8s.volume.ADC_MOUNT_PATH
+            )
         )
 
     return get_pod_spec(
@@ -112,7 +139,9 @@ def get_mazepa_pod_spec(
         node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
-        volumes=volume.get_common_volumes(cave_secret_available=cave_secret_available),
-        volume_mounts=volume.get_common_volume_mounts(cave_secret_available=cave_secret_available),
+        volumes=k8s.volume.get_common_volumes(cave_secret_available=cave_secret_available),
+        volume_mounts=k8s.volume.get_common_volume_mounts(
+            cave_secret_available=cave_secret_available
+        ),
         resource_requests=resource_requests,
     )

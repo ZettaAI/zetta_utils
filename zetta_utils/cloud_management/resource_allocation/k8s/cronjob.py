@@ -86,8 +86,8 @@ def configure_cronjob(
     image: str,
     command: List[str],
     command_args: List[str],
-    env_vars: Dict[str, str],
     resources: Dict[str, int | float | str],
+    env_vars: Dict[str, str] | None = None,
     preset_env_vars: Optional[List[str]] = None,
     spec_config: CronJobSpecConfig = CronJobSpecConfig(),
     labels: Optional[Dict[str, str]] = None,
@@ -101,6 +101,7 @@ def configure_cronjob(
     configuration, _ = get_cluster_data(cluster)
     k8s_client.Configuration.set_default(configuration)
     batch_v1_api = k8s_client.BatchV1Api()
+    env_vars = env_vars or {}
 
     envs = []
     for key, val in env_vars.items():

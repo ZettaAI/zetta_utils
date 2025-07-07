@@ -29,10 +29,14 @@ from .resource import (
 logger = log.get_logger("zetta_utils")
 
 RUN_INFO_BUCKET = "gs://zetta_utils_runs"
-COLLECTION_NAME = "run-info"
+RUN_COLLECTION = "run-info"
+NODE_COLLECTION = "node-info"
 RUN_ID: str | None = None
 RUN_DB = build_firestore_layer(
-    COLLECTION_NAME, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
+    RUN_COLLECTION, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
+)
+NODE_DB = build_firestore_layer(
+    NODE_COLLECTION, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
 )
 
 

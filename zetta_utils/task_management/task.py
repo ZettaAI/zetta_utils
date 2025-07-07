@@ -239,6 +239,10 @@ def start_task(  # pylint: disable=too-many-branches
                 locked_user.active_task = locked_task.task_id
                 locked_task.active_user_id = user_id
                 locked_task.last_leased_ts = current_time
+                
+                # Set first_start_ts only if it's null (first time starting this task)
+                if locked_task.first_start_ts is None:
+                    locked_task.first_start_ts = current_time
 
             session.flush()  # Ensure changes are written to DB before commit
             session.commit()
@@ -840,5 +844,9 @@ def _atomic_task_takeover(
     locked_user.active_task = locked_task.task_id
     locked_task.active_user_id = user_id
     locked_task.last_leased_ts = check_time
+    
+    # Set first_start_ts only if it's null (first time starting this task)
+    if locked_task.first_start_ts is None:
+        locked_task.first_start_ts = check_time
 
     return check_time

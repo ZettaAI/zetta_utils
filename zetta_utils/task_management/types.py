@@ -56,6 +56,7 @@ class Task(TypedDict):
     priority: int
     batch_id: str  # Changed from batch_name
     last_leased_ts: float  # 0 for never leased
+    first_start_ts: NotRequired[float | None]  # First start timestamp
     is_active: bool  # Whether the task can be worked on
     is_paused: NotRequired[bool]  # Whether the task is paused (not auto-selectable)
     is_checked: NotRequired[bool]  # Whether the task has been checked/reviewed
@@ -74,6 +75,7 @@ class TaskUpdate(TypedDict, total=False):
     priority: int
     batch_id: str
     last_leased_ts: float
+    first_start_ts: float | None
     is_active: bool
     is_paused: bool
     is_checked: bool

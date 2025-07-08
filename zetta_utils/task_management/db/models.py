@@ -583,6 +583,7 @@ class TaskModel(Base):
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     batch_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     last_leased_ts: Mapped[float] = mapped_column(Float, nullable=False, default=0.0, index=True)
+    first_start_ts: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
     is_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     is_checked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
@@ -640,6 +641,7 @@ class TaskModel(Base):
             "priority": self.priority,
             "batch_id": self.batch_id,
             "last_leased_ts": self.last_leased_ts,
+            "first_start_ts": self.first_start_ts,
             "is_active": self.is_active,
             "is_paused": self.is_paused,
             "is_checked": self.is_checked,
@@ -669,6 +671,7 @@ class TaskModel(Base):
             priority=data["priority"],
             batch_id=data["batch_id"],
             last_leased_ts=data.get("last_leased_ts", 0.0),
+            first_start_ts=data.get("first_start_ts"),
             is_active=data.get("is_active", True),
             is_paused=data.get("is_paused", False),
             is_checked=data.get("is_checked", False),

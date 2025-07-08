@@ -1328,3 +1328,253 @@ def test_list_tasks_summary_empty_project(db_session, project_name):
     assert summary["paused_count"] == 0
     assert not summary["active_unpaused_ids"]
     assert not summary["active_paused_ids"]
+
+
+def test_first_start_ts_set_on_initial_start(db_session, existing_task, existing_user, project_name):
+    """Test that first_start_ts is set when a task is started for the first time"""
+    # Verify the task initially has no first_start_ts
+    initial_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert initial_task["first_start_ts"] is None
+    
+    # Start the task for the first time
+    before_time = time.time()
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    after_time = time.time()
+    
+    # Verify first_start_ts was set
+    updated_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert updated_task["first_start_ts"] is not None
+    assert before_time <= updated_task["first_start_ts"] <= after_time
+
+
+def test_first_start_ts_unchanged_on_restart(db_session, existing_task, existing_user, project_name):
+    """Test that first_start_ts remains unchanged when a task is restarted"""
+    # Start the task for the first time
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    # Get the first_start_ts after initial start
+    first_started_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    original_first_start_ts = first_started_task["first_start_ts"]
+    assert original_first_start_ts is not None
+    
+    # Release the task
+    release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    # Wait a bit to ensure timestamp would be different if it were reset
+    time.sleep(0.1)
+    
+    # Start the task again
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    # Verify first_start_ts remained unchanged
+    restarted_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert restarted_task["first_start_ts"] == original_first_start_ts
+
+
+def test_first_start_ts_set_on_takeover_when_null(db_session, existing_task, existing_user, project_name):
+    """Test that first_start_ts is set during task takeover only if it's null"""
+    # Create a second user
+    second_user = User(
+        **{
+            "user_id": "user_2",
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
+        }
+    )
+    create_user(project_name=project_name, data=second_user, db_session=db_session)
+    
+    # Verify the task initially has no first_start_ts
+    initial_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert initial_task["first_start_ts"] is None
+    
+    # Have user_1 start the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    
+    # Manually update the last_leased_ts to be older than max idle seconds
+    old_time = time.time() - (get_max_idle_seconds() + 10)
+    update_task(
+        project_name=project_name,
+        task_id="task_1",
+        data=TaskUpdate(last_leased_ts=old_time),
+        db_session=db_session,
+    )
+    
+    # Get the first_start_ts after initial start
+    first_started_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    original_first_start_ts = first_started_task["first_start_ts"]
+    assert original_first_start_ts is not None
+    
+    # Wait a bit to ensure timestamp would be different if it were reset
+    time.sleep(0.1)
+    
+    # Now have user_2 take over the task
+    before_takeover = time.time()
+    start_task(
+        project_name=project_name,
+        user_id="user_2",
+        task_id="task_1",
+        db_session=db_session,
+    )
+    after_takeover = time.time()
+    
+    # Verify first_start_ts remained unchanged (was not reset during takeover)
+    taken_over_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert taken_over_task["first_start_ts"] == original_first_start_ts
+    assert taken_over_task["active_user_id"] == "user_2"
+
+
+def test_first_start_ts_set_on_takeover_when_task_never_started(db_session, project_name, existing_task_type):
+    """Test that first_start_ts is set during task takeover when the task was never started before"""
+    # Create two users
+    user1 = User(
+        **{
+            "user_id": "user_1",
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
+        }
+    )
+    user2 = User(
+        **{
+            "user_id": "user_2", 
+            "hourly_rate": 45.0,
+            "active_task": "",
+            "qualified_task_types": ["segmentation_proofread"],
+        }
+    )
+    create_user(project_name=project_name, data=user1, db_session=db_session)
+    create_user(project_name=project_name, data=user2, db_session=db_session)
+    
+    # Create a task and manually assign it to user_1 without calling start_task
+    test_task = Task(
+        task_id="takeover_test_task",
+        assigned_user_id="",
+        active_user_id="user_1",  # Manually assigned
+        completed_user_id="",
+        ng_state={"url": "http://example.com/takeover"},
+        ng_state_initial={"url": "http://example.com/takeover"},
+        priority=1,
+        batch_id="batch_1",
+        task_type="segmentation_proofread",
+        is_active=True,
+        last_leased_ts=time.time() - (get_max_idle_seconds() + 10),  # Make it idle
+        completion_status="",
+    )
+    create_task(project_name=project_name, data=test_task, db_session=db_session)
+    
+    # Update user_1 to have this as active task
+    update_user(
+        project_name=project_name,
+        user_id="user_1",
+        data=UserUpdate(active_task="takeover_test_task"),
+        db_session=db_session,
+    )
+    
+    # Verify the task has no first_start_ts
+    initial_task = get_task(project_name=project_name, task_id="takeover_test_task", db_session=db_session)
+    assert initial_task["first_start_ts"] is None
+    
+    # Now have user_2 take over the task
+    before_takeover = time.time()
+    start_task(
+        project_name=project_name,
+        user_id="user_2",
+        task_id="takeover_test_task",
+        db_session=db_session,
+    )
+    after_takeover = time.time()
+    
+    # Verify first_start_ts was set during takeover
+    taken_over_task = get_task(project_name=project_name, task_id="takeover_test_task", db_session=db_session)
+    assert taken_over_task["first_start_ts"] is not None
+    assert before_takeover <= taken_over_task["first_start_ts"] <= after_takeover
+    assert taken_over_task["active_user_id"] == "user_2"
+
+
+def test_first_start_ts_null_on_task_creation(project_name, existing_task_type, db_session):
+    """Test that first_start_ts is None when a task is created"""
+    # Create a new task
+    new_task = Task(
+        task_id="creation_test_task",
+        assigned_user_id="",
+        active_user_id="",
+        completed_user_id="",
+        ng_state={"url": "http://example.com/creation"},
+        ng_state_initial={"url": "http://example.com/creation"},
+        priority=1,
+        batch_id="batch_1",
+        task_type="segmentation_proofread",
+        is_active=True,
+        last_leased_ts=0.0,
+        completion_status="",
+    )
+    
+    # Create the task
+    result = create_task(project_name=project_name, data=new_task, db_session=db_session)
+    assert result == "creation_test_task"
+    
+    # Verify the task was created with first_start_ts as None
+    created_task = get_task(
+        project_name=project_name, task_id="creation_test_task", db_session=db_session
+    )
+    assert created_task["first_start_ts"] is None
+    assert created_task["task_id"] == "creation_test_task"
+
+
+def test_first_start_ts_can_be_set_explicitly_on_creation(project_name, existing_task_type, db_session):
+    """Test that first_start_ts can be explicitly set when creating a task"""
+    explicit_start_time = time.time() - 3600  # 1 hour ago
+    
+    # Create a task with explicit first_start_ts
+    new_task = Task(
+        task_id="explicit_first_start_task",
+        assigned_user_id="",
+        active_user_id="",
+        completed_user_id="",
+        ng_state={"url": "http://example.com/explicit"},
+        ng_state_initial={"url": "http://example.com/explicit"},
+        priority=1,
+        batch_id="batch_1",
+        task_type="segmentation_proofread",
+        is_active=True,
+        last_leased_ts=0.0,
+        completion_status="",
+        first_start_ts=explicit_start_time,
+    )
+    
+    # Create the task
+    result = create_task(project_name=project_name, data=new_task, db_session=db_session)
+    assert result == "explicit_first_start_task"
+    
+    # Verify the task was created with the explicit first_start_ts
+    created_task = get_task(
+        project_name=project_name, task_id="explicit_first_start_task", db_session=db_session
+    )
+    assert created_task["first_start_ts"] == explicit_start_time
+    assert created_task["task_id"] == "explicit_first_start_task"

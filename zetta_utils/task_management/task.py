@@ -470,72 +470,69 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info(f"User {user_id} is qualified for: {qualified_types}")
 
     # Strategy 1: Look for tasks explicitly assigned to this user
-    for task_type in qualified_types:
-        logger.info(f"Looking for assigned tasks of type {task_type} for user {user_id}")
-        query = (
-            select(TaskModel)
-            .where(TaskModel.project_name == project_name)
-            .where(TaskModel.is_active == True)
-            .where(TaskModel.is_paused == False)  # Exclude paused tasks
-            .where(TaskModel.completion_status == "")
-            .where(TaskModel.task_type == task_type)
-            .where(TaskModel.assigned_user_id == user_id)
-            .where(TaskModel.active_user_id == "")  # Not currently active
-            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
-            .limit(1)
-            .with_for_update(skip_locked=True)
-        )
-        result = db_session.execute(query).scalar_one_or_none()
-        if result:
-            logger.info(f"Found assigned task {result.task_id} for user {user_id}")
-            return result
+    logger.info(f"Looking for assigned tasks for user {user_id}")
+    query = (
+        select(TaskModel)
+        .where(TaskModel.project_name == project_name)
+        .where(TaskModel.is_active == True)
+        .where(TaskModel.is_paused == False)  # Exclude paused tasks
+        .where(TaskModel.completion_status == "")
+        .where(TaskModel.task_type.in_(qualified_types))
+        .where(TaskModel.assigned_user_id == user_id)
+        .where(TaskModel.active_user_id == "")  # Not currently active
+        .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    result = db_session.execute(query).scalar_one_or_none()
+    if result:
+        logger.info(f"Found assigned task {result.task_id} for user {user_id}")
+        return result
 
     # Strategy 2: Look for any available tasks (prioritized by priority)
-    for task_type in qualified_types:
-        logger.info(f"Looking for available tasks of type {task_type}")
-        query = (
-            select(TaskModel)
-            .where(TaskModel.project_name == project_name)
-            .where(TaskModel.is_active == True)
-            .where(TaskModel.is_paused == False)  # Exclude paused tasks
-            .where(TaskModel.completion_status == "")
-            .where(TaskModel.task_type == task_type)
-            .where(TaskModel.active_user_id == "")  # Not currently active
-            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
-            .limit(1)
-            .with_for_update(skip_locked=True)
-        )
-        result = db_session.execute(query).scalar_one_or_none()
-        if result:
-            logger.info(f"Found available task {result.task_id} of type {task_type}")
-            return result
+    logger.info("Looking for available tasks")
+    query = (
+        select(TaskModel)
+        .where(TaskModel.project_name == project_name)
+        .where(TaskModel.is_active == True)
+        .where(TaskModel.is_paused == False)  # Exclude paused tasks
+        .where(TaskModel.completion_status == "")
+        .where(TaskModel.task_type.in_(qualified_types))
+        .where(TaskModel.active_user_id == "")  # Not currently active
+        .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
+        .limit(1)
+        .with_for_update(skip_locked=True)
+    )
+    result = db_session.execute(query).scalar_one_or_none()
+    if result:
+        logger.info(f"Found available task {result.task_id} of type {result.task_type}")
+        return result
 
     # Strategy 3: Look for idle tasks (held by other users but not recently active)
     oldest_allowed_ts = time.time() - get_max_idle_seconds()
-    for task_type in qualified_types:
-        logger.info(f"Looking for idle tasks of type {task_type}")
-        query = (
-            select(TaskModel)
-            .where(TaskModel.project_name == project_name)
-            .where(TaskModel.is_active == True)
-            .where(TaskModel.is_paused == False)  # Exclude paused tasks
-            .where(TaskModel.completion_status == "")
-            .where(TaskModel.task_type == task_type)
-            .where(TaskModel.last_leased_ts < oldest_allowed_ts)
-            .order_by(TaskModel.last_leased_ts.desc())
-            .limit(1)
-            .with_for_update(skip_locked=True)  # Skip if another transaction has it locked
-        )
-        result = db_session.execute(query).scalar_one_or_none()
-        if result:
-            # Refresh to get latest state and verify it's still idle
-            db_session.refresh(result)
-            if (
-                result.last_leased_ts < oldest_allowed_ts
-                and result.completion_status == ""
-                and not result.is_paused
-            ):
-                return result
+    logger.info("Looking for idle tasks")
+    query = (
+        select(TaskModel)
+        .where(TaskModel.project_name == project_name)
+        .where(TaskModel.is_active == True)
+        .where(TaskModel.is_paused == False)  # Exclude paused tasks
+        .where(TaskModel.completion_status == "")
+        .where(TaskModel.task_type.in_(qualified_types))
+        .where(TaskModel.last_leased_ts < oldest_allowed_ts)
+        .order_by(TaskModel.priority.desc(), TaskModel.last_leased_ts.desc())
+        .limit(1)
+        .with_for_update(skip_locked=True)  # Skip if another transaction has it locked
+    )
+    result = db_session.execute(query).scalar_one_or_none()
+    if result:
+        # Refresh to get latest state and verify it's still idle
+        db_session.refresh(result)
+        if (
+            result.last_leased_ts < oldest_allowed_ts
+            and result.completion_status == ""
+            and not result.is_paused
+        ):
+            return result
 
     return None
 

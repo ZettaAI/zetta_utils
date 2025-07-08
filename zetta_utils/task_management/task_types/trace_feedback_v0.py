@@ -37,7 +37,7 @@ def verify_trace_feedback_v0(
 
     # Verify it references a valid task
     extra_data = task.get("extra_data", {})
-    if not extra_data or "task_id" not in extra_data:
+    if not extra_data or "original_task_id" not in extra_data:
         return VerificationResult(
             passed=False, message="Feedback task must reference original task_id in extra_data"
         )

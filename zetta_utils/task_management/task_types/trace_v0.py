@@ -266,7 +266,9 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
                     is_active=True,
                     is_paused=False,
                     is_checked=False,
-                    extra_data={"seed_id": seed_id},
+                    extra_data={
+                        "original_task_id": task["task_id"],
+                    },
                 )
 
                 # Create the task

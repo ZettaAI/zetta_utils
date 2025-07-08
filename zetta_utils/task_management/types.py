@@ -219,4 +219,5 @@ class TaskFeedback(TypedDict):
     feedback_id: int
     task_id: str  # Original trace task
     feedback_task_id: str  # The feedback task that reviewed it
+    user_id: str  # User who completed the original trace task
     created_at: str  # ISO format timestamp

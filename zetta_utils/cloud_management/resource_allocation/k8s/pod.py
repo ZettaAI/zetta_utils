@@ -15,8 +15,7 @@ from .secret import get_worker_env_vars
 def get_pod_spec(
     name: str,
     image: str,
-    command: List[str],
-    command_args: List[str],
+    command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
     dns_policy: Optional[str] = "Default",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
@@ -42,23 +41,30 @@ def get_pod_spec(
     except KeyError:
         ...
 
-    pod_name_env = k8s_client.V1EnvVar(
-        name="POD_NAME",
-        value_from=k8s_client.V1EnvVarSource(
-            field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
-        ),
+    envs.append(
+        k8s_client.V1EnvVar(
+            name="POD_NAME",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
     )
-    envs.append(pod_name_env)
     envs.extend(get_worker_env_vars(env_secret_mapping))
 
     host_aliases = host_aliases or []
     tolerations = tolerations or []
     volumes = volumes or []
     volume_mounts = volume_mounts or []
+
+    volumes.append(
+        k8s_client.V1Volume(name="shared-volume", empty_dir=k8s_client.V1EmptyDirVolumeSource())
+    )
+
+    volume_mounts.append(k8s_client.V1VolumeMount(name="shared-volume", mount_path="/shared"))
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
     container = k8s_client.V1Container(
-        command=command,
-        args=command_args,
+        command=["/bin/bash", "-c"],
+        args=[command],
         env=envs,
         name=name,
         image=image,
@@ -74,8 +80,10 @@ def get_pod_spec(
     )
 
     module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
+    cmd = f"python -m {module}"
     sidecar_container = k8s_client.V1Container(
-        command=["python", "-m", module],
+        command=["/bin/bash", "-c"],
+        args=[f"{cmd}; while [ ! -f /shared/done.txt ]; do echo sleeping && sleep 1; done; {cmd}"],
         env=envs,
         name="log-pod-runtime",
         image=image,
@@ -131,8 +139,7 @@ def get_mazepa_pod_spec(
     return get_pod_spec(
         name="zutils-worker",
         image=image,
-        command=["/bin/sh"],
-        command_args=["-c", command],
+        command=command,
         resources=resources,
         envs=envs,
         env_secret_mapping=env_secret_mapping,

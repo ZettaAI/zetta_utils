@@ -695,6 +695,7 @@ class TaskFeedbackModel(Base):
 
     task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     feedback_task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
@@ -702,6 +703,7 @@ class TaskFeedbackModel(Base):
         Index("idx_task_feedback_project_task", "project_name", "task_id"),
         Index("idx_task_feedback_project_feedback_task", "project_name", "feedback_task_id"),
         Index("idx_task_feedback_project_user", "project_name", "user_id"),
+        Index("idx_task_feedback_user_created", "project_name", "user_id", "created_at"),
     )
 
     def to_dict(self) -> dict:
@@ -710,6 +712,7 @@ class TaskFeedbackModel(Base):
             "feedback_id": self.feedback_id,
             "task_id": self.task_id,
             "feedback_task_id": self.feedback_task_id,
+            "user_id": self.user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "user_id": self.user_id,
         }

@@ -62,6 +62,7 @@ class Task(TypedDict):
     is_checked: NotRequired[bool]  # Whether the task has been checked/reviewed
     task_type: str  # Reference to TaskType.task_type
     extra_data: NotRequired[dict | None]  # Additional task-specific data
+    note: NotRequired[str | None]  # Optional note field
 
 
 class TaskUpdate(TypedDict, total=False):
@@ -81,6 +82,7 @@ class TaskUpdate(TypedDict, total=False):
     is_checked: bool
     task_type: str
     extra_data: dict | None
+    note: str | None
 
 
 class Timesheet(TypedDict):

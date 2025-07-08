@@ -1578,3 +1578,61 @@ def test_first_start_ts_can_be_set_explicitly_on_creation(project_name, existing
     )
     assert created_task["first_start_ts"] == explicit_start_time
     assert created_task["task_id"] == "explicit_first_start_task"
+
+
+def test_release_task_with_note(db_session, existing_task, existing_user, project_name):
+    """Test that release_task can save a note to the task"""
+    # First start work on the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Release it with a note
+    test_note = "Task completed successfully with some observations"
+    result = release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        completion_status="done",
+        note=test_note,
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Check that the task was updated with the note
+    updated_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert updated_task["note"] == test_note
+    assert updated_task["completion_status"] == "done"
+    assert updated_task["active_user_id"] == ""
+    assert updated_task["completed_user_id"] == "test_user"
+
+
+def test_release_task_without_note(db_session, existing_task, existing_user, project_name):
+    """Test that release_task works without providing a note"""
+    # First start work on the task
+    start_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        db_session=db_session,
+    )
+
+    # Release it without a note
+    result = release_task(
+        project_name=project_name,
+        user_id="test_user",
+        task_id="task_1",
+        completion_status="done",
+        db_session=db_session,
+    )
+    assert result is True
+
+    # Check that the task was updated but note remains None
+    updated_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
+    assert updated_task["note"] is None
+    assert updated_task["completion_status"] == "done"
+    assert updated_task["active_user_id"] == ""
+    assert updated_task["completed_user_id"] == "test_user"

@@ -646,13 +646,11 @@ class TaskModel(Base):
             "is_paused": self.is_paused,
             "is_checked": self.is_checked,
             "task_type": self.task_type,
+            "note": self.note,
         }
 
         if self.extra_data is not None:
             result["extra_data"] = self.extra_data
-
-        if self.note is not None:
-            result["note"] = self.note
 
         return result
 

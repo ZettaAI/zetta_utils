@@ -101,6 +101,7 @@ async def release_task_api(
     task_id: str,
     user_id: str,
     completion_status: str,
+    note: str | None = None,
 ):
     """
     Release a task with a completion status.
@@ -109,6 +110,7 @@ async def release_task_api(
     :param task_id: The ID of the task to release
     :param user_id: The ID of the user releasing the task
     :param completion_status: The completion status to set
+    :param note: Optional note to save with the task
     :return: True if successful
     """
     task = get_task(project_name=project_name, task_id=task_id)
@@ -131,6 +133,7 @@ async def release_task_api(
         user_id=user_id,
         task_id=task_id,
         completion_status=completion_status,
+        note=note,
     )
 
     if not release_success:

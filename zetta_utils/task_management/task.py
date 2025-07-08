@@ -256,6 +256,7 @@ def release_task(
     user_id: str,
     task_id: str,
     completion_status: str = "",
+    note: str | None = None,
     db_session: Session | None = None,
 ) -> bool:
     """
@@ -266,6 +267,7 @@ def release_task(
     :param task_id: The ID of the task to release.
     :param completion_status: The completion status to set for the task upon release.
         Empty string means not completed.
+    :param note: Optional note to save with the task.
     :param db_session: Database session to use (optional).
     :return: True if the operation completes successfully
     :raises TaskValidationError: If the task validation fails
@@ -304,6 +306,8 @@ def release_task(
         task.active_user_id = ""
         task.completion_status = completion_status
         task.completed_user_id = user_id if completion_status else ""
+        if note is not None:
+            task.note = note
         user.active_task = ""
 
         # Flush changes to ensure they're visible within this transaction

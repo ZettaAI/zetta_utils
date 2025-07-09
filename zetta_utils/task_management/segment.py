@@ -7,6 +7,7 @@ This module provides a unified function to get either:
 """
 
 import os
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -238,6 +239,77 @@ def update_segment_statistics(
         session.commit()
 
         return results
+
+
+def update_segment_info(
+    project_name: str,
+    seed_id: int,
+    server_address: str = "https://proofreading.zetta.ai",
+    db_session: Any = None,
+) -> dict:
+    """
+    Update segment's current ID from seed location and statistics.
+
+    Args:
+        project_name: Name of the project
+        seed_id: Seed supervoxel ID
+        server_address: CAVE server address
+        db_session: Optional database session to use
+
+    Returns:
+        Dictionary with updated statistics
+    """
+
+    with get_session_context(db_session) as session:
+        # Get segment
+        segment = (
+            session.query(SegmentModel)
+            .filter_by(project_name=project_name, seed_id=seed_id)
+            .first()
+        )
+
+        if not segment:
+            raise ValueError(f"Segment with seed_id {seed_id} not found in project {project_name}")
+
+        # Update current segment ID from seed location
+        coordinate = [segment.seed_x, segment.seed_y, segment.seed_z]
+        current_id = get_segment_id(
+            project_name=project_name, coordinate=coordinate, initial=False, db_session=session
+        )
+
+        if current_id and current_id > 0:
+            segment.current_segment_id = current_id
+            segment.updated_at = datetime.now(timezone.utc)
+            session.commit()
+        else:
+            return {"error": "No segment at seed location"}
+
+    # Now update statistics with the new segment ID, with retry logic for rate limiting
+    max_retries = 5
+    retry_delay: float = 10  # Start with 10 seconds as requested
+
+    for attempt in range(max_retries):
+        try:
+            return update_segment_statistics(project_name, seed_id, server_address, db_session)
+        except (ValueError, RuntimeError, IOError) as e:
+            error_str = str(e)
+            # Check for rate limiting error (429)
+            if "429 Too Many Requests" in error_str or "429" in error_str:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Rate limited on segment {seed_id}, sleeping {retry_delay}s "
+                        f"before retry {attempt + 1}/{max_retries}"
+                    )
+                    time.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 1.5, 60)  # Exponential backoff up to 60s
+                    continue
+                logger.error(f"Rate limited on segment {seed_id} after {max_retries} attempts")
+                return {"error": f"Rate limited after {max_retries} attempts"}
+            # Re-raise non-rate-limit errors
+            raise
+
+    # This should never be reached due to the raise above, but needed for type checking
+    return {"error": "Unexpected error"}
 
 
 def create_segment_from_coordinate(

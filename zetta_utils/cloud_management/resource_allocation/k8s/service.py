@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 
 from kubernetes import client as k8s_client
 from zetta_utils import log
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,

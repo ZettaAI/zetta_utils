@@ -22,17 +22,15 @@ from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
     DEFAULT_GCP_CLUSTER,
 )
 from zetta_utils.message_queues.sqs import utils as sqs_utils
-from zetta_utils.run import (
+from zetta_utils.run import RunInfo, RunState, update_run_info
+from zetta_utils.run.db import RUN_DB
+from zetta_utils.run.gc_slack import post_message
+from zetta_utils.run.resource import (
     RESOURCE_DB,
     Resource,
     ResourceTypes,
-    RunInfo,
-    RunState,
     deregister_resource,
-    update_run_info,
 )
-from zetta_utils.run.db import RUN_DB
-from zetta_utils.run.gc_slack import post_message
 
 logger = get_logger("zetta_utils")
 

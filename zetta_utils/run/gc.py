@@ -16,6 +16,7 @@ from google.api_core.exceptions import GoogleAPICallError
 
 from kubernetes import client as k8s_client
 from zetta_utils.cloud_management.resource_allocation import k8s
+from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.log import get_logger
 from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
     DEFAULT_GCP_CLUSTER,
@@ -23,7 +24,6 @@ from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.run import (
     RESOURCE_DB,
-    RUN_DB,
     Resource,
     ResourceTypes,
     RunInfo,
@@ -31,6 +31,7 @@ from zetta_utils.run import (
     deregister_resource,
     update_run_info,
 )
+from zetta_utils.run.db import RUN_DB
 from zetta_utils.run.gc_slack import post_message
 
 logger = get_logger("zetta_utils")
@@ -41,7 +42,8 @@ def _get_current_resources_and_stale_run_ids() -> (
 ):  # pragma: no cover
     run_resources: dict[str, dict] = defaultdict(dict)
     _resources = RESOURCE_DB.query()
-    for _resource_id, _resource in _resources.items():
+    for _resource_id, _r in _resources.items():
+        _resource: DBRowDataT = _r
         run_resources[str(_resource["run_id"])][_resource_id] = _resource
 
     u_run_ids = set(run_resources.keys())

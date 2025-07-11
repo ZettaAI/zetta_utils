@@ -8,7 +8,7 @@ from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.layer.db_layer.layer import DBLayer
 from zetta_utils.log import get_logger
 
-from . import NODE_DB, RUN_DB
+from .db import NODE_DB, RUN_DB
 
 PROJECT = "zetta-research"
 DATABASE_NAME = "pricing-db"
@@ -19,7 +19,20 @@ PRICING_LAYERS: dict[str, DBLayer] = {}
 PROVISIONING_MAP: Final[dict[str, str]] = {"PREEMPTIBLE": "preemptible", "STANDARD": "ondemand"}
 
 
-def calculate_costs(run_id: str):
+def compute_costs(run_id: str):
+    def _get_start_time(node_info: DBRowDataT) -> float:
+        """
+        If there's a run_id already registered as using this node,
+        use the timestamp when current `run_id` was created.
+        This likely means a hot node was used in a subsequent run.
+        """
+        for _run_id in node_info["run_id"]:
+            if _run_id == run_id:
+                continue
+            if node_info[_run_id] < node_info[run_id]:
+                return RUN_DB[run_id]["timestamp"]
+        return float(str(node_info["creation_time"]))
+
     nodes = NODE_DB.query({"-run_id": [run_id]})
     total_cost = 0.0
     for _info in nodes.values():
@@ -54,9 +67,7 @@ def calculate_costs(run_id: str):
             sku = next(iter(skus.values()))
             node_cost_hourly += float(str(sku["price_per_unit_usd"])) * count
 
-        hourly_multiple = (
-            float(str(node_info[run_id])) - float(str(node_info["creation_time"]))
-        ) / 3600
+        hourly_multiple = (float(str(node_info[run_id])) - _get_start_time(node_info)) / 3600
         total_cost += hourly_multiple * node_cost_hourly
 
     RUN_DB[run_id] = {"compute_cost": total_cost}

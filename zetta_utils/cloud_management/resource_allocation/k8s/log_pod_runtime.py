@@ -6,7 +6,7 @@ import requests
 from kubernetes import client as k8s_client
 from kubernetes import config  # type: ignore
 from zetta_utils.cloud_management.resource_allocation import gcloud
-from zetta_utils.run import NODE_DB
+from zetta_utils.run.db import NODE_DB
 
 
 def get_project_id():

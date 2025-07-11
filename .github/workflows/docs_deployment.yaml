@@ -42,10 +42,8 @@ jobs:
           architecture: x64
           cache: 'pip'
 
-      - name: Install libboost
-        run: sudo apt install libboost-dev
       - name: Install Python dependencies
-        run: pip install -e '.[modules, docs]'
+        run: python install_zutils.py --mode=all --dockerfile
       - name: Build Docs
         run: cd ./docs; make html
       - name: Upload artifact

@@ -47,9 +47,6 @@ jobs:
           files: |
             **/*.py
 
-      - name: Install libboost
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -57,17 +54,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
-      - name: Setup Go
+      - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-go@v4
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          go-version: '1.18.4'
-      - name: Install Python dependencies
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install zetta_utils with dependencies
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: pip install -e '.[modules, test]'
-      - name: Install CUE
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: go install cuelang.org/go/cmd/cue@v0.6.0
+        run: python install_zutils.py --mode=modules --pcg --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: coverage run -m py.test ./tests/unit
@@ -111,9 +107,6 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Install libboost
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -121,9 +114,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
-      - name: Install Python dependencies
+      - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: pip install -e '.[modules, test]'
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install zetta_utils with dependencies
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: python install_zutils.py --mode=modules --pcg --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Run pylint
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: pylint ${{ steps.changed-py-files.outputs.all_changed_files }}
@@ -162,9 +162,6 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Install libboost
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-python@v4
@@ -172,9 +169,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
-      - name: Install Python dependencies
+      - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: pip install -e '.[modules, test]'
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install zetta_utils with dependencies
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: python install_zutils.py --mode=modules --pcg --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Run mypy
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: mypy .
@@ -216,9 +220,6 @@ jobs:
         with:
           files: |
             **/*.rst
-      - name: Install libboost
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        run: sudo apt install libboost-dev
       - name: Setup Python
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         uses: actions/setup-python@v4
@@ -226,9 +227,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
           architecture: x64
           cache: 'pip'
-      - name: Install Python dependencies
+      - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        run: pip install -e '.[all]'
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install zetta_utils with dependencies
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
+        run: python install_zutils.py --mode=all --pcg --dockerfile --skip_apt
+        shell: bash -l {0}
       - name: Doctest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run: make -C docs doctest

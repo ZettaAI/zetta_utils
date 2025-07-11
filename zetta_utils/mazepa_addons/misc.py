@@ -65,3 +65,23 @@ def group_test_flow(num_tasks: int, type0: str, type1: str):
         task = dummy_gpu_task.make_task(random.randint(0, 3))
         task.worker_type = type1
         yield task
+
+
+@taskable_operation
+def dummy_oom_trigger(num_seconds: int):
+    time.sleep(num_seconds)
+    memory_hog = []
+    try:
+        while True:
+            memory_hog.append("X" * 10_000_000)
+            time.sleep(0.1)
+    except MemoryError:
+        print("MemoryError caught (unlikely in K8s OOM kill)")
+
+
+@builder.register("dummy_oom_flow")
+@mazepa.flow_schema
+def dummy_oom_flow(num_tasks: int, sleep_sec: tuple[int, int]):
+    for _ in range(num_tasks):
+        task = dummy_oom_trigger.make_task(random.randint(*sleep_sec))
+        yield task

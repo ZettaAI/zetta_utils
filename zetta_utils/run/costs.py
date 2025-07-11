@@ -1,14 +1,64 @@
 import logging
 from copy import copy
+from typing import Final
 
 from zetta_utils.cloud_management.resource_allocation import gcloud
+from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
+from zetta_utils.layer.db_layer.layer import DBLayer
 from zetta_utils.log import get_logger
+
+from . import NODE_DB, RUN_DB
 
 PROJECT = "zetta-research"
 DATABASE_NAME = "pricing-db"
 
 logger = get_logger("zetta_utils")
+
+PRICING_LAYERS: dict[str, DBLayer] = {}
+PROVISIONING_MAP: Final[dict[str, str]] = {"PREEMPTIBLE": "preemptible", "STANDARD": "ondemand"}
+
+
+def calculate_costs(run_id: str):
+    nodes = NODE_DB.query({"-run_id": [run_id]})
+    total_cost = 0
+    for _info in nodes.values():
+        node_cost_hourly = 0
+        node_info: DBRowDataT = _info
+        machine_class, _, _cpu_count = str(node_info["machine_type"]).split("-")
+        node_region = node_info["region"]
+        provisioning_model = PROVISIONING_MAP[node_info["provisioning_model"]]
+        cpu_count = node_info["cpu_count"]
+        assert int(_cpu_count) == cpu_count, f"{_cpu_count} != {cpu_count}"
+
+        cpu = (f"CPU-{provisioning_model}", cpu_count)
+        ram = (f"RAM-{provisioning_model}", node_info["memory_gib"])
+
+        for lname, count in [cpu, ram]:
+            layer = PRICING_LAYERS.get(
+                lname, build_firestore_layer(lname, DATABASE_NAME, project=PROJECT)
+            )
+            skus = layer.query({"-regions": [node_region], "class": [machine_class]}, union=False)
+            assert len(skus) == 1, (lname, node_region, machine_class, skus)
+            sku: DBRowDataT = next(iter(skus.values()))
+            node_cost_hourly += sku["price_per_unit_usd"] * count
+
+        gpu_layer_name = f"GPU-{provisioning_model}"
+        gpu_layer = PRICING_LAYERS.get(
+            gpu_layer_name, build_firestore_layer(gpu_layer_name, DATABASE_NAME, project=PROJECT)
+        )
+        for gpu_indentifier, count in node_info["gpus"].items():
+            skus = gpu_layer.query(
+                {"-regions": [node_region], "gpu_indentifier": [gpu_indentifier]}, union=False
+            )
+            assert len(skus) == 1, (gpu_layer_name, node_region, gpu_indentifier, skus)
+            sku = next(iter(skus.values()))
+            node_cost_hourly += sku["price_per_unit_usd"] * count
+
+        hourly_multiple = (node_info[run_id] - node_info["creation_time"]) / 3600
+        total_cost += hourly_multiple * node_cost_hourly
+
+    RUN_DB[run_id] = {"compute_cost": total_cost}
 
 
 def update_compute_pricing_db(groups: dict):

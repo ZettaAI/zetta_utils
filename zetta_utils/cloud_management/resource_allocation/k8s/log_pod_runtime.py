@@ -5,11 +5,8 @@ import requests
 
 from kubernetes import client as k8s_client
 from kubernetes import config  # type: ignore
-from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import gcloud
 from zetta_utils.run import NODE_DB
-
-logger = log.get_logger("zetta_utils")
 
 
 def get_project_id():
@@ -27,6 +24,10 @@ def log_pod_runtime():
     run_id = os.environ["RUN_ID"]
     pod = api.read_namespaced_pod(name=pod_name, namespace="default")
     node_name = pod.spec.node_name
+
+    if "default" in node_name or "system" in node_name:
+        return
+
     node = api.read_node(node_name)
     node_zone = node.metadata.labels["topology.kubernetes.io/zone"]
     project_id = get_project_id()
@@ -36,7 +37,3 @@ def log_pod_runtime():
     node_info["+run_id"] = [run_id]
     node_info[run_id] = time.time()
     NODE_DB[node_name] = node_info
-
-
-if __name__ == "__main__":  # pragma: no cover
-    log_pod_runtime()

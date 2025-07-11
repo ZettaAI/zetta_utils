@@ -36,8 +36,7 @@ def get_pod_spec(
     env_secret_mapping = env_secret_mapping or {}
 
     try:
-        run_id_env = k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID"))
-        envs.append(run_id_env)
+        envs.append(k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID")))
     except KeyError:
         ...
 
@@ -56,19 +55,23 @@ def get_pod_spec(
     volumes = volumes or []
     volume_mounts = volume_mounts or []
 
-    volumes.append(
-        k8s_client.V1Volume(name="shared-volume", empty_dir=k8s_client.V1EmptyDirVolumeSource())
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
+    cmd = f"python -m {module}"
+    pre_stop_hook = k8s_client.V1Lifecycle(
+        pre_stop=k8s_client.V1LifecycleHandler(
+            _exec=k8s_client.V1ExecAction(command=["/bin/bash", "-c", cmd])
+        )
     )
 
-    volume_mounts.append(k8s_client.V1VolumeMount(name="shared-volume", mount_path="/shared"))
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
     container = k8s_client.V1Container(
         command=["/bin/bash", "-c"],
         args=[command],
         env=envs,
-        name=name,
+        name="main",
         image=image,
         image_pull_policy=image_pull_policy,
+        lifecycle=pre_stop_hook,
         ports=ports,
         resources=k8s_client.V1ResourceRequirements(
             limits=resources,
@@ -79,13 +82,12 @@ def get_pod_spec(
         volume_mounts=volume_mounts,
     )
 
-    module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
-    cmd = f"python -m {module}"
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.oom_tracker"
     sidecar_container = k8s_client.V1Container(
         command=["/bin/bash", "-c"],
-        args=[f"{cmd}; while [ ! -f /shared/done.txt ]; do echo sleeping && sleep 1; done; {cmd}"],
+        args=[f"python -m {module}"],
         env=envs,
-        name="log-pod-runtime",
+        name="runtime",
         image=image,
         termination_message_path="/dev/termination-log",
         termination_message_policy="File",
@@ -102,7 +104,7 @@ def get_pod_spec(
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
-        termination_grace_period_seconds=30,
+        termination_grace_period_seconds=60,
         tolerations=tolerations,
         volumes=volumes,
     )

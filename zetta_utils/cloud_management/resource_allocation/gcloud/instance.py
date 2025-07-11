@@ -49,4 +49,5 @@ def get_node_info(project_id: str, zone: str, instance_name: str):
         "gpus": gpus,
         "creation_time": creation_time_epoch,
         "provisioning_model": provisioning_model,
+        "region": "-".join(zone.split("-")[:-1]),
     }

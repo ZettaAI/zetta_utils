@@ -92,7 +92,6 @@ def get_mazepa_worker_command(
         + """
         sleep_sec: 5
     }'
-    echo done > /shared/done.txt
     """
     )
     logger.debug(f"Worker command: \n'{result}'\n")

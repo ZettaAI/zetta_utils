@@ -41,10 +41,10 @@ jobs:
           python-version: 3.11
           architecture: x64
           cache: 'pip'
+      - name: Install libboost
+        run: sudo apt install libboost-dev
       - name: Install Python dependencies
-        run: |
-          sudo echo "sudo access confirmed"
-          python install_zutils.py --mode=all --dockerfile
+        run: python install_zutils.py --mode=all --dockerfile --skip_apt
       - name: Build Docs
         run: cd ./docs; make html
       - name: Upload artifact

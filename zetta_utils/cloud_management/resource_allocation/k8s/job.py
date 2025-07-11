@@ -11,7 +11,7 @@ from kubernetes.client.exceptions import ApiException
 from kubernetes import client as k8s_client
 from kubernetes import watch  # type: ignore
 from zetta_utils import log
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,

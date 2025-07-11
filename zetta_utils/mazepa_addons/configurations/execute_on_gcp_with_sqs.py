@@ -103,6 +103,7 @@ def _get_group_taskqueue_and_contexts(
     task_queue_spec = {"@type": "SQSQueue", "name": work_queue_name}
     task_queue = builder.build(task_queue_spec)
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
+    env_secret_mapping["RUN_ID"] = execution_id
 
     if group.sqs_based_scaling:
         worker_command = k8s.get_mazepa_worker_command(
@@ -172,9 +173,12 @@ def get_gcp_with_sqs_config(
     ctx_managers: list[AbstractContextManager],
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     task_queues = []
-    secrets, env_secret_mapping, adc_available, cave_secret_available = (
-        k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
-    )
+    (
+        secrets,
+        env_secret_mapping,
+        adc_available,
+        cave_secret_available,
+    ) = k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
 
     outcome_queue_name = f"run-{execution_id}-outcome"
     outcome_queue_spec = {"@type": "SQSQueue", "name": outcome_queue_name, "pull_wait_sec": 2.5}

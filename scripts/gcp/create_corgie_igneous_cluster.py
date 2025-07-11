@@ -60,6 +60,8 @@ CONFIGURE_KEDA_COMMAND_TMPL = "helm repo add kedacore https://kedacore.github.io
     && gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
     && helm install keda kedacore/keda --namespace keda --create-namespace"
 
+CONFIGURE_RBAC_COMMAND = "kubectl apply -f rbac.yml"
+
 
 def main():  # pylint: disable=too-many-statements
     parser = argparse.ArgumentParser(description="Creates a corgie/igneous cluster on GCP.")
@@ -201,6 +203,9 @@ def main():  # pylint: disable=too-many-statements
     create_keda_command = create_keda_command.replace("{CLUSTER_NAME}", args.cluster_name)
     print(f"Running: \n{create_keda_command}")
     subprocess.call(create_keda_command, shell=True)
+
+    print(f"Running: \n{CONFIGURE_RBAC_COMMAND}")
+    subprocess.call(CONFIGURE_RBAC_COMMAND, shell=True)
 
 
 if __name__ == "__main__":

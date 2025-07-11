@@ -393,8 +393,7 @@ def _lightning_train_remote(
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=run.RUN_ID,
         image=image,
-        command=["/bin/bash"],
-        command_args=["-c", f"zetta run {flags} specs/train.cue"],
+        command=f"zetta run {flags} specs/train.cue",
         envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
@@ -453,8 +452,7 @@ def _lightning_train_remote(
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
-                command=["/bin/bash"],
-                command_args=["-c", f"zetta run -r {run.RUN_ID} {flags} specs/train.cue"],
+                command=f"zetta run -r {run.RUN_ID} {flags} specs/train.cue",
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,

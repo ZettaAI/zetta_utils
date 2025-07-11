@@ -1,3 +1,4 @@
+# pylint: disable=no-name-in-module
 """
 Helpers to interact with GCloud pricing APIs.
 """
@@ -29,7 +30,7 @@ def _group_skus() -> dict:
             units = price.units
             price_micros = nanos / 1e9 + units
         except Exception:  # pylint: disable=broad-exception-caught
-            price_micros = -1
+            price_micros = 0
 
         words = re.findall(r"\b\w+\b", description)
         possible_classes = [

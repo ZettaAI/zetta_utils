@@ -109,6 +109,7 @@ def monitor_loop():
         total_bytes = get_node_memory_total_bytes()
 
     while _get_main_container_status() == -1:
+        log_pod_runtime()
         try:
             usage_bytes = get_pod_memory_usage()
             usage_pct = usage_bytes / total_bytes

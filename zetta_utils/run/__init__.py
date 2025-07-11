@@ -120,7 +120,8 @@ def run_ctx_manager(
         update_run_info(RUN_ID, info)
 
     def _udpate_costs():
-        assert RUN_ID is not None
+        if RUN_ID is None:
+            return
         compute_costs(RUN_ID)
 
     if run_id is None:

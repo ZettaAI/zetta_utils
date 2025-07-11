@@ -26,10 +26,10 @@ def compute_costs(run_id: str):
         use the timestamp when current `run_id` was created.
         This likely means a hot node was used in a subsequent run.
         """
-        for _run_id in node_info["run_id"]:
+        for _run_id in node_info["run_id"]:  # type: ignore
             if _run_id == run_id:
                 continue
-            if node_info[_run_id] < node_info[run_id]:
+            if float(str(node_info[str(_run_id)])) < float(str(node_info[run_id])):
                 return RUN_DB[run_id]["timestamp"]
         return float(str(node_info["creation_time"]))
 
@@ -59,7 +59,7 @@ def compute_costs(run_id: str):
             gpu_layer_name, build_firestore_layer(gpu_layer_name, DATABASE_NAME, project=PROJECT)
         )
 
-        for gpu_indentifier, count in node_info["gpus"].items():
+        for gpu_indentifier, count in node_info["gpus"].items():  # type: ignore
             skus = gpu_layer.query(
                 {"-regions": [node_region], "gpu_indentifier": [gpu_indentifier]}, union=False
             )

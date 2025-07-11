@@ -21,7 +21,7 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx.ext.viewcode",
     "sphinx_tabs.tabs",
-    "sphinx-prompt",
+    "sphinx_prompt",
     "sphinx_toolbox.collapse",
     "sphinx_autodoc_typehints",
     "notfound.extension",

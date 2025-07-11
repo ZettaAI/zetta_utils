@@ -32,8 +32,6 @@ jobs:
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
-      - name: Install libboost
-        run: sudo apt install libboost-dev
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -44,12 +42,16 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
-      - name: Install Python dependencies
-        run: pip install -e '.[modules, test]'
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@v0.6.0
+      - name: Install libboost
+        run: sudo apt install libboost-dev
+      - name: Install Python dependencies
+        run: |
+          python install_zutils.py --mode=all --dockerfile --skip_apt
       - name: Run pytest
         run: cd tests/integration && coverage run -m pytest --run-integration .
+        shell: bash -l {0}
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         with:

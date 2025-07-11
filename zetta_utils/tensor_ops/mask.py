@@ -83,11 +83,11 @@ def filter_cc(
             cc_labels = cc3d.connected_components(data_np[z] != 0)
             segids, counts = np.unique(cc_labels, return_counts=True)
             if mode == "keep_large":
-                segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
+                segids = np.array([segid for segid, ct in zip(segids, counts) if ct > thr])
             else:
-                segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
+                segids = np.array([segid for segid, ct in zip(segids, counts) if ct <= thr])
 
-            filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
+            filtered_mask = fastremap.mask_except(cc_labels, segids.tolist(), in_place=True) != 0
 
             result_raw[z] = copy.copy(data_np[z])
             result_raw[z][filtered_mask == 0] = 0
@@ -127,11 +127,11 @@ def filter_cc3d(
         cc_labels = cc3d.connected_components(data_np != 0, connectivity=connectivity_3d)
         segids, counts = np.unique(cc_labels, return_counts=True)
         if mode == "keep_large":
-            segids = [segid for segid, ct in zip(segids, counts) if ct > thr]
+            segids = np.array([segid for segid, ct in zip(segids, counts) if ct > thr])
         else:
-            segids = [segid for segid, ct in zip(segids, counts) if ct <= thr]
+            segids = np.array([segid for segid, ct in zip(segids, counts) if ct <= thr])
 
-        filtered_mask = fastremap.mask_except(cc_labels, segids, in_place=True) != 0
+        filtered_mask = fastremap.mask_except(cc_labels, segids.tolist(), in_place=True) != 0
 
         result_raw = copy.copy(data_np)
         result_raw[filtered_mask == 0] = 0

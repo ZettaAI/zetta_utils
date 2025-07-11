@@ -42,10 +42,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
-      - name: Setup sudo context
-        run: sudo echo "sudo access confirmed"
       - name: Install Python dependencies
-        run: python install_zutils.py --mode=modules --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=modules --dockerfile
       - name: Run pytest
         run: cd tests/integration && coverage run -m pytest --run-integration .
       - name: Send coverage repot to codecov

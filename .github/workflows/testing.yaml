@@ -60,12 +60,11 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-      - name: Setup sudo context
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo echo "sudo access confirmed"
       - name: Install zetta_utils with dependencies
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: python install_zutils.py --mode=modules --pcg --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=modules --pcg --dockerfile
         shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
@@ -123,12 +122,11 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-      - name: Setup sudo context
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo echo "sudo access confirmed"
       - name: Install zetta_utils with dependencies
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: python install_zutils.py --mode=modules --pcg --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=modules --pcg --dockerfile
         shell: bash -l {0}
       - name: Run pylint
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
@@ -181,12 +179,11 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-      - name: Setup sudo context
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo echo "sudo access confirmed"
       - name: Install zetta_utils with dependencies
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: python install_zutils.py --mode=modules --pcg --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=modules --pcg --dockerfile
         shell: bash -l {0}
       - name: Run mypy
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
@@ -242,12 +239,11 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
-      - name: Setup sudo context
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        run: sudo echo "sudo access confirmed"
       - name: Install zetta_utils with dependencies
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        run: python install_zutils.py --mode=all --pcg --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=all --pcg --dockerfile
         shell: bash -l {0}
       - name: Doctest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}

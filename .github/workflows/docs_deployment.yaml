@@ -41,10 +41,10 @@ jobs:
           python-version: 3.11
           architecture: x64
           cache: 'pip'
-      - name: Setup sudo context
-        run: sudo echo "sudo access confirmed"
       - name: Install Python dependencies
-        run: python install_zutils.py --mode=all --dockerfile
+        run: |
+          sudo echo "sudo access confirmed"
+          python install_zutils.py --mode=all --dockerfile
       - name: Build Docs
         run: cd ./docs; make html
       - name: Upload artifact

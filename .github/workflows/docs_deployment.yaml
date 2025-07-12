@@ -48,6 +48,7 @@ jobs:
           python install_zutils.py --mode=all --dockerfile --skip_apt
       - name: Build Docs
         run: cd ./docs; make html
+        shell: bash -l {0}
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

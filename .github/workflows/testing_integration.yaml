@@ -49,6 +49,7 @@ jobs:
           python install_zutils.py --mode=all --dockerfile --skip_apt
       - name: Run pytest
         run: cd tests/integration && coverage run -m pytest --run-integration .
+        shell: bash -l {0}
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         with:

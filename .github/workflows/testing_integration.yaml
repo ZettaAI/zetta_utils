@@ -45,7 +45,8 @@ jobs:
       - name: Install libboost
         run: sudo apt install libboost-dev
       - name: Install Python dependencies
-        run: python install_zutils.py --mode=modules --dockerfile --skip_apt
+        run: |
+          python install_zutils.py --mode=all --dockerfile --skip_apt
       - name: Run pytest
         run: cd tests/integration && coverage run -m pytest --run-integration .
       - name: Send coverage repot to codecov

@@ -737,8 +737,6 @@ def main():
 
     if not args.skip_pip:
         install_mode = args.mode
-        if args.pcg:
-            install_mode = f"{install_mode},pcg"
         run_command(
             f"pip install --upgrade .[{install_mode}]", "Installing `zetta_utils` python package"
         )

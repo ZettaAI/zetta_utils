@@ -654,6 +654,8 @@ def crop_center(
     for insz, outsz in zip(data.shape[-ndim:], size):
         if isinstance(insz, torch.Tensor):  # pragma: no cover # only occurs for JIT
             insz = insz.item()
+        if insz < outsz:
+            breakpoint()
         assert insz >= outsz
         lcrop = (insz - outsz) // 2
         rcrop = (insz - outsz) - lcrop

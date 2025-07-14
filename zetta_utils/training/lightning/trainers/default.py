@@ -109,6 +109,10 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         # checkpoints on GCP.
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
+    # def on_train_start(self):
+    #     self.logger.experiment._step = 60000
+
+
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
     ):  # pylint: disable=too-many-locals
@@ -275,6 +279,29 @@ class ConfigureLogging(pl.callbacks.Callback):
                 logger.info("Saved training configuration.")
 
         trainer.log_config = log_config  # type: ignore
+
+        # # breakpoint()
+        # # if trainer._ckpt_path is not None:
+        # ckpt_path = getattr(trainer, "_ckpt_path")
+        # if ckpt_path is not None:
+        #     with fsspec.open(ckpt_path) as f:
+        #         # breakpoint()
+        #         ckpt = torch.load(f, map_location='cpu')
+        #         # breakpoint()
+        #         global_step = ckpt.get('global_step', 0)
+        #         epoch = ckpt.get('epoch', 0)
+        #         trainer.fit_loop.epoch_progress.current.completed = epoch
+        #         trainer.fit_loop.epoch_progress.current.processed = epoch
+        #         trainer.fit_loop.epoch_loop._batches_that_stepped = global_step  # workaround
+        #         # trainer.fit_loop.epoch_loop._batches_that_stepped = global_step
+        #         trainer.fit_loop.epoch_loop.batch_progress.current.completed = global_step
+        #         # breakpoint()
+        #         # trainer.global_step = global_step
+        #         # setattr(trainer, "global_step", global_step)
+
+        # trainer.logger.experiment._step = 60000
+        # trainer.fit_loop.epoch_loop.batch_progress.current.completed = 60000
+        # trainer.fit_loop.epoch_loop._batches_that_stepped = 60000
 
 
 @typeguard.typechecked

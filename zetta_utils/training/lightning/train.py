@@ -98,6 +98,7 @@ def lightning_train(
     }
 
     if local_run:
+        # breakpoint()
         _lightning_train_local(
             regime=regime if not isinstance(regime, dict) else builder.build(regime),
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),

@@ -114,13 +114,21 @@ def _ungroup_kwargs(
 @builder.register("imgaug_readproc")
 def imgaug_readproc(
     *args,  # the zetta_utils builder puts the layer/layerset as the first argument
+    targets: Container[str] | None = None,
     **kwargs,  # and the augmenters in the kwargs
 ):
     assert len(args) == 1
     augmenters = kwargs.pop("augmenters", None)
     assert augmenters is not None
     if isinstance(args[0], dict):
-        return imgaug_augment(augmenters, **args[0], **kwargs)
+        if targets is not None:
+            all_inputs = args[0]
+            inputs = {k: all_inputs[k] for k in targets}
+            results = imgaug_augment(augmenters, **inputs, **kwargs)
+            return {k: results[k] if k in results else all_inputs[k] for k in all_inputs.keys()}
+        else:
+            return imgaug_augment(augmenters, **args[0], **kwargs)
+
     else:  # Tensor
         return imgaug_augment(augmenters, images=args[0], **kwargs)["images"]
 

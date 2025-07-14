@@ -22,6 +22,8 @@ _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
 IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+# IN_MEM_CACHE_NUM_BYTES_PER_CV = 1 * 1024 ** 2
+# IN_MEM_CACHE_NUM_BYTES_PER_CV = 0
 
 
 # To avoid reloading info file - note that an empty provenance is passed
@@ -69,6 +71,7 @@ def _get_cv_cached(
     if path_ not in _cv_cached:
         _cv_cached[path_] = set()
     _cv_cached[path_].add(resolution)
+    # breakpoint()
     return result
 
 

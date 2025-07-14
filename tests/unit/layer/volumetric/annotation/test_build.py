@@ -5,7 +5,12 @@ import tempfile
 
 import pytest
 
+from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.volumetric.annotation.annotations import (
+    PropertySpec,
+    Relationship,
+)
 from zetta_utils.layer.volumetric.annotation.build import build_annotation_layer
 from zetta_utils.layer.volumetric.annotation.layer import VolumetricAnnotationLayer
 from zetta_utils.layer.volumetric.index import VolumetricIndex
@@ -269,3 +274,126 @@ def test_build_annotation_layer_invalid_voxel_offset_length():
             voxel_offset=[0, 0],
             mode="write",
         )
+
+
+def test_build_annotation_layer_with_property_specs_and_relationships(temp_dir):
+    """Test building annotation layer with property specs and relationships
+    using builder system."""
+    path = os.path.join(temp_dir, "annotations_with_props_and_rels")
+
+    # Test CUE-like specification
+    spec = {
+        "@type": "build_annotation_layer",
+        "path": path,
+        "mode": "write",
+        "resolution": [4, 4, 40],
+        "dataset_size": [1000, 1000, 100],
+        "voxel_offset": [0, 0, 0],
+        "property_specs": [
+            {
+                "@type": "build_property_spec",
+                "id": "score",
+                "type": "float32",
+                "description": "Confidence score",
+            },
+            {
+                "@type": "build_property_spec",
+                "id": "category",
+                "type": "uint8",
+                "description": "Object category",
+                "enum_values": [0, 1, 2],
+                "enum_labels": ["unknown", "synapse", "mitochondria"],
+            },
+        ],
+        "relationships": [
+            {"@type": "build_relationship", "id": "presyn_cell"},
+            {"@type": "build_relationship", "id": "postsyn_cell"},
+        ],
+    }
+
+    layer = builder.build(spec)
+
+    # Verify layer was created correctly
+    assert isinstance(layer, VolumetricAnnotationLayer)
+    assert layer.readonly is False
+
+    # Check that the backend has the property specs and relationships
+    backend = layer.backend
+    assert len(backend.property_specs) == 2
+    assert len(backend.relationships) == 2
+
+    # Verify property specs
+    score_prop = backend.property_specs[0]
+    assert score_prop.id == "score"
+    assert score_prop.type == "float32"
+    assert score_prop.description == "Confidence score"
+    assert not score_prop.has_enums()
+
+    category_prop = backend.property_specs[1]
+    assert category_prop.id == "category"
+    assert category_prop.type == "uint8"
+    assert category_prop.description == "Object category"
+    assert category_prop.has_enums()
+    assert category_prop.enum_values == [0, 1, 2]
+    assert category_prop.enum_labels == ["unknown", "synapse", "mitochondria"]
+
+    # Verify relationships
+    presyn_rel = backend.relationships[0]
+    assert presyn_rel.id == "presyn_cell"
+    assert presyn_rel.key == "presyncell"  # auto-generated from id
+
+    postsyn_rel = backend.relationships[1]
+    assert postsyn_rel.id == "postsyn_cell"
+    assert postsyn_rel.key == "postsyncell"  # auto-generated from id
+
+
+def test_build_annotation_layer_with_direct_property_specs_and_relationships(temp_dir):
+    """Test building annotation layer with direct property specs and relationships."""
+    path = os.path.join(temp_dir, "annotations_direct_props_and_rels")
+
+    # Create property specs and relationships directly
+    property_specs = [
+        PropertySpec(id="confidence", type="float32", description="Detection confidence"),
+        PropertySpec(id="color", type="rgb", description="Display color"),
+    ]
+
+    relationships = [Relationship(id="parent_cell"), Relationship(id="child_cell", key="child")]
+
+    layer = build_annotation_layer(
+        path=path,
+        resolution=[4.0, 4.0, 40.0],
+        dataset_size=[1000, 1000, 100],
+        voxel_offset=[0, 0, 0],
+        mode="write",
+        property_specs=property_specs,
+        relationships=relationships,
+    )
+
+    # Verify layer was created correctly
+    assert isinstance(layer, VolumetricAnnotationLayer)
+    assert layer.readonly is False
+
+    # Check that the backend has the property specs and relationships
+    backend = layer.backend
+    assert len(backend.property_specs) == 2
+    assert len(backend.relationships) == 2
+
+    # Verify property specs
+    confidence_prop = backend.property_specs[0]
+    assert confidence_prop.id == "confidence"
+    assert confidence_prop.type == "float32"
+    assert confidence_prop.description == "Detection confidence"
+
+    color_prop = backend.property_specs[1]
+    assert color_prop.id == "color"
+    assert color_prop.type == "rgb"
+    assert color_prop.description == "Display color"
+
+    # Verify relationships
+    parent_rel = backend.relationships[0]
+    assert parent_rel.id == "parent_cell"
+    assert parent_rel.key == "parentcell"  # auto-generated from id
+
+    child_rel = backend.relationships[1]
+    assert child_rel.id == "child_cell"
+    assert child_rel.key == "child"  # explicitly provided

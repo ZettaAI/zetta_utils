@@ -27,6 +27,7 @@ from typing import (
 )
 
 from zetta_utils.geometry import Vec3D
+from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 
@@ -697,7 +698,10 @@ class LineAnnotation(Annotation):
         if strict:
             return bounds.contains(start) and bounds.contains(end)
         else:
-            return bounds.line_intersects(start, end, resolution=(1, 1, 1))
+            if isinstance(bounds, BBox3D):
+                return bounds.line_intersects(start, end, resolution=(1, 1, 1))
+            else:
+                return bounds.line_intersects(start, end)
 
     def convert_coordinates(self, from_res, to_res) -> None:
         """Convert coordinates from one resolution to another (mutates instance).

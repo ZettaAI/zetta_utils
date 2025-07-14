@@ -233,6 +233,27 @@ class SimpleWriter:
                 # print(f"Related id {related_id} compiles to {len(data)} bytes")
             write_shard_files(rel_dir_path, relation.sharding, chunks)
 
+    def subdivision_cell_bounds(
+        self, subdivision_level: int, cell_index: Tuple[int, int, int]
+    ) -> Tuple[List[int], List[int]]:
+        spec = self.spatial_specs[subdivision_level]
+        x, y, z = cell_index
+        start = [
+            self.lower_bound[0] + x * spec.chunk_size[0],
+            self.lower_bound[1] + y * spec.chunk_size[1],
+            self.lower_bound[2] + z * spec.chunk_size[2],
+        ]
+        end = [
+            start[0] + spec.chunk_size[0],
+            start[1] + spec.chunk_size[1],
+            start[2] + spec.chunk_size[2],
+        ]
+        return start, end
+
+    def annotations_in_bounds(self, lower_bound, upper_bound) -> List[Annotation]:
+        box = BBox3D.from_coords(lower_bound, upper_bound, (1, 1, 1))
+        return list(filter(lambda a: a.in_bounds(box), self.annotations))
+
     def subdivide(self, dir_path: str, prob_per_level: Sequence[float]):
         """
         Subdivide annotations into a multi-level spatial index using a breadth-first approach.
@@ -240,6 +261,7 @@ class SimpleWriter:
         :param dir_path: Directory path for output files
         :param prob_per_level: probability (0-1) of emitting annotation at each level
         """
+        # pylint: disable=too-many-statements
 
         @dataclass
         class SubdivideTask:
@@ -295,10 +317,12 @@ class SimpleWriter:
                 if random() > p:
                     continue
                 emitted_subset.append(task.annotations[i])
+                task.annotations[i].spatial_level = task.level
                 del task.annotations[i]
-            file_path = path_join(dir_path, task_spec.key, task.file_name())
             if task_spec.sharding is None:
-                self.write_annotations(file_path, emitted_subset, True)
+                if dir_path is not None:
+                    file_path = path_join(dir_path, task_spec.key, task.file_name())
+                    self.write_annotations(file_path, emitted_subset, True)
             else:
                 chunk_data = self.compile_multi_annotation_buffer(emitted_subset, True)
                 chunk_id = compressed_morton_code(task.cell_index, task_spec.grid_shape)
@@ -359,12 +383,13 @@ class SimpleWriter:
                             taskQ.append(child_task)
 
         # Now, if we have collected any chunks for sharding, write those out now!
-        for chunks, spec in zip(chunks_per_level, self.spatial_specs):
-            if not chunks:
-                continue
-            shard_dir = path_join(dir_path, spec.key)
-            write_shard_files(shard_dir, spec.sharding, chunks)
-            print(f"Wrote {len(chunks)} chunks to shards in {shard_dir}")
+        if dir_path is not None:
+            for chunks, spec in zip(chunks_per_level, self.spatial_specs):
+                if not chunks:
+                    continue
+                shard_dir = path_join(dir_path, spec.key)
+                write_shard_files(shard_dir, spec.sharding, chunks)
+                print(f"Wrote {len(chunks)} chunks to shards in {shard_dir}")
 
 
 def _line_demo(path):

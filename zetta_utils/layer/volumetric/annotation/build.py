@@ -1,3 +1,43 @@
+"""
+Builder support for VolumetricAnnotationLayer and related classes.
+
+Usage Examples
+
+  CUE Specification:
+  annotation_layer: {
+      "@type": "build_annotation_layer"
+      path: "gs://bucket/annotations"
+      mode: "write"
+      resolution: [4, 4, 40]
+      dataset_size: [1000, 1000, 100]
+      voxel_offset: [0, 0, 0]
+      property_specs: [
+          {
+              "@type": "build_property_spec"
+              id: "score"
+              type: "float32"
+              description: "Confidence score"
+          }
+      ]
+      relationships: [
+          {
+              "@type": "build_relationship"
+              id: "presyn_cell"
+          }
+      ]
+  }
+
+  Direct Python Usage:
+  from zetta_utils.layer.volumetric.annotation.build import build_annotation_layer
+  from zetta_utils.layer.volumetric.annotation.annotations import PropertySpec, Relationship
+
+  layer = build_annotation_layer(
+      path="/path/to/annotations",
+      property_specs=[PropertySpec(id="score", type="float32")],
+      relationships=[Relationship(id="presyn_cell")],
+      # ... other parameters
+  )
+"""
 from __future__ import annotations
 
 from typing import Iterable, Literal, Sequence
@@ -6,6 +46,10 @@ from typeguard import typechecked
 
 from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.volumetric.annotation.annotations import (
+    PropertySpec,
+    Relationship,
+)
 from zetta_utils.layer.volumetric.annotation.backend import (
     AnnotationLayerBackend,
     read_info,
@@ -21,6 +65,48 @@ from ... import IndexProcessor
 
 
 @typechecked
+@builder.register("build_property_spec")
+def build_property_spec(
+    id: str,  # pylint: disable=redefined-builtin
+    type: str,  # pylint: disable=redefined-builtin
+    description: str | None = None,
+    enum_values: Sequence[int | float] | None = None,
+    enum_labels: Sequence[str] | None = None,
+) -> PropertySpec:
+    """Build a PropertySpec for annotation properties.
+
+    :param id: Property identifier (must match pattern: ^[a-z][a-zA-Z0-9_]*$)
+    :param type: Property type (rgb, rgba, uint8, int8, uint16, int16, uint32, int32, or float32)
+    :param description: Optional description of the property
+    :param enum_values: Optional list of numeric values for enumerated properties
+    :param enum_labels: Optional list of string labels corresponding to enum values
+    :return: PropertySpec instance
+    """
+    return PropertySpec(
+        id=id,
+        type=type,
+        description=description,
+        enum_values=list(enum_values) if enum_values is not None else None,
+        enum_labels=list(enum_labels) if enum_labels is not None else None,
+    )
+
+
+@typechecked
+@builder.register("build_relationship")
+def build_relationship(
+    id: str,  # pylint: disable=redefined-builtin
+    key: str | None = None,
+) -> Relationship:
+    """Build a Relationship for annotation relationships.
+
+    :param id: Relationship identifier
+    :param key: Optional directory key (auto-generated from id if not provided)
+    :return: Relationship instance
+    """
+    return Relationship(id=id, key=key)
+
+
+@typechecked
 @builder.register("build_annotation_layer")
 def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches
     path: str,
@@ -30,12 +116,15 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     index: VolumetricIndex | None = None,
     chunk_sizes: Sequence[Sequence[int]] | None = None,
     mode: Literal["read", "write", "replace", "update"] = "write",
+    annotation_type: Literal["POINT", "LINE"] = "LINE",
     default_desired_resolution: Sequence[float] | None = None,
     index_resolution: Sequence[float] | None = None,
     allow_slice_rounding: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[AnnotationDataProcT] = (),
     write_procs: Iterable[AnnotationDataWriteProcT] = (),
+    property_specs: Iterable[PropertySpec] = (),
+    relationships: Iterable[Relationship] = (),
 ) -> VolumetricAnnotationLayer:
     """Build an AnnotationLayer (spatially indexed annotations in precomputed file format).
 
@@ -53,6 +142,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
        "write": for writing; throws error if file exists.
        "replace": for writing; if file exists, it is cleared of all data.
        "update": for writing additional data; throws error if file does not exist.
+    :param annotation_type: Type of annotations (POINT or LINE).
     :param readonly: Whether the layer is read-only.
     :param default_desired_resolution: Default resolution to use for reading data.
     :param index_resolution: Resolution to use for indexing.
@@ -63,11 +153,15 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         returning it to the user.
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
+    :param property_specs: List of PropertySpec objects defining annotation properties.
+    :param relationships: List of Relationship objects defining annotation relationships.
     :return: Layer built according to the spec.
     """
     if "/|neuroglancer-precomputed:" in path:
         path = path.split("/|neuroglancer-precomputed:")[0]
-    dims, lower_bound, upper_bound, spatial_entries = read_info(path)
+    dims, lower_bound, upper_bound, spatial_entries, existing_props, existing_rels = read_info(
+        path
+    )
     file_exists = spatial_entries is not None
     file_resolution: list[float] = []
     file_index = None
@@ -121,7 +215,18 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         if chunk_sizes is None:
             chunk_sizes = []
 
-    backend = AnnotationLayerBackend(path=path, index=index, chunk_sizes=chunk_sizes)
+    # Use existing properties and relationships if file exists and none provided
+    final_property_specs = list(property_specs) if property_specs else (existing_props or [])
+    final_relationships = list(relationships) if relationships else (existing_rels or [])
+
+    backend = AnnotationLayerBackend(
+        path=path,
+        index=index,
+        annotation_type=annotation_type,
+        chunk_sizes=chunk_sizes,
+        property_specs=final_property_specs,
+        relationships=final_relationships,
+    )
     backend.write_info_file()
 
     if mode == "replace":

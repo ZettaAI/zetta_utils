@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Literal, Optional
 from kubernetes import client as k8s_client
 from zetta_utils import builder, log
 from zetta_utils.mazepa import SemaphoreType
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,

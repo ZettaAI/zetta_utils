@@ -18,14 +18,6 @@ from zetta_utils.parsing import json
 from zetta_utils.run.costs import compute_costs
 from zetta_utils.run.db import RUN_DB
 
-from .resource import (
-    deregister_resource,
-    Resource,
-    register_resource,
-    ResourceTypes,
-    ResourceKeys,
-    RESOURCE_DB,
-)
 
 logger = log.get_logger("zetta_utils")
 
@@ -173,4 +165,5 @@ def run_ctx_manager(
             )
             assert heartbeat_sender is not None
             heartbeat_sender.cancel()
+            update_costs_repeater.cancel()
         RUN_ID = None

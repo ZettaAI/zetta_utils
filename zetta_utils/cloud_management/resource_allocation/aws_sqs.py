@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from zetta_utils import builder, log
 from zetta_utils.message_queues.sqs import SQSQueue
 from zetta_utils.message_queues.sqs import utils as sqs_utils
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,

@@ -29,11 +29,13 @@ def mock_imports(mocker):
         "sys.modules",
         {
             "zetta_utils.run": MagicMock(
-                RUN_DB=mock_run_db,
                 RUN_INFO_BUCKET=mock_run_info_bucket,
                 RunInfo=MagicMock(),
                 get_latest_checkpoint=MagicMock(),
-            )
+            ),
+            "zetta_utils.run.db": MagicMock(
+                RUN_DB=mock_run_db,
+            ),
         },
     )
 

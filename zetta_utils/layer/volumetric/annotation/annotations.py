@@ -26,6 +26,8 @@ from typing import (
     Union,
 )
 
+import numpy as np
+
 from zetta_utils.geometry import Vec3D
 from zetta_utils.geometry.bbox import BBox3D
 from zetta_utils.geometry.vec import VEC3D_PRECISION
@@ -518,8 +520,9 @@ class Annotation(ABC):
         if relationships is not None:
             for rel in relationships:
                 related_ids = self.relations.get(rel.id, [])
-                if isinstance(related_ids, int):
-                    related_ids = [related_ids]
+                if np.isscalar(related_ids):
+                    related_ids = [related_ids]  # type: ignore
+                assert isinstance(related_ids, (list, tuple))
                 output.write(struct.pack("<I", len(related_ids)))
                 for idnum in related_ids:
                     output.write(struct.pack("<Q", idnum))

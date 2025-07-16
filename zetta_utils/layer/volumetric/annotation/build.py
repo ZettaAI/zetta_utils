@@ -108,7 +108,7 @@ def build_relationship(
 
 @typechecked
 @builder.register("build_annotation_layer")
-def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches
+def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branches, too-many-statements
     path: str,
     resolution: Sequence[float] | None = None,
     dataset_size: Sequence[int] | None = None,
@@ -116,7 +116,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     index: VolumetricIndex | None = None,
     chunk_sizes: Sequence[Sequence[int]] | None = None,
     mode: Literal["read", "write", "replace", "update"] = "write",
-    annotation_type: Literal["POINT", "LINE"] = "LINE",
+    annotation_type: Literal["POINT", "LINE"] | None = None,
     default_desired_resolution: Sequence[float] | None = None,
     index_resolution: Sequence[float] | None = None,
     allow_slice_rounding: bool = False,
@@ -159,9 +159,15 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     """
     if "/|neuroglancer-precomputed:" in path:
         path = path.split("/|neuroglancer-precomputed:")[0]
-    dims, lower_bound, upper_bound, spatial_entries, existing_props, existing_rels = read_info(
-        path
-    )
+    (
+        dims,
+        lower_bound,
+        upper_bound,
+        anno_type,
+        spatial_entries,
+        existing_props,
+        existing_rels,
+    ) = read_info(path)
     file_exists = spatial_entries is not None
     file_resolution: list[float] = []
     file_index = None
@@ -178,6 +184,12 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             Vec3D(file_resolution[0], file_resolution[1], file_resolution[2]),
         )
         file_chunk_sizes = [se.chunk_size for se in spatial_entries]
+        if annotation_type and annotation_type != anno_type:
+            raise IOError(
+                f"Given annotation_type {annotation_type} "
+                "does not match existing file type {anno_type}"
+            )
+        annotation_type = anno_type
 
     if mode in ("read", "update") and not file_exists:
         raise IOError(

@@ -123,14 +123,16 @@ def parse_info(info_json):
     """
     Parse the given info file (in JSON format), and return:
 
-     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry),
-     property_specs (tuple of PropertySpec), and relationships (tuple of Relationship)
+     dimensions (dict), lower_bound, upper_bound, annotation type, spatial_data (tuple
+     of SpatialEntry), property_specs (tuple of PropertySpec), and relationships (tuple
+     of Relationship)
     """
     data = json.loads(info_json)
 
     dimensions = data["dimensions"]
     lower_bound = data["lower_bound"]
     upper_bound = data["upper_bound"]
+    anno_type = data["annotation_type"]
     spatial_data = tuple(
         SpatialEntry(entry["chunk_size"], entry["grid_shape"], entry["key"], entry["limit"])
         for entry in data["spatial"]
@@ -138,17 +140,18 @@ def parse_info(info_json):
     properties = tuple(PropertySpec.from_dict(entry) for entry in data["properties"])
     relationships = tuple(Relationship.from_dict(entry) for entry in data["relationships"])
 
-    return dimensions, lower_bound, upper_bound, spatial_data, properties, relationships
+    return dimensions, lower_bound, upper_bound, anno_type, spatial_data, properties, relationships
 
 
 def read_info(dir_path):
     """
     Read the info file within the given directory, and return:
 
-     dimensions (dict), lower_bound, upper_bound, spatial_data (tuple of SpatialEntry),
-     property_specs (tuple of PropertySpec), and relationships (tuple of Relationship)
+     dimensions (dict), lower_bound, upper_bound, annotation type, spatial_data (tuple
+     of SpatialEntry), property_specs (tuple of PropertySpec), and relationships (tuple
+     of Relationship)
 
-    If the file is empty or does not exist, return (None, None, None, None, None, None)
+    If the file is empty or does not exist, return a tuple of None.
     """
     file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
     try:
@@ -156,7 +159,7 @@ def read_info(dir_path):
     except NotADirectoryError:
         data = None
     if data is None or len(data) == 0:
-        return (None, None, None, None, None, None)
+        return (None, None, None, None, None, None, None)
     return parse_info(data.decode("utf-8"))
 
 
@@ -218,7 +221,7 @@ class AnnotationLayerBackend(
     def __attrs_post_init__(self):
         # If info file exists, read it
         self.path = os.path.expanduser(self.path)
-        dims, lower_bound, upper_bound, spatial_data, props, rels = read_info(self.path)
+        dims, lower_bound, upper_bound, anno_type, spatial_data, props, rels = read_info(self.path)
         if dims is not None:
             # Reconstruct VolumetricIndex from the info file data
             resolution: Vec3D = Vec3D(
@@ -242,6 +245,7 @@ class AnnotationLayerBackend(
                 self.property_specs = props
             if rels:
                 self.relationships = rels
+            self.annotation_type = anno_type
 
         # Validate that required fields are now set (either from constructor or file)
         if self.index is None:
@@ -324,6 +328,8 @@ class AnnotationLayerBackend(
         subsampling at any level in Neuroglancer.)
         """
         assert self.index is not None
+        if limit_value == 0:
+            limit_value = 1  # (required for NG to load the file at all)
         result = []
         bounds_size = self.index.shape
         for level, chunk_size_seq in enumerate(self.chunk_sizes):
@@ -473,9 +479,9 @@ class AnnotationLayerBackend(
                     self.index.resolution,
                 )
                 # pylint: disable=cell-var-from-loop
-                split_data_by_x: list[Annotation] = list(
-                    filter(lambda d: d.in_bounds(split_by_x), annotations)
-                )
+                split_data_by_x: list[Annotation] = [
+                    d for d in annotations if d.in_bounds(split_by_x, self.index.resolution)
+                ]
                 logger.debug(f":  {len(split_data_by_x)} lines")
                 if not split_data_by_x:
                     continue
@@ -495,9 +501,11 @@ class AnnotationLayerBackend(
                         self.index.resolution,
                     )
                     # pylint: disable=cell-var-from-loop
-                    split_data_by_y: list[Annotation] = list(
-                        filter(lambda d: d.in_bounds(split_by_y), split_data_by_x)
-                    )
+                    split_data_by_y: list[Annotation] = [
+                        d
+                        for d in split_data_by_x
+                        if d.in_bounds(split_by_y, self.index.resolution)
+                    ]
                     logger.debug(f":  {len(split_data_by_y)} lines")
                     if not split_data_by_y:
                         continue
@@ -524,17 +532,21 @@ class AnnotationLayerBackend(
                         )
                         assert chunk_bounds == split_by_z
                         # pylint: disable=cell-var-from-loop
-                        chunk_data: list[Annotation] = list(
-                            filter(lambda d: d.in_bounds(chunk_bounds), split_data_by_y)
-                        )
+                        chunk_data: list[Annotation] = [
+                            d
+                            for d in split_data_by_y
+                            if d.in_bounds(chunk_bounds, self.index.resolution)
+                        ]
                         if not chunk_data:
                             continue
                         anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                         old_data = self.read_annotations(anno_file_path)
                         if clearing_idx:
-                            old_data = list(
-                                filter(lambda d: not d.in_bounds(clearing_idx), old_data)
-                            )
+                            old_data = [
+                                d
+                                for d in old_data
+                                if not d.in_bounds(clearing_idx, self.index.resolution)
+                            ]
                         chunk_data += list(old_data)
                         limit = max(limit, len(chunk_data))
                         self.write_multi_annotation_file(anno_file_path, chunk_data)
@@ -726,7 +738,9 @@ class AnnotationLayerBackend(
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                     result += self.read_annotations(anno_file_path)
         if strict:
-            result = list(filter(lambda x: x.in_bounds(roi_index, strict=True), result))
+            result = [
+                x for x in result if x.in_bounds(roi_index, self.index.resolution, strict=True)
+            ]
         result_dict = {line.id: line for line in result}
         result = list(result_dict.values())
         if annotation_resolution:
@@ -753,7 +767,7 @@ class AnnotationLayerBackend(
         bounds_size = bounds.shape
         for level, chunk_size_seq in enumerate(chunk_sizes):
             chunk_size: Vec3D = Vec3D(*chunk_size_seq)
-            limit = 0
+            limit = 1
             grid_shape = ceil(bounds_size / chunk_size)
             logger.info(f"subdividing {bounds} by {chunk_size}, for grid_shape {grid_shape}")
             level_key = f"spatial{level}"
@@ -767,7 +781,9 @@ class AnnotationLayerBackend(
                     (x_end, bounds.stop[1], bounds.stop[2]),
                     bounds.resolution,
                 )
-                data_within_x = list(filter(lambda d: d.in_bounds(x_idx), data))
+                data_within_x: list[Annotation] = [
+                    d for d in data if d.in_bounds(x_idx, self._index.resolution)
+                ]
                 for y in range(grid_shape[1]):
                     y_start = bounds.start[1] + y * chunk_size[1]
                     y_end = y_start + chunk_size[1]
@@ -776,7 +792,9 @@ class AnnotationLayerBackend(
                         (x_end, y_end, bounds.stop[2]),
                         bounds.resolution,
                     )
-                    data_within_xy = list(filter(lambda d: d.in_bounds(y_idx), data_within_x))
+                    data_within_xy: list[Annotation] = [
+                        d for d in data_within_x if d.in_bounds(y_idx, self._index.resolution)
+                    ]
                     for z in range(grid_shape[2]):
                         qty_done += 1
                         chunk_start = bounds.start + Vec3D(x, y, z) * chunk_size
@@ -785,9 +803,11 @@ class AnnotationLayerBackend(
                             chunk_start, chunk_end, bounds.resolution
                         )
                         # pylint: disable=cell-var-from-loop
-                        chunk_data: Sequence[Annotation] = list(
-                            filter(lambda d: d.in_bounds(chunk_bounds), data_within_xy)
-                        )
+                        chunk_data: Sequence[Annotation] = [
+                            d
+                            for d in data_within_xy
+                            if d.in_bounds(chunk_bounds, self._index.resolution)
+                        ]
                         limit = max(limit, len(chunk_data))
                         if write_to_dir is not None and level in levels_to_write:
                             level_dir = path_join(write_to_dir, level_key)

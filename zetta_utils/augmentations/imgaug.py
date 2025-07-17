@@ -1,16 +1,30 @@
 from __future__ import annotations
 
 import collections
-from typing import Any, Final, Literal, Sequence, Sized, Tuple, TypeVar, overload
+import gc
+from typing import (
+    Any,
+    Final,
+    Iterable,
+    Literal,
+    Sequence,
+    Sized,
+    Tuple,
+    TypeVar,
+    overload,
+)
 
 import numpy as np
 import torch
 from imgaug import augmenters as iaa
 from imgaug.augmenters.meta import Augmenter
 from numpy.typing import NDArray
+from typeguard import typechecked
 
 from zetta_utils import builder
+from zetta_utils.augmentations import prob_aug
 from zetta_utils.tensor_ops import common, convert, crop_center
+from zetta_utils.tensor_ops.common import supports_dict
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
 SizedTypeVar = TypeVar("SizedTypeVar", bound=Sized)
@@ -114,13 +128,20 @@ def _ungroup_kwargs(
 @builder.register("imgaug_readproc")
 def imgaug_readproc(
     *args,  # the zetta_utils builder puts the layer/layerset as the first argument
+    targets: Iterable[str] | None = None,
     **kwargs,  # and the augmenters in the kwargs
 ):
     assert len(args) == 1
     augmenters = kwargs.pop("augmenters", None)
     assert augmenters is not None
     if isinstance(args[0], dict):
-        return imgaug_augment(augmenters, **args[0], **kwargs)
+        if targets is not None:
+            all_inputs = args[0]
+            inputs = {k: all_inputs[k] for k in targets}
+            results = imgaug_augment(augmenters, **inputs, **kwargs)
+            return {k: results[k] if k in results else all_inputs[k] for k in all_inputs.keys()}
+        else:
+            return imgaug_augment(augmenters, **args[0], **kwargs)
     else:  # Tensor
         return imgaug_augment(augmenters, images=args[0], **kwargs)["images"]
 
@@ -314,3 +335,36 @@ for attr in dir(iaa.imgcorruptlike):
         builder.register(f"imgaug.augmenters.imgcorruptlike.{attr}")(
             getattr(iaa.imgcorruptlike, attr)
         )
+
+
+@builder.register("flip_z")
+@prob_aug
+@supports_dict
+@typechecked
+def flip_z(
+    data: Any,
+    data_in_zyx: bool = False,
+) -> Any:
+    if data_in_zyx:
+        slices = [slice(None) for _ in data.shape]
+        slices[-3] = slice(None, None, -1)
+        return data[tuple(slices)]
+    else:
+        return data[..., ::-1]
+
+
+@builder.register("gc_collect")
+@typechecked
+def gc_collect(
+    data: Any,
+    every_n: int = 1,
+) -> Any:
+    global gc_collect_counter
+    gc_collect_counter += 1
+    if gc_collect_counter == every_n:
+        gc.collect()
+        gc_collect_counter = 0
+    return data
+
+
+gc_collect_counter: int = 0

@@ -2,8 +2,6 @@
 
 # pylint: disable=unused-argument,redefined-outer-name
 
-from datetime import datetime
-
 import pytest
 
 from zetta_utils.task_management.merge_edit import (
@@ -104,7 +102,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         assert isinstance(edit_id, int)
         assert edit_id > 0
 
@@ -119,7 +117,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         edit_id_2 = create_merge_edit(
             project_name=test_project,
             task_id=test_task["task_id"],
@@ -127,7 +125,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         assert edit_id_1 != edit_id_2
 
     def test_get_merge_edits_by_task(
@@ -142,14 +140,14 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Get by task ID
         edits = get_merge_edits_by_task(
             project_name=test_project,
             task_id=test_task["task_id"],
             db_session=db_session,
         )
-        
+
         assert len(edits) == 1
         assert edits[0]["edit_id"] == edit_id
         assert edits[0]["task_id"] == test_task["task_id"]
@@ -169,14 +167,14 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Get by user ID
         edits = get_merge_edits_by_user(
             project_name=test_project,
             user_id=test_user["user_id"],
             db_session=db_session,
         )
-        
+
         assert len(edits) == 1
         assert edits[0]["edit_id"] == edit_id
         assert edits[0]["user_id"] == test_user["user_id"]
@@ -193,14 +191,14 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Get by ID
         edit = get_merge_edit_by_id(
             project_name=test_project,
             edit_id=edit_id,
             db_session=db_session,
         )
-        
+
         assert edit is not None
         assert edit["edit_id"] == edit_id
         assert edit["task_id"] == test_task["task_id"]
@@ -216,7 +214,7 @@ class TestMergeEdit:
             edit_id=999,
             db_session=db_session,
         )
-        
+
         assert edit is None
 
     def test_get_merge_edits_empty_results(
@@ -230,7 +228,7 @@ class TestMergeEdit:
             db_session=db_session,
         )
         assert len(edits_by_task) == 0
-        
+
         # Get by user ID
         edits_by_user = get_merge_edits_by_user(
             project_name=test_project,
@@ -251,7 +249,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Create second merge edit
         edit_id_2 = create_merge_edit(
             project_name=test_project,
@@ -260,14 +258,14 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Get by task ID
         edits = get_merge_edits_by_task(
             project_name=test_project,
             task_id=test_task["task_id"],
             db_session=db_session,
         )
-        
+
         assert len(edits) == 2
         # Should be ordered by created_at DESC (newest first)
         assert edits[0]["edit_id"] == edit_id_2
@@ -280,7 +278,7 @@ class TestMergeEdit:
         # Create two projects
         project_1 = "project_1"
         project_2 = "project_2"
-        
+
         for project in [project_1, project_2]:
             create_project(
                 project_name=project,
@@ -290,7 +288,7 @@ class TestMergeEdit:
                 sv_resolution_z=42.0,
                 db_session=db_session,
             )
-        
+
         # Create merge edit in project 1
         edit_id_1 = create_merge_edit(
             project_name=project_1,
@@ -299,7 +297,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Create merge edit in project 2
         edit_id_2 = create_merge_edit(
             project_name=project_2,
@@ -308,7 +306,7 @@ class TestMergeEdit:
             points=sample_merge_data["points"],
             db_session=db_session,
         )
-        
+
         # Get edits for project 1
         edits_1 = get_merge_edits_by_task(
             project_name=project_1,
@@ -317,7 +315,7 @@ class TestMergeEdit:
         )
         assert len(edits_1) == 1
         assert edits_1[0]["edit_id"] == edit_id_1
-        
+
         # Get edits for project 2
         edits_2 = get_merge_edits_by_task(
             project_name=project_2,

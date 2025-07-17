@@ -714,3 +714,122 @@ class TaskFeedbackModel(Base):
             "user_id": self.user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class SplitEditModel(Base):
+    """
+    SQLAlchemy model for the split_edits table.
+
+    Records split edit operations with sources and sinks coordinates.
+    Each edit contains sources and sinks groups with segment IDs and
+    coordinates in nanometers.
+    """
+
+    __tablename__ = "split_edits"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    edit_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+
+    task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    sources: Mapped[list] = mapped_column(JSON, nullable=False)
+    sinks: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_split_edits_project_task", "project_name", "task_id"),
+        Index("idx_split_edits_project_user", "project_name", "user_id"),
+        Index(
+            "idx_split_edits_user_created",
+            "project_name",
+            "user_id",
+            "created_at",
+        ),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "edit_id": self.edit_id,
+            "task_id": self.task_id,
+            "user_id": self.user_id,
+            "sources": self.sources,
+            "sinks": self.sinks,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "SplitEditModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            task_id=data["task_id"],
+            user_id=data["user_id"],
+            sources=data["sources"],
+            sinks=data["sinks"],
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
+        )
+
+
+class MergeEditModel(Base):
+    """
+    SQLAlchemy model for the merge_edits table.
+
+    Records merge edit operations with two points to be merged.
+    Each edit contains a list of two points with segment IDs and
+    coordinates in nanometers.
+    """
+
+    __tablename__ = "merge_edits"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    edit_id: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
+
+    task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    points: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_merge_edits_project_task", "project_name", "task_id"),
+        Index("idx_merge_edits_project_user", "project_name", "user_id"),
+        Index(
+            "idx_merge_edits_user_created",
+            "project_name",
+            "user_id",
+            "created_at",
+        ),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "edit_id": self.edit_id,
+            "task_id": self.task_id,
+            "user_id": self.user_id,
+            "points": self.points,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, project_name: str, data: dict) -> "MergeEditModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=project_name,
+            task_id=data["task_id"],
+            user_id=data["user_id"],
+            points=data["points"],
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
+        )

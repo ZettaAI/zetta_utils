@@ -4,8 +4,10 @@ from typing import (
     Callable,
     Container,
     Generic,
+    Iterable,
     Literal,
     Mapping,
+    MutableMapping,
     Optional,
     Sequence,
     SupportsIndex,
@@ -732,3 +734,17 @@ def pad_center_to(
     data_torch = tensor_ops.convert.to_torch(data)
     result = torch.nn.functional.pad(data_torch, tuple(reversed(pad)), mode=mode, value=value)
     return tensor_ops.convert.astype(result, data)
+
+
+@builder.register("copy_layer")
+@typechecked
+def copy_layer(
+    data: MutableMapping[Any, Any],
+    from_key: str,
+    to_keys: Iterable[str],
+) -> Any:
+    for k in to_keys:
+        if k == from_key:
+            continue
+        data[k] = np.copy(data[from_key])
+    return data

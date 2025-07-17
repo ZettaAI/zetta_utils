@@ -8,6 +8,18 @@ from pydantic import BaseModel
 from zetta_utils import log
 from zetta_utils.task_management.db.models import TaskFeedbackModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.merge_edit import (
+    create_merge_edit,
+    get_merge_edit_by_id,
+    get_merge_edits_by_task,
+    get_merge_edits_by_user,
+)
+from zetta_utils.task_management.split_edit import (
+    create_split_edit,
+    get_split_edit_by_id,
+    get_split_edits_by_task,
+    get_split_edits_by_user,
+)
 from zetta_utils.task_management.task import (
     get_task,
     release_task,
@@ -18,18 +30,6 @@ from zetta_utils.task_management.task_type import create_task_type, get_task_typ
 from zetta_utils.task_management.task_types import handle_task_completion, verify_task
 from zetta_utils.task_management.timesheet import submit_timesheet
 from zetta_utils.task_management.types import Task, TaskType, TaskUpdate
-from zetta_utils.task_management.split_edit import (
-    create_split_edit,
-    get_split_edits_by_task,
-    get_split_edits_by_user,
-    get_split_edit_by_id,
-)
-from zetta_utils.task_management.merge_edit import (
-    create_merge_edit,
-    get_merge_edits_by_task,
-    get_merge_edits_by_user,
-    get_merge_edit_by_id,
-)
 
 from .utils import generic_exception_handler
 

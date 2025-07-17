@@ -2,20 +2,21 @@
 
 # pylint: disable=unused-argument,redefined-outer-name
 
-import pytest
 from datetime import datetime
 
+import pytest
+
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
+    get_split_edit_by_id,
     get_split_edits_by_task,
     get_split_edits_by_user,
-    get_split_edit_by_id,
 )
-from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
-from zetta_utils.task_management.user import create_user
 from zetta_utils.task_management.types import Task, TaskType, User
+from zetta_utils.task_management.user import create_user
 
 
 @pytest.fixture

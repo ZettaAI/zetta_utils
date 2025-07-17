@@ -16,14 +16,14 @@ def create_merge_edit(
 ) -> int:
     """
     Create a new merge edit record.
-    
+
     Args:
         project_name: Name of the project
         task_id: ID of the task this edit belongs to
         user_id: ID of the user who made this edit
         points: List of two points to merge [segment_id, x, y, z]
         db_session: Optional database session
-        
+
     Returns:
         edit_id: ID of the created merge edit
     """
@@ -35,11 +35,11 @@ def create_merge_edit(
             points=points,
             created_at=datetime.now(),
         )
-        
+
         session.add(merge_edit)
         session.commit()
         session.refresh(merge_edit)
-        
+
         return merge_edit.edit_id
 
 
@@ -50,12 +50,12 @@ def get_merge_edits_by_task(
 ) -> List[Dict]:
     """
     Get all merge edits for a specific task.
-    
+
     Args:
         project_name: Name of the project
         task_id: ID of the task
         db_session: Optional database session
-        
+
     Returns:
         List of merge edit dictionaries
     """
@@ -69,7 +69,7 @@ def get_merge_edits_by_task(
             .order_by(MergeEditModel.created_at.desc())
             .all()
         )
-        
+
         return [edit.to_dict() for edit in merge_edits]
 
 
@@ -80,12 +80,12 @@ def get_merge_edits_by_user(
 ) -> List[Dict]:
     """
     Get all merge edits for a specific user.
-    
+
     Args:
         project_name: Name of the project
         user_id: ID of the user
         db_session: Optional database session
-        
+
     Returns:
         List of merge edit dictionaries
     """
@@ -99,7 +99,7 @@ def get_merge_edits_by_user(
             .order_by(MergeEditModel.created_at.desc())
             .all()
         )
-        
+
         return [edit.to_dict() for edit in merge_edits]
 
 
@@ -110,12 +110,12 @@ def get_merge_edit_by_id(
 ) -> Optional[Dict]:
     """
     Get a specific merge edit by its ID.
-    
+
     Args:
         project_name: Name of the project
         edit_id: ID of the merge edit
         db_session: Optional database session
-        
+
     Returns:
         Merge edit dictionary or None if not found
     """
@@ -128,5 +128,5 @@ def get_merge_edit_by_id(
             )
             .first()
         )
-        
+
         return merge_edit.to_dict() if merge_edit else None

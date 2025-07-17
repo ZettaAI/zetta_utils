@@ -60,6 +60,14 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+      - name: Setup Go
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.18.4'
+      - name: Install CUE
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: sudo apt install libboost-dev
@@ -125,6 +133,14 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+      - name: Setup Go
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.18.4'
+      - name: Install CUE
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: sudo apt install libboost-dev
@@ -186,6 +202,14 @@ jobs:
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+      - name: Setup Go
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.18.4'
+      - name: Install CUE
+        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: sudo apt install libboost-dev

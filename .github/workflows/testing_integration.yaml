@@ -42,6 +42,10 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.18.4'
+      - name: Install CUE
+        run: go install cuelang.org/go/cmd/cue@v0.6.0
+      - name: Install libboost
+        run: sudo apt install libboost-dev
       - name: Install Python dependencies
         run: |
           python install_zutils.py --mode=all --dockerfile --skip_apt

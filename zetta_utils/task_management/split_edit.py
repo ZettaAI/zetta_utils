@@ -17,7 +17,7 @@ def create_split_edit(
 ) -> int:
     """
     Create a new split edit record.
-    
+
     Args:
         project_name: Name of the project
         task_id: ID of the task this edit belongs to
@@ -25,7 +25,7 @@ def create_split_edit(
         sources: List of source points [segment_id, x, y, z]
         sinks: List of sink points [segment_id, x, y, z]
         db_session: Optional database session
-        
+
     Returns:
         edit_id: ID of the created split edit
     """
@@ -38,11 +38,11 @@ def create_split_edit(
             sinks=sinks,
             created_at=datetime.now(),
         )
-        
+
         session.add(split_edit)
         session.commit()
         session.refresh(split_edit)
-        
+
         return split_edit.edit_id
 
 
@@ -53,12 +53,12 @@ def get_split_edits_by_task(
 ) -> List[Dict]:
     """
     Get all split edits for a specific task.
-    
+
     Args:
         project_name: Name of the project
         task_id: ID of the task
         db_session: Optional database session
-        
+
     Returns:
         List of split edit dictionaries
     """
@@ -72,7 +72,7 @@ def get_split_edits_by_task(
             .order_by(SplitEditModel.created_at.desc())
             .all()
         )
-        
+
         return [edit.to_dict() for edit in split_edits]
 
 
@@ -83,12 +83,12 @@ def get_split_edits_by_user(
 ) -> List[Dict]:
     """
     Get all split edits for a specific user.
-    
+
     Args:
         project_name: Name of the project
         user_id: ID of the user
         db_session: Optional database session
-        
+
     Returns:
         List of split edit dictionaries
     """
@@ -102,7 +102,7 @@ def get_split_edits_by_user(
             .order_by(SplitEditModel.created_at.desc())
             .all()
         )
-        
+
         return [edit.to_dict() for edit in split_edits]
 
 
@@ -113,12 +113,12 @@ def get_split_edit_by_id(
 ) -> Optional[Dict]:
     """
     Get a specific split edit by its ID.
-    
+
     Args:
         project_name: Name of the project
         edit_id: ID of the split edit
         db_session: Optional database session
-        
+
     Returns:
         Split edit dictionary or None if not found
     """
@@ -131,5 +131,5 @@ def get_split_edit_by_id(
             )
             .first()
         )
-        
+
         return split_edit.to_dict() if split_edit else None

@@ -28,6 +28,7 @@ def test_build_annotation_layer_write_mode(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         voxel_offset=[0, 0, 0],
@@ -51,6 +52,7 @@ def test_build_annotation_layer_with_index(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         index=index,
         mode="write",
     )
@@ -75,6 +77,7 @@ def test_build_annotation_layer_with_processors(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         index=index,
         mode="write",
         index_procs=[index_proc],
@@ -96,6 +99,7 @@ def test_build_annotation_layer_with_custom_chunk_sizes(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         index=index,
         mode="write",
         chunk_sizes=chunk_sizes,
@@ -110,6 +114,7 @@ def test_build_annotation_layer_replace_mode(temp_dir):
     # First create a layer
     build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         voxel_offset=[0, 0, 0],
@@ -134,6 +139,7 @@ def test_build_annotation_layer_update_mode(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         voxel_offset=[0, 0, 0],
@@ -157,6 +163,7 @@ def test_build_annotation_layer_read_mode(temp_dir):
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         index_resolution=[4.0, 4.0, 40.0],
@@ -196,6 +203,7 @@ def test_build_annotation_layer_write_mode_existing_file(temp_dir):
     # First create a layer
     build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         voxel_offset=[0, 0, 0],
@@ -227,6 +235,7 @@ def test_build_annotation_layer_missing_dataset_size():
     with pytest.raises(Exception):
         build_annotation_layer(
             path="/path/to/annotations",
+            annotation_type="LINE",
             resolution=[4.0, 4.0, 40.0],
             voxel_offset=[0, 0, 0],
             mode="write",
@@ -247,6 +256,7 @@ def test_build_annotation_layer_invalid_resolution_length():
     with pytest.raises(Exception):
         build_annotation_layer(
             path="/path/to/annotations",
+            annotation_type="LINE",
             resolution=[4.0, 4.0],
             dataset_size=[1000, 1000, 100],
             voxel_offset=[0, 0, 0],
@@ -286,6 +296,7 @@ def test_build_annotation_layer_with_property_specs_and_relationships(temp_dir):
         "@type": "build_annotation_layer",
         "path": path,
         "mode": "write",
+        "annotation_type": "LINE",
         "resolution": [4, 4, 40],
         "dataset_size": [1000, 1000, 100],
         "voxel_offset": [0, 0, 0],
@@ -361,6 +372,7 @@ def test_build_annotation_layer_with_direct_property_specs_and_relationships(tem
 
     layer = build_annotation_layer(
         path=path,
+        annotation_type="LINE",
         resolution=[4.0, 4.0, 40.0],
         dataset_size=[1000, 1000, 100],
         voxel_offset=[0, 0, 0],

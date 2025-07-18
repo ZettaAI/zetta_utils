@@ -20,11 +20,11 @@ from sqlalchemy.engine import URL, CursorResult, Result
 from sqlalchemy.exc import SQLAlchemyError
 from tabulate import tabulate
 
-from zetta_utils.db_annotations.precomp_annotations import (
-    AnnotationLayer,
+from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.volumetric.annotation.backend import (
+    AnnotationLayerBackend,
     LineAnnotation,
 )
-from zetta_utils.geometry import Vec3D
 
 # Global variables
 DB_USER = "postgres"
@@ -490,7 +490,7 @@ def row_to_line(row: Tuple, keys: Tuple[str, ...]) -> LineAnnotation:
     """
     row_dict = dict(zip(keys, row))
     return LineAnnotation(
-        line_id=row_dict["id"],
+        id=row_dict["id"],
         start=(float(row_dict["pre_x"]), float(row_dict["pre_y"]), float(row_dict["pre_z"])),
         end=(float(row_dict["post_x"]), float(row_dict["post_y"]), float(row_dict["post_z"])),
     )
@@ -546,7 +546,7 @@ def export_to_annotations():
 
     print()
     file_path = input("Export to path: ")
-    layer = AnnotationLayer(file_path)
+    layer = AnnotationLayerBackend(path=file_path)
     if not layer.exists():
         print(f"Precomputed annotation file {file_path} does not exist.")
         print("Alas, this script does not yet have the capability to create one for you.")

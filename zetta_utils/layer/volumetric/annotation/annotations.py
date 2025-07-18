@@ -13,18 +13,7 @@ import string
 import struct
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import (
-    IO,
-    Any,
-    ClassVar,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import IO, Any, ClassVar, Literal, Sequence
 
 import numpy as np
 
@@ -45,8 +34,8 @@ class ShardingSpec:
     hash: Literal["identity", "murmurhash3_x86_128"] = "identity"
     minishard_bits: int = 3
     shard_bits: int = 4
-    minishard_index_encoding: Optional[Literal["raw", "gzip"]] = "raw"
-    data_encoding: Optional[Literal["raw", "gzip"]] = "raw"
+    minishard_index_encoding: Literal["raw", "gzip"] | None = "raw"
+    data_encoding: Literal["raw", "gzip"] | None = "raw"
 
     @property
     def type(self) -> str:
@@ -133,7 +122,7 @@ class ShardingSpec:
 
         return result
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(self, indent: int | None = None) -> str:
         """Convert to JSON string representation.
 
         :param indent: number of spaces for indentation; None for compact JSON
@@ -158,9 +147,9 @@ class PropertySpec:
 
     id: str
     type: str
-    description: Optional[str] = None
-    enum_values: Optional[List[Union[int, float]]] = None
-    enum_labels: Optional[List[str]] = None
+    description: str | None = None
+    enum_values: list[int | float] | None = None
+    enum_labels: list[str] | None = None
 
     def __post_init__(self):
         """Validate the property specification after initialization."""
@@ -213,7 +202,7 @@ class PropertySpec:
 
     def to_dict(self) -> dict:
         """Convert to dictionary format matching the JSON specification."""
-        result: Dict[str, Any] = {"id": self.id, "type": self.type}
+        result: dict[str, Any] = {"id": self.id, "type": self.type}
 
         if self.description is not None:
             result["description"] = self.description
@@ -247,7 +236,7 @@ class PropertySpec:
         """Check if this property has enumerated values."""
         return self.enum_values is not None
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(self, indent: int | None = None) -> str:
         """Convert to JSON string representation.
 
         :param indent: number of spaces for indentation; None for compact JSON
@@ -270,8 +259,8 @@ class Relationship:
     """
 
     id: str
-    key: Optional[str] = None
-    sharding: Optional[ShardingSpec] = None
+    key: str | None = None
+    sharding: ShardingSpec | None = None
 
     def __post_init__(self):
         """Generate key from id if not provided."""
@@ -299,7 +288,7 @@ class Relationship:
 
     def to_dict(self) -> dict:
         """Convert to dictionary format matching the JSON specification."""
-        result: Dict[str, Any] = {"id": self.id, "key": self.key}
+        result: dict[str, Any] = {"id": self.id, "key": self.key}
         if self.sharding is not None:
             result["sharding"] = self.sharding.to_dict()
         return result
@@ -309,7 +298,7 @@ class Relationship:
         """Create Relationship from dictionary."""
         return cls(id=data["id"], key=data.get("key"))  # Will auto-generate if None
 
-    def to_json(self, indent: Optional[int] = None) -> str:
+    def to_json(self, indent: int | None = None) -> str:
         """Convert to JSON string representation.
 
         :param indent: Number of spaces for indentation. None for compact JSON.
@@ -332,12 +321,12 @@ class Annotation(ABC):
     """
 
     id: int = field(default_factory=lambda: random.randint(0, 2 ** 64 - 1))
-    properties: Dict[str, Any] = field(default_factory=dict)
-    relations: Dict[str, int | List[int]] = field(default_factory=dict)
+    properties: dict[str, Any] = field(default_factory=dict)
+    relations: dict[str, int | list[int]] = field(default_factory=dict)
 
     @abstractmethod
     def in_bounds(
-        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+        self, bounds, resolution: Sequence[float] | None = None, strict: bool = False
     ) -> bool:
         """Return whether either end of this line is in the given bounds.
 
@@ -499,8 +488,8 @@ class Annotation(ABC):
     def write(
         self,
         output: IO[bytes],
-        property_specs: Optional[Sequence[PropertySpec]] = None,
-        relationships: Optional[Sequence[Relationship]] = None,
+        property_specs: Sequence[PropertySpec] | None = None,
+        relationships: Sequence[Relationship] | None = None,
     ) -> None:
         """Write complete annotation in binary format.
 
@@ -532,8 +521,8 @@ class Annotation(ABC):
         cls,
         in_stream: IO[bytes],
         type: str,  # pylint: disable=redefined-builtin
-        property_specs: Optional[Sequence[PropertySpec]] = None,
-        relationships: Optional[Sequence[Relationship]] = None,
+        property_specs: Sequence[PropertySpec] | None = None,
+        relationships: Sequence[Relationship] | None = None,
     ) -> "Annotation":
         result: Annotation
         if type == "POINT":
@@ -567,10 +556,10 @@ class PointAnnotation(Annotation):
     # id and points are required, properties and relations are optional.
     def __init__(
         self,
-        id: Optional[int] = None,  # pylint: disable=redefined-builtin
+        id: int | None = None,  # pylint: disable=redefined-builtin
         position: Sequence[float] = (0.0, 0.0, 0.0),
-        properties: Optional[Dict[str, Any]] = None,
-        relations: Optional[Dict[str, Union[int, List[int]]]] = None,
+        properties: dict[str, Any] | None = None,
+        relations: dict[str, int | list[int]] | None = None,
     ):
         if id is None:
             id = random.randint(0, 2 ** 64 - 1)
@@ -597,7 +586,7 @@ class PointAnnotation(Annotation):
         return cls(position=position)
 
     def in_bounds(
-        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+        self, bounds, resolution: Sequence[float] | None = None, strict: bool = False
     ) -> bool:
         """Return whether this point is in the given bounds.
 
@@ -647,11 +636,11 @@ class LineAnnotation(Annotation):
     # id and points are required, properties and relations are optional.
     def __init__(
         self,
-        id: Optional[int] = None,  # pylint: disable=redefined-builtin
+        id: int | None = None,  # pylint: disable=redefined-builtin
         start: Sequence[float] = (0.0, 0.0, 0.0),
         end: Sequence[float] = (0.0, 0.0, 0.0),
-        properties: Optional[Dict[str, Any]] = None,
-        relations: Optional[Dict[str, Union[int, List[int]]]] = None,
+        properties: dict[str, Any] | None = None,
+        relations: dict[str, int | list[int]] | None = None,
     ):
         if id is None:
             id = random.randint(0, 2 ** 64 - 1)
@@ -681,7 +670,7 @@ class LineAnnotation(Annotation):
         return cls(start=start, end=end)
 
     def in_bounds(
-        self, bounds, resolution: Optional[Sequence[float]] = None, strict: bool = False
+        self, bounds, resolution: Sequence[float] | None = None, strict: bool = False
     ) -> bool:
         """Return whether this line anywhere intersects the given bounds.
 
@@ -751,7 +740,7 @@ class SpatialEntry:
     grid_shape: Sequence[int]
     key: str
     limit: int
-    sharding: Optional[ShardingSpec] = None
+    sharding: ShardingSpec | None = None
 
     def __post_init__(self):
         # Convert sequences to tuples to maintain the original behavior
@@ -815,8 +804,8 @@ def validate_spatial_entries(spatial_entries):
 
 
 def get_child_cell_ranges(
-    spatial_specs: Sequence[SpatialEntry], parent_level: int, parent_cell_index: Tuple[int, ...]
-) -> Tuple[Tuple[int, int], ...]:
+    spatial_specs: Sequence[SpatialEntry], parent_level: int, parent_cell_index: tuple[int, ...]
+) -> tuple[tuple[int, int], ...]:
     """
     Calculate the range of child cell indices at level parent_level+1 that fall within
     the given parent cell at parent_level.

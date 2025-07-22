@@ -10,7 +10,7 @@ import os
 import struct
 from dataclasses import dataclass
 from random import random, shuffle
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Sequence
 
 from zetta_utils.geometry import BBox3D
 from zetta_utils.layer.volumetric.annotation.annotations import (
@@ -104,7 +104,7 @@ class SimpleWriter:
 
     def compile_multi_annotation_buffer(
         self,
-        annotations: Optional[Sequence[Annotation]] = None,
+        annotations: Sequence[Annotation] | None = None,
         randomize: bool = False,
     ):
         """
@@ -145,7 +145,7 @@ class SimpleWriter:
     def write_annotations(
         self,
         file_or_gs_path: str,
-        annotations: Optional[Sequence[Annotation]] = None,
+        annotations: Sequence[Annotation] | None = None,
         randomize: bool = False,
     ):
         """
@@ -186,9 +186,7 @@ class SimpleWriter:
                 chunks.append(Chunk(anno.id, buffer.getvalue()))
             write_shard_files(by_id_path, self.by_id_sharding, chunks)
 
-    def _write_spatial_index(
-        self, dir_path: str, prob_per_level: Optional[Sequence[float]] = None
-    ):
+    def _write_spatial_index(self, dir_path: str, prob_per_level: Sequence[float] | None = None):
         """
         Write the spatial index for the given set of annotations.
         """
@@ -206,7 +204,7 @@ class SimpleWriter:
         :param relation: the Relationship object to process
         """
         # Gather up the annotations for each related value
-        rel_id_to_anno: Dict[int, List[Annotation]] = {}
+        rel_id_to_anno: dict[int, list[Annotation]] = {}
         for anno in self.annotations:
             related_ids = anno.relations.get(relation.id, [])
             if isinstance(related_ids, int):
@@ -234,8 +232,8 @@ class SimpleWriter:
             write_shard_files(rel_dir_path, relation.sharding, chunks)
 
     def subdivision_cell_bounds(
-        self, subdivision_level: int, cell_index: Tuple[int, int, int]
-    ) -> Tuple[List[int], List[int]]:
+        self, subdivision_level: int, cell_index: tuple[int, int, int]
+    ) -> tuple[list[int], list[int]]:
         spec = self.spatial_specs[subdivision_level]
         x, y, z = cell_index
         start = [
@@ -250,15 +248,15 @@ class SimpleWriter:
         ]
         return start, end
 
-    def annotations_in_bounds(self, lower_bound, upper_bound) -> List[Annotation]:
+    def annotations_in_bounds(self, lower_bound, upper_bound) -> list[Annotation]:
         box = BBox3D.from_coords(lower_bound, upper_bound, (1, 1, 1))
         return list(filter(lambda a: a.in_bounds(box), self.annotations))
 
-    def subdivide(self, dir_path: str, prob_per_level: Sequence[float]):
+    def subdivide(self, dir_path: str | None, prob_per_level: Sequence[float]):
         """
         Subdivide annotations into a multi-level spatial index using a breadth-first approach.
 
-        :param dir_path: Directory path for output files
+        :param dir_path: Directory path for output files, or None to skip file writing
         :param prob_per_level: probability (0-1) of emitting annotation at each level
         """
         # pylint: disable=too-many-statements
@@ -274,8 +272,8 @@ class SimpleWriter:
             """
 
             level: int
-            cell_index: Tuple[int, ...]
-            annotations: List[Any]
+            cell_index: tuple[int, ...]
+            annotations: list[Any]
 
             def file_name(self):
                 return "_".join(str(i) for i in self.cell_index)
@@ -296,7 +294,7 @@ class SimpleWriter:
 
         # Also prepare a list of chunks for each level (this will only be used for
         # levels that want sharding)
-        chunks_per_level: List[List[Chunk]] = [[] for lvl in self.spatial_specs]
+        chunks_per_level: list[list[Chunk]] = [[] for lvl in self.spatial_specs]
 
         # Push task for cell 0 - the single cell at the coarsest level containing all annotations
         initial_task = SubdivideTask(

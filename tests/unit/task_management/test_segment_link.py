@@ -147,7 +147,9 @@ def test_get_segment_ng_state_basic(existing_segment_with_root, db_session, proj
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -188,7 +190,9 @@ def test_get_segment_ng_state_with_endpoints(existing_endpoints, db_session, pro
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=True,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
         db_session=db_session,
     )
 
@@ -238,7 +242,9 @@ def test_get_segment_ng_state_no_root(clean_db, db_session, project_name):
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -372,7 +378,9 @@ def test_get_segment_link(existing_segment_with_root, db_session, project_name):
     link = get_segment_link(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -395,7 +403,9 @@ def test_get_segment_link_with_endpoints(existing_endpoints, db_session, project
     link = get_segment_link(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=True,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
         db_session=db_session,
     )
 

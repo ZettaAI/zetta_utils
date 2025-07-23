@@ -438,23 +438,54 @@ def clear(  # pylint: disable=too-many-statements
 @click.option("--project_name", "-p", required=True, help="Name of the project")
 @click.option("--seed_id", "-s", required=True, type=int, help="Seed ID")
 @click.option(
-    "--include-endpoints/--no-endpoints",
+    "--include-certain-ends/--no-certain-ends",
     default=True,
-    help="Include endpoint annotation layers (certain/uncertain/breadcrumbs)",
+    help="Include certain endpoints layer (yellow)",
 )
-def segment_link(project_name: str, seed_id: int, include_endpoints: bool):
+@click.option(
+    "--include-uncertain-ends/--no-uncertain-ends",
+    default=True,
+    help="Include uncertain endpoints layer (red)",
+)
+@click.option(
+    "--include-breadcrumbs/--no-breadcrumbs",
+    default=True,
+    help="Include breadcrumbs layer (blue)",
+)
+def segment_link(
+    project_name: str,
+    seed_id: int,
+    include_certain_ends: bool,
+    include_uncertain_ends: bool,
+    include_breadcrumbs: bool,
+):
     """Generate neuroglancer link for a segment by seed supervoxel ID."""
     start_time = time.time()
 
     try:
         link = get_segment_link(
-            project_name=project_name, seed_id=seed_id, include_endpoints=include_endpoints
+            project_name=project_name,
+            seed_id=seed_id,
+            include_certain_ends=include_certain_ends,
+            include_uncertain_ends=include_uncertain_ends,
+            include_breadcrumbs=include_breadcrumbs,
         )
         elapsed_time = time.time() - start_time
 
         console.print(f"✅ Generated link for segment with seed_id {seed_id}", style="green")
-        if not include_endpoints:
-            console.print("   (endpoints excluded)", style="dim")
+
+        # Show which layers are excluded
+        excluded = []
+        if not include_certain_ends:
+            excluded.append("certain ends")
+        if not include_uncertain_ends:
+            excluded.append("uncertain ends")
+        if not include_breadcrumbs:
+            excluded.append("breadcrumbs")
+
+        if excluded:
+            console.print(f"   (excluded: {', '.join(excluded)})", style="dim")
+
         console.print("\n🔗 Neuroglancer Link:", style="bold cyan")
         console.print(link, style="blue underline")
 

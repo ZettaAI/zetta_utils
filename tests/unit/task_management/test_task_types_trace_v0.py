@@ -950,6 +950,13 @@ def existing_project(clean_db, db_session, project_name):
         sv_resolution_x=8.0,
         sv_resolution_y=8.0,
         sv_resolution_z=40.0,
+        extra_layers=[
+            {
+                "type": "image",
+                "source": "precomputed://gs://test-bucket/image",
+                "name": "Image",
+            }
+        ],
     )
     db_session.add(project)
     db_session.commit()

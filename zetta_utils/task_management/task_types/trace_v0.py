@@ -1,11 +1,11 @@
 import copy
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from zetta_utils import log
+from zetta_utils.task_management.segment_link import get_segment_ng_state
 
-from ..db.models import EndpointModel, ProjectModel, SegmentModel
+from ..db.models import EndpointModel, SegmentModel
 from ..db.session import get_session_context
 from ..task import create_task
 from ..types import Task
@@ -362,191 +362,15 @@ def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-bran
 
 def generate_trace_v0_ng_state(project_name: str, segment: SegmentModel) -> dict:
     """Generate neuroglancer state for a trace_v0 task."""
-    with get_session_context() as session:
-        # Get project info
-        project = session.query(ProjectModel).filter_by(project_name=project_name).first()
-        if not project:
-            raise ValueError(f"Project {project_name} not found")
 
-        # Get existing endpoints for this segment
-        endpoints = (
-            session.query(EndpointModel)
-            .filter_by(project_name=project_name, seed_id=segment.seed_id)
-            .all()
-        )
-
-        # Group endpoints by status
-        certain_ends = []
-        uncertain_ends = []
-        breadcrumbs = []
-
-        for endpoint in endpoints:
-            point = [endpoint.x, endpoint.y, endpoint.z]
-            annotation = {
-                "point": point,
-                "type": "point",
-                "id": str(uuid.uuid4()).replace("-", ""),
-            }
-
-            if endpoint.status == "CERTAIN":
-                certain_ends.append(annotation)
-            elif endpoint.status == "UNCERTAIN":
-                uncertain_ends.append(annotation)
-            elif endpoint.status == "BREADCRUMB":
-                breadcrumbs.append(annotation)
-
-        # Build neuroglancer state
-        sv_resolution = [project.sv_resolution_x, project.sv_resolution_y, project.sv_resolution_z]
-
-        ng_state: dict[str, Any] = {
-            "dimensions": {
-                "x": [sv_resolution[0] * 1e-9, "m"],
-                "y": [sv_resolution[1] * 1e-9, "m"],
-                "z": [sv_resolution[2] * 1e-9, "m"],
-            },
-            "position": [segment.seed_x, segment.seed_y, segment.seed_z],
-            "crossSectionScale": 0.5,
-            "projectionOrientation": [0.5, -0.5, 0.5, 0.5],
-            "projectionScale": 2740.449487163767,
-            "projectionDepth": 541651.3969244945,
-            "layers": [
-                {
-                    "type": "image",
-                    "source": (
-                        "precomputed://gs://dkronauer-ant-001-alignment-asia-east2"
-                        "/aligned/img_jpeg"
-                    ),
-                    "tab": "source",
-                    "name": "Image",
-                },
-                {
-                    "type": "segmentation",
-                    "source": {
-                        "url": project.segmentation_path
-                        or (
-                            "graphene://middleauth+https://data.proofreading.zetta.ai"
-                            "/segmentation/table/kronauer_ant_x1"
-                        ),
-                        "state": {
-                            "multicut": {"sinks": [], "sources": []},
-                            "merge": {"merges": []},
-                            "findPath": {},
-                        },
-                    },
-                    "tab": "segments",
-                    "segments": (
-                        [str(segment.current_segment_id)] if segment.current_segment_id else []
-                    ),
-                    "name": "Segmentation",
-                },
-                {
-                    "type": "annotation",
-                    "source": {
-                        "url": "local://annotations",
-                        "transform": {
-                            "outputDimensions": {
-                                "x": [sv_resolution[0] * 1e-9, "m"],
-                                "y": [sv_resolution[1] * 1e-9, "m"],
-                                "z": [sv_resolution[2] * 1e-9, "m"],
-                            }
-                        },
-                    },
-                    "tool": "annotatePoint",
-                    "tab": "annotations",
-                    "annotationColor": "#ff00ff",  # Purple
-                    "annotations": [
-                        {
-                            "point": [segment.seed_x, segment.seed_y, segment.seed_z],
-                            "type": "point",
-                            "id": str(uuid.uuid4()).replace("-", ""),
-                        }
-                    ],
-                    "name": "Seed Location",
-                },
-                {
-                    "type": "annotation",
-                    "source": {
-                        "url": "local://annotations",
-                        "transform": {
-                            "outputDimensions": {
-                                "x": [sv_resolution[0] * 1e-9, "m"],
-                                "y": [sv_resolution[1] * 1e-9, "m"],
-                                "z": [sv_resolution[2] * 1e-9, "m"],
-                            }
-                        },
-                    },
-                    "tool": "annotatePoint",
-                    "tab": "annotations",
-                    "annotationColor": "#00ff00",  # Green
-                    "annotations": [],
-                    "name": "Root Location",
-                },
-                {
-                    "type": "annotation",
-                    "source": {
-                        "url": "local://annotations",
-                        "transform": {
-                            "outputDimensions": {
-                                "x": [sv_resolution[0] * 1e-9, "m"],
-                                "y": [sv_resolution[1] * 1e-9, "m"],
-                                "z": [sv_resolution[2] * 1e-9, "m"],
-                            }
-                        },
-                    },
-                    "tool": "annotatePoint",
-                    "tab": "annotations",
-                    "annotationColor": "#ffff00",  # Yellow
-                    "annotations": certain_ends,
-                    "name": "Certain Ends",
-                },
-                {
-                    "type": "annotation",
-                    "source": {
-                        "url": "local://annotations",
-                        "transform": {
-                            "outputDimensions": {
-                                "x": [sv_resolution[0] * 1e-9, "m"],
-                                "y": [sv_resolution[1] * 1e-9, "m"],
-                                "z": [sv_resolution[2] * 1e-9, "m"],
-                            }
-                        },
-                    },
-                    "tool": "annotatePoint",
-                    "tab": "annotations",
-                    "annotationColor": "#ff0000",  # Red
-                    "annotations": uncertain_ends,
-                    "name": "Uncertain Ends",
-                },
-                {
-                    "type": "annotation",
-                    "source": {
-                        "url": "local://annotations",
-                        "transform": {
-                            "outputDimensions": {
-                                "x": [sv_resolution[0] * 1e-9, "m"],
-                                "y": [sv_resolution[1] * 1e-9, "m"],
-                                "z": [sv_resolution[2] * 1e-9, "m"],
-                            }
-                        },
-                    },
-                    "tool": "annotatePoint",
-                    "tab": "rendering",
-                    "annotationColor": "#0400ff",  # Blue
-                    "annotations": breadcrumbs,
-                    "name": "Breadcrumbs",
-                },
-            ],
-            "showSlices": False,
-            "selectedLayer": {"visible": True, "layer": "Segmentation"},
-            "layout": "xy-3d",
-        }
-
-        # Add extra layers if configured in project
-        if project.extra_layers:
-            for layer in project.extra_layers:
-                ng_state["layers"].append(layer)
-
-        return ng_state
+    return get_segment_ng_state(
+        project_name=project_name,
+        seed_id=segment.seed_id,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
+        include_segment_type_layers=True,
+    )
 
 
 @register_creation_handler("trace_v0")

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from zetta_utils import log
 from zetta_utils.task_management.db.models import TaskFeedbackModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.segment_link import get_segment_link
 from zetta_utils.task_management.task import (
     get_task,
     release_task,
@@ -24,8 +25,6 @@ from .utils import generic_exception_handler
 logger = log.get_logger()
 
 api = FastAPI()
-
-
 
 
 class NgStateRequest(BaseModel):
@@ -185,49 +184,94 @@ async def get_task_feedback_api(
     """
     with get_session_context() as session:
         # Query feedback entries filtered by user, then get task data separately
-        feedbacks = session.query(TaskFeedbackModel).filter(
-            TaskFeedbackModel.project_name == project_name,
-            TaskFeedbackModel.user_id == user_id
-        ).order_by(
-            TaskFeedbackModel.created_at.desc()
-        ).limit(limit).all()
+        feedbacks = (
+            session.query(TaskFeedbackModel)
+            .filter(
+                TaskFeedbackModel.project_name == project_name,
+                TaskFeedbackModel.user_id == user_id,
+            )
+            .order_by(TaskFeedbackModel.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
         feedback_data = []
         for feedback in feedbacks:
             # Get original task data
-            original_task = session.query(TaskModel).filter(
-                TaskModel.project_name == feedback.project_name,
-                TaskModel.task_id == feedback.task_id
-            ).first()
-            
+            original_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.task_id,
+                )
+                .first()
+            )
+
             # Get feedback task data
-            feedback_task = session.query(TaskModel).filter(
-                TaskModel.project_name == feedback.project_name,
-                TaskModel.task_id == feedback.feedback_task_id
-            ).first()
-            
+            feedback_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.feedback_task_id,
+                )
+                .first()
+            )
+
             # Map completion status to feedback type
             feedback_type = feedback_task.completion_status if feedback_task else "Unknown"
             feedback_color = "red"  # Default to red for unknown statuses
-            
+
             if feedback_type == "Accurate":
                 feedback_color = "green"
             elif feedback_type == "Fair":
                 feedback_color = "yellow"
             elif feedback_type == "Inaccurate":
                 feedback_color = "red"
-            
-            feedback_data.append({
-                "task_id": feedback.task_id,
-                "task_link": original_task.ng_state if original_task else None,
-                "feedback_link": feedback_task.ng_state if feedback_task else None,
-                "feedback": feedback_type,
-                "feedback_color": feedback_color,
-                "note": feedback_task.note if feedback_task else None,
-                "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
-                "user_id": feedback.user_id,
-                "feedback_id": feedback.feedback_id,
-                "feedback_task_id": feedback.feedback_task_id,
-            })
+
+            feedback_data.append(
+                {
+                    "task_id": feedback.task_id,
+                    "task_link": original_task.ng_state if original_task else None,
+                    "feedback_link": feedback_task.ng_state if feedback_task else None,
+                    "feedback": feedback_type,
+                    "feedback_color": feedback_color,
+                    "note": feedback_task.note if feedback_task else None,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                    "user_id": feedback.user_id,
+                    "feedback_id": feedback.feedback_id,
+                    "feedback_task_id": feedback.feedback_task_id,
+                }
+            )
 
         return feedback_data
+
+
+@api.get("/projects/{project_name}/segments/{seed_id}/link")
+async def get_segment_link_api(
+    project_name: str,
+    seed_id: int,
+    include_certain_ends: bool = True,
+    include_uncertain_ends: bool = True,
+    include_breadcrumbs: bool = True,
+) -> dict:
+    """
+    Generate neuroglancer link for a segment by seed supervoxel ID.
+
+    :param project_name: The name of the project
+    :param seed_id: Seed supervoxel ID (primary key)
+    :param include_certain_ends: Whether to include certain endpoints layer (yellow). Defaults to True.
+    :param include_uncertain_ends: Whether to include uncertain endpoints layer (red). Defaults to True.
+    :param include_breadcrumbs: Whether to include breadcrumbs layer (blue). Defaults to True.
+    :return: Dictionary containing the neuroglancer link
+    """
+    try:
+        link = get_segment_link(
+            project_name=project_name,
+            seed_id=seed_id,
+            include_certain_ends=include_certain_ends,
+            include_uncertain_ends=include_uncertain_ends,
+            include_breadcrumbs=include_breadcrumbs,
+        )
+        return {"link": link}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

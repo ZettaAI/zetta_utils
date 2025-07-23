@@ -426,6 +426,9 @@ class TestPointAnnotation:
 
         # Mock bounds object without resolution attribute
         mock_bounds = mocker.Mock()
+        # Remove resolution attribute so hasattr check fails
+        if hasattr(mock_bounds, "resolution"):
+            delattr(mock_bounds, "resolution")
         mock_bounds.contains.return_value = True
 
         result = point.in_bounds(mock_bounds)  # No resolution specified
@@ -455,7 +458,9 @@ class TestPointAnnotation:
 
         mock_bounds = mocker.Mock()
         mock_bounds.contains.return_value = True
-        # No resolution attribute
+        # Remove resolution attribute so hasattr check fails
+        if hasattr(mock_bounds, "resolution"):
+            delattr(mock_bounds, "resolution")
 
         result = point.in_bounds(mock_bounds, resolution=(2, 2, 2))
         assert result is True
@@ -557,6 +562,9 @@ class TestLineAnnotation:
         line = LineAnnotation(start=(10.0, 10.0, 10.0), end=(20.0, 20.0, 20.0))
 
         mock_bounds = mocker.Mock()
+        # Remove resolution attribute so hasattr check fails
+        if hasattr(mock_bounds, "resolution"):
+            delattr(mock_bounds, "resolution")
         mock_bounds.contains.side_effect = [True, True]  # Both endpoints in bounds
 
         result = line.in_bounds(mock_bounds, strict=True)
@@ -686,8 +694,8 @@ class TestAnnotationPropertyMethods:
 
         output.seek(0)
         data = output.read()
-        # 2 * 2 bytes + 2 bytes padding = 6 bytes
-        assert len(data) == 8  # Rounded to 4-byte alignment
+        # 2 * 2 bytes = 4 bytes (already 4-byte aligned, no padding needed)
+        assert len(data) == 4
 
         # Verify data
         uint16_val = struct.unpack("<H", data[0:2])[0]

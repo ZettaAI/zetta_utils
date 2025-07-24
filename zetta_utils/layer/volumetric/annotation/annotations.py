@@ -629,8 +629,8 @@ class PointAnnotation(Annotation):
 class LineAnnotation(Annotation):
     """Line annotation represented by two endpoint positions."""
 
-    start: Sequence[float] = field(default_factory=lambda: (0.0, 0.0, 0.0))
-    end: Sequence[float] = field(default_factory=lambda: (0.0, 0.0, 0.0))
+    start: Sequence[float] = (0.0, 0.0, 0.0)
+    end: Sequence[float] = (0.0, 0.0, 0.0)
 
     GEOMETRY_BYTES: ClassVar[int] = 24  # start (3 floats) + end (3 floats)
 

@@ -205,6 +205,7 @@ def load_annotations(forPurpose: str, default_box: Optional[dict] = None):
             resolution = input_vec3Di("Resolution")
             return annotations, resolution, None
         layer = build_annotation_layer(source_path, mode="read")
+        assert layer.backend.index is not None
         resolution = layer.backend.index.resolution
     else:
         verify_cave_auth()

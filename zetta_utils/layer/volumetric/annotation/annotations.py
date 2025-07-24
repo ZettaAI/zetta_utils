@@ -625,7 +625,7 @@ class PointAnnotation(Annotation):
         )
 
 
-@dataclass
+@dataclass(init=False)
 class LineAnnotation(Annotation):
     """Line annotation represented by two endpoint positions."""
 

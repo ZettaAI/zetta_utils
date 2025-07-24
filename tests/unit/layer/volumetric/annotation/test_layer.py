@@ -91,6 +91,7 @@ def test_getitem_with_resolution_and_slices():
 
         assert len(result) == 1
         assert result[0].id == 1
+        assert isinstance(result[0], LineAnnotation)
         assert result[0].start == (2, 4, 6)
         assert result[0].end == (8, 10, 12)
 
@@ -155,6 +156,7 @@ def test_setitem_with_resolution_and_slices():
         written_annotations = layer[read_idx]
 
         assert len(written_annotations) == 1
+        assert isinstance(written_annotations[0], LineAnnotation)
         assert written_annotations[0].start == (10, 20, 30)
         assert written_annotations[0].end == (40, 50, 60)
 
@@ -195,6 +197,7 @@ def test_setitem_with_properties():
         written_annotations = layer[read_idx]
 
         assert len(written_annotations) == 1
+        assert isinstance(written_annotations[0], LineAnnotation)
         assert written_annotations[0].start == (10, 20, 30)
         assert written_annotations[0].end == (40, 50, 60)
         assert written_annotations[0].properties["score"] == pytest.approx(0.42)

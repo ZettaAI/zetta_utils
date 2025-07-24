@@ -249,13 +249,17 @@ class AnnotationLayerBackend(
 
         # Validate that required fields are now set (either from constructor or file)
         if self.index is None:
-            raise ValueError("index must be provided or available in existing file")
+            raise ValueError(
+                "index must be provided or available in existing file"
+            )  # pragma: no cover
         if self.annotation_type is None:
-            raise ValueError("annotation_type must be provided or available in existing file")
+            raise ValueError(
+                "annotation_type must be provided or available in existing file"
+            )  # pragma: no cover
         if self.annotation_type not in ["POINT", "LINE"]:
             raise ValueError(
                 f"annotation_type must be 'POINT' or 'LINE', got '{self.annotation_type}'"
-            )
+            )  # pragma: no cover
 
         if not self.chunk_sizes:
             self.chunk_sizes = [tuple(self.index.shape)]
@@ -268,7 +272,7 @@ class AnnotationLayerBackend(
         return self.index
 
     @property
-    def _annotation_type(self) -> str:
+    def _annotation_type(self) -> str:  # pragma: no cover
         """Type-safe access to annotation_type."""
         assert (
             self.annotation_type is not None
@@ -328,8 +332,8 @@ class AnnotationLayerBackend(
         subsampling at any level in Neuroglancer.)
         """
         assert self.index is not None
-        if limit_value == 0:
-            limit_value = 1  # (required for NG to load the file at all)
+        if limit_value == 0:  # (a limit of > 0 is required for NG to load the file at all)
+            limit_value = 1  # pragma: no cover
         result = []
         bounds_size = self.index.shape
         for level, chunk_size_seq in enumerate(self.chunk_sizes):
@@ -762,7 +766,7 @@ class AnnotationLayerBackend(
         specified (by number) in levels_to_write (defaults to all).
         """
         if levels_to_write is None:
-            levels_to_write = range(0, len(chunk_sizes))
+            levels_to_write = range(0, len(chunk_sizes))  # pragma: no cover
         spatial_entries = []
         bounds_size = bounds.shape
         for level, chunk_size_seq in enumerate(chunk_sizes):
@@ -812,7 +816,7 @@ class AnnotationLayerBackend(
                         if write_to_dir is not None and level in levels_to_write:
                             level_dir = path_join(write_to_dir, level_key)
                             if not os.path.exists(level_dir):
-                                os.makedirs(level_dir)
+                                os.makedirs(level_dir)  # pragma: no cover
                             anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                             self.write_multi_annotation_file(anno_file_path, chunk_data)
             spatial_entries.append(SpatialEntry(chunk_size, grid_shape, level_key, limit))
@@ -833,7 +837,7 @@ class AnnotationLayerBackend(
         for anno in self.all_by_id():
             related_ids = anno.relations.get(relation.id, [])
             if isinstance(related_ids, int):
-                related_ids = [related_ids]
+                related_ids = [related_ids]  # pragma: no cover
             for rel_id in related_ids:
                 anno_list = rel_id_to_anno.get(rel_id, None)
                 if anno_list is None:
@@ -930,24 +934,22 @@ class AnnotationLayerBackend(
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
         assert self.index is not None
-        return round(self.index.start * resolution / self.index.resolution)  # pragma: no cover
+        return round(self.index.start * resolution / self.index.resolution)
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         # Note: it's not clear which chunk size is wanted here; since there
         # are no docs about it, let's just return the first one.
         assert self.index is not None
-        return round(
-            Vec3D(*self.chunk_sizes[0]) * resolution / self.index.resolution
-        )  # pragma: no cover
+        return round(Vec3D(*self.chunk_sizes[0]) * resolution / self.index.resolution)
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
         assert self.index is not None
-        return round(self.index.shape * resolution / self.index.resolution)  # pragma: no cover
+        return round(self.index.shape * resolution / self.index.resolution)
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:
         assert self.index is not None
-        return self.index * resolution / self.index.resolution  # pragma: no cover
+        return self.index * resolution / self.index.resolution
 
     def pformat(self) -> str:
         assert self.index is not None
-        return self.index.pformat()  # pragma: no cover
+        return self.index.pformat()

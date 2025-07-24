@@ -187,6 +187,50 @@ def test_edge_cases():
         assert not AnnotationLayerBackend(path=path, index=index, annotation_type="LINE").exists()
 
 
+def test_getter_methods():
+    # Create a test backend with a known index
+    index = VolumetricIndex.from_coords([100, 200, 300], [500, 600, 700], Vec3D(10, 20, 40))
+    chunk_sizes = [(200, 200, 200), (100, 100, 100)]
+    backend_instance = AnnotationLayerBackend(
+        path="/tmp/test", index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+    )
+
+    # Test get_voxel_offset with different resolutions
+    voxel_offset_native = backend_instance.get_voxel_offset(Vec3D(10, 20, 40))
+    assert voxel_offset_native == Vec3D(100, 200, 300)
+
+    voxel_offset_half = backend_instance.get_voxel_offset(Vec3D(5, 10, 20))
+    assert voxel_offset_half == Vec3D(50, 100, 150)
+
+    # Test get_chunk_size with different resolutions (uses chunk_sizes[0] = (200, 200, 200))
+    chunk_size_native = backend_instance.get_chunk_size(Vec3D(10, 20, 40))
+    assert chunk_size_native == Vec3D(200, 200, 200)
+
+    chunk_size_double = backend_instance.get_chunk_size(Vec3D(20, 40, 80))
+    assert chunk_size_double == Vec3D(400, 400, 400)
+
+    # Test get_dataset_size with different resolutions (index.shape = [400, 400, 400])
+    dataset_size_native = backend_instance.get_dataset_size(Vec3D(10, 20, 40))
+    assert dataset_size_native == Vec3D(400, 400, 400)
+
+    dataset_size_quarter = backend_instance.get_dataset_size(Vec3D(2.5, 5, 10))
+    assert dataset_size_quarter == Vec3D(100, 100, 100)
+
+    # Test get_bounds with different resolutions
+    bounds_native = backend_instance.get_bounds(Vec3D(10, 20, 40))
+    expected_bounds = index * Vec3D(10, 20, 40) / Vec3D(10, 20, 40)
+    assert bounds_native == expected_bounds
+
+    bounds_half = backend_instance.get_bounds(Vec3D(5, 10, 20))
+    expected_bounds_half = index * Vec3D(5, 10, 20) / Vec3D(10, 20, 40)
+    assert bounds_half == expected_bounds_half
+
+    # Test pformat
+    pformat_result = backend_instance.pformat()
+    assert isinstance(pformat_result, str)
+    assert len(pformat_result) > 0
+
+
 if __name__ == "__main__":
     test_round_trip()
     test_edge_cases()

@@ -760,6 +760,29 @@ class TestSimpleWriter:
         expected_shard_index_size = num_minishards * 16
         assert len(result) >= expected_shard_index_size
 
+    def test_write_shard_file_multiple_chunks_per_minishard(self):
+        """Test write_shard_file with multiple chunks in the same minishard to cover line 123."""
+        output = io.BytesIO()
+        sharding_spec = ShardingSpec(shard_bits=4, minishard_bits=2)
+
+        # Create chunks that map to the same minishard (same last 2 bits) but same shard
+        # chunk_id = 1 (minishard 1) and chunk_id = 65 (minishard 1), both in shard 0
+        chunks = [
+            Chunk(chunk_id=1, data=b"chunk1"),  # shard 0, minishard 1
+            Chunk(chunk_id=65, data=b"chunk65"),  # shard 0, minishard 1
+        ]
+
+        write_shard_file(output, sharding_spec, 0, chunks)
+
+        # Verify output was written
+        result = output.getvalue()
+        assert len(result) > 0
+
+        # Should start with shard index (minishard count * 16 bytes)
+        num_minishards = sharding_spec.num_minishards_per_shard
+        expected_shard_index_size = num_minishards * 16
+        assert len(result) >= expected_shard_index_size
+
     def test_write_shard_file_wrong_shard(self):
         """Test write_shard_file raises error for chunk in wrong shard."""
         output = io.BytesIO()

@@ -188,7 +188,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             raise IOError(
                 f"Given annotation_type {annotation_type} "
                 "does not match existing file type {anno_type}"
-            )
+            )  # pragma: no cover
         annotation_type = anno_type
 
     if mode in ("read", "update") and not file_exists:

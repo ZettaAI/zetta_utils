@@ -62,7 +62,7 @@ def row_to_line(row: Tuple, keys: Tuple[str, ...]) -> LineAnnotation:
     """
     row_dict = dict(zip(keys, row))
     return LineAnnotation(
-        line_id=row_dict["id"],
+        id=row_dict["id"],
         start=(float(row_dict["pre_x"]), float(row_dict["pre_y"]), float(row_dict["pre_z"])),
         end=(float(row_dict["post_x"]), float(row_dict["post_y"]), float(row_dict["post_z"])),
     )

@@ -634,13 +634,13 @@ class LineAnnotation(Annotation):
 
     GEOMETRY_BYTES: ClassVar[int] = 24  # start (3 floats) + end (3 floats)
 
-    # We define an explicit initializer in order to control the parameter order;
-    # id and points are required, properties and relations are optional.
+    # We define an explicit initializer in order to control the parameter order:
+    # start and end are required; id, properties, and relations are optional.
     def __init__(
         self,
-        id: int | None = None,  # pylint: disable=redefined-builtin
         start: Sequence[float] = (0.0, 0.0, 0.0),
         end: Sequence[float] = (0.0, 0.0, 0.0),
+        id: int | None = None,  # pylint: disable=redefined-builtin
         properties: dict[str, Any] | None = None,
         relations: dict[str, int | list[int]] | None = None,
     ):

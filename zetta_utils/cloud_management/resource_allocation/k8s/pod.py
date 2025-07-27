@@ -4,9 +4,11 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+from logging import Logger
 from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes import client as k8s_client
+from kubernetes import watch  # type: ignore
 from zetta_utils.cloud_management.resource_allocation import k8s
 
 from .secret import get_worker_env_vars
@@ -154,3 +156,31 @@ def get_mazepa_pod_spec(
         ),
         resource_requests=resource_requests,
     )
+
+
+def stream_pod_logs(
+    logger: Logger,
+    pod_name: str,
+    namespace: str | None = "default",
+    prefix: str = "",
+    tail_lines: int | None = None,
+):
+    core_api = k8s_client.CoreV1Api()
+    log_stream = watch.Watch().stream(
+        core_api.read_namespaced_pod_log,
+        name=pod_name,
+        container="main",
+        namespace=namespace,
+        tail_lines=tail_lines,
+    )
+    if tail_lines is None:
+        for output in log_stream:
+            logger.info(f"[{prefix}] {output}")
+    else:
+        result = []
+        for output in log_stream:
+            result.append(f"[{prefix}] {output}")
+            if len(result) == tail_lines:
+                logger.info("\n".join(result))
+                result = []
+        logger.info("\n".join(result))

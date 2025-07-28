@@ -10,9 +10,11 @@ from zetta_utils.task_management.db.models import (
     DependencyModel,
     EndpointModel,
     EndpointUpdateModel,
+    MergeEditModel,
     ProjectModel,
     SegmentModel,
     SegmentTypeModel,
+    SplitEditModel,
     TaskModel,
     TaskTypeModel,
     TimesheetModel,
@@ -716,3 +718,78 @@ def test_task_model_note_field(clean_db, db_session):
 
     result = task.to_dict()
     assert result["note"] == "test note"
+
+
+# TestSplitEditModel tests
+
+
+def test_split_edit_model_from_dict():
+    """Test SplitEditModel.from_dict() to cover line 770"""
+    data = {
+        "task_id": "task123",
+        "user_id": "user456",
+        "sources": [{"segment_id": 123, "x": 100, "y": 200, "z": 300}],
+        "sinks": [{"segment_id": 456, "x": 400, "y": 500, "z": 600}],
+        "created_at": "2025-07-03T10:00:00+00:00",
+    }
+    model = SplitEditModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_id == "task123"
+    assert model.user_id == "user456"
+    assert model.sources == [{"segment_id": 123, "x": 100, "y": 200, "z": 300}]
+    assert model.sinks == [{"segment_id": 456, "x": 400, "y": 500, "z": 600}]
+    assert isinstance(model.created_at, datetime)
+
+
+def test_split_edit_model_from_dict_default_timestamp():
+    """Test SplitEditModel.from_dict() with default timestamp"""
+    data = {
+        "task_id": "task789",
+        "user_id": "user101",
+        "sources": [],
+        "sinks": [],
+    }
+    model = SplitEditModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_id == "task789"
+    assert model.user_id == "user101"
+    assert isinstance(model.created_at, datetime)
+
+
+# TestMergeEditModel tests
+
+
+def test_merge_edit_model_from_dict():
+    """Test MergeEditModel.from_dict() to cover line 829"""
+    data = {
+        "task_id": "task456",
+        "user_id": "user789",
+        "points": [
+            {"segment_id": 111, "x": 10, "y": 20, "z": 30},
+            {"segment_id": 222, "x": 40, "y": 50, "z": 60},
+        ],
+        "created_at": "2025-07-03T12:00:00+00:00",
+    }
+    model = MergeEditModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_id == "task456"
+    assert model.user_id == "user789"
+    assert model.points == [
+        {"segment_id": 111, "x": 10, "y": 20, "z": 30},
+        {"segment_id": 222, "x": 40, "y": 50, "z": 60},
+    ]
+    assert isinstance(model.created_at, datetime)
+
+
+def test_merge_edit_model_from_dict_default_timestamp():
+    """Test MergeEditModel.from_dict() with default timestamp"""
+    data = {
+        "task_id": "task999",
+        "user_id": "user333",
+        "points": [],
+    }
+    model = MergeEditModel.from_dict("test_project", data)
+    assert model.project_name == "test_project"
+    assert model.task_id == "task999"
+    assert model.user_id == "user333"
+    assert isinstance(model.created_at, datetime)

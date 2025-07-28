@@ -7,8 +7,8 @@ import attrs
 from zetta_utils import builder, mazepa
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric.annotation.backend import (
+    Annotation,
     AnnotationLayerBackend,
-    LineAnnotation,
 )
 from zetta_utils.layer.volumetric.index import VolumetricIndex
 
@@ -16,18 +16,18 @@ from ... import DataProcessor, IndexProcessor, JointIndexDataProcessor, Layer
 from ..conversion import UserVolumetricIndex, convert_idx
 
 AnnotationDataProcT = Union[
-    DataProcessor[Sequence[LineAnnotation]],
-    JointIndexDataProcessor[Sequence[LineAnnotation], VolumetricIndex],
+    DataProcessor[Sequence[Annotation]],
+    JointIndexDataProcessor[Sequence[Annotation], VolumetricIndex],
 ]
 AnnotationDataWriteProcT = Union[
-    DataProcessor[Sequence[LineAnnotation]],
-    JointIndexDataProcessor[Sequence[LineAnnotation], VolumetricIndex],
+    DataProcessor[Sequence[Annotation]],
+    JointIndexDataProcessor[Sequence[Annotation], VolumetricIndex],
 ]
 
 
 @attrs.frozen
 class VolumetricAnnotationLayer(
-    Layer[VolumetricIndex, Sequence[LineAnnotation], Sequence[LineAnnotation]]
+    Layer[VolumetricIndex, Sequence[Annotation], Sequence[Annotation]]
 ):
     backend: AnnotationLayerBackend
     index_resolution: Vec3D | None = None
@@ -40,14 +40,14 @@ class VolumetricAnnotationLayer(
     write_procs: tuple[AnnotationDataWriteProcT, ...] = ()
 
     def _convert_annotations(
-        self, annotations: Sequence[LineAnnotation], from_res: Vec3D, to_res: Vec3D
-    ) -> list[LineAnnotation]:
+        self, annotations: Sequence[Annotation], from_res: Vec3D, to_res: Vec3D
+    ) -> list[Annotation]:
         return [
             annotation.with_converted_coordinates(from_res=from_res, to_res=to_res)
             for annotation in annotations
         ]
 
-    def __getitem__(self, idx: UserVolumetricIndex) -> Sequence[LineAnnotation]:
+    def __getitem__(self, idx: UserVolumetricIndex) -> Sequence[Annotation]:
         idx_backend = convert_idx(
             idx,
             self.index_resolution,
@@ -57,11 +57,13 @@ class VolumetricAnnotationLayer(
 
         annotations = self.read_with_procs(idx=idx_backend)
 
+        backend_index = self.backend.index
+        assert backend_index is not None, "Backend index should be initialized"
         return self._convert_annotations(
-            annotations, from_res=self.backend.index.resolution, to_res=idx_backend.resolution
+            annotations, from_res=backend_index.resolution, to_res=idx_backend.resolution
         )
 
-    def __setitem__(self, idx: UserVolumetricIndex, data: Sequence[LineAnnotation]):
+    def __setitem__(self, idx: UserVolumetricIndex, data: Sequence[Annotation]):
         idx_backend = convert_idx(
             idx,
             self.index_resolution,

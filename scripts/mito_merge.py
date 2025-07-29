@@ -1,12 +1,7 @@
 """
 This script takes a set of mitochondria, and outputs line annotations which can be applied
-to merge the mitochondria into its parent cell.  In cases where a mito has *two* parent
+to merge each mitochondrion into its parent cell.  In cases where a mito has *two* parent
 cells (e.g., it has caused a split), this will also merge those parents together.
-"""
-
-"""
-This script prototypes a process for finding contacts between known presynaptic
-cells in a smallish cutout, and any other cells in that cutout.
 """
 import csv
 import os
@@ -18,18 +13,18 @@ from typing import List, Optional, Sequence
 import cc3d
 import cv2
 import google.auth
-import nglui
 import numpy as np
 import torch
 from caveclient import CAVEclient
+from nglui import parser as nglui_parser
 from scipy.ndimage import binary_dilation, binary_erosion
 from scipy.spatial import ConvexHull
 from sklearn.decomposition import PCA
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.precomputed import InfoSpecParams, PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 client: CAVEclient
 ng_state = None
@@ -90,7 +85,7 @@ def input_or_default(prompt: str, value: str) -> str:
 
 
 def get_annotation_layer_name(state, label: str = "synapse annotation") -> str:
-    names = nglui.parser.annotation_layers(state)
+    names = nglui_parser.annotation_layers(state)
     if len(names) == 0:
         print("No annotation layers found in this state.")
         sys.exit()
@@ -108,9 +103,9 @@ def get_annotation_layer_name(state, label: str = "synapse annotation") -> str:
 
 
 def unarchived_segmentation_layers(state) -> List[str]:
-    names = nglui.parser.segmentation_layers(state)
+    names = nglui_parser.segmentation_layers(state)
     for i in range(len(names) - 1, -1, -1):
-        if nglui.parser.get_layer(state, names[i]).get("archived", False):
+        if nglui_parser.get_layer(state, names[i]).get("archived", False):
             del names[i]
     return names
 
@@ -138,7 +133,7 @@ def get_bounding_box(precomputed_path: str, scale_index=0) -> VolumetricIndex:
     Given a path to a precomputed volume, return a VolumetricIndex describing the data bounds
     and the data resolution.
     """
-    spec = PrecomputedInfoSpec(reference_path=precomputed_path)
+    spec = PrecomputedInfoSpec(info_path=precomputed_path)
     disable_stdout()  # (following call spews Google warning sometimes)
     info = spec.make_info()
     enable_stdout()
@@ -157,7 +152,7 @@ def load_volume(path: str, scale_index: int = 0, index_resolution: Sequence[floa
     Load a CloudVolume given the path, and optionally, which scale (resolution) is desired.
     Return the CloudVolume, and a VolumetricIndex describing the data bounds and resolution.
     """
-    spec = PrecomputedInfoSpec(reference_path=path)
+    spec = PrecomputedInfoSpec(info_path=path)
     disable_stdout()  # (following call spews Google warning sometimes)
     info = spec.make_info()
     enable_stdout()
@@ -370,7 +365,7 @@ def load_cell_seg_layer():
     """
     state = get_ng_state()
     cell_layer_name = get_segmentation_layer_name(state, "segmentation")
-    cell_source = nglui.parser.get_layer(state, cell_layer_name)["source"]
+    cell_source = nglui_parser.get_layer(state, cell_layer_name)["source"]
     print(f"Loading cell segmentation data from:\n{cell_source}")
     cell_cvl, cell_index = load_volume(cell_source)
     return cell_cvl, cell_index
@@ -383,7 +378,7 @@ def load_mito_points():
     """
     state = get_ng_state()
     points_layer_name = get_annotation_layer_name(state, "mito points")
-    points_layer = nglui.parser.get_layer(state, points_layer_name)
+    points_layer = nglui_parser.get_layer(state, points_layer_name)
     result = []
     for item in points_layer["annotations"]:
         result.append(round(Vec3D(*item["point"])))
@@ -517,10 +512,12 @@ def main():
 
     lines: list[str] = []
     stats: list[dict] = []
-    # mito_points = [Vec3D(26345, 35001, 734), Vec3D(27087, 33127, 830)] # HACK
+    # mito_points = [Vec3D(26345, 35001, 734), Vec3D(27087, 33127, 830)] # HACK for debugging
     for i, mito in enumerate(mito_points):
         print(f"({i}/{len(mito_points)}) ", end="")
-        lines += process_one(mito, cell_cvl, resolution, stats)
+        result = process_one(mito, cell_cvl, resolution, stats)
+        if result:
+            lines += result
 
     print()
     print('"annotations": [')

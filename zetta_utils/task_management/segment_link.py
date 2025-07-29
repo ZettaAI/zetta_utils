@@ -23,15 +23,15 @@ from zetta_utils.task_management.seg_trace_utils.segment_type import (
 
 def _get_segment_and_project(session, project_name: str, seed_id: int):
     """Get segment and project from database."""
+    project = session.query(ProjectModel).filter_by(project_name=project_name).first()
+    if not project:
+        raise ValueError(f"Project {project_name} not found")
+
     segment = (
         session.query(SegmentModel).filter_by(project_name=project_name, seed_id=seed_id).first()
     )
     if not segment:
         raise ValueError(f"Segment {seed_id} not found in project {project_name}")
-
-    project = session.query(ProjectModel).filter_by(project_name=project_name).first()
-    if not project:
-        raise ValueError(f"Project {project_name} not found")
 
     return segment, project
 

@@ -8,20 +8,19 @@ from pydantic import BaseModel
 from zetta_utils import log
 from zetta_utils.task_management.db.models import TaskFeedbackModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.segment_link import get_segment_link
 from zetta_utils.task_management.merge_edit import (
     create_merge_edit,
     get_merge_edit_by_id,
     get_merge_edits_by_task,
     get_merge_edits_by_user,
 )
+from zetta_utils.task_management.segment_link import get_segment_link
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
     get_split_edits_by_task,
     get_split_edits_by_user,
 )
-
 from zetta_utils.task_management.task import (
     get_task,
     release_task,
@@ -272,7 +271,6 @@ async def get_task_feedback_api(
         return feedback_data
 
 
-
 @api.get("/projects/{project_name}/segments/{seed_id}/link")
 async def get_segment_link_api(
     project_name: str,
@@ -303,6 +301,7 @@ async def get_segment_link_api(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+
 @api.post("/projects/{project_name}/split_edit")
 async def create_split_edit_api(
     project_name: str,
@@ -310,7 +309,7 @@ async def create_split_edit_api(
 ) -> dict:
     """
     Create a new split edit record.
-    
+
     :param project_name: The name of the project
     :param request: Request body containing user_id, task_id, sources, and sinks
     :return: Dict containing the created edit_id
@@ -336,7 +335,7 @@ async def create_merge_edit_api(
 ) -> dict:
     """
     Create a new merge edit record.
-    
+
     :param project_name: The name of the project
     :param request: Request body containing user_id, task_id, and points
     :return: Dict containing the created edit_id
@@ -362,7 +361,7 @@ async def get_split_edits_api(
 ) -> list[dict]:
     """
     Get split edits filtered by task_id or user_id.
-    
+
     :param project_name: The name of the project
     :param task_id: Optional task ID to filter by
     :param user_id: Optional user ID to filter by
@@ -370,14 +369,14 @@ async def get_split_edits_api(
     """
     if not task_id and not user_id:
         raise HTTPException(
-            status_code=400, 
-            detail="Either task_id or user_id query parameter is required"
+            status_code=400, detail="Either task_id or user_id query parameter is required"
         )
-    
+
     try:
         if task_id:
             return get_split_edits_by_task(project_name=project_name, task_id=task_id)
         else:
+            assert user_id is not None  # Already validated above
             return get_split_edits_by_user(project_name=project_name, user_id=user_id)
     except Exception as e:
         logger.error(f"Failed to get split edits: {e}")
@@ -391,7 +390,7 @@ async def get_split_edit_by_id_api(
 ) -> dict:
     """
     Get a specific split edit by ID.
-    
+
     :param project_name: The name of the project
     :param edit_id: The ID of the split edit to retrieve
     :return: Split edit record or 404 if not found
@@ -416,7 +415,7 @@ async def get_merge_edits_api(
 ) -> list[dict]:
     """
     Get merge edits filtered by task_id or user_id.
-    
+
     :param project_name: The name of the project
     :param task_id: Optional task ID to filter by
     :param user_id: Optional user ID to filter by
@@ -424,14 +423,14 @@ async def get_merge_edits_api(
     """
     if not task_id and not user_id:
         raise HTTPException(
-            status_code=400, 
-            detail="Either task_id or user_id query parameter is required"
+            status_code=400, detail="Either task_id or user_id query parameter is required"
         )
-    
+
     try:
         if task_id:
             return get_merge_edits_by_task(project_name=project_name, task_id=task_id)
         else:
+            assert user_id is not None  # Already validated above
             return get_merge_edits_by_user(project_name=project_name, user_id=user_id)
     except Exception as e:
         logger.error(f"Failed to get merge edits: {e}")
@@ -445,7 +444,7 @@ async def get_merge_edit_by_id_api(
 ) -> dict:
     """
     Get a specific merge edit by ID.
-    
+
     :param project_name: The name of the project
     :param edit_id: The ID of the merge edit to retrieve
     :return: Merge edit record or 404 if not found

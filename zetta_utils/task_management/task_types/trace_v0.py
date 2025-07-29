@@ -360,7 +360,7 @@ def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-bran
         )
 
 
-def generate_trace_v0_ng_state(project_name: str, segment: SegmentModel) -> dict:
+def generate_trace_v0_ng_state(project_name: str, segment: SegmentModel, db_session=None) -> dict:
     """Generate neuroglancer state for a trace_v0 task."""
 
     return get_segment_ng_state(
@@ -370,6 +370,7 @@ def generate_trace_v0_ng_state(project_name: str, segment: SegmentModel) -> dict
         include_uncertain_ends=True,
         include_breadcrumbs=True,
         include_segment_type_layers=True,
+        db_session=db_session,
     )
 
 

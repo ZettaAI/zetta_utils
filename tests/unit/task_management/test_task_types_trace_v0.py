@@ -761,7 +761,7 @@ def test_generate_ng_state_with_extra_layers(clean_db, db_session, project_name)
 def test_generate_ng_state_project_not_found(clean_db, db_session, existing_segment):
     """Test error when project not found"""
     with pytest.raises(ValueError, match="Project nonexistent not found"):
-        generate_trace_v0_ng_state("nonexistent", existing_segment)
+        generate_trace_v0_ng_state("nonexistent", existing_segment, db_session=db_session)
 
 
 # TestCreateTraceV0Task tests

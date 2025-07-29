@@ -11,6 +11,7 @@ import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
+
 from zetta_utils.task_management.db.models import (
     MergeEditModel,
     ProjectModel,
@@ -52,7 +53,7 @@ def _get_task_and_segment(session, project_name: str, task_id: str):
     segment = (
         session.query(SegmentModel)
         .filter_by(project_name=project_name)
-        .filter(SegmentModel.task_ids.any(task_id))
+        .filter(SegmentModel.task_ids.op("&&")([task_id]))
         .first()
     )
 

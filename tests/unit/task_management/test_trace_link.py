@@ -801,7 +801,7 @@ class TestInternalFunctions:
             }
         ]
 
-        ng_state = {"layers": []}
+        ng_state: dict[str, list] = {"layers": []}
         _add_merge_layer(ng_state, merge_annotations, project)
 
         assert len(ng_state["layers"]) == 1

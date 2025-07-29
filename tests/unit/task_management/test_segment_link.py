@@ -147,7 +147,9 @@ def test_get_segment_ng_state_basic(existing_segment_with_root, db_session, proj
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -188,7 +190,9 @@ def test_get_segment_ng_state_with_endpoints(existing_endpoints, db_session, pro
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=True,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
         db_session=db_session,
     )
 
@@ -238,7 +242,9 @@ def test_get_segment_ng_state_no_root(clean_db, db_session, project_name):
     ng_state = get_segment_ng_state(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -372,7 +378,9 @@ def test_get_segment_link(existing_segment_with_root, db_session, project_name):
     link = get_segment_link(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=False,
+        include_certain_ends=False,
+        include_uncertain_ends=False,
+        include_breadcrumbs=False,
         db_session=db_session,
     )
 
@@ -395,7 +403,9 @@ def test_get_segment_link_with_endpoints(existing_endpoints, db_session, project
     link = get_segment_link(
         project_name=project_name,
         seed_id=12345,
-        include_endpoints=True,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
         db_session=db_session,
     )
 
@@ -438,3 +448,76 @@ def test_get_segment_ng_state_no_session(
     assert "layers" in state
     assert "position" in state
     assert state["position"] == [100.0, 200.0, 300.0]
+
+
+def test_get_segment_ng_state_with_segment_type_layers(clean_db, db_session, project_name, mocker):
+    """Test generating neuroglancer state with segment type layers included"""
+    # Create project
+    create_project(
+        project_name=project_name,
+        segmentation_path="precomputed://gs://test-bucket/segmentation",
+        sv_resolution_x=8.0,
+        sv_resolution_y=8.0,
+        sv_resolution_z=40.0,
+        db_session=db_session,
+    )
+
+    # Create segment with expected_segment_type
+    segment = SegmentModel(
+        project_name=project_name,
+        seed_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        current_segment_id=67890,
+        expected_segment_type="neuron",  # This will trigger the segment type layers
+        task_ids=[],
+        status="WIP",
+        is_exported=False,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    # Mock get_segment_type_layers to return sample layers
+    mock_type_layers = [
+        {
+            "type": "annotation",
+            "name": "Neuron Reference",
+            "annotationColor": "#00ff00",
+            "annotations": [],
+        },
+        {
+            "type": "segmentation",
+            "name": "Neuron Sample",
+            "source": "precomputed://example",
+            "segments": ["123", "456"],
+        },
+    ]
+
+    mock_get_segment_type_layers = mocker.patch(
+        "zetta_utils.task_management.segment_link.get_segment_type_layers",
+        return_value=mock_type_layers,
+    )
+
+    # Call with include_segment_type_layers=True (default)
+    ng_state = get_segment_ng_state(
+        project_name=project_name,
+        seed_id=12345,
+        include_segment_type_layers=True,
+        db_session=db_session,
+    )
+
+    # Check that segment type layers were added
+    layer_names = [l["name"] for l in ng_state["layers"]]
+    assert "Neuron Reference" in layer_names
+    assert "Neuron Sample" in layer_names
+
+    # Verify the get_segment_type_layers was called with correct parameters
+    mock_get_segment_type_layers.assert_called_once_with(
+        project_name=project_name,
+        segment_type_name="neuron",
+        include_names=False,
+        db_session=db_session,
+    )

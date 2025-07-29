@@ -293,14 +293,19 @@ class SegmentTypeModel(Base):
 
     __tablename__ = "segment_types"
 
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
     type_name: Mapped[str] = mapped_column(String, primary_key=True)
-    project_name: Mapped[str] = mapped_column(String, nullable=False, index=True)
 
     reference_segment_ids: Mapped[list[int]] = mapped_column(
         ARRAY(Integer), nullable=False, default=[]
     )
+    sample_segment_ids: Mapped[list[str]] = mapped_column(
+        ARRAY(String), nullable=False, default=[]
+    )
 
     description: Mapped[str | None] = mapped_column(String, nullable=True)
+    region_mesh: Mapped[str | None] = mapped_column(String, nullable=True)
+    seed_mask: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -310,12 +315,17 @@ class SegmentTypeModel(Base):
             "type_name": self.type_name,
             "project_name": self.project_name,
             "reference_segment_ids": self.reference_segment_ids,
+            "sample_segment_ids": self.sample_segment_ids,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
         if self.description is not None:
             result["description"] = self.description
+        if self.region_mesh is not None:
+            result["region_mesh"] = self.region_mesh
+        if self.seed_mask is not None:
+            result["seed_mask"] = self.seed_mask
 
         return result
 
@@ -326,7 +336,10 @@ class SegmentTypeModel(Base):
             type_name=data["type_name"],
             project_name=data["project_name"],
             reference_segment_ids=data.get("reference_segment_ids", []),
+            sample_segment_ids=data.get("sample_segment_ids", []),
             description=data.get("description"),
+            region_mesh=data.get("region_mesh"),
+            seed_mask=data.get("seed_mask"),
             created_at=_parse_datetime(data["created_at"]),
             updated_at=_parse_datetime(data["updated_at"]),
         )
@@ -378,7 +391,7 @@ class SegmentModel(Base):
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     __table_args__ = (
-        Index("idx_segments_type", "segment_type"),
+        Index("idx_segments_segment_type", "segment_type"),
         Index("idx_segments_seed_location", "seed_x", "seed_y", "seed_z"),
     )
 

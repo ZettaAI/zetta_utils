@@ -302,6 +302,8 @@ def test_to_dict_full_segment_type_model(db_session):
         project_name="test_project",
         reference_segment_ids=[123, 456, 789],
         description="Glial cells",
+        region_mesh="mesh://region",
+        seed_mask="mask://seed",
         created_at=now,
         updated_at=now,
     )
@@ -311,6 +313,8 @@ def test_to_dict_full_segment_type_model(db_session):
     result = segment_type.to_dict()
     assert result["description"] == "Glial cells"
     assert result["reference_segment_ids"] == [123, 456, 789]
+    assert result["region_mesh"] == "mesh://region"
+    assert result["seed_mask"] == "mask://seed"
 
 
 def test_from_dict_segment_type_model():

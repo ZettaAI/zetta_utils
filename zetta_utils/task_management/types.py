@@ -153,6 +153,8 @@ class SegmentType(TypedDict):
     created_at: str  # ISO format timestamp
     updated_at: str  # ISO format timestamp
     description: NotRequired[str | None]
+    region_mesh: NotRequired[str | None]
+    seed_mask: NotRequired[str | None]
 
 
 class SegmentTypeUpdate(TypedDict, total=False):
@@ -160,6 +162,8 @@ class SegmentTypeUpdate(TypedDict, total=False):
 
     reference_segment_ids: list[int]
     description: str | None
+    region_mesh: str | None
+    seed_mask: str | None
     updated_at: str  # ISO format timestamp
 
 

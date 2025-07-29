@@ -761,7 +761,7 @@ def test_generate_ng_state_with_extra_layers(clean_db, db_session, project_name)
 def test_generate_ng_state_project_not_found(clean_db, db_session, existing_segment):
     """Test error when project not found"""
     with pytest.raises(ValueError, match="Project nonexistent not found"):
-        generate_trace_v0_ng_state("nonexistent", existing_segment)
+        generate_trace_v0_ng_state("nonexistent", existing_segment, db_session=db_session)
 
 
 # TestCreateTraceV0Task tests
@@ -950,6 +950,13 @@ def existing_project(clean_db, db_session, project_name):
         sv_resolution_x=8.0,
         sv_resolution_y=8.0,
         sv_resolution_z=40.0,
+        extra_layers=[
+            {
+                "type": "image",
+                "source": "precomputed://gs://test-bucket/image",
+                "name": "Image",
+            }
+        ],
     )
     db_session.add(project)
     db_session.commit()

@@ -30,6 +30,10 @@ from zetta_utils.task_management.task import (
 from zetta_utils.task_management.task_type import create_task_type, get_task_type
 from zetta_utils.task_management.task_types import handle_task_completion, verify_task
 from zetta_utils.task_management.timesheet import submit_timesheet
+from zetta_utils.task_management.trace_link import (
+    get_trace_task_link,
+    get_trace_task_state,
+)
 from zetta_utils.task_management.types import Task, TaskType, TaskUpdate
 
 from .utils import generic_exception_handler
@@ -459,3 +463,91 @@ async def get_merge_edit_by_id_api(
     except Exception as e:
         logger.error(f"Failed to get merge edit by ID: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get merge edit: {str(e)}")
+
+
+@api.get("/projects/{project_name}/tasks/{task_id}/trace_state")
+async def get_trace_task_state_api(
+    project_name: str,
+    task_id: str,
+    include_certain_ends: bool = True,
+    include_uncertain_ends: bool = True,
+    include_breadcrumbs: bool = True,
+    include_segment_type_layers: bool = True,
+    include_merges: bool = True,
+) -> dict:
+    """
+    Generate neuroglancer state for a trace task with merge annotations.
+
+    :param project_name: The name of the project
+    :param task_id: ID of the trace task
+    :param include_certain_ends: Whether to include certain endpoints layer (yellow). Defaults to True.
+    :param include_uncertain_ends: Whether to include uncertain endpoints layer (red). Defaults to True.
+    :param include_breadcrumbs: Whether to include breadcrumbs layer (blue). Defaults to True.
+    :param include_segment_type_layers: Whether to include segment type layers. Defaults to True.
+    :param include_merges: Whether to include merge edits as line annotations (orange). Defaults to True.
+    :return: Dictionary containing the neuroglancer state
+    """
+    try:
+        ng_state = get_trace_task_state(
+            project_name=project_name,
+            task_id=task_id,
+            include_certain_ends=include_certain_ends,
+            include_uncertain_ends=include_uncertain_ends,
+            include_breadcrumbs=include_breadcrumbs,
+            include_segment_type_layers=include_segment_type_layers,
+            include_merges=include_merges,
+        )
+        return {
+            "project_name": project_name,
+            "task_id": task_id,
+            "ng_state": ng_state,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get trace task state: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get trace task state: {str(e)}")
+
+
+@api.get("/projects/{project_name}/tasks/{task_id}/trace_link")
+async def get_trace_task_link_api(
+    project_name: str,
+    task_id: str,
+    include_certain_ends: bool = True,
+    include_uncertain_ends: bool = True,
+    include_breadcrumbs: bool = True,
+    include_segment_type_layers: bool = True,
+    include_merges: bool = True,
+) -> dict:
+    """
+    Generate spelunker link for a trace task with merge annotations.
+
+    :param project_name: The name of the project
+    :param task_id: ID of the trace task
+    :param include_certain_ends: Whether to include certain endpoints layer (yellow). Defaults to True.
+    :param include_uncertain_ends: Whether to include uncertain endpoints layer (red). Defaults to True.
+    :param include_breadcrumbs: Whether to include breadcrumbs layer (blue). Defaults to True.
+    :param include_segment_type_layers: Whether to include segment type layers. Defaults to True.
+    :param include_merges: Whether to include merge edits as line annotations (orange). Defaults to True.
+    :return: Dictionary containing the spelunker link
+    """
+    try:
+        link = get_trace_task_link(
+            project_name=project_name,
+            task_id=task_id,
+            include_certain_ends=include_certain_ends,
+            include_uncertain_ends=include_uncertain_ends,
+            include_breadcrumbs=include_breadcrumbs,
+            include_segment_type_layers=include_segment_type_layers,
+            include_merges=include_merges,
+        )
+        return {
+            "project_name": project_name,
+            "task_id": task_id,
+            "spelunker_link": link,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get trace task link: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get trace task link: {str(e)}")

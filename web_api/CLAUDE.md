@@ -18,11 +18,20 @@ FastAPI-based web service for zetta_utils task management and annotations.
 - `POST /projects/{project_name}/submit_timesheet` - Submit timesheet entry
 - `GET /projects/{project_name}/task_feedback` - Get task feedback for user
 - `GET /projects/{project_name}/segments/{seed_id}/link` - Generate segment neuroglancer link
+- `GET /projects/{project_name}/tasks/{task_id}/trace_state` - Get trace task neuroglancer state with merges
+- `GET /projects/{project_name}/tasks/{task_id}/trace_link` - Get trace task spelunker link with merges
 
 #### Segment Link Parameters
 - `include_certain_ends` (bool) - Include certain endpoints layer (yellow)
 - `include_uncertain_ends` (bool) - Include uncertain endpoints layer (red)
 - `include_breadcrumbs` (bool) - Include breadcrumbs layer (blue)
+
+#### Trace Task Link Parameters
+- `include_certain_ends` (bool) - Include certain endpoints layer (yellow)
+- `include_uncertain_ends` (bool) - Include uncertain endpoints layer (red)
+- `include_breadcrumbs` (bool) - Include breadcrumbs layer (blue)
+- `include_segment_type_layers` (bool) - Include segment type layers
+- `include_merges` (bool) - Include merge edits as line annotations (orange)
 
 ### Other APIs
 - `/annotations` - Annotation management
@@ -42,4 +51,13 @@ GET /tasks/projects/kronauer_ant_x0/segments/74732294451380972/link
 
 # Get segment link without breadcrumbs
 GET /tasks/projects/kronauer_ant_x0/segments/74732294451380972/link?include_breadcrumbs=false
+
+# Get trace task neuroglancer state with all features including merges
+GET /tasks/projects/kronauer_ant_x0/tasks/task_123/trace_state
+
+# Get trace task spelunker link without merge annotations
+GET /tasks/projects/kronauer_ant_x0/tasks/task_123/trace_link?include_merges=false
+
+# Get trace task link with only certain endpoints and merges
+GET /tasks/projects/kronauer_ant_x0/tasks/task_123/trace_link?include_uncertain_ends=false&include_breadcrumbs=false
 ```

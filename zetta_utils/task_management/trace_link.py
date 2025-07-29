@@ -11,7 +11,6 @@ import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
-
 from zetta_utils.task_management.db.models import (
     MergeEditModel,
     ProjectModel,

@@ -1,5 +1,7 @@
 """Tests for trace_link module"""
 
+# pylint: disable=redefined-outer-name,unused-argument
+
 import contextlib
 import json
 import urllib.parse
@@ -10,18 +12,22 @@ import pytest
 from zetta_utils.task_management.db.models import (
     EndpointModel,
     MergeEditModel,
+    ProjectModel,
     SegmentModel,
     TaskModel,
 )
 from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.trace_link import (
+    _add_merge_layer,
+    _get_merge_edits_data,
+    _get_task_and_segment,
     get_trace_task_link,
     get_trace_task_state,
 )
 
 
 @pytest.fixture
-def project_and_segment(clean_db, db_session, project_name):
+def setup_project_and_segment(clean_db, db_session, project_name):
     """Create a project and segment for testing"""
     create_project(
         project_name=project_name,
@@ -54,7 +60,7 @@ def project_and_segment(clean_db, db_session, project_name):
 
 
 @pytest.fixture
-def trace_v0_task(project_and_segment, db_session, project_name):
+def trace_v0_task(setup_project_and_segment, db_session, project_name):
     """Create a trace_v0 task with seed_id in extra_data"""
     task = TaskModel(
         project_name=project_name,
@@ -87,7 +93,7 @@ def trace_v0_task(project_and_segment, db_session, project_name):
 
 
 @pytest.fixture
-def seg_trace_task(project_and_segment, db_session, project_name):
+def seg_trace_task(setup_project_and_segment, db_session, project_name):
     """Create a seg_trace task without seed_id in extra_data"""
     task = TaskModel(
         project_name=project_name,
@@ -120,7 +126,7 @@ def seg_trace_task(project_and_segment, db_session, project_name):
 
 
 @pytest.fixture
-def endpoints_for_segment(project_and_segment, db_session, project_name):
+def endpoints_for_segment(setup_project_and_segment, db_session, project_name):
     """Create various endpoints for the test segment"""
     endpoints = [
         EndpointModel(
@@ -210,6 +216,10 @@ class TestGetTraceTaskState:
         self, trace_v0_task, endpoints_for_segment, db_session, project_name
     ):
         """Test trace_v0 task that has seed_id in extra_data"""
+        # Fixtures create required test data
+        _ = trace_v0_task
+        _ = endpoints_for_segment
+
         ng_state = get_trace_task_state(
             project_name=project_name,
             task_id="trace_task_123",
@@ -223,7 +233,7 @@ class TestGetTraceTaskState:
         assert "layers" in ng_state
 
         # Check required layers are present
-        layer_names = [l["name"] for l in ng_state["layers"]]
+        layer_names = [layer["name"] for layer in ng_state["layers"]]
         assert "Segmentation" in layer_names
         assert "Seed Location" in layer_names
         assert "Root Location" in layer_names
@@ -233,12 +243,16 @@ class TestGetTraceTaskState:
         assert "MERGES" in layer_names
 
         # Check segmentation layer
-        seg_layer = next(l for l in ng_state["layers"] if l["name"] == "Segmentation")
+        seg_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "Segmentation"
+        )
         assert seg_layer["type"] == "segmentation"
         assert seg_layer["segments"] == ["67890"]  # current_segment_id
 
         # Check MERGES layer exists and has correct properties
-        merge_layer = next(l for l in ng_state["layers"] if l["name"] == "MERGES")
+        merge_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "MERGES"
+        )
         assert merge_layer["type"] == "annotation"
         assert merge_layer["tool"] == "annotateLine"
         assert merge_layer["annotationColor"] == "#ff8c00"  # Orange
@@ -248,6 +262,10 @@ class TestGetTraceTaskState:
         self, seg_trace_task, merge_edits_for_task, db_session, project_name
     ):
         """Test seg_trace task that requires segment lookup"""
+        # Fixtures create required test data
+        _ = seg_trace_task
+        _ = merge_edits_for_task
+
         ng_state = get_trace_task_state(
             project_name=project_name,
             task_id="task_123",
@@ -261,7 +279,9 @@ class TestGetTraceTaskState:
         assert "layers" in ng_state
 
         # Check MERGES layer has line annotations
-        merge_layer = next(l for l in ng_state["layers"] if l["name"] == "MERGES")
+        merge_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "MERGES"
+        )
         assert merge_layer["type"] == "annotation"
         assert merge_layer["tool"] == "annotateLine"
         assert merge_layer["annotationColor"] == "#ff8c00"  # Orange
@@ -278,6 +298,11 @@ class TestGetTraceTaskState:
         self, seg_trace_task, endpoints_for_segment, merge_edits_for_task, db_session, project_name
     ):
         """Test with selective layer inclusion"""
+        # Fixtures create required test data
+        _ = seg_trace_task
+        _ = endpoints_for_segment
+        _ = merge_edits_for_task
+
         ng_state = get_trace_task_state(
             project_name=project_name,
             task_id="task_123",
@@ -289,13 +314,13 @@ class TestGetTraceTaskState:
             db_session=db_session,
         )
 
-        layer_names = [l["name"] for l in ng_state["layers"]]
-        
+        layer_names = [layer["name"] for layer in ng_state["layers"]]
+
         # Should have core layers
         assert "Segmentation" in layer_names
         assert "Seed Location" in layer_names
         assert "Root Location" in layer_names
-        
+
         # Should not have optional layers
         assert "Certain Ends" not in layer_names
         assert "Uncertain Ends" not in layer_names
@@ -306,6 +331,11 @@ class TestGetTraceTaskState:
         self, seg_trace_task, endpoints_for_segment, merge_edits_for_task, db_session, project_name
     ):
         """Test with only merges layer enabled"""
+        # Fixtures create required test data
+        _ = seg_trace_task
+        _ = endpoints_for_segment
+        _ = merge_edits_for_task
+
         ng_state = get_trace_task_state(
             project_name=project_name,
             task_id="task_123",
@@ -317,15 +347,20 @@ class TestGetTraceTaskState:
             db_session=db_session,
         )
 
-        layer_names = [l["name"] for l in ng_state["layers"]]
+        layer_names = [layer["name"] for layer in ng_state["layers"]]
         assert "MERGES" in layer_names
-        
+
         # Check merge layer has correct data
-        merge_layer = next(l for l in ng_state["layers"] if l["name"] == "MERGES")
+        merge_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "MERGES"
+        )
         assert len(merge_layer["annotations"]) == 3  # Three merge edits
 
-    def test_task_not_found(self, project_and_segment, db_session, project_name):
+    def test_task_not_found(self, setup_project_and_segment, db_session, project_name):
         """Test error when task doesn't exist"""
+        # Fixture creates required test data
+        _ = setup_project_and_segment
+
         with pytest.raises(ValueError, match="Task nonexistent_task not found"):
             get_trace_task_state(
                 project_name=project_name,
@@ -370,7 +405,9 @@ class TestGetTraceTaskState:
         db_session.add(task)
         db_session.commit()
 
-        with pytest.raises(ValueError, match="Task orphan_task is not associated with any segment"):
+        with pytest.raises(
+            ValueError, match="Task orphan_task is not associated with any segment"
+        ):
             get_trace_task_state(
                 project_name=project_name,
                 task_id="orphan_task",
@@ -430,6 +467,9 @@ class TestGetTraceTaskState:
         self, seg_trace_task, db_session, project_name
     ):
         """Test merge edits with insufficient points are skipped"""
+        # Fixture creates required test data
+        _ = seg_trace_task
+
         # Create merge edit with only one point
         bad_merge_edit = MergeEditModel(
             project_name=project_name,
@@ -449,13 +489,18 @@ class TestGetTraceTaskState:
         )
 
         # MERGES layer should be empty since the merge edit is invalid
-        merge_layer = next(l for l in ng_state["layers"] if l["name"] == "MERGES")
+        merge_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "MERGES"
+        )
         assert len(merge_layer["annotations"]) == 0
 
     def test_merge_edits_with_insufficient_coordinates(
         self, seg_trace_task, db_session, project_name
     ):
         """Test merge edits with insufficient coordinates are skipped"""
+        # Fixture creates required test data
+        _ = seg_trace_task
+
         # Create merge edit with points that don't have enough coordinates
         bad_merge_edit = MergeEditModel(
             project_name=project_name,
@@ -475,13 +520,19 @@ class TestGetTraceTaskState:
         )
 
         # MERGES layer should be empty since the merge edit is invalid
-        merge_layer = next(l for l in ng_state["layers"] if l["name"] == "MERGES")
+        merge_layer = next(
+            layer for layer in ng_state["layers"] if layer["name"] == "MERGES"
+        )
         assert len(merge_layer["annotations"]) == 0
 
     def test_no_session_provided(
         self, seg_trace_task, endpoints_for_segment, db_session, project_name, mocker
     ):
         """Test function works without providing a session"""
+        # Fixtures create required test data
+        assert seg_trace_task is not None
+        assert endpoints_for_segment is not None
+
         # Mock get_session_context to return our test session
         def mock_get_session_context():
             @contextlib.contextmanager
@@ -508,6 +559,9 @@ class TestGetTraceTaskState:
         self, seg_trace_task, db_session, project_name, mocker
     ):
         """Test that segment type layer errors are handled gracefully"""
+        # Fixture creates required test data
+        _ = seg_trace_task
+
         # Create segment with expected_segment_type to trigger segment type layers
         segment = db_session.query(SegmentModel).filter_by(seed_id=12345).first()
         segment.expected_segment_type = "test_type"
@@ -530,7 +584,7 @@ class TestGetTraceTaskState:
         # Should still generate valid state
         assert "layers" in ng_state
         assert "position" in ng_state
-        
+
         # Verify the function was called and exception was caught
         mock_add_segment_type_layers.assert_called_once()
 
@@ -539,9 +593,19 @@ class TestGetTraceTaskLink:
     """Test get_trace_task_link function"""
 
     def test_basic_link_generation(
-        self, seg_trace_task, endpoints_for_segment, merge_edits_for_task, db_session, project_name
+        self,
+        seg_trace_task,
+        endpoints_for_segment,
+        merge_edits_for_task,
+        db_session,
+        project_name,
     ):
         """Test basic spelunker link generation"""
+        # Fixtures create required test data
+        _ = seg_trace_task
+        _ = endpoints_for_segment
+        _ = merge_edits_for_task
+
         link = get_trace_task_link(
             project_name=project_name,
             task_id="task_123",
@@ -562,13 +626,17 @@ class TestGetTraceTaskLink:
         assert ng_state["position"] == [100.0, 200.0, 300.0]
 
         # Check MERGES layer is present
-        layer_names = [l["name"] for l in ng_state["layers"]]
+        layer_names = [layer["name"] for layer in ng_state["layers"]]
         assert "MERGES" in layer_names
 
     def test_link_with_selective_layers(
         self, seg_trace_task, endpoints_for_segment, db_session, project_name
     ):
         """Test link generation with selective layers"""
+        # Fixtures create required test data
+        assert seg_trace_task is not None
+        assert endpoints_for_segment is not None
+
         link = get_trace_task_link(
             project_name=project_name,
             task_id="task_123",
@@ -585,13 +653,13 @@ class TestGetTraceTaskLink:
         decoded_state = urllib.parse.unquote(encoded_state)
         ng_state = json.loads(decoded_state)
 
-        layer_names = [l["name"] for l in ng_state["layers"]]
-        
+        layer_names = [layer["name"] for layer in ng_state["layers"]]
+
         # Should have core layers
         assert "Segmentation" in layer_names
         assert "Seed Location" in layer_names
         assert "Root Location" in layer_names
-        
+
         # Should not have optional layers
         assert "Certain Ends" not in layer_names
         assert "Uncertain Ends" not in layer_names
@@ -599,9 +667,12 @@ class TestGetTraceTaskLink:
         assert "MERGES" not in layer_names
 
     def test_link_generation_error_propagation(
-        self, project_and_segment, db_session, project_name
+        self, setup_project_and_segment, db_session, project_name
     ):
         """Test that errors from get_trace_task_state are propagated"""
+        # Fixture creates required test data
+        _ = setup_project_and_segment
+
         with pytest.raises(ValueError, match="Task nonexistent_task not found"):
             get_trace_task_link(
                 project_name=project_name,
@@ -613,6 +684,10 @@ class TestGetTraceTaskLink:
         self, seg_trace_task, endpoints_for_segment, db_session, project_name, mocker
     ):
         """Test link generation works without providing a session"""
+        # Fixtures create required test data
+        assert seg_trace_task is not None
+        assert endpoints_for_segment is not None
+
         # Mock get_session_context to return our test session
         def mock_get_session_context():
             @contextlib.contextmanager
@@ -641,10 +716,13 @@ class TestInternalFunctions:
         self, trace_v0_task, db_session, project_name
     ):
         """Test _get_task_and_segment with trace_v0 task (seed_id in extra_data)"""
-        # Import the internal function for testing
-        from zetta_utils.task_management.trace_link import _get_task_and_segment
+        # Fixture creates required test data
+        assert trace_v0_task is not None
 
-        task, segment, project = _get_task_and_segment(db_session, project_name, "trace_task_123")
+        # Use the internal function for testing
+        task, segment, project = _get_task_and_segment(
+            db_session, project_name, "trace_task_123"
+        )
 
         assert task.task_id == "trace_task_123"
         assert task.task_type == "trace_v0"
@@ -655,10 +733,13 @@ class TestInternalFunctions:
         self, seg_trace_task, db_session, project_name
     ):
         """Test _get_task_and_segment with seg_trace task (segment lookup required)"""
-        # Import the internal function for testing
-        from zetta_utils.task_management.trace_link import _get_task_and_segment
+        # Fixture creates required test data
+        _ = seg_trace_task
 
-        task, segment, project = _get_task_and_segment(db_session, project_name, "task_123")
+        # Use the internal function for testing
+        task, segment, project = _get_task_and_segment(
+            db_session, project_name, "task_123"
+        )
 
         assert task.task_id == "task_123"
         assert task.task_type == "seg_trace"
@@ -667,20 +748,30 @@ class TestInternalFunctions:
         assert project.project_name == project_name
 
     def test_get_merge_edits_data(
-        self, seg_trace_task, merge_edits_for_task, project_and_segment, db_session, project_name
+        self,
+        seg_trace_task,
+        merge_edits_for_task,
+        setup_project_and_segment,
+        db_session,
+        project_name,
     ):
         """Test _get_merge_edits_data function"""
-        # Import the internal function for testing
-        from zetta_utils.task_management.trace_link import _get_merge_edits_data
+        # Fixtures create required test data
+        _ = seg_trace_task
+        _ = merge_edits_for_task
+        assert setup_project_and_segment is not None
 
         # Get project for the function call
-        from zetta_utils.task_management.db.models import ProjectModel
-        project = db_session.query(ProjectModel).filter_by(project_name=project_name).first()
+        project = db_session.query(ProjectModel).filter_by(
+            project_name=project_name
+        ).first()
 
-        line_annotations = _get_merge_edits_data(db_session, project_name, "task_123", project)
+        line_annotations = _get_merge_edits_data(
+            db_session, project_name, "task_123", project
+        )
 
         assert len(line_annotations) == 3  # Three merge edits
-        
+
         # Check first line annotation
         first_line = line_annotations[0]
         assert first_line["type"] == "line"
@@ -689,15 +780,16 @@ class TestInternalFunctions:
         assert "id" in first_line
 
     def test_add_merge_layer(
-        self, project_and_segment, db_session, project_name
+        self, setup_project_and_segment, db_session, project_name
     ):
         """Test _add_merge_layer function"""
-        # Import the internal function for testing
-        from zetta_utils.task_management.trace_link import _add_merge_layer
+        # Fixture creates required test data
+        _ = setup_project_and_segment
 
         # Get project
-        from zetta_utils.task_management.db.models import ProjectModel
-        project = db_session.query(ProjectModel).filter_by(project_name=project_name).first()
+        project = db_session.query(ProjectModel).filter_by(
+            project_name=project_name
+        ).first()
 
         # Create test merge annotations
         merge_annotations = [

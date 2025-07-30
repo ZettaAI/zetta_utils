@@ -10,11 +10,8 @@ from datetime import datetime, timezone
 import pytest
 
 from zetta_utils.task_management.db.models import EndpointModel, SegmentModel
+from zetta_utils.task_management.ng_state import get_segment_link, get_segment_ng_state
 from zetta_utils.task_management.project import create_project
-from zetta_utils.task_management.segment_link import (
-    get_segment_link,
-    get_segment_ng_state,
-)
 
 
 @pytest.fixture
@@ -438,7 +435,7 @@ def test_get_segment_ng_state_no_session(
         return context()
 
     mocker.patch(
-        "zetta_utils.task_management.segment_link.get_session_context",
+        "zetta_utils.task_management.ng_state.segment.get_session_context",
         side_effect=mock_get_session_context,
     )
 
@@ -497,7 +494,7 @@ def test_get_segment_ng_state_with_segment_type_layers(clean_db, db_session, pro
     ]
 
     mock_get_segment_type_layers = mocker.patch(
-        "zetta_utils.task_management.segment_link.get_segment_type_layers",
+        "zetta_utils.task_management.ng_state.segment.get_segment_type_layers",
         return_value=mock_type_layers,
     )
 

@@ -18,7 +18,7 @@ from zetta_utils.task_management.db.models import (
     TaskModel,
 )
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.segment_link import (
+from zetta_utils.task_management.ng_state.segment import (
     _add_core_layers,
     _add_endpoint_layers,
     _add_segment_type_layers,
@@ -30,11 +30,7 @@ from zetta_utils.task_management.segment_link import (
 
 def _get_task_and_segment(session, project_name: str, task_id: str):
     """Get task and associated segment from database."""
-    task = (
-        session.query(TaskModel)
-        .filter_by(project_name=project_name, task_id=task_id)
-        .first()
-    )
+    task = session.query(TaskModel).filter_by(project_name=project_name, task_id=task_id).first()
     if not task:
         raise ValueError(f"Task {task_id} not found in project {project_name}")
 
@@ -60,11 +56,7 @@ def _get_task_and_segment(session, project_name: str, task_id: str):
         raise ValueError(f"Task {task_id} is not associated with any segment")
 
     # Get project info directly
-    project = (
-        session.query(ProjectModel)
-        .filter_by(project_name=project_name)
-        .first()
-    )
+    project = session.query(ProjectModel).filter_by(project_name=project_name).first()
 
     if not project:
         raise ValueError(f"Project {project_name} not found")

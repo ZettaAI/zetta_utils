@@ -16,9 +16,7 @@ from zetta_utils.task_management.db.models import (
     SegmentModel,
 )
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.seg_trace_utils.segment_type import (
-    get_segment_type_layers,
-)
+from zetta_utils.task_management.ng_state.segment_type import get_segment_type_layers
 
 
 def _get_segment_and_project(session, project_name: str, seed_id: int):

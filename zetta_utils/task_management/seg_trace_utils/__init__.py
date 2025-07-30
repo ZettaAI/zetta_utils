@@ -7,6 +7,6 @@ and generating segment type visualizations.
 """
 
 from .get_seg_type_points import get_seg_type_points
-from .segment_type import get_segment_type_layers, get_segment_type_link
+from ..ng_state.segment_type import get_segment_type_layers, get_segment_type_link
 
 __all__ = ["get_seg_type_points", "get_segment_type_layers", "get_segment_type_link"]

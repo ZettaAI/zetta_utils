@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from zetta_utils import log
-from zetta_utils.task_management.segment_link import get_segment_ng_state
+from zetta_utils.task_management.ng_state import get_segment_ng_state
 
 from ..db.models import EndpointModel, SegmentModel
 from ..db.session import get_session_context

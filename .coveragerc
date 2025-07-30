@@ -6,6 +6,7 @@ omit =
   zetta_utils/task_management/subtask_structure.py
   zetta_utils/task_management/segment.py
   zetta_utils/task_management/seg_trace_utils/*
+  zetta_utils/task_management/ng_state/*
   zetta_utils/task_management/automated_workers/*.py
   zetta_utils/task_management/task_types/*.py
   zetta_utils/mazepa_layer_processing/*.py

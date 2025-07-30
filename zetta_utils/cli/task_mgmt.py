@@ -34,7 +34,7 @@ from zetta_utils.task_management.clear_project import (
 )
 from zetta_utils.task_management.db.models import TaskModel
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.segment_link import get_segment_link
+from zetta_utils.task_management.ng_state import get_segment_link
 
 # Job import removed - job concept no longer exists
 from zetta_utils.task_management.task import (

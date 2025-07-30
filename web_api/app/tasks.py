@@ -14,7 +14,11 @@ from zetta_utils.task_management.merge_edit import (
     get_merge_edits_by_task,
     get_merge_edits_by_user,
 )
-from zetta_utils.task_management.segment_link import get_segment_link
+from zetta_utils.task_management.ng_state import (
+    get_segment_link,
+    get_trace_task_link,
+    get_trace_task_state,
+)
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
@@ -30,10 +34,6 @@ from zetta_utils.task_management.task import (
 from zetta_utils.task_management.task_type import create_task_type, get_task_type
 from zetta_utils.task_management.task_types import handle_task_completion, verify_task
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.trace_link import (
-    get_trace_task_link,
-    get_trace_task_state,
-)
 from zetta_utils.task_management.types import Task, TaskType, TaskUpdate
 
 from .utils import generic_exception_handler

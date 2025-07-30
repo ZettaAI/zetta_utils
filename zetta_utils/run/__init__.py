@@ -32,6 +32,7 @@ class RunInfo(Enum):
     STATE = "state"
     TIMESTAMP = "timestamp"
     PARAMS = "params"
+    RESULTS = "results"
 
 
 class RunState(Enum):
@@ -48,6 +49,15 @@ def register_clusters(clusters: list) -> None:
     assert RUN_ID is not None
     clusters_str = json.dumps([attrs.asdict(cluster) for cluster in clusters])
     info: DBRowDataT = {RunInfo.CLUSTERS.value: clusters_str}
+    update_run_info(RUN_ID, info)
+
+
+def update_run_results(results: dict) -> None:
+    """
+    Store results of a run to RUN_DB. Needs to be called when a run is active.
+    """
+    assert RUN_ID is not None
+    info: DBRowDataT = {RunInfo.RESULTS.value: results}
     update_run_info(RUN_ID, info)
 
 

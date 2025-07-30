@@ -205,7 +205,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         )
 
     if index is None:
-        if mode == "write" or (mode == "replace" and not file_exists):
+        if mode in {"write", "replace"}:
             # Check for bbox + resolution combination
             if bbox is not None and resolution is not None:
                 if dataset_size is not None or voxel_offset is not None:
@@ -217,7 +217,9 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
                     raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
                 index = VolumetricIndex(bbox=bbox, resolution=Vec3D(*resolution))
             # Check for resolution + dataset_size + voxel_offset combination
-            elif bbox is None:
+            elif bbox is None and (
+                resolution is not None or dataset_size is not None or voxel_offset is not None
+            ):
                 if resolution is None:
                     raise ValueError(
                         "when `index` is not provided, either (`bbox` and `resolution`) or "
@@ -235,8 +237,24 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
                     raise ValueError(f"`voxel_offset` needs 3 elements, not {len(voxel_offset)}")
                 end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
                 index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
-            else:
+            elif bbox is not None:
                 raise ValueError("when `bbox` is provided, `resolution` is also required")
+            # For replace mode with existing file and no new parameters, use file_index
+            elif mode == "replace" and file_exists:
+                index = file_index
+            # For write mode or replace mode with no file, require parameters
+            elif mode == "write":
+                raise ValueError(
+                    "when `index` is not provided for write mode, either (`bbox` and "
+                    "`resolution`) or (`resolution`, `dataset_size`, and `voxel_offset`) "
+                    "are required"
+                )
+            else:  # replace mode with no file
+                raise ValueError(
+                    "when `index` is not provided for replace mode with no existing "
+                    "file, either (`bbox` and `resolution`) or (`resolution`, "
+                    "`dataset_size`, and `voxel_offset`) are required"
+                )
         else:
             index = file_index
     assert index is not None

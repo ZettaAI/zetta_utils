@@ -223,15 +223,17 @@ class AnnotationLayerBackend(
         self.path = os.path.expanduser(self.path)
         dims, lower_bound, upper_bound, anno_type, spatial_data, props, rels = read_info(self.path)
         if dims is not None:
-            # Reconstruct VolumetricIndex from the info file data
-            resolution: Vec3D = Vec3D(
-                x=dims["x"][0],  # Extract the numeric value, ignore the unit
-                y=dims["y"][0],
-                z=dims["z"][0],
-            )
-            self.index = VolumetricIndex.from_coords(
-                start_coord=lower_bound, end_coord=upper_bound, resolution=resolution
-            )
+            # Only use file data for index if no index was provided to constructor
+            if self.index is None:
+                # Reconstruct VolumetricIndex from the info file data
+                resolution: Vec3D = Vec3D(
+                    x=dims["x"][0],  # Extract the numeric value, ignore the unit
+                    y=dims["y"][0],
+                    z=dims["z"][0],
+                )
+                self.index = VolumetricIndex.from_coords(
+                    start_coord=lower_bound, end_coord=upper_bound, resolution=resolution
+                )
 
             # Reconstruct chunk_sizes from spatial_data
             if spatial_data:

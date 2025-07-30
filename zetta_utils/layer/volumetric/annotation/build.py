@@ -45,7 +45,7 @@ from typing import Iterable, Literal, Sequence
 from typeguard import typechecked
 
 from zetta_utils import builder
-from zetta_utils.geometry import Vec3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric.annotation.annotations import (
     PropertySpec,
     Relationship,
@@ -114,6 +114,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     dataset_size: Sequence[int] | None = None,
     voxel_offset: Sequence[int] | None = None,
     index: VolumetricIndex | None = None,
+    bbox: BBox3D | None = None,
     chunk_sizes: Sequence[Sequence[int]] | None = None,
     mode: Literal["read", "write", "replace", "update"] = "write",
     annotation_type: Literal["POINT", "LINE"] | None = None,
@@ -133,8 +134,11 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     :param dataset_size: Precomputed dataset size (in voxels) for all scales.
     :param voxel_offset: start of the dataset volume (in voxels) for all scales.
     :param index: VolumetricIndex indicating dataset size and resolution. Note that
-      for new files, you must provide either (resolution, dataset_size, voxel_offset)
-      or index, but not both. For existing files, all these are optional.
+      for new files, you must provide either (resolution, dataset_size, voxel_offset),
+      (bbox, resolution), or index, but not multiple combinations. For existing files,
+      all these are optional.
+    :param bbox: BBox3D indicating the spatial bounds. If provided with resolution,
+      a VolumetricIndex will be constructed from these.
     :param chunk_sizes: Chunk sizes for spatial index; defaults to a single chunk for
       new files (or the existing chunk structure for existing files).
     :param mode: How the file should be created or opened:
@@ -202,20 +206,37 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
 
     if index is None:
         if mode == "write" or (mode == "replace" and not file_exists):
-            if resolution is None:
-                raise ValueError("when `index` is not provided, `resolution` is required")
-            if dataset_size is None:
-                raise ValueError("when `index` is not provided, `dataset_size` is required")
-            if voxel_offset is None:
-                raise ValueError("when `index` is not provided, `voxel_offset` is required")
-            if len(resolution) != 3:
-                raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
-            if len(dataset_size) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
-            if len(voxel_offset) != 3:
-                raise ValueError(f"`dataset_size` needs 3 elements, not {len(voxel_offset)}")
-            end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
-            index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
+            # Check for bbox + resolution combination
+            if bbox is not None and resolution is not None:
+                if dataset_size is not None or voxel_offset is not None:
+                    raise ValueError(
+                        "when `bbox` and `resolution` are provided, `dataset_size` and "
+                        "`voxel_offset` should not be provided"
+                    )
+                if len(resolution) != 3:
+                    raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
+                index = VolumetricIndex(bbox=bbox, resolution=Vec3D(*resolution))
+            # Check for resolution + dataset_size + voxel_offset combination
+            elif bbox is None:
+                if resolution is None:
+                    raise ValueError(
+                        "when `index` is not provided, either (`bbox` and `resolution`) or "
+                        "(`resolution`, `dataset_size`, and `voxel_offset`) are required"
+                    )
+                if dataset_size is None:
+                    raise ValueError("when `index` is not provided, `dataset_size` is required")
+                if voxel_offset is None:
+                    raise ValueError("when `index` is not provided, `voxel_offset` is required")
+                if len(resolution) != 3:
+                    raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
+                if len(dataset_size) != 3:
+                    raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
+                if len(voxel_offset) != 3:
+                    raise ValueError(f"`voxel_offset` needs 3 elements, not {len(voxel_offset)}")
+                end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
+                index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
+            else:
+                raise ValueError("when `bbox` is provided, `resolution` is also required")
         else:
             index = file_index
     assert index is not None

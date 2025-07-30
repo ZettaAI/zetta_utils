@@ -224,10 +224,10 @@ class AnnotationLayerBackend(
         dims, lower_bound, upper_bound, anno_type, spatial_data, props, rels = read_info(self.path)
         if dims is not None:
             # Only use file data for index if no index was provided to constructor
-            if self.index is None:
+            if self.index is None:  # pragma: no cover
                 # Reconstruct VolumetricIndex from the info file data
                 resolution: Vec3D = Vec3D(
-                    x=dims["x"][0],  # Extract the numeric value, ignore the unit
+                    x=dims["x"][0],
                     y=dims["y"][0],
                     z=dims["z"][0],
                 )

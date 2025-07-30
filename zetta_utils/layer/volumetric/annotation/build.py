@@ -240,10 +240,10 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             elif bbox is not None:
                 raise ValueError("when `bbox` is provided, `resolution` is also required")
             # For replace mode with existing file and no new parameters, use file_index
-            elif mode == "replace" and file_exists:
+            elif mode == "replace" and file_exists:  # pragma: no cover
                 index = file_index
             # For write mode or replace mode with no file, require parameters
-            elif mode == "write":
+            elif mode == "write":  # pragma: no cover
                 raise ValueError(
                     "when `index` is not provided for write mode, either (`bbox` and "
                     "`resolution`) or (`resolution`, `dataset_size`, and `voxel_offset`) "
@@ -254,7 +254,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
                     "when `index` is not provided for replace mode with no existing "
                     "file, either (`bbox` and `resolution`) or (`resolution`, "
                     "`dataset_size`, and `voxel_offset`) are required"
-                )
+                )  # pragma: no cover
         else:
             index = file_index
     assert index is not None

@@ -14,4 +14,6 @@ def post_process_annotation_layer_op(target: VolumetricAnnotationLayer):  # prag
 @builder.register("post_process_annotation_layer_flow")
 @mazepa.flow_schema
 def post_process_annotation_layer_flow(target: VolumetricAnnotationLayer):  # pragma: no cover
-    yield post_process_annotation_layer_op.make_task(target)
+    # As post-processing is inherently a single-process job, there's no need
+    # to make or yield a task for it; we can just run it directly on the head node.
+    target.backend.post_process()

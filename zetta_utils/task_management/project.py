@@ -1,210 +1,192 @@
-import os
-from typing import Any, Literal
+from datetime import datetime
 
-from google.api_core import exceptions
-from google.cloud import firestore, firestore_admin_v1
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from typeguard import typechecked
 
-# Configure default client settings
-DEFAULT_CLIENT_CONFIG: dict[str, str] = {
-    "project": "zetta-research",
-    "database": "task-management",
-}
+from .db.models import ProjectModel
+from .db.session import create_tables, get_session_context
 
 
-def get_firestore_client() -> firestore.Client:  # pragma: no cover
-    """Get a configured Firestore client"""
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        config = {}
-    else:
-        config = DEFAULT_CLIENT_CONFIG.copy()  # pragma: no cover
-    return firestore.Client(**config)
-
-
-CollectionType = Literal["users", "subtasks", "timesheets", "dependencies", "tasks"]
-
-
-def get_collection(project_name: str, collection_type: str) -> firestore.CollectionReference:
-    """Get a collection reference with the proper project prefix"""
-    client = get_firestore_client()
-    result = client.collection(f"projects/{project_name}/{collection_type}")
-    return result
-
-
-def _create_indexes(
-    admin_client: firestore_admin_v1.FirestoreAdminClient,
-) -> None:  # pragma: no cover
-    """Create required indexes for a project's collections.
-
-    :param project_name: Name of the project
-    :param admin_client: Firestore admin client
+@typechecked
+def create_project(
+    *,
+    project_name: str,
+    segmentation_path: str,
+    sv_resolution_x: float,
+    sv_resolution_y: float,
+    sv_resolution_z: float,
+    description: str = "",
+    brain_mesh_path: str | None = None,
+    datastack_name: str | None = None,
+    synapse_table: str | None = None,
+    extra_layers: dict | None = None,
+    db_session: Session | None = None,
+) -> str:
     """
-    # Create required indexes for subtasks
-    subtasks_parent = (
-        f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
-        f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"subtasks"
-    )
-    subtask_indexes = [
-        firestore_admin_v1.Index(
-            query_scope=firestore_admin_v1.Index.QueryScope.COLLECTION,
-            fields=[
-                firestore_admin_v1.Index.IndexField(
-                    field_path="is_active",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="assigned_user_id",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="active_user_id",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="completion_status",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="subtask_type",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="priority",
-                    order=firestore_admin_v1.Index.IndexField.Order.DESCENDING,
-                ),
-            ],
-        ),
-        firestore_admin_v1.Index(
-            query_scope=firestore_admin_v1.Index.QueryScope.COLLECTION,
-            fields=[
-                firestore_admin_v1.Index.IndexField(
-                    field_path="is_active",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="assigned_user_id",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="active_user_id",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="completion_status",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="subtask_type",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="priority",
-                    order=firestore_admin_v1.Index.IndexField.Order.DESCENDING,
-                ),
-            ],
-        ),
-        firestore_admin_v1.Index(
-            query_scope=firestore_admin_v1.Index.QueryScope.COLLECTION,
-            fields=[
-                firestore_admin_v1.Index.IndexField(
-                    field_path="is_active",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="completion_status",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="subtask_type",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="last_leased_ts",
-                    order=firestore_admin_v1.Index.IndexField.Order.DESCENDING,
-                ),
-            ],
-        ),
-        firestore_admin_v1.Index(
-            query_scope=firestore_admin_v1.Index.QueryScope.COLLECTION,
-            fields=[
-                firestore_admin_v1.Index.IndexField(
-                    field_path="task_id", order=firestore_admin_v1.Index.IndexField.Order.ASCENDING
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="is_active",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="completion_status",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-            ],
-        ),
-    ]
-
-    # For dependencies collection
-    deps_parent = (
-        f"projects/{DEFAULT_CLIENT_CONFIG['project']}/databases/"
-        f"{DEFAULT_CLIENT_CONFIG['database']}/collectionGroups/"
-        f"dependencies"
-    )
-    dependency_indexes = [
-        firestore_admin_v1.Index(
-            query_scope=firestore_admin_v1.Index.QueryScope.COLLECTION,
-            fields=[
-                firestore_admin_v1.Index.IndexField(
-                    field_path="dependent_on_subtask_id",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-                firestore_admin_v1.Index.IndexField(
-                    field_path="is_satisfied",
-                    order=firestore_admin_v1.Index.IndexField.Order.ASCENDING,
-                ),
-            ],
-        )
-    ]
-
-    # Create all indexes
-    for parent, indexes in [(subtasks_parent, subtask_indexes), (deps_parent, dependency_indexes)]:
-        for index in indexes:
-            try:
-                print(parent, index)
-                admin_client.create_index(parent=parent, index=index)
-                print(f"Created index: {index}")
-            except exceptions.AlreadyExists:
-                print("Index already exists")
-    print("All index creation operations completed")
-
-
-def create_project_tables(project_name: str) -> None:
-    """Create any missing collections and required indexes for a project."""
-    client = get_firestore_client()
-    collections = ["users", "subtasks", "timesheets", "dependencies", "tasks"]
-
-    # Add project to global projects collection if it doesn't exist
-    projects_ref = client.collection("projects")
-    project_doc = projects_ref.document(project_name)
-    if not project_doc.get().exists:
-        project_doc.set({"project_name": project_name, "created_ts": firestore.SERVER_TIMESTAMP})
-
-    for coll_name in collections:
-        get_collection(project_name, coll_name)
-
-    if not os.environ.get("FIRESTORE_EMULATOR_HOST"):  # pragma: no cover
-        admin_client = firestore_admin_v1.FirestoreAdminClient()
-        _create_indexes(admin_client)
-
-
-def get_project(project_name: str) -> dict[str, Any]:
+    :param project_name: The name of the project
+    :param segmentation_path: Path to segmentation data
+    :param sv_resolution_x: X resolution of supervoxels
+    :param sv_resolution_y: Y resolution of supervoxels
+    :param sv_resolution_z: Z resolution of supervoxels
+    :param description: Optional project description
+    :param brain_mesh_path: Optional path to brain mesh
+    :param datastack_name: Optional datastack name
+    :param synapse_table: Optional synapse table name
+    :param extra_layers: Optional extra layers configuration
+    :param db_session: Optional database session
+    :return: The project name
+    :raises ValueError: If project already exists
     """
-    Get a project by name.
 
-    :param project_name: The name of the project.
-    :return: The project data.
-    :raises KeyError: If the project does not exist.
+    with get_session_context(db_session) as session:
+        try:
+            existing = session.execute(
+                select(ProjectModel).where(ProjectModel.project_name == project_name)
+            ).first()
+
+            if existing:
+                raise ValueError(f"Project '{project_name}' already exists")
+
+            project = ProjectModel(
+                project_name=project_name,
+                description=description,
+                created_at=datetime.now().isoformat(),
+                status="active",
+                segmentation_path=segmentation_path,
+                sv_resolution_x=sv_resolution_x,
+                sv_resolution_y=sv_resolution_y,
+                sv_resolution_z=sv_resolution_z,
+                brain_mesh_path=brain_mesh_path,
+                datastack_name=datastack_name,
+                synapse_table=synapse_table,
+                extra_layers=extra_layers,
+            )
+
+            session.add(project)
+            session.commit()
+
+            return project_name
+
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
+            session.rollback()
+            raise
+
+
+@typechecked
+def list_all_projects(
+    *,
+    db_session: Session | None = None,
+) -> list[str]:
     """
-    client = get_firestore_client()
-    doc = client.collection("projects").document(project_name).get()
-    if not doc.exists:
-        raise KeyError(f"Project {project_name} not found")
-    return doc.to_dict()
+    :param db_session: Optional database session
+    :return: List of project names sorted alphabetically
+    """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel.project_name)
+            .where(ProjectModel.status == "active")
+            .order_by(ProjectModel.project_name)
+        ).fetchall()
+
+        return [row[0] for row in result]
+
+
+@typechecked
+def get_project(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> dict:
+    """
+    :param project_name: The name of the project
+    :param db_session: Optional database session
+    :return: Project details dictionary
+    :raises KeyError: If project doesn't exist
+    """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel).where(ProjectModel.project_name == project_name)
+        ).first()
+
+        if not result:
+            raise KeyError(f"Project '{project_name}' not found")
+
+        return result[0].to_dict()
+
+
+@typechecked
+def delete_project(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> bool:
+    """
+    Note: This only removes from projects registry.
+    Project data in other tables remains.
+
+    :param project_name: The name of the project to delete
+    :param db_session: Optional database session
+    :return: True if deleted, False if didn't exist
+    """
+
+    with get_session_context(db_session) as session:
+        try:
+            result = session.execute(
+                select(ProjectModel).where(ProjectModel.project_name == project_name)
+            ).first()
+
+            if not result:
+                return False
+
+            session.delete(result[0])
+            session.commit()
+
+            return True
+
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
+            session.rollback()
+            raise
+
+
+@typechecked
+def project_exists(
+    *,
+    project_name: str,
+    db_session: Session | None = None,
+) -> bool:
+    """
+    :param project_name: The name of the project
+    :param db_session: Optional database session
+    :return: True if project exists, False otherwise
+    """
+
+    with get_session_context(db_session) as session:
+        result = session.execute(
+            select(ProjectModel.project_name).where(ProjectModel.project_name == project_name)
+        ).first()
+
+        return result is not None
+
+
+@typechecked
+def create_project_tables(
+    *,
+    project_name: str,  # pylint: disable=unused-argument
+    db_session: Session | None = None,
+) -> None:
+    """
+    Create all project-specific tables for the given project.
+
+    :param project_name: The name of the project
+    :param db_session: Optional database session (uses default session if None)
+    """
+    with get_session_context(db_session) as session:
+        # Just create the tables - the project must be created separately
+        try:
+            create_tables(session.bind)
+        except Exception:  # pylint: disable=broad-exception-caught # pragma: no cover
+            session.rollback()
+            raise

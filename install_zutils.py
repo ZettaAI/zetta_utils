@@ -583,6 +583,69 @@ def check_submodules():
         )
 
 
+def check_sudo_access():
+    """Check if sudo is available and prompt for password if needed."""
+    try:
+        # First check if passwordless sudo is available
+        subprocess.check_call(
+            ["sudo", "-n", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        return True
+    except subprocess.CalledProcessError:
+        # Need to prompt for password
+        console.print(
+            "\n[yellow]This script requires sudo access to install system packages.[/yellow]"
+        )
+        console.print("[info]You will be prompted for your password when needed.[/info]")
+
+        # Test sudo with password prompt
+        try:
+            subprocess.check_call(["sudo", "true"])
+            return True
+        except subprocess.CalledProcessError:
+            print_error("Failed to get sudo access. Please check your password and try again.")
+            return False
+
+
+def check_conda_environment():
+    """Check if user is in a conda environment and conda is available."""
+    # Check if conda command is available
+    try:
+        subprocess.check_output(["conda", "--version"], stderr=subprocess.DEVNULL, text=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print_error(
+            "conda command not found.\n"
+            "PCG installation requires conda to install graph-tool.\n"
+            "Please install conda/miniconda/mambaforge and try again.\n"
+            "Or run without --pcg flag to skip PCG installation."
+        )
+
+    # Check if in conda environment
+    conda_env = os.environ.get("CONDA_DEFAULT_ENV")
+    if not conda_env:
+        print_warning(
+            "You don't appear to be in a conda environment.\n"
+            "PCG installation will install graph-tool to your base conda environment.\n"
+            "It's recommended to use a conda environment for better dependency management."
+        )
+
+        session: PromptSession = PromptSession()
+        while True:
+            console.print(
+                "\n[cyan]Do you want to continue with PCG installation? [white](y/N)[/cyan]"
+            )
+            response = session.prompt("").lower()
+            if response in ["y", "yes"]:
+                break
+            if response in ["n", "no", ""]:  # empty input defaults to No
+                print_error("PCG installation cancelled. Run without --pcg flag to continue.")
+            console.print(
+                "[yellow]Please enter 'y' for yes or 'n' for no (or press Enter for no)[/yellow]"
+            )
+    else:
+        console.print(f"[info]Using conda environment: {conda_env}[/info]")
+
+
 def main():
     console.print(Panel.fit("Zetta Utils Installer", style="bold cyan", subtitle="v1.0"))
 
@@ -611,7 +674,7 @@ def main():
     parser.add_argument(
         "--pcg", action="store_true", default=False, help="Whether or not to install PCG"
     )
-    parser.add_argument("--pcgtag", default="stitch_test_x6", help="PCG repo tag to use")
+    parser.add_argument("--pcgtag", default="v3_stitch_test_x3", help="PCG repo tag to use")
 
     args = parser.parse_args()
 
@@ -625,6 +688,8 @@ def main():
         sudo_prefix = ""
 
     if not args.skip_apt:
+        if not args.dockerfile and not check_sudo_access():
+            sys.exit(1)
         run_command(f"{sudo_prefix}apt-get update", "Updating package lists")
         apt_packages = [
             "git",
@@ -646,6 +711,7 @@ def main():
             "libboost-dev",  # waterz
             "unixodbc-dev",  # ???
             "wget",  # cue
+            "libpq-dev",  # psycopg2-binary
         ]
         apt_install_flags = '-y --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"'
         run_command(
@@ -671,15 +737,20 @@ def main():
 
     if not args.skip_pip:
         install_mode = args.mode
-        if args.pcg:
-            install_mode = f"{install_mode},pcg"
         run_command(
-            f"pip install --upgrade .[{install_mode}]", "Installing `zetta_utils` python package"
+            f"pip install --upgrade -e .[{install_mode}]",
+            "Installing `zetta_utils` python package",
         )
         if args.pcg:
+            if not args.dockerfile:
+                check_conda_environment()
             run_command(
                 f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
                 "Install PCG package (do deps)",
+            )
+            run_command(
+                "conda install -c conda-forge graph-tool-base -y",
+                "Install graph-tool via conda",
             )
 
     if not args.dockerfile:

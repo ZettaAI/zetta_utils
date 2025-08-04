@@ -1,77 +1,122 @@
-from google.cloud import firestore
+from typing import cast
+
+from sqlalchemy import select
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session
 from typeguard import typechecked
 
-from zetta_utils.task_management.helpers import get_transaction
-
-from .project import get_collection
+from .db.models import UserModel
+from .db.session import get_session_context
 from .types import User, UserUpdate
 
 
-def get_user(project_name: str, user_id: str) -> User:
+def get_user(
+    *,
+    project_name: str,
+    user_id: str,
+    db_session: Session | None = None,
+) -> User:
     """
-    Retrieve a user record from the project's User collection.
+    Retrieve a user record from the database.
 
     :param project_name: The name of the project.
     :param user_id: The unique identifier of the user.
+    :param db_session: SQLAlchemy session (optional).
     :return: The user record.
     :raises KeyError: If the user does not exist.
-    :raises RuntimeError: If the Firestore transaction fails.
+    :raises RuntimeError: If the database operation fails.
     """
-    collection = get_collection(project_name, "users")
-    doc = collection.document(user_id).get()
-    if not doc.exists:
-        raise KeyError(f"User {user_id} not found")
-    return doc.to_dict()
+    with get_session_context(db_session) as session:
+        query = (
+            select(UserModel)
+            .where(UserModel.user_id == user_id)
+            .where(UserModel.project_name == project_name)
+        )
+        try:
+            result = session.execute(query).scalar_one()
+            return cast(User, result.to_dict())
+        except NoResultFound as exc:
+            raise KeyError(f"User {user_id} not found") from exc
 
 
 @typechecked
-def create_user(project_name: str, data: User) -> str:
+def create_user(
+    *,
+    project_name: str,
+    data: User,
+    db_session: Session | None = None,
+) -> str:
     """
-    Create a new user record in the project's User collection.
+    Create a new user record in the database.
 
     :param project_name: The name of the project.
-    :param data: The user data to create, must contain user_id, hourly_rate, and active_subtask.
+    :param data: The user data to create, must contain user_id, hourly_rate, and active_task.
+    :param db_session: SQLAlchemy session (optional).
     :return: The user_id of the created user.
-    :raises ValueError: If the user data is invalid or user already exists.
-    :raises RuntimeError: If the Firestore transaction fails.
+    :raises ValueError: If the user data is invalid or user already exists with different data.
+    :raises RuntimeError: If the database operation fails.
     """
+    with get_session_context(db_session) as session:
+        # Check if user already exists
+        existing_query = (
+            select(UserModel)
+            .where(UserModel.user_id == data["user_id"])
+            .where(UserModel.project_name == project_name)
+        )
+        existing = session.execute(existing_query).scalar_one_or_none()
+        if existing:
+            # Check if the data is the same (idempotent operation)
+            existing_data = existing.to_dict()
+            if existing_data == dict(data):
+                # Same data, return success (idempotent)
+                return data["user_id"]
+            else:
+                # Different data, raise error
+                raise ValueError(f"User {data['user_id']} already exists with different data")
 
-    collection = get_collection(project_name, "users")
-    doc_ref = collection.document(data["user_id"])
+        # Create new user
+        model = UserModel.from_dict(project_name, dict(data))
+        session.add(model)
+        session.commit()
 
-    @firestore.transactional
-    def create_in_transaction(transaction):
-        doc = doc_ref.get(transaction=transaction)
-        if doc.exists:
-            raise ValueError(f"User {data['user_id']} already exists")
-        transaction.set(doc_ref, data)
         return data["user_id"]
 
-    return create_in_transaction(get_transaction())
 
-
-def update_user(project_name: str, user_id: str, data: UserUpdate) -> bool:
+@typechecked
+def update_user(
+    *,
+    project_name: str,
+    user_id: str,
+    data: UserUpdate,
+    db_session: Session | None = None,
+) -> bool:
     """
-    Update a user record in the project's User collection.
+    Update a user record in the database.
 
     :param project_name: The name of the project.
     :param user_id: The unique identifier of the user.
     :param data: The user data to update.
-    :return: True on success.
+    :param db_session: SQLAlchemy session (optional).
     :raises ValueError: If the update data is invalid.
     :raises KeyError: If the user does not exist.
-    :raises RuntimeError: If the Firestore transaction fails.
+    :raises RuntimeError: If the database operation fails.
     """
-    collection = get_collection(project_name, "users")
-    doc_ref = collection.document(user_id)
+    with get_session_context(db_session) as session:
+        # Get current user
+        query = (
+            select(UserModel)
+            .where(UserModel.user_id == user_id)
+            .where(UserModel.project_name == project_name)
+        )
+        try:
+            user = session.execute(query).scalar_one()
+        except NoResultFound as exc:
+            raise KeyError(f"User {user_id} not found") from exc
 
-    @firestore.transactional
-    def update_in_transaction(transaction):
-        doc = doc_ref.get(transaction=transaction)
-        if not doc.exists:
-            raise KeyError(f"User {user_id} not found")
+        # Apply updates generically
+        for field, value in data.items():
+            if hasattr(user, field):
+                setattr(user, field, value)
 
-        transaction.update(doc_ref, data)
+        session.commit()
         return True
-
-    return update_in_transaction(get_transaction())

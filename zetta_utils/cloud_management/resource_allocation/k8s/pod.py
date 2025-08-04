@@ -4,22 +4,20 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+from logging import Logger
 from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes import client as k8s_client
-from zetta_utils import log
-from zetta_utils.cloud_management.resource_allocation.k8s import volume
+from kubernetes import watch  # type: ignore
+from zetta_utils.cloud_management.resource_allocation import k8s
 
 from .secret import get_worker_env_vars
-
-logger = log.get_logger("zetta_utils")
 
 
 def get_pod_spec(
     name: str,
     image: str,
-    command: List[str],
-    command_args: List[str],
+    command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
     dns_policy: Optional[str] = "Default",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
@@ -37,18 +35,45 @@ def get_pod_spec(
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
+    env_secret_mapping = env_secret_mapping or {}
+
+    try:
+        envs.append(k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID")))
+    except KeyError:
+        ...
+
+    envs.append(
+        k8s_client.V1EnvVar(
+            name="POD_NAME",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
+    )
+    envs.extend(get_worker_env_vars(env_secret_mapping))
+
     host_aliases = host_aliases or []
     tolerations = tolerations or []
     volumes = volumes or []
     volume_mounts = volume_mounts or []
+
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
+    cmd = f"python -m {module}"
+    pre_stop_hook = k8s_client.V1Lifecycle(
+        pre_stop=k8s_client.V1LifecycleHandler(
+            _exec=k8s_client.V1ExecAction(command=["/bin/bash", "-c", cmd])
+        )
+    )
+
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
     container = k8s_client.V1Container(
-        command=command,
-        args=command_args,
-        env=envs + get_worker_env_vars(env_secret_mapping),
-        name=name,
+        command=["/bin/bash", "-c"],
+        args=[command],
+        env=envs,
+        name="main",
         image=image,
         image_pull_policy=image_pull_policy,
+        lifecycle=pre_stop_hook,
         ports=ports,
         resources=k8s_client.V1ResourceRequirements(
             limits=resources,
@@ -59,8 +84,20 @@ def get_pod_spec(
         volume_mounts=volume_mounts,
     )
 
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.oom_tracker"
+    sidecar_container = k8s_client.V1Container(
+        command=["/bin/bash", "-c"],
+        args=[f"python -m {module}"],
+        env=envs,
+        name="runtime",
+        image=image,
+        termination_message_path="/dev/termination-log",
+        termination_message_policy="File",
+        volume_mounts=volume_mounts,
+    )
+
     return k8s_client.V1PodSpec(
-        containers=[container],
+        containers=[container, sidecar_container],
         dns_policy=dns_policy,
         hostname=hostname,
         host_network=host_network,
@@ -69,7 +106,7 @@ def get_pod_spec(
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
-        termination_grace_period_seconds=30,
+        termination_grace_period_seconds=60,
         tolerations=tolerations,
         volumes=volumes,
     )
@@ -98,21 +135,52 @@ def get_mazepa_pod_spec(
     envs = []
     if adc_available:
         envs.append(
-            k8s_client.V1EnvVar(name="GOOGLE_APPLICATION_CREDENTIALS", value=volume.ADC_MOUNT_PATH)
+            k8s_client.V1EnvVar(
+                name="GOOGLE_APPLICATION_CREDENTIALS", value=k8s.volume.ADC_MOUNT_PATH
+            )
         )
 
     return get_pod_spec(
         name="zutils-worker",
         image=image,
-        command=["/bin/sh"],
-        command_args=["-c", command],
+        command=command,
         resources=resources,
         envs=envs,
         env_secret_mapping=env_secret_mapping,
         node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
-        volumes=volume.get_common_volumes(cave_secret_available=cave_secret_available),
-        volume_mounts=volume.get_common_volume_mounts(cave_secret_available=cave_secret_available),
+        volumes=k8s.volume.get_common_volumes(cave_secret_available=cave_secret_available),
+        volume_mounts=k8s.volume.get_common_volume_mounts(
+            cave_secret_available=cave_secret_available
+        ),
         resource_requests=resource_requests,
     )
+
+
+def stream_pod_logs(
+    logger: Logger,
+    pod_name: str,
+    namespace: str | None = "default",
+    prefix: str = "",
+    tail_lines: int | None = None,
+):
+    core_api = k8s_client.CoreV1Api()
+    log_stream = watch.Watch().stream(
+        core_api.read_namespaced_pod_log,
+        name=pod_name,
+        container="main",
+        namespace=namespace,
+        tail_lines=tail_lines,
+    )
+    if tail_lines is None:
+        for output in log_stream:
+            logger.info(f"[{prefix}] {output}")
+    else:
+        result = []
+        for output in log_stream:
+            result.append(f"[{prefix}] {output}")
+            if len(result) == tail_lines:
+                logger.info("\n".join(result))
+                result = []
+        logger.info("\n".join(result))

@@ -4,13 +4,6 @@ import os
 import sys
 import warnings
 
-try:
-    import graph_tool
-except Exception:  # pragma: no cover
-    ...
-
-from . import log, typing, parsing, builder, common, constants
-from . import geometry, distributions, layer, ng
 from .log import get_logger
 
 if "sphinx" not in sys.modules:
@@ -32,18 +25,30 @@ for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
-log.add_supress_traceback_module(builder)
+
+
+def _load_core_modules():
+    """Load core modules that were previously imported at package level."""
+    from . import log, typing, parsing, builder, common, constants
+    from . import geometry, distributions, layer, ng
+
+    # Add builder module suppression now that it's loaded
+    log.add_supress_traceback_module(builder)
 
 
 def load_all_modules():
+    _load_core_modules()
     load_inference_modules()
     load_training_modules()
     from . import task_management
 
 
 def try_load_train_inference():  # pragma: no cover
+    try:
+        _load_core_modules()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception(e)
+
     try:
         load_inference_modules()
 
@@ -66,6 +71,7 @@ def load_submodules():  # pragma: no cover
 
 
 def load_inference_modules():
+    _load_core_modules()
     from . import (
         augmentations,
         convnet,
@@ -87,6 +93,7 @@ def load_inference_modules():
 
 
 def load_training_modules():
+    _load_core_modules()
     from . import (
         augmentations,
         convnet,

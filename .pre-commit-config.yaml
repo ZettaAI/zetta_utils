@@ -9,6 +9,7 @@ repos:
   - id: check-toml
   - id: detect-private-key
   - id: check-yaml
+    args: ["--allow-multiple-documents"]
   - id: check-byte-order-marker
   - id: check-case-conflict
   - id: check-added-large-files

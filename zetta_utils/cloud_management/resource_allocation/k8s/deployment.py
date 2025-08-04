@@ -9,8 +9,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from kubernetes import client as k8s_client
 from zetta_utils import builder, log
+from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa import SemaphoreType
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,
@@ -18,7 +19,7 @@ from zetta_utils.run import (
 )
 
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
-from .pod import get_mazepa_pod_spec
+from .pod import get_mazepa_pod_spec, stream_pod_logs
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
@@ -156,10 +157,30 @@ def deployment_ctx_mngr(
     deployment: k8s_client.V1Deployment,
     secrets: List[k8s_client.V1Secret],
     namespace: Optional[str] = "default",
+    stream_logs: bool = False,
+    tail_lines: int | None = None,
 ):
+    def _stream_deployment_logs():
+        core_api = k8s_client.CoreV1Api()
+        dep_selector = ",".join(
+            f"{k}={v}" for k, v in deployment.spec.selector.match_labels.items()
+        )
+        pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=dep_selector).items
+        if pods:
+            pod_name = pods[0].metadata.name
+            _name = deployment.metadata.name
+            stream_pod_logs(
+                logger,
+                pod_name,
+                namespace,
+                prefix=f"{_name[:7]}...{_name[-7:]}",
+                tail_lines=tail_lines,
+            )
+
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_apps_v1_api = k8s_client.AppsV1Api()
+    log_streamer = None
 
     with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
@@ -172,6 +193,10 @@ def deployment_ctx_mngr(
             )
         )
 
+        if stream_logs:
+            log_streamer = RepeatTimer(15, _stream_deployment_logs)
+            log_streamer.start()
+
         try:
             yield
         finally:
@@ -182,6 +207,8 @@ def deployment_ctx_mngr(
             # need to create a new client for the above to take effect
             k8s_apps_v1_api = k8s_client.AppsV1Api()
             logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
+            if log_streamer:
+                log_streamer.cancel()
             k8s_apps_v1_api.delete_namespaced_deployment(
                 name=deployment.metadata.name, namespace=namespace
             )

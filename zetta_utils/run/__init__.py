@@ -14,26 +14,15 @@ from gcsfs import GCSFileSystem
 from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
-from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.parsing import json
+from zetta_utils.run.costs import compute_costs
+from zetta_utils.run.db import RUN_DB
 
-from .resource import (
-    deregister_resource,
-    Resource,
-    register_resource,
-    ResourceTypes,
-    ResourceKeys,
-    RESOURCE_DB,
-)
 
 logger = log.get_logger("zetta_utils")
 
 RUN_INFO_BUCKET = "gs://zetta_utils_runs"
-COLLECTION_NAME = "run-info"
 RUN_ID: str | None = None
-RUN_DB = build_firestore_layer(
-    COLLECTION_NAME, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
-)
 
 
 class RunInfo(Enum):
@@ -43,6 +32,7 @@ class RunInfo(Enum):
     STATE = "state"
     TIMESTAMP = "timestamp"
     PARAMS = "params"
+    RESULTS = "results"
 
 
 class RunState(Enum):
@@ -59,6 +49,15 @@ def register_clusters(clusters: list) -> None:
     assert RUN_ID is not None
     clusters_str = json.dumps([attrs.asdict(cluster) for cluster in clusters])
     info: DBRowDataT = {RunInfo.CLUSTERS.value: clusters_str}
+    update_run_info(RUN_ID, info)
+
+
+def update_run_results(results: dict) -> None:
+    """
+    Store results of a run to RUN_DB. Needs to be called when a run is active.
+    """
+    assert RUN_ID is not None
+    info: DBRowDataT = {RunInfo.RESULTS.value: results}
     update_run_info(RUN_ID, info)
 
 
@@ -115,11 +114,17 @@ def run_ctx_manager(
     run_id: str | None = None,
     spec: dict | list | None = None,
     heartbeat_interval: int = 5,
+    update_costs_interval: int = 60,
 ):
     def _send_heartbeat():
         assert RUN_ID is not None
         info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
         update_run_info(RUN_ID, info)
+
+    def _udpate_costs():
+        if RUN_ID is None:
+            return
+        compute_costs(RUN_ID)
 
     if run_id is None:
         run_id = get_unique_id(slug_len=4, add_uuid=False, max_len=50)
@@ -150,6 +155,9 @@ def run_ctx_manager(
         heartbeat_sender = RepeatTimer(heartbeat_interval, _send_heartbeat)
         heartbeat_sender.start()
 
+        update_costs_repeater = RepeatTimer(update_costs_interval, _udpate_costs)
+        update_costs_repeater.start()
+
     try:
         yield
     except Exception as e:
@@ -167,4 +175,5 @@ def run_ctx_manager(
             )
             assert heartbeat_sender is not None
             heartbeat_sender.cancel()
+            update_costs_repeater.cancel()
         RUN_ID = None

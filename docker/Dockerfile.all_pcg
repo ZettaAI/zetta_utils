@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=312
-ARG GRAPH_TOOL_VERSION="2.88"
+ARG GRAPH_TOOL_VERSION="2.97"
 ARG GRAPH_TOOL_MICROARCH="x86_64_v3"
 
 FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.5.1_torch2.6.0_py${PYTHON_VERSION}"
@@ -18,7 +18,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/root/.cache/pip,sharing=locked \
   savedAptMark="$(apt-mark showmanual)" \
   && cd /opt/zetta_utils \
-  && CONDA_OVERRIDE_ARCHSPEC=${GRAPH_TOOL_MICROARCH} conda install graph-tool-base=${GRAPH_TOOL_VERSION} \
+#  && CONDA_OVERRIDE_ARCHSPEC=${GRAPH_TOOL_MICROARCH} conda install -c conda-forge graph-tool-base=${GRAPH_TOOL_VERSION} \
+  && conda install -c conda-forge graph-tool-base=${GRAPH_TOOL_VERSION} \
   && ./install_zutils.py --dockerfile --mode modules --pcg \
   && rm -rf /root/.cache/bazel/ \
   && apt-mark auto '.*' > /dev/null \

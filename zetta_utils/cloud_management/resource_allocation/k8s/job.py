@@ -9,9 +9,8 @@ from typing import Dict, List, Optional
 from kubernetes.client.exceptions import ApiException
 
 from kubernetes import client as k8s_client
-from kubernetes import watch  # type: ignore
 from zetta_utils import log
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,
@@ -19,6 +18,7 @@ from zetta_utils.run import (
 )
 
 from .common import ClusterInfo, get_cluster_data
+from .pod import stream_pod_logs
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
@@ -41,6 +41,7 @@ def get_job_spec(
         selector=selector,
         suspend=suspend,
         template=pod_template,
+        ttl_seconds_after_finished=60,
     )
 
 
@@ -126,28 +127,20 @@ def follow_job_logs(
     if wait_until_start:
         _wait_for_job_start(job, namespace, batch_v1_api)
 
-    core_api = k8s_client.CoreV1Api()
-    podlist = core_api.list_namespaced_pod(
-        namespace=namespace, label_selector=f"job-name={job.metadata.name}"
-    )
-    job_name = podlist.items[0].metadata.name
-    log_stream = watch.Watch().stream(
-        core_api.read_namespaced_pod_log,
-        name=job_name,
-        namespace=namespace,
-        tail_lines=tail_lines,
-    )
-    if tail_lines is None:
-        for output in log_stream:
-            logger.info(output)
-    else:
-        result = []
-        for output in log_stream:
-            result.append(output)
-            if len(result) == tail_lines:
-                logger.info("\n".join(result))
-                result = []
-        logger.info("\n".join(result))
+    try:
+        core_api = k8s_client.CoreV1Api()
+        podlist = core_api.list_namespaced_pod(
+            namespace=namespace, label_selector=f"job-name={job.metadata.name}"
+        )
+        pod_name = podlist.items[0].metadata.name
+        stream_pod_logs(logger, pod_name, tail_lines=tail_lines)
+    except ApiException as exc:
+        if exc.status == 404:
+            logger.info(f"Job `{job.metadata.name}` was deleted.")
+        else:
+            logger.info(f"{exc.status}: {exc}")
+            # resets credential config after timeout
+            follow_job_logs(job, cluster_info, namespace, tail_lines, wait_until_start)
 
 
 def get_job_pod(

@@ -13,7 +13,7 @@ from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation.k8s.secret import secrets_ctx_mngr
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.message_queues.sqs.queue import SQSQueue
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,

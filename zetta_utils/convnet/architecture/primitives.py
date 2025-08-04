@@ -191,10 +191,10 @@ class Crop(torch.nn.Module):  # pragma: no cover
         crop: Sequence[int],
     ):
         super().__init__()
-        self.crop = partial(tensor_ops.crop, crop=crop)
+        self.crop = crop
 
     def forward(self, x):
-        return self.crop(x)
+        return tensor_ops.crop(x, crop=self.crop)
 
 
 @builder.register("CenterCrop")
@@ -204,10 +204,10 @@ class CenterCrop(torch.nn.Module):  # pragma: no cover
         size: Sequence[int],
     ):
         super().__init__()
-        self.crop = partial(tensor_ops.crop_center, size=size)
+        self.size = size
 
     def forward(self, x):
-        return self.crop(x)
+        return tensor_ops.crop_center(x, size=self.size)
 
 
 @builder.register("MultiHeaded")

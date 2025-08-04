@@ -22,8 +22,7 @@ logger = log.get_logger("zetta_utils")
 def _get_cronjob(
     name: str,
     image: str,
-    command: List[str],
-    command_args: List[str],
+    command: str,
     envs: List[k8s_client.V1EnvVar],
     resource_limits: Dict[str, int | float | str],
     spec_config: CronJobSpecConfig,
@@ -37,7 +36,6 @@ def _get_cronjob(
         name=name,
         image=image,
         command=command,
-        command_args=command_args,
         envs=envs,
         resources=resource_limits,
         restart_policy="OnFailure",
@@ -84,10 +82,9 @@ def configure_cronjob(
     name: str,
     namespace: str,
     image: str,
-    command: List[str],
-    command_args: List[str],
-    env_vars: Dict[str, str],
+    command: str,
     resources: Dict[str, int | float | str],
+    env_vars: Dict[str, str] | None = None,
     preset_env_vars: Optional[List[str]] = None,
     spec_config: CronJobSpecConfig = CronJobSpecConfig(),
     labels: Optional[Dict[str, str]] = None,
@@ -101,6 +98,7 @@ def configure_cronjob(
     configuration, _ = get_cluster_data(cluster)
     k8s_client.Configuration.set_default(configuration)
     batch_v1_api = k8s_client.BatchV1Api()
+    env_vars = env_vars or {}
 
     envs = []
     for key, val in env_vars.items():
@@ -117,7 +115,6 @@ def configure_cronjob(
         name=name,
         image=image,
         command=command,
-        command_args=command_args,
         envs=envs,
         resource_limits=resources,
         spec_config=spec_config,

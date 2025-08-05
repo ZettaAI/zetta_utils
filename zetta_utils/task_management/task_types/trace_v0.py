@@ -390,14 +390,14 @@ def create_trace_v0_task(project_name: str, segment: SegmentModel, kwargs: dict)
     task_id = f"trace_{segment.seed_id}_{generate_id_nonunique()}"
 
     # Generate neuroglancer state
-    ng_state = generate_trace_v0_ng_state(project_name, segment)
+    ng_state = { "seed_id": segment.seed_id }
 
     # Build task data
     task_data = Task(
         task_id=task_id,
         task_type="trace_v0",
         ng_state=ng_state,
-        ng_state_initial=copy.deepcopy(ng_state),
+        ng_state_initial=ng_state,
         completion_status="",
         assigned_user_id="",
         active_user_id="",

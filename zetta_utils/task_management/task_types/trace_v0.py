@@ -397,7 +397,7 @@ def create_trace_v0_task(project_name: str, segment: SegmentModel, kwargs: dict)
         task_id=task_id,
         task_type="trace_v0",
         ng_state=ng_state,
-        ng_state_initial=ng_state,
+        ng_state_initial=copy.deepcopy(ng_state),
         completion_status="",
         assigned_user_id="",
         active_user_id="",

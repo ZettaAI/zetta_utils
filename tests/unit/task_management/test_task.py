@@ -1674,6 +1674,104 @@ def test_release_task_without_note(db_session, existing_task, existing_user, pro
     assert updated_task["completed_user_id"] == "test_user"
 
 
+def test_get_task_seed_id_integration(
+        db_session, project_name, existing_task_type, mocker
+):
+    """Integration test: Create task with seed_id format, verify get_task processes it correctly"""
+    # Mock the get_segment_ng_state function to return a predictable result
+    mock_generated_state = {
+        "dimensions": {"x": [4e-9, "m"], "y": [4e-9, "m"], "z": [40e-9, "m"]},
+        "position": [100, 200, 300],
+        "layers": [
+            {
+                "type": "segmentation",
+                "source": "gs://test-bucket/segmentation",
+                "segments": ["12345"],
+                "name": "Segmentation"
+            },
+            {
+                "type": "annotation",
+                "name": "Seed Location",
+                "annotationColor": "#ff00ff",
+                "annotations": [{"point": [100, 200, 300], "type": "point", "id": "abc123"}]
+            }
+        ]
+    }
+
+    mock_get_segment_ng_state = mocker.patch(
+        "zetta_utils.task_management.task.get_segment_ng_state",
+        return_value=mock_generated_state
+    )
+
+    # Create a task with seed_id format in ng_state
+    seed_id = 74732294451380972
+    integration_task = Task(
+        **{
+            "task_id": "integration_seed_task",
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"seed_id": seed_id},
+            "ng_state_initial": {"seed_id": seed_id},
+            "priority": 1,
+            "batch_id": "batch_1",
+            "task_type": existing_task_type["task_type"],
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+    create_task(project_name=project_name, data=integration_task, db_session=db_session)
+
+    # Verify initial state in database has seed_id format
+    initial_result = get_task(
+        project_name=project_name,
+        task_id="integration_seed_task",
+        process_ng_state=False,  # Don't process yet
+        db_session=db_session,
+    )
+    assert initial_result["ng_state"] == {"seed_id": seed_id}
+    assert initial_result["ng_state_initial"] == {"seed_id": seed_id}
+
+    # Now call get_task with processing enabled (default behavior)
+    processed_result = get_task(
+        project_name=project_name,
+        task_id="integration_seed_task",
+        db_session=db_session,
+    )
+
+    # Verify that get_segment_ng_state was called with correct parameters
+    mock_get_segment_ng_state.assert_called_once_with(
+        project_name=project_name,
+        seed_id=seed_id,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
+        include_segment_type_layers=True,
+        db_session=mocker.ANY
+    )
+
+    # Verify that the result now contains the generated ng_state
+    assert processed_result["task_id"] == "integration_seed_task"
+    assert processed_result["ng_state"] == mock_generated_state
+    assert processed_result["ng_state_initial"] == mock_generated_state
+
+    # Verify that calling get_task again doesn't re-process (since it's already processed)
+    mock_get_segment_ng_state.reset_mock()
+    second_result = get_task(
+        project_name=project_name,
+        task_id="integration_seed_task",
+        db_session=db_session,
+    )
+
+    # get_segment_ng_state should NOT be called again since ng_state is no longer in seed_id format
+    mock_get_segment_ng_state.assert_not_called()
+
+    # Result should be the same as before
+    assert second_result["ng_state"] == mock_generated_state
+    assert second_result["ng_state_initial"] == mock_generated_state
+
+
 def test_get_task_process_ng_state_flag_default_true(
     db_session, project_name, existing_task_type, mocker
 ):
@@ -1872,101 +1970,3 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
     assert result_false["task_id"] == "regular_task_1"
     assert result_true["ng_state"] == result_false["ng_state"]
     assert result_true["ng_state_initial"] == result_false["ng_state_initial"]
-
-
-def test_get_task_seed_id_integration(
-    db_session, project_name, existing_task_type, mocker
-):
-    """Integration test: Create task with seed_id format, verify get_task processes it correctly"""
-    # Mock the get_segment_ng_state function to return a predictable result
-    mock_generated_state = {
-        "dimensions": {"x": [4e-9, "m"], "y": [4e-9, "m"], "z": [40e-9, "m"]},
-        "position": [100, 200, 300],
-        "layers": [
-            {
-                "type": "segmentation",
-                "source": "gs://test-bucket/segmentation",
-                "segments": ["12345"],
-                "name": "Segmentation"
-            },
-            {
-                "type": "annotation",
-                "name": "Seed Location",
-                "annotationColor": "#ff00ff",
-                "annotations": [{"point": [100, 200, 300], "type": "point", "id": "abc123"}]
-            }
-        ]
-    }
-    
-    mock_get_segment_ng_state = mocker.patch(
-        "zetta_utils.task_management.task.get_segment_ng_state",
-        return_value=mock_generated_state
-    )
-
-    # Create a task with seed_id format in ng_state
-    seed_id = 74732294451380972
-    integration_task = Task(
-        **{
-            "task_id": "integration_seed_task",
-            "assigned_user_id": "",
-            "active_user_id": "",
-            "completed_user_id": "",
-            "ng_state": {"seed_id": seed_id},
-            "ng_state_initial": {"seed_id": seed_id},
-            "priority": 1,
-            "batch_id": "batch_1",
-            "task_type": existing_task_type["task_type"],
-            "is_active": True,
-            "last_leased_ts": 0.0,
-            "completion_status": "",
-        }
-    )
-    create_task(project_name=project_name, data=integration_task, db_session=db_session)
-
-    # Verify initial state in database has seed_id format
-    initial_result = get_task(
-        project_name=project_name,
-        task_id="integration_seed_task",
-        process_ng_state=False,  # Don't process yet
-        db_session=db_session,
-    )
-    assert initial_result["ng_state"] == {"seed_id": seed_id}
-    assert initial_result["ng_state_initial"] == {"seed_id": seed_id}
-
-    # Now call get_task with processing enabled (default behavior)
-    processed_result = get_task(
-        project_name=project_name,
-        task_id="integration_seed_task",
-        db_session=db_session,
-    )
-
-    # Verify that get_segment_ng_state was called with correct parameters
-    mock_get_segment_ng_state.assert_called_once_with(
-        project_name=project_name,
-        seed_id=seed_id,
-        include_certain_ends=True,
-        include_uncertain_ends=True,
-        include_breadcrumbs=True,
-        include_segment_type_layers=True,
-        db_session=mocker.ANY
-    )
-
-    # Verify that the result now contains the generated ng_state
-    assert processed_result["task_id"] == "integration_seed_task"
-    assert processed_result["ng_state"] == mock_generated_state
-    assert processed_result["ng_state_initial"] == mock_generated_state
-
-    # Verify that calling get_task again doesn't re-process (since it's already processed)
-    mock_get_segment_ng_state.reset_mock()
-    second_result = get_task(
-        project_name=project_name,
-        task_id="integration_seed_task",
-        db_session=db_session,
-    )
-    
-    # get_segment_ng_state should NOT be called again since ng_state is no longer in seed_id format
-    mock_get_segment_ng_state.assert_not_called()
-    
-    # Result should be the same as before
-    assert second_result["ng_state"] == mock_generated_state
-    assert second_result["ng_state_initial"] == mock_generated_state

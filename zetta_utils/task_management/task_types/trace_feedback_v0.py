@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from zetta_utils import log
+from ..db import SegmentModel
 
 from ..db.models import TaskFeedbackModel, TaskModel
 from ..db.session import get_session_context
@@ -95,7 +96,7 @@ def handle_trace_feedback_v0_completion(
 
 @register_creation_handler("trace_feedback_v0")
 def create_trace_feedback_v0_task(
-    project_name: str, segment: Any, kwargs: dict  # pylint: disable=unused-argument
+    project_name: str, segment: SegmentModel, kwargs: dict  # pylint: disable=unused-argument
 ) -> str:
     """Create a trace_feedback_v0 task for reviewing a completed trace.
 
@@ -113,7 +114,7 @@ def create_trace_feedback_v0_task(
         raise ValueError("trace_feedback_v0 requires 'task_id' in kwargs")
 
     # Get the original task
-    original_task = get_task(project_name=project_name, task_id=original_task_id)
+    original_task = get_task(project_name=project_name, task_id=original_task_id, process_ng_state=False)
 
     # Verify it's a trace_v0 task
     if original_task["task_type"] != "trace_v0":
@@ -123,7 +124,7 @@ def create_trace_feedback_v0_task(
     task_id = f"feedback_{original_task_id}_{generate_id_nonunique()}"
 
     # Copy the ng_state from the original task
-    ng_state = copy.deepcopy(original_task["ng_state"])
+    ng_state = { "seed_id": segment.seed_id }
 
     # Build feedback task data
     task_data = Task(
@@ -169,18 +170,7 @@ def create_feedback_task_from_trace(
     """
     with get_session_context() as session:
         # Get the trace task
-        trace_task = (
-            session.query(TaskModel)
-            .filter(
-                TaskModel.project_name == project_name,
-                TaskModel.task_id == trace_task_id,
-            )
-            .first()
-        )
-
-        if not trace_task:
-            logger.warning(f"Trace task {trace_task_id} not found")
-            return None
+        trace_task = get_task(project_name=project_name, task_id=trace_task_id, process_ng_state=add_status_annotation)
 
         # Generate feedback task ID
         feedback_task_id = f"feedback_{trace_task_id}_{generate_id_nonunique()}"

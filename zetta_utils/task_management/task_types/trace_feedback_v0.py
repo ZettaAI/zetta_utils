@@ -199,7 +199,7 @@ def create_feedback_task_from_trace(
                     },
                 },
                 "tab": "annotations",
-                "name": f"Status: {trace_task.get("completion_status", "")}",
+                "name": f"Status: {trace_task.get('completion_status', '')}",
                 "visible": True,
             }
 
@@ -237,7 +237,7 @@ def create_feedback_task_from_trace(
 
         logger.info(
             f"Created feedback task {created_task_id} for trace task {trace_task_id} "
-            f"(user: {trace_task.get("completed_user_id")})"
+            f"(user: {trace_task.get('completed_user_id')})"
         )
 
         return created_task_id

@@ -775,13 +775,9 @@ def test_create_task_basic(
     existing_segment,
 ):
     """Test basic task creation"""
-    mock_generate_ng = mocker.patch(
-        "zetta_utils.task_management.task_types.trace_v0.generate_trace_v0_ng_state"
-    )
     mock_create_task = mocker.patch("zetta_utils.task_management.task_types.trace_v0.create_task")
 
-    mock_ng_state = {"test": "state"}
-    mock_generate_ng.return_value = mock_ng_state
+    mock_ng_state = {"seed_id": existing_segment.seed_id}
 
     # Mock create_task to return the task_id that was passed to it
     def mock_create_task_impl(**kwargs):
@@ -790,9 +786,6 @@ def test_create_task_basic(
     mock_create_task.side_effect = mock_create_task_impl
 
     task_id = create_trace_v0_task(existing_project, existing_segment, {})
-
-    # Check ng state generation
-    mock_generate_ng.assert_called_once_with(existing_project, existing_segment)
 
     # Check task creation
     mock_create_task.assert_called_once()

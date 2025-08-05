@@ -13,6 +13,7 @@ from zetta_utils.task_management.utils import generate_id_nonunique
 from .db.models import DependencyModel, TaskModel, TaskTypeModel, UserModel
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError
+from .ng_state.segment import get_segment_ng_state
 from .types import Task, TaskUpdate
 
 logger = log.get_logger("zetta_utils.task_management.task")
@@ -545,12 +546,13 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     return None
 
 
-def get_task(*, project_name: str, task_id: str, db_session: Session | None = None) -> Task:
+def get_task(*, project_name: str, task_id: str, process_ng_state: bool = True, db_session: Session | None = None) -> Task:
     """
     Retrieve a task record from the database.
 
     :param project_name: The name of the project.
     :param task_id: The unique identifier of the task.
+    :param process_ng_state: Whether to process ng_state seed_id format (default: True).
     :param db_session: Database session to use (optional).
     :return: The task record.
     :raises KeyError: If the task does not exist.
@@ -564,6 +566,9 @@ def get_task(*, project_name: str, task_id: str, db_session: Session | None = No
         )
         try:
             task = session.execute(query).scalar_one()
+            # Handle ng_state and ng_state_initial special formats
+            if process_ng_state:
+                _process_ng_state_seed_id(session, project_name, task)
 
             result = task.to_dict()
             return cast(Task, result)
@@ -851,3 +856,46 @@ def _atomic_task_takeover(
         locked_task.first_start_ts = check_time
 
     return check_time
+
+
+def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskModel) -> None:
+    """
+    Process ng_state and ng_state_initial seed_id formats and update the database.
+    
+    Detects patterns like {"seed_id": 74732294451380972} in ng_state and ng_state_initial 
+    and constructs the corresponding neuroglancer state, then updates the database.
+    
+    :param session: Database session
+    :param project_name: The name of the project
+    :param task: The task model
+    """
+    # Process ng_state
+    ng_state = task.ng_state
+
+    if isinstance(ng_state, dict) and "seed_id" in ng_state and len(ng_state) == 1:
+        seed_id = ng_state["seed_id"]
+        if isinstance(seed_id, int):
+            logger.info(f"Processing ng_state seed_id {seed_id} for task {task.task_id}")
+            
+            try:
+                # Generate neuroglancer state for the segment
+                generated_ng_state = get_segment_ng_state(
+                    project_name=project_name,
+                    seed_id=seed_id,
+                    include_certain_ends=True,
+                    include_uncertain_ends=True,
+                    include_breadcrumbs=True,
+                    include_segment_type_layers=True,
+                    db_session=session
+                )
+                
+                # Update the database
+                task.ng_state = generated_ng_state
+                task.ng_state_initial = generated_ng_state
+                session.commit()
+                
+                logger.info(f"Successfully generated and saved ng_state for seed_id {seed_id} in task {task.task_id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to generate ng_state for seed_id {seed_id} in task {task.task_id}: {e}")
+                session.rollback()

@@ -1,11 +1,10 @@
 import copy
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from zetta_utils import log
-from ..db import SegmentModel
 
-from ..db.models import TaskFeedbackModel, TaskModel
+from ..db.models import TaskFeedbackModel, SegmentModel
 from ..db.session import get_session_context
 from ..task import create_task, get_task
 from ..types import Task
@@ -170,13 +169,17 @@ def create_feedback_task_from_trace(
     """
     with get_session_context() as session:
         # Get the trace task
-        trace_task = get_task(project_name=project_name, task_id=trace_task_id, process_ng_state=add_status_annotation)
+        trace_task = get_task(project_name=project_name, task_id=trace_task_id, process_ng_state=add_status_annotation, db_session=session)
+
+        if not trace_task:
+            logger.warning(f"Trace task {trace_task_id} not found")
+            return None
 
         # Generate feedback task ID
         feedback_task_id = f"feedback_{trace_task_id}_{generate_id_nonunique()}"
 
         # Copy ng_state and add annotation layer if requested
-        ng_state = copy.deepcopy(trace_task.ng_state)
+        ng_state = copy.deepcopy(trace_task.get("ng_state", {}))
 
         if add_status_annotation and ng_state:
             # Add annotation layer with completion status
@@ -196,7 +199,7 @@ def create_feedback_task_from_trace(
                     },
                 },
                 "tab": "annotations",
-                "name": f"Status: {trace_task.completion_status}",
+                "name": f"Status: {trace_task.get("completion_status", "")}",
                 "visible": True,
             }
 
@@ -221,9 +224,9 @@ def create_feedback_task_from_trace(
             is_paused=False,
             is_checked=False,
             extra_data={
-                "original_task_id": trace_task.task_id,
-                "original_user": trace_task.completed_user_id,
-                "original_completion_status": trace_task.completion_status,
+                "original_task_id": trace_task.get("task_id"),
+                "original_user": trace_task.get("completed_user_id"),
+                "original_completion_status": trace_task.get("completion_status", ""),
             },
         )
 
@@ -234,7 +237,7 @@ def create_feedback_task_from_trace(
 
         logger.info(
             f"Created feedback task {created_task_id} for trace task {trace_task_id} "
-            f"(user: {trace_task.completed_user_id})"
+            f"(user: {trace_task.get("completed_user_id")})"
         )
 
         return created_task_id

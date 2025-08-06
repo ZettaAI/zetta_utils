@@ -4,7 +4,7 @@ from typing import Optional
 
 from zetta_utils import log
 
-from ..db.models import TaskFeedbackModel, SegmentModel
+from ..db.models import SegmentModel, TaskFeedbackModel
 from ..db.session import get_session_context
 from ..task import create_task, get_task
 from ..types import Task

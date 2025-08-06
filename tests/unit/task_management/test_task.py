@@ -1950,7 +1950,6 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
 
     # Verify that _process_ng_state_seed_id was called (even though it won't process anything)
     mock_process.assert_called_once()
-    
     # Reset the mock
     mock_process.reset_mock()
 

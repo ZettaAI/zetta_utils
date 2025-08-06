@@ -546,7 +546,13 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     return None
 
 
-def get_task(*, project_name: str, task_id: str, process_ng_state: bool = True, db_session: Session | None = None) -> Task:
+def get_task(
+        *,
+        project_name: str,
+        task_id: str,
+        process_ng_state: bool = True,
+        db_session: Session | None = None
+) -> Task:
     """
     Retrieve a task record from the database.
 
@@ -876,7 +882,6 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
         seed_id = ng_state["seed_id"]
         if isinstance(seed_id, int):
             logger.info(f"Processing ng_state seed_id {seed_id} for task {task.task_id}")
-            
             try:
                 # Generate neuroglancer state for the segment
                 generated_ng_state = get_segment_ng_state(
@@ -888,14 +893,17 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
                     include_segment_type_layers=True,
                     db_session=session
                 )
-                
                 # Update the database
                 task.ng_state = generated_ng_state
                 task.ng_state_initial = generated_ng_state
                 session.commit()
-                
-                logger.info(f"Successfully generated and saved ng_state for seed_id {seed_id} in task {task.task_id}")
-                
-            except Exception as e:
-                logger.error(f"Failed to generate ng_state for seed_id {seed_id} in task {task.task_id}: {e}")
+                logger.info(
+                    f"Successfully generated and saved ng_state for seed_id {seed_id} "
+                    f"in task {task.task_id}"
+                )
+            except RuntimeError as e:
+                logger.error(
+                    f"Failed to generate ng_state for seed_id {seed_id} "
+                    f"in task {task.task_id}: {e}"
+                )
                 session.rollback()

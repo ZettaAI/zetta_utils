@@ -1772,6 +1772,60 @@ def test_get_task_seed_id_integration(
     assert second_result["ng_state_initial"] == mock_generated_state
 
 
+def test_get_task_seed_id_error_handling(
+    db_session, project_name, existing_task_type, mocker
+):
+    """Test error handling when get_segment_ng_state fails"""
+    # Mock get_segment_ng_state to raise a RuntimeError
+    mock_get_segment_ng_state = mocker.patch(
+        "zetta_utils.task_management.task.get_segment_ng_state",
+        side_effect=RuntimeError("Database connection failed")
+    )
+
+    # Create a task with seed_id format in ng_state
+    seed_id = 74732294451380972
+    error_task = Task(
+        **{
+            "task_id": "error_seed_task",
+            "assigned_user_id": "",
+            "active_user_id": "",
+            "completed_user_id": "",
+            "ng_state": {"seed_id": seed_id},
+            "ng_state_initial": {"seed_id": seed_id},
+            "priority": 1,
+            "batch_id": "batch_1",
+            "task_type": existing_task_type["task_type"],
+            "is_active": True,
+            "last_leased_ts": 0.0,
+            "completion_status": "",
+        }
+    )
+    create_task(project_name=project_name, data=error_task, db_session=db_session)
+
+    # Call get_task - should handle the error gracefully and return task with original ng_state
+    result = get_task(
+        project_name=project_name,
+        task_id="error_seed_task",
+        db_session=db_session,
+    )
+
+    # Verify that get_segment_ng_state was called
+    mock_get_segment_ng_state.assert_called_once_with(
+        project_name=project_name,
+        seed_id=seed_id,
+        include_certain_ends=True,
+        include_uncertain_ends=True,
+        include_breadcrumbs=True,
+        include_segment_type_layers=True,
+        db_session=mocker.ANY
+    )
+
+    # Verify that the task was returned with original ng_state (error was handled gracefully)
+    assert result["task_id"] == "error_seed_task"
+    assert result["ng_state"] == {"seed_id": seed_id}  # Should still have original format
+    assert result["ng_state_initial"] == {"seed_id": seed_id}
+
+
 def test_get_task_process_ng_state_flag_default_true(
     db_session, project_name, existing_task_type, mocker
 ):

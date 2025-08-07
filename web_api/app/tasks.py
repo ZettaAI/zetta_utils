@@ -31,10 +31,10 @@ from zetta_utils.task_management.task import (
     start_task,
     update_task,
 )
-from zetta_utils.task_management.task_type import create_task_type, get_task_type
+from zetta_utils.task_management.task_type import get_task_type
 from zetta_utils.task_management.task_types import handle_task_completion, verify_task
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.types import Task, TaskType, TaskUpdate
+from zetta_utils.task_management.types import TaskUpdate
 
 from .utils import generic_exception_handler
 
@@ -160,16 +160,17 @@ async def release_task_api(
         project_name=project_name, task=task, completion_status=completion_status
     )
 
-    release_success = release_task(
-        project_name=project_name,
-        user_id=user_id,
-        task_id=task_id,
-        completion_status=completion_status,
-        note=note,
-    )
-
-    if not release_success:
-        raise HTTPException(status_code=409, detail="Failed to release task")
+    try:
+        release_task(
+            project_name=project_name,
+            user_id=user_id,
+            task_id=task_id,
+            completion_status=completion_status,
+            note=note,
+        )
+    except Exception as e:
+        logger.error(f"Failed to release task: {e}")
+        raise HTTPException(status_code=409, detail=f"Failed to release task: {str(e)}")
 
     return True
 

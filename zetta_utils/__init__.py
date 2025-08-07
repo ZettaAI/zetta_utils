@@ -6,7 +6,7 @@ import warnings
 
 from .log import get_logger
 
-if "sphinx" not in sys.modules:
+if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa
 
     os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"

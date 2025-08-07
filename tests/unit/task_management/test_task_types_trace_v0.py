@@ -777,8 +777,6 @@ def test_create_task_basic(
     """Test basic task creation"""
     mock_create_task = mocker.patch("zetta_utils.task_management.task_types.trace_v0.create_task")
 
-    mock_ng_state = {"seed_id": existing_segment.seed_id}
-
     # Mock create_task to return the task_id that was passed to it
     def mock_create_task_impl(**kwargs):
         return kwargs["data"]["task_id"]
@@ -792,9 +790,10 @@ def test_create_task_basic(
     call_args = mock_create_task.call_args[1]
     task_data = call_args["data"]
 
+    expected_ng_state = {"seed_id": existing_segment.seed_id}
     assert task_data["task_type"] == "trace_v0"
-    assert task_data["ng_state"] == mock_ng_state
-    assert task_data["ng_state_initial"] == mock_ng_state  # Should be a copy
+    assert task_data["ng_state"] == expected_ng_state
+    assert task_data["ng_state_initial"] == expected_ng_state  # Should be a copy
     assert task_data["extra_data"]["seed_id"] == existing_segment.seed_id
     assert task_data["priority"] == 50  # Default
     assert task_data["batch_id"] == "default"

@@ -639,7 +639,7 @@ def crop(
 @typechecked
 def crop_center(
     data: TensorTypeVar,
-    size: Sequence[int],  # pylint: disable=redefined-outer-name
+    size: Union[torch.Size, Sequence[int]],  # pylint: disable=redefined-outer-name
 ) -> TensorTypeVar:
     """
     Crop a multidimensional tensor to the center.
@@ -652,16 +652,12 @@ def crop_center(
     ndim = len(size)
     slices = [slice(0, None) for _ in range(data.ndim - ndim)]
     for insz, outsz in zip(data.shape[-ndim:], size):
-        if isinstance(insz, torch.Tensor):  # pragma: no cover # only occurs for JIT
-            insz = insz.item()
-        assert insz >= outsz
-        lcrop = (insz - outsz) // 2
-        rcrop = (insz - outsz) - lcrop
-        if rcrop != 0:
-            slices.append(slice(lcrop, -rcrop))
-        else:
-            assert lcrop == 0
-            slices.append(slice(0, None))
+        if not torch.jit.is_tracing():
+            assert insz >= outsz
+        start_idx = (insz - outsz) // 2
+        end_idx = start_idx + outsz
+        slices.append(slice(start_idx, end_idx))
+
     result = data[tuple(slices)]
     return result
 

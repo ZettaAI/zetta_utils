@@ -18,11 +18,7 @@ ActivationMode: TypeAlias = Literal["pre", "post"]
 
 
 def _get_size(data: torch.Tensor) -> Sequence[int]:
-    # In tracing mode, shapes obtained from tensor.shape are traced as tensors
-    if isinstance(data.shape[0], torch.Tensor):  # type: ignore[unreachable] # pragma: no cover
-        size = list(map(lambda x: x.item(), data.shape))  # type: ignore[unreachable]
-    else:
-        size = data.shape
+    size = data.shape
     return size
 
 

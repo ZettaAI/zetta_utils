@@ -68,6 +68,7 @@ def setup_local_worker_pool(
         logger.info(
             f"Created {num_procs} local workers attached to queues "
             f"`{task_queue_name}` / `{outcome_queue_name}`."
+            f"Idle timeout set to {idle_timeout}s."
         )
         yield
     finally:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import importlib.metadata
+import io
 import os
 import time
 from typing import Any, Dict, List, Optional
@@ -25,28 +26,54 @@ ONNX_OPSET_VERSION = 17
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
 
-"""
-Separate function to work around the jit.trace memory leak
-"""
+def _jit_trace_export_in_subprocess(args_packed):
+    model_bytes, trace_input, filepath_jit = args_packed
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    model = torch.load(io.BytesIO(model_bytes), map_location=device, weights_only=False)
+    model.eval()
+    with torch.inference_mode():
+        trace = torch.jit.trace(model, trace_input)
+        with fsspec.open(filepath_jit, "wb") as f:
+            torch.jit.save(trace, f)
 
 
-def trace_and_save_model(
-    args_packed,
-):  # pragma: no cover # pylint: disable=broad-except, used-before-assignment
-    model, trace_input, filepath, name = args_packed
-    trace = torch.jit.trace(model, trace_input)
+def jit_trace_export(model, trace_input, filepath, name):
+    # Separate process to avoidemory leak: https://github.com/pytorch/pytorch/issues/35600
+
+    # Passing model directly to the subprocess (even with deepcopy) still shares CUDA tensors,
+    # and side effects from tracing will impact the main process:
+    # https://docs.pytorch.org/docs/stable/generated/torch.jit.trace.html#:~:text=may%20silently
     filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
-    with fsspec.open(filepath_jit, "wb") as f:
-        torch.jit.save(trace, f)
     try:
-        filepath_onnx = f"{filepath}.static-{torch.__version__}-{name}.onnx"
-        with fsspec.open(filepath_onnx, "wb") as f:
-            filesystem = f.fs
-            torch.onnx.export(model, trace_input, f, opset_version=ONNX_OPSET_VERSION)
-        return None
-    except Exception as e:
-        filesystem.delete(filepath_onnx)
-        return type(e).__name__, e.args[0]
+        model_buffer = io.BytesIO()
+        torch.save(model, model_buffer)
+        model_bytes = model_buffer.getvalue()
+
+        ctx = torch.multiprocessing.get_context("spawn")
+        p = ctx.Process(
+            target=_jit_trace_export_in_subprocess,
+            args=[(model_bytes, trace_input, filepath_jit)],
+        )
+        p.start()
+        p.join()
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"JIT trace export failed for {name}: {type(e).__name__}: {e}")
+
+
+def onnx_export(model, trace_input, filepath, name):
+    original_training_mode = model.training
+    filepath_onnx = f"{filepath}.static-{torch.__version__}-{name}.onnx"
+    try:
+        model.eval()
+        with torch.inference_mode():
+            with fsspec.open(filepath_onnx, "wb") as f:
+                torch.onnx.export(model, trace_input, f, opset_version=ONNX_OPSET_VERSION)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"ONNX export failed for {name}: {type(e).__name__}: {e}")
+    finally:
+        model.train(original_training_mode)
 
 
 @builder.register("ZettaDefaultTrainer")
@@ -58,6 +85,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         *args,
         checkpointing_kwargs: Optional[dict] = None,
         progress_bar_kwargs: Optional[dict] = None,
+        enable_onnx_export: bool = True,
+        enable_jit_export: bool = True,
         **kwargs,
     ):
         assert "callbacks" not in kwargs
@@ -100,6 +129,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         # to resume training with ckpt_path='last' when storing
         # checkpoints on GCP.
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
+        self.enable_onnx_export = enable_onnx_export
+        self.enable_jit_export = enable_jit_export
 
     def save_checkpoint(
         self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
@@ -142,12 +173,12 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         for name, val in self.trace_configuration.items():
             model = val["model"]
             trace_input = val["trace_input"]
-            ctx = torch.multiprocessing.get_context("spawn")
-            with ctx.Pool(processes=1) as pool:
-                # See https://github.com/pytorch/pytorch/issues/35600
-                res = pool.map(trace_and_save_model, [(model, trace_input, filepath, name)])[0]
-            if res is not None:
-                logger.warning(f"Exception while saving the model as ONNX: {res[0]}: {res[1]}")
+
+            if self.enable_onnx_export:
+                onnx_export(model, trace_input, filepath, name)
+
+            if self.enable_jit_export:
+                jit_trace_export(model, trace_input, filepath, name)
 
 
 @typeguard.typechecked

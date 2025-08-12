@@ -388,10 +388,10 @@ class AnnotationLayerBackend(
                 3. The annotation IDs (also as uint64le)
 
         :param file_path: local file or GS path of file to write
-        :param lines: iterable of LineAnnotation objects
+        :param annotations: iterable of Annotation objects
         :param with_relations: whether to write out related IDs (by_id index only)
-        :param randomize: if True, the lines will be written in random
-                order (without mutating the lines parameter)
+        :param randomize: if True, the annotations will be written in random
+                order (without mutating the annotations parameter)
         """
         annotations = list(annotations)
         if randomize:
@@ -402,12 +402,13 @@ class AnnotationLayerBackend(
         # first write the count
         buffer.write(struct.pack("<Q", len(annotations)))
 
-        # then write the line data
+        # then write the annotation data
         for anno in annotations:
             anno.write(buffer, self.property_specs, self.relationships if with_relations else None)
 
         # finally write the ids at the end of the buffer
         for anno in annotations:
+            logger.info(f"writing annotation {anno.id}")
             buffer.write(struct.pack("<Q", anno.id))
 
         # Rewind buffer to the beginning, and write to disk
@@ -425,8 +426,8 @@ class AnnotationLayerBackend(
         """
         Write a set of line annotations to the file, adding to any already there.
 
-        :param annotations: sequence of LineAnnotations to add.
-        :param annotation_resolution: resolution of given LineAnnotation coordinates;
+        :param annotations: sequence of Annotations to add.
+        :param annotation_resolution: resolution of given Annotation coordinates;
         if not specified, assumes native coordinates (i.e. self.index.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).

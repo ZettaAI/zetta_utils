@@ -190,8 +190,8 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         file_chunk_sizes = [se.chunk_size for se in spatial_entries]
         if annotation_type and annotation_type != anno_type:
             raise IOError(
-                f"Given annotation_type {annotation_type} "
-                "does not match existing file type {anno_type}"
+                "Given annotation_type {annotation_type} "
+                f"does not match existing file type {anno_type}"
             )  # pragma: no cover
         annotation_type = anno_type
 
@@ -278,7 +278,10 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
         property_specs=final_property_specs,
         relationships=final_relationships,
     )
-    backend.write_info_file()
+
+    # Only write info file for modes that create or modify the layer
+    if mode in ("write", "replace", "update"):
+        backend.write_info_file()
 
     if mode == "replace":
         backend.clear()

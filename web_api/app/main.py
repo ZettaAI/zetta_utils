@@ -39,7 +39,7 @@ app.mount("/tasks", tasks_api)
 
 @app.middleware("http")
 async def check_authorized_user(request: Request, call_next):
-    if request.method != "OPTIONS":
+    if request.method != "OPTIONS" and request.url.path != "/healthz":
         try:
             token = request.headers["authorization"].split()[-1]
         except (KeyError, IndexError):
@@ -72,3 +72,8 @@ async def index():
     version = f"{sys.version_info.major}.{sys.version_info.minor}"
     message = f"Hello world! From FastAPI running on Uvicorn. Using Python {version}"
     return {"message": message}
+
+
+@app.get("/healthz")
+async def health_check():
+    return {"status": "healthy"}

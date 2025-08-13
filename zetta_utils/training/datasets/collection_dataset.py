@@ -22,7 +22,9 @@ from zetta_utils.training.datasets.sample_indexers.volumetric_strided_indexer im
 def _get_z_resolution(layers: dict[str, VolumetricLayer]) -> float:
     z_resolutions = {}
     for layer_name, layer in layers.items():
-        info_path = os.path.join(layer.backend.name.removeprefix("precomputed://"), "info")
+        layer_path = layer.backend.name.removeprefix("precomputed://")
+        layer_path = layer_path.removesuffix("|neuroglancer-precomputed:")
+        info_path = os.path.join(layer_path.strip("/"), "info")
         with fsspec.open(info_path) as f:
             info = json.loads(f.read())
             z_resolutions[layer_name] = {e["resolution"][-1] for e in info["scales"]}

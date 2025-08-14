@@ -284,8 +284,8 @@ class TestGetTraceTaskState:
         # Check first merge edit line annotation
         first_merge = merge_layer["annotations"][0]
         assert first_merge["type"] == "line"
-        assert first_merge["pointA"] == [100.0, 200.0, 300.0]
-        assert first_merge["pointB"] == [110.0, 210.0, 310.0]
+        assert first_merge["pointA"] == [12.5, 25.0, 7.5]  # 100.0/8.0, 200.0/8.0, 300.0/40.0
+        assert first_merge["pointB"] == [13.75, 26.25, 7.75]  # 110.0/8.0, 210.0/8.0, 310.0/40.0
         assert "id" in first_merge
 
     def test_with_selective_layers(
@@ -752,8 +752,8 @@ class TestInternalFunctions:
         # Check first line annotation
         first_line = line_annotations[0]
         assert first_line["type"] == "line"
-        assert first_line["pointA"] == [100.0, 200.0, 300.0]
-        assert first_line["pointB"] == [110.0, 210.0, 310.0]
+        assert first_line["pointA"] == [12.5, 25.0, 7.5]  # 100.0/8.0, 200.0/8.0, 300.0/40.0
+        assert first_line["pointB"] == [13.75, 26.25, 7.75]  # 110.0/8.0, 210.0/8.0, 310.0/40.0
         assert "id" in first_line
 
     def test_add_merge_layer(self, setup_project_and_segment, db_session, project_name):

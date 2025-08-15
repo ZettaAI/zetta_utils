@@ -78,12 +78,12 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             f"{experiment_version}",
         )
 
-        kwargs["callbacks"] = get_progress_bar_callbacks(
-            **progress_bar_kwargs
-        ) + get_checkpointing_callbacks(
+        kwargs["callbacks"] = get_checkpointing_callbacks(
             log_dir=log_dir,
             **checkpointing_kwargs,
         )
+        if kwargs.setdefault("enable_progress_bar", True):
+            kwargs["callbacks"].extend(get_progress_bar_callbacks(**progress_bar_kwargs))
 
         super().__init__(*args, **kwargs)
 

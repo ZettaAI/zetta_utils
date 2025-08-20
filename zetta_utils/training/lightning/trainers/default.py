@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import importlib.metadata
-import io
 import os
 import time
 from typing import Any, Dict, List, Optional
@@ -27,39 +26,31 @@ os.environ["MKL_THREADING_LAYER"] = "GNU"
 
 
 def _jit_trace_export_in_subprocess(args_packed):
-    model_bytes, trace_input, filepath_jit = args_packed
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    model = torch.load(io.BytesIO(model_bytes), map_location=device, weights_only=False)
+    model, trace_input, filepath_jit = args_packed
     model.eval()
     with torch.inference_mode():
         trace = torch.jit.trace(model, trace_input)
         with fsspec.open(filepath_jit, "wb") as f:
             torch.jit.save(trace, f)
+        logger.info(f"JIT trace export: {filepath_jit}")
 
 
 def jit_trace_export(model, trace_input, filepath, name):
-    # Separate process to avoidemory leak: https://github.com/pytorch/pytorch/issues/35600
-
-    # Passing model directly to the subprocess (even with deepcopy) still shares CUDA tensors,
-    # and side effects from tracing will impact the main process:
-    # https://docs.pytorch.org/docs/stable/generated/torch.jit.trace.html#:~:text=may%20silently
+    # Separate process to avoid memory leak: https://github.com/pytorch/pytorch/issues/35600
+    original_training_mode = model.training
     filepath_jit = f"{filepath}.static-{torch.__version__}-{name}.jit"
     try:
-        model_buffer = io.BytesIO()
-        torch.save(model, model_buffer)
-        model_bytes = model_buffer.getvalue()
-
         ctx = torch.multiprocessing.get_context("spawn")
         p = ctx.Process(
             target=_jit_trace_export_in_subprocess,
-            args=[(model_bytes, trace_input, filepath_jit)],
+            args=[(model, trace_input, filepath_jit)],
         )
         p.start()
         p.join()
-
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"JIT trace export failed for {name}: {type(e).__name__}: {e}")
+    finally:
+        model.train(original_training_mode)
 
 
 def onnx_export(model, trace_input, filepath, name):
@@ -70,6 +61,7 @@ def onnx_export(model, trace_input, filepath, name):
         with torch.inference_mode():
             with fsspec.open(filepath_onnx, "wb") as f:
                 torch.onnx.export(model, trace_input, f, opset_version=ONNX_OPSET_VERSION)
+            logger.info(f"ONNX export: {filepath_onnx}")
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"ONNX export failed for {name}: {type(e).__name__}: {e}")
     finally:

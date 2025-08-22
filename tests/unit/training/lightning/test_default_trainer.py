@@ -7,7 +7,6 @@ import lightning.pytorch as pl
 import pytest
 import torch
 
-from zetta_utils import training
 from zetta_utils.training.lightning.trainers.default import (
     ZettaDefaultTrainer,
     jit_trace_export,
@@ -16,7 +15,7 @@ from zetta_utils.training.lightning.trainers.default import (
 
 
 def test_default_trainer():
-    result = training.lightning.trainers.ZettaDefaultTrainer(
+    result = ZettaDefaultTrainer(
         experiment_name="unit_test",
         experiment_version="x0",
     )

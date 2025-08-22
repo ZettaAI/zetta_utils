@@ -25,7 +25,7 @@ ONNX_OPSET_VERSION = 17
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
 
-def _jit_trace_export_in_subprocess(args_packed):
+def _jit_trace_export_in_subprocess(args_packed):  # pragma: no cover
     model, trace_input, filepath_jit = args_packed
     model.eval()
     with torch.inference_mode():

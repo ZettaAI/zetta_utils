@@ -11,6 +11,9 @@ import urllib.parse
 import uuid
 from typing import Any, Dict, List
 
+from sqlalchemy import String, cast
+from sqlalchemy.dialects.postgresql import ARRAY
+
 from zetta_utils.task_management.db.models import (
     MergeEditModel,
     ProjectModel,
@@ -48,7 +51,7 @@ def _get_task_and_segment(session, project_name: str, task_id: str):
     segment = (
         session.query(SegmentModel)
         .filter_by(project_name=project_name)
-        .filter(SegmentModel.task_ids.op("&&")([task_id]))
+        .filter(SegmentModel.task_ids.op("&&")(cast([task_id], ARRAY(String))))
         .first()
     )
 
@@ -75,6 +78,9 @@ def _get_merge_edits_data(  # pylint: disable=unused-argument
         .all()
     )
 
+    # Get resolution scaling factors (coordinates are in 1nm, need to scale to project resolution)
+    sv_resolution = [project.sv_resolution_x, project.sv_resolution_y, project.sv_resolution_z]
+
     line_annotations = []
     for merge_edit in merge_edits:
         if len(merge_edit.points) >= 2:
@@ -82,10 +88,18 @@ def _get_merge_edits_data(  # pylint: disable=unused-argument
             point1 = merge_edit.points[0]
             point2 = merge_edit.points[1]
 
-            # Extract coordinates (skip segment_id)
+            # Extract coordinates (skip segment_id) and scale to project resolution
             if len(point1) >= 4 and len(point2) >= 4:
-                coord1 = [point1[1], point1[2], point1[3]]  # [x, y, z]
-                coord2 = [point2[1], point2[2], point2[3]]  # [x, y, z]
+                coord1 = [
+                    point1[1] / sv_resolution[0],  # x scaled
+                    point1[2] / sv_resolution[1],  # y scaled
+                    point1[3] / sv_resolution[2],  # z scaled
+                ]
+                coord2 = [
+                    point2[1] / sv_resolution[0],  # x scaled
+                    point2[2] / sv_resolution[1],  # y scaled
+                    point2[3] / sv_resolution[2],  # z scaled
+                ]
 
                 line_annotation = {
                     "pointA": coord1,

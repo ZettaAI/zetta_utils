@@ -25,7 +25,7 @@ ONNX_OPSET_VERSION = 17
 os.environ["MKL_THREADING_LAYER"] = "GNU"
 
 
-def _jit_trace_export_in_subprocess(args_packed):
+def _jit_trace_export_in_subprocess(args_packed):  # pragma: no cover
     model, trace_input, filepath_jit = args_packed
     model.eval()
     with torch.inference_mode():
@@ -260,8 +260,8 @@ class ConfigureLogging(pl.callbacks.Callback):
         self.exp_name = exp_name
         self.exp_version = exp_version
 
-    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):  # pragma: no cover
+        if not os.environ.get("WANDB_MODE", None) == "offline":
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 

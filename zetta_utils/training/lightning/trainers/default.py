@@ -78,7 +78,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         checkpointing_kwargs: Optional[dict] = None,
         progress_bar_kwargs: Optional[dict] = None,
         enable_onnx_export: bool = True,
-        enable_jit_export: bool = True,
+        enable_jit_export: bool = False,
         **kwargs,
     ):
         assert "callbacks" not in kwargs

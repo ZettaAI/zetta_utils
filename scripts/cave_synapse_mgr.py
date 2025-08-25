@@ -466,6 +466,8 @@ def create_indexes():
         create_index(table_name, f"{t}_pkey", "btree (id)")
         create_index(table_name, f"{t}_pre_pt_root_id", "btree (pre_pt_root_id)")
         create_index(table_name, f"{t}_post_pt_root_id", "btree (post_pt_root_id)")
+        create_index(table_name, f"{t}_pre_pt_supervoxel_id", "btree (pre_pt_supervoxel_id)")
+        create_index(table_name, f"{t}_post_pt_supervoxel_id", "btree (post_pt_supervoxel_id)")
     else:
         create_index(table_name, f"{t}_pkey", "btree (id)")
         create_index(
@@ -481,6 +483,7 @@ def create_indexes():
             f"idx_{t}_post_pt_position",
             "USING gist (post_pt_position gist_geometry_ops_nd)",
         )
+        print("\nNOTE: be sure to do the associated supervoxel table, too.")
     input("\n(Press Return.)")
 
 

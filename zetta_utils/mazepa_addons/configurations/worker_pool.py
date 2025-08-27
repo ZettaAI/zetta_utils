@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import multiprocessing
+import os
 import time
 from contextlib import ExitStack
 from itertools import repeat
@@ -17,6 +18,9 @@ logger = log.get_logger("mazepa")
 
 
 def worker_init() -> None:
+    # For Kubernetes compatibility, ensure unbuffered output
+    os.environ["PYTHONUNBUFFERED"] = "1"
+
     try_load_train_inference()
 
 
@@ -27,6 +31,7 @@ def run_local_worker(
     sleep_sec: float = 0.1,
     idle_timeout: int | None = None,
 ) -> None:
+    logger.info("Creating a local worker in this process....")
     queue_type = FileQueue if local else SQSQueue
     task_queue = queue_type(name=task_queue_name)
     outcome_queue = queue_type(name=outcome_queue_name, pull_wait_sec=1.0)
@@ -37,6 +42,7 @@ def run_local_worker(
         max_pull_num=1,
         idle_timeout=idle_timeout,
     )
+    logger.info("Local worker returned.")
 
 
 @contextlib.contextmanager
@@ -54,7 +60,7 @@ def setup_local_worker_pool(
     try:
         pool = pebble.ProcessPool(
             max_workers=num_procs,
-            context=multiprocessing.get_context("spawn"),
+            context=multiprocessing.get_context("fork"),
             initializer=worker_init,
         )
         pool.map(
@@ -67,7 +73,7 @@ def setup_local_worker_pool(
         )
         logger.info(
             f"Created {num_procs} local workers attached to queues "
-            f"`{task_queue_name}` / `{outcome_queue_name}`."
+            f"`{task_queue_name}` / `{outcome_queue_name}`. "
             f"Idle timeout set to {idle_timeout}s."
         )
         yield

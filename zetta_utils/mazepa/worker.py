@@ -69,7 +69,9 @@ def run_worker(
         logger.info(f"Got {len(task_msgs)} tasks.")
 
         if len(task_msgs) == 0:
-            _log = f"Sleeping {sleep_sec}s. Time slept {time_slept}. Idle timeout {idle_timeout}s."
+            _log = (
+                f"Sleeping {sleep_sec}s. Time slept {time_slept}s. Idle timeout {idle_timeout}s."
+            )
             logger.info(_log)
             time.sleep(sleep_sec)
             time_slept += sleep_sec

@@ -360,7 +360,8 @@ from zetta_utils.training.lightning.trainers.default import (
     ZettaDefaultTrainer,
     get_checkpointing_callbacks,
     get_progress_bar_callbacks,
-    trace_and_save_model,
+    jit_trace_export,
+    onnx_export,
 )
 from zetta_utils.typing import (
     ArithmeticOperand,

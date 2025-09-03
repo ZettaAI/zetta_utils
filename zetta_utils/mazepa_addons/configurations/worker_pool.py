@@ -63,7 +63,7 @@ def setup_local_worker_pool(
             context=multiprocessing.get_context("fork"),
             initializer=worker_init,
         )
-        pool.map(
+        future = pool.map(
             run_local_worker,
             repeat(task_queue_name, num_procs),
             repeat(outcome_queue_name, num_procs),
@@ -76,7 +76,7 @@ def setup_local_worker_pool(
             f"`{task_queue_name}` / `{outcome_queue_name}`. "
             f"Idle timeout set to {idle_timeout}s."
         )
-        yield
+        yield future
     finally:
         pool.stop()
         pool.join()
@@ -97,15 +97,18 @@ def run_worker_manager(
 ):
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
-        stack.enter_context(
-            setup_local_worker_pool(
-                num_procs,
-                task_queue.name,
-                outcome_queue.name,
-                local=False,
-                sleep_sec=sleep_sec,
-                idle_timeout=idle_timeout,
-            )
+        worker_pool_ctx = setup_local_worker_pool(
+            num_procs,
+            task_queue.name,
+            outcome_queue.name,
+            local=False,
+            sleep_sec=sleep_sec,
+            idle_timeout=idle_timeout,
         )
+        pool_future = stack.enter_context(worker_pool_ctx)
         while True:
+            if pool_future and pool_future.done():
+                logger.info("All worker processes have returned, cleaning the worker pool...")
+                break
             time.sleep(1)
+        logger.info("Exiting worker manager.")

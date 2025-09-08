@@ -10,6 +10,8 @@ from itertools import repeat
 import pebble
 
 from zetta_utils import builder, log, try_load_train_inference
+from zetta_utils.common import RepeatTimer
+from zetta_utils.common.resource_monitor import ResourceMonitor
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
@@ -50,13 +52,34 @@ def setup_local_worker_pool(
     num_procs: int,
     task_queue_name: str,
     outcome_queue_name: str,
-    local: bool = True,
-    sleep_sec: float = 0.1,
-    idle_timeout: int | None = None,
+    local: bool,
+    sleep_sec: float,
+    idle_timeout: int | None,
+    monitor_resources: bool,
+    resource_monitor_interval: float,
+    resource_monitor_summary: bool,
 ):
     """
     Context manager for creating task/outcome queues, alongside a persistent pool of workers.
     """
+    # Start resource monitoring
+    resource_timer = None
+    resource_monitor = None
+    if monitor_resources:
+        try:
+            resource_monitor = ResourceMonitor(
+                log_interval_seconds=resource_monitor_interval,
+                collect_summary=resource_monitor_summary,
+            )
+            resource_timer = RepeatTimer(resource_monitor_interval, resource_monitor.log_usage)
+            resource_timer.start()
+            mode = "summary" if resource_monitor_summary else "continuous"
+            logger.info(
+                f"Started resource monitoring ({mode} mode) with {resource_monitor_interval}s interval"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to start resource monitoring: {e}")
+
     try:
         pool = pebble.ProcessPool(
             max_workers=num_procs,
@@ -71,13 +94,23 @@ def setup_local_worker_pool(
             repeat(sleep_sec, num_procs),
             repeat(idle_timeout, num_procs),
         )
+        idle_line = (
+            "Idle timeout not set." if idle_timeout is None else "Idle timeout {idle_timeout}s."
+        )
         logger.info(
             f"Created {num_procs} local workers attached to queues "
-            f"`{task_queue_name}` / `{outcome_queue_name}`. "
-            f"Idle timeout set to {idle_timeout}s."
+            f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
         )
         yield future
     finally:
+        # Stop resource monitoring and log summary if enabled
+        if resource_timer is not None:
+            resource_timer.cancel()
+            logger.info("Stopped resource monitoring")
+
+        if resource_monitor is not None and resource_monitor_summary:
+            resource_monitor.log_summary()
+
         pool.stop()
         pool.join()
         logger.info(
@@ -94,6 +127,9 @@ def run_worker_manager(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     idle_timeout: int | None = None,
+    monitor_resources: bool = True,
+    resource_monitor_interval: float = 1.0,
+    resource_monitor_summary: bool = True,
 ):
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
@@ -104,8 +140,12 @@ def run_worker_manager(
             local=False,
             sleep_sec=sleep_sec,
             idle_timeout=idle_timeout,
+            monitor_resources=monitor_resources,
+            resource_monitor_interval=resource_monitor_interval,
+            resource_monitor_summary=resource_monitor_summary,
         )
         pool_future = stack.enter_context(worker_pool_ctx)
+
         while True:
             if pool_future and pool_future.done():
                 logger.info("All worker processes have returned, cleaning the worker pool...")

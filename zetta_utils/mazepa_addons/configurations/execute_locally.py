@@ -38,6 +38,9 @@ def execute_locally(
     debug: bool = False,
     write_progress_summary: bool = False,
     require_interrupt_confirm: bool = True,
+    monitor_resources: bool = True,
+    resource_monitor_interval: float = 1.0,
+    resource_monitor_summary: bool = True,
 ):
 
     queues_dir_ = queues_dir if queues_dir else ""
@@ -59,7 +62,17 @@ def execute_locally(
             task_queue = stack.enter_context(FileQueue(task_queue_name))
             outcome_queue = stack.enter_context(FileQueue(outcome_queue_name))
             stack.enter_context(
-                setup_local_worker_pool(num_procs, task_queue_name, outcome_queue_name)
+                setup_local_worker_pool(
+                    num_procs=num_procs,
+                    task_queue_name=task_queue_name,
+                    outcome_queue_name=outcome_queue_name,
+                    local=True,
+                    sleep_sec=0.1,
+                    idle_timeout=None,
+                    monitor_resources=monitor_resources,
+                    resource_monitor_interval=resource_monitor_interval,
+                    resource_monitor_summary=resource_monitor_summary,
+                )
             )
         execute(
             target=target,

@@ -32,6 +32,11 @@ class ResourceMonitor:
         self.collect_summary = collect_summary
         self.gpu_handles = []
         self.samples = [] if collect_summary else None
+        
+        # Track previous I/O values for rate calculations
+        self.prev_disk_io = None
+        self.prev_net_io = None
+        self.prev_time = None
 
         if psutil is None:
             raise ImportError(
@@ -149,6 +154,42 @@ class ResourceMonitor:
     def log_usage(self) -> None:
         """Log current resource usage and optionally collect for summary."""
         stats = self.get_all_usage()
+        current_time = time.time()
+        
+        # Calculate I/O rates if we have previous measurements
+        if self.prev_disk_io is not None and self.prev_net_io is not None and self.prev_time is not None:
+            time_delta = current_time - self.prev_time
+            if time_delta > 0:
+                # Calculate disk I/O rates (MB/s)
+                disk_read_rate_mbps = (stats["disk_io"]["read_bytes"] - self.prev_disk_io["read_bytes"]) / (1024 ** 2) / time_delta
+                disk_write_rate_mbps = (stats["disk_io"]["write_bytes"] - self.prev_disk_io["write_bytes"]) / (1024 ** 2) / time_delta
+                
+                # Calculate network I/O rates (MB/s)
+                net_recv_rate_mbps = (stats["network"]["bytes_recv"] - self.prev_net_io["bytes_recv"]) / (1024 ** 2) / time_delta
+                net_send_rate_mbps = (stats["network"]["bytes_sent"] - self.prev_net_io["bytes_sent"]) / (1024 ** 2) / time_delta
+                
+                # Add rates to stats
+                stats["disk_io"]["read_rate_mbps"] = disk_read_rate_mbps
+                stats["disk_io"]["write_rate_mbps"] = disk_write_rate_mbps
+                stats["network"]["recv_rate_mbps"] = net_recv_rate_mbps
+                stats["network"]["send_rate_mbps"] = net_send_rate_mbps
+            else:
+                # First measurement or no time elapsed, set rates to 0
+                stats["disk_io"]["read_rate_mbps"] = 0.0
+                stats["disk_io"]["write_rate_mbps"] = 0.0
+                stats["network"]["recv_rate_mbps"] = 0.0
+                stats["network"]["send_rate_mbps"] = 0.0
+        else:
+            # First measurement, no rates available
+            stats["disk_io"]["read_rate_mbps"] = 0.0
+            stats["disk_io"]["write_rate_mbps"] = 0.0
+            stats["network"]["recv_rate_mbps"] = 0.0
+            stats["network"]["send_rate_mbps"] = 0.0
+        
+        # Update previous values for next calculation
+        self.prev_disk_io = stats["disk_io"].copy()
+        self.prev_net_io = stats["network"].copy()
+        self.prev_time = current_time
 
         # Store sample if collecting summary
         if self.collect_summary and self.samples is not None:
@@ -192,7 +233,7 @@ class ResourceMonitor:
 
         def calculate_min(values):
             return min(values) if values else 0.0
-            
+
         def calculate_25th_percentile(values):
             if not values:
                 return 0.0
@@ -223,6 +264,12 @@ class ResourceMonitor:
         net_bytes_recv = [s["network"]["bytes_recv"] for s in self.samples]
         net_packets_sent = [s["network"]["packets_sent"] for s in self.samples]
         net_packets_recv = [s["network"]["packets_recv"] for s in self.samples]
+        
+        # I/O rates (per-interval rates in MB/s)
+        disk_read_rate_mbps = [s["disk_io"]["read_rate_mbps"] for s in self.samples]
+        disk_write_rate_mbps = [s["disk_io"]["write_rate_mbps"] for s in self.samples]
+        net_recv_rate_mbps = [s["network"]["recv_rate_mbps"] for s in self.samples]
+        net_send_rate_mbps = [s["network"]["send_rate_mbps"] for s in self.samples]
 
         duration_seconds = len(self.samples) * self.log_interval
 
@@ -273,6 +320,12 @@ class ResourceMonitor:
                 )
                 if len(disk_write_bytes) > 1
                 else 0.0,
+                "avg_read_rate_interval_mbps": calculate_avg(disk_read_rate_mbps),
+                "max_read_rate_mbps": calculate_max(disk_read_rate_mbps),
+                "p25_read_rate_mbps": calculate_25th_percentile(disk_read_rate_mbps),
+                "avg_write_rate_interval_mbps": calculate_avg(disk_write_rate_mbps),
+                "max_write_rate_mbps": calculate_max(disk_write_rate_mbps),
+                "p25_write_rate_mbps": calculate_25th_percentile(disk_write_rate_mbps),
             },
             "network": {
                 "total_bytes_sent_gb": (net_bytes_sent[-1] - net_bytes_sent[0]) / (1024 ** 3)
@@ -301,6 +354,12 @@ class ResourceMonitor:
                 )
                 if len(net_bytes_recv) > 1
                 else 0.0,
+                "avg_recv_rate_interval_mbps": calculate_avg(net_recv_rate_mbps),
+                "max_recv_rate_mbps": calculate_max(net_recv_rate_mbps),
+                "p25_recv_rate_mbps": calculate_25th_percentile(net_recv_rate_mbps),
+                "avg_send_rate_interval_mbps": calculate_avg(net_send_rate_mbps),
+                "max_send_rate_mbps": calculate_max(net_send_rate_mbps),
+                "p25_send_rate_mbps": calculate_25th_percentile(net_send_rate_mbps),
             },
         }
 
@@ -370,7 +429,7 @@ class ResourceMonitor:
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
         # Table header
-        header = f"{'Resource':<12} {'Total':>10} {'Average':>10} {'Peak':>10} {'Low (25%)':>10} {'Minimum':>10}"
+        header = f"{'Resource':<12} {'Total':>9} {'Peak':>9} {'Average':>11} {'Low (25%)':>11} {'Minimum':>11}"
         summary += lrpad(header, bounds="|", length=80) + "\n"
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
@@ -379,7 +438,7 @@ class ResourceMonitor:
         cpu_max = f"{cpu['max_percent']:.1f}%"
         cpu_p25 = f"{cpu['p25_percent']:.1f}%"
         cpu_min = f"{cpu['min_percent']:.1f}%"
-        cpu_row = f"{'CPU':<12} {'-':>10} {cpu_avg:>10} {cpu_max:>10} {cpu_p25:>10} {cpu_min:>10}"
+        cpu_row = f"{'CPU':<12} {'-':>9} {cpu_max:>9} {cpu_avg:>11} {cpu_p25:>11} {cpu_min:>11}"
         summary += lrpad(cpu_row, bounds="|", length=80) + "\n"
 
         # Memory row
@@ -388,7 +447,7 @@ class ResourceMonitor:
         mem_max = f"{mem['max_used_gb']:.1f}GB"
         mem_p25 = f"{mem['p25_used_gb']:.1f}GB"
         mem_min = f"{mem['min_used_gb']:.1f}GB"
-        mem_row = f"{'Memory':<12} {mem_total:>10} {mem_avg:>10} {mem_max:>10} {mem_p25:>10} {mem_min:>10}"
+        mem_row = f"{'Memory':<12} {mem_total:>9} {mem_max:>9} {mem_avg:>11} {mem_p25:>11} {mem_min:>11}"
         summary += lrpad(mem_row, bounds="|", length=80) + "\n"
 
         # GPU rows if available
@@ -401,7 +460,7 @@ class ResourceMonitor:
                 gpu_util_max = f"{gpu_stats['max_utilization_percent']:.1f}%"
                 gpu_util_p25 = f"{gpu_stats['p25_utilization_percent']:.1f}%"
                 gpu_util_min = f"{gpu_stats['min_utilization_percent']:.1f}%"
-                gpu_util_row = f"{'GPU ' + gpu_id:<12} {'-':>10} {gpu_util_avg:>10} {gpu_util_max:>10} {gpu_util_p25:>10} {gpu_util_min:>10}"
+                gpu_util_row = f"{'GPU ' + gpu_id:<12} {'-':>9} {gpu_util_max:>9} {gpu_util_avg:>11} {gpu_util_p25:>11} {gpu_util_min:>11}"
                 summary += lrpad(gpu_util_row, bounds="|", length=80) + "\n"
 
                 # GPU memory row
@@ -410,7 +469,7 @@ class ResourceMonitor:
                 gpu_mem_max = f"{gpu_stats['max_memory_used_gb']:.1f}GB"
                 gpu_mem_p25 = f"{gpu_stats['p25_memory_used_gb']:.1f}GB"
                 gpu_mem_min = f"{gpu_stats['min_memory_used_gb']:.1f}GB"
-                gpu_mem_row = f"{'GPU ' + gpu_id + ' Mem':<12} {gpu_mem_total:>10} {gpu_mem_avg:>10} {gpu_mem_max:>10} {gpu_mem_p25:>10} {gpu_mem_min:>10}"
+                gpu_mem_row = f"{'GPU ' + gpu_id + ' Mem':<12} {gpu_mem_total:>9} {gpu_mem_max:>9} {gpu_mem_avg:>11} {gpu_mem_p25:>11} {gpu_mem_min:>11}"
                 summary += lrpad(gpu_mem_row, bounds="|", length=80) + "\n"
 
         summary += lrpad("", bounds="|", length=80) + "\n"
@@ -423,43 +482,51 @@ class ResourceMonitor:
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
         # I/O Table header
-        io_header = f"{'Operation':<15} {'Count':>15} {'Total Bytes':>15} {'Avg Rate':>15}"
+        io_header = f"{'Operation':<12} {'Count':>9} {'Total':>9} {'Avg Rate':>11} {'Low Rate':>11} {'Peak Rate':>11}"
         summary += lrpad(io_header, bounds="|", length=80) + "\n"
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
         # Disk Read row
         disk_read_ops = f"{disk_io['total_read_ops']:,}"
-        disk_read_bytes = f"{disk_io['total_read_gb']:.3f}GB"
-        disk_read_rate = f"{disk_io['avg_read_rate_mbps']:.2f}MB/s"
+        disk_read_bytes = f"{disk_io['total_read_gb']:.2f}GB"
+        disk_read_rate = f"{disk_io['avg_read_rate_mbps']:.1f}MB/s"
+        disk_read_rate_p25 = f"{disk_io.get('p25_read_rate_mbps', 0):.1f}MB/s"
+        disk_read_rate_max = f"{disk_io.get('max_read_rate_mbps', 0):.1f}MB/s"
         disk_read_row = (
-            f"{'Disk Read':<15} {disk_read_ops:>15} {disk_read_bytes:>15} {disk_read_rate:>15}"
+            f"{'Disk Read':<12} {disk_read_ops:>9} {disk_read_bytes:>9} {disk_read_rate:>11} {disk_read_rate_p25:>11} {disk_read_rate_max:>11}"
         )
         summary += lrpad(disk_read_row, bounds="|", length=80) + "\n"
 
         # Disk Write row
         disk_write_ops = f"{disk_io['total_write_ops']:,}"
-        disk_write_bytes = f"{disk_io['total_write_gb']:.3f}GB"
-        disk_write_rate = f"{disk_io['avg_write_rate_mbps']:.2f}MB/s"
+        disk_write_bytes = f"{disk_io['total_write_gb']:.2f}GB"
+        disk_write_rate = f"{disk_io['avg_write_rate_mbps']:.1f}MB/s"
+        disk_write_rate_p25 = f"{disk_io.get('p25_write_rate_mbps', 0):.1f}MB/s"
+        disk_write_rate_max = f"{disk_io.get('max_write_rate_mbps', 0):.1f}MB/s"
         disk_write_row = (
-            f"{'Disk Write':<15} {disk_write_ops:>15} {disk_write_bytes:>15} {disk_write_rate:>15}"
+            f"{'Disk Write':<12} {disk_write_ops:>9} {disk_write_bytes:>9} {disk_write_rate:>11} {disk_write_rate_p25:>11} {disk_write_rate_max:>11}"
         )
         summary += lrpad(disk_write_row, bounds="|", length=80) + "\n"
 
         # Network Receive row
         net_recv_ops = f"{net['total_packets_recv']:,}"
-        net_recv_bytes = f"{net['total_bytes_recv_gb']:.3f}GB"
-        net_recv_rate = f"{net['avg_recv_rate_mbps']:.2f}MB/s"
+        net_recv_bytes = f"{net['total_bytes_recv_gb']:.2f}GB"
+        net_recv_rate = f"{net['avg_recv_rate_mbps']:.1f}MB/s"
+        net_recv_rate_p25 = f"{net.get('p25_recv_rate_mbps', 0):.1f}MB/s"
+        net_recv_rate_max = f"{net.get('max_recv_rate_mbps', 0):.1f}MB/s"
         net_recv_row = (
-            f"{'Net Receive':<15} {net_recv_ops:>15} {net_recv_bytes:>15} {net_recv_rate:>15}"
+            f"{'Net Receive':<12} {net_recv_ops:>9} {net_recv_bytes:>9} {net_recv_rate:>11} {net_recv_rate_p25:>11} {net_recv_rate_max:>11}"
         )
         summary += lrpad(net_recv_row, bounds="|", length=80) + "\n"
 
         # Network Send row
         net_send_ops = f"{net['total_packets_sent']:,}"
-        net_send_bytes = f"{net['total_bytes_sent_gb']:.3f}GB"
-        net_send_rate = f"{net['avg_send_rate_mbps']:.2f}MB/s"
+        net_send_bytes = f"{net['total_bytes_sent_gb']:.2f}GB"
+        net_send_rate = f"{net['avg_send_rate_mbps']:.1f}MB/s"
+        net_send_rate_p25 = f"{net.get('p25_send_rate_mbps', 0):.1f}MB/s"
+        net_send_rate_max = f"{net.get('max_send_rate_mbps', 0):.1f}MB/s"
         net_send_row = (
-            f"{'Net Send':<15} {net_send_ops:>15} {net_send_bytes:>15} {net_send_rate:>15}"
+            f"{'Net Send':<12} {net_send_ops:>9} {net_send_bytes:>9} {net_send_rate:>11} {net_send_rate_p25:>11} {net_send_rate_max:>11}"
         )
         summary += lrpad(net_send_row, bounds="|", length=80) + "\n"
 

@@ -192,6 +192,20 @@ class ResourceMonitor:
 
         def calculate_min(values):
             return min(values) if values else 0.0
+            
+        def calculate_25th_percentile(values):
+            if not values:
+                return 0.0
+            sorted_values = sorted(values)
+            n = len(sorted_values)
+            index = int(0.25 * (n - 1))
+            # Linear interpolation for more accurate percentile
+            if index < n - 1:
+                lower = sorted_values[index]
+                upper = sorted_values[index + 1]
+                fraction = 0.25 * (n - 1) - index
+                return lower + fraction * (upper - lower)
+            return sorted_values[index]
 
         cpu_values = [s["cpu_percent"] for s in self.samples]
         mem_used = [s["memory"]["used_gb"] for s in self.samples]
@@ -219,15 +233,18 @@ class ResourceMonitor:
                 "avg_percent": calculate_avg(cpu_values),
                 "max_percent": calculate_max(cpu_values),
                 "min_percent": calculate_min(cpu_values),
+                "p25_percent": calculate_25th_percentile(cpu_values),
             },
             "memory": {
                 "total_gb": mem_total,
                 "avg_used_gb": calculate_avg(mem_used),
                 "max_used_gb": calculate_max(mem_used),
                 "min_used_gb": calculate_min(mem_used),
+                "p25_used_gb": calculate_25th_percentile(mem_used),
                 "avg_percent": calculate_avg(mem_percent),
                 "max_percent": calculate_max(mem_percent),
                 "min_percent": calculate_min(mem_percent),
+                "p25_percent": calculate_25th_percentile(mem_percent),
             },
             "disk_io": {
                 "total_read_gb": (disk_read_bytes[-1] - disk_read_bytes[0]) / (1024 ** 3)
@@ -312,9 +329,11 @@ class ResourceMonitor:
                     "avg_utilization_percent": calculate_avg(gpu_util),
                     "max_utilization_percent": calculate_max(gpu_util),
                     "min_utilization_percent": calculate_min(gpu_util),
+                    "p25_utilization_percent": calculate_25th_percentile(gpu_util),
                     "avg_memory_used_gb": calculate_avg(gpu_mem_used),
                     "max_memory_used_gb": calculate_max(gpu_mem_used),
                     "min_memory_used_gb": calculate_min(gpu_mem_used),
+                    "p25_memory_used_gb": calculate_25th_percentile(gpu_mem_used),
                 }
             summary["gpus"] = gpu_summary
 
@@ -351,23 +370,25 @@ class ResourceMonitor:
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
         # Table header
-        header = f"{'Resource':<12} {'Total':>12} {'Average':>12} {'Peak':>12} {'Minimum':>12}"
+        header = f"{'Resource':<12} {'Total':>10} {'Average':>10} {'Peak':>10} {'Low (25%)':>10} {'Minimum':>10}"
         summary += lrpad(header, bounds="|", length=80) + "\n"
         summary += lrpad("", filler="-", bounds="|", length=80) + "\n"
 
         # CPU row
         cpu_avg = f"{cpu['avg_percent']:.1f}%"
         cpu_max = f"{cpu['max_percent']:.1f}%"
+        cpu_p25 = f"{cpu['p25_percent']:.1f}%"
         cpu_min = f"{cpu['min_percent']:.1f}%"
-        cpu_row = f"{'CPU':<12} {'-':>12} {cpu_avg:>12} {cpu_max:>12} {cpu_min:>12}"
+        cpu_row = f"{'CPU':<12} {'-':>10} {cpu_avg:>10} {cpu_max:>10} {cpu_p25:>10} {cpu_min:>10}"
         summary += lrpad(cpu_row, bounds="|", length=80) + "\n"
 
         # Memory row
         mem_total = f"{mem['total_gb']:.1f}GB"
         mem_avg = f"{mem['avg_used_gb']:.1f}GB"
         mem_max = f"{mem['max_used_gb']:.1f}GB"
+        mem_p25 = f"{mem['p25_used_gb']:.1f}GB"
         mem_min = f"{mem['min_used_gb']:.1f}GB"
-        mem_row = f"{'Memory':<12} {mem_total:>12} {mem_avg:>12} {mem_max:>12} {mem_min:>12}"
+        mem_row = f"{'Memory':<12} {mem_total:>10} {mem_avg:>10} {mem_max:>10} {mem_p25:>10} {mem_min:>10}"
         summary += lrpad(mem_row, bounds="|", length=80) + "\n"
 
         # GPU rows if available
@@ -378,16 +399,18 @@ class ResourceMonitor:
                 # GPU utilization row
                 gpu_util_avg = f"{gpu_stats['avg_utilization_percent']:.1f}%"
                 gpu_util_max = f"{gpu_stats['max_utilization_percent']:.1f}%"
+                gpu_util_p25 = f"{gpu_stats['p25_utilization_percent']:.1f}%"
                 gpu_util_min = f"{gpu_stats['min_utilization_percent']:.1f}%"
-                gpu_util_row = f"{'GPU ' + gpu_id:<12} {'-':>12} {gpu_util_avg:>12} {gpu_util_max:>12} {gpu_util_min:>12}"
+                gpu_util_row = f"{'GPU ' + gpu_id:<12} {'-':>10} {gpu_util_avg:>10} {gpu_util_max:>10} {gpu_util_p25:>10} {gpu_util_min:>10}"
                 summary += lrpad(gpu_util_row, bounds="|", length=80) + "\n"
 
                 # GPU memory row
                 gpu_mem_total = f"{gpu_stats['memory_total_gb']:.1f}GB"
                 gpu_mem_avg = f"{gpu_stats['avg_memory_used_gb']:.1f}GB"
                 gpu_mem_max = f"{gpu_stats['max_memory_used_gb']:.1f}GB"
+                gpu_mem_p25 = f"{gpu_stats['p25_memory_used_gb']:.1f}GB"
                 gpu_mem_min = f"{gpu_stats['min_memory_used_gb']:.1f}GB"
-                gpu_mem_row = f"{'GPU ' + gpu_id + ' Mem':<12} {gpu_mem_total:>12} {gpu_mem_avg:>12} {gpu_mem_max:>12} {gpu_mem_min:>12}"
+                gpu_mem_row = f"{'GPU ' + gpu_id + ' Mem':<12} {gpu_mem_total:>10} {gpu_mem_avg:>10} {gpu_mem_max:>10} {gpu_mem_p25:>10} {gpu_mem_min:>10}"
                 summary += lrpad(gpu_mem_row, bounds="|", length=80) + "\n"
 
         summary += lrpad("", bounds="|", length=80) + "\n"

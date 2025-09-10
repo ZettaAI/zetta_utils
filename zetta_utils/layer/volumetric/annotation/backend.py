@@ -856,6 +856,8 @@ class AnnotationLayerBackend(
                 anno_list.append(anno)
         assert relation.key is not None
         rel_dir_path = path_join(self.path, relation.key)
+        if is_local_filesystem(self.path):
+            os.makedirs(rel_dir_path, exist_ok=True)
         for related_id, anno_list in rel_id_to_anno.items():
             file_path = path_join(rel_dir_path, str(related_id))
             self.write_multi_annotation_file(file_path, anno_list, False, False)

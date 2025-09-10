@@ -107,9 +107,11 @@ def test_round_trip():
 
     # Test all_by_id() method - should work since we wrote with by_id index
     all_by_id_lines = list(sf.all_by_id())
-    assert len(all_by_id_lines) == 5  # 3 original + 2 new lines
+    assert (
+        len(all_by_id_lines) == 7
+    )  # 5 original + 2 new lines (clearing only affects spatial index)
     by_id_ids = {line.id for line in all_by_id_lines}
-    assert by_id_ids == {1, 2, 3, 104, 105}
+    assert by_id_ids == {1, 2, 3, 4, 5, 104, 105}
 
     # Test suppress_by_id_index functionality
     suppress_dir = os.path.join(temp_dir, "suppress_by_id")
@@ -228,7 +230,7 @@ def test_relationships_and_related_index():
 
     # Define relationships and properties
     relationships = [
-        Relationship(id="synapse_id"),
+        Relationship(id="synapse_id", key="synapse_id"),
         Relationship(id="parent_neuron", key="parent_neurons"),
     ]
 
@@ -308,8 +310,8 @@ def test_relationships_and_related_index():
     # Find line 1 and verify its relationships were preserved
     line_1 = next(line for line in all_by_id_lines if line.id == 1)
     assert line_1.relations["synapse_id"] == [1001, 1002]
-    assert line_1.relations["parent_neuron"] == 2001
-    assert line_1.properties["confidence"] == 0.95
+    assert line_1.relations["parent_neuron"] == [2001]  # Single int becomes list
+    assert abs(line_1.properties["confidence"] - 0.95) < 1e-6  # Allow float32 precision
 
     # Test suppress_by_id_index with relationships - should warn
     suppress_dir = os.path.join(temp_dir, "suppress_with_relationships")

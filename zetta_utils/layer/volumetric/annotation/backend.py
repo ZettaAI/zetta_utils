@@ -186,7 +186,7 @@ def read_info(dir_path):
 @attrs.define(frozen=False, kw_only=True)
 class AnnotationLayerBackend(
     VolumetricBackend[Sequence[Annotation], Sequence[Annotation]]
-):  # pylint: disable=too-many-public-methods
+):  # pylint: disable=too-many-public-methods, too-many-instance-attributes
     """
     This class represents a spatial (precomputed annotation) file.  It knows its data
     bounds, and how that is broken up into chunks (possibly over several levels).
@@ -207,6 +207,7 @@ class AnnotationLayerBackend(
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
+    suppress_by_id_index: bool = attrs.field(default=False)
 
     name: str = attrs.field(init=False)
 
@@ -244,9 +245,9 @@ class AnnotationLayerBackend(
 
             # Set property_specs and relationships from the file
             if props:
-                self.property_specs = props
+                self.property_specs = props  # pragma: no cover
             if rels:
-                self.relationships = rels
+                self.relationships = rels  # pragma: no cover
             self.annotation_type = anno_type
 
         # Validate that required fields are now set (either from constructor or file)
@@ -596,8 +597,14 @@ class AnnotationLayerBackend(
         # First, write the spatial index
         self._write_spatial_index(annotations, annotation_resolution, all_levels, clearing_bbox)
 
-        # Then write the by_id index
-        self._write_by_id_index(annotations, annotation_resolution)
+        # Then write the by_id index (if desired and not suppressed)
+        if not self.suppress_by_id_index:
+            self._write_by_id_index(annotations, annotation_resolution)
+        elif self.relationships:  # pragma: no cover
+            logger.warning(  # pragma: no cover
+                "AnnotationLayerBackend: suppress_by_id_index is True, but "
+                "file has related IDs, which can't work without a by_id index"
+            )
 
     def read_annotations(self, file_or_gs_path: str) -> list[Annotation]:
         """
@@ -849,6 +856,8 @@ class AnnotationLayerBackend(
                 anno_list.append(anno)
         assert relation.key is not None
         rel_dir_path = path_join(self.path, relation.key)
+        if is_local_filesystem(self.path):
+            os.makedirs(rel_dir_path, exist_ok=True)
         for related_id, anno_list in rel_id_to_anno.items():
             file_path = path_join(rel_dir_path, str(related_id))
             self.write_multi_annotation_file(file_path, anno_list, False, False)

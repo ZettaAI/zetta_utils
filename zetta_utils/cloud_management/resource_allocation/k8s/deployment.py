@@ -156,26 +156,22 @@ def deployment_ctx_mngr(
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
     secrets: List[k8s_client.V1Secret],
-    namespace: Optional[str] = "default",
+    namespace: str = "default",
     stream_logs: bool = False,
     tail_lines: int | None = None,
 ):
     def _stream_deployment_logs():
-        core_api = k8s_client.CoreV1Api()
         dep_selector = ",".join(
             f"{k}={v}" for k, v in deployment.spec.selector.match_labels.items()
         )
-        pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=dep_selector).items
-        if pods:
-            pod_name = pods[0].metadata.name
-            _name = deployment.metadata.name
-            stream_pod_logs(
-                logger,
-                pod_name,
-                namespace,
-                prefix=f"{_name[:7]}...{_name[-7:]}",
-                tail_lines=tail_lines,
-            )
+        _name = deployment.metadata.name
+        stream_pod_logs(
+            cluster_info,
+            dep_selector=dep_selector,
+            namespace=namespace,
+            prefix=f"{_name[:7]}...{_name[-7:]}",
+            tail_lines=tail_lines,
+        )
 
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)

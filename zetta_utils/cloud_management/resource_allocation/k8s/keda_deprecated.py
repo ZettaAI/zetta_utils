@@ -170,7 +170,7 @@ def scaled_deployment_ctx_mngr(
     secrets: list[k8s_client.V1Secret],
     max_replicas: int,
     queue: SQSQueue,
-    namespace: str | None = "default",
+    namespace: str = "default",
     cool_down_period: int = 300,
 ):
     configuration, _ = get_cluster_data(cluster_info)

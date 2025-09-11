@@ -189,7 +189,7 @@ def scaled_deployment_ctx_mngr(
     max_replicas: int,
     sqs_trigger_name: str,
     queue: SQSQueue,
-    namespace: str | None = "default",
+    namespace: str = "default",
     cool_down_period: int = 300,
 ):
     configuration, _ = get_cluster_data(cluster_info)

@@ -133,7 +133,9 @@ def follow_job_logs(
             namespace=namespace, label_selector=f"job-name={job.metadata.name}"
         )
         pod_name = podlist.items[0].metadata.name
-        stream_pod_logs(logger, pod_name, tail_lines=tail_lines)
+        stream_pod_logs(
+            cluster_info, pod_name=pod_name, namespace=namespace, tail_lines=tail_lines
+        )
     except ApiException as exc:
         if exc.status == 404:
             logger.info(f"Job `{job.metadata.name}` was deleted.")

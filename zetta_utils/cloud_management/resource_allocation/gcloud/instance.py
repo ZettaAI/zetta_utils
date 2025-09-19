@@ -2,9 +2,13 @@
 
 from datetime import datetime
 
+from cachetools import TTLCache, cached
 from googleapiclient import discovery
 
+CACHE: TTLCache = TTLCache(maxsize=256, ttl=600)
 
+
+@cached(CACHE)
 def get_node_info(project_id: str, zone: str, instance_name: str):
     """
     Get information about a VM instance in a given zone.

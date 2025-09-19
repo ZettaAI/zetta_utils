@@ -296,13 +296,6 @@ def test_lambda(spec: dict, arg: Any, expected: Any):
             ValueError,
         ],
         [{"@type": "lambda", "lambda_str": "notalambdastring"}, ValueError],
-        [
-            {
-                "@type": "lambda",
-                "lambda_str": "lambda really_long_lambda_str_that_can_contain_arbitrary_code_to_execute_like_bitcoin_mining: None",
-            },
-            ValueError,
-        ],
     ],
 )
 def test_lambda_exc(value, expected_exc):

@@ -6,7 +6,7 @@ import torch
 from zetta_utils.tensor_ops import common
 from zetta_utils.tensor_typing import TensorTypeVar
 
-from ..helpers import assert_array_equal
+from ..helpers import assert_array_almost_equal, assert_array_equal
 
 
 @pytest.mark.parametrize(
@@ -79,6 +79,30 @@ def array_1d_x0_avg_pool():
         [
             [
                 [0.5, 1],
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+
+@pytest.fixture
+def array_1d_x0_ups_align_corners_false():
+    return np.array(
+        [
+            [
+                [1.0000, 0.7500, 0.2500, 0.2500, 0.7500, 1.0000, 1.0000, 1.0000],
+            ]
+        ],
+        dtype=np.float32,
+    )
+
+
+@pytest.fixture
+def array_1d_x0_ups_align_corners_true():
+    return np.array(
+        [
+            [
+                [1, 4 / 7, 1 / 7, 2 / 7, 5 / 7, 1, 1, 1],
             ]
         ],
         dtype=np.float32,
@@ -549,13 +573,25 @@ def array_x1_avg_pool():
             {"scale_factor": 2.0, "unsqueeze_input_to": 4},
             "torch_seg_uint63_ups",
         ],
+        [
+            "array_1d_x0",
+            "linear",
+            {"scale_factor": 2.0, "align_corners": False, "unsqueeze_input_to": 3},
+            "array_1d_x0_ups_align_corners_false",
+        ],
+        [
+            "array_1d_x0",
+            "linear",
+            {"scale_factor": 2.0, "align_corners": True, "unsqueeze_input_to": 3},
+            "array_1d_x0_ups_align_corners_true",
+        ],
     ],
 )
 def test_interpolate(data_name, mode, kwargs, expected_name, request):
     data = request.getfixturevalue(data_name)
     result = common.interpolate(data, mode=mode, **kwargs)
     expected = request.getfixturevalue(expected_name)
-    assert_array_equal(result, expected)
+    assert_array_almost_equal(result, expected, 5)
 
 
 @pytest.fixture

@@ -369,6 +369,7 @@ def interpolate(  # pylint: disable=too-many-locals
     size: Optional[Sequence[int]] = None,
     scale_factor: Optional[Union[float, Sequence[float]]] = None,
     mode: InterpolationMode = "img",
+    align_corners: bool | None = None,
     mask_value_thr: float = 0,
     allow_slice_rounding: bool = False,
     unsqueeze_input_to: Optional[int] = 5,
@@ -381,6 +382,8 @@ def interpolate(  # pylint: disable=too-many-locals
     :param scale_factor: Interpolation scale factor.
         When provided as ``float``, applied to all spatial dimensions of the data.
     :param mode: Algorithm according to which the tensor should be interpolated.
+    :param align_corners: If set to True, the input and output tensors are aligned by the
+        center points of their corner pixels, preserving the values at the corner pixels.
     :param mask_value_thr: When ``mode == 'mask'``, threshold above which the interpolated
         value will be considered as ``True``.
     :param allow_slice_rounding: Whether to allow interpolation with scale factors that
@@ -420,6 +423,7 @@ def interpolate(  # pylint: disable=too-many-locals
             )
         )
         and data.shape[0] == 1
+        and align_corners is None
     ):  # use tinybrain
         result_raw = _interpolate_with_tinybrain(
             data=data,
@@ -433,6 +437,7 @@ def interpolate(  # pylint: disable=too-many-locals
             size=size,
             mode=mode,
             mask_value_thr=mask_value_thr,
+            align_corners=align_corners,
         )
 
     result_final = squeeze_to(result_raw, original_ndim)
@@ -446,6 +451,7 @@ def _interpolate_with_torch(
     size: Optional[Sequence[int]],
     mode: InterpolationMode,
     mask_value_thr: float,
+    align_corners: bool | None,
 ) -> TensorTypeVar:
     torch_interp_mode = _get_torch_interp_mode(
         spatial_ndim=data.ndim - 2,
@@ -468,6 +474,7 @@ def _interpolate_with_torch(
             size=size,
             scale_factor=scale_factor_tuple,
             mode=torch_interp_mode,
+            align_corners=align_corners,
         )
 
     if mode == "field":

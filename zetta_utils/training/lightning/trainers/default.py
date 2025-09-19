@@ -237,8 +237,8 @@ class ConfigureLogging(pl.callbacks.Callback):
         self.exp_name = exp_name
         self.exp_version = exp_version
 
-    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):  # pragma: no cover
+        if not os.environ.get("WANDB_MODE", None) == "offline":
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 

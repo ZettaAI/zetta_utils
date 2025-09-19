@@ -49,8 +49,8 @@ all-cpu = ["zetta_utils[modules,docs,test]"]
 all = ["zetta_utils[all_cpu,gpu]"]
 augmentations = [
   "zetta_utils[tensor_ops]",
-  "imaug @ git+https://github.com/imaug/imaug.git", # not a typo, fork of imgaug
-  "imagecorruptions >= 1.1.2",
+  "imaug",
+  "imagecorruptions-imaug",
   "torchvision",
 ]
 cli = ["click >= 8.0.1"]
@@ -222,7 +222,7 @@ test = [
   "mypy-extensions == 1.0.0",
   "pytest == 7.1.1",
   "pytest-cov == 3.0.0",
-  "coverage == 6.5.0",
+  "coverage == 7.10.6",
   "pytest-mock == 3.8.2",
   "pylint == 3.1.0",
   "isort == 5.10.1",

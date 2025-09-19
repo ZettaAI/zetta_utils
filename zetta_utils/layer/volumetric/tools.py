@@ -118,6 +118,8 @@ class VolumetricIndexPadder:  # pragma: no cover
 class DataResolutionInterpolator(JointIndexDataProcessor):
     data_resolution: Sequence[float]
     interpolation_mode: tensor_ops.InterpolationMode
+    align_corners: bool | None = None
+    mask_value_thr: float = 0.0
     allow_slice_rounding: bool = False
     prepared_scale_factor: Vec3D | None = attrs.field(init=False, default=None)
 
@@ -144,6 +146,8 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
             data=data,
             scale_factor=self.prepared_scale_factor,
             mode=self.interpolation_mode,
+            align_corners=self.align_corners,
+            mask_value_thr=self.mask_value_thr,
             allow_slice_rounding=self.allow_slice_rounding,
             unsqueeze_input_to=5,  # b + c + xyz
         )

@@ -2,6 +2,7 @@
 import argparse
 import os
 import subprocess
+import tempfile
 
 CREATE_SERVICE_ACCOUNT_TMPL = (
     "gcloud iam service-accounts create {CLUSTER_NAME}-worker --project={PROJECT_NAME}"
@@ -9,35 +10,36 @@ CREATE_SERVICE_ACCOUNT_TMPL = (
 
 CREATE_COMMAND_TMPL = 'gcloud beta container --project "{PROJECT_NAME}" clusters create "{CLUSTER_NAME}" --region "{REGION}" \
     --tier "standard" --no-enable-basic-auth --release-channel "regular" \
-    --machine-type "e2-medium" --image-type "COS_CONTAINERD" --disk-type "pd-standard" --disk-size "10" \
+    --machine-type "e2-medium" --image-type "COS_CONTAINERD" --disk-type "pd-standard" --disk-size "15" \
     --metadata disable-legacy-endpoints=true --service-account "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" \
-    --spot --max-pods-per-node "110" --num-nodes "1" --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM \
+    --spot --max-pods-per-node "110" --num-nodes "1" --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM,STORAGE,POD,DEPLOYMENT,STATEFULSET,DAEMONSET,HPA,JOBSET,CADVISOR,KUBELET,DCGM \
     --enable-ip-alias --network "projects/{PROJECT_NAME}/global/networks/default" --subnetwork "projects/{PROJECT_NAME}/regions/{REGION}/subnetworks/default" --no-enable-intra-node-visibility --default-max-pods-per-node "16" \
     --enable-autoscaling --total-min-nodes "1" --total-max-nodes "10" --location-policy "ANY" \
-    --enable-dataplane-v2 --no-enable-master-authorized-networks --addons HorizontalPodAutoscaling,GcePersistentDiskCsiDriver \
-    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 0 --max-unavailable-upgrade 1 \
-    --maintenance-window-start "2022-01-19T05:00:00Z" --maintenance-window-end "2022-01-20T05:00:00Z" --maintenance-window-recurrence "FREQ=WEEKLY;BYDAY=SA,SU" \
-    --labels owner={USERNAME} \
-    --enable-autoprovisioning --max-cpu 10 --max-memory 128 --autoprovisioning-service-account={CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com \
-    --enable-autoprovisioning-autorepair --enable-autoprovisioning-autoupgrade --autoprovisioning-max-surge-upgrade 0 --autoprovisioning-max-unavailable-upgrade 1 \
-    --workload-pool "{PROJECT_NAME}.svc.id.goog" --enable-shielded-nodes --enable-image-streaming --node-locations "{NODE_LOCATIONS}"'
-
-UPDATE_AUTOPROVISION_TMPL = 'gcloud container clusters update {CLUSTER_NAME} --project "{PROJECT_NAME}" --region "{REGION}" --enable-autoprovisioning --autoprovisioning-config-file={CONFIG_FILE_PATH}'
+    --security-posture=standard --workload-vulnerability-scanning=disabled \
+    --enable-dataplane-v2 --no-enable-google-cloud-access --addons HorizontalPodAutoscaling,GcePersistentDiskCsiDriver \
+    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 \
+    --maintenance-window-start "2025-09-20T04:00:00.000Z" --maintenance-window-end "2025-09-21T04:00:00.000Z" --maintenance-window-recurrence "FREQ=WEEKLY;BYDAY=SA,SU" --binauthz-evaluation-mode=DISABLED \
+    --enable-autoprovisioning --autoprovisioning-config-file={CONFIG_FILE_PATH} \
+    --autoscaling-profile optimize-utilization --enable-managed-prometheus --workload-pool "{PROJECT_NAME}.svc.id.goog" \
+    --enable-shielded-nodes --shielded-integrity-monitoring --no-shielded-secure-boot --enable-image-streaming --node-locations "{NODE_LOCATIONS}"'
 
 ADD_CPU_COMMAND_TMPL = 'gcloud beta container --project "{PROJECT_NAME}" node-pools create "cpu-t2d-standard-16" --cluster "{CLUSTER_NAME}" --region "{REGION}" \
     --machine-type "t2d-standard-16" --image-type "COS_CONTAINERD" --disk-type "pd-standard" --disk-size "64" \
-    --metadata disable-legacy-endpoints=true --service-account "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" \
-    --spot --max-pods-per-node "16" --num-nodes "0" \
-    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 \
-    --enable-autoscaling --total-min-nodes "0" --total-max-nodes "10" --node-taints=worker-pool=true:NoSchedule \
+    --metadata disable-legacy-endpoints=true --node-taints worker-pool=true:NoSchedule --service-account "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" \
+    --spot --num-nodes "0" \
+    --enable-autoscaling --total-min-nodes "0" --total-max-nodes "10" --location-policy "ANY" \
+    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 --max-pods-per-node "16" \
+    --shielded-integrity-monitoring --no-shielded-secure-boot \
     --enable-image-streaming --node-locations {NODE_LOCATIONS}'
 
 ADD_GPU_COMMAND_TMPL = 'gcloud beta container --project "{PROJECT_NAME}" node-pools create "gpu-g2-standard-8" --cluster "{CLUSTER_NAME}" --region "{REGION}" \
     --machine-type "g2-standard-8" --accelerator "type=nvidia-l4,count=1" --image-type "COS_CONTAINERD" --disk-type "pd-balanced" --disk-size "64" \
-    --metadata disable-legacy-endpoints=true --service-account "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" \
-    --spot --max-pods-per-node "16" --num-nodes "0" \
-    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 \
-    --enable-autoscaling --total-min-nodes "0" --total-max-nodes "10" --node-taints=worker-pool=true:NoSchedule --node-labels=gpu-count=1 \
+    --node-labels gpu-count=1 \
+    --metadata disable-legacy-endpoints=true --node-taints worker-pool=true:NoSchedule --service-account "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" \
+    --spot --num-nodes "0" \
+    --enable-autoscaling --total-min-nodes "0" --total-max-nodes "10" --location-policy "ANY" \
+    --enable-autoupgrade --enable-autorepair --max-surge-upgrade 1 --max-unavailable-upgrade 0 --max-pods-per-node "16" \
+    --shielded-integrity-monitoring --no-shielded-secure-boot \
     --enable-image-streaming --node-locations {NODE_LOCATIONS}'
 
 ADD_WORKLOAD_IDENTITY_TMPL = 'gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
@@ -45,6 +47,10 @@ ADD_WORKLOAD_IDENTITY_TMPL = 'gcloud container clusters get-credentials {CLUSTER
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/artifactregistry.reader" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/serviceusage.serviceUsageConsumer" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/container.defaultNodeServiceAccount" \
+    && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/container.developer" \
+    && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member="serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role="roles/logging.logWriter" \
+    && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member="serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role="roles/monitoring.metricWriter" \
+    && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member="serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role="roles/stackdriver.resourceMetadata.writer" \
     && gcloud projects add-iam-policy-binding {PROJECT_NAME} --member "serviceAccount:zutils-worker-x0@zetta-research.iam.gserviceaccount.com" --role "roles/container.developer" \
     && gcloud projects add-iam-policy-binding zetta-research --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/storage.objectUser" \
     && gcloud projects add-iam-policy-binding zetta-research --member "serviceAccount:{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com" --role "roles/datastore.user" \
@@ -132,24 +138,27 @@ def main():  # pylint: disable=too-many-statements
     print(f"Running: \n{create_iam_command}")
     subprocess.call(create_iam_command, shell=True)
 
+    config_template_path = os.path.join(os.path.dirname(__file__), "autoprovision_config.yaml")
+    with open(config_template_path, 'r') as f:
+        config_content = f.read()
+    config_content = config_content.replace("{CLUSTER_NAME}", args.cluster_name)
+    config_content = config_content.replace("{PROJECT_NAME}", args.project_name)
+    config_content = config_content.replace("{NODE_LOCATIONS}", system_zone)
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_config:
+        temp_config.write(config_content)
+        temp_config_path = temp_config.name
+
     create_command = CREATE_COMMAND_TMPL
     create_command = create_command.replace("{REGION}", args.region)
     create_command = create_command.replace("{USERNAME}", args.username)
     create_command = create_command.replace("{PROJECT_NAME}", args.project_name)
     create_command = create_command.replace("{CLUSTER_NAME}", args.cluster_name)
     create_command = create_command.replace("{NODE_LOCATIONS}", system_zone)
+    create_command = create_command.replace("{CONFIG_FILE_PATH}", temp_config_path)
     print(f"Running: \n{create_command}")
     subprocess.call(create_command, shell=True)
 
-    config_file_path = os.path.join(os.path.dirname(__file__), "autoprovision_config.yaml")
-
-    autoprovision_command = UPDATE_AUTOPROVISION_TMPL
-    autoprovision_command = autoprovision_command.replace("{CONFIG_FILE_PATH}", config_file_path)
-    autoprovision_command = autoprovision_command.replace("{REGION}", args.region)
-    autoprovision_command = autoprovision_command.replace("{PROJECT_NAME}", args.project_name)
-    autoprovision_command = autoprovision_command.replace("{CLUSTER_NAME}", args.cluster_name)
-    print(f"Running: \n{autoprovision_command}")
-    subprocess.call(autoprovision_command, shell=True)
+    os.unlink(temp_config_path)
 
     if args.add_cpu:
         cpu_zones = [f"{args.region}-{zone_letter}" for zone_letter in args.cpu_zones.split(",")]

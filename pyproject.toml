@@ -26,6 +26,7 @@ dependencies = [
   "cloud-files >= 5.3.2",
   "packaging >= 23.2",
   "pdbp >= 1.5.3",
+  "psutil >= 7.1.0",
   "boto3 >= 1.38.15",
   "slack_sdk >= 3.31.0",
   "tabulate >= 0.9.0",
@@ -93,7 +94,7 @@ chunkedgraph = [
   # Note: graph_tool must be installed separately via conda:
   # conda install -c conda-forge graph-tool-base
 ]
-convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch"]
+convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch", "nvidia-ml-py >= 13.580"]
 databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.24.0",

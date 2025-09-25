@@ -72,7 +72,7 @@ def test_get_parent_semaphore():
     except:
         pass
     sema = posix_ipc.Semaphore(name_to_posix_name("read", os.getppid()), flags=posix_ipc.O_CREX)
-    assert sema.name == semaphore("read").name
+    assert sema.name == semaphore("read").semaphore.name
     sema.unlink()
 
 

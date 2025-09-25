@@ -93,6 +93,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    suppress_worker_logs: bool = False,
+    resource_monitor_interval: float | None = 1.0,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -100,7 +102,12 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         labels_final = labels
 
     worker_command = get_mazepa_worker_command(
-        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
+        task_queue_spec,
+        outcome_queue_spec,
+        num_procs,
+        semaphores_spec,
+        suppress_worker_logs=suppress_worker_logs,
+        resource_monitor_interval=resource_monitor_interval,
     )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 

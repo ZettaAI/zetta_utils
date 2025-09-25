@@ -67,19 +67,29 @@ def get_mazepa_worker_command(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     idle_timeout: int | None = None,
+    suppress_worker_logs: bool = False,
+    resource_monitor_interval: float | None = 1.0,
 ):
     if num_procs == 1 and semaphores_spec is None:
         command = "mazepa.run_worker"
         num_procs_line = ""
         semaphores_line = ""
+        suppress_worker_logs_line = ""
     else:
         command = "mazepa.run_worker_manager"
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
+        suppress_worker_logs_line = f"suppress_worker_logs: {json.dumps(suppress_worker_logs)}\n"
 
     idle_timeout_line = ""
     if idle_timeout:
         idle_timeout_line = f"idle_timeout: {idle_timeout}\n"
+
+    resource_monitor_interval_line = ""
+    if resource_monitor_interval is not None:
+        resource_monitor_interval_line = (
+            f"resource_monitor_interval: {resource_monitor_interval}\n"
+        )
 
     result = f"zetta -vv -l try run -r {run.RUN_ID} --no-main-run-process -p -s '{{"
     result += (
@@ -89,6 +99,8 @@ def get_mazepa_worker_command(
         + num_procs_line
         + semaphores_line
         + idle_timeout_line
+        + suppress_worker_logs_line
+        + resource_monitor_interval_line
         + """
         sleep_sec: 5
     }'

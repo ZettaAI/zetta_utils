@@ -1,10 +1,15 @@
 # pylint: disable=unused-import, import-outside-toplevel, broad-exception-caught, import-error
 """Zetta AI Computational Connectomics Toolkit."""
+import multiprocessing
 import os
 import sys
 import warnings
 
 from .log import get_logger
+
+# Set global multiprocessing start method
+multiprocessing.set_start_method("fork")
+MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
 
 if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa
@@ -24,7 +29,6 @@ ignore_warnings_from = [
 for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 
 
 def _load_core_modules():

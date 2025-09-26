@@ -25,7 +25,7 @@ omit =
   zetta_utils/alignment/*.py
   zetta_utils/segmentation/*.py
   zetta_utils/segmentation/**/*.py
-  zetta_utils/training/lightning/*.py
+  zetta_utils/training/lightning/train.py
   zetta_utils/cloud_management/*.py
   zetta_utils/cloud_management/**/*.py
   zetta_utils/run/*.py

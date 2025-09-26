@@ -60,7 +60,9 @@ def test_bbox_strider_get_all_chunks_parallel(mocker):
     num_cores = multiprocessing.cpu_count()
     strider = BBoxStrider(
         bbox=BBox3D.from_coords(
-            start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(2, 1, num_cores), resolution=Vec3D(1, 1, 1)
+            start_coord=Vec3D(0, 0, 0),
+            end_coord=Vec3D(2, 1, 100 * num_cores + 1),
+            resolution=Vec3D(1, 1, 1),
         ),
         chunk_size=IntVec3D(1, 1, 1),
         stride=IntVec3D(1, 1, 1),

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-import multiprocessing
+import base64
+import os
+import pickle
+import subprocess
+import sys
 from functools import partial
 from typing import Any, Callable, Mapping
 
@@ -249,12 +253,52 @@ def _gen_id_calls(_) -> dict[str, str]:
 
 
 def test_persistence_across_sessions() -> None:
-    # Create two separate processes - spawn ensures a new PYTHONHASHSEED is used
-    ctx = multiprocessing.get_context("spawn")
-    with ctx.Pool(processes=2) as pool:
-        result = pool.map(_gen_id_calls, range(2))
+    # Create two separate processes with different PYTHONHASHSEED values
+    # to ensure ID generation is consistent across different hash seeds.
+    # This workaround is necessary due to fork being the default
+    # multiprocessing method, meaning we cannot use 'spawn' method to test.
 
-    assert result[0] == result[1]
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    script = f"""
+import pickle
+import sys
+import base64
+
+# Add the project root to path so we can import the test module
+sys.path.insert(0, "{project_root}")
+
+# Import the test function and call it
+from tests.unit.mazepa.test_id_generation import _gen_id_calls
+result = _gen_id_calls(0)
+
+# Output as base64 encoded pickle
+encoded_result = base64.b64encode(pickle.dumps(result)).decode('ascii')
+print(encoded_result)
+    """
+
+    results = []
+    for seed in ["0", "42"]:  # Different hash seeds
+        env = os.environ.copy()
+        env["PYTHONHASHSEED"] = seed
+
+        # Run subprocess with different PYTHONHASHSEED
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"Subprocess failed with seed {seed}: {proc.stderr}")
+
+        result_data = base64.b64decode(proc.stdout.strip())
+        result = pickle.loads(result_data)
+        results.append(result)
+
+    assert results[0] == results[1]
 
 
 def test_unpickleable_fn(mocker) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import multiprocessing
 import os
+import sys
 import time
 from contextlib import ExitStack
 from itertools import repeat
@@ -10,6 +11,8 @@ from itertools import repeat
 import pebble
 
 from zetta_utils import builder, log, try_load_train_inference
+from zetta_utils.common import RepeatTimer
+from zetta_utils.common.resource_monitor import ResourceMonitor
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
@@ -17,10 +20,28 @@ from zetta_utils.message_queues import FileQueue, SQSQueue
 logger = log.get_logger("mazepa")
 
 
-def worker_init() -> None:
+class DummyBuffer:
+    def read(self, data):
+        pass
+
+    def write(self, data):
+        pass
+
+    def flush(self):
+        pass
+
+
+def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing.FileIO
+    sys.stdin = DummyBuffer()  # type: ignore
+    sys.stdout = DummyBuffer()  # type: ignore
+    sys.stderr = DummyBuffer()  # type: ignore
+
+
+def worker_init(suppress_worker_logs: bool) -> None:
     # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
-
+    if suppress_worker_logs:
+        redirect_buffers()
     try_load_train_inference()
 
 
@@ -50,18 +71,31 @@ def setup_local_worker_pool(
     num_procs: int,
     task_queue_name: str,
     outcome_queue_name: str,
-    local: bool = True,
-    sleep_sec: float = 0.1,
-    idle_timeout: int | None = None,
+    local: bool,
+    sleep_sec: float,
+    idle_timeout: int | None,
+    suppress_worker_logs: bool,
+    resource_monitor_interval: float | None,
 ):
     """
     Context manager for creating task/outcome queues, alongside a persistent pool of workers.
     """
+    resource_timer = None
+    resource_monitor = None
+    if resource_monitor_interval is not None:
+        resource_monitor = ResourceMonitor(resource_monitor_interval)
+        resource_timer = RepeatTimer(resource_monitor_interval, resource_monitor.log_usage)
+        resource_timer.start()
+        logger.info(f"Started resource monitoring with {resource_monitor_interval:.1f}s interval.")
+
     try:
         pool = pebble.ProcessPool(
             max_workers=num_procs,
             context=multiprocessing.get_context("fork"),
             initializer=worker_init,
+            initargs=[
+                suppress_worker_logs,
+            ],
         )
         future = pool.map(
             run_local_worker,
@@ -71,13 +105,21 @@ def setup_local_worker_pool(
             repeat(sleep_sec, num_procs),
             repeat(idle_timeout, num_procs),
         )
+        idle_line = (
+            "Idle timeout not set."
+            if idle_timeout is None
+            else "Idle timeout {idle_timeout:.1f}s."
+        )
         logger.info(
             f"Created {num_procs} local workers attached to queues "
-            f"`{task_queue_name}` / `{outcome_queue_name}`. "
-            f"Idle timeout set to {idle_timeout}s."
+            f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
         )
         yield future
     finally:
+        if resource_monitor is not None and resource_timer is not None:
+            resource_timer.cancel()
+            logger.info("Stopped resource monitoring.")
+            resource_monitor.log_summary()
         pool.stop()
         pool.join()
         logger.info(
@@ -94,6 +136,8 @@ def run_worker_manager(
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     idle_timeout: int | None = None,
+    suppress_worker_logs: bool = False,
+    resource_monitor_interval: float | None = 1.0,
 ):
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
@@ -104,11 +148,14 @@ def run_worker_manager(
             local=False,
             sleep_sec=sleep_sec,
             idle_timeout=idle_timeout,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
         )
         pool_future = stack.enter_context(worker_pool_ctx)
+
         while True:
             if pool_future and pool_future.done():
                 logger.info("All worker processes have returned, cleaning the worker pool...")
                 break
-            time.sleep(1)
+            time.sleep(sleep_sec)
         logger.info("Exiting worker manager.")

@@ -15,6 +15,8 @@ from .common import (
     build_chunked_apply_flow,
 )
 
+from . import annotation_postprocessing
+
 builder.register("mazepa.Executor")(mazepa.Executor)
 builder.register("mazepa.execute")(mazepa.execute)
 builder.register("mazepa.TaskRouter")(mazepa.TaskRouter)

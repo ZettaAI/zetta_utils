@@ -4,7 +4,6 @@ from typing import Sequence, Union
 
 import attrs
 
-from zetta_utils import builder, mazepa
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric.annotation.backend import (
     Annotation,
@@ -81,14 +80,3 @@ class VolumetricAnnotationLayer(
         **kwargs,
     ):
         return attrs.evolve(self, **kwargs)  # pragma: no cover
-
-
-@mazepa.taskable_operation
-def post_process_annotation_layer_op(target: VolumetricAnnotationLayer):  # pragma: no cover
-    target.backend.post_process()
-
-
-@builder.register("post_process_annotation_layer_flow")
-@mazepa.flow_schema
-def post_process_annotation_layer_flow(target: VolumetricAnnotationLayer):  # pragma: no cover
-    yield post_process_annotation_layer_op.make_task(target)

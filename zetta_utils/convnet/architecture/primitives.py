@@ -45,7 +45,7 @@ def upsample_builder(
     size: None | int | Sequence[int] = None,
     scale_factor: None | float | Sequence[float] = None,
     mode: Literal["nearest", "linear", "bilinear", "bicubic", "trilinear"] = "nearest",
-    align_corners: bool | None = False,
+    align_corners: bool | None = None,
     recompute_scale_factor: bool | None = None,
 ) -> torch.nn.Upsample:  # pragma: no cover
     if isinstance(scale_factor, AbcSequence):

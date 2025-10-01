@@ -19,6 +19,9 @@ from zetta_utils.task_management.ng_state import (
     get_trace_task_link,
     get_trace_task_state,
 )
+from zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates import (
+    ingest_validated_coordinates,
+)
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
@@ -58,6 +61,12 @@ class MergeEditRequest(BaseModel):
     user_id: str
     task_id: str
     points: list[list]
+
+
+class IngestSegmentsRequest(BaseModel):
+    valid_coordinates: list[dict]
+    expected_neuron_type: str
+    batch_name: str
 
 
 @api.exception_handler(Exception)
@@ -552,3 +561,28 @@ async def get_trace_task_link_api(
     except Exception as e:
         logger.error(f"Failed to get trace task link: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get trace task link: {str(e)}")
+
+
+@api.post("/projects/{project_name}/ingest_segments")
+async def ingest_segments_api(
+    project_name: str,
+    request: IngestSegmentsRequest,
+) -> dict:
+    """
+    Ingest validated segment coordinates into the database.
+
+    :param project_name: The name of the project
+    :param request: Request body containing valid_coordinates, expected_neuron_type, and batch_name
+    :return: Dictionary containing ingestion results
+    """
+    try:
+        results = ingest_validated_coordinates(
+            project_name=project_name,
+            valid_coordinates=request.valid_coordinates,
+            expected_neuron_type=request.expected_neuron_type,
+            batch_name=request.batch_name,
+        )
+        return results
+    except Exception as e:
+        logger.error(f"Failed to ingest segments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to ingest segments: {str(e)}")

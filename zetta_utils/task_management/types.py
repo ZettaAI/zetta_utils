@@ -149,7 +149,7 @@ class SegmentType(TypedDict):
 
     type_name: str
     project_name: str
-    reference_segment_ids: list[int]
+    sample_segment_ids: list[str]
     created_at: str  # ISO format timestamp
     updated_at: str  # ISO format timestamp
     description: NotRequired[str | None]
@@ -160,7 +160,7 @@ class SegmentType(TypedDict):
 class SegmentTypeUpdate(TypedDict, total=False):
     """Update type for segment types."""
 
-    reference_segment_ids: list[int]
+    sample_segment_ids: list[str]
     description: str | None
     region_mesh: str | None
     seed_mask: str | None

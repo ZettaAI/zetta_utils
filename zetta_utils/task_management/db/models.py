@@ -296,9 +296,6 @@ class SegmentTypeModel(Base):
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
     type_name: Mapped[str] = mapped_column(String, primary_key=True)
 
-    reference_segment_ids: Mapped[list[int]] = mapped_column(
-        ARRAY(Integer), nullable=False, default=[]
-    )
     sample_segment_ids: Mapped[list[str]] = mapped_column(
         ARRAY(String), nullable=False, default=[]
     )
@@ -314,7 +311,6 @@ class SegmentTypeModel(Base):
         result = {
             "type_name": self.type_name,
             "project_name": self.project_name,
-            "reference_segment_ids": self.reference_segment_ids,
             "sample_segment_ids": self.sample_segment_ids,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -335,7 +331,6 @@ class SegmentTypeModel(Base):
         return cls(
             type_name=data["type_name"],
             project_name=data["project_name"],
-            reference_segment_ids=data.get("reference_segment_ids", []),
             sample_segment_ids=data.get("sample_segment_ids", []),
             description=data.get("description"),
             region_mesh=data.get("region_mesh"),

@@ -4,7 +4,6 @@
 
 import pytest
 
-from zetta_utils.task_management.db.models import SegmentTypeModel
 from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates import (
     ingest_validated_coordinates,
@@ -27,21 +26,8 @@ def existing_project(clean_db, db_session, project_name):
     yield project_name
 
 
-@pytest.fixture
-def existing_segment_type(existing_project, db_session, project_name):
-    """Create a segment type in the database"""
-    segment_type = SegmentTypeModel(
-        project_name=project_name,
-        type_name="axon",
-        reference_segment=12345,
-    )
-    db_session.add(segment_type)
-    db_session.commit()
-    return segment_type
-
-
 def test_ingest_segments_direct_function_success(
-    existing_project, existing_segment_type, db_session, project_name, mocker
+    existing_project, db_session, project_name, mocker
 ):
     """Test the ingest_validated_coordinates function directly"""
     # Mock the segment creation
@@ -59,7 +45,8 @@ def test_ingest_segments_direct_function_success(
     }
 
     mocker.patch(
-        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates.create_segment_from_coordinate",
+        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates."
+        "create_segment_from_coordinate",
         return_value=mock_segment,
     )
 
@@ -82,9 +69,7 @@ def test_ingest_segments_direct_function_success(
     assert results["created_seed_ids"] == [12345, 12345]
 
 
-def test_ingest_segments_empty_coordinates(
-    existing_project, existing_segment_type, db_session, project_name
-):
+def test_ingest_segments_empty_coordinates(existing_project, db_session, project_name):
     """Test ingesting with empty coordinates list"""
     results = ingest_validated_coordinates(
         project_name=project_name,
@@ -103,20 +88,6 @@ def test_ingest_segments_with_different_neuron_types(
     existing_project, db_session, project_name, mocker
 ):
     """Test ingesting segments with multiple neuron types"""
-    # Create multiple segment types
-    segment_type1 = SegmentTypeModel(
-        project_name=project_name,
-        type_name="axon",
-        reference_segment=12345,
-    )
-    segment_type2 = SegmentTypeModel(
-        project_name=project_name,
-        type_name="dendrite",
-        reference_segment=54321,
-    )
-    db_session.add(segment_type1)
-    db_session.add(segment_type2)
-    db_session.commit()
 
     # Mock the segment creation
     mock_segment1 = {
@@ -145,7 +116,8 @@ def test_ingest_segments_with_different_neuron_types(
     }
 
     mocker.patch(
-        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates.create_segment_from_coordinate",
+        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates."
+        "create_segment_from_coordinate",
         side_effect=[mock_segment1, mock_segment2],
     )
 
@@ -179,7 +151,7 @@ def test_ingest_segments_with_different_neuron_types(
 
 
 def test_ingest_segments_progress_logging(
-    existing_project, existing_segment_type, db_session, project_name, mocker
+    existing_project, db_session, project_name, mocker
 ):
     """Test that progress logging works for large batches"""
     # Mock the segment creation
@@ -197,7 +169,8 @@ def test_ingest_segments_progress_logging(
     }
 
     mocker.patch(
-        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates.create_segment_from_coordinate",
+        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates."
+        "create_segment_from_coordinate",
         return_value=mock_segment,
     )
 

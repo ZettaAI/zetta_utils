@@ -208,7 +208,7 @@ def get_slurm_contex_managers(
     )
 
     worker_command = get_mazepa_worker_command(
-        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
+        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec, idle_timeout=86400
     )
     slurm_obj.add_cmd(init_command)
     slurm_obj.add_cmd(f"srun {worker_command}")

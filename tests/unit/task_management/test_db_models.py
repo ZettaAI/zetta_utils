@@ -300,7 +300,7 @@ def test_to_dict_full_segment_type_model(db_session):
     segment_type = SegmentTypeModel(
         type_name="glia",
         project_name="test_project",
-        sample_segment_ids=[123, 456, 789],
+        sample_segment_ids=["123", "456", "789"],
         description="Glial cells",
         region_mesh="mesh://region",
         seed_mask="mask://seed",
@@ -312,7 +312,7 @@ def test_to_dict_full_segment_type_model(db_session):
 
     result = segment_type.to_dict()
     assert result["description"] == "Glial cells"
-    assert result["sample_segment_ids"] == [123, 222, 11]
+    assert result["sample_segment_ids"] == ["123", "456", "789"]
     assert result["region_mesh"] == "mesh://region"
     assert result["seed_mask"] == "mask://seed"
 
@@ -322,7 +322,7 @@ def test_from_dict_segment_type_model():
     data = {
         "type_name": "axon",
         "project_name": "test_project",
-        "sample_segment_ids": [111, 222],
+        "sample_segment_ids": ["111", "222"],
         "description": "Axon segments",
         "created_at": "2025-07-03T10:00:00+00:00",
         "updated_at": "2025-07-03T11:00:00+00:00",
@@ -330,7 +330,7 @@ def test_from_dict_segment_type_model():
     model = SegmentTypeModel.from_dict(data)
     assert model.type_name == "axon"
     assert model.project_name == "test_project"
-    assert model.sample_segment_ids == [111, 222]
+    assert model.sample_segment_ids == ["111", "222"]
     assert model.description == "Axon segments"
     assert isinstance(model.created_at, datetime)
     assert isinstance(model.updated_at, datetime)

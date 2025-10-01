@@ -312,7 +312,7 @@ def test_to_dict_full_segment_type_model(db_session):
 
     result = segment_type.to_dict()
     assert result["description"] == "Glial cells"
-    assert result["sample_segment_ids"] == [123, 456, 789]
+    assert result["sample_segment_ids"] == [123, 222, 11]
     assert result["region_mesh"] == "mesh://region"
     assert result["seed_mask"] == "mask://seed"
 

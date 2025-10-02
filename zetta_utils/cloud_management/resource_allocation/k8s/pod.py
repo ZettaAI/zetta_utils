@@ -25,6 +25,7 @@ def get_pod_spec(
     image: str,
     command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
+    affinity: Optional[k8s_client.V1Affinity] = None,
     dns_policy: Optional[str] = "Default",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
@@ -103,6 +104,7 @@ def get_pod_spec(
     )
 
     return k8s_client.V1PodSpec(
+        affinity=affinity,
         containers=[container, sidecar_container],
         dns_policy=dns_policy,
         hostname=hostname,
@@ -118,6 +120,41 @@ def get_pod_spec(
     )
 
 
+def _get_zone_affinities(
+    required_zones: list[str] | None = None, preferred_zones: list[str] | None = None
+):
+    required_zone_affinity = None
+    preferred_zone_affinity = None
+    if required_zones:
+        required_zone_affinity = k8s_client.V1NodeSelector(
+            node_selector_terms=[
+                k8s_client.V1NodeSelectorTerm(
+                    match_expressions=[
+                        k8s_client.V1NodeSelectorRequirement(
+                            key="topology.kubernetes.io/zone",
+                            operator="In",
+                            values=required_zones,
+                        )
+                    ]
+                )
+            ]
+        )
+
+    if preferred_zones:
+        preferred_zone_affinity = k8s_client.V1PreferredSchedulingTerm(
+            weight=100,
+            preference=k8s_client.V1NodeSelectorTerm(
+                match_expressions=[
+                    k8s_client.V1NodeSelectorRequirement(
+                        key="topology.kubernetes.io/zone", operator="In", values=preferred_zones
+                    )
+                ]
+            ),
+        )
+
+    return (required_zone_affinity, preferred_zone_affinity)
+
+
 def get_mazepa_pod_spec(
     image: str,
     command: str,
@@ -129,6 +166,8 @@ def get_mazepa_pod_spec(
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -146,11 +185,20 @@ def get_mazepa_pod_spec(
             )
         )
 
+    required_affinity, preferred_affinity = _get_zone_affinities(required_zones, preferred_zones)
+    affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=required_affinity,
+            preferred_during_scheduling_ignored_during_execution=[preferred_affinity],
+        )
+    )
+
     return get_pod_spec(
         name="zutils-worker",
         image=image,
         command=command,
         resources=resources,
+        affinity=affinity,
         envs=envs,
         env_secret_mapping=env_secret_mapping,
         node_selector=node_selector,

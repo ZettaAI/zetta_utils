@@ -1,11 +1,10 @@
 """Tests for get_segment_id API endpoint logic"""
 
-# pylint: disable=unused-argument,redefined-outer-name
+# pylint: disable=unused-argument,redefined-outer-name,import-outside-toplevel
 
 import pytest
 
 from zetta_utils.task_management.project import create_project
-from zetta_utils.task_management.segment import get_segment_id
 
 
 @pytest.fixture
@@ -26,6 +25,8 @@ def existing_project(clean_db, db_session, project_name):
 
 def test_get_segment_id_success(existing_project, db_session, project_name, mocker):
     """Test getting segment IDs for multiple coordinates"""
+    from zetta_utils.task_management import segment as segment_module
+
     # Mock get_segment_id to return predictable values
     mock_segment_ids = {
         (100.0, 200.0, 300.0): 12345,
@@ -37,8 +38,9 @@ def test_get_segment_id_success(existing_project, db_session, project_name, mock
         coord_tuple = tuple(coordinate)
         return mock_segment_ids.get(coord_tuple, 0)
 
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_segment_id",
+    mocker.patch.object(
+        segment_module,
+        "get_segment_id",
         side_effect=mock_get_segment_id,
     )
 
@@ -47,7 +49,7 @@ def test_get_segment_id_success(existing_project, db_session, project_name, mock
     result = {}
 
     for coordinate in coordinates:
-        segment_id = get_segment_id(
+        segment_id = segment_module.get_segment_id(
             project_name=project_name,
             coordinate=coordinate,
             initial=False,
@@ -64,6 +66,8 @@ def test_get_segment_id_success(existing_project, db_session, project_name, mock
 
 def test_get_segment_id_filters_zero_segments(existing_project, db_session, project_name, mocker):
     """Test that segment_id=0 is filtered out"""
+    from zetta_utils.task_management import segment as segment_module
+
     # Mock get_segment_id to return some zeros
     mock_segment_ids = {
         (100.0, 200.0, 300.0): 12345,
@@ -75,8 +79,9 @@ def test_get_segment_id_filters_zero_segments(existing_project, db_session, proj
         coord_tuple = tuple(coordinate)
         return mock_segment_ids.get(coord_tuple, 0)
 
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_segment_id",
+    mocker.patch.object(
+        segment_module,
+        "get_segment_id",
         side_effect=mock_get_segment_id,
     )
 
@@ -84,7 +89,7 @@ def test_get_segment_id_filters_zero_segments(existing_project, db_session, proj
     result = {}
 
     for coordinate in coordinates:
-        segment_id = get_segment_id(
+        segment_id = segment_module.get_segment_id(
             project_name=project_name,
             coordinate=coordinate,
             initial=False,
@@ -101,6 +106,8 @@ def test_get_segment_id_filters_zero_segments(existing_project, db_session, proj
 
 def test_get_segment_id_with_initial_flag(existing_project, db_session, project_name, mocker):
     """Test getting initial supervoxel IDs"""
+    from zetta_utils.task_management import segment as segment_module
+
     mock_supervoxel_id = 99999
 
     def mock_get_segment_id(project_name, coordinate, initial, db_session):
@@ -108,8 +115,9 @@ def test_get_segment_id_with_initial_flag(existing_project, db_session, project_
         assert initial is True
         return mock_supervoxel_id
 
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_segment_id",
+    mocker.patch.object(
+        segment_module,
+        "get_segment_id",
         side_effect=mock_get_segment_id,
     )
 
@@ -117,7 +125,7 @@ def test_get_segment_id_with_initial_flag(existing_project, db_session, project_
     result = {}
 
     for coordinate in coordinates:
-        segment_id = get_segment_id(
+        segment_id = segment_module.get_segment_id(
             project_name=project_name,
             coordinate=coordinate,
             initial=True,
@@ -135,15 +143,9 @@ def test_get_segment_id_empty_coordinates(existing_project, db_session, project_
     coordinates = []
     result = {}
 
-    for coordinate in coordinates:
-        segment_id = get_segment_id(
-            project_name=project_name,
-            coordinate=coordinate,
-            initial=False,
-            db_session=db_session,
-        )
-        if segment_id != 0:
-            result[segment_id] = coordinate
+    for _coordinate in coordinates:
+        # This loop never executes, just testing empty list handling
+        pass
 
     assert len(result) == 0
     assert not result
@@ -151,13 +153,16 @@ def test_get_segment_id_empty_coordinates(existing_project, db_session, project_
 
 def test_get_segment_id_handles_duplicates(existing_project, db_session, project_name, mocker):
     """Test that duplicate segment IDs are handled (later coordinate overwrites earlier)"""
+    from zetta_utils.task_management import segment as segment_module
+
     # Mock: different coordinates map to same segment_id
     def mock_get_segment_id(project_name, coordinate, initial, db_session):
         # All coordinates return same segment_id
         return 12345
 
-    mocker.patch(
-        "zetta_utils.task_management.segment.get_segment_id",
+    mocker.patch.object(
+        segment_module,
+        "get_segment_id",
         side_effect=mock_get_segment_id,
     )
 
@@ -165,7 +170,7 @@ def test_get_segment_id_handles_duplicates(existing_project, db_session, project
     result = {}
 
     for coordinate in coordinates:
-        segment_id = get_segment_id(
+        segment_id = segment_module.get_segment_id(
             project_name=project_name,
             coordinate=coordinate,
             initial=False,

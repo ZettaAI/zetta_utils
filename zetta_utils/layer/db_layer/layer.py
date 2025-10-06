@@ -1,7 +1,8 @@
 # pylint: disable=missing-docstring,no-self-use,unused-argument
 from __future__ import annotations
 
-from typing import Any, Sequence, Tuple, Union, overload
+from collections.abc import Sequence
+from typing import Any, Tuple, Union, overload
 
 import attrs
 from typing_extensions import TypeGuard
@@ -21,11 +22,11 @@ DBDataProcT = Union[DataProcessor[DBDataT], JointIndexDataProcessor[DBDataT, DBI
 
 
 def is_scalar_seq(values: Sequence[Any]) -> TypeGuard[Sequence[DBValueT]]:
-    return all(isinstance(v, (bool, int, float, str)) for v in values) and len(values) > 0
+    return all(isinstance(v, (bool, int, float, str)) for v in values)
 
 
 def is_rowdata_seq(values: Sequence[Any]) -> TypeGuard[Sequence[DBRowDataT]]:
-    return all(isinstance(v, dict) for v in values) and len(values) > 0
+    return all(isinstance(v, dict) for v in values)
 
 
 @attrs.mutable
@@ -143,10 +144,10 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         if isinstance(data_user, dict):
             return idx, [data_user]
 
-        if is_scalar_seq(data_user):
+        if isinstance(data_user, Sequence) and is_scalar_seq(data_user):
             return idx, [{"value": d} for d in data_user]
 
-        if is_rowdata_seq(data_user):
+        if isinstance(data_user, Sequence) and is_rowdata_seq(data_user):
             return idx, data_user
 
         raise ValueError(f"Unsupported data type: {type(data_user)}")
@@ -191,6 +192,8 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
 
     def __setitem__(self, idx, data):
         idx_backend, data_backend = self._convert_write(idx_user=idx, data_user=data)
+        if len(data_backend) == 0:
+            return
         self.write_with_procs(idx=idx_backend, data=data_backend)
 
     def __delitem__(self, idx):

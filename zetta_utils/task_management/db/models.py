@@ -599,6 +599,7 @@ class TaskModel(Base):
     id_nonunique: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
@@ -655,6 +656,7 @@ class TaskModel(Base):
             "is_checked": self.is_checked,
             "task_type": self.task_type,
             "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
         if self.extra_data is not None:
@@ -685,6 +687,7 @@ class TaskModel(Base):
             id_nonunique=data.get("id_nonunique"),
             extra_data=data.get("extra_data"),
             note=data.get("note"),
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
         )
 
 

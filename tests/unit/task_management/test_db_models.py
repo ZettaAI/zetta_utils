@@ -563,6 +563,7 @@ def test_to_dict_full_task_model(db_session):
         task_type="verify",
         id_nonunique=67890,
         extra_data={"info": "test"},
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(task)
     db_session.commit()
@@ -718,6 +719,7 @@ def test_task_model_note_field(clean_db, db_session):
         task_type="test",
         id_nonunique=1,
         note="test note",  # This will trigger line 653
+        created_at=datetime.now(timezone.utc),
     )
 
     result = task.to_dict()

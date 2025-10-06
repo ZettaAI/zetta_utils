@@ -140,8 +140,8 @@ def test_get_segment_id_with_initial_flag(existing_project, db_session, project_
 
 def test_get_segment_id_empty_coordinates(existing_project, db_session, project_name):
     """Test with empty coordinates list"""
-    coordinates = []
-    result = {}
+    coordinates: list[list[float]] = []
+    result: dict[int, list[float]] = {}
 
     for _coordinate in coordinates:
         # This loop never executes, just testing empty list handling

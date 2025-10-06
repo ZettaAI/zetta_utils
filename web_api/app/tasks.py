@@ -22,6 +22,7 @@ from zetta_utils.task_management.ng_state import (
 from zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates import (
     ingest_validated_coordinates,
 )
+from zetta_utils.task_management.segment import get_segment_id
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
@@ -67,6 +68,10 @@ class IngestSegmentsRequest(BaseModel):
     valid_coordinates: list[dict]
     expected_neuron_type: str
     batch_name: str
+
+class GetSegmentIdRequest(BaseModel):
+    coordinates: list[list[float]]
+    initial: bool = False    
 
 
 @api.exception_handler(Exception)
@@ -586,3 +591,40 @@ async def ingest_segments_api(
     except Exception as e:
         logger.error(f"Failed to ingest segments: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to ingest segments: {str(e)}")
+
+
+@api.post("/projects/{project_name}/segment_id")
+async def get_segment_id_api(
+    project_name: str,
+    request: GetSegmentIdRequest,
+) -> dict:
+    """
+    Get segment IDs for multiple coordinates.
+
+    :param project_name: The name of the project
+    :param request: Request body containing coordinates and initial flag
+    :return: Dictionary mapping segment_id to coordinate {segment_id: [x, y, z], ...}
+    """
+    try:
+        result = {}
+        with get_session_context() as db_session:
+            for coordinate in request.coordinates:
+                if len(coordinate) != 3:
+                    logger.warning(f"Skipping invalid coordinate: {coordinate}")
+                    continue
+
+                segment_id = get_segment_id(
+                    project_name=project_name,
+                    coordinate=coordinate,
+                    initial=request.initial,
+                    db_session=db_session,
+                )
+                if segment_id != 0:
+                    result[segment_id] = coordinate
+
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get segment IDs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get segment IDs: {str(e)}")

@@ -188,7 +188,7 @@ class Segment(TypedDict):
     skeleton_path_length_mm: NotRequired[float | None]
     pre_synapse_count: NotRequired[int | None]
     post_synapse_count: NotRequired[int | None]
-    status: Literal["WIP", "Completed", "Retired", "Abandoned"]  # Segment status
+    status: Literal["Raw", "Proofread", "Duplicate", "Wrong type"]  # Segment status
     is_exported: bool  # Whether the segment has been exported
     extra_data: NotRequired[dict | None]
 

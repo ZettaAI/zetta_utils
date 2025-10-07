@@ -199,13 +199,13 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
             segment.task_ids = segment.task_ids + [task_id]
 
         # Set status based on completion status
-        if completion_status == "Done":
-            segment.status = "Completed"
+        if completion_status == "Proofread":
+            segment.status = "Proofread"
         elif completion_status in ["Merger", "Wrong Cell Type"]:
-            segment.status = "Abandoned"
+            segment.status = "Wrong type"
         else:
             assert completion_status == "Can't Continue"
-            segment.status = "WIP"
+            segment.status = "Proofread"
 
         segment.updated_at = datetime.now(timezone.utc)
 
@@ -245,7 +245,7 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
         logger.info(f"Updated segment {seed_id} with status '{completion_status}'")
 
         # Auto-create postprocess task for completed traces
-        if completion_status == "Done":
+        if completion_status == "Proofread":
             try:
                 # Generate unique task ID
                 postprocess_task_id = f"postprocess_{seed_id}_{generate_id_nonunique()}"
@@ -302,7 +302,7 @@ def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-bran
         return layers_result
 
     # Status-specific validation
-    if completion_status == "Done":
+    if completion_status == "Proofread":
         # Check for Root Location layer
         root_location_layer = get_layer_by_name(ng_state, "Root Location")
         if not root_location_layer:
@@ -390,7 +390,7 @@ def create_trace_v0_task(project_name: str, segment: SegmentModel, kwargs: dict)
     task_id = f"trace_{segment.seed_id}_{generate_id_nonunique()}"
 
     # Generate neuroglancer state
-    ng_state = { "seed_id": segment.seed_id }
+    ng_state = {"seed_id": segment.seed_id}
 
     # Build task data
     task_data = Task(

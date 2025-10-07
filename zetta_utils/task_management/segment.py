@@ -22,6 +22,26 @@ from zetta_utils.task_management.types import Segment
 
 logger = log.get_logger()
 
+# Global cache for CAVE clients
+_cave_client_cache: dict[str, CAVEclient] = {}
+
+
+def get_cave_client(
+    datastack_name: str, server_address: str = "https://proofreading.zetta.ai"
+) -> CAVEclient:
+    """Get or create a cached CAVE client to avoid too many connections."""
+    cache_key = f"{datastack_name}@{server_address}"
+
+    if cache_key not in _cave_client_cache:
+        logger.debug(f"Creating new CAVE client for {cache_key}")
+        _cave_client_cache[cache_key] = CAVEclient(
+            datastack_name=datastack_name,
+            server_address=server_address,
+            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
+        )
+
+    return _cave_client_cache[cache_key]
+
 
 def get_segment_id(
     project_name: str, coordinate: list[float], initial: bool = False, db_session: Any = None
@@ -116,12 +136,8 @@ def get_skeleton_length_mm(
             )
 
     try:
-        # Initialize CAVE client
-        client = CAVEclient(
-            datastack_name=datastack_name,
-            server_address=server_address,
-            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
-        )
+        # Get cached CAVE client
+        client = get_cave_client(datastack_name, server_address)
 
         # Get skeleton using pcg_skel
         logger.debug(f"Fetching skeleton for segment {segment_id}")
@@ -141,14 +157,18 @@ def get_skeleton_length_mm(
         return None
 
 
-def update_segment_statistics(
+def update_segment_statistics(  # pylint: disable=too-many-statements
     project_name: str,
     seed_id: int,
     server_address: str = "https://proofreading.zetta.ai",
     db_session: Any = None,
 ) -> dict:
     """
-    Compute and update skeleton length and synapse counts for a segment.
+    Update current segment ID and compute skeleton length and synapse counts for a segment.
+
+    This function first updates the current_segment_id by querying the seed location to get
+    the latest valid segment ID, then computes skeleton length and synapse counts using
+    live queries to ensure the most current data.
 
     Args:
         project_name: Name of the project
@@ -182,19 +202,36 @@ def update_segment_statistics(
         if not project.synapse_table:
             raise ValueError(f"Project '{project_name}' does not have a synapse_table configured!")
 
+        results: dict[str, Any] = {}
+
+        # First, update current segment ID from seed location to get latest valid ID
+        try:
+            logger.info(f"Updating current segment ID for seed {seed_id}")
+            coordinate = [segment.seed_x, segment.seed_y, segment.seed_z]
+            current_id = get_segment_id(
+                project_name=project_name, coordinate=coordinate, initial=False, db_session=session
+            )
+
+            if current_id and current_id > 0:
+                old_id = segment.current_segment_id
+                segment.current_segment_id = current_id
+                segment.updated_at = datetime.now(timezone.utc)
+                logger.info(f"Updated current segment ID: {old_id} -> {current_id}")
+            else:
+                logger.warning(f"No segment found at seed location for seed {seed_id}")
+                return {"error": "No segment found at seed location"}
+
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to update current segment ID: {e}")
+            return {"error": f"Failed to update current segment ID: {e}"}
+
         segment_id = segment.current_segment_id
         if not segment_id:
             logger.warning(f"Segment {seed_id} has no current_segment_id")
             return {"error": "No current_segment_id"}
 
-        # Initialize CAVE client
-        client = CAVEclient(
-            datastack_name=project.datastack_name,
-            server_address=server_address,
-            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
-        )
-
-        results: dict[str, Any] = {}
+        # Get cached CAVE client
+        client = get_cave_client(project.datastack_name, server_address)
 
         # Get skeleton length
         try:
@@ -209,23 +246,28 @@ def update_segment_statistics(
             logger.error(f"Failed to get skeleton: {e}")
             results["skeleton_error"] = str(e)
 
-        # Get synapse counts
+        # Get synapse counts using live query
         try:
             logger.info(f"Computing synapse counts for segment {segment_id}")
+            current_time = datetime.now(timezone.utc)
 
-            # Get pre-synaptic count
-            pre_synapses = client.materialize.synapse_query(
-                pre_ids=segment_id, synapse_table=project.synapse_table
+            # Get pre-synaptic count (live query)
+            pre_df = client.materialize.live_query(
+                project.synapse_table,
+                current_time,
+                filter_equal_dict={"pre_pt_root_id": segment_id},
             )
-            pre_count = int(len(pre_synapses))  # Ensure Python int
+            pre_count = int(len(pre_df))  # Ensure Python int
             segment.pre_synapse_count = pre_count
             results["pre_synapse_count"] = pre_count
 
-            # Get post-synaptic count
-            post_synapses = client.materialize.synapse_query(
-                post_ids=segment_id, synapse_table=project.synapse_table
+            # Get post-synaptic count (live query)
+            post_df = client.materialize.live_query(
+                project.synapse_table,
+                current_time,
+                filter_equal_dict={"post_pt_root_id": segment_id},
             )
-            post_count = int(len(post_synapses))  # Ensure Python int
+            post_count = int(len(post_df))  # Ensure Python int
             segment.post_synapse_count = post_count
             results["post_synapse_count"] = post_count
 
@@ -376,7 +418,7 @@ def create_segment_from_coordinate(
             batch=batch,
             segment_type=segment_type,
             expected_segment_type=expected_segment_type,
-            status="WIP",
+            status="Raw",
             is_exported=False,
             created_at=now,
             updated_at=now,
@@ -397,7 +439,7 @@ def create_segment_from_coordinate(
             "seed_z": float(coordinate[2]),
             "current_segment_id": current_segment_id if current_segment_id != 0 else None,
             "task_ids": [],
-            "status": "WIP",
+            "status": "Raw",
             "is_exported": False,
             "created_at": now.isoformat(),
             "updated_at": now.isoformat(),

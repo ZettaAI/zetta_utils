@@ -1,5 +1,6 @@
 # pylint: disable=singleton-comparison
 import time
+from datetime import datetime, timezone
 from typing import Any, cast
 
 from sqlalchemy import func, select
@@ -98,8 +99,12 @@ def create_task(*, project_name: str, data: Task, db_session: Session | None = N
         if existing:
             raise TaskValidationError(f"Task {data['task_id']} already exists")
 
-        # Create new task
-        task_data = {**data, "id_nonunique": generate_id_nonunique()}
+        # Create new task with created_at timestamp
+        task_data = {
+            **data,
+            "id_nonunique": generate_id_nonunique(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
         model = TaskModel.from_dict(project_name, task_data)
         session.add(model)
         session.commit()

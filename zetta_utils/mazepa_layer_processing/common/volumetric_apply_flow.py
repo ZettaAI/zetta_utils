@@ -15,7 +15,7 @@ import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import log, mazepa
+from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, log, mazepa
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
@@ -483,8 +483,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol | None,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
-        if len(idx_chunks) > multiprocessing.cpu_count():
-            with multiprocessing.Pool() as pool_obj:
+        if len(idx_chunks) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
+            with multiprocessing.get_context('fork').Pool() as pool_obj:
                 tasks = pool_obj.map(
                     self._make_task,
                     zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
@@ -591,8 +591,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
                 next_chunk_id = task_idxs[-1, -1, -1].chunk_id + self.l0_chunks_per_task
 
-                if len(task_idxs) > multiprocessing.cpu_count():
-                    with multiprocessing.Pool() as pool_obj:
+                if len(task_idxs) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
+                    with multiprocessing.get_context('fork').Pool() as pool_obj:
                         tasks_split = pool_obj.map(
                             self._make_task,
                             zip(
@@ -749,12 +749,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            (
-                tasks,
-                _,
-                _,
-                dst_temps,
-            ) = self.make_tasks_with_checkerboarding(
+            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
             logger.info(

@@ -8,7 +8,7 @@ from typing import List, Literal, Optional, Tuple
 import attrs
 from typeguard import typechecked
 
-from zetta_utils import builder, log
+from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, builder, log
 from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 from . import Vec3D
@@ -240,8 +240,8 @@ class BBoxStrider:
 
     def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
-        if self.num_chunks > multiprocessing.cpu_count():
-            with multiprocessing.Pool() as pool_obj:
+        if self.num_chunks > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
+            with multiprocessing.get_context('fork').Pool() as pool_obj:
                 result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
         else:
             result = [

@@ -86,6 +86,7 @@ def trace_v0_task(setup_project_and_segment, db_session, project_name):
         id_nonunique=123456,
         extra_data={"seed_id": 12345},  # seed_id in extra_data
         note=None,
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(task)
     db_session.commit()
@@ -119,6 +120,7 @@ def seg_trace_task(setup_project_and_segment, db_session, project_name):
         id_nonunique=123456,
         extra_data=None,  # No extra_data, will use segment lookup
         note=None,
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(task)
     db_session.commit()
@@ -393,6 +395,7 @@ class TestGetTraceTaskState:
             id_nonunique=123456,
             extra_data=None,
             note=None,
+            created_at=datetime.now(timezone.utc),
         )
         db_session.add(task)
         db_session.commit()
@@ -444,6 +447,7 @@ class TestGetTraceTaskState:
             id_nonunique=123456,
             extra_data=None,
             note=None,
+            created_at=datetime.now(timezone.utc),
         )
         db_session.add(task)
         db_session.commit()

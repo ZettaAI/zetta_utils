@@ -38,6 +38,8 @@ def _get_mazepa_deployment(
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -50,6 +52,8 @@ def _get_mazepa_deployment(
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
         cave_secret_available=cave_secret_available,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -95,6 +99,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     cave_secret_available: bool = False,
     suppress_worker_logs: bool = False,
     resource_monitor_interval: float | None = 1.0,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -124,6 +130,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
         cave_secret_available=cave_secret_available,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
 

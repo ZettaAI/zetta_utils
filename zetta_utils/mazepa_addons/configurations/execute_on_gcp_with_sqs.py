@@ -69,6 +69,8 @@ class WorkerGroup:
     idle_worker_timeout: int = 300
     labels: dict[str, str] | None = None
     gpu_accelerator_type: str | None = None
+    required_zones: list[str] | None = None  # k8s will schedule workers in these zones
+    preferred_zones: list[str] | None = None  # k8s will try to schedule workers in these zones
 
 
 class WorkerGroupDict(TypedDict, total=False):
@@ -82,6 +84,8 @@ class WorkerGroupDict(TypedDict, total=False):
     idle_worker_timeout: NotRequired[int]
     labels: NotRequired[dict[str, str]]
     gpu_accelerator_type: NotRequired[str]
+    required_zones: NotRequired[list[str]]
+    preferred_zones: NotRequired[list[str]]
 
 
 def _get_group_taskqueue_and_contexts(
@@ -128,6 +132,8 @@ def _get_group_taskqueue_and_contexts(
             gpu_accelerator_type=group.gpu_accelerator_type,
             adc_available=adc_available,
             cave_secret_available=cave_secret_available,
+            required_zones=group.required_zones,
+            preferred_zones=group.preferred_zones,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
@@ -160,6 +166,8 @@ def _get_group_taskqueue_and_contexts(
             cave_secret_available=cave_secret_available,
             suppress_worker_logs=suppress_worker_logs,
             resource_monitor_interval=resource_monitor_interval,
+            required_zones=group.required_zones,
+            preferred_zones=group.preferred_zones,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,

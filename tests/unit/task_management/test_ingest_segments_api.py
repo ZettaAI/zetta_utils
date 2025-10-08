@@ -39,7 +39,7 @@ def test_ingest_segments_direct_function_success(
         "current_segment_id": 67890,
         "batch": "test_batch",
         "expected_segment_type": "axon",
-        "status": "WIP",
+        "status": "",
         "is_exported": False,
         "task_ids": [],
     }
@@ -98,7 +98,7 @@ def test_ingest_segments_with_different_neuron_types(
         "current_segment_id": 67890,
         "batch": "test_batch_axon",
         "expected_segment_type": "axon",
-        "status": "WIP",
+        "status": "",
         "is_exported": False,
         "task_ids": [],
     }
@@ -110,7 +110,7 @@ def test_ingest_segments_with_different_neuron_types(
         "current_segment_id": 67891,
         "batch": "test_batch_dendrite",
         "expected_segment_type": "dendrite",
-        "status": "WIP",
+        "status": "",
         "is_exported": False,
         "task_ids": [],
     }
@@ -150,9 +150,7 @@ def test_ingest_segments_with_different_neuron_types(
     assert results_dendrite["created_seed_ids"] == [54321]
 
 
-def test_ingest_segments_progress_logging(
-    existing_project, db_session, project_name, mocker
-):
+def test_ingest_segments_progress_logging(existing_project, db_session, project_name, mocker):
     """Test that progress logging works for large batches"""
     # Mock the segment creation
     mock_segment = {
@@ -163,7 +161,7 @@ def test_ingest_segments_progress_logging(
         "current_segment_id": 67890,
         "batch": "test_batch",
         "expected_segment_type": "axon",
-        "status": "WIP",
+        "status": "",
         "is_exported": False,
         "task_ids": [],
     }
@@ -176,8 +174,7 @@ def test_ingest_segments_progress_logging(
 
     # Create 150 coordinates to trigger progress logging (every 100)
     valid_coordinates = [
-        {"coordinate": [i * 10.0, i * 20.0, i * 30.0], "segment_id": 67890 + i}
-        for i in range(150)
+        {"coordinate": [i * 10.0, i * 20.0, i * 30.0], "segment_id": 67890 + i} for i in range(150)
     ]
 
     results = ingest_validated_coordinates(

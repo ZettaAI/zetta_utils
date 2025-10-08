@@ -372,7 +372,7 @@ def test_to_dict_full_segment_model(db_session):
         skeleton_path_length_mm=1.5,
         pre_synapse_count=10,
         post_synapse_count=20,
-        status="Completed",
+        status="Proofread",
         is_exported=True,
         created_at=now,
         updated_at=now,
@@ -415,7 +415,7 @@ def test_from_dict_segment_model():
         "skeleton_path_length_mm": 2.5,
         "pre_synapse_count": 5,
         "post_synapse_count": 15,
-        "status": "Retired",
+        "status": "Duplicate",
         "is_exported": True,
         "created_at": "2025-07-03T09:00:00+00:00",
         "updated_at": "2025-07-03T10:00:00+00:00",
@@ -425,7 +425,7 @@ def test_from_dict_segment_model():
     assert model.project_name == "test_project"
     assert model.seed_id == 99999
     assert model.segment_type == "glia"
-    assert model.status == "Retired"
+    assert model.status == "Duplicate"
     assert model.is_exported is True
     assert model.extra_data == {"info": "test"}
 
@@ -442,7 +442,7 @@ def test_from_dict_defaults_segment_model():
     }
     model = SegmentModel.from_dict(data)
     assert model.task_ids == []
-    assert model.status == "wip"  # Note: lowercase in from_dict default
+    assert model.status == "Raw"  # Note: lowercase in from_dict default
     assert model.is_exported is False
     assert model.segment_type is None
 

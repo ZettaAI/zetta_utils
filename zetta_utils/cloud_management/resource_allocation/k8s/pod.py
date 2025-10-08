@@ -189,7 +189,9 @@ def get_mazepa_pod_spec(
     affinity = k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(
             required_during_scheduling_ignored_during_execution=required_affinity,
-            preferred_during_scheduling_ignored_during_execution=[preferred_affinity],
+            preferred_during_scheduling_ignored_during_execution=(
+                [preferred_affinity] if preferred_affinity else None
+            ),
         )
     )
 

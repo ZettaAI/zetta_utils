@@ -48,7 +48,7 @@ def existing_segment(existing_project, db_session, project_name):
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -167,6 +167,9 @@ def test_update_segment_statistics_success(
     # Set up auth token
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
+    # Mock get_segment_id to return the current segment ID (simulating no change)
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=67890)
+
     # Mock skeleton
     mock_skeleton = mocker.Mock()
     mock_skeleton.path_length.return_value = 2500000  # 2.5 mm (2,500,000 nm)
@@ -174,9 +177,9 @@ def test_update_segment_statistics_success(
         "zetta_utils.task_management.segment.pcg_skel.pcg_skeleton", return_value=mock_skeleton
     )
 
-    # Mock synapse queries
+    # Mock synapse queries using live_query
     mock_client = mocker.Mock()
-    mock_client.materialize.synapse_query.side_effect = [
+    mock_client.materialize.live_query.side_effect = [
         [{"id": 1}, {"id": 2}, {"id": 3}],  # 3 pre-synapses
         [{"id": 4}, {"id": 5}],  # 2 post-synapses
     ]
@@ -195,6 +198,9 @@ def test_update_segment_statistics_no_current_segment_id(
     existing_project, db_session, project_name, mocker
 ):
     """Test updating statistics when segment has no current_segment_id"""
+    # Mock get_segment_id to return None (no segment found at seed location)
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=None)
+
     # Create a segment with no current_segment_id in the test database
     segment = SegmentModel(
         project_name=project_name,
@@ -204,7 +210,7 @@ def test_update_segment_statistics_no_current_segment_id(
         seed_z=300.0,
         current_segment_id=None,  # No current segment ID
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -220,7 +226,7 @@ def test_update_segment_statistics_no_current_segment_id(
 
     result = update_segment_statistics(project_name, 99999, db_session=db_session)
 
-    assert result == {"error": "No current_segment_id"}
+    assert result == {"error": "No segment found at seed location"}
 
 
 def test_update_segment_statistics_skeleton_error(
@@ -228,6 +234,9 @@ def test_update_segment_statistics_skeleton_error(
 ):
     """Test handling skeleton computation error"""
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
+
+    # Mock get_segment_id to return the current segment ID
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=67890)
 
     # Mock the database queries
     mock_segment = mocker.Mock()
@@ -256,7 +265,7 @@ def test_update_segment_statistics_skeleton_error(
 
     # Mock synapse queries success
     mock_client = mocker.Mock()
-    mock_client.materialize.synapse_query.side_effect = [
+    mock_client.materialize.live_query.side_effect = [
         [{"id": 1}],  # 1 pre-synapse
         [],  # 0 post-synapses
     ]
@@ -274,6 +283,9 @@ def test_update_segment_statistics_synapse_error(
 ):
     """Test handling synapse query error"""
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
+
+    # Mock get_segment_id to return the current segment ID
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=67890)
 
     # Mock the database queries
     mock_segment = mocker.Mock()
@@ -303,7 +315,7 @@ def test_update_segment_statistics_synapse_error(
 
     # Mock synapse query failure
     mock_client = mocker.Mock()
-    mock_client.materialize.synapse_query.side_effect = Exception("Query failed")
+    mock_client.materialize.live_query.side_effect = Exception("Query failed")
     mocker.patch("zetta_utils.task_management.segment.CAVEclient", return_value=mock_client)
 
     result = update_segment_statistics(project_name, 12345, db_session=db_session)
@@ -349,7 +361,7 @@ def test_update_segment_statistics_no_synapse_table(clean_db, db_session, projec
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -410,7 +422,7 @@ def test_create_segment_from_coordinate_success(
     assert segment["segment_type"] == "type_A"
     assert segment["expected_segment_type"] == "type_A"
     assert segment["extra_data"] == {"notes": "test segment"}
-    assert segment["status"] == "WIP"
+    assert segment["status"] == "Raw"
     assert segment["is_exported"] is False
     assert not segment["task_ids"]
 
@@ -533,7 +545,7 @@ def test_create_segment_from_coordinate_minimal(clean_db, db_session, project_na
     # Verify required fields are present
     assert segment["seed_id"] == new_seed_id
     assert segment["project_name"] == project_name
-    assert segment["status"] == "WIP"
+    assert segment["status"] == "Raw"
     assert segment["is_exported"] is False
 
     # Verify optional fields are not present
@@ -564,7 +576,7 @@ def test_update_segment_statistics_project_not_found(db_session, project_name, m
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -580,6 +592,9 @@ def test_update_segment_statistics_no_datastack_name(
     existing_project, db_session, project_name, mocker
 ):
     """Test updating statistics when project has no datastack_name"""
+    # Mock get_segment_id (though it won't be called due to early exit)
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=67890)
+
     # Create a segment
     segment = SegmentModel(
         project_name=project_name,
@@ -589,7 +604,7 @@ def test_update_segment_statistics_no_datastack_name(
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),

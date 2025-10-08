@@ -445,7 +445,7 @@ def test_handle_completion_done(
         )
 
         assert segment.current_segment_id == 98765
-        assert segment.status == "Completed"
+        assert segment.status == "Proofread"
         assert segment.root_x == 100
         assert segment.root_y == 200
         assert segment.root_z == 300  # Should be 300.5 - 0.5
@@ -520,7 +520,7 @@ def test_handle_completion_cant_continue(
             .first()
         )
 
-        assert segment.status == "WIP"
+        assert segment.status == ""
 
 
 def test_handle_completion_replaces_endpoints(
@@ -700,7 +700,7 @@ def test_generate_ng_state_no_current_segment(clean_db, db_session, existing_pro
         seed_z=300.0,
         current_segment_id=None,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -742,7 +742,7 @@ def test_generate_ng_state_with_extra_layers(clean_db, db_session, project_name)
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -968,7 +968,7 @@ def existing_segment(existing_project, db_session):
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),

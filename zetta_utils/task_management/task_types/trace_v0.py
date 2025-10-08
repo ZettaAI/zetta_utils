@@ -199,7 +199,7 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
             segment.task_ids = segment.task_ids + [task_id]
 
         # Set status based on completion status
-        if completion_status == "Proofread":
+        if completion_status == "Done":
             segment.status = "Proofread"
         elif completion_status in ["Merger", "Wrong Cell Type"]:
             segment.status = "Wrong type"
@@ -245,7 +245,7 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
         logger.info(f"Updated segment {seed_id} with status '{completion_status}'")
 
         # Auto-create postprocess task for completed traces
-        if completion_status == "Proofread":
+        if completion_status == "Done":
             try:
                 # Generate unique task ID
                 postprocess_task_id = f"postprocess_{seed_id}_{generate_id_nonunique()}"
@@ -302,7 +302,7 @@ def verify_trace_v0(  # pylint: disable=too-many-return-statements,too-many-bran
         return layers_result
 
     # Status-specific validation
-    if completion_status == "Proofread":
+    if completion_status == "Done":
         # Check for Root Location layer
         root_location_layer = get_layer_by_name(ng_state, "Root Location")
         if not root_location_layer:

@@ -1,6 +1,6 @@
 import time
 
-from zetta_utils.common.resource_monitor import ResourceMonitor
+from zetta_utils.common.resource_monitor import ResourceMonitor, monitor_resources
 
 
 def test_resource_monitor_basic():
@@ -40,3 +40,13 @@ def test_resource_monitor_empty():
     monitor = ResourceMonitor(log_interval_seconds=0.1)
     summary = monitor.get_summary_stats()
     assert not summary
+
+
+def test_monitor_resources_none():
+    with monitor_resources():
+        pass
+
+
+def test_monitor_resources_notnone():
+    with monitor_resources(0.1):
+        time.sleep(0.2)

@@ -11,8 +11,7 @@ from itertools import repeat
 import pebble
 
 from zetta_utils import builder, log, try_load_train_inference
-from zetta_utils.common import RepeatTimer
-from zetta_utils.common.resource_monitor import ResourceMonitor
+from zetta_utils.common import monitor_resources
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
@@ -80,15 +79,7 @@ def setup_local_worker_pool(
     """
     Context manager for creating task/outcome queues, alongside a persistent pool of workers.
     """
-    resource_timer = None
-    resource_monitor = None
-    if resource_monitor_interval is not None:
-        resource_monitor = ResourceMonitor(resource_monitor_interval)
-        resource_timer = RepeatTimer(resource_monitor_interval, resource_monitor.log_usage)
-        resource_timer.start()
-        logger.info(f"Started resource monitoring with {resource_monitor_interval:.1f}s interval.")
-
-    try:
+    with monitor_resources(resource_monitor_interval):
         pool = pebble.ProcessPool(
             max_workers=num_procs,
             context=multiprocessing.get_context("fork"),
@@ -97,35 +88,32 @@ def setup_local_worker_pool(
                 suppress_worker_logs,
             ],
         )
-        future = pool.map(
-            run_local_worker,
-            repeat(task_queue_name, num_procs),
-            repeat(outcome_queue_name, num_procs),
-            repeat(local, num_procs),
-            repeat(sleep_sec, num_procs),
-            repeat(idle_timeout, num_procs),
-        )
-        idle_line = (
-            "Idle timeout not set."
-            if idle_timeout is None
-            else "Idle timeout {idle_timeout:.1f}s."
-        )
-        logger.info(
-            f"Created {num_procs} local workers attached to queues "
-            f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
-        )
-        yield future
-    finally:
-        if resource_monitor is not None and resource_timer is not None:
-            resource_timer.cancel()
-            logger.info("Stopped resource monitoring.")
-            resource_monitor.log_summary()
-        pool.stop()
-        pool.join()
-        logger.info(
-            f"Cleaned up {num_procs} local workers that were attached to queues "
-            f"`{task_queue_name}` / `{outcome_queue_name}`."
-        )
+        try:
+            future = pool.map(
+                run_local_worker,
+                repeat(task_queue_name, num_procs),
+                repeat(outcome_queue_name, num_procs),
+                repeat(local, num_procs),
+                repeat(sleep_sec, num_procs),
+                repeat(idle_timeout, num_procs),
+            )
+            idle_line = (
+                "Idle timeout not set."
+                if idle_timeout is None
+                else "Idle timeout {idle_timeout:.1f}s."
+            )
+            logger.info(
+                f"Created {num_procs} local workers attached to queues "
+                f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
+            )
+            yield future
+        finally:
+            pool.stop()
+            pool.join()
+            logger.info(
+                f"Cleaned up {num_procs} local workers that were attached to queues "
+                f"`{task_queue_name}` / `{outcome_queue_name}`."
+            )
 
 
 @builder.register("mazepa.run_worker_manager")

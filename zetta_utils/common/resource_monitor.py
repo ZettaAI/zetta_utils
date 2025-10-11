@@ -1,6 +1,7 @@
 # pylint: disable=line-too-long, too-many-locals, too-many-statements
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any, Dict
 
@@ -18,6 +19,7 @@ except (ImportError, Exception):  # pylint: disable=broad-except
 
 from zetta_utils import log
 from zetta_utils.common.pprint import lrpad
+from zetta_utils.common.timer import RepeatTimer
 
 logger = log.get_logger("mazepa")
 
@@ -520,3 +522,25 @@ class ResourceMonitor:  # pragma: no cover # logging only
         summary += lrpad("", bounds="+", filler="=", length=80)
 
         logger.info(summary)
+
+
+@contextlib.contextmanager
+def monitor_resources(interval: float | None = None):
+    """
+    Context manager for monitoring system resources during execution.
+    """
+    if interval is None:
+        yield
+        return
+
+    resource_monitor = ResourceMonitor(interval)
+    resource_timer = RepeatTimer(interval, resource_monitor.log_usage)
+    resource_timer.start()
+    logger.info(f"Started resource monitoring with {interval:.1f}s interval.")
+
+    try:
+        yield
+    finally:
+        resource_timer.cancel()
+        logger.info("Stopped resource monitoring.")
+        resource_monitor.log_summary()

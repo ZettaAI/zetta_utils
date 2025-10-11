@@ -52,7 +52,10 @@ def execute_locally(
         stack.enter_context(configure_semaphores(semaphores_spec))
 
         if debug:
-            logger.info("Debug mode: Using single process execution without local queues.")
+            logger.info(
+                "Debug mode: Using single process execution without local queues,"
+                " and resource monitoring is disabled."
+            )
             task_queue = None
             outcome_queue = None
         else:

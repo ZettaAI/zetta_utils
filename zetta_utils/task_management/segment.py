@@ -16,7 +16,11 @@ from caveclient import CAVEclient
 
 from zetta_utils import log
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
-from zetta_utils.task_management.db.models import ProjectModel, SegmentModel, LockedSegmentModel
+from zetta_utils.task_management.db.models import (
+    LockedSegmentModel,
+    ProjectModel,
+    SegmentModel,
+)
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.types import Segment
 

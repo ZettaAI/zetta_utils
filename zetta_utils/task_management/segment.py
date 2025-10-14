@@ -16,7 +16,7 @@ from caveclient import CAVEclient
 
 from zetta_utils import log
 from zetta_utils.layer.volumetric.cloudvol.build import build_cv_layer
-from zetta_utils.task_management.db.models import ProjectModel, SegmentModel
+from zetta_utils.task_management.db.models import ProjectModel, SegmentModel, LockedSegmentModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.types import Segment
 
@@ -477,8 +477,6 @@ def get_unlocked_segments(
     Raises:
         ValueError: If project not found
     """
-    from zetta_utils.task_management.db.models import LockedSegmentModel
-
     if not segment_ids:
         return []
 

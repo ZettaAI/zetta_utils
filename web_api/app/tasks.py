@@ -22,7 +22,7 @@ from zetta_utils.task_management.ng_state import (
 from zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates import (
     ingest_validated_coordinates,
 )
-from zetta_utils.task_management.segment import get_segment_id
+from zetta_utils.task_management.segment import get_segment_id, get_unlocked_segments
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
@@ -71,7 +71,11 @@ class IngestSegmentsRequest(BaseModel):
 
 class GetSegmentIdRequest(BaseModel):
     coordinates: list[list[float]]
-    initial: bool = False    
+    initial: bool = False
+
+
+class FilterUnlockedSegmentsRequest(BaseModel):
+    segment_ids: list[int]    
 
 
 @api.exception_handler(Exception)
@@ -628,3 +632,32 @@ async def get_segment_id_api(
     except Exception as e:
         logger.error(f"Failed to get segment IDs: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get segment IDs: {str(e)}")
+
+
+@api.post("/projects/{project_name}/filter_unlocked_segments")
+async def filter_unlocked_segments_api(
+    project_name: str,
+    request: FilterUnlockedSegmentsRequest,
+) -> dict:
+    """
+    Filter a list of segment IDs to return only those that are not locked.
+
+    :param project_name: The name of the project
+    :param request: Request body containing segment_ids list
+    :return: Dictionary containing unlocked segment IDs
+    """
+    try:
+        logger.info(f"Filtering unlocked segments for project {project_name}")
+        unlocked_segments = get_unlocked_segments(
+            project_name=project_name,
+            segment_ids=request.segment_ids,
+        )
+        
+        return {
+            "unlocked_segments": [str(seg_id) for seg_id in unlocked_segments],
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to filter unlocked segments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to filter unlocked segments: {str(e)}")

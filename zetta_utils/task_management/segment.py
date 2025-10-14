@@ -456,3 +456,51 @@ def create_segment_from_coordinate(
             segment_dict["extra_data"] = extra_data
 
         return segment_dict
+
+
+def get_unlocked_segments(
+    project_name: str,
+    segment_ids: list[int],
+    db_session: Any = None,
+) -> list[int]:
+    """
+    Filter a list of segment IDs to return only those that are not locked.
+
+    Args:
+        project_name: Name of the project
+        segment_ids: List of segment IDs to check
+        db_session: Optional database session to use
+
+    Returns:
+        List of segment IDs that are not currently locked
+
+    Raises:
+        ValueError: If project not found
+    """
+    from zetta_utils.task_management.db.models import LockedSegmentModel
+
+    if not segment_ids:
+        return []
+
+    with get_session_context(db_session) as session:
+        # Verify project exists
+        project = session.query(ProjectModel).filter_by(project_name=project_name).first()
+        if not project:
+            raise ValueError(f"Project '{project_name}' not found!")
+
+        # Get all locked segment IDs for this project
+        locked_segments = (
+            session.query(LockedSegmentModel.segment_id)
+            .filter(
+                LockedSegmentModel.project_name == project_name,
+                LockedSegmentModel.segment_id.in_(segment_ids),
+            )
+            .all()
+        )
+
+        locked_segment_ids = {row.segment_id for row in locked_segments}
+
+        # Filter out locked segments
+        unlocked_segments = [seg_id for seg_id in segment_ids if seg_id not in locked_segment_ids]
+
+        return unlocked_segments

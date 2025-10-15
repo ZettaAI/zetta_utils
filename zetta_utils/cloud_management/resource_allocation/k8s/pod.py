@@ -120,7 +120,7 @@ def get_pod_spec(
     )
 
 
-def _get_zone_affinities(
+def get_zone_affinities(
     required_zones: list[str] | None = None, preferred_zones: list[str] | None = None
 ):
     required_zone_affinity = None
@@ -185,7 +185,7 @@ def get_mazepa_pod_spec(
             )
         )
 
-    required_affinity, preferred_affinity = _get_zone_affinities(required_zones, preferred_zones)
+    required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
     affinity = k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(
             required_during_scheduling_ignored_during_execution=required_affinity,

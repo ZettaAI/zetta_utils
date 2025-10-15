@@ -56,6 +56,8 @@ def lightning_train(  # pylint: disable=too-many-locals
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -92,6 +94,8 @@ def lightning_train(  # pylint: disable=too-many-locals
     :param provisioning_model: VM provision type to use for worker pods.
     :param gpu_accelerator_type: Schedule on nodes with given gpu type.
         Eg., "nvidia-tesla-t4". `gcloud compute accelerator-types list`.
+    :param required_zones: K8S will schedule workers in these zones.
+    :param preferred_zones: K8S will try to schedule workers in these zones.
     """
     args_mapping = {
         "regime": regime,
@@ -171,6 +175,8 @@ def lightning_train(  # pylint: disable=too-many-locals
         provisioning_model=provisioning_model,
         gpu_accelerator_type=gpu_accelerator_type,
         max_restarts=max_restarts,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
 
@@ -319,6 +325,8 @@ def _lightning_train_remote(
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
     max_restarts: int = 1,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ):  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     """
     Parse spec and launch single/multinode training accordingly.
@@ -398,10 +406,24 @@ def _lightning_train_remote(
     if builder.PARALLEL_BUILD_ALLOWED:
         flags += " -p"
     env_secret_mapping["RUN_ID"] = run.RUN_ID
+
+    required_affinity, preferred_affinity = resource_allocation.k8s.get_zone_affinities(
+        required_zones, preferred_zones
+    )
+    affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=required_affinity,
+            preferred_during_scheduling_ignored_during_execution=(
+                [preferred_affinity] if preferred_affinity else None
+            ),
+        )
+    )
+
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=run.RUN_ID,
         image=image,
         command=f"zetta run {flags} specs/train.cue",
+        affinity=affinity,
         envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
@@ -462,6 +484,7 @@ def _lightning_train_remote(
                 name="workers",
                 image=image,
                 command=f"zetta run -r {run.RUN_ID} {flags} specs/train.cue",
+                affinity=affinity,
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,

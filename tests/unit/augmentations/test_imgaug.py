@@ -175,6 +175,36 @@ def test_imgaug_builder():
     assert_array_equal(spec(arr), arr)
 
 
+def test_imgaug_readproc_targets():
+    zu.load_all_modules()  # pylint: disable=protected-access
+    spec = zu.builder.build(
+        spec={
+            "@type": "imgaug_readproc",
+            "@mode": "partial",
+            "augmenters": [
+                {
+                    "@type": "imgaug.augmenters.Sequential",
+                    "children": [
+                        {"@type": "imgaug.augmenters.Add", "value": 1},
+                    ],
+                },
+            ],
+            "targets": ["images"]
+        }
+    )
+    arr = np.zeros((1, 128, 128, 1), dtype=np.uint8)
+    arr2 = np.zeros((1, 128, 128, 1), dtype=np.uint8)
+    arr_zeros = np.zeros((1, 128, 128, 1), dtype=np.uint8)
+    arr_ones = np.ones((1, 128, 128, 1), dtype=np.uint8)
+    arrays_in = {
+        "images": arr,
+        "images_ignore": arr2,
+    }
+    out = spec(arrays_in)
+    assert_array_equal(out["images"], arr_ones)
+    assert_array_equal(out["images_ignore"], arr_zeros)
+
+
 def test_imgaug_basic_tensor_3d():
     image = torch.randint(0, 255, (3, 128, 128, 2), dtype=torch.uint8)
     segmap = torch.randint(0, 2 ** 15, (3, 128, 128, 2), dtype=torch.int16)

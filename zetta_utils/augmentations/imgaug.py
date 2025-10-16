@@ -116,10 +116,17 @@ def _ungroup_kwargs(
 
 @builder.register("imgaug_readproc")
 def imgaug_readproc(
-    *args,  # the zetta_utils builder puts the layer/layerset as the first argument
+    *args,
     targets: Iterable[str] | None = None,
-    **kwargs,  # and the augmenters in the kwargs
+    **kwargs,
 ):
+    """
+    imgaug read processor.
+
+    :param *args: zetta_utils builder puts layer or layerset as the first argument
+    :param targets: specify targets when input is a layerset. `None` runs proc on all inputs
+    :param **kwargs: other kwargs passed to `imgaug_augment`
+    """
     assert len(args) == 1
     augmenters = kwargs.pop("augmenters", None)
     assert augmenters is not None

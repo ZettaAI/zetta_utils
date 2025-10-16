@@ -58,6 +58,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         *args,
         checkpointing_kwargs: Optional[dict] = None,
         progress_bar_kwargs: Optional[dict] = None,
+        warmup_logging_steps: Optional[int] = None,
         **kwargs,
     ):
         assert "callbacks" not in kwargs
@@ -78,12 +79,21 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             f"{experiment_version}",
         )
 
-        kwargs["callbacks"] = get_progress_bar_callbacks(
+        callbacks = get_progress_bar_callbacks(
             **progress_bar_kwargs
         ) + get_checkpointing_callbacks(
             log_dir=log_dir,
             **checkpointing_kwargs,
         )
+        
+        # Add warmup logging callback if specified
+        if warmup_logging_steps is not None:
+            from zetta_utils.training.lightning.callbacks.warmup_logging import WarmupLoggingCallback
+            callbacks.append(WarmupLoggingCallback(
+                warmup_steps=warmup_logging_steps
+            ))
+        
+        kwargs["callbacks"] = callbacks
 
         super().__init__(*args, **kwargs)
 

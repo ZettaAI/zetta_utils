@@ -71,8 +71,9 @@ def to_torch(data: Tensor, device: torch.types.Device = None) -> torch.Tensor:
                 raise ValueError("Unable to convert uint64 dtype to int64")
             data = data.astype(np.int64)
         elif data.dtype == np.uint32:
-            if data.max() > np.uint32(2 ** 31 - 1):
-                raise ValueError("Unable to convert uint32 dtype to int32")
+            if data.size > 0:
+                if data.max() > np.uint32(2 ** 31 - 1):
+                    raise ValueError("Unable to convert uint32 dtype to int32")
             data = data.astype(np.int32)
 
         if any(v < 0 for v in data.strides):  # torch.from_numpy does not support negative strides

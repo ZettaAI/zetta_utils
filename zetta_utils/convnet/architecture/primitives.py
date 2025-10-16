@@ -210,18 +210,50 @@ class CenterCrop(torch.nn.Module):  # pragma: no cover
         return tensor_ops.crop_center(x, size=self.size)
 
 
+@builder.register("Scale")
+class Scale(torch.nn.Module):  # pragma: no cover
+    def __init__(self, scale: float = 1.0, learnable: bool = True):
+        super().__init__()
+        if learnable:
+            self.scale = torch.nn.Parameter(torch.tensor([scale]))
+        else:
+            self.register_buffer('scale', torch.FloatTensor([scale]))
+    
+    def forward(self, x):
+        return x * self.scale
+
+
 @builder.register("MultiHeaded")
 @typechecked
 class MultiHeaded(torch.nn.Module):  # pragma: no cover
     def __init__(
         self,
         heads: Mapping[str, torch.nn.Module],
+        output_scale: Mapping[str, float] | None = None,
+        output_scale_learnable: bool = True,
     ):
         super().__init__()
         self.heads = torch.nn.ModuleDict(heads)
+        self.output_scale = output_scale
+        if self.output_scale is not None:
+            for k in self.output_scale.keys():
+                if k not in heads:
+                    raise ValueError(f"Output scale for {k} not found in heads")
+            self.scale_modules = torch.nn.ModuleDict({
+                k: Scale(v, learnable=output_scale_learnable) for k, v in output_scale.items()
+            })
 
     def forward(self, x):
-        result_dict = {k: head(x) for k, head in self.heads.items()}
+        result_dict = {
+            k: head(x)
+            for k, head in self.heads.items()
+        }
+        
+        if self.output_scale is not None:
+            for k, v in result_dict.items():
+                if k in self.scale_modules:
+                    result_dict[k] = self.scale_modules[k](v)
+        
         result = namedtuple("Output", result_dict)(**result_dict)
         return result
 
@@ -236,6 +268,8 @@ class MultiHeadedOutput(MultiHeaded):
         conv: Callable[..., torch.nn.modules.conv._ConvNd],
         preactivation: torch.nn.Module | None = None,
         activation: torch.nn.Module | None = None,
+        output_scale: Mapping[str, float] | None = None,
+        output_scale_learnable: bool = True,
     ):
         heads_ = {}
         for name, out_channels in heads.items():
@@ -245,4 +279,4 @@ class MultiHeadedOutput(MultiHeaded):
             if activation is not None:
                 layers.append(activation)
             heads_[name] = torch.nn.Sequential(*layers)
-        super().__init__(heads_)
+        super().__init__(heads_, output_scale=output_scale, output_scale_learnable=output_scale_learnable)

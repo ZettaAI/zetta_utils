@@ -85,7 +85,7 @@ def seg_to_aff(
 
     result = aff
     if mask is not None:
-        assert data.shape == mask.shape
+        assert data.shape == mask.shape, f"Data shape: {data.shape}, mask shape: {mask.shape}"
         pair = get_disp_pair(mask, edge)
         affmsk = convert.astype(pair[0] * pair[1], mask, cast=True)
         result = aff, affmsk
@@ -97,6 +97,7 @@ def seg_to_aff(
 @typechecked
 def seg_to_rgb(
     data: TensorTypeVar,
+    seed: int | None = None, # set to specific value for persistent mappings across calls
 ) -> TensorTypeVar:
     """
     Transform a segmentation into an RGB map.
@@ -111,9 +112,14 @@ def seg_to_rgb(
     # pylint: disable=invalid-name
     # Random colormap
     N = len(unq)
+    if seed is not None:
+        pre_seed = np.random.get_state()
+        np.random.seed(seed)
     R = np.random.rand(N)
     G = np.random.rand(N)
     B = np.random.rand(N)
+    if seed is not None:
+        np.random.set_state(pre_seed)
 
     # Background
     idx = unq == 0

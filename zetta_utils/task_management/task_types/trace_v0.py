@@ -408,6 +408,7 @@ def create_trace_v0_task(project_name: str, segment: SegmentModel, kwargs: dict)
         is_active=True,
         is_paused=kwargs.get("is_paused", False),
         is_checked=False,
+        segment_seed_id=segment.seed_id,
         extra_data={"seed_id": segment.seed_id},
     )
 

@@ -10,6 +10,7 @@ from zetta_utils.task_management.db.models import (
     DependencyModel,
     EndpointModel,
     EndpointUpdateModel,
+    LockedSegmentModel,
     MergeEditModel,
     ProjectModel,
     SegmentModel,
@@ -798,4 +799,37 @@ def test_merge_edit_model_from_dict_default_timestamp():
     assert model.project_name == "test_project"
     assert model.task_id == "task999"
     assert model.user_id == "user333"
+    assert isinstance(model.created_at, datetime)
+
+
+# TestLockedSegmentModel tests
+
+
+def test_locked_segment_model_to_dict(db_session):
+    """Test LockedSegmentModel.to_dict() to cover line 868"""
+    now = datetime.now(timezone.utc)
+    locked_segment = LockedSegmentModel(
+        project_name="test_project",
+        segment_id=12345,
+        created_at=now,
+    )
+    db_session.add(locked_segment)
+    db_session.commit()
+
+    result = locked_segment.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["segment_id"] == 12345
+    assert result["created_at"] == now.isoformat()
+
+
+def test_locked_segment_model_from_dict():
+    """Test LockedSegmentModel.from_dict() to cover line 859"""
+    data = {
+        "project_name": "test_project",
+        "segment_id": 67890,
+        "created_at": "2025-07-03T15:30:00+00:00",
+    }
+    model = LockedSegmentModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.segment_id == 67890
     assert isinstance(model.created_at, datetime)

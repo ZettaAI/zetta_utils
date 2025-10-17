@@ -466,7 +466,9 @@ class SegmentModel(Base):
             is_exported=data.get("is_exported", False),
             created_at=_parse_datetime(data["created_at"]),
             updated_at=_parse_datetime(data["updated_at"]),
-            last_modified=_parse_datetime(data["last_modified"]) if data.get("last_modified") else None,
+            last_modified=(
+                _parse_datetime(data["last_modified"]) if data.get("last_modified") else None
+            ),
             extra_data=data.get("extra_data"),
         )
 

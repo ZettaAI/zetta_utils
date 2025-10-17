@@ -842,3 +842,41 @@ class MergeEditModel(Base):
             points=data["points"],
             created_at=_parse_datetime(data.get("created_at", datetime.now())),
         )
+
+
+class LockedSegmentModel(Base):
+    """
+    SQLAlchemy model for the locked_segments table.
+
+    Tracks segments that are currently locked to prevent merging.
+    """
+
+    __tablename__ = "locked_segments"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    segment_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_locked_segments_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "project_name": self.project_name,
+            "segment_id": self.segment_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "LockedSegmentModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            segment_id=data["segment_id"],
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
+        )

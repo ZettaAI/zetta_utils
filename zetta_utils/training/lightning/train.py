@@ -119,9 +119,9 @@ def lightning_train(  # pylint: disable=too-many-locals
         return
 
     if image is None:
-        raise ValueError("Must provide a container image for remote training.")
+        raise ValueError("Must provide a `image` when local_run=False.")
     if resource_limits is None:
-        raise ValueError("Must provide resource limits for remote training.")
+        raise ValueError("Must provide `resource_limits` when local_run=False.")
 
     assert resource_allocation.gcloud.check_image_exists(image), image
 
@@ -147,7 +147,7 @@ def lightning_train(  # pylint: disable=too-many-locals
         if isinstance(v, dict):
             # argument given as spec, use it directly
             train_args[k] = v
-        else:
+        elif v is not None:
             arg_spec = builder.get_initial_builder_spec(v)
             if arg_spec is None:
                 raise RuntimeError(

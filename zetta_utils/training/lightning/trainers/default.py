@@ -86,12 +86,12 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             f"{experiment_version}",
         )
 
-        kwargs["callbacks"] = get_progress_bar_callbacks(
-            **progress_bar_kwargs
-        ) + get_checkpointing_callbacks(
+        kwargs["callbacks"] = get_checkpointing_callbacks(
             log_dir=log_dir,
             **checkpointing_kwargs,
         )
+        if kwargs.setdefault("enable_progress_bar", True):
+            kwargs["callbacks"].extend(get_progress_bar_callbacks(**progress_bar_kwargs))
 
         super().__init__(*args, **kwargs)
 
@@ -247,8 +247,8 @@ class ConfigureLogging(pl.callbacks.Callback):
         self.exp_name = exp_name
         self.exp_version = exp_version
 
-    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):  # pragma: no cover
+        if not os.environ.get("WANDB_MODE", None) == "offline":
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 

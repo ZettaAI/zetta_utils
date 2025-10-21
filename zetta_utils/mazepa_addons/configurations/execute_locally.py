@@ -38,6 +38,8 @@ def execute_locally(
     debug: bool = False,
     write_progress_summary: bool = False,
     require_interrupt_confirm: bool = True,
+    suppress_worker_logs: bool = True,
+    resource_monitor_interval: float | None = 1.0,
 ):
 
     queues_dir_ = queues_dir if queues_dir else ""
@@ -50,7 +52,10 @@ def execute_locally(
         stack.enter_context(configure_semaphores(semaphores_spec))
 
         if debug:
-            logger.info("Debug mode: Using single process execution without local queues.")
+            logger.info(
+                "Debug mode: Using single process execution without local queues,"
+                " and resource monitoring is disabled."
+            )
             task_queue = None
             outcome_queue = None
         else:
@@ -59,7 +64,16 @@ def execute_locally(
             task_queue = stack.enter_context(FileQueue(task_queue_name))
             outcome_queue = stack.enter_context(FileQueue(outcome_queue_name))
             stack.enter_context(
-                setup_local_worker_pool(num_procs, task_queue_name, outcome_queue_name)
+                setup_local_worker_pool(
+                    num_procs=num_procs,
+                    task_queue_name=task_queue_name,
+                    outcome_queue_name=outcome_queue_name,
+                    local=True,
+                    sleep_sec=0.1,
+                    idle_timeout=None,
+                    suppress_worker_logs=suppress_worker_logs,
+                    resource_monitor_interval=resource_monitor_interval,
+                )
             )
         execute(
             target=target,

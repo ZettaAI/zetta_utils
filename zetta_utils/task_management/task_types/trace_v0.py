@@ -200,12 +200,12 @@ def handle_trace_v0_completion(  # pylint: disable=too-many-statements
 
         # Set status based on completion status
         if completion_status == "Done":
-            segment.status = "Completed"
+            segment.status = "Proofread"
         elif completion_status in ["Merger", "Wrong Cell Type"]:
-            segment.status = "Abandoned"
+            segment.status = "Wrong type"
         else:
             assert completion_status == "Can't Continue"
-            segment.status = "WIP"
+            segment.status = "Proofread"
 
         segment.updated_at = datetime.now(timezone.utc)
 
@@ -390,7 +390,7 @@ def create_trace_v0_task(project_name: str, segment: SegmentModel, kwargs: dict)
     task_id = f"trace_{segment.seed_id}_{generate_id_nonunique()}"
 
     # Generate neuroglancer state
-    ng_state = generate_trace_v0_ng_state(project_name, segment)
+    ng_state = {"seed_id": segment.seed_id}
 
     # Build task data
     task_data = Task(

@@ -69,6 +69,8 @@ class WorkerGroup:
     idle_worker_timeout: int = 300
     labels: dict[str, str] | None = None
     gpu_accelerator_type: str | None = None
+    required_zones: list[str] | None = None  # k8s will schedule workers in these zones
+    preferred_zones: list[str] | None = None  # k8s will try to schedule workers in these zones
 
 
 class WorkerGroupDict(TypedDict, total=False):
@@ -82,6 +84,8 @@ class WorkerGroupDict(TypedDict, total=False):
     idle_worker_timeout: NotRequired[int]
     labels: NotRequired[dict[str, str]]
     gpu_accelerator_type: NotRequired[str]
+    required_zones: NotRequired[list[str]]
+    preferred_zones: NotRequired[list[str]]
 
 
 def _get_group_taskqueue_and_contexts(
@@ -93,6 +97,8 @@ def _get_group_taskqueue_and_contexts(
     sqs_trigger_name: str,
     outcome_queue_spec: dict[str, Any],
     env_secret_mapping: dict[str, str],
+    suppress_worker_logs: bool,
+    resource_monitor_interval: float | None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
 ) -> tuple[PushMessageQueue[Task], list[AbstractContextManager]]:
@@ -112,6 +118,8 @@ def _get_group_taskqueue_and_contexts(
             group.num_procs,
             group.semaphores_spec,
             idle_timeout=group.idle_worker_timeout,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
         )
         pod_spec = k8s.get_mazepa_pod_spec(
             image=image,
@@ -124,6 +132,8 @@ def _get_group_taskqueue_and_contexts(
             gpu_accelerator_type=group.gpu_accelerator_type,
             adc_available=adc_available,
             cave_secret_available=cave_secret_available,
+            required_zones=group.required_zones,
+            preferred_zones=group.preferred_zones,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
@@ -154,6 +164,10 @@ def _get_group_taskqueue_and_contexts(
             gpu_accelerator_type=group.gpu_accelerator_type,
             adc_available=adc_available,
             cave_secret_available=cave_secret_available,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
+            required_zones=group.required_zones,
+            preferred_zones=group.preferred_zones,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,
@@ -171,6 +185,8 @@ def get_gcp_with_sqs_config(
     groups: dict[str, WorkerGroupDict],
     cluster: k8s.ClusterInfo,
     ctx_managers: list[AbstractContextManager],
+    suppress_worker_logs: bool,
+    resource_monitor_interval: float | None,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     task_queues = []
     (
@@ -203,6 +219,8 @@ def get_gcp_with_sqs_config(
             env_secret_mapping=env_secret_mapping,
             adc_available=adc_available,
             cave_secret_available=cave_secret_available,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
         )
         task_queues.append(task_queue)
         ctx_managers.extend(group_ctx_managers)
@@ -234,6 +252,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
     raise_on_failed_checkpoint: bool = True,
     write_progress_summary: bool = False,
     require_interrupt_confirm: bool = True,
+    suppress_worker_logs: bool = True,
+    resource_monitor_interval: float | None = None,
 ):
     if debug and not local_test:
         raise ValueError("`debug` can only be set to `True` when `local_test` is also `True`.")
@@ -255,6 +275,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             debug=debug,
             write_progress_summary=write_progress_summary,
             require_interrupt_confirm=require_interrupt_confirm,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
         )
     else:
         assert gcloud.check_image_exists(worker_image), worker_image
@@ -297,6 +319,8 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             groups=worker_groups,
             cluster=worker_cluster,
             ctx_managers=ctx_managers,
+            suppress_worker_logs=suppress_worker_logs,
+            resource_monitor_interval=resource_monitor_interval,
         )
 
         with ExitStack() as stack:

@@ -6,7 +6,10 @@ import warnings
 
 from .log import get_logger
 
-if "sphinx" not in sys.modules:
+# Set global multiprocessing threshold
+MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
+
+if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa
 
     os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
@@ -24,7 +27,6 @@ ignore_warnings_from = [
 for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
 
 
 def _load_core_modules():

@@ -136,6 +136,7 @@ def run_ctx_manager(
     assert RUN_ID is not None
 
     heartbeat_sender = None
+    update_costs_repeater = None
     if main_run_process:
         _check_run_id_conflict()
 
@@ -173,7 +174,13 @@ def run_ctx_manager(
                     )
                 },
             )
+
             assert heartbeat_sender is not None
+            assert update_costs_repeater is not None
             heartbeat_sender.cancel()
             update_costs_repeater.cancel()
+
+            heartbeat_sender.join()
+            update_costs_repeater.join()
+
         RUN_ID = None

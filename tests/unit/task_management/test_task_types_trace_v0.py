@@ -445,7 +445,7 @@ def test_handle_completion_done(
         )
 
         assert segment.current_segment_id == 98765
-        assert segment.status == "Completed"
+        assert segment.status == "Proofread"
         assert segment.root_x == 100
         assert segment.root_y == 200
         assert segment.root_z == 300  # Should be 300.5 - 0.5
@@ -495,7 +495,7 @@ def test_handle_completion_merger(
             .first()
         )
 
-        assert segment.status == "Abandoned"
+        assert segment.status == "Wrong type"
 
 
 def test_handle_completion_cant_continue(
@@ -520,7 +520,7 @@ def test_handle_completion_cant_continue(
             .first()
         )
 
-        assert segment.status == "WIP"
+        assert segment.status == "Proofread"
 
 
 def test_handle_completion_replaces_endpoints(
@@ -700,7 +700,7 @@ def test_generate_ng_state_no_current_segment(clean_db, db_session, existing_pro
         seed_z=300.0,
         current_segment_id=None,
         task_ids=[],
-        status="WIP",
+        status="Raw",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -742,7 +742,7 @@ def test_generate_ng_state_with_extra_layers(clean_db, db_session, project_name)
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="Raw",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -775,13 +775,7 @@ def test_create_task_basic(
     existing_segment,
 ):
     """Test basic task creation"""
-    mock_generate_ng = mocker.patch(
-        "zetta_utils.task_management.task_types.trace_v0.generate_trace_v0_ng_state"
-    )
     mock_create_task = mocker.patch("zetta_utils.task_management.task_types.trace_v0.create_task")
-
-    mock_ng_state = {"test": "state"}
-    mock_generate_ng.return_value = mock_ng_state
 
     # Mock create_task to return the task_id that was passed to it
     def mock_create_task_impl(**kwargs):
@@ -791,17 +785,15 @@ def test_create_task_basic(
 
     task_id = create_trace_v0_task(existing_project, existing_segment, {})
 
-    # Check ng state generation
-    mock_generate_ng.assert_called_once_with(existing_project, existing_segment)
-
     # Check task creation
     mock_create_task.assert_called_once()
     call_args = mock_create_task.call_args[1]
     task_data = call_args["data"]
 
+    expected_ng_state = {"seed_id": existing_segment.seed_id}
     assert task_data["task_type"] == "trace_v0"
-    assert task_data["ng_state"] == mock_ng_state
-    assert task_data["ng_state_initial"] == mock_ng_state  # Should be a copy
+    assert task_data["ng_state"] == expected_ng_state
+    assert task_data["ng_state_initial"] == expected_ng_state  # Should be a copy
     assert task_data["extra_data"]["seed_id"] == existing_segment.seed_id
     assert task_data["priority"] == 50  # Default
     assert task_data["batch_id"] == "default"
@@ -976,7 +968,7 @@ def existing_segment(existing_project, db_session):
         seed_z=300.0,
         current_segment_id=67890,
         task_ids=[],
-        status="WIP",
+        status="Raw",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),

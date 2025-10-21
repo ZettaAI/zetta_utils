@@ -1,10 +1,10 @@
 FROM python:3.12
 
-ENV PYTHONPATH /opt/http
+ENV PYTHONPATH=/opt/http
 WORKDIR /opt/http
 
 COPY pyproject.toml web_api/requirements.txt /opt/http/
-RUN apt update && apt install ffmpeg libsm6 libxext6 software-properties-common unixodbc-dev libboost-dev -y
+RUN apt update && apt install -y ffmpeg libsm6 libxext6 unixodbc-dev libboost-dev
 RUN pip install --no-cache-dir -r requirements.txt && pip install '.[modules]'
 
 COPY . /opt/http

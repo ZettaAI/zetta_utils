@@ -49,7 +49,7 @@ def setup_project_and_segment(clean_db, db_session, project_name):
         root_z=350.0,
         current_segment_id=67890,
         task_ids=["task_123", "task_456"],
-        status="WIP",
+        status="Raw",
         is_exported=False,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -65,7 +65,7 @@ def trace_v0_task(setup_project_and_segment, db_session, project_name):
     task = TaskModel(
         project_name=project_name,
         task_id="trace_task_123",
-        completion_status="WIP",
+        completion_status="",
         assigned_user_id="",
         active_user_id="user1",
         completed_user_id="",
@@ -86,6 +86,7 @@ def trace_v0_task(setup_project_and_segment, db_session, project_name):
         id_nonunique=123456,
         extra_data={"seed_id": 12345},  # seed_id in extra_data
         note=None,
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(task)
     db_session.commit()
@@ -119,6 +120,7 @@ def seg_trace_task(setup_project_and_segment, db_session, project_name):
         id_nonunique=123456,
         extra_data=None,  # No extra_data, will use segment lookup
         note=None,
+        created_at=datetime.now(timezone.utc),
     )
     db_session.add(task)
     db_session.commit()
@@ -284,8 +286,8 @@ class TestGetTraceTaskState:
         # Check first merge edit line annotation
         first_merge = merge_layer["annotations"][0]
         assert first_merge["type"] == "line"
-        assert first_merge["pointA"] == [100.0, 200.0, 300.0]
-        assert first_merge["pointB"] == [110.0, 210.0, 310.0]
+        assert first_merge["pointA"] == [12.5, 25.0, 7.5]  # 100.0/8.0, 200.0/8.0, 300.0/40.0
+        assert first_merge["pointB"] == [13.75, 26.25, 7.75]  # 110.0/8.0, 210.0/8.0, 310.0/40.0
         assert "id" in first_merge
 
     def test_with_selective_layers(
@@ -376,7 +378,7 @@ class TestGetTraceTaskState:
         task = TaskModel(
             project_name=project_name,
             task_id="orphan_task",
-            completion_status="WIP",
+            completion_status="",
             assigned_user_id="",
             active_user_id="user1",
             completed_user_id="",
@@ -393,6 +395,7 @@ class TestGetTraceTaskState:
             id_nonunique=123456,
             extra_data=None,
             note=None,
+            created_at=datetime.now(timezone.utc),
         )
         db_session.add(task)
         db_session.commit()
@@ -417,7 +420,7 @@ class TestGetTraceTaskState:
             seed_z=300.0,
             current_segment_id=67890,
             task_ids=["task_123"],
-            status="WIP",
+            status="Raw",
             is_exported=False,
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -427,7 +430,7 @@ class TestGetTraceTaskState:
         task = TaskModel(
             project_name="nonexistent",
             task_id="task_123",
-            completion_status="WIP",
+            completion_status="",
             assigned_user_id="",
             active_user_id="user1",
             completed_user_id="",
@@ -444,6 +447,7 @@ class TestGetTraceTaskState:
             id_nonunique=123456,
             extra_data=None,
             note=None,
+            created_at=datetime.now(timezone.utc),
         )
         db_session.add(task)
         db_session.commit()
@@ -752,8 +756,8 @@ class TestInternalFunctions:
         # Check first line annotation
         first_line = line_annotations[0]
         assert first_line["type"] == "line"
-        assert first_line["pointA"] == [100.0, 200.0, 300.0]
-        assert first_line["pointB"] == [110.0, 210.0, 310.0]
+        assert first_line["pointA"] == [12.5, 25.0, 7.5]  # 100.0/8.0, 200.0/8.0, 300.0/40.0
+        assert first_line["pointB"] == [13.75, 26.25, 7.75]  # 110.0/8.0, 210.0/8.0, 310.0/40.0
         assert "id" in first_line
 
     def test_add_merge_layer(self, setup_project_and_segment, db_session, project_name):

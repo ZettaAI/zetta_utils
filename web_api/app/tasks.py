@@ -19,6 +19,10 @@ from zetta_utils.task_management.ng_state import (
     get_trace_task_link,
     get_trace_task_state,
 )
+from zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates import (
+    ingest_validated_coordinates,
+)
+from zetta_utils.task_management.segment import get_segment_id
 from zetta_utils.task_management.split_edit import (
     create_split_edit,
     get_split_edit_by_id,
@@ -31,10 +35,10 @@ from zetta_utils.task_management.task import (
     start_task,
     update_task,
 )
-from zetta_utils.task_management.task_type import create_task_type, get_task_type
+from zetta_utils.task_management.task_type import get_task_type
 from zetta_utils.task_management.task_types import handle_task_completion, verify_task
 from zetta_utils.task_management.timesheet import submit_timesheet
-from zetta_utils.task_management.types import Task, TaskType, TaskUpdate
+from zetta_utils.task_management.types import TaskUpdate
 
 from .utils import generic_exception_handler
 
@@ -58,6 +62,16 @@ class MergeEditRequest(BaseModel):
     user_id: str
     task_id: str
     points: list[list]
+
+
+class IngestSegmentsRequest(BaseModel):
+    valid_coordinates: list[dict]
+    expected_neuron_type: str
+    batch_name: str
+
+class GetSegmentIdRequest(BaseModel):
+    coordinates: list[list[float]]
+    initial: bool = False    
 
 
 @api.exception_handler(Exception)
@@ -160,16 +174,17 @@ async def release_task_api(
         project_name=project_name, task=task, completion_status=completion_status
     )
 
-    release_success = release_task(
-        project_name=project_name,
-        user_id=user_id,
-        task_id=task_id,
-        completion_status=completion_status,
-        note=note,
-    )
-
-    if not release_success:
-        raise HTTPException(status_code=409, detail="Failed to release task")
+    try:
+        release_task(
+            project_name=project_name,
+            user_id=user_id,
+            task_id=task_id,
+            completion_status=completion_status,
+            note=note,
+        )
+    except Exception as e:
+        logger.error(f"Failed to release task: {e}")
+        raise HTTPException(status_code=409, detail=f"Failed to release task: {str(e)}")
 
     return True
 
@@ -551,3 +566,65 @@ async def get_trace_task_link_api(
     except Exception as e:
         logger.error(f"Failed to get trace task link: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get trace task link: {str(e)}")
+
+
+@api.post("/projects/{project_name}/ingest_segments")
+async def ingest_segments_api(
+    project_name: str,
+    request: IngestSegmentsRequest,
+) -> dict:
+    """
+    Ingest validated segment coordinates into the database.
+
+    :param project_name: The name of the project
+    :param request: Request body containing valid_coordinates, expected_neuron_type, and batch_name
+    :return: Dictionary containing ingestion results
+    """
+    try:
+        results = ingest_validated_coordinates(
+            project_name=project_name,
+            valid_coordinates=request.valid_coordinates,
+            expected_neuron_type=request.expected_neuron_type,
+            batch_name=request.batch_name,
+        )
+        return results
+    except Exception as e:
+        logger.error(f"Failed to ingest segments: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to ingest segments: {str(e)}")
+
+
+@api.post("/projects/{project_name}/segment_id")
+async def get_segment_id_api(
+    project_name: str,
+    request: GetSegmentIdRequest,
+) -> dict:
+    """
+    Get segment IDs for multiple coordinates.
+
+    :param project_name: The name of the project
+    :param request: Request body containing coordinates and initial flag
+    :return: Dictionary mapping segment_id to coordinate {segment_id: [x, y, z], ...}
+    """
+    try:
+        result = {}
+        with get_session_context() as db_session:
+            for coordinate in request.coordinates:
+                if len(coordinate) != 3:
+                    logger.warning(f"Skipping invalid coordinate: {coordinate}")
+                    continue
+
+                segment_id = get_segment_id(
+                    project_name=project_name,
+                    coordinate=coordinate,
+                    initial=request.initial,
+                    db_session=db_session,
+                )
+                if segment_id != 0:
+                    result[segment_id] = coordinate
+
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get segment IDs: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get segment IDs: {str(e)}")

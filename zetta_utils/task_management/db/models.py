@@ -296,9 +296,6 @@ class SegmentTypeModel(Base):
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
     type_name: Mapped[str] = mapped_column(String, primary_key=True)
 
-    reference_segment_ids: Mapped[list[int]] = mapped_column(
-        ARRAY(Integer), nullable=False, default=[]
-    )
     sample_segment_ids: Mapped[list[str]] = mapped_column(
         ARRAY(String), nullable=False, default=[]
     )
@@ -314,7 +311,6 @@ class SegmentTypeModel(Base):
         result = {
             "type_name": self.type_name,
             "project_name": self.project_name,
-            "reference_segment_ids": self.reference_segment_ids,
             "sample_segment_ids": self.sample_segment_ids,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -335,7 +331,6 @@ class SegmentTypeModel(Base):
         return cls(
             type_name=data["type_name"],
             project_name=data["project_name"],
-            reference_segment_ids=data.get("reference_segment_ids", []),
             sample_segment_ids=data.get("sample_segment_ids", []),
             description=data.get("description"),
             region_mesh=data.get("region_mesh"),
@@ -379,9 +374,9 @@ class SegmentModel(Base):
     post_synapse_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     status: Mapped[str] = mapped_column(
-        Enum("WIP", "Completed", "Retired", "Abandoned", name="segment_status"),
+        Enum("Raw", "Proofread", "Duplicate", "Wrong type", name="segment_status"),
         nullable=False,
-        default="WIP",
+        default="Raw",
     )
     is_exported: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
@@ -464,7 +459,7 @@ class SegmentModel(Base):
             skeleton_path_length_mm=data.get("skeleton_path_length_mm"),
             pre_synapse_count=data.get("pre_synapse_count"),
             post_synapse_count=data.get("post_synapse_count"),
-            status=data.get("status", "wip"),
+            status=data.get("status", "Raw"),
             is_exported=data.get("is_exported", False),
             created_at=_parse_datetime(data["created_at"]),
             updated_at=_parse_datetime(data["updated_at"]),
@@ -604,6 +599,7 @@ class TaskModel(Base):
     id_nonunique: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
@@ -660,6 +656,7 @@ class TaskModel(Base):
             "is_checked": self.is_checked,
             "task_type": self.task_type,
             "note": self.note,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
         if self.extra_data is not None:
@@ -690,6 +687,7 @@ class TaskModel(Base):
             id_nonunique=data.get("id_nonunique"),
             extra_data=data.get("extra_data"),
             note=data.get("note"),
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
         )
 
 
@@ -741,17 +739,13 @@ class SplitEditModel(Base):
     __tablename__ = "split_edits"
 
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
-    edit_id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
-    )
+    edit_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     sources: Mapped[list] = mapped_column(JSON, nullable=False)
     sinks: Mapped[list] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index("idx_split_edits_project_task", "project_name", "task_id"),
@@ -772,9 +766,7 @@ class SplitEditModel(Base):
             "user_id": self.user_id,
             "sources": self.sources,
             "sinks": self.sinks,
-            "created_at": (
-                self.created_at.isoformat() if self.created_at else None
-            ),
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
         }
 
     @classmethod
@@ -802,16 +794,12 @@ class MergeEditModel(Base):
     __tablename__ = "merge_edits"
 
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
-    edit_id: Mapped[int] = mapped_column(
-        Integer, primary_key=True, autoincrement=True
-    )
+    edit_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
     task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     points: Mapped[list] = mapped_column(JSON, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         Index("idx_merge_edits_project_task", "project_name", "task_id"),
@@ -831,9 +819,7 @@ class MergeEditModel(Base):
             "task_id": self.task_id,
             "user_id": self.user_id,
             "points": self.points,
-            "created_at": (
-                self.created_at.isoformat() if self.created_at else None
-            ),
+            "created_at": (self.created_at.isoformat() if self.created_at else None),
         }
 
     @classmethod

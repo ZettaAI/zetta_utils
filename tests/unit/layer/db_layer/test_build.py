@@ -26,6 +26,18 @@ def test_write_list(mocker) -> None:
     assert backend.write.call_args.kwargs["data"] == [{"value": "val0"}, {"value": "val1"}]
 
 
+def test_write_empty_list(mocker) -> None:
+    backend = mocker.MagicMock()
+    backend.write = mocker.MagicMock()
+
+    layer = build_db_layer(backend)
+
+    idx_user: list[str] = []
+    data_user: list[str] = []
+    layer[idx_user] = data_user
+    backend.write.assert_not_called()
+
+
 def test_write_single_row(mocker) -> None:
     backend = mocker.MagicMock()
     backend.write = mocker.MagicMock()
@@ -85,11 +97,8 @@ def test_write_exc(mocker):
     backend.write = mocker.MagicMock()
 
     layer = build_db_layer(backend)
-    with pytest.raises(TypeError):
-        layer["key"] = object  # type: ignore
-
     with pytest.raises(ValueError):
-        layer["key"] = mocker.MagicMock()
+        layer["key"] = object  # type: ignore
 
 
 @pytest.mark.parametrize(

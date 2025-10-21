@@ -17,6 +17,9 @@ from .bbox import BBox3D
 logger = log.get_logger("zetta_utils")
 
 
+import os
+
+
 @builder.register("BBoxStrider")
 @attrs.frozen
 @typechecked
@@ -247,6 +250,11 @@ class BBoxStrider:
             result = [
                 self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)
             ]  # TODO: generator?
+
+        # print(f"{os.getpid()}: {self.num_chunks}")
+        # result = [
+        #     self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)
+        # ]  # TODO: generator?
         return result
 
     def get_nth_chunk_bbox(self, n: int) -> BBox3D:

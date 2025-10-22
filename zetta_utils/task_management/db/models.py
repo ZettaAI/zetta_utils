@@ -305,6 +305,8 @@ class SegmentTypeModel(Base):
     seed_mask: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    instruction: Mapped[str | None] = mapped_column(String, nullable=True)
+    instruction_link: Mapped[str | None] = mapped_column(String, nullable=True)
 
     def to_dict(self) -> dict:
         """Convert the model to a dictionary"""
@@ -322,6 +324,10 @@ class SegmentTypeModel(Base):
             result["region_mesh"] = self.region_mesh
         if self.seed_mask is not None:
             result["seed_mask"] = self.seed_mask
+        if self.instruction is not None:
+            result["instruction"] = self.instruction
+        if self.instruction_link is not None:
+            result["instruction_link"] = self.instruction_link
 
         return result
 
@@ -600,6 +606,8 @@ class TaskModel(Base):
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    instruction: Mapped[str | None] = mapped_column(String, nullable=True)
+    instruction_link: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
         Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
@@ -657,6 +665,8 @@ class TaskModel(Base):
             "task_type": self.task_type,
             "note": self.note,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "instruction": self.instruction,
+            "instruction_link": self.instruction_link,
         }
 
         if self.extra_data is not None:

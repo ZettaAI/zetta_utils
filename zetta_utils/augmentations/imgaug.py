@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import collections
-
-# from typing import Any, Final, Literal, Sequence, Sized, Tuple, TypeVar, overload, Container
 from typing import Any, Final, Iterable, Literal, Sequence, Tuple, TypeVar, overload
 
 import numpy as np
@@ -15,7 +13,6 @@ from zetta_utils import builder
 from zetta_utils.tensor_ops import common, convert, crop_center
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
-# SizedTypeVar = TypeVar("SizedTypeVar", bound=Sized)
 TensorListTypeVar = TypeVar("TensorListTypeVar", Tensor, Sequence)
 T = TypeVar("T")
 

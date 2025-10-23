@@ -1,0 +1,603 @@
+"""
+PyChunkedGraph edit event listener worker.
+
+Listens to Pub/Sub messages from PyChunkedGraph and updates supervoxels table
+when segment merges or splits occur.
+"""
+
+import logging
+import os
+import time
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+
+from caveclient import CAVEclient
+
+from zetta_utils.message_queues.pubsub import PubSubPullQueue
+from zetta_utils.task_management.db.models import ProjectModel
+from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.supervoxel import (
+    get_supervoxels_by_segment,
+    update_supervoxel_for_split,
+    update_supervoxels_for_merge,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def get_old_roots_from_lineage_graph(
+    server_address: str,
+    table_id: str,
+    root_ids: list[int],
+    timestamp_past: datetime,
+) -> dict[int, list[int]]:
+    """
+    Get old root IDs from PyChunkedGraph lineage_graph endpoint.
+
+    Args:
+        server_address: PCG server address
+        table_id: Table/graph ID
+        root_ids: List of new root IDs to query
+        timestamp_past: Timestamp to limit past edges
+
+    Returns:
+        Dict mapping new_root_id -> list of old_root_ids
+    """
+    import requests
+
+    try:
+        # PCG lineage_graph_multiple endpoint
+        url = f"{server_address}/segmentation/api/v1/table/{table_id}/lineage_graph_multiple"
+
+        # Convert timestamp to milliseconds since epoch
+        timestamp_ms = int(timestamp_past.timestamp() * 1000)
+
+        payload = {
+            "root_ids": root_ids,
+            "timestamp_past": timestamp_ms,
+        }
+
+        print(f"[DEBUG] Lineage graph request URL: {url}")
+        print(f"[DEBUG] Lineage graph request payload: {payload}")
+
+        # Get auth token from environment
+        auth_token = os.getenv("CAVE_AUTH_TOKEN")
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+            print("[DEBUG] Using auth token from CAVE_AUTH_TOKEN")
+        else:
+            print("[DEBUG] No auth token found in CAVE_AUTH_TOKEN env var")
+
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        print(f"[DEBUG] Response status code: {response.status_code}")
+        print(f"[DEBUG] Response headers: {response.headers}")
+        print(f"[DEBUG] Response text (first 1000 chars): {response.text[:1000]}")
+        response.raise_for_status()
+
+        data = response.json()
+        print(f"[DEBUG] Lineage graph raw response (first 500 chars): {str(data)[:500]}")
+        logger.info(f"Got lineage graph for {len(root_ids)} roots")
+
+        # Parse lineage graph to extract old roots
+        # Response format: {"links": [{"source": <old_root>, "target": <new_root>}, ...]}
+        result = {}
+        links = data.get("links", [])
+        print(f"[DEBUG] Found {len(links)} total links in lineage graph")
+
+        for root_id in root_ids:
+            old_roots = set()
+            # Find all edges where target is our new root
+            for link in links:
+                source = link.get("source")
+                target = link.get("target")
+                # If target is our new root, source is an old root (immediate parent)
+                if target == root_id:
+                    old_roots.add(source)
+                    print(f"[DEBUG] Found edge: {source} -> {target}")
+
+            if old_roots:
+                result[root_id] = list(old_roots)
+                logger.info(f"Found {len(old_roots)} old roots for {root_id}: {old_roots}")
+                print(f"[DEBUG] Old roots for {root_id}: {old_roots}")
+            else:
+                print(f"[DEBUG] No old roots found for {root_id}")
+
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to get lineage graph from PCG: {e}")
+        print(f"[DEBUG] Exception details: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}
+
+
+def get_old_roots_from_lineage(
+    cave_client: CAVEclient,
+    new_root_id: int,
+    timestamp_past: Optional[datetime] = None,
+) -> list[int]:
+    """
+    Get old root IDs that were merged into the new root using lineage graph.
+
+    Args:
+        cave_client: CAVE client instance
+        new_root_id: New root ID to query
+        timestamp_past: How far back to look (None = from beginning)
+
+    Returns:
+        List of old root IDs that merged into this new root
+    """
+    try:
+        timestamp_past_ms = None
+        if timestamp_past:
+            timestamp_past_ms = int(timestamp_past.timestamp() * 1000)
+
+        lineage = cave_client.chunkedgraph.get_lineage_graph(
+            root_id=new_root_id,
+            timestamp_past=timestamp_past_ms,
+        )
+
+        old_roots = []
+        for node_id in lineage["nodes"]:
+            node_data = lineage["nodes"][node_id]
+            if node_id != str(new_root_id):
+                old_roots.append(int(node_id))
+
+        return old_roots
+    except Exception as e:
+        logger.error(f"Error getting lineage for root {new_root_id}: {e}")
+        return []
+
+
+def get_root_for_coordinate_pcg(
+    server_address: str,
+    table_id: str,
+    x: float,
+    y: float,
+    z: float,
+) -> Optional[int]:
+    """
+    Get the current root ID for a given coordinate using PyChunkedGraph API.
+
+    Args:
+        server_address: PCG server address
+        table_id: Table/graph ID
+        x: X coordinate (in nm)
+        y: Y coordinate (in nm)
+        z: Z coordinate (in nm)
+
+    Returns:
+        Root ID at the coordinate, or None if failed
+    """
+    import requests
+
+    try:
+        # PCG node_id endpoint - queries root at a given coordinate
+        url = f"{server_address}/segmentation/api/v1/table/{table_id}/node_id"
+
+        # Coordinates should be in nm (same units as stored in supervoxel seeds)
+        payload = {
+            "x": x,
+            "y": y,
+            "z": z,
+        }
+
+        # Get auth token from environment
+        auth_token = os.getenv("CAVE_AUTH_TOKEN")
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        print(f"[DEBUG] Querying root at coordinate ({x}, {y}, {z})")
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+        print(f"[DEBUG] Got response for ({x}, {y}, {z}): {data}")
+
+        # Response format varies - might be {"node_id": <id>} or {"root_id": <id>}
+        root_id = data.get("node_id") or data.get("root_id")
+        if root_id:
+            return int(root_id)
+
+        # Sometimes response is just the ID directly
+        if isinstance(data, (int, str)):
+            return int(data)
+
+        return None
+    except Exception as e:
+        logger.error(f"Error getting root for coordinate ({x}, {y}, {z}): {e}")
+        print(f"[DEBUG] Full error for ({x}, {y}, {z}): {e}")
+        return None
+
+
+def get_new_root_for_coordinate(
+    cave_client: CAVEclient,
+    x: float,
+    y: float,
+    z: float,
+) -> Optional[int]:
+    """
+    Get the current root ID for a given coordinate using CAVEclient.
+
+    Args:
+        cave_client: CAVE client instance
+        x: X coordinate
+        y: Y coordinate
+        z: Z coordinate
+
+    Returns:
+        Current root ID at that coordinate, or None if error
+    """
+    try:
+        root_id = cave_client.chunkedgraph.get_root_id(
+            supervoxel_id=None,
+            location=[x, y, z],
+        )
+        return int(root_id) if root_id else None
+    except Exception as e:
+        logger.error(f"Error getting root for coordinate ({x}, {y}, {z}): {e}")
+        return None
+
+
+def process_merge_event(
+    event_data: dict[str, Any],
+    project_name: str,
+    cave_client: Optional[CAVEclient],
+    server_address: str,
+    table_id: str,
+) -> None:
+    """
+    Process a merge event from PyChunkedGraph.
+
+    Args:
+        event_data: Event data from Pub/Sub
+        project_name: Project name
+        cave_client: CAVE client instance (optional)
+        server_address: PCG server address
+        table_id: Table/graph ID from message attributes
+    """
+    try:
+        # PyChunkedGraph sends 'new_root_ids' (plural) as a list
+        new_root_ids = event_data.get("new_root_ids", [])
+        new_root_id = new_root_ids[0] if new_root_ids else None
+
+        # Use current time if no timestamp provided
+        edit_timestamp = datetime.now(timezone.utc)
+        if "timestamp" in event_data:
+            ts = event_data["timestamp"]
+            if isinstance(ts, str):
+                edit_timestamp = datetime.fromisoformat(ts)
+            elif isinstance(ts, (int, float)):
+                edit_timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+        event_id = str(event_data.get("operation_id", f"{new_root_id}_{int(edit_timestamp.timestamp())}"))
+
+        if not new_root_id:
+            logger.warning("No new_root_id in event data")
+            return
+
+        old_roots = event_data.get("old_root_ids")
+        print(f"[DEBUG] Processing merge - operation_id: {event_id}, new_root_id: {new_root_id}, old_roots from event: {old_roots}")
+
+        # Get old roots from PyChunkedGraph lineage_graph if not in event
+        if not old_roots:
+            print(f"[DEBUG] Querying lineage_graph for new_root_ids: {new_root_ids}")
+            # Query lineage for all new roots (usually just one for merges)
+            # Use timestamp 1 minute before current time to capture recent merge history
+            timestamp_past = datetime.now(timezone.utc) - timedelta(minutes=1)
+            print(f"[DEBUG] Using timestamp_past: {timestamp_past} ({int(timestamp_past.timestamp() * 1000)} ms)")
+
+            lineage_results = get_old_roots_from_lineage_graph(
+                server_address=server_address,
+                table_id=table_id,
+                root_ids=new_root_ids,
+                timestamp_past=timestamp_past,
+            )
+            print(f"[DEBUG] Lineage graph results: {lineage_results}")
+
+            # Get old roots for the primary new root
+            if new_root_id in lineage_results:
+                old_roots = lineage_results[new_root_id]
+                logger.info(f"Got {len(old_roots)} old roots from lineage graph")
+
+        # Fall back to CAVEclient lineage query (if available)
+        if not old_roots and cave_client is not None:
+            print("[DEBUG] Attempting to get old roots from CAVEclient lineage")
+            old_roots = get_old_roots_from_lineage(
+                cave_client=cave_client,
+                new_root_id=new_root_id,
+                timestamp_past=edit_timestamp,
+            )
+            print(f"[DEBUG] CAVEclient lineage returned: {old_roots}")
+
+        if not old_roots:
+            logger.warning(
+                f"No old_root_ids found for operation {event_id} (table: {table_id}). "
+                "Cannot determine which segments merged. Skipping update."
+            )
+            return
+
+        if old_roots:
+            count = update_supervoxels_for_merge(
+                old_root_ids=old_roots,
+                new_root_id=new_root_id,
+                project_name=project_name,
+                event_id=event_id,
+                edit_timestamp=edit_timestamp,
+                operation_type="merge",
+            )
+            logger.info(
+                f"Updated {count} supervoxels for merge: {old_roots} -> {new_root_id}"
+            )
+        else:
+            logger.warning(f"No old roots found for new root {new_root_id}")
+
+    except Exception as e:
+        logger.error(f"Error processing merge event: {e}", exc_info=True)
+
+
+def process_split_event(
+    event_data: dict[str, Any],
+    project_name: str,
+    cave_client: Optional[CAVEclient],
+    server_address: str,
+    table_id: str,
+) -> None:
+    """
+    Process a split event from PyChunkedGraph.
+
+    For splits, we need to query each supervoxel's coordinate to determine
+    which new root it belongs to.
+
+    Args:
+        event_data: Event data from Pub/Sub
+        project_name: Project name
+        cave_client: CAVE client instance (optional, not currently used for splits)
+        server_address: PCG server address
+        table_id: Table/graph ID
+    """
+    try:
+        # PyChunkedGraph sends multiple new_root_ids for splits
+        new_root_ids = event_data.get("new_root_ids", [])
+
+        # Use current time if no timestamp provided
+        edit_timestamp = datetime.now(timezone.utc)
+        if "timestamp" in event_data:
+            ts = event_data["timestamp"]
+            if isinstance(ts, str):
+                edit_timestamp = datetime.fromisoformat(ts)
+            elif isinstance(ts, (int, float)):
+                edit_timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
+
+        event_id = str(event_data.get("operation_id", f"split_{int(edit_timestamp.timestamp())}"))
+
+        if len(new_root_ids) < 2:
+            logger.warning(f"Split event should have multiple new_root_ids, got {len(new_root_ids)}")
+            return
+
+        print(f"[DEBUG] Processing split - event_id: {event_id}, new_root_ids: {new_root_ids}")
+
+        # Query lineage graph to find the old root
+        timestamp_past = datetime.now(timezone.utc) - timedelta(minutes=1)
+        lineage_results = get_old_roots_from_lineage_graph(
+            server_address=server_address,
+            table_id=table_id,
+            root_ids=new_root_ids,
+            timestamp_past=timestamp_past,
+        )
+
+        # Find the common old root (should be same for all new roots in a split)
+        old_root_id = None
+        for new_root in new_root_ids:
+            if new_root in lineage_results and lineage_results[new_root]:
+                old_root_id = lineage_results[new_root][0]
+                break
+
+        if not old_root_id:
+            logger.warning(f"Could not find old root for split event {event_id}")
+            return
+
+        print(f"[DEBUG] Found old root {old_root_id} for split into {new_root_ids}")
+
+        supervoxels = get_supervoxels_by_segment(segment_id=old_root_id)
+
+        logger.info(
+            f"Processing split for {len(supervoxels)} supervoxels from root {old_root_id}"
+        )
+
+        updated_count = 0
+        for supervoxel in supervoxels:
+            # Query PCG to get current root at this supervoxel's coordinate
+            new_root = get_root_for_coordinate_pcg(
+                server_address=server_address,
+                table_id=table_id,
+                x=supervoxel.seed_x,
+                y=supervoxel.seed_y,
+                z=supervoxel.seed_z,
+            )
+
+            if new_root and new_root != old_root_id:
+                update_supervoxel_for_split(
+                    supervoxel_id=supervoxel.supervoxel_id,
+                    new_root_id=new_root,
+                )
+                updated_count += 1
+                print(
+                    f"[DEBUG] Updated supervoxel {supervoxel.supervoxel_id}: {old_root_id} -> {new_root}"
+                )
+
+        logger.info(f"Completed split processing for root {old_root_id}: updated {updated_count} supervoxels")
+
+    except Exception as e:
+        logger.error(f"Error processing split event: {e}", exc_info=True)
+
+
+def process_edit_event(
+    event_data: dict[str, Any],
+    message_attributes: dict[str, str],
+    project_name: str,
+    cave_client: CAVEclient,
+    server_address: str,
+) -> None:
+    """
+    Process an edit event from PyChunkedGraph.
+
+    Args:
+        event_data: Event data from Pub/Sub
+        message_attributes: Message attributes from Pub/Sub
+        project_name: Project name
+        cave_client: CAVE client instance
+        server_address: PCG server address
+    """
+    table_id = message_attributes.get("table_id", project_name)
+
+    # Detect operation type from new_root_ids count
+    new_root_ids = event_data.get("new_root_ids", [])
+
+    if len(new_root_ids) == 1:
+        # Single new root = merge
+        process_merge_event(event_data, project_name, cave_client, server_address, table_id)
+    elif len(new_root_ids) > 1:
+        # Multiple new roots = split
+        print(f"[DEBUG] Detected split: {len(new_root_ids)} new roots")
+        process_split_event(event_data, project_name, cave_client, server_address, table_id)
+    else:
+        logger.warning(f"No new_root_ids in event data")
+
+
+def run_pcg_edit_listener(
+    project_id: str,
+    subscription_name: str,
+    project_name: Optional[str] = None,
+    datastack_name: Optional[str] = None,
+    server_address: Optional[str] = None,
+    poll_interval_sec: int = 5,
+    max_messages: int = 10,
+) -> None:
+    """
+    Run the PCG edit listener worker.
+
+    Args:
+        project_id: GCP project ID
+        subscription_name: Pub/Sub subscription name
+        project_name: Task management project name (auto-detected from table_id in messages if not provided)
+        datastack_name: CAVE datastack name (auto-detected from project)
+        server_address: PCG server address (auto-detected from project, defaults to https://data.proofreading.zetta.ai)
+        poll_interval_sec: How often to poll for messages
+        max_messages: Maximum messages to pull per batch
+    """
+    print(f"[DEBUG] Starting PCG edit listener")
+    logger.info("Starting PCG edit listener")
+
+    # Get project configuration from database if project_name provided
+    project = None
+    if project_name:
+        print("[DEBUG] Connecting to database...")
+        with get_session_context() as session:
+            print("[DEBUG] Database connection established")
+            print(f"[DEBUG] Querying for project: {project_name}")
+            project = (
+                session.query(ProjectModel)
+                .filter_by(project_name=project_name)
+                .first()
+            )
+            print(f"[DEBUG] Project found: {project is not None}")
+            if not project:
+                raise ValueError(f"Project '{project_name}' not found!")
+
+        print("[DEBUG] Checking datastack_name...")
+        # Use provided values or get from project
+        if datastack_name is None:
+            datastack_name = project.datastack_name
+            if not datastack_name:
+                raise ValueError(
+                    f"No datastack_name for project '{project_name}'"
+                )
+        print(f"[DEBUG] Datastack: {datastack_name}")
+
+        print("[DEBUG] Checking server_address...")
+        if server_address is None:
+            # Follow same pattern as cave_synapse_mgr.py
+            if datastack_name.startswith("wclee"):
+                server_address = "https://global.daf-apis.com"
+            else:
+                server_address = "https://data.proofreading.zetta.ai"
+        print(f"[DEBUG] Server: {server_address}")
+
+    print("[DEBUG] Creating PubSub queue...")
+    logger.info(f"Using datastack: {datastack_name}")
+    logger.info(f"Using server: {server_address}")
+
+    pubsub_queue = PubSubPullQueue(
+        name="pcg_edit_queue",
+        project_id=project_id,
+        subscription_name=subscription_name,
+    )
+    print("[DEBUG] PubSub queue created")
+
+    # Try to create CAVE client for lineage queries
+    # Optional: works without it if PubSub events include old_root_ids
+    print("[DEBUG] Initializing CAVEclient...")
+    cave_client = None
+    try:
+        cave_client = CAVEclient(
+            datastack_name=datastack_name,
+            server_address=server_address,
+            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
+        )
+        logger.info("CAVEclient initialized successfully")
+        print("[DEBUG] CAVEclient initialized successfully")
+    except Exception as e:
+        logger.warning(f"Could not initialize CAVEclient: {e}")
+        logger.info(
+            "Continuing without CAVEclient. "
+            "Events must include old_root_ids."
+        )
+        print(f"[DEBUG] CAVEclient failed: {e}")
+
+    print("[DEBUG] Starting main listener loop...")
+    logger.info(
+        f"Listening to subscription: "
+        f"projects/{project_id}/subscriptions/{subscription_name}"
+    )
+    print(f"[DEBUG] Waiting for messages from PubSub (this will block until messages arrive)...")
+
+    while True:
+        try:
+            messages = pubsub_queue.pull(max_num=max_messages)
+            print(f"[DEBUG] Received {len(messages)} message(s)")
+
+            for msg in messages:
+                try:
+                    # Extract attributes from payload
+                    message_attributes = msg.payload.pop("_pubsub_attributes", {})
+
+                    # Use table_id as project_name if project_name not provided
+                    msg_project_name = project_name or message_attributes.get("table_id")
+                    if not msg_project_name:
+                        logger.warning("No project_name provided and no table_id in message attributes. Skipping message.")
+                        msg.acknowledge_fn()
+                        continue
+
+                    process_edit_event(
+                        msg.payload,
+                        message_attributes,
+                        msg_project_name,
+                        cave_client,
+                        server_address
+                    )
+                    msg.acknowledge_fn()
+                except Exception as e:
+                    logger.error(f"Error processing message: {e}", exc_info=True)
+
+            if not messages:
+                time.sleep(poll_interval_sec)
+
+        except KeyboardInterrupt:
+            logger.info("Shutting down PCG edit listener")
+            break
+        except Exception as e:
+            logger.error(f"Error in main loop: {e}", exc_info=True)
+            time.sleep(poll_interval_sec)

@@ -61,6 +61,7 @@ class Task(TypedDict):
     is_paused: NotRequired[bool]  # Whether the task is paused (not auto-selectable)
     is_checked: NotRequired[bool]  # Whether the task has been checked/reviewed
     task_type: str  # Reference to TaskType.task_type
+    segment_seed_id: NotRequired[int | None]  # Reference to segments.seed_id
     extra_data: NotRequired[dict | None]  # Additional task-specific data
     note: NotRequired[str | None]  # Optional note field
 
@@ -81,6 +82,7 @@ class TaskUpdate(TypedDict, total=False):
     is_paused: bool
     is_checked: bool
     task_type: str
+    segment_seed_id: int | None
     extra_data: dict | None
     note: str | None
 
@@ -182,6 +184,7 @@ class Segment(TypedDict):
     task_ids: list[str]  # List of task IDs that worked on this segment
     created_at: str  # ISO format timestamp
     updated_at: str  # ISO format timestamp
+    last_modified: NotRequired[str | None]  # Latest task activity timestamp
     segment_type: NotRequired[str | None]  # Reference to segment_types.type_name
     expected_segment_type: NotRequired[str | None]  # Reference to segment_types.type_name
     batch: NotRequired[str | None]  # Batch identifier

@@ -382,12 +382,14 @@ class SegmentModel(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_modified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     __table_args__ = (
         Index("idx_segments_segment_type", "segment_type"),
         Index("idx_segments_seed_location", "seed_x", "seed_y", "seed_z"),
+        Index("idx_segments_last_modified", "last_modified"),
     )
 
     def to_dict(self) -> dict:
@@ -403,6 +405,7 @@ class SegmentModel(Base):
             "is_exported": self.is_exported,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "last_modified": self.last_modified.isoformat() if self.last_modified else None,
         }
 
         if self.segment_type is not None:
@@ -463,6 +466,9 @@ class SegmentModel(Base):
             is_exported=data.get("is_exported", False),
             created_at=_parse_datetime(data["created_at"]),
             updated_at=_parse_datetime(data["updated_at"]),
+            last_modified=(
+                _parse_datetime(data["last_modified"]) if data.get("last_modified") else None
+            ),
             extra_data=data.get("extra_data"),
         )
 
@@ -597,6 +603,7 @@ class TaskModel(Base):
     is_checked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     task_type: Mapped[str] = mapped_column(String, nullable=False, index=True)
     id_nonunique: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+    segment_seed_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -607,6 +614,7 @@ class TaskModel(Base):
         Index("idx_tasks_project_type_priority", "project_name", "task_type", "priority"),
         Index("idx_tasks_project_active_status", "project_name", "is_active", "completion_status"),
         Index("idx_tasks_project_lease_time", "project_name", "last_leased_ts"),
+        Index("idx_tasks_project_segment", "project_name", "segment_seed_id"),
         Index(
             "idx_tasks_assigned_search",
             "project_name",
@@ -655,6 +663,7 @@ class TaskModel(Base):
             "is_paused": self.is_paused,
             "is_checked": self.is_checked,
             "task_type": self.task_type,
+            "segment_seed_id": self.segment_seed_id,
             "note": self.note,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
@@ -685,6 +694,7 @@ class TaskModel(Base):
             is_checked=data.get("is_checked", False),
             task_type=data["task_type"],
             id_nonunique=data.get("id_nonunique"),
+            segment_seed_id=data.get("segment_seed_id"),
             extra_data=data.get("extra_data"),
             note=data.get("note"),
             created_at=_parse_datetime(data.get("created_at", datetime.now())),
@@ -830,5 +840,43 @@ class MergeEditModel(Base):
             task_id=data["task_id"],
             user_id=data["user_id"],
             points=data["points"],
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
+        )
+
+
+class LockedSegmentModel(Base):
+    """
+    SQLAlchemy model for the locked_segments table.
+
+    Tracks segments that are currently locked to prevent merging.
+    """
+
+    __tablename__ = "locked_segments"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    segment_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_locked_segments_created_at", "created_at"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "project_name": self.project_name,
+            "segment_id": self.segment_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "LockedSegmentModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            segment_id=data["segment_id"],
             created_at=_parse_datetime(data.get("created_at", datetime.now())),
         )

@@ -120,7 +120,7 @@ def get_pod_spec(
     )
 
 
-def _get_zone_affinities(
+def get_zone_affinities(
     required_zones: list[str] | None = None, preferred_zones: list[str] | None = None
 ):
     required_zone_affinity = None
@@ -185,7 +185,7 @@ def get_mazepa_pod_spec(
             )
         )
 
-    required_affinity, preferred_affinity = _get_zone_affinities(required_zones, preferred_zones)
+    required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
     affinity = k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(
             required_during_scheduling_ignored_during_execution=required_affinity,
@@ -214,11 +214,42 @@ def get_mazepa_pod_spec(
     )
 
 
-def _wait_for_pod_start(pod_name: str, namespace: str, core_api: k8s_client.CoreV1Api):
-    pod = core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
-    while pod.status.phase != "Running":
-        logger.info(f"Waiting for `{pod_name}` to start before getting logs.")
-        time.sleep(15)
+def _wait_for_pod_start(
+    pod_name: str,
+    namespace: str,
+    core_api: k8s_client.CoreV1Api,
+    poll_interval: int = 15,
+    timeout: int = 600,
+):
+    start_time = time.time()
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            raise TimeoutError(
+                f"Timed out waiting for pod `{pod_name}` to become ready after {timeout} seconds."
+            )
+
+        try:
+            pod = core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
+        except k8s_client.exceptions.ApiException as e:
+            if e.status == 404:
+                logger.info(f"Pod `{pod_name}` not found yet. Retrying...")
+                time.sleep(poll_interval)
+                continue
+            raise
+
+        phase = pod.status.phase
+        container_statuses = pod.status.container_statuses or []
+
+        if container_statuses and all(cs.ready for cs in container_statuses):
+            logger.info(f"Pod `{pod_name}` is running and all containers are ready.")
+            return
+
+        logger.info(
+            f"Waiting for `{pod_name}` to start. "
+            f"Phase: {phase}. Ready states: {[cs.ready for cs in container_statuses]}"
+        )
+        time.sleep(poll_interval)
 
 
 def _reset_core_api(cluster_info: ClusterInfo):

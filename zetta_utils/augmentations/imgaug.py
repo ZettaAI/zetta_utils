@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import collections
-
-# from typing import Any, Final, Literal, Sequence, Sized, Tuple, TypeVar, overload, Container
 from typing import Any, Final, Iterable, Literal, Sequence, Tuple, TypeVar, overload
 
 import numpy as np
@@ -15,7 +13,6 @@ from zetta_utils import builder
 from zetta_utils.tensor_ops import common, convert, crop_center
 from zetta_utils.tensor_typing import Tensor, TensorTypeVar
 
-# SizedTypeVar = TypeVar("SizedTypeVar", bound=Sized)
 TensorListTypeVar = TypeVar("TensorListTypeVar", Tensor, Sequence)
 T = TypeVar("T")
 
@@ -116,10 +113,23 @@ def _ungroup_kwargs(
 
 @builder.register("imgaug_readproc")
 def imgaug_readproc(
+<<<<<<< HEAD
     *args,  # the zetta_utils builder puts the layer/layerset as the first argument
     targets: Iterable[str] | None = None,
     **kwargs,  # and the augmenters in the kwargs
+=======
+    *args,
+    targets: Iterable[str] | None = None,
+    **kwargs,
+>>>>>>> origin/main
 ):
+    """
+    imgaug read processor.
+
+    :param *args: zetta_utils builder puts layer or layerset as the first argument
+    :param targets: specify targets when input is a layerset. `None` runs proc on all inputs
+    :param **kwargs: other kwargs passed to `imgaug_augment`
+    """
     assert len(args) == 1
     augmenters = kwargs.pop("augmenters", None)
     assert augmenters is not None

@@ -201,7 +201,8 @@ tensor-ops = [
   "tinybrain >= 1.7.0",
   "affine >= 2.3.1",
   "connected-components-3d == 3.23.0",
-  "fastremap >= 1.16.1, < 2.0.0",
+  "fastremap >= 1.17.7, < 2.0.0",
+  "fastmorph >= 1.6.1, < 2.0.0",
   "einops >= 0.4.1",
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
@@ -286,7 +287,7 @@ ignore-imports = "yes"
 min-similarity-lines = 4
 
 [tool.pylint.main]
-extension-pkg-whitelist = "numpy,cc3d,fastremap"
+extension-pkg-whitelist = "numpy,cc3d,fastremap,fastmorph"
 ignore-paths = ["^docs/*", "^scripts/*", "^specs/*"]
 load-plugins = "pylint.extensions.no_self_use"
 

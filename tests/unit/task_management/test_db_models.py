@@ -13,9 +13,11 @@ from zetta_utils.task_management.db.models import (
     LockedSegmentModel,
     MergeEditModel,
     ProjectModel,
+    SegmentMergeEventModel,
     SegmentModel,
     SegmentTypeModel,
     SplitEditModel,
+    SupervoxelModel,
     TaskModel,
     TaskTypeModel,
     TimesheetModel,
@@ -890,3 +892,101 @@ def test_locked_segment_model_from_dict():
     assert model.project_name == "test_project"
     assert model.segment_id == 67890
     assert isinstance(model.created_at, datetime)
+
+
+# TestSupervoxelModel tests
+
+
+def test_supervoxel_model_to_dict(db_session):
+    """Test SupervoxelModel.to_dict()"""
+    now = datetime.now(timezone.utc)
+    supervoxel = SupervoxelModel(
+        supervoxel_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        current_segment_id=67890,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(supervoxel)
+    db_session.commit()
+
+    result = supervoxel.to_dict()
+    assert result["supervoxel_id"] == 12345
+    assert result["seed_x"] == 100.0
+    assert result["seed_y"] == 200.0
+    assert result["seed_z"] == 300.0
+    assert result["current_segment_id"] == 67890
+    assert result["created_at"] == now.isoformat()
+    assert result["updated_at"] == now.isoformat()
+
+
+def test_supervoxel_model_from_dict():
+    """Test SupervoxelModel.from_dict()"""
+    data = {
+        "supervoxel_id": 54321,
+        "seed_x": 10.5,
+        "seed_y": 20.5,
+        "seed_z": 30.5,
+        "current_segment_id": 99999,
+        "created_at": "2025-07-03T10:00:00+00:00",
+        "updated_at": "2025-07-03T11:00:00+00:00",
+    }
+    model = SupervoxelModel.from_dict(data)
+    assert model.supervoxel_id == 54321
+    assert model.seed_x == 10.5
+    assert model.seed_y == 20.5
+    assert model.seed_z == 30.5
+    assert model.current_segment_id == 99999
+    assert isinstance(model.created_at, datetime)
+    assert isinstance(model.updated_at, datetime)
+
+
+# TestSegmentMergeEventModel tests
+
+
+def test_segment_merge_event_model_to_dict(db_session):
+    """Test SegmentMergeEventModel.to_dict()"""
+    now = datetime.now(timezone.utc)
+    event = SegmentMergeEventModel(
+        project_name="test_project",
+        event_id="event_123",
+        old_root_ids=[100, 200, 300],
+        new_root_id=400,
+        edit_timestamp=now,
+        processed_at=now,
+        operation_type="merge",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    result = event.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["event_id"] == "event_123"
+    assert result["old_root_ids"] == [100, 200, 300]
+    assert result["new_root_id"] == 400
+    assert result["edit_timestamp"] == now.isoformat()
+    assert result["processed_at"] == now.isoformat()
+    assert result["operation_type"] == "merge"
+
+
+def test_segment_merge_event_model_from_dict():
+    """Test SegmentMergeEventModel.from_dict()"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "event_456",
+        "old_root_ids": [111, 222],
+        "new_root_id": 333,
+        "edit_timestamp": "2025-07-03T12:00:00+00:00",
+        "processed_at": "2025-07-03T12:01:00+00:00",
+        "operation_type": "split",
+    }
+    model = SegmentMergeEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "event_456"
+    assert model.old_root_ids == [111, 222]
+    assert model.new_root_id == 333
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)
+    assert model.operation_type == "split"

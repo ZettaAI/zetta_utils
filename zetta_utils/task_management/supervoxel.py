@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from .db.models import SegmentMergeEventModel, SegmentSplitEventModel, SupervoxelModel
+from .db.models import SegmentEditEventModel, SupervoxelModel
 from .db.session import get_session_context
 
 
@@ -36,9 +36,9 @@ def update_supervoxels_for_merge(  # pylint: disable=too-many-positional-argumen
     """
     with get_session_context(db_session) as session:
         existing_event = session.execute(
-            select(SegmentMergeEventModel).where(
-                SegmentMergeEventModel.project_name == project_name,
-                SegmentMergeEventModel.event_id == event_id,
+            select(SegmentEditEventModel).where(
+                SegmentEditEventModel.project_name == project_name,
+                SegmentEditEventModel.event_id == event_id,
             )
         ).scalar_one_or_none()
 
@@ -55,11 +55,11 @@ def update_supervoxels_for_merge(  # pylint: disable=too-many-positional-argumen
         )
         result = session.execute(stmt)
 
-        event = SegmentMergeEventModel(
+        event = SegmentEditEventModel(
             project_name=project_name,
             event_id=event_id,
             old_root_ids=old_root_ids,
-            new_root_id=new_root_id,
+            new_root_ids=[new_root_id],  # Convert single ID to list for unified schema
             edit_timestamp=edit_timestamp,
             processed_at=datetime.now(timezone.utc),
             operation_type=operation_type,
@@ -98,9 +98,9 @@ def update_supervoxels_for_split(  # pylint: disable=too-many-positional-argumen
     """
     with get_session_context(db_session) as session:
         existing_event = session.execute(
-            select(SegmentSplitEventModel).where(
-                SegmentSplitEventModel.project_name == project_name,
-                SegmentSplitEventModel.event_id == event_id,
+            select(SegmentEditEventModel).where(
+                SegmentEditEventModel.project_name == project_name,
+                SegmentEditEventModel.event_id == event_id,
             )
         ).scalar_one_or_none()
 
@@ -120,10 +120,10 @@ def update_supervoxels_for_split(  # pylint: disable=too-many-positional-argumen
             result = session.execute(stmt)
             total_updated += result.rowcount
 
-        event = SegmentSplitEventModel(
+        event = SegmentEditEventModel(
             project_name=project_name,
             event_id=event_id,
-            old_root_id=old_root_id,
+            old_root_ids=[old_root_id],  # Convert single ID to list for unified schema
             new_root_ids=new_root_ids,
             edit_timestamp=edit_timestamp,
             processed_at=datetime.now(timezone.utc),

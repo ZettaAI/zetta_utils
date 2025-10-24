@@ -13,8 +13,7 @@ from zetta_utils.task_management.db.models import (
     LockedSegmentModel,
     MergeEditModel,
     ProjectModel,
-    SegmentMergeEventModel,
-    SegmentSplitEventModel,
+    SegmentEditEventModel,
     SegmentModel,
     SegmentTypeModel,
     SplitEditModel,
@@ -944,17 +943,17 @@ def test_supervoxel_model_from_dict():
     assert isinstance(model.updated_at, datetime)
 
 
-# TestSegmentMergeEventModel tests
+# TestSegmentEditEventModel tests
 
 
-def test_segment_merge_event_model_to_dict(db_session):
-    """Test SegmentMergeEventModel.to_dict()"""
+def test_segment_edit_event_model_to_dict_merge(db_session):
+    """Test SegmentEditEventModel.to_dict() for merge operations"""
     now = datetime.now(timezone.utc)
-    event = SegmentMergeEventModel(
+    event = SegmentEditEventModel(
         project_name="test_project",
-        event_id="event_123",
+        event_id="merge_event_123",
         old_root_ids=[100, 200, 300],
-        new_root_id=400,
+        new_root_ids=[400],
         edit_timestamp=now,
         processed_at=now,
         operation_type="merge",
@@ -964,45 +963,21 @@ def test_segment_merge_event_model_to_dict(db_session):
 
     result = event.to_dict()
     assert result["project_name"] == "test_project"
-    assert result["event_id"] == "event_123"
+    assert result["event_id"] == "merge_event_123"
     assert result["old_root_ids"] == [100, 200, 300]
-    assert result["new_root_id"] == 400
+    assert result["new_root_ids"] == [400]
     assert result["edit_timestamp"] == now.isoformat()
     assert result["processed_at"] == now.isoformat()
     assert result["operation_type"] == "merge"
 
 
-def test_segment_merge_event_model_from_dict():
-    """Test SegmentMergeEventModel.from_dict()"""
-    data = {
-        "project_name": "test_project",
-        "event_id": "event_456",
-        "old_root_ids": [111, 222],
-        "new_root_id": 333,
-        "edit_timestamp": "2025-07-03T12:00:00+00:00",
-        "processed_at": "2025-07-03T12:01:00+00:00",
-        "operation_type": "split",
-    }
-    model = SegmentMergeEventModel.from_dict(data)
-    assert model.project_name == "test_project"
-    assert model.event_id == "event_456"
-    assert model.old_root_ids == [111, 222]
-    assert model.new_root_id == 333
-    assert isinstance(model.edit_timestamp, datetime)
-    assert isinstance(model.processed_at, datetime)
-    assert model.operation_type == "split"
-
-
-# TestSegmentSplitEventModel tests
-
-
-def test_segment_split_event_model_to_dict(db_session):
-    """Test SegmentSplitEventModel.to_dict()"""
+def test_segment_edit_event_model_to_dict_split(db_session):
+    """Test SegmentEditEventModel.to_dict() for split operations"""
     now = datetime.now(timezone.utc)
-    event = SegmentSplitEventModel(
+    event = SegmentEditEventModel(
         project_name="test_project",
         event_id="split_event_123",
-        old_root_id=1000,
+        old_root_ids=[1000],
         new_root_ids=[2000, 3000],
         edit_timestamp=now,
         processed_at=now,
@@ -1014,19 +989,19 @@ def test_segment_split_event_model_to_dict(db_session):
     result = event.to_dict()
     assert result["project_name"] == "test_project"
     assert result["event_id"] == "split_event_123"
-    assert result["old_root_id"] == 1000
+    assert result["old_root_ids"] == [1000]
     assert result["new_root_ids"] == [2000, 3000]
     assert result["edit_timestamp"] == now.isoformat()
     assert result["processed_at"] == now.isoformat()
     assert result["operation_type"] == "split"
 
 
-def test_segment_split_event_model_to_dict_none_timestamps(db_session):
-    """Test SegmentSplitEventModel.to_dict() with None timestamps"""
-    event = SegmentSplitEventModel(
+def test_segment_edit_event_model_to_dict_none_timestamps(db_session):
+    """Test SegmentEditEventModel.to_dict() with None timestamps"""
+    event = SegmentEditEventModel(
         project_name="test_project",
-        event_id="split_event_456",
-        old_root_id=4000,
+        event_id="edit_event_456",
+        old_root_ids=[4000],
         new_root_ids=[5000, 6000],
         edit_timestamp=datetime.now(timezone.utc),
         processed_at=datetime.now(timezone.utc),
@@ -1050,41 +1025,62 @@ def test_segment_split_event_model_to_dict_none_timestamps(db_session):
     event.processed_at = original_processed
 
 
-def test_segment_split_event_model_from_dict():
-    """Test SegmentSplitEventModel.from_dict()"""
+def test_segment_edit_event_model_from_dict_merge():
+    """Test SegmentEditEventModel.from_dict() for merge operations"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "merge_event_456",
+        "old_root_ids": [111, 222],
+        "new_root_ids": [333],
+        "edit_timestamp": "2025-07-03T12:00:00+00:00",
+        "processed_at": "2025-07-03T12:01:00+00:00",
+        "operation_type": "merge",
+    }
+    model = SegmentEditEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "merge_event_456"
+    assert model.old_root_ids == [111, 222]
+    assert model.new_root_ids == [333]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)
+    assert model.operation_type == "merge"
+
+
+def test_segment_edit_event_model_from_dict_split():
+    """Test SegmentEditEventModel.from_dict() for split operations"""
     data = {
         "project_name": "test_project",
         "event_id": "split_event_789",
-        "old_root_id": 7000,
+        "old_root_ids": [7000],
         "new_root_ids": [8000, 9000, 10000],
         "edit_timestamp": "2025-07-03T14:00:00+00:00",
         "processed_at": "2025-07-03T14:01:00+00:00",
         "operation_type": "split",
     }
-    model = SegmentSplitEventModel.from_dict(data)
+    model = SegmentEditEventModel.from_dict(data)
     assert model.project_name == "test_project"
     assert model.event_id == "split_event_789"
-    assert model.old_root_id == 7000
+    assert model.old_root_ids == [7000]
     assert model.new_root_ids == [8000, 9000, 10000]
     assert isinstance(model.edit_timestamp, datetime)
     assert isinstance(model.processed_at, datetime)
     assert model.operation_type == "split"
 
 
-def test_segment_split_event_model_from_dict_defaults():
-    """Test SegmentSplitEventModel.from_dict() with defaults"""
+def test_segment_edit_event_model_from_dict_defaults():
+    """Test SegmentEditEventModel.from_dict() with defaults"""
     data = {
         "project_name": "test_project",
-        "event_id": "split_event_default",
-        "old_root_id": 11000,
+        "event_id": "edit_event_default",
+        "old_root_ids": [11000],
         "new_root_ids": [12000, 13000],
         "edit_timestamp": "2025-07-03T15:00:00+00:00",
     }
-    model = SegmentSplitEventModel.from_dict(data)
+    model = SegmentEditEventModel.from_dict(data)
     assert model.project_name == "test_project"
-    assert model.event_id == "split_event_default"
-    assert model.old_root_id == 11000
+    assert model.event_id == "edit_event_default"
+    assert model.old_root_ids == [11000]
     assert model.new_root_ids == [12000, 13000]
     assert isinstance(model.edit_timestamp, datetime)
     assert isinstance(model.processed_at, datetime)  # Default to now()
-    assert model.operation_type == "split"  # Default value
+    assert model.operation_type == "merge"  # Default value

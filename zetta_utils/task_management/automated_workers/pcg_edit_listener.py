@@ -20,7 +20,7 @@ from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
-    update_supervoxel_for_split,
+    update_supervoxels_for_split,
     update_supervoxels_for_merge,
 )
 
@@ -470,8 +470,9 @@ def process_split_event(  # pylint: disable=unused-argument
             f"assigned to old root {old_root_id}"
         )
 
-        # Get supervoxel IDs for each new root from PyChunkedGraph
-        updated_count = 0
+        # Build supervoxel assignments mapping
+        supervoxel_assignments = {}
+        
         for new_root_id in new_root_ids:
             # Get all supervoxel IDs that belong to this new root
             new_segment_supervoxel_ids = get_supervoxel_ids_from_segment(
@@ -491,20 +492,27 @@ def process_split_event(  # pylint: disable=unused-argument
             # Check each supervoxel from old root
             for supervoxel in old_supervoxels:
                 if supervoxel.supervoxel_id in new_segment_supervoxel_set:
-                    update_supervoxel_for_split(
-                        supervoxel_id=supervoxel.supervoxel_id,
-                        new_root_id=new_root_id,
-                    )
-                    updated_count += 1
+                    supervoxel_assignments[supervoxel.supervoxel_id] = new_root_id
                     print(
-                        f"[DEBUG] Updated supervoxel "
+                        f"[DEBUG] Assigning supervoxel "
                         f"{supervoxel.supervoxel_id}: "
                         f"{old_root_id} -> {new_root_id}"
                     )
 
+        # Update all supervoxels in a single transaction with event tracking
+        updated_count = update_supervoxels_for_split(
+            old_root_id=old_root_id,
+            new_root_ids=new_root_ids,
+            supervoxel_assignments=supervoxel_assignments,
+            project_name=project_name,
+            event_id=event_id,
+            edit_timestamp=edit_timestamp,
+            operation_type="split",
+        )
+
         logger.info(
             f"Completed split processing for root {old_root_id}: "
-            f"updated {updated_count} supervoxels"
+            f"updated {updated_count} supervoxels across {len(new_root_ids)} new roots"
         )
 
     except Exception as e:  # pylint: disable=broad-exception-caught

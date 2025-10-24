@@ -310,6 +310,8 @@ def test_to_dict_full_segment_type_model(db_session):
         seed_mask="mask://seed",
         created_at=now,
         updated_at=now,
+        instruction="Test instruction",
+        instruction_link="https://example.com/instruction",
     )
     db_session.add(segment_type)
     db_session.commit()
@@ -319,6 +321,8 @@ def test_to_dict_full_segment_type_model(db_session):
     assert result["sample_segment_ids"] == ["123", "456", "789"]
     assert result["region_mesh"] == "mesh://region"
     assert result["seed_mask"] == "mask://seed"
+    assert result["instruction"] == "Test instruction"
+    assert result["instruction_link"] == "https://example.com/instruction"
 
 
 def test_from_dict_segment_type_model():
@@ -351,6 +355,29 @@ def test_from_dict_defaults_segment_type_model():
     model = SegmentTypeModel.from_dict(data)
     assert model.sample_segment_ids == []
     assert model.description is None
+    assert model.instruction is None
+    assert model.instruction_link is None
+
+
+def test_to_dict_minimal_segment_type_model(db_session):
+    """Test to_dict with minimal fields (no instruction/instruction_link)"""
+    now = datetime.now(timezone.utc)
+    segment_type = SegmentTypeModel(
+        type_name="minimal",
+        project_name="test_project",
+        sample_segment_ids=[],
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(segment_type)
+    db_session.commit()
+
+    result = segment_type.to_dict()
+    assert result["type_name"] == "minimal"
+    assert result["project_name"] == "test_project"
+    # Optional fields should not be in dict when None
+    assert "instruction" not in result
+    assert "instruction_link" not in result
 
 
 # TestSegmentModel tests
@@ -568,6 +595,8 @@ def test_to_dict_full_task_model(db_session):
         id_nonunique=67890,
         extra_data={"info": "test"},
         created_at=datetime.now(timezone.utc),
+        instruction="Task instruction",
+        instruction_link="https://example.com/task-instruction",
     )
     db_session.add(task)
     db_session.commit()
@@ -581,6 +610,8 @@ def test_to_dict_full_task_model(db_session):
     assert result["is_paused"] is True
     assert result["is_checked"] is True
     assert result["extra_data"] == {"info": "test"}
+    assert result["instruction"] == "Task instruction"
+    assert result["instruction_link"] == "https://example.com/task-instruction"
 
 
 def test_from_dict_task_model():
@@ -632,6 +663,32 @@ def test_from_dict_defaults_task_model():
     assert model.is_paused is False
     assert model.is_checked is False
     assert model.extra_data is None
+    assert model.instruction is None
+    assert model.instruction_link is None
+
+
+def test_to_dict_minimal_task_model(db_session):
+    """Test to_dict with minimal fields (no instruction/instruction_link)"""
+    task = TaskModel(
+        project_name="test_project",
+        task_id="minimal_task",
+        ng_state={"minimal": "state"},
+        ng_state_initial={"minimal": "initial"},
+        priority=1,
+        batch_id="minimal_batch",
+        task_type="minimal",
+        id_nonunique=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    result = task.to_dict()
+    assert result["task_id"] == "minimal_task"
+    assert result["task_type"] == "minimal"
+    # Optional fields should not be in dict when None
+    assert result["instruction"] is None
+    assert result["instruction_link"] is None
 
 
 # Keep original backward compatibility tests

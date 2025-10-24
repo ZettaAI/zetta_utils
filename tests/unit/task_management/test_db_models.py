@@ -1084,3 +1084,199 @@ def test_segment_edit_event_model_from_dict_defaults():
     assert isinstance(model.edit_timestamp, datetime)
     assert isinstance(model.processed_at, datetime)  # Default to now()
     assert model.operation_type == "merge"  # Default value
+
+
+# Additional coverage tests for missing branches
+
+
+def test_segment_type_model_to_dict_none_timestamps(db_session):
+    """Test SegmentTypeModel.to_dict() with None timestamps"""
+    segment_type = SegmentTypeModel(
+        type_name="test_type",
+        project_name="test_project",
+        sample_segment_ids=["123"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(segment_type)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = segment_type.created_at
+    original_updated = segment_type.updated_at
+    segment_type.created_at = None  # type: ignore[assignment]
+    segment_type.updated_at = None  # type: ignore[assignment]
+
+    result = segment_type.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    segment_type.created_at = original_created
+    segment_type.updated_at = original_updated
+
+
+def test_segment_model_to_dict_none_timestamps(db_session):
+    """Test SegmentModel.to_dict() with None timestamps"""
+    segment = SegmentModel(
+        project_name="test_project",
+        seed_x=1.0,
+        seed_y=2.0,
+        seed_z=3.0,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        last_modified=datetime.now(timezone.utc),
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = segment.created_at
+    original_updated = segment.updated_at
+    original_modified = segment.last_modified
+    segment.created_at = None  # type: ignore[assignment]
+    segment.updated_at = None  # type: ignore[assignment]
+    segment.last_modified = None  # type: ignore[assignment]
+
+    result = segment.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+    assert result["last_modified"] is None
+
+    # Restore for cleanup
+    segment.created_at = original_created
+    segment.updated_at = original_updated
+    segment.last_modified = original_modified
+
+
+def test_endpoint_model_to_dict_none_timestamps(db_session):
+    """Test EndpointModel.to_dict() with None timestamps"""
+    endpoint = EndpointModel(
+        project_name="test_project",
+        endpoint_id=123,
+        seed_id=456,
+        x=1.0,
+        y=2.0,
+        z=3.0,
+        status="UNCERTAIN",
+        user="test_user",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(endpoint)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = endpoint.created_at
+    original_updated = endpoint.updated_at
+    endpoint.created_at = None  # type: ignore[assignment]
+    endpoint.updated_at = None  # type: ignore[assignment]
+
+    result = endpoint.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    endpoint.created_at = original_created
+    endpoint.updated_at = original_updated
+
+
+def test_endpoint_update_model_to_dict_none_timestamp(db_session):
+    """Test EndpointUpdateModel.to_dict() with None timestamp"""
+    update = EndpointUpdateModel(
+        project_name="test_project",
+        update_id=123,
+        endpoint_id=456,
+        user="test_user",
+        new_status="BREADCRUMB",
+        timestamp=datetime.now(timezone.utc),
+    )
+    db_session.add(update)
+    db_session.commit()
+
+    # Simulate None timestamp for coverage
+    original_timestamp = update.timestamp
+    update.timestamp = None  # type: ignore[assignment]
+
+    result = update.to_dict()
+    assert result["timestamp"] is None
+
+    # Restore for cleanup
+    update.timestamp = original_timestamp
+
+
+def test_task_model_to_dict_none_created_at(db_session):
+    """Test TaskModel.to_dict() with None created_at"""
+    task = TaskModel(
+        project_name="test_project",
+        task_id="test_task",
+        ng_state={"test": "state"},
+        ng_state_initial={"test": "initial"},
+        priority=1,
+        batch_id="test_batch",
+        task_type="test",
+        id_nonunique=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    # Simulate None created_at for coverage
+    original_created = task.created_at
+    task.created_at = None  # type: ignore[assignment]
+
+    result = task.to_dict()
+    assert result["created_at"] is None
+
+    # Restore for cleanup
+    task.created_at = original_created
+
+
+def test_locked_segment_model_to_dict_none_created_at(db_session):
+    """Test LockedSegmentModel.to_dict() with None created_at"""
+    locked = LockedSegmentModel(
+        project_name="test_project",
+        segment_id=123,
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(locked)
+    db_session.commit()
+
+    # Simulate None created_at for coverage
+    original_created = locked.created_at
+    locked.created_at = None  # type: ignore[assignment]
+
+    result = locked.to_dict()
+    assert result["created_at"] is None
+
+    # Restore for cleanup
+    locked.created_at = original_created
+
+
+def test_supervoxel_model_to_dict_none_timestamps(db_session):
+    """Test SupervoxelModel.to_dict() with None timestamps"""
+    supervoxel = SupervoxelModel(
+        supervoxel_id=123,
+        seed_x=1.0,
+        seed_y=2.0,
+        seed_z=3.0,
+        current_segment_id=456,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(supervoxel)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = supervoxel.created_at
+    original_updated = supervoxel.updated_at
+    supervoxel.created_at = None  # type: ignore[assignment]
+    supervoxel.updated_at = None  # type: ignore[assignment]
+
+    result = supervoxel.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    supervoxel.created_at = original_created
+    supervoxel.updated_at = original_updated

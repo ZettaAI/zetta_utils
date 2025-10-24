@@ -10,7 +10,7 @@ from .db.models import SegmentEditEventModel, SupervoxelModel
 from .db.session import get_session_context
 
 
-def update_supervoxels_for_merge(  # pylint: disable=too-many-positional-arguments
+def update_supervoxels_for_merge(  # pylint: disable=R0917
     old_root_ids: list[int],
     new_root_id: int,
     project_name: str,
@@ -70,7 +70,7 @@ def update_supervoxels_for_merge(  # pylint: disable=too-many-positional-argumen
         return result.rowcount
 
 
-def update_supervoxels_for_split(  # pylint: disable=too-many-positional-arguments
+def update_supervoxels_for_split(  # pylint: disable=R0917
     old_root_id: int,
     new_root_ids: list[int],
     supervoxel_assignments: dict[int, int],
@@ -158,7 +158,7 @@ def get_supervoxels_by_segment(
         return list(result.scalars().all())
 
 
-def create_supervoxel(  # pylint: disable=too-many-positional-arguments
+def create_supervoxel(  # pylint: disable=R0917
     supervoxel_id: int,
     seed_x: float,
     seed_y: float,

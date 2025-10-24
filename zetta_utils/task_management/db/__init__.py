@@ -9,7 +9,7 @@ from .models import (
     SegmentTypeModel,
     TaskModel,
     SupervoxelModel,
-    SegmentMergeEventModel,
+    SegmentEditEventModel,
 )
 from .session import (
     get_engine,
@@ -29,7 +29,7 @@ __all__ = [
     "SegmentTypeModel",
     "TaskModel",
     "SupervoxelModel",
-    "SegmentMergeEventModel",
+    "SegmentEditEventModel",
     "get_engine",
     "get_session_factory",
     "create_tables",

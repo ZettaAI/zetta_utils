@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import gzip
 import json
-from typing import Any, Sequence, TypeVar
+import pickle
+from typing import Any, TypeVar
 
 import attrs
 from google.cloud import pubsub_v1
@@ -87,17 +89,17 @@ class PubSubPullQueue(PullMessageQueue[T]):
                 # Try to decode the message data
                 raw_data = received_message.message.data
                 print(f"[DEBUG] Raw message data (first 50 bytes): {raw_data[:50]}")
-                print(f"[DEBUG] Message attributes: {received_message.message.attributes}")
+                print(
+                    "[DEBUG] Message attributes: "
+                    f"{received_message.message.attributes}"
+                )
 
                 # Check message format
-                import gzip
-                import pickle
-
                 if raw_data[:2] == b'\x1f\x8b':  # gzip magic number
                     print("[DEBUG] Detected gzip compression")
                     data = gzip.decompress(raw_data).decode("utf-8")
                     payload = json.loads(data)
-                elif raw_data[:2] == b'\x80\x04' or raw_data[:2] == b'\x80\x03':  # pickle protocol 3/4
+                elif raw_data[:2] in (b'\x80\x04', b'\x80\x03'):  # pickle
                     print("[DEBUG] Detected pickle format")
                     payload = pickle.loads(raw_data)
                     print(f"[DEBUG] Unpickled payload: {payload}")

@@ -8,9 +8,11 @@ when segment merges or splits occur.
 import logging
 import os
 import time
+import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import requests
 from caveclient import CAVEclient
 
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
@@ -43,8 +45,6 @@ def get_old_roots_from_lineage_graph(
     Returns:
         Dict mapping new_root_id -> list of old_root_ids
     """
-    import requests
-
     try:
         # PCG lineage_graph_multiple endpoint
         url = f"{server_address}/segmentation/api/v1/table/{table_id}/lineage_graph_multiple"
@@ -104,10 +104,9 @@ def get_old_roots_from_lineage_graph(
                 print(f"[DEBUG] No old roots found for {root_id}")
 
         return result
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to get lineage graph from PCG: {e}")
         print(f"[DEBUG] Exception details: {e}")
-        import traceback
         traceback.print_exc()
         return {}
 
@@ -140,12 +139,11 @@ def get_old_roots_from_lineage(
 
         old_roots = []
         for node_id in lineage["nodes"]:
-            node_data = lineage["nodes"][node_id]
             if node_id != str(new_root_id):
                 old_roots.append(int(node_id))
 
         return old_roots
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error getting lineage for root {new_root_id}: {e}")
         return []
 
@@ -166,11 +164,12 @@ def get_supervoxel_ids_from_segment(
     Returns:
         List of supervoxel IDs for the segment
     """
-    import requests
-
     try:
         # PCG leaves endpoint - gets all supervoxel IDs for a segment
-        url = f"{server_address}/segmentation/api/v1/table/{table_id}/node/{segment_id}/leaves"
+        url = (
+            f"{server_address}/segmentation/api/v1/table/{table_id}/"
+            f"node/{segment_id}/leaves"
+        )
 
         # Get auth token from environment
         auth_token = os.getenv("CAVE_AUTH_TOKEN")
@@ -184,11 +183,14 @@ def get_supervoxel_ids_from_segment(
 
         data = response.json()
         supervoxel_ids = data.get("leaf_ids", [])
-        
-        print(f"[DEBUG] Got {len(supervoxel_ids)} supervoxels for segment {segment_id}")
+
+        print(
+            f"[DEBUG] Got {len(supervoxel_ids)} supervoxels "
+            f"for segment {segment_id}"
+        )
         return [int(sv_id) for sv_id in supervoxel_ids]
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error getting supervoxels for segment {segment_id}: {e}")
         print(f"[DEBUG] Error getting supervoxels for segment {segment_id}: {e}")
         return []
@@ -214,8 +216,6 @@ def get_root_for_coordinate_pcg(
     Returns:
         Root ID at the coordinate, or None if failed
     """
-    import requests
-
     try:
         # PCG node_id endpoint - queries root at a given coordinate
         url = f"{server_address}/segmentation/api/v1/table/{table_id}/node_id"
@@ -250,7 +250,7 @@ def get_root_for_coordinate_pcg(
             return int(data)
 
         return None
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error getting root for coordinate ({x}, {y}, {z}): {e}")
         print(f"[DEBUG] Full error for ({x}, {y}, {z}): {e}")
         return None
@@ -280,7 +280,7 @@ def get_new_root_for_coordinate(
             location=[x, y, z],
         )
         return int(root_id) if root_id else None
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error getting root for coordinate ({x}, {y}, {z}): {e}")
         return None
 
@@ -316,22 +316,32 @@ def process_merge_event(
             elif isinstance(ts, (int, float)):
                 edit_timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
 
-        event_id = str(event_data.get("operation_id", f"{new_root_id}_{int(edit_timestamp.timestamp())}"))
+        timestamp_int = int(edit_timestamp.timestamp())
+        event_id = str(
+            event_data.get("operation_id", f"{new_root_id}_{timestamp_int}")
+        )
 
         if not new_root_id:
             logger.warning("No new_root_id in event data")
             return
 
         old_roots = event_data.get("old_root_ids")
-        print(f"[DEBUG] Processing merge - operation_id: {event_id}, new_root_id: {new_root_id}, old_roots from event: {old_roots}")
+        print(
+            f"[DEBUG] Processing merge - operation_id: {event_id}, "
+            f"new_root_id: {new_root_id}, old_roots from event: {old_roots}"
+        )
 
         # Get old roots from PyChunkedGraph lineage_graph if not in event
         if not old_roots:
             print(f"[DEBUG] Querying lineage_graph for new_root_ids: {new_root_ids}")
             # Query lineage for all new roots (usually just one for merges)
-            # Use timestamp 1 minute before current time to capture recent merge history
+            # Use timestamp 1 minute before current time
             timestamp_past = datetime.now(timezone.utc) - timedelta(minutes=1)
-            print(f"[DEBUG] Using timestamp_past: {timestamp_past} ({int(timestamp_past.timestamp() * 1000)} ms)")
+            timestamp_past_ms = int(timestamp_past.timestamp() * 1000)
+            print(
+                f"[DEBUG] Using timestamp_past: {timestamp_past} "
+                f"({timestamp_past_ms} ms)"
+            )
 
             lineage_results = get_old_roots_from_lineage_graph(
                 server_address=server_address,
@@ -378,11 +388,11 @@ def process_merge_event(
         else:
             logger.warning(f"No old roots found for new root {new_root_id}")
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing merge event: {e}", exc_info=True)
 
 
-def process_split_event(
+def process_split_event(  # pylint: disable=unused-argument
     event_data: dict[str, Any],
     project_name: str,
     cave_client: Optional[CAVEclient],
@@ -415,15 +425,21 @@ def process_split_event(
             elif isinstance(ts, (int, float)):
                 edit_timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
 
-        event_id = str(event_data.get("operation_id", f"split_{int(edit_timestamp.timestamp())}"))
+        timestamp_int = int(edit_timestamp.timestamp())
+        event_id = str(event_data.get("operation_id", f"split_{timestamp_int}"))
         print(event_data)
 
         if len(new_root_ids) < 2:
-            logger.warning(f"Split event should have multiple new_root_ids, got {len(new_root_ids)}")
+            logger.warning(
+                f"Split event should have multiple new_root_ids, "
+                f"got {len(new_root_ids)}"
+            )
             return
 
-
-        print(f"[DEBUG] Processing split - event_id: {event_id}, new_root_ids: {new_root_ids}")
+        print(
+            f"[DEBUG] Processing split - event_id: {event_id}, "
+            f"new_root_ids: {new_root_ids}"
+        )
 
         # Query lineage graph to find the old root
         timestamp_past = datetime.now(timezone.utc) - timedelta(minutes=1)
@@ -449,9 +465,12 @@ def process_split_event(
 
         # Get all supervoxels that currently belong to the old root
         old_supervoxels = get_supervoxels_by_segment(segment_id=old_root_id)
-        print(f"[DEBUG] Found {len(old_supervoxels)} supervoxels currently assigned to old root {old_root_id}")
+        print(
+            f"[DEBUG] Found {len(old_supervoxels)} supervoxels currently "
+            f"assigned to old root {old_root_id}"
+        )
 
-        # Get supervoxel IDs for each new root from PyChunkedGraph and update accordingly
+        # Get supervoxel IDs for each new root from PyChunkedGraph
         updated_count = 0
         for new_root_id in new_root_ids:
             # Get all supervoxel IDs that belong to this new root
@@ -460,13 +479,16 @@ def process_split_event(
                 table_id=table_id,
                 segment_id=new_root_id,
             )
-            
-            print(f"[DEBUG] Got {len(new_segment_supervoxel_ids)} supervoxels for new root {new_root_id}")
-            
+
+            print(
+                f"[DEBUG] Got {len(new_segment_supervoxel_ids)} supervoxels "
+                f"for new root {new_root_id}"
+            )
+
             # Convert to set for faster lookup
             new_segment_supervoxel_set = set(new_segment_supervoxel_ids)
-            
-            # Check each supervoxel from old root to see if it belongs to this new root
+
+            # Check each supervoxel from old root
             for supervoxel in old_supervoxels:
                 if supervoxel.supervoxel_id in new_segment_supervoxel_set:
                     update_supervoxel_for_split(
@@ -475,12 +497,17 @@ def process_split_event(
                     )
                     updated_count += 1
                     print(
-                        f"[DEBUG] Updated supervoxel {supervoxel.supervoxel_id}: {old_root_id} -> {new_root_id}"
+                        f"[DEBUG] Updated supervoxel "
+                        f"{supervoxel.supervoxel_id}: "
+                        f"{old_root_id} -> {new_root_id}"
                     )
 
-        logger.info(f"Completed split processing for root {old_root_id}: updated {updated_count} supervoxels")
+        logger.info(
+            f"Completed split processing for root {old_root_id}: "
+            f"updated {updated_count} supervoxels"
+        )
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing split event: {e}", exc_info=True)
 
 
@@ -508,16 +535,20 @@ def process_edit_event(
 
     if len(new_root_ids) == 1:
         # Single new root = merge
-        process_merge_event(event_data, project_name, cave_client, server_address, table_id)
+        process_merge_event(
+            event_data, project_name, cave_client, server_address, table_id
+        )
     elif len(new_root_ids) > 1:
         # Multiple new roots = split
         print(f"[DEBUG] Detected split: {len(new_root_ids)} new roots")
-        process_split_event(event_data, project_name, cave_client, server_address, table_id)
+        process_split_event(
+            event_data, project_name, cave_client, server_address, table_id
+        )
     else:
-        logger.warning(f"No new_root_ids in event data")
+        logger.warning("No new_root_ids in event data")
 
 
-def run_pcg_edit_listener(
+def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements
     project_id: str,
     subscription_name: str,
     project_name: Optional[str] = None,
@@ -532,13 +563,15 @@ def run_pcg_edit_listener(
     Args:
         project_id: GCP project ID
         subscription_name: Pub/Sub subscription name
-        project_name: Task management project name (auto-detected from table_id in messages if not provided)
+        project_name: Task management project name (auto-detected from
+            table_id in messages if not provided)
         datastack_name: CAVE datastack name (auto-detected from project)
-        server_address: PCG server address (auto-detected from project, defaults to https://data.proofreading.zetta.ai)
+        server_address: PCG server address (auto-detected from project,
+            defaults to https://data.proofreading.zetta.ai)
         poll_interval_sec: How often to poll for messages
         max_messages: Maximum messages to pull per batch
     """
-    print(f"[DEBUG] Starting PCG edit listener")
+    print("[DEBUG] Starting PCG edit listener")
     logger.info("Starting PCG edit listener")
 
     # Get project configuration from database if project_name provided
@@ -559,7 +592,7 @@ def run_pcg_edit_listener(
 
         print("[DEBUG] Checking datastack_name...")
         # Use provided values or get from project
-        if datastack_name is None:
+        if datastack_name is None and project:
             datastack_name = project.datastack_name
             if not datastack_name:
                 raise ValueError(
@@ -567,14 +600,15 @@ def run_pcg_edit_listener(
                 )
         print(f"[DEBUG] Datastack: {datastack_name}")
 
-        print("[DEBUG] Checking server_address...")
-        if server_address is None:
-            # Follow same pattern as cave_synapse_mgr.py
-            if datastack_name.startswith("wclee"):
-                server_address = "https://global.daf-apis.com"
-            else:
-                server_address = "https://data.proofreading.zetta.ai"
-        print(f"[DEBUG] Server: {server_address}")
+    # Set server_address (default if not provided)
+    print("[DEBUG] Checking server_address...")
+    if server_address is None:
+        # Follow same pattern as cave_synapse_mgr.py
+        if datastack_name and datastack_name.startswith("wclee"):
+            server_address = "https://global.daf-apis.com"
+        else:
+            server_address = "https://data.proofreading.zetta.ai"
+    print(f"[DEBUG] Server: {server_address}")
 
     print("[DEBUG] Creating PubSub queue...")
     logger.info(f"Using datastack: {datastack_name}")
@@ -599,7 +633,7 @@ def run_pcg_edit_listener(
         )
         logger.info("CAVEclient initialized successfully")
         print("[DEBUG] CAVEclient initialized successfully")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Could not initialize CAVEclient: {e}")
         logger.info(
             "Continuing without CAVEclient. "
@@ -609,10 +643,13 @@ def run_pcg_edit_listener(
 
     print("[DEBUG] Starting main listener loop...")
     logger.info(
-        f"Listening to subscription: "
+        "Listening to subscription: "
         f"projects/{project_id}/subscriptions/{subscription_name}"
     )
-    print(f"[DEBUG] Waiting for messages from PubSub (this will block until messages arrive)...")
+    print(
+        "[DEBUG] Waiting for messages from PubSub "
+        "(this will block until messages arrive)..."
+    )
 
     while True:
         try:
@@ -625,9 +662,14 @@ def run_pcg_edit_listener(
                     message_attributes = msg.payload.pop("_pubsub_attributes", {})
 
                     # Use table_id as project_name if project_name not provided
-                    msg_project_name = project_name or message_attributes.get("table_id")
+                    msg_project_name = (
+                        project_name or message_attributes.get("table_id")
+                    )
                     if not msg_project_name:
-                        logger.warning("No project_name provided and no table_id in message attributes. Skipping message.")
+                        logger.warning(
+                            "No project_name provided and no table_id in "
+                            "message attributes. Skipping message."
+                        )
                         msg.acknowledge_fn()
                         continue
 
@@ -639,7 +681,7 @@ def run_pcg_edit_listener(
                         server_address
                     )
                     msg.acknowledge_fn()
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(f"Error processing message: {e}", exc_info=True)
 
             if not messages:
@@ -648,6 +690,6 @@ def run_pcg_edit_listener(
         except KeyboardInterrupt:
             logger.info("Shutting down PCG edit listener")
             break
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Error in main loop: {e}", exc_info=True)
             time.sleep(poll_interval_sec)

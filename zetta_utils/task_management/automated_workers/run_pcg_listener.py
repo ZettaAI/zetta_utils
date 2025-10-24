@@ -5,10 +5,14 @@ CLI script to run the PyChunkedGraph edit listener worker.
 Usage:
     python -m zetta_utils.task_management.automated_workers.run_pcg_listener \
         --project-id zetta-proofreading \
-        --subscription-name proofreading-common_PCG_EDIT_INFO \
-        --project-name your_project \
-        --datastack-name your_datastack \
-        --server-address https://cave.your-server.com
+        --subscription-name proofreading-common_PCG_EDIT_INFO
+
+Optional arguments:
+    --project-name: Task management project name (auto-detected from table_id if not provided)
+    --datastack-name: CAVE datastack name (auto-detected from project if not provided)
+    --server-address: PCG server address (defaults to https://data.proofreading.zetta.ai)
+    --poll-interval: Polling interval in seconds (default: 5)
+    --max-messages: Maximum messages per batch (default: 10)
 """
 
 import argparse
@@ -38,8 +42,8 @@ def main():
     )
     parser.add_argument(
         "--project-name",
-        required=True,
-        help="Task management project name",
+        required=False,
+        help="Task management project name (auto-detected from table_id in messages if not provided)",
     )
     parser.add_argument(
         "--datastack-name",

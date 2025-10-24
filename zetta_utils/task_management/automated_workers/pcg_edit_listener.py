@@ -150,6 +150,50 @@ def get_old_roots_from_lineage(
         return []
 
 
+def get_supervoxel_ids_from_segment(
+    server_address: str,
+    table_id: str,
+    segment_id: int,
+) -> list[int]:
+    """
+    Get supervoxel IDs (leaves) for a given segment ID using PyChunkedGraph API.
+
+    Args:
+        server_address: PCG server address
+        table_id: Table/graph ID
+        segment_id: Segment/root ID to get supervoxels for
+
+    Returns:
+        List of supervoxel IDs for the segment
+    """
+    import requests
+
+    try:
+        # PCG leaves endpoint - gets all supervoxel IDs for a segment
+        url = f"{server_address}/segmentation/api/v1/table/{table_id}/node/{segment_id}/leaves"
+
+        # Get auth token from environment
+        auth_token = os.getenv("CAVE_AUTH_TOKEN")
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
+        print(f"[DEBUG] Getting supervoxels for segment {segment_id}")
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+
+        data = response.json()
+        supervoxel_ids = data.get("leaf_ids", [])
+        
+        print(f"[DEBUG] Got {len(supervoxel_ids)} supervoxels for segment {segment_id}")
+        return [int(sv_id) for sv_id in supervoxel_ids]
+
+    except Exception as e:
+        logger.error(f"Error getting supervoxels for segment {segment_id}: {e}")
+        print(f"[DEBUG] Error getting supervoxels for segment {segment_id}: {e}")
+        return []
+
+
 def get_root_for_coordinate_pcg(
     server_address: str,
     table_id: str,
@@ -348,8 +392,8 @@ def process_split_event(
     """
     Process a split event from PyChunkedGraph.
 
-    For splits, we need to query each supervoxel's coordinate to determine
-    which new root it belongs to.
+    For splits, we get supervoxel IDs directly from each new root segment
+    using the PyChunkedGraph leaves endpoint.
 
     Args:
         event_data: Event data from Pub/Sub
@@ -372,10 +416,12 @@ def process_split_event(
                 edit_timestamp = datetime.fromtimestamp(ts, tz=timezone.utc)
 
         event_id = str(event_data.get("operation_id", f"split_{int(edit_timestamp.timestamp())}"))
+        print(event_data)
 
         if len(new_root_ids) < 2:
             logger.warning(f"Split event should have multiple new_root_ids, got {len(new_root_ids)}")
             return
+
 
         print(f"[DEBUG] Processing split - event_id: {event_id}, new_root_ids: {new_root_ids}")
 
@@ -401,32 +447,36 @@ def process_split_event(
 
         print(f"[DEBUG] Found old root {old_root_id} for split into {new_root_ids}")
 
-        supervoxels = get_supervoxels_by_segment(segment_id=old_root_id)
+        # Get all supervoxels that currently belong to the old root
+        old_supervoxels = get_supervoxels_by_segment(segment_id=old_root_id)
+        print(f"[DEBUG] Found {len(old_supervoxels)} supervoxels currently assigned to old root {old_root_id}")
 
-        logger.info(
-            f"Processing split for {len(supervoxels)} supervoxels from root {old_root_id}"
-        )
-
+        # Get supervoxel IDs for each new root from PyChunkedGraph and update accordingly
         updated_count = 0
-        for supervoxel in supervoxels:
-            # Query PCG to get current root at this supervoxel's coordinate
-            new_root = get_root_for_coordinate_pcg(
+        for new_root_id in new_root_ids:
+            # Get all supervoxel IDs that belong to this new root
+            new_segment_supervoxel_ids = get_supervoxel_ids_from_segment(
                 server_address=server_address,
                 table_id=table_id,
-                x=supervoxel.seed_x,
-                y=supervoxel.seed_y,
-                z=supervoxel.seed_z,
+                segment_id=new_root_id,
             )
-
-            if new_root and new_root != old_root_id:
-                update_supervoxel_for_split(
-                    supervoxel_id=supervoxel.supervoxel_id,
-                    new_root_id=new_root,
-                )
-                updated_count += 1
-                print(
-                    f"[DEBUG] Updated supervoxel {supervoxel.supervoxel_id}: {old_root_id} -> {new_root}"
-                )
+            
+            print(f"[DEBUG] Got {len(new_segment_supervoxel_ids)} supervoxels for new root {new_root_id}")
+            
+            # Convert to set for faster lookup
+            new_segment_supervoxel_set = set(new_segment_supervoxel_ids)
+            
+            # Check each supervoxel from old root to see if it belongs to this new root
+            for supervoxel in old_supervoxels:
+                if supervoxel.supervoxel_id in new_segment_supervoxel_set:
+                    update_supervoxel_for_split(
+                        supervoxel_id=supervoxel.supervoxel_id,
+                        new_root_id=new_root_id,
+                    )
+                    updated_count += 1
+                    print(
+                        f"[DEBUG] Updated supervoxel {supervoxel.supervoxel_id}: {old_root_id} -> {new_root_id}"
+                    )
 
         logger.info(f"Completed split processing for root {old_root_id}: updated {updated_count} supervoxels")
 

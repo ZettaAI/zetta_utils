@@ -7,8 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from zetta_utils.task_management.db.models import (
-    SegmentMergeEventModel,
-    SegmentSplitEventModel,
+    SegmentEditEventModel,
     SupervoxelModel,
 )
 from zetta_utils.task_management.supervoxel import (
@@ -135,13 +134,13 @@ def test_update_supervoxels_for_merge(
 
     # Verify merge event was recorded
     merge_event = (
-        db_session.query(SegmentMergeEventModel)
+        db_session.query(SegmentEditEventModel)
         .filter_by(project_name=project_name, event_id=event_id)
         .first()
     )
     assert merge_event is not None
     assert merge_event.old_root_ids == old_root_ids
-    assert merge_event.new_root_id == new_root_id
+    assert merge_event.new_root_ids == [new_root_id]  # Unified model uses list
     assert merge_event.operation_type == "merge"
 
 
@@ -180,7 +179,7 @@ def test_update_supervoxels_for_merge_idempotent(
 
     # Verify only one merge event recorded
     merge_events = (
-        db_session.query(SegmentMergeEventModel)
+        db_session.query(SegmentEditEventModel)
         .filter_by(project_name=project_name, event_id=event_id)
         .all()
     )
@@ -243,12 +242,12 @@ def test_update_supervoxels_for_split(
 
     # Verify split event was recorded
     split_event = (
-        db_session.query(SegmentSplitEventModel)
+        db_session.query(SegmentEditEventModel)
         .filter_by(project_name=project_name, event_id=event_id)
         .first()
     )
     assert split_event is not None
-    assert split_event.old_root_id == old_root_id
+    assert split_event.old_root_ids == [old_root_id]  # Unified model uses list
     assert split_event.new_root_ids == new_root_ids
     assert split_event.operation_type == "split"
 
@@ -291,7 +290,7 @@ def test_update_supervoxels_for_split_idempotent(
 
     # Verify only one split event recorded
     split_events = (
-        db_session.query(SegmentSplitEventModel)
+        db_session.query(SegmentEditEventModel)
         .filter_by(project_name=project_name, event_id=event_id)
         .all()
     )
@@ -325,7 +324,7 @@ def test_update_supervoxels_for_split_empty_assignments(
 
     # Verify split event was still recorded
     split_event = (
-        db_session.query(SegmentSplitEventModel)
+        db_session.query(SegmentEditEventModel)
         .filter_by(project_name=project_name, event_id=event_id)
         .first()
     )

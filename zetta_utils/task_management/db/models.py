@@ -1014,3 +1014,70 @@ class SegmentMergeEventModel(Base):
             ),
             operation_type=data.get("operation_type", "merge"),
         )
+
+
+class SegmentSplitEventModel(Base):
+    """
+    SQLAlchemy model for the segment_split_events table.
+
+    Tracks split events from PyChunkedGraph to provide audit trail
+    and enable idempotent processing of PubSub messages.
+    """
+
+    __tablename__ = "segment_split_events"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String, primary_key=True)
+
+    old_root_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    new_root_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), nullable=False
+    )
+
+    edit_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    operation_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_split_events_old_root", "old_root_id"),
+        Index("idx_split_events_timestamp", "edit_timestamp"),
+        Index("idx_split_events_processed", "processed_at"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "project_name": self.project_name,
+            "event_id": self.event_id,
+            "old_root_id": self.old_root_id,
+            "new_root_ids": self.new_root_ids,
+            "edit_timestamp": (
+                self.edit_timestamp.isoformat() if self.edit_timestamp else None
+            ),
+            "processed_at": (
+                self.processed_at.isoformat() if self.processed_at else None
+            ),
+            "operation_type": self.operation_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SegmentSplitEventModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            event_id=data["event_id"],
+            old_root_id=data["old_root_id"],
+            new_root_ids=data["new_root_ids"],
+            edit_timestamp=_parse_datetime(data["edit_timestamp"]),
+            processed_at=_parse_datetime(
+                data.get("processed_at", datetime.now())
+            ),
+            operation_type=data.get("operation_type", "split"),
+        )

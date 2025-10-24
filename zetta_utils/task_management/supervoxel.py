@@ -6,7 +6,7 @@ from typing import Optional
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from .db.models import SegmentMergeEventModel, SupervoxelModel
+from .db.models import SegmentMergeEventModel, SegmentSplitEventModel, SupervoxelModel
 from .db.session import get_session_context
 
 
@@ -70,30 +70,69 @@ def update_supervoxels_for_merge(
         return result.rowcount
 
 
-def update_supervoxel_for_split(
-    supervoxel_id: int,
-    new_root_id: int,
+def update_supervoxels_for_split(
+    old_root_id: int,
+    new_root_ids: list[int],
+    supervoxel_assignments: dict[int, int],
+    project_name: str,
+    event_id: str,
+    edit_timestamp: datetime,
+    operation_type: str = "split",
     db_session: Optional[Session] = None,
-) -> None:
+) -> int:
     """
-    Update a single supervoxel's current_segment_id after a split.
+    Update supervoxels table when a segment is split.
 
     Args:
-        supervoxel_id: ID of the supervoxel to update
-        new_root_id: New root ID for this supervoxel
+        old_root_id: Original root ID that was split
+        new_root_ids: List of new root IDs after split
+        supervoxel_assignments: Dict mapping supervoxel_id to new_root_id
+        project_name: Project name for event tracking
+        event_id: Unique event ID for idempotency
+        edit_timestamp: Timestamp of the edit operation
+        operation_type: Type of operation (merge or split)
         db_session: Optional database session
+
+    Returns:
+        Number of supervoxels updated
     """
     with get_session_context(db_session) as session:
-        stmt = (
-            update(SupervoxelModel)
-            .where(SupervoxelModel.supervoxel_id == supervoxel_id)
-            .values(
-                current_segment_id=new_root_id,
-                updated_at=datetime.now(timezone.utc),
+        existing_event = session.execute(
+            select(SegmentSplitEventModel).where(
+                SegmentSplitEventModel.project_name == project_name,
+                SegmentSplitEventModel.event_id == event_id,
             )
+        ).scalar_one_or_none()
+
+        if existing_event:
+            return 0
+
+        total_updated = 0
+        for supervoxel_id, new_segment_id in supervoxel_assignments.items():
+            stmt = (
+                update(SupervoxelModel)
+                .where(SupervoxelModel.supervoxel_id == supervoxel_id)
+                .values(
+                    current_segment_id=new_segment_id,
+                    updated_at=datetime.now(timezone.utc),
+                )
+            )
+            result = session.execute(stmt)
+            total_updated += result.rowcount
+
+        event = SegmentSplitEventModel(
+            project_name=project_name,
+            event_id=event_id,
+            old_root_id=old_root_id,
+            new_root_ids=new_root_ids,
+            edit_timestamp=edit_timestamp,
+            processed_at=datetime.now(timezone.utc),
+            operation_type=operation_type,
         )
-        session.execute(stmt)
+        session.add(event)
         session.commit()
+
+        return total_updated
 
 
 def get_supervoxels_by_segment(

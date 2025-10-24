@@ -14,6 +14,7 @@ from zetta_utils.task_management.db.models import (
     MergeEditModel,
     ProjectModel,
     SegmentMergeEventModel,
+    SegmentSplitEventModel,
     SegmentModel,
     SegmentTypeModel,
     SplitEditModel,
@@ -933,3 +934,100 @@ def test_segment_merge_event_model_from_dict():
     assert isinstance(model.edit_timestamp, datetime)
     assert isinstance(model.processed_at, datetime)
     assert model.operation_type == "split"
+
+
+# TestSegmentSplitEventModel tests
+
+
+def test_segment_split_event_model_to_dict(db_session):
+    """Test SegmentSplitEventModel.to_dict()"""
+    now = datetime.now(timezone.utc)
+    event = SegmentSplitEventModel(
+        project_name="test_project",
+        event_id="split_event_123",
+        old_root_id=1000,
+        new_root_ids=[2000, 3000],
+        edit_timestamp=now,
+        processed_at=now,
+        operation_type="split",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    result = event.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["event_id"] == "split_event_123"
+    assert result["old_root_id"] == 1000
+    assert result["new_root_ids"] == [2000, 3000]
+    assert result["edit_timestamp"] == now.isoformat()
+    assert result["processed_at"] == now.isoformat()
+    assert result["operation_type"] == "split"
+
+
+def test_segment_split_event_model_to_dict_none_timestamps(db_session):
+    """Test SegmentSplitEventModel.to_dict() with None timestamps"""
+    event = SegmentSplitEventModel(
+        project_name="test_project",
+        event_id="split_event_456",
+        old_root_id=4000,
+        new_root_ids=[5000, 6000],
+        edit_timestamp=datetime.now(timezone.utc),
+        processed_at=datetime.now(timezone.utc),
+        operation_type="split",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_edit = event.edit_timestamp
+    original_processed = event.processed_at
+    event.edit_timestamp = None  # type: ignore[assignment]
+    event.processed_at = None  # type: ignore[assignment]
+
+    result = event.to_dict()
+    assert result["edit_timestamp"] is None
+    assert result["processed_at"] is None
+
+    # Restore for cleanup
+    event.edit_timestamp = original_edit
+    event.processed_at = original_processed
+
+
+def test_segment_split_event_model_from_dict():
+    """Test SegmentSplitEventModel.from_dict()"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "split_event_789",
+        "old_root_id": 7000,
+        "new_root_ids": [8000, 9000, 10000],
+        "edit_timestamp": "2025-07-03T14:00:00+00:00",
+        "processed_at": "2025-07-03T14:01:00+00:00",
+        "operation_type": "split",
+    }
+    model = SegmentSplitEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "split_event_789"
+    assert model.old_root_id == 7000
+    assert model.new_root_ids == [8000, 9000, 10000]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)
+    assert model.operation_type == "split"
+
+
+def test_segment_split_event_model_from_dict_defaults():
+    """Test SegmentSplitEventModel.from_dict() with defaults"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "split_event_default",
+        "old_root_id": 11000,
+        "new_root_ids": [12000, 13000],
+        "edit_timestamp": "2025-07-03T15:00:00+00:00",
+    }
+    model = SegmentSplitEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "split_event_default"
+    assert model.old_root_id == 11000
+    assert model.new_root_ids == [12000, 13000]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)  # Default to now()
+    assert model.operation_type == "split"  # Default value

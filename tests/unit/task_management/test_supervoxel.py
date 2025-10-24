@@ -8,12 +8,13 @@ import pytest
 
 from zetta_utils.task_management.db.models import (
     SegmentMergeEventModel,
+    SegmentSplitEventModel,
     SupervoxelModel,
 )
 from zetta_utils.task_management.supervoxel import (
     create_supervoxel,
     get_supervoxels_by_segment,
-    update_supervoxel_for_split,
+    update_supervoxels_for_split,
     update_supervoxels_for_merge,
 )
 
@@ -186,40 +187,149 @@ def test_update_supervoxels_for_merge_idempotent(
     assert len(merge_events) == 1
 
 
-def test_update_supervoxel_for_split(existing_supervoxels, db_session):
-    """Test updating a single supervoxel for a split operation"""
-    supervoxel_id = 100
-    new_root_id = 4000
+def test_update_supervoxels_for_split(
+    existing_supervoxels, db_session, project_name
+):
+    """Test updating supervoxels for a split operation"""
+    old_root_id = 1000
+    new_root_ids = [4000, 5000]
+    supervoxel_assignments = {100: 4000, 101: 5000}
+    event_id = "split_123"
+    edit_timestamp = datetime.now(timezone.utc)
 
     # Verify initial state
-    supervoxel = (
-        db_session.query(SupervoxelModel)
-        .filter_by(supervoxel_id=supervoxel_id)
-        .first()
-    )
-    assert supervoxel.current_segment_id == 1000
+    supervoxels = get_supervoxels_by_segment(segment_id=old_root_id, db_session=db_session)
+    assert len(supervoxels) == 2
+    assert all(sv.current_segment_id == old_root_id for sv in supervoxels)
 
-    # Update for split
-    update_supervoxel_for_split(
-        supervoxel_id=supervoxel_id,
-        new_root_id=new_root_id,
+    # Perform split
+    count = update_supervoxels_for_split(
+        old_root_id=old_root_id,
+        new_root_ids=new_root_ids,
+        supervoxel_assignments=supervoxel_assignments,
+        project_name=project_name,
+        event_id=event_id,
+        edit_timestamp=edit_timestamp,
+        operation_type="split",
         db_session=db_session,
     )
 
-    # Verify update
+    # Should update 2 supervoxels
+    assert count == 2
+
+    # Verify supervoxels were updated correctly
     db_session.expire_all()  # Refresh session
-    supervoxel = (
+    supervoxel_100 = (
         db_session.query(SupervoxelModel)
-        .filter_by(supervoxel_id=supervoxel_id)
+        .filter_by(supervoxel_id=100)
         .first()
     )
-    assert supervoxel.current_segment_id == new_root_id
+    assert supervoxel_100.current_segment_id == 4000
+
+    supervoxel_101 = (
+        db_session.query(SupervoxelModel)
+        .filter_by(supervoxel_id=101)
+        .first()
+    )
+    assert supervoxel_101.current_segment_id == 5000
 
     # Verify other supervoxels unchanged
-    other_supervoxel = (
-        db_session.query(SupervoxelModel).filter_by(supervoxel_id=101).first()
+    supervoxel_102 = (
+        db_session.query(SupervoxelModel)
+        .filter_by(supervoxel_id=102)
+        .first()
     )
-    assert other_supervoxel.current_segment_id == 1000
+    assert supervoxel_102.current_segment_id == 2000
+
+    # Verify split event was recorded
+    split_event = (
+        db_session.query(SegmentSplitEventModel)
+        .filter_by(project_name=project_name, event_id=event_id)
+        .first()
+    )
+    assert split_event is not None
+    assert split_event.old_root_id == old_root_id
+    assert split_event.new_root_ids == new_root_ids
+    assert split_event.operation_type == "split"
+
+
+def test_update_supervoxels_for_split_idempotent(
+    existing_supervoxels, db_session, project_name
+):
+    """Test that split operations are idempotent"""
+    old_root_id = 1000
+    new_root_ids = [4000, 5000]
+    supervoxel_assignments = {100: 4000, 101: 5000}
+    event_id = "split_456"
+    edit_timestamp = datetime.now(timezone.utc)
+
+    # Perform split first time
+    count1 = update_supervoxels_for_split(
+        old_root_id=old_root_id,
+        new_root_ids=new_root_ids,
+        supervoxel_assignments=supervoxel_assignments,
+        project_name=project_name,
+        event_id=event_id,
+        edit_timestamp=edit_timestamp,
+        operation_type="split",
+        db_session=db_session,
+    )
+    assert count1 == 2
+
+    # Perform same split again (should be idempotent)
+    count2 = update_supervoxels_for_split(
+        old_root_id=old_root_id,
+        new_root_ids=new_root_ids,
+        supervoxel_assignments=supervoxel_assignments,
+        project_name=project_name,
+        event_id=event_id,
+        edit_timestamp=edit_timestamp,
+        operation_type="split",
+        db_session=db_session,
+    )
+    assert count2 == 0  # No updates since already processed
+
+    # Verify only one split event recorded
+    split_events = (
+        db_session.query(SegmentSplitEventModel)
+        .filter_by(project_name=project_name, event_id=event_id)
+        .all()
+    )
+    assert len(split_events) == 1
+
+
+def test_update_supervoxels_for_split_empty_assignments(
+    existing_supervoxels, db_session, project_name
+):
+    """Test split operation with empty assignments"""
+    old_root_id = 1000
+    new_root_ids = [4000, 5000]
+    supervoxel_assignments = {}  # Empty assignments
+    event_id = "split_empty"
+    edit_timestamp = datetime.now(timezone.utc)
+
+    # Perform split with no assignments
+    count = update_supervoxels_for_split(
+        old_root_id=old_root_id,
+        new_root_ids=new_root_ids,
+        supervoxel_assignments=supervoxel_assignments,
+        project_name=project_name,
+        event_id=event_id,
+        edit_timestamp=edit_timestamp,
+        operation_type="split",
+        db_session=db_session,
+    )
+
+    # Should update 0 supervoxels
+    assert count == 0
+
+    # Verify split event was still recorded
+    split_event = (
+        db_session.query(SegmentSplitEventModel)
+        .filter_by(project_name=project_name, event_id=event_id)
+        .first()
+    )
+    assert split_event is not None
 
 
 def test_get_supervoxels_by_segment_empty(clean_db, db_session):

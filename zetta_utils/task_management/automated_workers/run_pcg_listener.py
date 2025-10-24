@@ -43,7 +43,8 @@ def main():
     parser.add_argument(
         "--project-name",
         required=False,
-        help="Task management project name (auto-detected from table_id in messages if not provided)",
+        help="Task management project name (auto-detected from table_id in "
+             "messages if not provided)",
     )
     parser.add_argument(
         "--datastack-name",

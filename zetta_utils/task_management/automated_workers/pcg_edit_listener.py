@@ -472,7 +472,6 @@ def process_split_event(  # pylint: disable=unused-argument
 
         # Build supervoxel assignments mapping
         supervoxel_assignments = {}
-        
         for new_root_id in new_root_ids:
             # Get all supervoxel IDs that belong to this new root
             new_segment_supervoxel_ids = get_supervoxel_ids_from_segment(
@@ -556,7 +555,7 @@ def process_edit_event(
         logger.warning("No new_root_ids in event data")
 
 
-def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements
+def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements,too-many-positional-arguments
     project_id: str,
     subscription_name: str,
     project_name: Optional[str] = None,

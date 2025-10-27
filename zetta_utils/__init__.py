@@ -3,11 +3,16 @@
 import os
 import sys
 import warnings
+import multiprocessing
 
 from .log import get_logger
 
 # Set global multiprocessing threshold
 MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
+
+# Set start method to `forkserver`` if not set elsewhere
+if multiprocessing.get_start_method(allow_none=True) is None:
+    multiprocessing.set_start_method("forkserver")
 
 if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa

@@ -129,6 +129,13 @@ SLEEPER_SPEC = {
     "arg2": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
 }
 
+SLEEPER_SPEC_SHORT = {
+    "@type": "sleeper_func",
+    "sleep_time": 0.1,
+    "arg1": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+    "arg2": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+}
+
 
 def test_sleeper_serial(register_sleeper_func):
     s = time.time()
@@ -139,12 +146,15 @@ def test_sleeper_serial(register_sleeper_func):
 
 
 def test_sleeper_parallel(register_sleeper_func):
+    # Short first builder to force first parallelization for overhead;
+    # not relevant for fork, but relevant for forkserver as the first call takes a while
+    builder.build(spec=SLEEPER_SPEC_SHORT, parallel=True)
     s = time.time()
     result = builder.build(spec=SLEEPER_SPEC, parallel=True)
     e = time.time()
     assert result is True
-    time_ellapsed = e - s
-    assert time_ellapsed < SLEEP_TIME * 3
+    time_elapsed = e - s
+    assert time_elapsed < SLEEP_TIME * 3
 
 
 @pytest.mark.parametrize(

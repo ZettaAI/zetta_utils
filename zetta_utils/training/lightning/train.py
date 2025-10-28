@@ -105,19 +105,26 @@ def lightning_train(  # pylint: disable=too-many-locals
     }
 
     if local_run:
+        train_dataloader_ = (
+            train_dataloader
+            if not isinstance(train_dataloader, dict)
+            else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+        )
+        train_dataloader_.worker_init_fn = _load_modules
+
+        val_dataloader_ = (
+            val_dataloader
+            if not isinstance(val_dataloader, dict)
+            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+        )
+        if val_dataloader_ is not None:
+            val_dataloader_.worker_init_fn = _load_modules
+
         _lightning_train_local(
             regime=regime if not isinstance(regime, dict) else builder.build(regime),
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
-            train_dataloader=(
-                train_dataloader
-                if not isinstance(train_dataloader, dict)
-                else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
-            ),
-            val_dataloader=(
-                val_dataloader
-                if not isinstance(val_dataloader, dict)
-                else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
-            ),
+            train_dataloader=train_dataloader_,
+            val_dataloader=val_dataloader_,
             full_state_ckpt_path=full_state_ckpt_path,
         )
         return

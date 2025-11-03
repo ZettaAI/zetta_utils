@@ -41,6 +41,7 @@ def worker_init(suppress_worker_logs: bool, multiprocessing_start_method: str) -
     os.environ["PYTHONUNBUFFERED"] = "1"
     if suppress_worker_logs:
         redirect_buffers()
+    # Inherit the start method from the calling process
     multiprocessing.set_start_method(multiprocessing_start_method, force=True)
     try_load_train_inference()
 
@@ -84,7 +85,9 @@ def setup_local_worker_pool(
     with monitor_resources(resource_monitor_interval):
         pool = pebble.ProcessPool(
             max_workers=num_procs,
-            context=multiprocessing.get_context("spawn"),
+            context=multiprocessing.get_context(
+                "spawn"
+            ),  # 'fork' has issues with CV sharded reads
             initializer=worker_init,
             initargs=[suppress_worker_logs, multiprocessing.get_start_method()],
         )

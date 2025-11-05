@@ -1137,7 +1137,7 @@ def test_segment_model_to_dict_none_timestamps(db_session):
     original_modified = segment.last_modified
     segment.created_at = None  # type: ignore[assignment]
     segment.updated_at = None  # type: ignore[assignment]
-    segment.last_modified = None  # type: ignore[assignment]
+    segment.last_modified = None
 
     result = segment.to_dict()
     assert result["created_at"] is None

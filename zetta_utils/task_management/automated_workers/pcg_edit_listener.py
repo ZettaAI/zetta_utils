@@ -20,8 +20,8 @@ from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
-    update_supervoxels_for_split,
     update_supervoxels_for_merge,
+    update_supervoxels_for_split,
 )
 
 logger = logging.getLogger(__name__)
@@ -621,7 +621,7 @@ def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-stateme
     logger.info(f"Using datastack: {datastack_name}")
     logger.info(f"Using server: {server_address}")
 
-    pubsub_queue = PubSubPullQueue(
+    pubsub_queue: PubSubPullQueue = PubSubPullQueue(
         name="pcg_edit_queue",
         project_id=project_id,
         subscription_name=subscription_name,

@@ -1,6 +1,6 @@
 """Tests for task_management db models"""
 
-# pylint: disable=unused-argument,redefined-outer-name
+# pylint: disable=unused-argument,redefined-outer-name,too-many-lines
 
 from datetime import datetime, timezone
 
@@ -13,9 +13,11 @@ from zetta_utils.task_management.db.models import (
     LockedSegmentModel,
     MergeEditModel,
     ProjectModel,
+    SegmentEditEventModel,
     SegmentModel,
     SegmentTypeModel,
     SplitEditModel,
+    SupervoxelModel,
     TaskModel,
     TaskTypeModel,
     TimesheetModel,
@@ -890,3 +892,392 @@ def test_locked_segment_model_from_dict():
     assert model.project_name == "test_project"
     assert model.segment_id == 67890
     assert isinstance(model.created_at, datetime)
+
+
+# TestSupervoxelModel tests
+
+
+def test_supervoxel_model_to_dict(db_session):
+    """Test SupervoxelModel.to_dict()"""
+    now = datetime.now(timezone.utc)
+    supervoxel = SupervoxelModel(
+        supervoxel_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        current_segment_id=67890,
+        created_at=now,
+        updated_at=now,
+    )
+    db_session.add(supervoxel)
+    db_session.commit()
+
+    result = supervoxel.to_dict()
+    assert result["supervoxel_id"] == 12345
+    assert result["seed_x"] == 100.0
+    assert result["seed_y"] == 200.0
+    assert result["seed_z"] == 300.0
+    assert result["current_segment_id"] == 67890
+    assert result["created_at"] == now.isoformat()
+    assert result["updated_at"] == now.isoformat()
+
+
+def test_supervoxel_model_from_dict():
+    """Test SupervoxelModel.from_dict()"""
+    data = {
+        "supervoxel_id": 54321,
+        "seed_x": 10.5,
+        "seed_y": 20.5,
+        "seed_z": 30.5,
+        "current_segment_id": 99999,
+        "created_at": "2025-07-03T10:00:00+00:00",
+        "updated_at": "2025-07-03T11:00:00+00:00",
+    }
+    model = SupervoxelModel.from_dict(data)
+    assert model.supervoxel_id == 54321
+    assert model.seed_x == 10.5
+    assert model.seed_y == 20.5
+    assert model.seed_z == 30.5
+    assert model.current_segment_id == 99999
+    assert isinstance(model.created_at, datetime)
+    assert isinstance(model.updated_at, datetime)
+
+
+# TestSegmentEditEventModel tests
+
+
+def test_segment_edit_event_model_to_dict_merge(db_session):
+    """Test SegmentEditEventModel.to_dict() for merge operations"""
+    now = datetime.now(timezone.utc)
+    event = SegmentEditEventModel(
+        project_name="test_project",
+        event_id="merge_event_123",
+        old_root_ids=[100, 200, 300],
+        new_root_ids=[400],
+        edit_timestamp=now,
+        processed_at=now,
+        operation_type="merge",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    result = event.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["event_id"] == "merge_event_123"
+    assert result["old_root_ids"] == [100, 200, 300]
+    assert result["new_root_ids"] == [400]
+    assert result["edit_timestamp"] == now.isoformat()
+    assert result["processed_at"] == now.isoformat()
+    assert result["operation_type"] == "merge"
+
+
+def test_segment_edit_event_model_to_dict_split(db_session):
+    """Test SegmentEditEventModel.to_dict() for split operations"""
+    now = datetime.now(timezone.utc)
+    event = SegmentEditEventModel(
+        project_name="test_project",
+        event_id="split_event_123",
+        old_root_ids=[1000],
+        new_root_ids=[2000, 3000],
+        edit_timestamp=now,
+        processed_at=now,
+        operation_type="split",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    result = event.to_dict()
+    assert result["project_name"] == "test_project"
+    assert result["event_id"] == "split_event_123"
+    assert result["old_root_ids"] == [1000]
+    assert result["new_root_ids"] == [2000, 3000]
+    assert result["edit_timestamp"] == now.isoformat()
+    assert result["processed_at"] == now.isoformat()
+    assert result["operation_type"] == "split"
+
+
+def test_segment_edit_event_model_to_dict_none_timestamps(db_session):
+    """Test SegmentEditEventModel.to_dict() with None timestamps"""
+    event = SegmentEditEventModel(
+        project_name="test_project",
+        event_id="edit_event_456",
+        old_root_ids=[4000],
+        new_root_ids=[5000, 6000],
+        edit_timestamp=datetime.now(timezone.utc),
+        processed_at=datetime.now(timezone.utc),
+        operation_type="split",
+    )
+    db_session.add(event)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_edit = event.edit_timestamp
+    original_processed = event.processed_at
+    event.edit_timestamp = None  # type: ignore[assignment]
+    event.processed_at = None  # type: ignore[assignment]
+
+    result = event.to_dict()
+    assert result["edit_timestamp"] is None
+    assert result["processed_at"] is None
+
+    # Restore for cleanup
+    event.edit_timestamp = original_edit
+    event.processed_at = original_processed
+
+
+def test_segment_edit_event_model_from_dict_merge():
+    """Test SegmentEditEventModel.from_dict() for merge operations"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "merge_event_456",
+        "old_root_ids": [111, 222],
+        "new_root_ids": [333],
+        "edit_timestamp": "2025-07-03T12:00:00+00:00",
+        "processed_at": "2025-07-03T12:01:00+00:00",
+        "operation_type": "merge",
+    }
+    model = SegmentEditEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "merge_event_456"
+    assert model.old_root_ids == [111, 222]
+    assert model.new_root_ids == [333]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)
+    assert model.operation_type == "merge"
+
+
+def test_segment_edit_event_model_from_dict_split():
+    """Test SegmentEditEventModel.from_dict() for split operations"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "split_event_789",
+        "old_root_ids": [7000],
+        "new_root_ids": [8000, 9000, 10000],
+        "edit_timestamp": "2025-07-03T14:00:00+00:00",
+        "processed_at": "2025-07-03T14:01:00+00:00",
+        "operation_type": "split",
+    }
+    model = SegmentEditEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "split_event_789"
+    assert model.old_root_ids == [7000]
+    assert model.new_root_ids == [8000, 9000, 10000]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)
+    assert model.operation_type == "split"
+
+
+def test_segment_edit_event_model_from_dict_defaults():
+    """Test SegmentEditEventModel.from_dict() with defaults"""
+    data = {
+        "project_name": "test_project",
+        "event_id": "edit_event_default",
+        "old_root_ids": [11000],
+        "new_root_ids": [12000, 13000],
+        "edit_timestamp": "2025-07-03T15:00:00+00:00",
+    }
+    model = SegmentEditEventModel.from_dict(data)
+    assert model.project_name == "test_project"
+    assert model.event_id == "edit_event_default"
+    assert model.old_root_ids == [11000]
+    assert model.new_root_ids == [12000, 13000]
+    assert isinstance(model.edit_timestamp, datetime)
+    assert isinstance(model.processed_at, datetime)  # Default to now()
+    assert model.operation_type == "merge"  # Default value
+
+
+# Additional coverage tests for missing branches
+
+
+def test_segment_type_model_to_dict_none_timestamps(db_session):
+    """Test SegmentTypeModel.to_dict() with None timestamps"""
+    segment_type = SegmentTypeModel(
+        type_name="test_type",
+        project_name="test_project",
+        sample_segment_ids=["123"],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(segment_type)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = segment_type.created_at
+    original_updated = segment_type.updated_at
+    segment_type.created_at = None  # type: ignore[assignment]
+    segment_type.updated_at = None  # type: ignore[assignment]
+
+    result = segment_type.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    segment_type.created_at = original_created
+    segment_type.updated_at = original_updated
+
+
+def test_segment_model_to_dict_none_timestamps(db_session):
+    """Test SegmentModel.to_dict() with None timestamps"""
+    segment = SegmentModel(
+        project_name="test_project",
+        seed_id=123,
+        seed_x=1.0,
+        seed_y=2.0,
+        seed_z=3.0,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+        last_modified=datetime.now(timezone.utc),
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = segment.created_at
+    original_updated = segment.updated_at
+    original_modified = segment.last_modified
+    segment.created_at = None  # type: ignore[assignment]
+    segment.updated_at = None  # type: ignore[assignment]
+    segment.last_modified = None
+
+    result = segment.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+    assert result["last_modified"] is None
+
+    # Restore for cleanup
+    segment.created_at = original_created
+    segment.updated_at = original_updated
+    segment.last_modified = original_modified
+
+
+def test_endpoint_model_to_dict_none_timestamps(db_session):
+    """Test EndpointModel.to_dict() with None timestamps"""
+    endpoint = EndpointModel(
+        project_name="test_project",
+        endpoint_id=123,
+        seed_id=456,
+        x=1.0,
+        y=2.0,
+        z=3.0,
+        status="UNCERTAIN",
+        user="test_user",
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(endpoint)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = endpoint.created_at
+    original_updated = endpoint.updated_at
+    endpoint.created_at = None  # type: ignore[assignment]
+    endpoint.updated_at = None  # type: ignore[assignment]
+
+    result = endpoint.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    endpoint.created_at = original_created
+    endpoint.updated_at = original_updated
+
+
+def test_endpoint_update_model_to_dict_none_timestamp(db_session):
+    """Test EndpointUpdateModel.to_dict() with None timestamp"""
+    update = EndpointUpdateModel(
+        project_name="test_project",
+        update_id=123,
+        endpoint_id=456,
+        user="test_user",
+        new_status="BREADCRUMB",
+        timestamp=datetime.now(timezone.utc),
+    )
+    db_session.add(update)
+    db_session.commit()
+
+    # Simulate None timestamp for coverage
+    original_timestamp = update.timestamp
+    update.timestamp = None  # type: ignore[assignment]
+
+    result = update.to_dict()
+    assert result["timestamp"] is None
+
+    # Restore for cleanup
+    update.timestamp = original_timestamp
+
+
+def test_task_model_to_dict_none_created_at(db_session):
+    """Test TaskModel.to_dict() with None created_at"""
+    task = TaskModel(
+        project_name="test_project",
+        task_id="test_task",
+        ng_state={"test": "state"},
+        ng_state_initial={"test": "initial"},
+        priority=1,
+        batch_id="test_batch",
+        task_type="test",
+        id_nonunique=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(task)
+    db_session.commit()
+
+    # Simulate None created_at for coverage
+    original_created = task.created_at
+    task.created_at = None  # type: ignore[assignment]
+
+    result = task.to_dict()
+    assert result["created_at"] is None
+
+    # Restore for cleanup
+    task.created_at = original_created
+
+
+def test_locked_segment_model_to_dict_none_created_at(db_session):
+    """Test LockedSegmentModel.to_dict() with None created_at"""
+    locked = LockedSegmentModel(
+        project_name="test_project",
+        segment_id=123,
+        created_at=datetime.now(timezone.utc),
+    )
+    db_session.add(locked)
+    db_session.commit()
+
+    # Simulate None created_at for coverage
+    original_created = locked.created_at
+    locked.created_at = None  # type: ignore[assignment]
+
+    result = locked.to_dict()
+    assert result["created_at"] is None
+
+    # Restore for cleanup
+    locked.created_at = original_created
+
+
+def test_supervoxel_model_to_dict_none_timestamps(db_session):
+    """Test SupervoxelModel.to_dict() with None timestamps"""
+    supervoxel = SupervoxelModel(
+        supervoxel_id=123,
+        seed_x=1.0,
+        seed_y=2.0,
+        seed_z=3.0,
+        current_segment_id=456,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    db_session.add(supervoxel)
+    db_session.commit()
+
+    # Simulate None timestamps for coverage
+    original_created = supervoxel.created_at
+    original_updated = supervoxel.updated_at
+    supervoxel.created_at = None  # type: ignore[assignment]
+    supervoxel.updated_at = None  # type: ignore[assignment]
+
+    result = supervoxel.to_dict()
+    assert result["created_at"] is None
+    assert result["updated_at"] is None
+
+    # Restore for cleanup
+    supervoxel.created_at = original_created
+    supervoxel.updated_at = original_updated

@@ -1,4 +1,4 @@
-# pylint: disable=singleton-comparison
+# pylint: disable=singleton-comparison,too-many-lines
 from datetime import datetime
 
 from sqlalchemy import (
@@ -889,4 +889,142 @@ class LockedSegmentModel(Base):
             project_name=data["project_name"],
             segment_id=data["segment_id"],
             created_at=_parse_datetime(data.get("created_at", datetime.now())),
+        )
+
+
+class SupervoxelModel(Base):
+    """
+    SQLAlchemy model for the supervoxels table.
+
+    Tracks supervoxels and their current segment IDs, allowing tracking
+    of segment merges and splits over time.
+    """
+
+    __tablename__ = "supervoxels"
+
+    supervoxel_id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True
+    )
+
+    seed_x: Mapped[float] = mapped_column(Float, nullable=False)
+    seed_y: Mapped[float] = mapped_column(Float, nullable=False)
+    seed_z: Mapped[float] = mapped_column(Float, nullable=False)
+
+    current_segment_id: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, index=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_supervoxels_current_segment_id", "current_segment_id"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "supervoxel_id": self.supervoxel_id,
+            "seed_x": self.seed_x,
+            "seed_y": self.seed_y,
+            "seed_z": self.seed_z,
+            "current_segment_id": self.current_segment_id,
+            "created_at": (
+                self.created_at.isoformat() if self.created_at else None
+            ),
+            "updated_at": (
+                self.updated_at.isoformat() if self.updated_at else None
+            ),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SupervoxelModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            supervoxel_id=data["supervoxel_id"],
+            seed_x=data["seed_x"],
+            seed_y=data["seed_y"],
+            seed_z=data["seed_z"],
+            current_segment_id=data["current_segment_id"],
+            created_at=_parse_datetime(
+                data.get("created_at", datetime.now())
+            ),
+            updated_at=_parse_datetime(
+                data.get("updated_at", datetime.now())
+            ),
+        )
+
+
+class SegmentEditEventModel(Base):
+    """
+    SQLAlchemy model for the segment_edit_events table.
+
+    Unified model that tracks both merge and split events from PyChunkedGraph
+    to provide audit trail and enable idempotent processing of PubSub messages.
+    """
+
+    __tablename__ = "segment_edit_events"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    event_id: Mapped[str] = mapped_column(String, primary_key=True)
+
+    old_root_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), nullable=False
+    )
+    new_root_ids: Mapped[list[int]] = mapped_column(
+        ARRAY(BigInteger), nullable=False
+    )
+
+    edit_timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    operation_type: Mapped[str] = mapped_column(
+        String, nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_edit_events_old_roots", "old_root_ids"),
+        Index("idx_edit_events_new_roots", "new_root_ids"),
+        Index("idx_edit_events_timestamp", "edit_timestamp"),
+        Index("idx_edit_events_processed", "processed_at"),
+        Index("idx_edit_events_operation_type", "operation_type"),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "project_name": self.project_name,
+            "event_id": self.event_id,
+            "old_root_ids": self.old_root_ids,
+            "new_root_ids": self.new_root_ids,
+            "edit_timestamp": (
+                self.edit_timestamp.isoformat() if self.edit_timestamp else None
+            ),
+            "processed_at": (
+                self.processed_at.isoformat() if self.processed_at else None
+            ),
+            "operation_type": self.operation_type,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SegmentEditEventModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            event_id=data["event_id"],
+            old_root_ids=data["old_root_ids"],
+            new_root_ids=data["new_root_ids"],
+            edit_timestamp=_parse_datetime(data["edit_timestamp"]),
+            processed_at=_parse_datetime(
+                data.get("processed_at", datetime.now())
+            ),
+            operation_type=data.get("operation_type", "merge"),
         )

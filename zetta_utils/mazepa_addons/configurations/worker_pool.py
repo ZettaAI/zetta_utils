@@ -36,11 +36,13 @@ def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing
     sys.stderr = DummyBuffer()  # type: ignore
 
 
-def worker_init(suppress_worker_logs: bool) -> None:
+def worker_init(suppress_worker_logs: bool, multiprocessing_start_method: str) -> None:
     # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
     if suppress_worker_logs:
         redirect_buffers()
+    # Inherit the start method from the calling process
+    multiprocessing.set_start_method(multiprocessing_start_method, force=True)
     try_load_train_inference()
 
 
@@ -78,15 +80,16 @@ def setup_local_worker_pool(
 ):
     """
     Context manager for creating task/outcome queues, alongside a persistent pool of workers.
+    Note that worker pools will inherit the current process' multiprocessing start method.
     """
     with monitor_resources(resource_monitor_interval):
         pool = pebble.ProcessPool(
             max_workers=num_procs,
-            context=multiprocessing.get_context("fork"),
+            context=multiprocessing.get_context(
+                "spawn"
+            ),  # 'fork' has issues with CV sharded reads
             initializer=worker_init,
-            initargs=[
-                suppress_worker_logs,
-            ],
+            initargs=[suppress_worker_logs, multiprocessing.get_start_method()],
         )
         try:
             future = pool.map(

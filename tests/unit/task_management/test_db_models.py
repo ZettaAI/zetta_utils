@@ -1,6 +1,6 @@
 """Tests for task_management db models"""
 
-# pylint: disable=unused-argument,redefined-outer-name
+# pylint: disable=unused-argument,redefined-outer-name,too-many-lines
 
 from datetime import datetime, timezone
 
@@ -1120,6 +1120,7 @@ def test_segment_model_to_dict_none_timestamps(db_session):
     """Test SegmentModel.to_dict() with None timestamps"""
     segment = SegmentModel(
         project_name="test_project",
+        seed_id=123,
         seed_x=1.0,
         seed_y=2.0,
         seed_z=3.0,

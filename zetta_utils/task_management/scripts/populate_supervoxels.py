@@ -139,7 +139,7 @@ def populate_supervoxels_from_segments(
                         f"Created supervoxel {segment.seed_id} -> "
                         f"{segment.current_segment_id}"
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     stats["errors"] += 1
                     logger.error(
                         f"Error creating supervoxel for segment "
@@ -151,7 +151,7 @@ def populate_supervoxels_from_segments(
                 try:
                     session.commit()
                     logger.info(f"Committed batch of {len(batch)} segments")
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     stats["errors"] += 1
                     logger.error(f"Error committing batch: {e}")
                     session.rollback()

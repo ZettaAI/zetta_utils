@@ -1,4 +1,4 @@
-# pylint: disable=singleton-comparison
+# pylint: disable=singleton-comparison,too-many-lines
 from datetime import datetime
 
 from sqlalchemy import (

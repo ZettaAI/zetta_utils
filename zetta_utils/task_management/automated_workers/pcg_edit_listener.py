@@ -555,7 +555,7 @@ def process_edit_event(
         logger.warning("No new_root_ids in event data")
 
 
-def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements,too-many-positional-arguments
+def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements
     project_id: str,
     subscription_name: str,
     project_name: Optional[str] = None,

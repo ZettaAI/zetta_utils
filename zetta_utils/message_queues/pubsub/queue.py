@@ -8,7 +8,7 @@ import pickle
 from typing import Any, TypeVar
 
 import attrs
-from google.cloud import pubsub_v1
+from google.cloud import pubsub_v1  # type: ignore[attr-defined]
 from typeguard import typechecked
 
 from zetta_utils import builder

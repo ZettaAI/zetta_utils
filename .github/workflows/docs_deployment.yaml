@@ -43,6 +43,15 @@ jobs:
           cache: 'pip'
       - name: Install libboost
         run: sudo apt install libboost-dev
+      - name: Free up disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker system prune -af
+          df -h
       - name: Install Python dependencies
         run: |
           python install_zutils.py --mode=all --dockerfile --skip_apt

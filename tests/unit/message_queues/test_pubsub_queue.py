@@ -29,7 +29,7 @@ def mock_subscriber():
 @pytest.fixture
 def pubsub_queue(mock_subscriber):
     """Create a PubSubPullQueue instance"""
-    queue = PubSubPullQueue(
+    queue: PubSubPullQueue = PubSubPullQueue(
         name="test_queue",
         project_id="test-project",
         subscription_name="test-sub",
@@ -38,7 +38,7 @@ def pubsub_queue(mock_subscriber):
     return queue
 
 
-def create_mock_message(data: bytes, attributes: dict = None):
+def create_mock_message(data: bytes, attributes: dict | None = None):
     """Helper to create a mock Pub/Sub message"""
     message = Mock()
     message.data = data
@@ -253,7 +253,7 @@ def test_pull_multiple_messages(pubsub_queue, mock_subscriber):
 
 def test_custom_return_immediately(mock_subscriber):
     """Test queue with custom return_immediately setting"""
-    queue = PubSubPullQueue(
+    queue: PubSubPullQueue = PubSubPullQueue(
         name="test_queue",
         project_id="test-project",
         subscription_name="test-sub",

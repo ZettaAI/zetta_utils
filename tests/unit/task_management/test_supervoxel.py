@@ -6,15 +6,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from zetta_utils.task_management.db.models import (
-    SegmentEditEventModel,
-    SupervoxelModel,
-)
+from zetta_utils.task_management.db.models import SegmentEditEventModel, SupervoxelModel
 from zetta_utils.task_management.supervoxel import (
     create_supervoxel,
     get_supervoxels_by_segment,
-    update_supervoxels_for_split,
     update_supervoxels_for_merge,
+    update_supervoxels_for_split,
 )
 
 
@@ -303,7 +300,7 @@ def test_update_supervoxels_for_split_empty_assignments(
     """Test split operation with empty assignments"""
     old_root_id = 1000
     new_root_ids = [4000, 5000]
-    supervoxel_assignments = {}  # Empty assignments
+    supervoxel_assignments: dict[int, int] = {}  # Empty assignments
     event_id = "split_empty"
     edit_timestamp = datetime.now(timezone.utc)
 

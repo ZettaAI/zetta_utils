@@ -6,6 +6,7 @@ from testcontainers.postgres import PostgresContainer
 
 from zetta_utils.task_management.db.models import Base
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
@@ -183,6 +184,26 @@ def sample_task(existing_task_type) -> Task:
 def existing_task(clean_db, db_session, project_name, existing_task_type, sample_task):
     create_task(project_name=project_name, data=sample_task, db_session=db_session)
     yield sample_task
+
+
+@pytest.fixture
+def project_factory(db_session):
+    """Factory fixture to create projects with custom configurations"""
+
+    def _create_project(project_name: str, **kwargs):
+        project_config = {
+            "project_name": project_name,
+            "segmentation_path": f"gs://test/segmentation/{project_name}",
+            "sv_resolution_x": 4.0,
+            "sv_resolution_y": 4.0,
+            "sv_resolution_z": 42.0,
+            "description": f"Test project: {project_name}",
+            **kwargs
+        }
+        create_project(db_session=db_session, **project_config)
+        return project_name
+
+    return _create_project
 
 
 @pytest.fixture

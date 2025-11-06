@@ -4,22 +4,16 @@ Stress tests for PCG edit listener functionality.
 Tests error handling, large data volumes, network failures, and concurrent operations.
 """
 
-import json
 import time
-import pytest
-import asyncio
 from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 from zetta_utils.task_management.automated_workers.pcg_edit_listener import (
-    run_pcg_edit_listener,
     process_edit_event,
-    process_merge_event,
-    process_split_event,
     get_old_roots_from_lineage_graph,
     get_supervoxel_ids_from_segment,
     get_root_for_coordinate_pcg,
@@ -30,7 +24,7 @@ from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
     create_supervoxel,
 )
-from zetta_utils.task_management.db.models import SupervoxelModel, SegmentEditEventModel
+from zetta_utils.task_management.db.models import SupervoxelModel
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
 
 
@@ -38,17 +32,18 @@ from zetta_utils.message_queues.pubsub import PubSubPullQueue
 class MockMessage:
     """Mock PubSub message for testing."""
     payload: Dict[str, Any]
-    acknowledge_fn: Mock
+    acknowledge_fn: Mock = None  # type: ignore[assignment]
 
-    def __post_init__(self):
-        if not isinstance(self.acknowledge_fn, Mock):
+    def __post_init__(self) -> None:
+        # Ensure acknowledge_fn is a Mock instance
+        if self.acknowledge_fn is None:
             self.acknowledge_fn = Mock()
 
 
-class TestPCGListenerStress:
+class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
     """Stress tests for PCG listener components."""
 
-    def setup_method(self, method):
+    def setup_method(self, method) -> None:
         """Set up test fixtures."""
         self.project_name = f"stress_test_project_{method.__name__}"
         self.server_address = "https://test.example.com"
@@ -172,7 +167,7 @@ class TestPCGListenerStress:
                     edit_timestamp=datetime.now(timezone.utc),
                     db_session=db_session  # Pass the db_session to use the same transaction context
                 )
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return f"Error: {e}"
         
         # Execute merges sequentially first to avoid transaction conflicts in tests
@@ -186,7 +181,7 @@ class TestPCGListenerStress:
             assert isinstance(result, int), f"Operation failed: {result}"
             assert result == supervoxels_per_segment
 
-    def test_network_failure_scenarios(self, mocker):
+    def test_network_failure_scenarios(self, mocker):  # pylint: disable=unused-argument
         """Test network failure handling in PCG API calls."""
         
         # Test timeout scenarios
@@ -200,7 +195,7 @@ class TestPCGListenerStress:
                 root_ids=[123456],
                 timestamp_past=datetime.now(timezone.utc) - timedelta(minutes=1)
             )
-            assert result == {}  # Should return empty dict on failure
+            assert not result  # Should return empty dict on failure
         
         # Test HTTP errors
         mock_response.raise_for_status.side_effect = requests.HTTPError("404 Not Found")
@@ -212,7 +207,7 @@ class TestPCGListenerStress:
                 root_ids=[123456],
                 timestamp_past=datetime.now(timezone.utc) - timedelta(minutes=1)
             )
-            assert result == {}
+            assert not result
         
         # Test connection errors
         with patch('requests.post', side_effect=requests.ConnectionError("Connection failed")):
@@ -222,13 +217,13 @@ class TestPCGListenerStress:
                 root_ids=[123456],
                 timestamp_past=datetime.now(timezone.utc) - timedelta(minutes=1)
             )
-            assert result == {}
+            assert not result
 
-    def test_large_volume_message_processing(self, mocker):
+    def test_large_volume_message_processing(self, mocker):  # pylint: disable=unused-argument
         """Test processing large volumes of messages."""
         
-        # Mock PubSub queue
-        mock_queue = Mock(spec=PubSubPullQueue)
+        # Mock PubSub queue (unused but kept for potential future use)
+        _ = Mock(spec=PubSubPullQueue)
         
         # Create large batch of messages
         message_count = self.stress_config["message_count"]
@@ -290,8 +285,9 @@ class TestPCGListenerStress:
                             cave_client=None,
                             server_address=self.server_address
                         )
-                        msg.acknowledge_fn()
-                    except Exception as e:
+                        if msg.acknowledge_fn:
+                            msg.acknowledge_fn()
+                    except Exception as e:  # pylint: disable=broad-exception-caught
                         print(f"Error processing message: {e}")
                 
                 processing_time = time.time() - start_time
@@ -303,9 +299,10 @@ class TestPCGListenerStress:
             
             # Verify all messages were acknowledged
             for msg in messages:
-                msg.acknowledge_fn.assert_called_once()
+                if msg.acknowledge_fn:
+                    msg.acknowledge_fn.assert_called_once()
 
-    def test_malformed_message_handling(self, mocker):
+    def test_malformed_message_handling(self, mocker):  # pylint: disable=unused-argument
         """Test handling of malformed or incomplete messages."""
         
         malformed_messages = [
@@ -337,13 +334,13 @@ class TestPCGListenerStress:
             for msg_data in malformed_messages:
                 try:
                     process_edit_event(
-                        event_data=msg_data,
+                        event_data=msg_data,  # type: ignore[arg-type]
                         message_attributes={"table_id": self.table_id},
                         project_name=self.project_name,
                         cave_client=None,
                         server_address=self.server_address
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     # Should handle gracefully without crashing
                     print(f"Handled malformed message error: {e}")
 
@@ -377,8 +374,8 @@ class TestPCGListenerStress:
             supervoxel_assignments[supervoxel_id] = new_segment
         
         # Monitor memory usage during split
-        import psutil
-        import os
+        import os  # pylint: disable=import-outside-toplevel
+        import psutil  # pylint: disable=import-outside-toplevel
         
         process = psutil.Process(os.getpid())
         memory_before = process.memory_info().rss / 1024 / 1024  # MB
@@ -429,7 +426,7 @@ class TestPCGListenerStress:
                     event_id=f"deadlock_test_{operation_id}",
                     edit_timestamp=datetime.now(timezone.utc),
                 )
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 return f"Error: {e}"
         
         # Execute multiple concurrent operations
@@ -441,7 +438,7 @@ class TestPCGListenerStress:
         successful_operations = [r for r in results if isinstance(r, int)]
         assert len(successful_operations) >= 1
 
-    def test_api_rate_limiting(self, mocker):
+    def test_api_rate_limiting(self, mocker):  # pylint: disable=unused-argument
         """Test handling of API rate limiting."""
         
         # Mock rate limited response
@@ -456,7 +453,7 @@ class TestPCGListenerStress:
                 root_ids=[123456],
                 timestamp_past=datetime.now(timezone.utc) - timedelta(minutes=1)
             )
-            assert result == {}  # Should handle gracefully
+            assert not result  # Should handle gracefully
         
         # Test GET endpoint rate limiting
         with patch('requests.get', return_value=mock_response):
@@ -540,7 +537,7 @@ class TestPCGListenerStress:
                     edit_timestamp=datetime.now(timezone.utc),
                     db_session=db_session  # Use same session to avoid transaction issues
                 )
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 return 0  # Handle constraint violations gracefully
         
         # Execute same operation multiple times sequentially
@@ -572,8 +569,8 @@ class TestPCGListenerStress:
             result = get_root_for_coordinate_pcg(
                 server_address=self.server_address,
                 table_id=self.table_id,
-                x=x,
-                y=y,
-                z=z
+                x=x,  # type: ignore[arg-type]
+                y=y,  # type: ignore[arg-type]  
+                z=z   # type: ignore[arg-type]
             )
             assert result is None  # Should handle gracefully

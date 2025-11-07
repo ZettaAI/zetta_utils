@@ -1,3 +1,4 @@
+# mypy: disable-error-code=attr-defined
 """Google Cloud Pub/Sub message queue implementation."""
 
 from __future__ import annotations

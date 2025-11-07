@@ -1,3 +1,5 @@
+# mypy: warn-unused-ignores=False
+
 """
 Stress tests for PCG edit listener functionality.
 

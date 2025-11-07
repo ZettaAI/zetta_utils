@@ -34,12 +34,7 @@ class MockMessage:
     """Mock PubSub message for testing."""
 
     payload: Dict[str, Any]
-    acknowledge_fn: Mock = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        # Ensure acknowledge_fn is a Mock instance
-        if self.acknowledge_fn is None:
-            self.acknowledge_fn = Mock()
+    acknowledge_fn: Mock = Mock()
 
 
 class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
@@ -488,10 +483,10 @@ class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
 
         # Test GET endpoint rate limiting
         with patch("requests.get", return_value=mock_response):
-            result = get_supervoxel_ids_from_segment(
+            get_result: list[int] = get_supervoxel_ids_from_segment(
                 server_address=self.server_address, table_id=self.table_id, segment_id=123456
             )
-            assert result == []  # Should return empty list on failure
+            assert get_result == []  # Should return empty list on failure
 
     def test_extremely_large_supervoxel_ids(self, db_session, project_factory):
         """Test handling of extremely large supervoxel IDs."""
@@ -598,8 +593,8 @@ class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
             result = get_root_for_coordinate_pcg(
                 server_address=self.server_address,
                 table_id=self.table_id,
-                x=x,  # type: ignore[arg-type]
-                y=y,  # type: ignore[arg-type]
-                z=z,  # type: ignore[arg-type]
+                x=x, # type: ignore[arg-type]
+                y=y, # type: ignore[arg-type]
+                z=z, # type: ignore[arg-type]
             )
             assert result is None  # Should handle gracefully

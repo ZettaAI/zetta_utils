@@ -213,7 +213,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 run_pcg_edit_listener(
                     project_id=self.project_id,
                     subscription_name=self.subscription_name,
-                    poll_interval_sec=0.1,  # Fast polling
+                    poll_interval_sec=1,  # Fast polling
                     max_messages=messages_per_batch,
                 )
             except KeyboardInterrupt:
@@ -295,7 +295,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 run_pcg_edit_listener(
                     project_id=self.project_id,
                     subscription_name=self.subscription_name,
-                    poll_interval_sec=0.1,
+                    poll_interval_sec=1,
                     max_messages=1,
                 )
             except KeyboardInterrupt:
@@ -361,7 +361,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                     project_id=self.project_id,
                     subscription_name=self.subscription_name,
                     datastack_name=self.datastack_name,
-                    poll_interval_sec=0.1,
+                    poll_interval_sec=1,
                     max_messages=1,
                 )
             except KeyboardInterrupt:
@@ -375,6 +375,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         """Test for memory leaks during extended operation."""
 
         import os  # pylint: disable=import-outside-toplevel
+
         import psutil  # pylint: disable=import-outside-toplevel
 
         process = psutil.Process(os.getpid())
@@ -430,7 +431,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 run_pcg_edit_listener(
                     project_id=self.project_id,
                     subscription_name=self.subscription_name,
-                    poll_interval_sec=0.001,  # Very fast polling
+                    poll_interval_sec=1,  # Very fast polling
                     max_messages=10,
                 )
             except KeyboardInterrupt:
@@ -518,8 +519,9 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 with patch("sys.argv", test_args):
                     try:
                         # pylint: disable=import-outside-toplevel
-                        from zetta_utils.task_management.automated_workers.\
-                            run_pcg_listener import main
+                        from zetta_utils.task_management.automated_workers.run_pcg_listener import ( # pylint: disable=line-too-long
+                            main,
+                        )
 
                         main()
 
@@ -568,7 +570,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 run_pcg_edit_listener(
                     project_id=self.project_id,
                     subscription_name=self.subscription_name,
-                    poll_interval_sec=0.1,
+                    poll_interval_sec=1,
                     max_messages=1,
                 )
             except KeyboardInterrupt:

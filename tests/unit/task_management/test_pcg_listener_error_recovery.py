@@ -10,8 +10,8 @@ from datetime import datetime, timedelta, timezone
 from typing import List
 from unittest.mock import Mock, patch
 
-from requests.exceptions import HTTPError, Timeout
 from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import HTTPError, Timeout
 
 from zetta_utils.task_management.automated_workers.pcg_edit_listener import (
     get_old_roots_from_lineage_graph,
@@ -357,7 +357,7 @@ class TestPCGListenerErrorRecovery:  # pylint: disable=attribute-defined-outside
         """Test handling of failures during concurrent operations."""
 
         # Simulate failures that occur during concurrent processing
-        failure_events = queue.Queue()
+        failure_events: queue.Queue[str] = queue.Queue()
         success_count = 0
         failure_count = 0
 
@@ -436,7 +436,7 @@ class TestPCGListenerErrorRecovery:  # pylint: disable=attribute-defined-outside
         for scenario in corruption_scenarios:
             try:
                 process_edit_event(
-                    event_data=scenario,
+                    event_data=scenario,  # type: ignore[arg-type]
                     message_attributes={"table_id": self.table_id},
                     project_name=self.project_name,
                     cave_client=None,

@@ -519,7 +519,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                 with patch("sys.argv", test_args):
                     try:
                         # pylint: disable=import-outside-toplevel
-                        from zetta_utils.task_management.automated_workers.run_pcg_listener import ( # pylint: disable=line-too-long
+                        from zetta_utils.task_management.automated_workers.run_pcg_listener import (  # pylint: disable=line-too-long
                             main,
                         )
 

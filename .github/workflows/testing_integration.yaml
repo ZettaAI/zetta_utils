@@ -8,6 +8,9 @@ env:
 
 jobs:
   pytest:
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       matrix:
         os:

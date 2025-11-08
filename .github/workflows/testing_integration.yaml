@@ -51,6 +51,16 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
           create_credentials_file: true
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-east1-docker.pkg.dev
+      - name: Build and push Docker image
+        run: |
+          python build_image.py \
+            --project zetta-research \
+            --tag_suffix github_action_integration_test \
+            --mode all_pcg \
+            --region us-east1 \
+            --python ${{ matrix.python-version }}
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost

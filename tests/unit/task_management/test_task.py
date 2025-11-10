@@ -656,6 +656,7 @@ def test_start_task_takeover_idle(db_session, project_name, existing_task, exist
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
@@ -712,6 +713,7 @@ def test_start_task_already_active(db_session, project_name, existing_task, exis
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
@@ -762,6 +764,7 @@ def test_start_task_requires_qualification(
             hourly_rate=50.0,
             active_task="",
             qualified_task_types=[],  # Empty list means no qualifications
+            qualified_segment_types=[],  # Empty list means no qualifications
         ),
         db_session=db_session,
     )

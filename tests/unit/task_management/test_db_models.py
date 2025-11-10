@@ -179,6 +179,7 @@ def test_from_dict_user_model():
         "hourly_rate": 30.0,
         "active_task": "",
         "qualified_task_types": ["type1", "type2"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
     model = UserModel.from_dict("test_project", data)
     assert model.project_name == "test_project"
@@ -186,6 +187,7 @@ def test_from_dict_user_model():
     assert model.hourly_rate == 30.0
     assert model.active_task == ""
     assert model.qualified_task_types == ["type1", "type2"]
+    assert model.qualified_segment_types == ["axon", "dendrite"]
 
 
 # TestDependencyModel tests
@@ -749,6 +751,7 @@ def test_all_models_to_dict():
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["type1"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
     user_model = UserModel.from_dict("test_project", user_data)
     user_dict = user_model.to_dict()

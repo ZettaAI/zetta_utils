@@ -37,12 +37,14 @@ class User(TypedDict):
     hourly_rate: float
     active_task: str  # Empty string when no active task
     qualified_task_types: list[str]  # List of task types user can work on
+    qualified_segment_types: list[str]  # List of segment types user can work on
 
 
 class UserUpdate(TypedDict, total=False):
     hourly_rate: float
     active_task: str
     qualified_task_types: list[str]
+    qualified_segment_types: list[str]
 
 
 class Task(TypedDict):

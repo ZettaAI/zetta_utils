@@ -110,6 +110,7 @@ def sample_user() -> User:
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["segmentation_proofread"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
 
 

@@ -11,7 +11,13 @@ from typeguard import typechecked
 from zetta_utils import log
 from zetta_utils.task_management.utils import generate_id_nonunique
 
-from .db.models import DependencyModel, SegmentModel, TaskModel, TaskTypeModel, UserModel
+from .db.models import (
+    DependencyModel,
+    SegmentModel,
+    TaskModel,
+    TaskTypeModel,
+    UserModel
+)
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError
 from .ng_state.segment import get_segment_ng_state

@@ -1,6 +1,3 @@
-# pylint: disable=all # type: ignore
-from typing import Annotated
-
 import torch
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
@@ -39,9 +36,13 @@ class ApplyCorrespondencesRequest(BaseModel):
         ..., description="Image tensor as nested list (C, H, W, 1)"
     )
     num_iter: int = Field(200, description="Number of optimization iterations")
-    rig: float = Field(1000, description="Rigidity penalty weight controlling smoothness")
+    rig: float = Field(
+        1000, 
+        description="Rigidity penalty weight controlling smoothness")
+    
     lr: float = Field(1e-3, description="Learning rate for optimization")
-    optimizer_type: str = Field("adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)")
+    optimizer_type: str = Field(
+        "adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)")
 
 
 class ApplyCorrespondencesResponse(BaseModel):
@@ -53,12 +54,19 @@ class ApplyCorrespondencesResponse(BaseModel):
     )
 
 
-@api.post("/apply_correspondences", response_model=ApplyCorrespondencesResponse)
+@api.post("/apply_correspondences", 
+          response_model=ApplyCorrespondencesResponse)
 async def apply_correspondences(request: ApplyCorrespondencesRequest):
     """Apply correspondences to image using relaxation and warping.
 
-    This endpoint takes correspondence points and an image, creates a correspondence field,
+    This endpoint takes correspondence points and an image, creates a 
+    correspondence field,
     relaxes it using optimization, and applies the field to warp the image.
+
+    The function automatically uses GPU (CUDA) if available, otherwise falls 
+    back to CPU.
+    Deploy this API on GPU machines (T4/L4) for GPU acceleration or CPU 
+    machines for CPU processing.
     """
     correspondences_dict = {
         "lines": [
@@ -71,7 +79,13 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
         ]
     }
 
-    image_tensor = torch.tensor(request.image, dtype=torch.float32)
+    # Automatically detect and use GPU if available, otherwise use CPU
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    image_tensor = torch.tensor(
+        request.image, 
+        dtype=torch.float32, 
+        device=device
+    )
 
     relaxed_field, warped_image = apply_correspondences_to_image(
         correspondences_dict=correspondences_dict,
@@ -82,7 +96,8 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
         optimizer_type=request.optimizer_type,
     )
 
+    # Move results to CPU for JSON serialization if they're on GPU
     return ApplyCorrespondencesResponse(
-        relaxed_field=relaxed_field.tolist(),
-        warped_image=warped_image.tolist(),
+        relaxed_field=relaxed_field.cpu().tolist(),
+        warped_image=warped_image.cpu().tolist(),
     )

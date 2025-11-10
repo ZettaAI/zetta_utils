@@ -129,6 +129,7 @@ class UserModel(Base):
     hourly_rate: Mapped[float] = mapped_column(Float, nullable=False)
     active_task: Mapped[str] = mapped_column(String, nullable=False, default="")
     qualified_task_types: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
+    qualified_segment_types: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
 
     def to_dict(self) -> dict:
         """Convert the model to a dictionary matching the User TypedDict structure"""
@@ -137,6 +138,7 @@ class UserModel(Base):
             "hourly_rate": self.hourly_rate,
             "active_task": self.active_task,
             "qualified_task_types": self.qualified_task_types,
+            "qualified_segment_types": self.qualified_segment_types,
         }
 
     @classmethod
@@ -148,6 +150,7 @@ class UserModel(Base):
             hourly_rate=data["hourly_rate"],
             active_task=data["active_task"],
             qualified_task_types=data["qualified_task_types"],
+            qualified_segment_types=data["qualified_segment_types"],
         )
 
 

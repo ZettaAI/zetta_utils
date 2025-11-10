@@ -37,12 +37,13 @@ class ApplyCorrespondencesRequest(BaseModel):
     )
     num_iter: int = Field(200, description="Number of optimization iterations")
     rig: float = Field(
-        1000, 
-        description="Rigidity penalty weight controlling smoothness")
-    
+        1000,
+        description="Rigidity penalty weight controlling smoothness"
+    )
     lr: float = Field(1e-3, description="Learning rate for optimization")
     optimizer_type: str = Field(
-        "adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)")
+        "adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)"
+    )
 
 
 class ApplyCorrespondencesResponse(BaseModel):
@@ -54,19 +55,17 @@ class ApplyCorrespondencesResponse(BaseModel):
     )
 
 
-@api.post("/apply_correspondences", 
-          response_model=ApplyCorrespondencesResponse)
+@api.post("/apply_correspondences", response_model=ApplyCorrespondencesResponse)
 async def apply_correspondences(request: ApplyCorrespondencesRequest):
     """Apply correspondences to image using relaxation and warping.
 
-    This endpoint takes correspondence points and an image, creates a 
-    correspondence field,
-    relaxes it using optimization, and applies the field to warp the image.
+    This endpoint takes correspondence points and an image, creates a
+    correspondence field, relaxes it using optimization, and applies the
+    field to warp the image.
 
-    The function automatically uses GPU (CUDA) if available, otherwise falls 
-    back to CPU.
-    Deploy this API on GPU machines (T4/L4) for GPU acceleration or CPU 
-    machines for CPU processing.
+    The function automatically uses GPU (CUDA) if available, otherwise falls
+    back to CPU. Deploy this API on GPU machines (T4/L4) for GPU acceleration
+    or CPU machines for CPU processing.
     """
     correspondences_dict = {
         "lines": [
@@ -82,8 +81,8 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
     # Automatically detect and use GPU if available, otherwise use CPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     image_tensor = torch.tensor(
-        request.image, 
-        dtype=torch.float32, 
+        request.image,
+        dtype=torch.float32,
         device=device
     )
 

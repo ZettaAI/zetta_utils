@@ -1,3 +1,4 @@
+# pylint: disable=import-error
 import torch
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field

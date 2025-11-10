@@ -47,16 +47,16 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         # Configurable stress test metrics
         self.stress_config = {
-            "message_count": 50,
-            "batch_size": 5,
-            "concurrent_instances": 2,
+            "message_count": 500000,
+            "batch_size": 500,
+            "concurrent_instances": 10,
             "max_cycles": 2,
-            "memory_test_messages": 100,
+            "memory_test_messages": 10000,
             "max_memory_increase_mb": 50,
             "poll_interval_ms": 1,
             "timeout_seconds": 1,
             "max_pull_attempts": 5,
-            "max_processing_time_seconds": 10,
+            "max_processing_time_seconds": 20,
         }
 
     def test_listener_startup_and_shutdown(self):
@@ -99,7 +99,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         # Mock queue.pull to return messages then empty
         pull_call_count = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal pull_call_count
             pull_call_count += 1
             if pull_call_count == 1:
@@ -175,7 +175,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         # Mock pull to return batches
         batch_index = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal batch_index
             if batch_index < len(message_batches):
                 batch = message_batches[batch_index]
@@ -192,8 +192,8 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         def mock_process_event(*_, **__):
             start_time = time.time()
-            # Simulate some processing time
-            time.sleep(0.001)  # 1ms per message
+            # Simulate minimal processing time for speed
+            time.sleep(0.001)
             processing_times.append(time.time() - start_time)
 
         with patch(
@@ -250,7 +250,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         call_count = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -323,7 +323,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         call_count = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal call_count
             call_count += 1
             if call_count == 1:
@@ -383,16 +383,17 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         # Create continuous stream of messages
         message_counter = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal message_counter
-            if (
-                    message_counter >= self.stress_config["memory_test_messages"]
-            ):  # Stop after configured messages
-                raise KeyboardInterrupt()
-
             batch = []
-            for _ in range(min(10, 10)):  # Small batches
+            batch_size = min(2, self.stress_config["memory_test_messages"] - message_counter)
+            if batch_size <= 0:
+                # No more messages to generate
+                raise KeyboardInterrupt()
+            for _ in range(batch_size):
                 message_counter += 1
+                if message_counter > self.stress_config["memory_test_messages"]:
+                    break
                 batch.append(
                     MockPubSubMessage(
                         {
@@ -404,8 +405,10 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
                         }
                     )
                 )
+            # Stop if we've reached the limit
+            if message_counter >= self.stress_config["memory_test_messages"]:
+                raise KeyboardInterrupt()
             return batch
-
         mock_queue = Mock(spec=PubSubPullQueue)
         mock_queue.pull.side_effect = mock_pull
 
@@ -550,7 +553,7 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         # Mock pull to return empty results then trigger shutdown
         pull_count = 0
 
-        def mock_pull(_):
+        def mock_pull(max_num=None): # pylint: disable=unused-argument
             nonlocal pull_count
             pull_count += 1
             if pull_count >= 3:

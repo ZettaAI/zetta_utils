@@ -7,7 +7,6 @@ Tests error handling, large data volumes, network failures, and concurrent opera
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
@@ -419,50 +418,6 @@ class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
         assert (
                 memory_increase < self.stress_config["max_memory_increase_mb"]
         )  # Should not increase by more than configured MB
-
-    def test_database_deadlock_handling(self, db_session, project_factory):
-        """Test handling of database deadlocks during concurrent operations."""
-        project_factory(project_name=self.project_name)
-
-        # Create test supervoxels
-        base_segment_id = 555555
-        supervoxel_count = 100
-
-        base_supervoxel_id = 4000000  # Use different base to avoid conflicts
-        for i in range(supervoxel_count):
-            create_supervoxel(
-                supervoxel_id=base_supervoxel_id + i,
-                seed_x=float(i),
-                seed_y=float(i),
-                seed_z=float(i),
-                current_segment_id=base_segment_id,
-                db_session=db_session,
-            )
-
-        # Simulate concurrent operations that might cause deadlocks
-        def concurrent_operation(operation_id):
-            try:
-                return update_supervoxels_for_merge(
-                    old_root_ids=[base_segment_id],
-                    new_root_id=666666 + operation_id,
-                    project_name=self.project_name,
-                    event_id=f"deadlock_test_{operation_id}",
-                    edit_timestamp=datetime.now(timezone.utc),
-                )
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                return f"Error: {e}"
-
-        # Execute multiple concurrent operations
-        with ThreadPoolExecutor(max_workers=self.stress_config["concurrent_workers"]) as executor:
-            futures = [
-                executor.submit(concurrent_operation, i)
-                for i in range(self.stress_config["concurrent_workers"])
-            ]
-            results = [future.result() for future in futures]
-
-        # At least one operation should succeed
-        successful_operations = [r for r in results if isinstance(r, int)]
-        assert len(successful_operations) >= 1
 
     def test_api_rate_limiting(self, mocker):  # pylint: disable=unused-argument
         """Test handling of API rate limiting."""

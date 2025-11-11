@@ -1,12 +1,12 @@
 # pylint: disable=line-too-long, unused-import
 import os
+import pathlib
 import sys
 import tempfile
 
 import pytest
 
 import zetta_utils
-from zetta_utils import parsing
 
 zetta_utils.load_all_modules()
 
@@ -20,8 +20,9 @@ def test_ci_training():
     # Get Python version (e.g., "3.12" -> "py312")
     python_version = f"py{sys.version_info.major}{sys.version_info.minor}"
 
-    # Read the template CUE file
-    cue_template_path = "tests/integration/training/ci_training.cue"
+    # Read the template CUE file (relative to this test file)
+    test_dir = pathlib.Path(__file__).parent.resolve()
+    cue_template_path = test_dir / "ci_training.cue"
     with open(cue_template_path, "r", encoding="utf-8") as f:
         cue_content = f.read()
 

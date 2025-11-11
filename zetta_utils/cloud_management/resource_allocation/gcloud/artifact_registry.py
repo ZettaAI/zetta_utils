@@ -22,8 +22,9 @@ def check_image_exists(image: str) -> bool:
         )
         return False
 
-    credentials, _ = default()
-    credentials.refresh(Request())
+    credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    if not credentials.valid:
+        credentials.refresh(Request())
     service = build("artifactregistry", "v1", credentials=credentials)
     tag_name = (
         f"projects/{project_id}/locations/{location}/"

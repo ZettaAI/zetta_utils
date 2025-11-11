@@ -52,7 +52,7 @@ jobs:
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
           create_credentials_file: true
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker us-east1-docker.pkg.dev
+        run: gcloud auth configure-docker us-east1-docker.pkg.dev,us-central1-docker.pkg.dev
       - name: Build and push Docker image
         run: |
           python build_image.py \

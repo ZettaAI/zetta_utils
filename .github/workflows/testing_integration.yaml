@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
 env:
   WANDB_MODE: offline
+  ZETTA_USER: github-ci
+  ZETTA_PROJECT: zetta-research
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   #SETUPTOOLS_ENABLE_FEATURES: legacy-editable
 
 jobs:

@@ -9,6 +9,7 @@ from testcontainers.postgres import PostgresContainer
 from zetta_utils.task_management.db.models import Base, SegmentModel
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
 from zetta_utils.task_management.task import create_task
+from datetime import datetime, timezone
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
 from zetta_utils.task_management.user import create_user

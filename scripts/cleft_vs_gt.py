@@ -20,7 +20,7 @@ import numpy as np
 from caveclient import CAVEclient
 from cloudfiles import CloudFile
 from cloudvolume import CloudVolume
-from google.cloud import storage
+from google.cloud import storage  # type: ignore[attr-defined]
 from scipy.ndimage import center_of_mass
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree

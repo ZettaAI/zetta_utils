@@ -249,7 +249,7 @@ trainer: {
     precision:               _ | *"16-mixed",
     strategy:                "auto",
     devices:                 _ | *1
-    num_nodes:          	 1
+    num_nodes:          	 num_nodes
     max_epochs:              -1
     max_steps:				 _
     default_root_dir:        #TRAINING_ROOT

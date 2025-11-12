@@ -7,6 +7,7 @@ import tempfile
 import pytest
 
 import zetta_utils
+from zetta_utils import run
 
 zetta_utils.load_all_modules()
 
@@ -36,8 +37,10 @@ def test_ci_training():
 
     try:
         spec = zetta_utils.parsing.cue.load(temp_cue_path)
-        result = zetta_utils.builder.build(spec)
-        assert result is not None
+        # Initialize run context for training
+        with run.run_ctx_manager(main_run_process=True, spec=spec):
+            result = zetta_utils.builder.build(spec)
+            assert result is not None
         del spec
     finally:
         # Clean up temp file

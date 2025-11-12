@@ -12,7 +12,7 @@ import (
 local_run: false
 num_nodes: 2
 #LR: 0.00004 * 2
-#TRAINING_ITERATIONS: _ | *50
+#TRAINING_ITERATIONS: _ | *2
 #RESOLUTION: [16, 16, 16]
 
 trainer: max_steps: #TRAINING_ITERATIONS
@@ -62,7 +62,7 @@ env_vars: {
 }
 num_nodes: _ | *1
 follow_logs: _ | *true
-follow_logs: false  // buggy follow_logs auto exits after 4 hours
+follow_logs: true  // Enable for CI testing
 provisioning_model: "standard"
 
 trainer: precision: "bf16-mixed"

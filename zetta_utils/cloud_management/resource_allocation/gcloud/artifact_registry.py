@@ -23,12 +23,12 @@ def check_image_exists(image: str) -> bool:
         return False
 
     credentials, _ = default()
-    # Only refresh if credentials are not already valid
-    if not credentials.valid:
-        try:
-            credentials.refresh(Request())
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to refresh credentials, attempting to use anyway: {e}")
+    ## Only refresh if credentials are not already valid
+    #if not credentials.valid:
+    #    try:
+    #        credentials.refresh(Request())
+    #    except Exception as e:  # pylint: disable=broad-exception-caught
+    #        logger.warning(f"Failed to refresh credentials, attempting to use anyway: {e}")
     service = build("artifactregistry", "v1", credentials=credentials)
     tag_name = (
         f"projects/{project_id}/locations/{location}/"

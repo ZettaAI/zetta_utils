@@ -235,9 +235,15 @@ def job_ctx_manager(
             # new configuration to refresh expired tokens (long running executions)
             batch_v1_api = _reset_batch_api(cluster_info)
             logger.info(f"Deleting k8s job `{job.metadata.name}`")
-            batch_v1_api.delete_namespaced_job(
-                name=job.metadata.name,
-                namespace=namespace,
-                propagation_policy="Foreground",
-            )
+            try:
+                batch_v1_api.delete_namespaced_job(
+                    name=job.metadata.name,
+                    namespace=namespace,
+                    propagation_policy="Foreground",
+                )
+            except k8s_client.ApiException as e:
+                if e.status == 404:
+                    logger.info(f"Job `{job.metadata.name}` already deleted")
+                else:
+                    raise
             deregister_resource(_id)

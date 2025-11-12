@@ -43,8 +43,10 @@ def test_ci_training():
         # Set RUN_ID with timestamp to make it unique for each test run
         run.RUN_ID = f"ci-test-{python_version}-{int(time.time())}"
         try:
+            # lightning_train returns None on success, raises exception on failure
             result = zetta_utils.builder.build(spec)
-            assert result is not None
+            # If we get here without exception, training succeeded
+            assert result is None  # lightning_train returns None
         finally:
             run.RUN_ID = None
         del spec

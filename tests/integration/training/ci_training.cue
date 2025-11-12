@@ -60,9 +60,7 @@ env_vars: {
 	"LOGLEVEL":             "INFO"
 	"NCCL_SOCKET_IFNAME":   "eth0"
 }
-num_nodes: _ | *1
-follow_logs: _ | *true
-follow_logs: true  // Enable for CI testing
+follow_logs: true
 provisioning_model: "standard"
 
 trainer: precision: "bf16-mixed"

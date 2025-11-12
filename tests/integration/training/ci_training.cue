@@ -39,8 +39,8 @@ trainer: checkpointing_kwargs: {
 "@type": "lightning_train"
 local_run: _ | *false
 cluster_project: "zetta-research"
-cluster_name:    "zutils"
-cluster_region:  "us-central1"
+cluster_name:    "zutils-x3"
+cluster_region:  "us-east1"
 image: "us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:PYTHON_VERSION_github_action_integration_test"
 
 gpu_accelerator_type: "nvidia-l4"

@@ -3,6 +3,7 @@ import os
 import pathlib
 import sys
 import tempfile
+import time
 
 import pytest
 
@@ -39,8 +40,8 @@ def test_ci_training():
 
     try:
         spec = zetta_utils.parsing.cue.load(temp_cue_path)
-        # Set RUN_ID directly without using run_ctx_manager to avoid database access
-        run.RUN_ID = "ci-test-" + python_version
+        # Set RUN_ID with timestamp to make it unique for each test run
+        run.RUN_ID = f"ci-test-{python_version}-{int(time.time())}"
         try:
             result = zetta_utils.builder.build(spec)
             assert result is not None

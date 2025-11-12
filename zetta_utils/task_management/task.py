@@ -16,7 +16,7 @@ from .db.models import (
     SegmentModel,
     TaskModel,
     TaskTypeModel,
-    UserModel
+    UserModel,
 )
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError

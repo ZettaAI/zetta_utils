@@ -168,6 +168,7 @@ def test_submit_timesheet_wrong_user(
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(db_session=db_session, project_name=project_name, data=other_user)
@@ -222,6 +223,7 @@ def test_submit_timesheet_task_not_assigned_to_user(
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         },
     )
 
@@ -257,6 +259,7 @@ def test_submit_timesheet_task_assigned_to_different_user(
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         },
     )
 
@@ -458,6 +461,7 @@ def test_get_timesheet_submissions_filtered_by_user(
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         },
     )
 

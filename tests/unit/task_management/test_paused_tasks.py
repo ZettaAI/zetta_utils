@@ -42,6 +42,7 @@ def test_get_paused_tasks_by_user(clean_db, postgres_session, project_name):
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["test_type"],
+            "qualified_segment_types": ["test_type"],
         },
         db_session=postgres_session,
     )
@@ -52,6 +53,7 @@ def test_get_paused_tasks_by_user(clean_db, postgres_session, project_name):
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["test_type"],
+            "qualified_segment_types": ["test_type"],
         },
         db_session=postgres_session,
     )
@@ -196,6 +198,7 @@ def test_get_paused_tasks_by_user_empty(clean_db, postgres_session, project_name
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["test_type"],
+            "qualified_segment_types": ["test_type"],
         },
         db_session=postgres_session,
     )
@@ -240,6 +243,7 @@ def test_pause_unpause_task(clean_db, postgres_session, project_name):
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": ["test_type"],
+            "qualified_segment_types": ["test_type"],
         },
         db_session=postgres_session,
     )

@@ -127,12 +127,14 @@ def test_clear_project_users_success(clean_db, project_name, db_session):
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": [],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
     user2: User = {
         "user_id": "user2",
         "hourly_rate": 60.0,
         "active_task": "",
         "qualified_task_types": [],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
 
     create_user(project_name=project_name, data=user1, db_session=db_session)
@@ -203,6 +205,7 @@ def test_clear_project_data_multiple_projects(clean_db, db_session):
             "hourly_rate": 50.0,
             "active_task": "",
             "qualified_task_types": [],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
         create_user(project_name=project, data=user, db_session=db_session)
 

@@ -1,0 +1,52 @@
+# ------------------------------------------------------------
+# GPU Dockerfile – Python 3.11, PyTorch 2.4, WORKING
+# ------------------------------------------------------------
+    FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
+
+    ENV DEBIAN_FRONTEND=noninteractive \
+        TZ=America/New_York \
+        PYTHONPATH=/opt/http
+    
+    WORKDIR /opt/http
+    
+    # ---- System packages -------------------------------------------------
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+            git \
+            ffmpeg \
+            libsm6 \
+            libxext6 \
+            unixodbc-dev \
+            libboost-dev \
+            libboost-all-dev \
+            build-essential \
+            g++ \
+            python3-dev \
+        && rm -rf /var/lib/apt/lists/*
+    
+    # ---- Copy metadata ---------------------------------------------------
+    COPY pyproject.toml web_api/requirements.txt /opt/http/
+    
+    # ---- 1. NumPy 1.26.4 (for abiss/lsd) ---------------------------------
+    RUN pip install --no-cache-dir --force-reinstall "numpy==1.26.4"
+    
+    # ---- 2. typing_extensions (for NotRequired) --------------------------
+    RUN pip install --no-cache-dir "typing_extensions>=4.6.0"
+    
+    # ---- 3. Cython -------------------------------------------------------
+    RUN pip install --no-cache-dir "cython>=3.0"
+    
+    # ---- 4. lsd -----------------------------------------------------------
+    RUN pip install --no-cache-dir git+https://github.com/ZettaAI/lsd.git@cebe976
+    
+    # ---- 5. requirements.txt ---------------------------------------------
+    RUN pip install --no-cache-dir -r requirements.txt
+    
+    # ---- 6. Install project + modules ------------------------------------
+    RUN pip install --no-cache-dir '.[modules]'
+    
+    # ---- 7. Copy full source ---------------------------------------------
+    COPY . /opt/http
+
+    # ---- Run API ---------------------------------------------------------
+    WORKDIR /opt/http/web_api
+    CMD ["hypercorn", "app.main:app", "--bind", "0.0.0.0:80"]

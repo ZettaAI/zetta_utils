@@ -35,6 +35,15 @@ jobs:
           submodules: true
           ssh-key: ${{ secrets.git_ssh_key  }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Free up disk space
+        run: |
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          sudo docker system prune -af
+          df -h
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -51,6 +60,7 @@ jobs:
           workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
           create_credentials_file: true
+          token_format: 'access_token'
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-east1-docker.pkg.dev,us-central1-docker.pkg.dev
       - name: Build and push Docker image
@@ -65,15 +75,6 @@ jobs:
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         run: sudo apt install libboost-dev
-      - name: Free up disk space
-        run: |
-          df -h
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf /usr/local/share/boost
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-          sudo docker system prune -af
-          df -h
       - name: Install Python dependencies
         run: |
           python install_zutils.py --mode=all --dockerfile --skip_apt

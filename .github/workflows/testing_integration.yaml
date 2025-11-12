@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 env:
   WANDB_MODE: offline
+  WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
   ZETTA_USER: github-ci
   ZETTA_PROJECT: zetta-research
   AWS_DEFAULT_REGION: us-east-1

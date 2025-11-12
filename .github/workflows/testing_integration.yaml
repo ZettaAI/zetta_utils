@@ -71,6 +71,13 @@ jobs:
             --mode all_pcg \
             --region us-east1 \
             --python ${{ matrix.python-version }}
+      - name: Clean up Docker images
+        run: |
+          # Remove the built image and all intermediate layers
+          docker image rm us-east1-docker.pkg.dev/zetta-research/zutils/zetta_utils:py${{ matrix.python-version }}_github_action_integration_test || true
+          # Prune all dangling images, build cache, and unused images
+          docker system prune -af --volumes
+          df -h
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost

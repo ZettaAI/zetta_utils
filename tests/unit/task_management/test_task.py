@@ -790,7 +790,7 @@ def test_start_task_requires_qualification(
     update_user(
         project_name=project_name,
         user_id="test_user",
-        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        data=UserUpdate(qualified_task_types=["segmentation_proofread"], qualified_segment_types=["axon", "dendrite"]), # pylint: disable=line-too-long
         db_session=db_session,
     )
 
@@ -821,6 +821,7 @@ def test_start_task_user_not_qualified_for_specific_type(
         hourly_rate=50.0,
         active_task="",
         qualified_task_types=["different_type"],  # Qualified for different type only
+        qualified_segment_types=["different_segment_type"]
     )
     create_user(project_name=project_name, data=qualified_user, db_session=db_session)
 
@@ -904,6 +905,7 @@ def test_auto_select_task_no_qualified_types(db_session, project_name, existing_
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": [],  # Empty list means no qualifications
+            "qualified_segment_types": []
         }
     )
     create_user(project_name=project_name, data=unqualified_user, db_session=db_session)
@@ -927,7 +929,7 @@ def test_auto_select_task_no_qualified_types(db_session, project_name, existing_
     update_user(
         project_name=project_name,
         user_id="unqualified_user",
-        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        data=UserUpdate(qualified_task_types=["segmentation_proofread"], qualified_segment_types=["axon", "dendrite"]), # # pylint: disable=line-too-long
         db_session=db_session,
     )
 
@@ -1044,6 +1046,7 @@ def test_release_task_with_dependencies(
         hourly_rate=50.0,
         active_task="",
         qualified_task_types=[existing_task_type["task_type"]],
+        qualified_segment_types=["axon", "dendrite"],
     )
     create_user(project_name=project_name, data=user_data, db_session=db_session)
 
@@ -1415,6 +1418,7 @@ def test_first_start_ts_set_on_takeover_when_null(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
@@ -1479,6 +1483,7 @@ def test_first_start_ts_set_on_takeover_when_task_never_started(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     user2 = User(
@@ -1487,6 +1492,7 @@ def test_first_start_ts_set_on_takeover_when_task_never_started(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=user1, db_session=db_session)

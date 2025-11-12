@@ -1,10 +1,11 @@
-# pylint: disable=redefined-outer-name,unused-argument
+# pylint: disable=redefined-outer-name,unused-argument,too-many-lines
 import time
+from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 
-from zetta_utils.task_management.db.models import Base, TimesheetModel
+from zetta_utils.task_management.db.models import Base, TimesheetModel, SegmentModel
 from zetta_utils.task_management.db.session import get_session_factory
 from zetta_utils.task_management.dependency import create_dependency
 from zetta_utils.task_management.project import create_project
@@ -107,6 +108,7 @@ def setup_takeover_scenario(db_session, project_name):
                 hourly_rate=50.0,
                 active_task="",
                 qualified_task_types=["test"],
+                qualified_segment_types=["test"]
             ),
             db_session=db_session,
         )
@@ -167,6 +169,7 @@ def setup_timesheet_scenario(db_session, project_name):
                 hourly_rate=50.0,
                 active_task="",
                 qualified_task_types=["test"],
+                qualified_segment_types=["test"]
             ),
             db_session=db_session,
         )
@@ -479,9 +482,29 @@ def test_auto_selection_race_condition(clean_db, db_engine, postgres_session, pr
                 hourly_rate=50.0,
                 active_task="",
                 qualified_task_types=["test"],
+                qualified_segment_types=["test"]
             ),
             db_session=postgres_session,
         )
+
+    # Create matching segment and task for auto-selection
+    now = time.time()
+    seed_id_available = 1001
+    postgres_session.add(
+        SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id_available,
+            seed_x=100.0,
+            seed_y=200.0,
+            seed_z=300.0,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=datetime.fromtimestamp(now, tz=timezone.utc),
+            updated_at=datetime.fromtimestamp(now, tz=timezone.utc),
+            expected_segment_type="test",
+        )
+    )
 
     create_task(
         project_name=project_name,
@@ -498,6 +521,7 @@ def test_auto_selection_race_condition(clean_db, db_engine, postgres_session, pr
             is_active=True,
             last_leased_ts=0.0,
             completion_status="",
+            extra_data={"seed_id": seed_id_available},
         ),
         db_session=postgres_session,
     )
@@ -562,6 +586,7 @@ def test_task_completion_race_condition(clean_db, db_engine, postgres_session, p
             hourly_rate=50.0,
             active_task="completion_task_1",
             qualified_task_types=["test"],
+            qualified_segment_types=["test"]
         ),
         db_session=postgres_session,
     )
@@ -572,6 +597,7 @@ def test_task_completion_race_condition(clean_db, db_engine, postgres_session, p
             hourly_rate=50.0,
             active_task="completion_task_2",
             qualified_task_types=["test"],
+            qualified_segment_types=["test"]
         ),
         db_session=postgres_session,
     )
@@ -637,8 +663,27 @@ def test_pause_unpause_task_functionality(clean_db, db_engine, postgres_session,
             hourly_rate=50.0,
             active_task="",
             qualified_task_types=["test"],
+            qualified_segment_types=["test"]
         ),
         db_session=postgres_session,
+    )
+
+    # Create segment and task
+    seed_id_pausable = 1002
+    postgres_session.add(
+        SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id_pausable,
+            seed_x=110.0,
+            seed_y=210.0,
+            seed_z=310.0,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+            updated_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+            expected_segment_type="test",
+        )
     )
 
     create_task(
@@ -656,6 +701,7 @@ def test_pause_unpause_task_functionality(clean_db, db_engine, postgres_session,
             is_active=True,
             last_leased_ts=0.0,
             completion_status="",
+            extra_data={"seed_id": seed_id_pausable},
         ),
         db_session=postgres_session,
     )
@@ -755,6 +801,24 @@ def test_pause_unpause_race_condition(clean_db, db_engine, postgres_session, pro
         db_session=postgres_session,
     )
 
+    # Create segment and task for pause/unpause race
+    seed_id_race = 1003
+    postgres_session.add(
+        SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id_race,
+            seed_x=120.0,
+            seed_y=220.0,
+            seed_z=320.0,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+            updated_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+            expected_segment_type="test",
+        )
+    )
+
     create_task(
         project_name=project_name,
         data=Task(
@@ -770,6 +834,7 @@ def test_pause_unpause_race_condition(clean_db, db_engine, postgres_session, pro
             is_active=True,
             last_leased_ts=0.0,
             completion_status="",
+            extra_data={"seed_id": seed_id_race},
         ),
         db_session=postgres_session,
     )
@@ -827,9 +892,31 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
             hourly_rate=50.0,
             active_task="",
             qualified_task_types=["test"],
+            qualified_segment_types=["test"]
         ),
         db_session=postgres_session,
     )
+
+    # Create segments and tasks for comprehensive selection test
+    seed_id_assigned = 1004
+    seed_id_unassigned = 1005
+    seed_id_idle = 1006
+    for sid in [seed_id_assigned, seed_id_unassigned, seed_id_idle]:
+        postgres_session.add(
+            SegmentModel(
+                project_name=project_name,
+                seed_id=sid,
+                seed_x=130.0,
+                seed_y=230.0,
+                seed_z=330.0,
+                task_ids=[],
+                status="Raw",
+                is_exported=False,
+                created_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+                updated_at=datetime.fromtimestamp(time.time(), tz=timezone.utc),
+                expected_segment_type="test",
+            )
+        )
 
     create_task(
         project_name=project_name,
@@ -846,6 +933,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
             is_active=True,
             last_leased_ts=0.0,
             completion_status="",
+            extra_data={"seed_id": seed_id_assigned},
         ),
         db_session=postgres_session,
     )
@@ -865,6 +953,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
             is_active=True,
             last_leased_ts=0.0,
             completion_status="",
+            extra_data={"seed_id": seed_id_unassigned},
         ),
         db_session=postgres_session,
     )
@@ -885,6 +974,7 @@ def test_paused_tasks_excluded_from_auto_selection_comprehensive(
             is_active=True,
             last_leased_ts=old_time,
             completion_status="",
+            extra_data={"seed_id": seed_id_idle},
         ),
         db_session=postgres_session,
     )

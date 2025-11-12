@@ -40,6 +40,7 @@ def test_user(clean_db, db_session, test_project):
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["trace_v0"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
     create_user(project_name=test_project, data=user_data, db_session=db_session)
     return user_data

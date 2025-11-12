@@ -4,9 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.db.models import Base
+from zetta_utils.task_management.db.models import Base, SegmentModel
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
 from zetta_utils.task_management.task import create_task
+from datetime import datetime, timezone
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
 from zetta_utils.task_management.user import create_user
@@ -157,7 +158,28 @@ def sample_tasks() -> list[Task]:
 
 @pytest.fixture
 def existing_tasks(clean_db, db_session, project_name, sample_tasks, existing_task_type):
-    for task in sample_tasks:
+    # Ensure each task has an associated segment with matching expected_segment_type
+    now = datetime.now(timezone.utc)
+    for idx, task in enumerate(sample_tasks, start=1):
+        seed_id = idx  # deterministic seed IDs for sample tasks
+        segment = SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id,
+            seed_x=100.0 + idx,
+            seed_y=200.0 + idx,
+            seed_z=300.0 + idx,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=now,
+            updated_at=now,
+            expected_segment_type="axon",
+        )
+        db_session.add(segment)
+
+        # Attach seed_id to task extra_data for selection joins
+        task["extra_data"] = {"seed_id": seed_id}
+
         create_task(project_name=project_name, data=task, db_session=db_session)
     yield sample_tasks
 
@@ -177,11 +199,28 @@ def sample_task(existing_task_type) -> Task:
         "task_type": existing_task_type["task_type"],
         "is_active": True,
         "last_leased_ts": 0.0,
+        "extra_data": {"seed_id": 12345},
     }
 
 
 @pytest.fixture
 def existing_task(clean_db, db_session, project_name, existing_task_type, sample_task):
+    # Create a matching segment for the sample task
+    now = datetime.now(timezone.utc)
+    segment = SegmentModel(
+        project_name=project_name,
+        seed_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        task_ids=[],
+        status="Raw",
+        is_exported=False,
+        created_at=now,
+        updated_at=now,
+        expected_segment_type="axon",
+    )
+    db_session.add(segment)
     create_task(project_name=project_name, data=sample_task, db_session=db_session)
     yield sample_task
 
@@ -205,9 +244,28 @@ def task_factory(db_session, project_name, existing_task_type):
                 "task_type": existing_task_type["task_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,
+                # Default extra_data with a deterministic seed_id
+                "extra_data": {"seed_id": abs(hash(task_id)) % 10_000_000 + 1},
                 **kwargs,  # type: ignore
             }
         )
+        # Ensure a corresponding segment exists for auto-selection
+        now = datetime.now(timezone.utc)
+        seed_id = task_data["extra_data"]["seed_id"]  # type: ignore[index]
+        segment = SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id,
+            seed_x=100.0,
+            seed_y=200.0,
+            seed_z=300.0,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=now,
+            updated_at=now,
+            expected_segment_type="axon",
+        )
+        db_session.add(segment)
         create_task(project_name=project_name, data=task_data, db_session=db_session)
         return task_data
 

@@ -1,3 +1,5 @@
+# CPU-only Dockerfile
+# For GPU support, use Dockerfile.gpu instead
 FROM python:3.12
 
 ENV PYTHONPATH=/opt/http

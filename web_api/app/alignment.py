@@ -1,4 +1,7 @@
 # pylint: disable=import-error
+import base64
+
+import numpy as np
 import torch
 from fastapi import FastAPI, Request
 from pydantic import BaseModel, Field
@@ -48,11 +51,17 @@ class ApplyCorrespondencesRequest(BaseModel):
 
 
 class ApplyCorrespondencesResponse(BaseModel):
-    relaxed_field: list[list[list[list[float]]]] = Field(
-        ..., description="Relaxed correspondence field (2, H, W, 1)"
+    relaxed_field: str = Field(
+        ..., description="Base64-encoded relaxed field (float32 binary)"
     )
-    warped_image: list[list[list[list[float]]]] = Field(
-        ..., description="Warped image tensor (C, H, W, 1)"
+    relaxed_field_shape: list[int] = Field(
+        ..., description="Shape of relaxed_field array [C, H, W, 1]"
+    )
+    warped_image: str = Field(
+        ..., description="Base64-encoded warped image (float32 binary)"
+    )
+    warped_image_shape: list[int] = Field(
+        ..., description="Shape of warped_image array [C, H, W, 1]"
     )
 
 
@@ -67,6 +76,8 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
     The function automatically uses GPU (CUDA) if available, otherwise falls
     back to CPU. Deploy this API on GPU machines (T4/L4) for GPU acceleration
     or CPU machines for CPU processing.
+
+    Returns base64-encoded float32 arrays with their shapes.
     """
     correspondences_dict = {
         "lines": [
@@ -80,7 +91,15 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
     }
 
     # Automatically detect and use GPU if available, otherwise use CPU
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    cuda_available = torch.cuda.is_available()
+    device = torch.device("cuda" if cuda_available else "cpu")
+
+    if cuda_available:
+        gpu_name = torch.cuda.get_device_name(0)
+        print(f"CUDA is available. Using GPU: {gpu_name}")
+    else:
+        print("CUDA is not available. Using CPU")
+
     image_tensor = torch.tensor(
         request.image,
         dtype=torch.float32,
@@ -96,8 +115,17 @@ async def apply_correspondences(request: ApplyCorrespondencesRequest):
         optimizer_type=request.optimizer_type,
     )
 
-    # Move results to CPU for JSON serialization if they're on GPU
+    # Convert to numpy arrays on CPU
+    relaxed_field_np = relaxed_field.cpu().numpy().astype(np.float32)
+    warped_image_np = warped_image.cpu().numpy().astype(np.float32)
+
+    # Encode as base64
+    relaxed_field_b64 = base64.b64encode(relaxed_field_np.tobytes()).decode()
+    warped_image_b64 = base64.b64encode(warped_image_np.tobytes()).decode()
+
     return ApplyCorrespondencesResponse(
-        relaxed_field=relaxed_field.cpu().tolist(),
-        warped_image=warped_image.cpu().tolist(),
+        relaxed_field=relaxed_field_b64,
+        relaxed_field_shape=list(relaxed_field_np.shape),
+        warped_image=warped_image_b64,
+        warped_image_shape=list(warped_image_np.shape),
     )

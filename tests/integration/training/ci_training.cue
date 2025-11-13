@@ -38,6 +38,7 @@ trainer: checkpointing_kwargs: {
 
 "@type": "lightning_train"
 local_run: _ | *false
+num_nodes: 2
 cluster_project: "zetta-research"
 cluster_name:    "zutils-x3"
 cluster_region:  "us-east1"

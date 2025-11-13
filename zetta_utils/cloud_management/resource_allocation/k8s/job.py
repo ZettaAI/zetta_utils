@@ -208,6 +208,13 @@ def wait_for_job_completion(
     logger.info(f"job pod phase: {pod.status.phase}")
     follow_job_logs(job, cluster_info, tail_lines=64, wait_until_start=False)
 
+    # Check if job failed and raise exception
+    if job.status.failed and job.status.failed > job.spec.backoff_limit:
+        raise RuntimeError(
+            f"Job `{job.metadata.name}` failed after {job.status.failed} attempts. "
+            f"Pod phase: {pod.status.phase}"
+        )
+
 
 @contextmanager
 def job_ctx_manager(

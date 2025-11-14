@@ -18,6 +18,7 @@ from caveclient import CAVEclient
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
 from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.skeleton_queue import queue_skeleton_updates_for_segments
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
     update_supervoxels_for_merge,
@@ -382,9 +383,23 @@ def process_merge_event(
                 edit_timestamp=edit_timestamp,
                 operation_type="merge",
             )
+            print(f"[DEBUG] Updated {count} supervoxels for merge")
             logger.info(
                 f"Updated {count} supervoxels for merge: {old_roots} -> {new_root_id}"
             )
+            
+            # Queue skeleton updates for affected segments
+            try:
+                all_affected_segments = old_roots + [new_root_id]
+                queued_count = queue_skeleton_updates_for_segments(
+                    project_name=project_name,
+                    segment_ids=all_affected_segments
+                )
+                print(f"[DEBUG] Queued {queued_count} skeleton updates for merge")
+                logger.info(f"Queued {queued_count} skeleton updates for merge")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                print(f"[DEBUG] Error queueing skeleton updates for merge: {e}")
+                logger.error(f"Failed to queue skeleton updates for merge: {e}")
         else:
             logger.warning(f"No old roots found for new root {new_root_id}")
 
@@ -513,6 +528,17 @@ def process_split_event(  # pylint: disable=unused-argument
             f"Completed split processing for root {old_root_id}: "
             f"updated {updated_count} supervoxels across {len(new_root_ids)} new roots"
         )
+        
+        # Queue skeleton updates for affected segments
+        try:
+            all_affected_segments = [old_root_id] + new_root_ids
+            queued_count = queue_skeleton_updates_for_segments(
+                project_name=project_name,
+                segment_ids=all_affected_segments
+            )
+            logger.info(f"Queued {queued_count} skeleton updates for split")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to queue skeleton updates for split: {e}")
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing split event: {e}", exc_info=True)

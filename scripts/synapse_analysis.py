@@ -9,12 +9,12 @@ import sys
 from math import ceil, floor
 from typing import Any, Dict, List, Optional, Sequence, cast
 
+import google.cloud.storage as storage
 import nglui
 import numpy as np
 from caveclient import CAVEclient
 from cloudfiles import CloudFile
 from cloudvolume import CloudVolume
-from google.cloud import storage
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial import cKDTree
 

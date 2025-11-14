@@ -10,11 +10,11 @@ import json
 import sys
 from typing import Any, Dict, List, Optional, Sequence, cast
 
+import google.cloud.storage as storage
 import nglui.parser
 import numpy as np
 from caveclient import CAVEclient
 from cloudvolume import CloudVolume
-from google.cloud import storage
 from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
 from scipy.ndimage import binary_dilation
 

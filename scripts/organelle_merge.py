@@ -14,11 +14,11 @@ from binascii import unhexlify
 from math import floor
 from typing import Any, Optional, Sequence
 
+import google.cloud.storage as storage
 import numpy as np
 import scipy
 from caveclient import CAVEclient, chunkedgraph
 from cloudvolume import CloudVolume
-from google.cloud import storage
 
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.geometry.mask_center import interior_point

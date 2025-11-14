@@ -14,8 +14,8 @@ from collections import defaultdict
 from math import floor
 from typing import Dict, List, Tuple
 
+import google.cloud.storage as storage
 import psycopg2
-from google.cloud import storage
 from sqlalchemy import create_engine, inspect
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL

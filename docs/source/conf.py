@@ -1,5 +1,12 @@
 # Configuration file for the Sphinx documentation builder.
 
+# CRITICAL: Import tensorstore FIRST to avoid abseil initialization conflicts
+# This must happen before Sphinx imports any modules that use abseil
+try:
+    import tensorstore  # noqa: F401
+except ImportError:
+    pass
+
 # -- Project information
 
 project = "zetta_utils"

@@ -1,3 +1,10 @@
+# CRITICAL: Import tensorstore FIRST to avoid abseil initialization conflicts
+# This must be the very first import before anything else
+try:
+    import tensorstore  # noqa: F401
+except ImportError:
+    pass
+
 import os
 import time
 from unittest import mock

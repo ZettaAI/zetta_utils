@@ -28,8 +28,9 @@ try:
     print("DEBUG: About to access tensorstore._tensorstore...", file=sys.stderr, flush=True)
     _ = tensorstore._tensorstore
     print("DEBUG: tensorstore._tensorstore accessed successfully", file=sys.stderr, flush=True)
-except (ImportError, AttributeError) as e:
+except (ImportError, AttributeError, RecursionError) as e:
     print(f"DEBUG: Tensorstore import/access failed: {e}", file=sys.stderr, flush=True)
+    print(f"DEBUG: Error type: {type(e).__name__}", file=sys.stderr, flush=True)
     import traceback
     traceback.print_exc(file=sys.stderr)
 
@@ -39,8 +40,9 @@ try:
     import neuroglancer  # noqa: F401
     print("DEBUG: neuroglancer imported successfully", file=sys.stderr, flush=True)
     print(f"DEBUG: neuroglancer.__file__: {neuroglancer.__file__}", file=sys.stderr, flush=True)
-except ImportError as e:
+except (ImportError, RecursionError) as e:
     print(f"DEBUG: Neuroglancer import failed: {e}", file=sys.stderr, flush=True)
+    print(f"DEBUG: Error type: {type(e).__name__}", file=sys.stderr, flush=True)
     import traceback
     traceback.print_exc(file=sys.stderr)
 

@@ -22,19 +22,42 @@ print("DEBUG: Set TZ environment variable", file=sys.stderr, flush=True)
 print(f"DEBUG: 'tensorstore' in sys.modules: {'tensorstore' in sys.modules}", file=sys.stderr, flush=True)
 print(f"DEBUG: 'neuroglancer' in sys.modules: {'neuroglancer' in sys.modules}", file=sys.stderr, flush=True)
 
+# Check numpy and ml_dtypes versions before importing tensorstore
+print("DEBUG: Checking package versions...", file=sys.stderr, flush=True)
+try:
+    import numpy as np
+    print(f"DEBUG: numpy version: {np.__version__}", file=sys.stderr, flush=True)
+    print(f"DEBUG: numpy.__file__: {np.__file__}", file=sys.stderr, flush=True)
+except ImportError as e:
+    print(f"DEBUG: numpy not available: {e}", file=sys.stderr, flush=True)
+
+try:
+    import ml_dtypes
+    print(f"DEBUG: ml_dtypes version: {ml_dtypes.__version__}", file=sys.stderr, flush=True)
+    print(f"DEBUG: ml_dtypes.__file__: {ml_dtypes.__file__}", file=sys.stderr, flush=True)
+except ImportError as e:
+    print(f"DEBUG: ml_dtypes not available: {e}", file=sys.stderr, flush=True)
+except AttributeError:
+    print(f"DEBUG: ml_dtypes has no __version__", file=sys.stderr, flush=True)
+
 # Import tensorstore FIRST
 print("DEBUG: About to import tensorstore...", file=sys.stderr, flush=True)
 try:
     import tensorstore
     print("DEBUG: tensorstore module imported", file=sys.stderr, flush=True)
     print(f"DEBUG: tensorstore.__file__: {tensorstore.__file__}", file=sys.stderr, flush=True)
+    try:
+        print(f"DEBUG: tensorstore version: {tensorstore.__version__}", file=sys.stderr, flush=True)
+    except AttributeError:
+        print("DEBUG: tensorstore has no __version__", file=sys.stderr, flush=True)
 
     # Force load C++ extension
     print("DEBUG: About to access tensorstore._tensorstore...", file=sys.stderr, flush=True)
     _ = tensorstore._tensorstore
     print("DEBUG: tensorstore._tensorstore accessed successfully", file=sys.stderr, flush=True)
-except (ImportError, AttributeError) as e:
+except (ImportError, AttributeError, RecursionError) as e:
     print(f"DEBUG: Tensorstore import/access failed: {e}", file=sys.stderr, flush=True)
+    print(f"DEBUG: Error type: {type(e).__name__}", file=sys.stderr, flush=True)
     import traceback
     traceback.print_exc(file=sys.stderr)
 
@@ -44,8 +67,9 @@ try:
     import neuroglancer
     print("DEBUG: neuroglancer imported successfully", file=sys.stderr, flush=True)
     print(f"DEBUG: neuroglancer.__file__: {neuroglancer.__file__}", file=sys.stderr, flush=True)
-except ImportError as e:
+except (ImportError, RecursionError) as e:
     print(f"DEBUG: Neuroglancer import failed: {e}", file=sys.stderr, flush=True)
+    print(f"DEBUG: Error type: {type(e).__name__}", file=sys.stderr, flush=True)
     import traceback
     traceback.print_exc(file=sys.stderr)
 

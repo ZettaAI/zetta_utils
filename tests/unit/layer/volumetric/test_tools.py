@@ -120,6 +120,25 @@ def test_volumetric_index_overrider(
     assert index.resolution == Vec3D(*expected_resolution)
 
 
+def test_volumetric_index_overrider_reuse():
+    """Test that VolumetricIndexOverrider doesn't cache values across calls"""
+    vio = VolumetricIndexOverrider(
+        override_offset=[None, None, 5],
+        override_size=None,
+        override_resolution=None,
+    )
+
+    index1 = VolumetricIndex(resolution=Vec3D(1, 1, 1), bbox=BBox3D(((0, 10), (0, 10), (0, 1))))
+    result1 = vio(index1)
+    assert result1.start == Vec3D(0, 0, 5)
+    assert result1.shape == Vec3D(10, 10, 1)
+
+    index2 = VolumetricIndex(resolution=Vec3D(1, 1, 1), bbox=BBox3D(((0, 20), (0, 20), (0, 1))))
+    result2 = vio(index2)
+    assert result2.start == Vec3D(0, 0, 5)
+    assert result2.shape == Vec3D(20, 20, 1)
+
+
 @pytest.mark.parametrize(
     """res_change_mult,
     expected_start, expected_stop, expected_resolution""",

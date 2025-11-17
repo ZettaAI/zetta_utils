@@ -15,13 +15,25 @@ print("=" * 80, file=sys.stderr, flush=True)
 
 import os
 
-# Set environment variable
+# Set environment variables to prevent numpy/absl initialization issues
 os.environ.setdefault('TZ', 'UTC')
-print("DEBUG: Set TZ environment variable", file=sys.stderr, flush=True)
+os.environ.setdefault('NPY_DISABLE_CPU_FEATURES', '')  # Disable CPU feature detection caching
+print("DEBUG: Set TZ and NPY_DISABLE_CPU_FEATURES environment variables", file=sys.stderr, flush=True)
 
 # Check if anything has already imported tensorstore
 print(f"DEBUG: 'tensorstore' in sys.modules: {'tensorstore' in sys.modules}", file=sys.stderr, flush=True)
 print(f"DEBUG: 'neuroglancer' in sys.modules: {'neuroglancer' in sys.modules}", file=sys.stderr, flush=True)
+print(f"DEBUG: 'numpy' in sys.modules: {'numpy' in sys.modules}", file=sys.stderr, flush=True)
+
+# Check what numpy will be loaded
+print("DEBUG: Checking numpy availability...", file=sys.stderr, flush=True)
+try:
+    import importlib.util
+    numpy_spec = importlib.util.find_spec('numpy')
+    if numpy_spec and numpy_spec.origin:
+        print(f"DEBUG: numpy will load from: {numpy_spec.origin}", file=sys.stderr, flush=True)
+except Exception as e:
+    print(f"DEBUG: Could not check numpy spec: {e}", file=sys.stderr, flush=True)
 
 # Import tensorstore FIRST
 print("DEBUG: About to import tensorstore...", file=sys.stderr, flush=True)

@@ -69,28 +69,23 @@ class VolumetricIndexScaler:  # pragma: no cover # under 3 statements, no condit
 
 @builder.register("VolumetricIndexOverrider")
 @typechecked
-@attrs.mutable
+@attrs.frozen
 class VolumetricIndexOverrider:
     override_offset: Optional[Sequence[int | None]] = None
     override_size: Optional[Sequence[int | None]] = None
     override_resolution: Optional[Sequence[float | None]] = None
 
     def __call__(self, idx: VolumetricIndex) -> VolumetricIndex:
-        if self.override_offset is None:
-            self.override_offset = idx.start
-        if self.override_size is None:
-            self.override_size = idx.shape
-        if self.override_resolution is None:
-            self.override_resolution = idx.resolution
+        override_offset = self.override_offset if self.override_offset is not None else idx.start
+        override_size = self.override_size if self.override_size is not None else idx.shape
+        override_resolution = (
+            self.override_resolution if self.override_resolution is not None else idx.resolution
+        )
 
-        start = IntVec3D(
-            *[x if x is not None else y for x, y in zip(self.override_offset, idx.start)]
-        )
-        size = IntVec3D(
-            *[x if x is not None else y for x, y in zip(self.override_size, idx.shape)]
-        )
+        start = IntVec3D(*[x if x is not None else y for x, y in zip(override_offset, idx.start)])
+        size = IntVec3D(*[x if x is not None else y for x, y in zip(override_size, idx.shape)])
         resolution = Vec3D[float](
-            *[x if x is not None else y for x, y in zip(self.override_resolution, idx.resolution)]
+            *[x if x is not None else y for x, y in zip(override_resolution, idx.resolution)]
         )
         stop = start + size
 

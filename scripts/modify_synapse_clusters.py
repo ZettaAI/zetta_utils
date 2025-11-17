@@ -14,7 +14,7 @@ import nglui.parser
 import numpy as np
 from caveclient import CAVEclient
 from cloudvolume import CloudVolume
-from google.cloud import storage
+from google.cloud import storage  # type: ignore[attr-defined]
 from neuroglancer.viewer_state import AxisAlignedBoundingBoxAnnotation
 from scipy.ndimage import binary_dilation
 

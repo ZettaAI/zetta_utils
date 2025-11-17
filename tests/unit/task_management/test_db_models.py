@@ -596,8 +596,6 @@ def test_to_dict_full_task_model(db_session):
         id_nonunique=67890,
         extra_data={"info": "test"},
         created_at=datetime.now(timezone.utc),
-        instruction="Task instruction",
-        instruction_link="https://example.com/task-instruction",
     )
     db_session.add(task)
     db_session.commit()
@@ -611,8 +609,6 @@ def test_to_dict_full_task_model(db_session):
     assert result["is_paused"] is True
     assert result["is_checked"] is True
     assert result["extra_data"] == {"info": "test"}
-    assert result["instruction"] == "Task instruction"
-    assert result["instruction_link"] == "https://example.com/task-instruction"
 
 
 def test_from_dict_task_model():
@@ -664,8 +660,6 @@ def test_from_dict_defaults_task_model():
     assert model.is_paused is False
     assert model.is_checked is False
     assert model.extra_data is None
-    assert model.instruction is None
-    assert model.instruction_link is None
 
 
 def test_to_dict_minimal_task_model(db_session):
@@ -687,9 +681,6 @@ def test_to_dict_minimal_task_model(db_session):
     result = task.to_dict()
     assert result["task_id"] == "minimal_task"
     assert result["task_type"] == "minimal"
-    # Optional fields should not be in dict when None
-    assert result["instruction"] is None
-    assert result["instruction_link"] is None
 
 
 # Keep original backward compatibility tests

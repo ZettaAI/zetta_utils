@@ -972,3 +972,38 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
                     f"in task {task.task_id}: {e}"
                 )
                 session.rollback()
+
+
+@typechecked
+def add_segment_type_and_instructions(task_dict: dict, project_name: str) -> dict:
+    """
+    Add segment type and instructions to task dictionary if task has a segment_seed_id.
+    
+    :param task_dict: The task dictionary to enhance
+    :param project_name: The project name
+    :return: The enhanced task dictionary with segment type and instructions
+    """
+    if not task_dict.get("segment_seed_id"):
+        return task_dict
+    
+    seed_id = task_dict["segment_seed_id"]
+    with get_session_context() as session:
+        segment_query = select(SegmentModel).where(
+            SegmentModel.project_name == project_name,
+            SegmentModel.seed_id == seed_id
+        )
+        segment = session.execute(segment_query).scalar_one_or_none()
+        if segment:
+            task_dict["segment_type"] = segment.expected_segment_type
+            # Fetch instructions from segment type
+            if segment.expected_segment_type:
+                segment_type_query = select(SegmentTypeModel).where(
+                    SegmentTypeModel.project_name == project_name,
+                    SegmentTypeModel.type_name == segment.expected_segment_type
+                )
+                segment_type = session.execute(segment_type_query).scalar_one_or_none()
+                if segment_type:
+                    task_dict["instruction"] = segment_type.instruction
+                    task_dict["instruction_link"] = segment_type.instruction_link
+    
+    return task_dict

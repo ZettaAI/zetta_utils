@@ -93,7 +93,7 @@ jobs:
         shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: python run_tests.py run -m pytest ./tests/unit
+        run: python run_tests.py run -m pytest ./tests/unit -v --tb=short
         shell: bash -l {0}
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3

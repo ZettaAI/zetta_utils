@@ -2023,3 +2023,155 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
     assert result_false["task_id"] == "regular_task_1"
     assert result_true["ng_state"] == result_false["ng_state"]
     assert result_true["ng_state_initial"] == result_false["ng_state_initial"]
+
+
+# Test add_segment_type_and_instructions function
+
+
+def test_add_segment_type_and_instructions_no_segment_seed_id():
+    """Test function returns unchanged dict when task has no segment_seed_id"""
+    from zetta_utils.task_management.task import add_segment_type_and_instructions
+    
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        # No segment_seed_id field
+    }
+    
+    result = add_segment_type_and_instructions(task_dict, "test_project")
+    assert result == task_dict  # Should be unchanged
+
+
+def test_add_segment_type_and_instructions_segment_not_found(db_session):
+    """Test function when segment is not found"""
+    from zetta_utils.task_management.task import add_segment_type_and_instructions
+    
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        "segment_seed_id": 999999  # Non-existent segment
+    }
+    
+    result = add_segment_type_and_instructions(task_dict, "test_project")
+    assert result == task_dict  # Should be unchanged
+
+
+def test_add_segment_type_and_instructions_with_segment_type(db_session, project_factory, segment_factory, segment_type_factory):
+    """Test function adds segment type and instructions when segment and segment type exist"""
+    from zetta_utils.task_management.task import add_segment_type_and_instructions
+    
+    # Create project
+    project = project_factory(project_name="test_project")
+    db_session.add(project)
+    db_session.commit()
+    
+    # Create segment type with instructions
+    segment_type = segment_type_factory(
+        type_name="neuron",
+        project_name="test_project",
+        instruction="Trace the neuron carefully",
+        instruction_link="https://example.com/neuron-instructions"
+    )
+    db_session.add(segment_type)
+    
+    # Create segment
+    segment = segment_factory(
+        project_name="test_project",
+        seed_id=12345,
+        expected_segment_type="neuron"
+    )
+    db_session.add(segment)
+    db_session.commit()
+    
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        "segment_seed_id": 12345
+    }
+    
+    result = add_segment_type_and_instructions(task_dict, "test_project")
+    
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "neuron"
+    assert result["instruction"] == "Trace the neuron carefully"
+    assert result["instruction_link"] == "https://example.com/neuron-instructions"
+
+
+def test_add_segment_type_and_instructions_no_segment_type(db_session, project_factory, segment_factory):
+    """Test function when segment exists but segment type doesn't exist"""
+    from zetta_utils.task_management.task import add_segment_type_and_instructions
+    
+    # Create project
+    project = project_factory(project_name="test_project")
+    db_session.add(project)
+    db_session.commit()
+    
+    # Create segment without corresponding segment type
+    segment = segment_factory(
+        project_name="test_project",
+        seed_id=12345,
+        expected_segment_type="nonexistent_type"
+    )
+    db_session.add(segment)
+    db_session.commit()
+    
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        "segment_seed_id": 12345
+    }
+    
+    result = add_segment_type_and_instructions(task_dict, "test_project")
+    
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "nonexistent_type"
+    # Should not have instruction fields since segment type doesn't exist
+    assert "instruction" not in result
+    assert "instruction_link" not in result
+
+
+def test_add_segment_type_and_instructions_segment_type_no_instructions(db_session, project_factory, segment_factory, segment_type_factory):
+    """Test function when segment type exists but has no instructions"""
+    from zetta_utils.task_management.task import add_segment_type_and_instructions
+    
+    # Create project
+    project = project_factory(project_name="test_project")
+    db_session.add(project)
+    db_session.commit()
+    
+    # Create segment type without instructions
+    segment_type = segment_type_factory(
+        type_name="glia",
+        project_name="test_project",
+        instruction=None,
+        instruction_link=None
+    )
+    db_session.add(segment_type)
+    
+    # Create segment
+    segment = segment_factory(
+        project_name="test_project",
+        seed_id=12345,
+        expected_segment_type="glia"
+    )
+    db_session.add(segment)
+    db_session.commit()
+    
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        "segment_seed_id": 12345
+    }
+    
+    result = add_segment_type_and_instructions(task_dict, "test_project")
+    
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "glia"
+    assert result["instruction"] is None
+    assert result["instruction_link"] is None

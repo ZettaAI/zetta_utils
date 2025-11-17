@@ -30,6 +30,7 @@ from zetta_utils.task_management.split_edit import (
     get_split_edits_by_user,
 )
 from zetta_utils.task_management.task import (
+    add_segment_type_and_instructions,
     get_task,
     release_task,
     start_task,
@@ -108,6 +109,10 @@ async def get_task_api(project_name: str, task_id: str) -> dict:
     task = get_task(project_name=project_name, task_id=task_id)
     result = {k.replace("task", "task"): v for k, v in task.items()}
     result["ng_state"] = result["ng_state"]
+    
+    # Add segment type and instructions if task has a segment_seed_id
+    result = add_segment_type_and_instructions(result, project_name)
+    
     return result
 
 

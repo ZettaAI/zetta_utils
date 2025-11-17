@@ -752,6 +752,12 @@ def main():
                 "conda install -c conda-forge graph-tool-base -y",
                 "Install graph-tool via conda",
             )
+            # Uninstall conda's numpy (graph-tool pulls in old 1.x version)
+            # This allows pip to install the correct version (>=2.2.5) later
+            run_command(
+                "conda uninstall numpy --force -y",
+                "Uninstall conda's numpy to avoid version conflicts",
+            )
 
     if not args.dockerfile:
         setup_paths()

@@ -47,13 +47,13 @@ jobs:
           files: |
             **/*.py
 
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
+      # - name: Setup Python
+      #   if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
+      #     architecture: x64
+      #     cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v2
@@ -131,13 +131,13 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
+      # - name: Setup Python
+      #   if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
+      #     architecture: x64
+      #     cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v2
@@ -211,13 +211,13 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
+      # - name: Setup Python
+      #   if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
+      #     architecture: x64
+      #     cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v2
@@ -293,13 +293,13 @@ jobs:
         with:
           files: |
             **/*.rst
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
+      # - name: Setup Python
+      #   if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: ${{ matrix.python-version }}
+      #     architecture: x64
+      #     cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         uses: conda-incubator/setup-miniconda@v2

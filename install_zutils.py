@@ -736,22 +736,31 @@ def main():
         )
 
     if not args.skip_pip:
-        install_mode = args.mode
-        run_command(
-            f"pip install --upgrade -e .[{install_mode}]",
-            "Installing `zetta_utils` python package",
-        )
         if args.pcg:
             if not args.dockerfile:
                 check_conda_environment()
             run_command(
-                f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
-                "Install PCG package (do deps)",
-            )
-            run_command(
                 "conda install -c conda-forge graph-tool-base -y",
                 "Install graph-tool via conda",
             )
+            run_command(
+                f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
+                "Install PCG package (do deps)",
+            )
+
+        install_mode = args.mode
+        run_command(
+            "pip install pip-tools",
+            "Installing `pip-tools` python package to generate dependency list",
+        )
+        run_command(
+            f"pip-compile --all-build-deps --extra {install_mode} -o requirements.{install_mode}.txt --strip-extras pyproject.toml",
+            "Generating pinned package list with resolved conflicts",
+        )
+        run_command(
+            f"pip install -r requirements.{install_mode}.txt && pip install --no-deps -e .",
+            "Installing pinned dependencies and zetta_utils package",
+        )
 
     if not args.dockerfile:
         setup_paths()

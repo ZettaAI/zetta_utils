@@ -26,6 +26,7 @@ def test_create_project_tables(project_name, clean_db, db_session):
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["segmentation_proofread"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
 
     user_id = create_user(project_name=project_name, data=sample_user, db_session=db_session)
@@ -51,6 +52,7 @@ def test_get_project_success(project_name, clean_db, db_session):
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["segmentation_proofread"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
     create_user(project_name=project_name, data=sample_user, db_session=db_session)
 

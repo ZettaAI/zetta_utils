@@ -129,6 +129,7 @@ class UserModel(Base):
     hourly_rate: Mapped[float] = mapped_column(Float, nullable=False)
     active_task: Mapped[str] = mapped_column(String, nullable=False, default="")
     qualified_task_types: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
+    qualified_segment_types: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
 
     def to_dict(self) -> dict:
         """Convert the model to a dictionary matching the User TypedDict structure"""
@@ -137,6 +138,7 @@ class UserModel(Base):
             "hourly_rate": self.hourly_rate,
             "active_task": self.active_task,
             "qualified_task_types": self.qualified_task_types,
+            "qualified_segment_types": self.qualified_segment_types,
         }
 
     @classmethod
@@ -148,6 +150,7 @@ class UserModel(Base):
             hourly_rate=data["hourly_rate"],
             active_task=data["active_task"],
             qualified_task_types=data["qualified_task_types"],
+            qualified_segment_types=data["qualified_segment_types"],
         )
 
 
@@ -613,8 +616,6 @@ class TaskModel(Base):
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    instruction: Mapped[str | None] = mapped_column(String, nullable=True)
-    instruction_link: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
         Index("idx_tasks_project_assigned_user", "project_name", "assigned_user_id"),
@@ -674,8 +675,6 @@ class TaskModel(Base):
             "segment_seed_id": self.segment_seed_id,
             "note": self.note,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "instruction": self.instruction,
-            "instruction_link": self.instruction_link,
         }
 
         if self.extra_data is not None:

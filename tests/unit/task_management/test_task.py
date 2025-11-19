@@ -14,6 +14,7 @@ from zetta_utils.task_management.exceptions import (
 from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import (
     _validate_task,
+    add_segment_type_and_instructions,
     create_task,
     get_max_idle_seconds,
     get_task,
@@ -656,6 +657,7 @@ def test_start_task_takeover_idle(db_session, project_name, existing_task, exist
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
@@ -712,6 +714,7 @@ def test_start_task_already_active(db_session, project_name, existing_task, exis
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
@@ -762,6 +765,7 @@ def test_start_task_requires_qualification(
             hourly_rate=50.0,
             active_task="",
             qualified_task_types=[],  # Empty list means no qualifications
+            qualified_segment_types=[],  # Empty list means no qualifications
         ),
         db_session=db_session,
     )
@@ -787,7 +791,10 @@ def test_start_task_requires_qualification(
     update_user(
         project_name=project_name,
         user_id="test_user",
-        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        data=UserUpdate(
+            qualified_task_types=["segmentation_proofread"],
+            qualified_segment_types=["axon", "dendrite"],
+        ),  # pylint: disable=line-too-long
         db_session=db_session,
     )
 
@@ -818,6 +825,7 @@ def test_start_task_user_not_qualified_for_specific_type(
         hourly_rate=50.0,
         active_task="",
         qualified_task_types=["different_type"],  # Qualified for different type only
+        qualified_segment_types=["different_segment_type"],
     )
     create_user(project_name=project_name, data=qualified_user, db_session=db_session)
 
@@ -901,6 +909,7 @@ def test_auto_select_task_no_qualified_types(db_session, project_name, existing_
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": [],  # Empty list means no qualifications
+            "qualified_segment_types": [],
         }
     )
     create_user(project_name=project_name, data=unqualified_user, db_session=db_session)
@@ -924,7 +933,10 @@ def test_auto_select_task_no_qualified_types(db_session, project_name, existing_
     update_user(
         project_name=project_name,
         user_id="unqualified_user",
-        data=UserUpdate(qualified_task_types=["segmentation_proofread"]),
+        data=UserUpdate(
+            qualified_task_types=["segmentation_proofread"],
+            qualified_segment_types=["axon", "dendrite"],
+        ),  # # pylint: disable=line-too-long
         db_session=db_session,
     )
 
@@ -1041,6 +1053,7 @@ def test_release_task_with_dependencies(
         hourly_rate=50.0,
         active_task="",
         qualified_task_types=[existing_task_type["task_type"]],
+        qualified_segment_types=["axon", "dendrite"],
     )
     create_user(project_name=project_name, data=user_data, db_session=db_session)
 
@@ -1335,9 +1348,7 @@ def test_first_start_ts_set_on_initial_start(
 ):
     """Test that first_start_ts is set when a task is started for the first time"""
     # Verify the task initially has no first_start_ts
-    initial_task = get_task(
-        project_name=project_name, task_id="task_1", db_session=db_session
-    )
+    initial_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert initial_task["first_start_ts"] is None
 
     # Start the task for the first time
@@ -1395,9 +1406,7 @@ def test_first_start_ts_unchanged_on_restart(
     )
 
     # Verify first_start_ts remained unchanged
-    restarted_task = get_task(
-        project_name=project_name, task_id="task_1", db_session=db_session
-    )
+    restarted_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert restarted_task["first_start_ts"] == original_first_start_ts
 
 
@@ -1412,14 +1421,13 @@ def test_first_start_ts_set_on_takeover_when_null(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=second_user, db_session=db_session)
 
     # Verify the task initially has no first_start_ts
-    initial_task = get_task(
-        project_name=project_name, task_id="task_1", db_session=db_session
-    )
+    initial_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert initial_task["first_start_ts"] is None
 
     # Have user_1 start the task
@@ -1458,9 +1466,7 @@ def test_first_start_ts_set_on_takeover_when_null(
     )
 
     # Verify first_start_ts remained unchanged (was not reset during takeover)
-    taken_over_task = get_task(
-        project_name=project_name, task_id="task_1", db_session=db_session
-    )
+    taken_over_task = get_task(project_name=project_name, task_id="task_1", db_session=db_session)
     assert taken_over_task["first_start_ts"] == original_first_start_ts
     assert taken_over_task["active_user_id"] == "user_2"
 
@@ -1476,6 +1482,7 @@ def test_first_start_ts_set_on_takeover_when_task_never_started(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     user2 = User(
@@ -1484,6 +1491,7 @@ def test_first_start_ts_set_on_takeover_when_task_never_started(
             "hourly_rate": 45.0,
             "active_task": "",
             "qualified_task_types": ["segmentation_proofread"],
+            "qualified_segment_types": ["axon", "dendrite"],
         }
     )
     create_user(project_name=project_name, data=user1, db_session=db_session)
@@ -1562,9 +1570,7 @@ def test_first_start_ts_null_on_task_creation(project_name, existing_task_type, 
     )
 
     # Create the task
-    result = create_task(
-        project_name=project_name, data=new_task, db_session=db_session
-    )
+    result = create_task(project_name=project_name, data=new_task, db_session=db_session)
     assert result == "creation_test_task"
 
     # Verify the task was created with first_start_ts as None
@@ -1601,9 +1607,7 @@ def test_first_start_ts_can_be_set_explicitly_on_creation(
     )
 
     # Create the task
-    result = create_task(
-        project_name=project_name, data=new_task, db_session=db_session
-    )
+    result = create_task(project_name=project_name, data=new_task, db_session=db_session)
     assert result == "explicit_first_start_task"
 
     # Verify the task was created with the explicit first_start_ts
@@ -1674,9 +1678,7 @@ def test_release_task_without_note(db_session, existing_task, existing_user, pro
     assert updated_task["completed_user_id"] == "test_user"
 
 
-def test_get_task_seed_id_integration(
-        db_session, project_name, existing_task_type, mocker
-):
+def test_get_task_seed_id_integration(db_session, project_name, existing_task_type, mocker):
     """Integration test: Create task with seed_id format, verify get_task processes it correctly"""
     # Mock the get_segment_ng_state function to return a predictable result
     mock_generated_state = {
@@ -1687,20 +1689,19 @@ def test_get_task_seed_id_integration(
                 "type": "segmentation",
                 "source": "gs://test-bucket/segmentation",
                 "segments": ["12345"],
-                "name": "Segmentation"
+                "name": "Segmentation",
             },
             {
                 "type": "annotation",
                 "name": "Seed Location",
                 "annotationColor": "#ff00ff",
-                "annotations": [{"point": [100, 200, 300], "type": "point", "id": "abc123"}]
-            }
-        ]
+                "annotations": [{"point": [100, 200, 300], "type": "point", "id": "abc123"}],
+            },
+        ],
     }
 
     mock_get_segment_ng_state = mocker.patch(
-        "zetta_utils.task_management.task.get_segment_ng_state",
-        return_value=mock_generated_state
+        "zetta_utils.task_management.task.get_segment_ng_state", return_value=mock_generated_state
     )
 
     # Create a task with seed_id format in ng_state
@@ -1748,7 +1749,7 @@ def test_get_task_seed_id_integration(
         include_uncertain_ends=True,
         include_breadcrumbs=True,
         include_segment_type_layers=True,
-        db_session=mocker.ANY
+        db_session=mocker.ANY,
     )
 
     # Verify that the result now contains the generated ng_state
@@ -1772,14 +1773,12 @@ def test_get_task_seed_id_integration(
     assert second_result["ng_state_initial"] == mock_generated_state
 
 
-def test_get_task_seed_id_error_handling(
-    db_session, project_name, existing_task_type, mocker
-):
+def test_get_task_seed_id_error_handling(db_session, project_name, existing_task_type, mocker):
     """Test error handling when get_segment_ng_state fails"""
     # Mock get_segment_ng_state to raise a RuntimeError
     mock_get_segment_ng_state = mocker.patch(
         "zetta_utils.task_management.task.get_segment_ng_state",
-        side_effect=RuntimeError("Database connection failed")
+        side_effect=RuntimeError("Database connection failed"),
     )
 
     # Create a task with seed_id format in ng_state
@@ -1817,7 +1816,7 @@ def test_get_task_seed_id_error_handling(
         include_uncertain_ends=True,
         include_breadcrumbs=True,
         include_segment_type_layers=True,
-        db_session=mocker.ANY
+        db_session=mocker.ANY,
     )
 
     # Verify that the task was returned with original ng_state (error was handled gracefully)
@@ -1851,8 +1850,7 @@ def test_get_task_process_ng_state_flag_default_true(
 
     # Mock the _process_ng_state_seed_id function to track if it's called
     mock_process = mocker.patch(
-        "zetta_utils.task_management.task._process_ng_state_seed_id",
-        autospec=True
+        "zetta_utils.task_management.task._process_ng_state_seed_id", autospec=True
     )
 
     # Call get_task without specifying process_ng_state (should default to True)
@@ -1897,8 +1895,7 @@ def test_get_task_process_ng_state_flag_explicit_true(
 
     # Mock the _process_ng_state_seed_id function to track if it's called
     mock_process = mocker.patch(
-        "zetta_utils.task_management.task._process_ng_state_seed_id",
-        autospec=True
+        "zetta_utils.task_management.task._process_ng_state_seed_id", autospec=True
     )
 
     # Call get_task with process_ng_state=True explicitly
@@ -1944,8 +1941,7 @@ def test_get_task_process_ng_state_flag_false(
 
     # Mock the _process_ng_state_seed_id function to track if it's called
     mock_process = mocker.patch(
-        "zetta_utils.task_management.task._process_ng_state_seed_id",
-        autospec=True
+        "zetta_utils.task_management.task._process_ng_state_seed_id", autospec=True
     )
 
     # Call get_task with process_ng_state=False
@@ -1990,8 +1986,7 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
 
     # Mock the _process_ng_state_seed_id function to track if it's called
     mock_process = mocker.patch(
-        "zetta_utils.task_management.task._process_ng_state_seed_id",
-        autospec=True
+        "zetta_utils.task_management.task._process_ng_state_seed_id", autospec=True
     )
 
     # Call get_task with process_ng_state=True (should still call the function but no processing)
@@ -2023,3 +2018,127 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
     assert result_false["task_id"] == "regular_task_1"
     assert result_true["ng_state"] == result_false["ng_state"]
     assert result_true["ng_state_initial"] == result_false["ng_state_initial"]
+
+
+# Test add_segment_type_and_instructions function
+
+
+def test_add_segment_type_and_instructions_no_segment_seed_id(db_session):
+    """Test function returns unchanged dict when task has no segment_seed_id"""
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        # No segment_seed_id field
+    }
+
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
+    assert result == task_dict  # Should be unchanged
+
+
+def test_add_segment_type_and_instructions_segment_not_found(db_session):
+    """Test function when segment is not found"""
+    task_dict = {
+        "task_id": "task_123",
+        "completion_status": "pending",
+        "segment_seed_id": 999999,  # Non-existent segment
+    }
+
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
+    assert result == task_dict  # Should be unchanged
+
+
+def test_add_segment_type_and_instructions_with_segment_type(
+    clean_db, db_session, project_factory, segment_factory, segment_type_factory
+):
+    """Test adds segment type and instructions when segment and type exist"""
+
+    # Create project
+    project_factory(project_name="test_project")
+
+    # Create segment type with instructions
+    segment_type = segment_type_factory(
+        type_name="neuron",
+        project_name="test_project",
+        instruction="Trace the neuron carefully",
+        instruction_link="https://example.com/neuron-instructions",
+    )
+    db_session.add(segment_type)
+
+    # Create segment
+    segment = segment_factory(
+        project_name="test_project", seed_id=12345, expected_segment_type="neuron"
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
+
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
+
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "neuron"
+    assert result["instruction"] == "Trace the neuron carefully"
+    assert result["instruction_link"] == "https://example.com/neuron-instructions"
+
+
+def test_add_segment_type_and_instructions_no_segment_type(
+    clean_db, db_session, project_factory, segment_factory
+):
+    """Test function when segment exists but segment type doesn't exist"""
+
+    # Create project
+    project_factory(project_name="test_project")
+
+    # Create segment without corresponding segment type
+    segment = segment_factory(
+        project_name="test_project", seed_id=12345, expected_segment_type="nonexistent_type"
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
+
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
+
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "nonexistent_type"
+    # Should not have instruction fields since segment type doesn't exist
+    assert "instruction" not in result
+    assert "instruction_link" not in result
+
+
+def test_add_segment_type_and_instructions_segment_type_no_instructions(
+    clean_db, db_session, project_factory, segment_factory, segment_type_factory
+):
+    """Test function when segment type exists but has no instructions"""
+
+    # Create project
+    project_factory(project_name="test_project")
+
+    # Create segment type without instructions
+    segment_type = segment_type_factory(
+        type_name="glia", project_name="test_project", instruction=None, instruction_link=None
+    )
+    db_session.add(segment_type)
+
+    # Create segment
+    segment = segment_factory(
+        project_name="test_project", seed_id=12345, expected_segment_type="glia"
+    )
+    db_session.add(segment)
+    db_session.commit()
+
+    task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
+
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
+
+    assert result["task_id"] == "task_123"
+    assert result["completion_status"] == "pending"
+    assert result["segment_seed_id"] == 12345
+    assert result["segment_type"] == "glia"
+    assert result["instruction"] is None
+    assert result["instruction_link"] is None

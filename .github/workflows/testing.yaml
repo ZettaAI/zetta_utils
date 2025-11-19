@@ -46,20 +46,14 @@ jobs:
         with:
           files: |
             **/*.py
-
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-go@v4
@@ -131,19 +125,14 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-go@v4
@@ -211,19 +200,14 @@ jobs:
         with:
           files: |
             **/*.py
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Setup Go
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: actions/setup-go@v4
@@ -293,19 +277,14 @@ jobs:
         with:
           files: |
             **/*.rst
-      - name: Setup Python
-        if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: x64
-          cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
+          miniforge-version: latest
+          channels: conda-forge
+          conda-remove-defaults: "true"
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run: sudo apt install libboost-dev

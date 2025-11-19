@@ -1,11 +1,14 @@
 # pylint: disable=redefined-outer-name,unused-argument
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.db.models import Base
+from zetta_utils.task_management.db.models import Base, SegmentModel, SegmentTypeModel
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
@@ -110,6 +113,7 @@ def sample_user() -> User:
         "hourly_rate": 50.0,
         "active_task": "",
         "qualified_task_types": ["segmentation_proofread"],
+        "qualified_segment_types": ["axon", "dendrite"],
     }
 
 
@@ -156,7 +160,28 @@ def sample_tasks() -> list[Task]:
 
 @pytest.fixture
 def existing_tasks(clean_db, db_session, project_name, sample_tasks, existing_task_type):
-    for task in sample_tasks:
+    # Ensure each task has an associated segment with matching expected_segment_type
+    now = datetime.now(timezone.utc)
+    for idx, task in enumerate(sample_tasks, start=1):
+        seed_id = idx  # deterministic seed IDs for sample tasks
+        segment = SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id,
+            seed_x=100.0 + idx,
+            seed_y=200.0 + idx,
+            seed_z=300.0 + idx,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=now,
+            updated_at=now,
+            expected_segment_type="axon",
+        )
+        db_session.add(segment)
+
+        # Attach seed_id to task extra_data for selection joins
+        task["extra_data"] = {"seed_id": seed_id}
+
         create_task(project_name=project_name, data=task, db_session=db_session)
     yield sample_tasks
 
@@ -176,13 +201,50 @@ def sample_task(existing_task_type) -> Task:
         "task_type": existing_task_type["task_type"],
         "is_active": True,
         "last_leased_ts": 0.0,
+        "extra_data": {"seed_id": 12345},
     }
 
 
 @pytest.fixture
 def existing_task(clean_db, db_session, project_name, existing_task_type, sample_task):
+    # Create a matching segment for the sample task
+    now = datetime.now(timezone.utc)
+    segment = SegmentModel(
+        project_name=project_name,
+        seed_id=12345,
+        seed_x=100.0,
+        seed_y=200.0,
+        seed_z=300.0,
+        task_ids=[],
+        status="Raw",
+        is_exported=False,
+        created_at=now,
+        updated_at=now,
+        expected_segment_type="axon",
+    )
+    db_session.add(segment)
     create_task(project_name=project_name, data=sample_task, db_session=db_session)
     yield sample_task
+
+
+@pytest.fixture
+def project_factory(db_session):
+    """Factory fixture to create projects with custom configurations"""
+
+    def _create_project(project_name: str, **kwargs):
+        project_config = {
+            "project_name": project_name,
+            "segmentation_path": f"gs://test/segmentation/{project_name}",
+            "sv_resolution_x": 4.0,
+            "sv_resolution_y": 4.0,
+            "sv_resolution_z": 42.0,
+            "description": f"Test project: {project_name}",
+            **kwargs
+        }
+        create_project(db_session=db_session, **project_config)
+        return project_name
+
+    return _create_project
 
 
 @pytest.fixture
@@ -204,10 +266,78 @@ def task_factory(db_session, project_name, existing_task_type):
                 "task_type": existing_task_type["task_type"],
                 "is_active": True,
                 "last_leased_ts": 0.0,
+                # Default extra_data with a deterministic seed_id
+                "extra_data": {"seed_id": abs(hash(task_id)) % 10_000_000 + 1},
                 **kwargs,  # type: ignore
             }
         )
+        # Ensure a corresponding segment exists for auto-selection
+        now = datetime.now(timezone.utc)
+        seed_id = task_data["extra_data"]["seed_id"]  # type: ignore[index]
+        segment = SegmentModel(
+            project_name=project_name,
+            seed_id=seed_id,
+            seed_x=100.0,
+            seed_y=200.0,
+            seed_z=300.0,
+            task_ids=[],
+            status="Raw",
+            is_exported=False,
+            created_at=now,
+            updated_at=now,
+            expected_segment_type="axon",
+        )
+        db_session.add(segment)
         create_task(project_name=project_name, data=task_data, db_session=db_session)
         return task_data
 
     return _create_task
+
+
+@pytest.fixture
+def segment_factory(db_session):
+    """Factory fixture to create segments with custom configurations"""
+
+    def _create_segment(project_name: str, seed_id: int, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_config = {
+            "project_name": project_name,
+            "seed_id": seed_id,
+            "seed_x": 100.0,
+            "seed_y": 200.0,
+            "seed_z": 300.0,
+            "task_ids": [],
+            "status": "Raw",
+            "is_exported": False,
+            "created_at": now,
+            "updated_at": now,
+            "expected_segment_type": "axon",
+            **kwargs
+        }
+        segment = SegmentModel(**segment_config)
+        return segment
+
+    return _create_segment
+
+
+@pytest.fixture
+def segment_type_factory(db_session):
+    """Factory fixture to create segment types with custom configurations"""
+
+    def _create_segment_type(type_name: str, project_name: str, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_type_config = {
+            "type_name": type_name,
+            "project_name": project_name,
+            "sample_segment_ids": [],
+            "description": f"Test segment type: {type_name}",
+            "created_at": now,
+            "updated_at": now,
+            "instruction": None,
+            "instruction_link": None,
+            **kwargs
+        }
+        segment_type = SegmentTypeModel(**segment_type_config)
+        return segment_type
+
+    return _create_segment_type

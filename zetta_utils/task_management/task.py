@@ -1,9 +1,9 @@
-# pylint: disable=singleton-comparison
+# pylint: disable=singleton-comparison,too-many-lines
 import time
 from datetime import datetime, timezone
 from typing import Any, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import BigInteger, func, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 from typeguard import typechecked
@@ -11,7 +11,14 @@ from typeguard import typechecked
 from zetta_utils import log
 from zetta_utils.task_management.utils import generate_id_nonunique
 
-from .db.models import DependencyModel, TaskModel, TaskTypeModel, UserModel
+from .db.models import (
+    DependencyModel,
+    SegmentModel,
+    SegmentTypeModel,
+    TaskModel,
+    TaskTypeModel,
+    UserModel,
+)
 from .db.session import get_session_context
 from .exceptions import TaskValidationError, UserValidationError
 from .ng_state.segment import get_segment_ng_state
@@ -152,7 +159,7 @@ def update_task(
 
 
 @typechecked
-def start_task(  # pylint: disable=too-many-branches
+def start_task(  # pylint: disable=too-many-branches disable=too-many-statements
     *,
     project_name: str,
     user_id: str,
@@ -212,6 +219,24 @@ def start_task(  # pylint: disable=too-many-branches
                 and task_data["task_type"] not in user.qualified_task_types
             ):
                 raise UserValidationError("User not qualified for this task type")
+
+            # Check if user is qualified for this segment type
+            if user.qualified_segment_types is not None and len(user.qualified_segment_types) == 0:
+                raise UserValidationError("User not qualified for this segment type")
+            if user.qualified_segment_types and task_data.get("extra_data"):
+                extra_data = task_data["extra_data"]
+                if "seed_id" in extra_data:
+                    seed_id = extra_data["seed_id"]
+                    # Get segment from database to check expected_segment_type
+                    segment_query = (
+                        select(SegmentModel)
+                        .where(SegmentModel.project_name == project_name)
+                        .where(SegmentModel.seed_id == seed_id)
+                    )
+                    segment = session.execute(segment_query).scalar_one_or_none()
+                    if segment and segment.expected_segment_type:
+                        if segment.expected_segment_type not in user.qualified_segment_types:
+                            raise UserValidationError("User not qualified for this segment type")
 
             current_time = time.time()
             # Check if task is idle and can be taken over
@@ -481,19 +506,35 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
         logger.info(f"User {user_id} has no qualified task types")
         return None
 
+    qualified_segment_types = user.qualified_segment_types or []
+    if not qualified_segment_types:
+        logger.info(f"User {user_id} has no qualified segment types")
+        return None
+
     logger.info(f"User {user_id} is qualified for: {qualified_types}")
+    logger.info(f"User {user_id} is qualified for segment types: {qualified_segment_types}")
 
     # Strategy 1: Look for tasks explicitly assigned to this user
     logger.info(f"Looking for assigned tasks for user {user_id}")
     query = (
         select(TaskModel)
+        .join(
+            SegmentModel,
+            func.cast(
+                TaskModel.extra_data.op("->>")("seed_id"),
+                BigInteger,
+            )
+            == SegmentModel.seed_id,
+        )
         .where(TaskModel.project_name == project_name)
+        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.assigned_user_id == user_id)
         .where(TaskModel.active_user_id == "")  # Not currently active
+        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
         .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
         .limit(1)
         .with_for_update(skip_locked=True)
@@ -507,12 +548,22 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info("Looking for available tasks")
     query = (
         select(TaskModel)
+        .join(
+            SegmentModel,
+            func.cast(
+                TaskModel.extra_data.op("->>")("seed_id"),
+                BigInteger,
+            )
+            == SegmentModel.seed_id,
+        )
         .where(TaskModel.project_name == project_name)
+        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.active_user_id == "")  # Not currently active
+        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
         .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
         .limit(1)
         .with_for_update(skip_locked=True)
@@ -527,12 +578,22 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info("Looking for idle tasks")
     query = (
         select(TaskModel)
+        .join(
+            SegmentModel,
+            func.cast(
+                TaskModel.extra_data.op("->>")("seed_id"),
+                BigInteger,
+            )
+            == SegmentModel.seed_id,
+        )
         .where(TaskModel.project_name == project_name)
+        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.last_leased_ts < oldest_allowed_ts)
+        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
         .order_by(TaskModel.priority.desc(), TaskModel.last_leased_ts.desc())
         .limit(1)
         .with_for_update(skip_locked=True)  # Skip if another transaction has it locked
@@ -552,11 +613,11 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
 
 
 def get_task(
-        *,
-        project_name: str,
-        task_id: str,
-        process_ng_state: bool = True,
-        db_session: Session | None = None
+    *,
+    project_name: str,
+    task_id: str,
+    process_ng_state: bool = True,
+    db_session: Session | None = None,
 ) -> Task:
     """
     Retrieve a task record from the database.
@@ -872,10 +933,10 @@ def _atomic_task_takeover(
 def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskModel) -> None:
     """
     Process ng_state and ng_state_initial seed_id formats and update the database.
-    
-    Detects patterns like {"seed_id": 74732294451380972} in ng_state and ng_state_initial 
+
+    Detects patterns like {"seed_id": 74732294451380972} in ng_state and ng_state_initial
     and constructs the corresponding neuroglancer state, then updates the database.
-    
+
     :param session: Database session
     :param project_name: The name of the project
     :param task: The task model
@@ -896,7 +957,7 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
                     include_uncertain_ends=True,
                     include_breadcrumbs=True,
                     include_segment_type_layers=True,
-                    db_session=session
+                    db_session=session,
                 )
                 # Update the database
                 task.ng_state = generated_ng_state
@@ -912,3 +973,38 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
                     f"in task {task.task_id}: {e}"
                 )
                 session.rollback()
+
+
+@typechecked
+def add_segment_type_and_instructions(task_dict: dict, project_name: str, db_session: Session | None = None) -> dict: # pylint: disable=line-too-long
+    """
+    Add segment type and instructions to task dictionary if task has a segment_seed_id.
+
+    :param task_dict: The task dictionary to enhance
+    :param project_name: The project name
+    :param db_session: Optional database session to use
+    :return: The enhanced task dictionary with segment type and instructions
+    """
+    if not task_dict.get("segment_seed_id"):
+        return task_dict
+
+    seed_id = task_dict["segment_seed_id"]
+    with get_session_context(db_session) as session:
+        segment_query = select(SegmentModel).where(
+            SegmentModel.project_name == project_name, SegmentModel.seed_id == seed_id
+        )
+        segment = session.execute(segment_query).scalar_one_or_none()
+        if segment:
+            task_dict["segment_type"] = segment.expected_segment_type
+            # Fetch instructions from segment type
+            if segment.expected_segment_type:
+                segment_type_query = select(SegmentTypeModel).where(
+                    SegmentTypeModel.project_name == project_name,
+                    SegmentTypeModel.type_name == segment.expected_segment_type,
+                )
+                segment_type = session.execute(segment_type_query).scalar_one_or_none()
+                if segment_type:
+                    task_dict["instruction"] = segment_type.instruction
+                    task_dict["instruction_link"] = segment_type.instruction_link
+
+    return task_dict

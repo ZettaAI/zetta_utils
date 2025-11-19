@@ -10,6 +10,7 @@ from google.auth.transport import requests
 # from google.iam.v1 import iam_policy_pb2
 from google.oauth2 import id_token
 
+from .alignment import api as alignment_api
 from .annotations import api as annotations_api
 from .collections import api as collections_api
 from .layer_groups import api as layer_groups_api
@@ -28,6 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/alignment", alignment_api)
 app.mount("/annotations", annotations_api)
 app.mount("/collections", collections_api)
 app.mount("/layer_groups", layer_groups_api)

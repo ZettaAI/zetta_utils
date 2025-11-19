@@ -18,7 +18,7 @@ import numpy as np
 import scipy
 from caveclient import CAVEclient, chunkedgraph
 from cloudvolume import CloudVolume
-from google.cloud import storage
+from google.cloud import storage  # type: ignore[attr-defined]
 
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.geometry.mask_center import interior_point

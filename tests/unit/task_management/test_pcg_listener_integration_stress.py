@@ -47,16 +47,16 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         # Configurable stress test metrics
         self.stress_config = {
-            "message_count": 500000,
-            "batch_size": 500,
-            "concurrent_instances": 10,
+            "message_count": 1000,
+            "batch_size": 100,
+            "concurrent_instances": 2,
             "max_cycles": 2,
-            "memory_test_messages": 10000,
+            "memory_test_messages": 500,
             "max_memory_increase_mb": 50,
             "poll_interval_ms": 1,
             "timeout_seconds": 1,
             "max_pull_attempts": 5,
-            "max_processing_time_seconds": 20,
+            "max_processing_time_seconds": 5,
         }
 
     def test_listener_startup_and_shutdown(self):

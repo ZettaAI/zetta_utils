@@ -976,19 +976,20 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
 
 
 @typechecked
-def add_segment_type_and_instructions(task_dict: dict, project_name: str) -> dict:
+def add_segment_type_and_instructions(task_dict: dict, project_name: str, db_session: Session | None = None) -> dict: # pylint: disable=line-too-long
     """
     Add segment type and instructions to task dictionary if task has a segment_seed_id.
 
     :param task_dict: The task dictionary to enhance
     :param project_name: The project name
+    :param db_session: Optional database session to use
     :return: The enhanced task dictionary with segment type and instructions
     """
     if not task_dict.get("segment_seed_id"):
         return task_dict
 
     seed_id = task_dict["segment_seed_id"]
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         segment_query = select(SegmentModel).where(
             SegmentModel.project_name == project_name, SegmentModel.seed_id == seed_id
         )

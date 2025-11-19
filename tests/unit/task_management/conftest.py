@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.db.models import Base, SegmentModel
+from zetta_utils.task_management.db.models import Base, SegmentModel, SegmentTypeModel
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
 from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import create_task
@@ -292,3 +292,52 @@ def task_factory(db_session, project_name, existing_task_type):
         return task_data
 
     return _create_task
+
+
+@pytest.fixture
+def segment_factory(db_session):
+    """Factory fixture to create segments with custom configurations"""
+
+    def _create_segment(project_name: str, seed_id: int, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_config = {
+            "project_name": project_name,
+            "seed_id": seed_id,
+            "seed_x": 100.0,
+            "seed_y": 200.0,
+            "seed_z": 300.0,
+            "task_ids": [],
+            "status": "Raw",
+            "is_exported": False,
+            "created_at": now,
+            "updated_at": now,
+            "expected_segment_type": "axon",
+            **kwargs
+        }
+        segment = SegmentModel(**segment_config)
+        return segment
+
+    return _create_segment
+
+
+@pytest.fixture
+def segment_type_factory(db_session):
+    """Factory fixture to create segment types with custom configurations"""
+
+    def _create_segment_type(type_name: str, project_name: str, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_type_config = {
+            "type_name": type_name,
+            "project_name": project_name,
+            "sample_segment_ids": [],
+            "description": f"Test segment type: {type_name}",
+            "created_at": now,
+            "updated_at": now,
+            "instruction": None,
+            "instruction_link": None,
+            **kwargs
+        }
+        segment_type = SegmentTypeModel(**segment_type_config)
+        return segment_type
+
+    return _create_segment_type

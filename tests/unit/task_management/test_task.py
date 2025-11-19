@@ -2023,7 +2023,7 @@ def test_get_task_process_ng_state_flag_with_regular_ng_state(
 # Test add_segment_type_and_instructions function
 
 
-def test_add_segment_type_and_instructions_no_segment_seed_id():
+def test_add_segment_type_and_instructions_no_segment_seed_id(db_session):
     """Test function returns unchanged dict when task has no segment_seed_id"""
     task_dict = {
         "task_id": "task_123",
@@ -2031,7 +2031,7 @@ def test_add_segment_type_and_instructions_no_segment_seed_id():
         # No segment_seed_id field
     }
 
-    result = add_segment_type_and_instructions(task_dict, "test_project")
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
     assert result == task_dict  # Should be unchanged
 
 
@@ -2043,19 +2043,17 @@ def test_add_segment_type_and_instructions_segment_not_found(db_session):
         "segment_seed_id": 999999,  # Non-existent segment
     }
 
-    result = add_segment_type_and_instructions(task_dict, "test_project")
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
     assert result == task_dict  # Should be unchanged
 
 
 def test_add_segment_type_and_instructions_with_segment_type(
-    db_session, project_factory, segment_factory, segment_type_factory
+    clean_db, db_session, project_factory, segment_factory, segment_type_factory
 ):
     """Test adds segment type and instructions when segment and type exist"""
 
     # Create project
-    project = project_factory(project_name="test_project")
-    db_session.add(project)
-    db_session.commit()
+    project_factory(project_name="test_project")
 
     # Create segment type with instructions
     segment_type = segment_type_factory(
@@ -2075,7 +2073,7 @@ def test_add_segment_type_and_instructions_with_segment_type(
 
     task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
 
-    result = add_segment_type_and_instructions(task_dict, "test_project")
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
 
     assert result["task_id"] == "task_123"
     assert result["completion_status"] == "pending"
@@ -2086,14 +2084,12 @@ def test_add_segment_type_and_instructions_with_segment_type(
 
 
 def test_add_segment_type_and_instructions_no_segment_type(
-    db_session, project_factory, segment_factory
+    clean_db, db_session, project_factory, segment_factory
 ):
     """Test function when segment exists but segment type doesn't exist"""
 
     # Create project
-    project = project_factory(project_name="test_project")
-    db_session.add(project)
-    db_session.commit()
+    project_factory(project_name="test_project")
 
     # Create segment without corresponding segment type
     segment = segment_factory(
@@ -2104,7 +2100,7 @@ def test_add_segment_type_and_instructions_no_segment_type(
 
     task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
 
-    result = add_segment_type_and_instructions(task_dict, "test_project")
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
 
     assert result["task_id"] == "task_123"
     assert result["completion_status"] == "pending"
@@ -2116,14 +2112,12 @@ def test_add_segment_type_and_instructions_no_segment_type(
 
 
 def test_add_segment_type_and_instructions_segment_type_no_instructions(
-    db_session, project_factory, segment_factory, segment_type_factory
+    clean_db, db_session, project_factory, segment_factory, segment_type_factory
 ):
     """Test function when segment type exists but has no instructions"""
 
     # Create project
-    project = project_factory(project_name="test_project")
-    db_session.add(project)
-    db_session.commit()
+    project_factory(project_name="test_project")
 
     # Create segment type without instructions
     segment_type = segment_type_factory(
@@ -2140,7 +2134,7 @@ def test_add_segment_type_and_instructions_segment_type_no_instructions(
 
     task_dict = {"task_id": "task_123", "completion_status": "pending", "segment_seed_id": 12345}
 
-    result = add_segment_type_and_instructions(task_dict, "test_project")
+    result = add_segment_type_and_instructions(task_dict, "test_project", db_session)
 
     assert result["task_id"] == "task_123"
     assert result["completion_status"] == "pending"

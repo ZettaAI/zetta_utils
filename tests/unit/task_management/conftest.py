@@ -6,8 +6,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 from testcontainers.postgres import PostgresContainer
 
-from zetta_utils.task_management.db.models import Base, SegmentModel
+from zetta_utils.task_management.db.models import Base, SegmentModel, SegmentTypeModel
 from zetta_utils.task_management.db.session import create_tables, get_session_factory
+from zetta_utils.task_management.project import create_project
 from zetta_utils.task_management.task import create_task
 from zetta_utils.task_management.task_type import create_task_type
 from zetta_utils.task_management.types import Task, TaskType, User
@@ -227,6 +228,26 @@ def existing_task(clean_db, db_session, project_name, existing_task_type, sample
 
 
 @pytest.fixture
+def project_factory(db_session):
+    """Factory fixture to create projects with custom configurations"""
+
+    def _create_project(project_name: str, **kwargs):
+        project_config = {
+            "project_name": project_name,
+            "segmentation_path": f"gs://test/segmentation/{project_name}",
+            "sv_resolution_x": 4.0,
+            "sv_resolution_y": 4.0,
+            "sv_resolution_z": 42.0,
+            "description": f"Test project: {project_name}",
+            **kwargs
+        }
+        create_project(db_session=db_session, **project_config)
+        return project_name
+
+    return _create_project
+
+
+@pytest.fixture
 def task_factory(db_session, project_name, existing_task_type):
     """Factory fixture to create tasks with custom IDs"""
 
@@ -271,3 +292,52 @@ def task_factory(db_session, project_name, existing_task_type):
         return task_data
 
     return _create_task
+
+
+@pytest.fixture
+def segment_factory(db_session):
+    """Factory fixture to create segments with custom configurations"""
+
+    def _create_segment(project_name: str, seed_id: int, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_config = {
+            "project_name": project_name,
+            "seed_id": seed_id,
+            "seed_x": 100.0,
+            "seed_y": 200.0,
+            "seed_z": 300.0,
+            "task_ids": [],
+            "status": "Raw",
+            "is_exported": False,
+            "created_at": now,
+            "updated_at": now,
+            "expected_segment_type": "axon",
+            **kwargs
+        }
+        segment = SegmentModel(**segment_config)
+        return segment
+
+    return _create_segment
+
+
+@pytest.fixture
+def segment_type_factory(db_session):
+    """Factory fixture to create segment types with custom configurations"""
+
+    def _create_segment_type(type_name: str, project_name: str, **kwargs):
+        now = datetime.now(timezone.utc)
+        segment_type_config = {
+            "type_name": type_name,
+            "project_name": project_name,
+            "sample_segment_ids": [],
+            "description": f"Test segment type: {type_name}",
+            "created_at": now,
+            "updated_at": now,
+            "instruction": None,
+            "instruction_link": None,
+            **kwargs
+        }
+        segment_type = SegmentTypeModel(**segment_type_config)
+        return segment_type
+
+    return _create_segment_type

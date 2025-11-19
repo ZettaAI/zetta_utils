@@ -15,7 +15,7 @@ from math import floor
 from typing import Dict, List, Tuple
 
 import psycopg2
-from google.cloud import storage
+from google.cloud import storage  # type: ignore[attr-defined]
 from sqlalchemy import create_engine, inspect
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL

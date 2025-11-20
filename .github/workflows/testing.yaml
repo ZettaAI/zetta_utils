@@ -56,7 +56,7 @@ jobs:
           cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
@@ -140,7 +140,7 @@ jobs:
           cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
@@ -220,7 +220,7 @@ jobs:
           cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}
@@ -302,7 +302,7 @@ jobs:
           cache: 'pip'
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           python-version: ${{ matrix.python-version }}

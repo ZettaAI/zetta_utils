@@ -1,4 +1,4 @@
-# pylint: disable=singleton-comparison
+# pylint: disable=singleton-comparison,too-many-lines
 import time
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -14,6 +14,7 @@ from zetta_utils.task_management.utils import generate_id_nonunique
 from .db.models import (
     DependencyModel,
     SegmentModel,
+    SegmentTypeModel,
     TaskModel,
     TaskTypeModel,
     UserModel,
@@ -520,7 +521,7 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
         .join(
             SegmentModel,
             func.cast(
-                TaskModel.extra_data.op('->>')('seed_id'),
+                TaskModel.extra_data.op("->>")("seed_id"),
                 BigInteger,
             )
             == SegmentModel.seed_id,
@@ -550,7 +551,7 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
         .join(
             SegmentModel,
             func.cast(
-                TaskModel.extra_data.op('->>')('seed_id'),
+                TaskModel.extra_data.op("->>")("seed_id"),
                 BigInteger,
             )
             == SegmentModel.seed_id,
@@ -580,7 +581,7 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
         .join(
             SegmentModel,
             func.cast(
-                TaskModel.extra_data.op('->>')('seed_id'),
+                TaskModel.extra_data.op("->>")("seed_id"),
                 BigInteger,
             )
             == SegmentModel.seed_id,
@@ -612,11 +613,11 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
 
 
 def get_task(
-        *,
-        project_name: str,
-        task_id: str,
-        process_ng_state: bool = True,
-        db_session: Session | None = None
+    *,
+    project_name: str,
+    task_id: str,
+    process_ng_state: bool = True,
+    db_session: Session | None = None,
 ) -> Task:
     """
     Retrieve a task record from the database.
@@ -932,10 +933,10 @@ def _atomic_task_takeover(
 def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskModel) -> None:
     """
     Process ng_state and ng_state_initial seed_id formats and update the database.
-    
-    Detects patterns like {"seed_id": 74732294451380972} in ng_state and ng_state_initial 
+
+    Detects patterns like {"seed_id": 74732294451380972} in ng_state and ng_state_initial
     and constructs the corresponding neuroglancer state, then updates the database.
-    
+
     :param session: Database session
     :param project_name: The name of the project
     :param task: The task model
@@ -956,7 +957,7 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
                     include_uncertain_ends=True,
                     include_breadcrumbs=True,
                     include_segment_type_layers=True,
-                    db_session=session
+                    db_session=session,
                 )
                 # Update the database
                 task.ng_state = generated_ng_state
@@ -975,22 +976,22 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
 
 
 @typechecked
-def add_segment_type_and_instructions(task_dict: dict, project_name: str) -> dict:
+def add_segment_type_and_instructions(task_dict: dict, project_name: str, db_session: Session | None = None) -> dict: # pylint: disable=line-too-long
     """
     Add segment type and instructions to task dictionary if task has a segment_seed_id.
-    
+
     :param task_dict: The task dictionary to enhance
     :param project_name: The project name
+    :param db_session: Optional database session to use
     :return: The enhanced task dictionary with segment type and instructions
     """
     if not task_dict.get("segment_seed_id"):
         return task_dict
-    
+
     seed_id = task_dict["segment_seed_id"]
-    with get_session_context() as session:
+    with get_session_context(db_session) as session:
         segment_query = select(SegmentModel).where(
-            SegmentModel.project_name == project_name,
-            SegmentModel.seed_id == seed_id
+            SegmentModel.project_name == project_name, SegmentModel.seed_id == seed_id
         )
         segment = session.execute(segment_query).scalar_one_or_none()
         if segment:
@@ -999,11 +1000,11 @@ def add_segment_type_and_instructions(task_dict: dict, project_name: str) -> dic
             if segment.expected_segment_type:
                 segment_type_query = select(SegmentTypeModel).where(
                     SegmentTypeModel.project_name == project_name,
-                    SegmentTypeModel.type_name == segment.expected_segment_type
+                    SegmentTypeModel.type_name == segment.expected_segment_type,
                 )
                 segment_type = session.execute(segment_type_query).scalar_one_or_none()
                 if segment_type:
                     task_dict["instruction"] = segment_type.instruction
                     task_dict["instruction_link"] = segment_type.instruction_link
-    
+
     return task_dict

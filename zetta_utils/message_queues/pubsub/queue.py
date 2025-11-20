@@ -1,3 +1,4 @@
+# mypy: disable-error-code=attr-defined
 """Google Cloud Pub/Sub message queue implementation."""
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ import pickle
 from typing import Any, TypeVar
 
 import attrs
-from google.cloud import pubsub_v1  # type: ignore[attr-defined]
+from google.cloud import pubsub_v1
 from typeguard import typechecked
 
 from zetta_utils import builder

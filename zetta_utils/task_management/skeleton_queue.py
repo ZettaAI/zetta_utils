@@ -251,8 +251,8 @@ def mark_update_failed(
             else:
                 queue_entry.status = "pending"  # Retry
                 logger.info(
-                    f"Skeleton update for seed {seed_id} failed (attempt {queue_entry.retry_count}), "
-                    f"will retry: {error_message}"
+                    f"Skeleton update for seed {seed_id} failed "
+                    f"(attempt {queue_entry.retry_count}), will retry: {error_message}"
                 )
 
             session.commit()
@@ -327,4 +327,3 @@ def cleanup_completed_updates(
         session.commit()
         logger.info(f"Cleaned up {deleted_count} completed skeleton update entries")
         return deleted_count
-

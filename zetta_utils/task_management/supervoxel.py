@@ -55,7 +55,7 @@ def update_supervoxels_for_merge(  # pylint: disable=R0917
         )
         result = session.execute(stmt)
 
-        print(f"After update supervoxels")
+        print("After update supervoxels")
 
         event = SegmentEditEventModel(
             project_name=project_name,
@@ -69,7 +69,7 @@ def update_supervoxels_for_merge(  # pylint: disable=R0917
         session.add(event)
         session.commit()
 
-        print(f"After add event")
+        print("After add event")
 
         return result.rowcount
 

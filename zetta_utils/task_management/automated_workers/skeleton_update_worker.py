@@ -5,9 +5,7 @@ Background worker that processes skeleton length updates from the queue.
 Calls Cave API to get updated skeleton lengths after PCG edits.
 """
 
-import logging
 import time
-from typing import Optional
 
 import click
 
@@ -53,7 +51,9 @@ def process_skeleton_update(
         )
 
         if "error" in result:
-            logger.error(f"Failed to update segment statistics for seed {seed_id}: {result['error']}")
+            logger.error(
+                f"Failed to update segment statistics for seed {seed_id}: {result['error']}"
+            )
             return False
 
         if "skeleton_path_length_mm" in result:
@@ -247,4 +247,3 @@ def main(
 
 if __name__ == "__main__":
     main()  # pylint: disable=no-value-for-parameter
-

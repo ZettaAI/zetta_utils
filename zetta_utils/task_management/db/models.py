@@ -1060,7 +1060,9 @@ class SkeletonUpdateQueueModel(Base):
         Index("idx_skeleton_queue_status", "status"),
         Index("idx_skeleton_queue_created", "created_at"),
         Index("idx_skeleton_queue_last_attempt", "last_attempt"),
-        Index("idx_skeleton_queue_pending", "project_name", "status", "created_at"),
+        Index(
+            "idx_skeleton_queue_pending", "project_name", "status", "created_at"
+        ),
     )
 
     def to_dict(self) -> dict:

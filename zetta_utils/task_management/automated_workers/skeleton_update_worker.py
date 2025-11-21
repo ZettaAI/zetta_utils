@@ -71,7 +71,7 @@ def process_skeleton_update(
         return False
 
 
-def run_skeleton_update_worker(
+def run_skeleton_update_worker( # pylint: disable=too-many-branches
     project_name: str,
     user_id: str = "skeleton_update_worker",
     polling_period: float = 10.0,
@@ -101,7 +101,7 @@ def run_skeleton_update_worker(
     last_cleanup = time.time()
     cleanup_interval_sec = cleanup_interval_hours * 3600
 
-    try:
+    try: # pylint: disable=too-many-nested-blocks
         while True:
             try:
                 # Get next pending update

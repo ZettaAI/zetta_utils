@@ -1087,7 +1087,10 @@ class SkeletonUpdateQueueModel(Base):
             current_segment_id=data.get("current_segment_id"),
             status=data.get("status", "pending"),
             created_at=_parse_datetime(data.get("created_at", datetime.now())),
-            last_attempt=_parse_datetime(data["last_attempt"]) if data.get("last_attempt") else None,
+            last_attempt=(
+                _parse_datetime(data["last_attempt"])
+                if data.get("last_attempt") else None
+            ),
             retry_count=data.get("retry_count", 0),
             error_message=data.get("error_message"),
         )

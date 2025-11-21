@@ -18,7 +18,9 @@ from caveclient import CAVEclient
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
 from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.skeleton_queue import queue_skeleton_updates_for_segments
+from zetta_utils.task_management.skeleton_queue import (
+    queue_skeleton_updates_for_segments,
+)
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
     update_supervoxels_for_merge,
@@ -387,7 +389,7 @@ def process_merge_event(
             logger.info(
                 f"Updated {count} supervoxels for merge: {old_roots} -> {new_root_id}"
             )
-            
+
             # Queue skeleton updates for affected segments
             try:
                 all_affected_segments = old_roots + [new_root_id]
@@ -528,7 +530,7 @@ def process_split_event(  # pylint: disable=unused-argument
             f"Completed split processing for root {old_root_id}: "
             f"updated {updated_count} supervoxels across {len(new_root_ids)} new roots"
         )
-        
+
         # Queue skeleton updates for affected segments
         try:
             all_affected_segments = [old_root_id] + new_root_ids

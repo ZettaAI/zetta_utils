@@ -43,7 +43,7 @@ def process_skeleton_update(
     """
     try:
         logger.info(f"Processing skeleton update for seed {seed_id}")
-        
+
         # Update segment statistics including skeleton length
         # This function gets the current segment ID and calls Cave API
         result = update_segment_info(
@@ -51,11 +51,11 @@ def process_skeleton_update(
             seed_id=seed_id,
             server_address=server_address
         )
-        
+
         if "error" in result:
             logger.error(f"Failed to update segment statistics for seed {seed_id}: {result['error']}")
             return False
-            
+
         if "skeleton_path_length_mm" in result:
             logger.info(
                 f"Updated skeleton length for seed {seed_id}: "
@@ -63,9 +63,9 @@ def process_skeleton_update(
             )
         else:
             logger.info(f"Completed update for seed {seed_id} (no skeleton length returned)")
-            
+
         return True
-        
+
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing skeleton update for seed {seed_id}: {e}")
         return False
@@ -96,38 +96,38 @@ def run_skeleton_update_worker(
         f"Starting skeleton update worker for project '{project_name}' "
         f"with user '{user_id}' (polling every {polling_period}s)"
     )
-    
+
     processed_count = 0
     last_cleanup = time.time()
     cleanup_interval_sec = cleanup_interval_hours * 3600
-    
+
     try:
         while True:
             try:
                 # Get next pending update
                 update_entry = get_next_pending_update(project_name=project_name)
-                
+
                 if update_entry:
                     seed_id = update_entry["seed_id"]
                     processed_count += 1
-                    
+
                     logger.info(
                         f"Processing update #{processed_count}: seed {seed_id} "
                         f"(retry {update_entry['retry_count']})"
                     )
-                    
+
                     # Mark as processing
                     if not mark_update_processing(project_name=project_name, seed_id=seed_id):
                         logger.warning(f"Could not mark seed {seed_id} as processing")
                         continue
-                        
+
                     # Process the update
                     success = process_skeleton_update(
                         project_name=project_name,
                         seed_id=seed_id,
                         server_address=server_address
                     )
-                    
+
                     if success:
                         # Mark as completed
                         mark_update_completed(project_name=project_name, seed_id=seed_id)
@@ -141,7 +141,7 @@ def run_skeleton_update_worker(
                             error_message=error_msg,
                             max_retries=max_retries
                         )
-                        
+
                         # Add exponential backoff delay for retries
                         retry_count = update_entry["retry_count"]
                         if retry_count < max_retries:
@@ -149,11 +149,11 @@ def run_skeleton_update_worker(
                             backoff_delay = min(2 ** retry_count, 300)
                             logger.info(f"Waiting {backoff_delay}s before next attempt")
                             time.sleep(backoff_delay)
-                
+
                 else:
                     # No pending updates, wait before checking again
                     time.sleep(polling_period)
-                
+
                 # Periodic cleanup of completed entries
                 current_time = time.time()
                 if current_time - last_cleanup > cleanup_interval_sec:
@@ -167,7 +167,7 @@ def run_skeleton_update_worker(
                         last_cleanup = current_time
                     except Exception as e:  # pylint: disable=broad-exception-caught
                         logger.error(f"Error during cleanup: {e}")
-                
+
                 # Log queue stats periodically
                 if processed_count % 10 == 0 and processed_count > 0:
                     try:
@@ -175,19 +175,19 @@ def run_skeleton_update_worker(
                         logger.info(f"Queue stats: {stats}")
                     except Exception as e:  # pylint: disable=broad-exception-caught
                         logger.error(f"Error getting queue stats: {e}")
-                        
+
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.error(f"Error in worker loop: {e}", exc_info=True)
                 time.sleep(60)  # Wait 1 minute before retrying
-                
+
     except KeyboardInterrupt:
         logger.info(f"Worker stopped by user after processing {processed_count} updates")
 
 
 @click.command()
 @click.option(
-    "--project_name", "-p", 
-    required=True, 
+    "--project_name", "-p",
+    required=True,
     help="Name of the project to process skeleton updates for"
 )
 @click.option(
@@ -247,3 +247,4 @@ def main(
 
 if __name__ == "__main__":
     main()  # pylint: disable=no-value-for-parameter
+

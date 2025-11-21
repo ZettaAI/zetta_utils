@@ -50,7 +50,7 @@ def queue_skeleton_updates_for_segments(
             )
             .all()
         )
-        
+
         if not affected_segments:
             print(f"No affected segments found for segment_ids {segment_ids}")
             logger.info(f"No segments found for segment_ids {segment_ids}")
@@ -58,12 +58,12 @@ def queue_skeleton_updates_for_segments(
 
         print(f"Found {len(affected_segments)} segments to queue for skeleton updates")
         logger.info(f"Found {len(affected_segments)} segments to queue for skeleton updates")
-        
+
         # Use PostgreSQL UPSERT to insert or update queue entries
         # This ensures we don't create duplicates and update existing entries
         queue_data = []
         now = datetime.now(timezone.utc)
-        
+
         for segment in affected_segments:
             queue_data.append({
                 "project_name": project_name,
@@ -75,7 +75,7 @@ def queue_skeleton_updates_for_segments(
                 "retry_count": 0,
                 "error_message": None,
             })
-        
+
         if queue_data:
             # Use PostgreSQL UPSERT (ON CONFLICT DO UPDATE)
             stmt = insert(SkeletonUpdateQueueModel).values(queue_data)
@@ -91,10 +91,10 @@ def queue_skeleton_updates_for_segments(
             )
             session.execute(stmt)
             session.commit()
-            
+
             logger.info(f"Queued {len(queue_data)} skeleton updates for project {project_name}")
             return len(queue_data)
-        
+
         return 0
 
 
@@ -124,7 +124,7 @@ def get_next_pending_update(
             .order_by(SkeletonUpdateQueueModel.created_at.asc())
             .first()
         )
-        
+
         if queue_entry:
             return queue_entry.to_dict()
         return None
@@ -157,7 +157,7 @@ def mark_update_processing(
             )
             .first()
         )
-        
+
         if queue_entry:
             queue_entry.status = "processing"
             queue_entry.last_attempt = datetime.now(timezone.utc)
@@ -193,7 +193,7 @@ def mark_update_completed(
             )
             .first()
         )
-        
+
         if queue_entry:
             queue_entry.status = "completed"
             queue_entry.last_attempt = datetime.now(timezone.utc)
@@ -236,12 +236,12 @@ def mark_update_failed(
             )
             .first()
         )
-        
+
         if queue_entry:
             queue_entry.last_attempt = datetime.now(timezone.utc)
             queue_entry.retry_count += 1
             queue_entry.error_message = error_message
-            
+
             if queue_entry.retry_count >= max_retries:
                 queue_entry.status = "failed"
                 logger.warning(
@@ -254,7 +254,7 @@ def mark_update_failed(
                     f"Skeleton update for seed {seed_id} failed (attempt {queue_entry.retry_count}), "
                     f"will retry: {error_message}"
                 )
-            
+
             session.commit()
             return True
         return False
@@ -284,11 +284,11 @@ def get_queue_stats(project_name: str, db_session: Any = None) -> dict:
             """),
             {"project_name": project_name}
         )
-        
+
         stats = {"pending": 0, "processing": 0, "completed": 0, "failed": 0}
         for row in result:
             stats[row.status] = row.count
-            
+
         return stats
 
 
@@ -311,7 +311,7 @@ def cleanup_completed_updates(
     with get_session_context(db_session) as session:
         cutoff_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         cutoff_date = cutoff_date.replace(day=cutoff_date.day - days_old)
-        
+
         deleted_count = (
             session.query(SkeletonUpdateQueueModel)
             .filter(
@@ -323,7 +323,8 @@ def cleanup_completed_updates(
             )
             .delete()
         )
-        
+
         session.commit()
         logger.info(f"Cleaned up {deleted_count} completed skeleton update entries")
         return deleted_count
+

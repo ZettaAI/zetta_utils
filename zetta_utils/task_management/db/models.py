@@ -1049,13 +1049,13 @@ class SkeletonUpdateQueueModel(Base):
         nullable=False,
         default="pending"
     )
-    
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_attempt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    
+
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
-    
+
     __table_args__ = (
         Index("idx_skeleton_queue_status", "status"),
         Index("idx_skeleton_queue_created", "created_at"),

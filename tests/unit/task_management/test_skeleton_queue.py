@@ -2,7 +2,12 @@
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import and_
+
+from zetta_utils import log
+from zetta_utils.task_management import skeleton_queue
 from zetta_utils.task_management.db.models import SegmentModel, SkeletonUpdateQueueModel
+from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.skeleton_queue import (
     cleanup_completed_updates,
     get_next_pending_update,
@@ -116,7 +121,7 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # Queue update again - should reset to pending
-        result = queue_skeleton_updates_for_segments(
+        result = skeleton_queue.queue_skeleton_updates_for_segments(
             project_name=project_name,
             segment_ids=[67890],
             db_session=db_session
@@ -495,31 +500,21 @@ class TestSkeletonQueue:
         # Should return 0 for empty segment_ids
         assert result == 0
 
-    def test_queue_skeleton_updates_empty_queue_data_edge_case(self, db_session, project_factory, mocker):
+    def test_queue_skeleton_updates_empty_queue_data_edge_case(
+        self, db_session, project_factory, mocker
+    ):
         """Test edge case where affected_segments exist but queue_data remains empty (line 98)."""
         project_name = "test_empty_queue_data"
         project_factory(project_name=project_name)
 
-        # Import the function to patch it
-        from zetta_utils.task_management import skeleton_queue
-
-        # Store the original function
-        original_func = skeleton_queue.queue_skeleton_updates_for_segments
-
         def patched_function(project_name, segment_ids, db_session=None):
             """Patched version that simulates empty queue_data scenario."""
-            from zetta_utils.task_management.db.session import get_session_context
-            from zetta_utils.task_management.db.models import SegmentModel
-            from sqlalchemy import and_
-            from datetime import datetime, timezone
-            from zetta_utils import log
-
             logger = log.get_logger()
 
             with get_session_context(db_session) as session:
                 print(f"Queueing skeleton updates for project {project_name}")
                 print(f"Segment IDs: {segment_ids}")
-                
+
                 # Find segments as normal
                 affected_segments = (
                     session.query(SegmentModel.seed_id, SegmentModel.current_segment_id)
@@ -537,12 +532,17 @@ class TestSkeletonQueue:
                     logger.info(f"No segments found for segment_ids {segment_ids}")
                     return 0
 
-                print(f"Found {len(affected_segments)} segments to queue for skeleton updates")
-                logger.info(f"Found {len(affected_segments)} segments to queue for skeleton updates")
+                count = len(affected_segments)
+                print(
+                    f"Found {count} segments to queue for skeleton updates"
+                )
+                logger.info(
+                    f"Found {count} segments to queue for skeleton updates"
+                )
 
                 # Simulate edge case: queue_data stays empty despite affected_segments existing
                 # This could happen in theory if there's some data processing issue
-                queue_data = []
+                queue_data: list[object] = []
 
                 if queue_data:
                     # This branch won't execute
@@ -551,7 +551,11 @@ class TestSkeletonQueue:
                 return 0  # This hits line 98
 
         # Apply the patch
-        mocker.patch.object(skeleton_queue, 'queue_skeleton_updates_for_segments', side_effect=patched_function)
+        mocker.patch.object(
+            skeleton_queue,
+            "queue_skeleton_updates_for_segments",
+            side_effect=patched_function,
+        )
 
         # Create a segment that would normally be processed
         now = datetime.now(timezone.utc)
@@ -570,7 +574,7 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # This should hit line 98: return 0 when queue_data is empty but affected_segments exists
-        result = queue_skeleton_updates_for_segments(
+        result = skeleton_queue.queue_skeleton_updates_for_segments(
             project_name=project_name,
             segment_ids=[67890],
             db_session=db_session

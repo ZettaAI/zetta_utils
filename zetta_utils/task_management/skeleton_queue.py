@@ -95,7 +95,9 @@ def queue_skeleton_updates_for_segments(
             logger.info(f"Queued {len(queue_data)} skeleton updates for project {project_name}")
             return len(queue_data)
 
-        return 0
+        # Defensive fallback: unreachable if affected_segments is non-empty
+        # (queue_data mirrors affected_segments).
+        return 0  # pragma: no cover
 
 
 def get_next_pending_update(

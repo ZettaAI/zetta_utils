@@ -170,7 +170,8 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # Should get oldest pending entry first
-        result = get_next_pending_update(project_name=project_name, db_session=db_session)
+        result = get_next_pending_update(
+            project_name=project_name, db_session=db_session)
 
         assert result is not None
         assert result["seed_id"] == 12345
@@ -181,7 +182,8 @@ class TestSkeletonQueue:
         project_name = "test_no_pending"
         project_factory(project_name=project_name)
 
-        result = get_next_pending_update(project_name=project_name, db_session=db_session)
+        result = get_next_pending_update(
+            project_name=project_name, db_session=db_session)
         assert result is None
 
     def test_mark_update_processing(self, db_session, project_factory):
@@ -390,7 +392,8 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # Get stats
-        stats = get_queue_stats(project_name=project_name, db_session=db_session)
+        stats = get_queue_stats(
+            project_name=project_name, db_session=db_session)
 
         expected_stats = {
             "pending": 2,
@@ -406,7 +409,8 @@ class TestSkeletonQueue:
         project_name = "test_empty_stats"
         project_factory(project_name=project_name)
 
-        stats = get_queue_stats(project_name=project_name, db_session=db_session)
+        stats = get_queue_stats(
+            project_name=project_name, db_session=db_session)
 
         expected_stats = {
             "pending": 0,
@@ -473,4 +477,37 @@ class TestSkeletonQueue:
 
         assert len(remaining_entries) == 2
         remaining_seed_ids = {entry.seed_id for entry in remaining_entries}
-        assert remaining_seed_ids == {12346, 12347}  # Recent completed + pending
+        # Recent completed + pending
+        assert remaining_seed_ids == {12346, 12347}
+
+    def test_queue_skeleton_updates_empty_queue_data(self, db_session, project_factory):
+        """Test edge case where no queue_data is generated (empty return 0 path)."""
+        project_name = "test_empty_queue_data"
+        project_factory(project_name=project_name)
+
+        # Create segments with NULL current_segment_id (will be excluded from queue_data)
+        now = datetime.now(timezone.utc)
+        segment = SegmentModel(
+            project_name=project_name,
+            seed_id=12345,
+            current_segment_id=None,  # This will be excluded from queue_data
+            seed_x=100.0,
+            seed_y=200.0,
+            seed_z=300.0,
+            task_ids=[],
+            created_at=now,
+            updated_at=now,
+        )
+        db_session.add(segment)
+        db_session.commit()
+
+        # This should trigger the edge case where segments exist but queue_data is empty
+        # (because current_segment_id is None)
+        result = queue_skeleton_updates_for_segments(
+            project_name=project_name,
+            segment_ids=[None],  # Searching for None segment_id
+            db_session=db_session
+        )
+
+        # Should return 0 when queue_data is empty
+        assert result == 0

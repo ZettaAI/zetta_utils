@@ -84,3 +84,62 @@ class TestSkeletonUpdateQueueModel:
         # created_at should be converted to ISO format string
         assert isinstance(result["created_at"], str)
         assert result["created_at"] == now.isoformat()
+
+    def test_from_dict_complete(self, project_factory):
+        """Test from_dict method with all fields populated."""
+        project_name = "test_from_dict_complete"
+        project_factory(project_name=project_name)
+
+        now = datetime.now(timezone.utc)
+        data = {
+            "project_name": project_name,
+            "seed_id": 12345,
+            "current_segment_id": 67890,
+            "status": "processing",
+            "created_at": now.isoformat(),
+            "last_attempt": now.isoformat(),
+            "retry_count": 2,
+            "error_message": "Test error"
+        }
+
+        # Test from_dict
+        model = SkeletonUpdateQueueModel.from_dict(data)
+
+        # Verify all fields
+        assert model.project_name == project_name
+        assert model.seed_id == 12345
+        assert model.current_segment_id == 67890
+        assert model.status == "processing"
+        assert model.retry_count == 2
+        assert model.error_message == "Test error"
+
+        # Datetime fields should be parsed correctly
+        assert model.created_at == now
+        assert model.last_attempt == now
+
+    def test_from_dict_minimal(self, project_factory):
+        """Test from_dict method with minimal fields and defaults."""
+        project_name = "test_from_dict_minimal"
+        project_factory(project_name=project_name)
+
+        now = datetime.now(timezone.utc)
+        data = {
+            "project_name": project_name,
+            "seed_id": 12345,
+            "created_at": now.isoformat(),
+        }
+
+        # Test from_dict with minimal data
+        model = SkeletonUpdateQueueModel.from_dict(data)
+
+        # Verify defaults are applied
+        assert model.project_name == project_name
+        assert model.seed_id == 12345
+        assert model.current_segment_id is None
+        assert model.status == "pending"  # default
+        assert model.retry_count == 0  # default
+        assert model.error_message is None
+        assert model.last_attempt is None
+
+        # created_at should be parsed from input
+        assert model.created_at == now

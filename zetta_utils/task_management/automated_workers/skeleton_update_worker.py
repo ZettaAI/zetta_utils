@@ -40,8 +40,10 @@ def process_skeleton_update(
         True if successful, False if failed
     """
     try:
+        print(f"[DEBUG] Processing skeleton update for seed {seed_id}")
         logger.info(f"Processing skeleton update for seed {seed_id}")
 
+        print(f"[DEBUG] Calling update_segment_info with project={project_name}, seed={seed_id}, server={server_address}")
         # Update segment statistics including skeleton length
         # This function gets the current segment ID and calls Cave API
         result = update_segment_info(
@@ -50,23 +52,30 @@ def process_skeleton_update(
             server_address=server_address
         )
 
+        print(f"[DEBUG] update_segment_info result: {result}")
+
         if "error" in result:
+            print(f"[DEBUG] Error in result for seed {seed_id}: {result['error']}")
             logger.error(
                 f"Failed to update segment statistics for seed {seed_id}: {result['error']}"
             )
             return False
 
         if "skeleton_path_length_mm" in result:
+            print(f"[DEBUG] Successfully updated skeleton length for seed {seed_id}: {result['skeleton_path_length_mm']:.2f} mm")
             logger.info(
                 f"Updated skeleton length for seed {seed_id}: "
                 f"{result['skeleton_path_length_mm']:.2f} mm"
             )
         else:
+            print(f"[DEBUG] No skeleton length returned for seed {seed_id}")
             logger.info(f"Completed update for seed {seed_id} (no skeleton length returned)")
 
+        print(f"[DEBUG] Successfully processed seed {seed_id}")
         return True
 
     except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"[DEBUG] Exception processing skeleton update for seed {seed_id}: {e}")
         logger.error(f"Error processing skeleton update for seed {seed_id}: {e}")
         return False
 
@@ -92,6 +101,11 @@ def run_skeleton_update_worker( # pylint: disable=too-many-branches
         cleanup_interval_hours: How often to run cleanup (hours)
         completed_cleanup_days: Remove completed updates older than this many days
     """
+    print("[DEBUG] Starting skeleton update worker")
+    print(f"[DEBUG] Worker config: project={project_name}, user={user_id}, polling={polling_period}s")
+    print(f"[DEBUG] Server: {server_address}, max_retries={max_retries}")
+    print(f"[DEBUG] Cleanup: interval={cleanup_interval_hours}h, cleanup_days={completed_cleanup_days}")
+    
     logger.info(
         f"Starting skeleton update worker for project '{project_name}' "
         f"with user '{user_id}' (polling every {polling_period}s)"
@@ -100,27 +114,36 @@ def run_skeleton_update_worker( # pylint: disable=too-many-branches
     processed_count = 0
     last_cleanup = time.time()
     cleanup_interval_sec = cleanup_interval_hours * 3600
+    loop_count = 0
 
+    print("[DEBUG] Starting main worker loop")
     try: # pylint: disable=too-many-nested-blocks
         while True:
+            loop_count += 1
             try:
+                print(f"[DEBUG] Worker loop #{loop_count} - checking for pending updates")
                 # Get next pending update
                 update_entry = get_next_pending_update(project_name=project_name)
+                print(f"[DEBUG] get_next_pending_update returned: {update_entry}")
 
                 if update_entry:
                     seed_id = update_entry["seed_id"]
                     processed_count += 1
 
+                    print(f"[DEBUG] Found pending update for seed {seed_id}, retry count: {update_entry['retry_count']}")
                     logger.info(
                         f"Processing update #{processed_count}: seed {seed_id} "
                         f"(retry {update_entry['retry_count']})"
                     )
 
                     # Mark as processing
+                    print(f"[DEBUG] Marking seed {seed_id} as processing")
                     if not mark_update_processing(project_name=project_name, seed_id=seed_id):
+                        print(f"[DEBUG] Failed to mark seed {seed_id} as processing")
                         logger.warning(f"Could not mark seed {seed_id} as processing")
                         continue
 
+                    print(f"[DEBUG] Successfully marked seed {seed_id} as processing, starting update")
                     # Process the update
                     success = process_skeleton_update(
                         project_name=project_name,
@@ -129,10 +152,12 @@ def run_skeleton_update_worker( # pylint: disable=too-many-branches
                     )
 
                     if success:
+                        print(f"[DEBUG] Processing succeeded for seed {seed_id}, marking as completed")
                         # Mark as completed
                         mark_update_completed(project_name=project_name, seed_id=seed_id)
                         logger.info(f"Successfully completed skeleton update for seed {seed_id}")
                     else:
+                        print(f"[DEBUG] Processing failed for seed {seed_id}, marking as failed")
                         # Mark as failed (will retry or permanently fail based on retry count)
                         error_msg = f"Cave API call failed for seed {seed_id}"
                         mark_update_failed(
@@ -147,10 +172,12 @@ def run_skeleton_update_worker( # pylint: disable=too-many-branches
                         if retry_count < max_retries:
                             # Exponential backoff: 2^retry_count seconds (capped at 300s)
                             backoff_delay = min(2 ** retry_count, 300)
+                            print(f"[DEBUG] Waiting {backoff_delay}s for exponential backoff")
                             logger.info(f"Waiting {backoff_delay}s before next attempt")
                             time.sleep(backoff_delay)
 
                 else:
+                    print(f"[DEBUG] No pending updates found, sleeping for {polling_period}s")
                     # No pending updates, wait before checking again
                     time.sleep(polling_period)
 

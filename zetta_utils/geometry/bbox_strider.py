@@ -241,7 +241,7 @@ class BBoxStrider:
     def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
         if self.num_chunks > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-            with multiprocessing.get_context('fork').Pool() as pool_obj:
+            with multiprocessing.get_context("forkserver").Pool() as pool_obj:
                 result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
         else:
             result = [

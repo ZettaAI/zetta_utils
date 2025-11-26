@@ -392,6 +392,7 @@ class SegmentModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_modified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_merge_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     extra_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
@@ -399,6 +400,12 @@ class SegmentModel(Base):
         Index("idx_segments_segment_type", "segment_type"),
         Index("idx_segments_seed_location", "seed_x", "seed_y", "seed_z"),
         Index("idx_segments_last_modified", "last_modified"),
+        Index(
+            "idx_segments_current_root_time",
+            "project_name",
+            "current_segment_id",
+            "last_merge_at",
+        ),
     )
 
     def to_dict(self) -> dict:
@@ -433,6 +440,8 @@ class SegmentModel(Base):
 
         if self.current_segment_id is not None:
             result["current_segment_id"] = self.current_segment_id
+        if self.last_merge_at is not None:
+            result["last_merge_at"] = self.last_merge_at.isoformat()
 
         if self.seed_id is not None:
             result["seed_id"] = self.seed_id
@@ -477,6 +486,9 @@ class SegmentModel(Base):
             updated_at=_parse_datetime(data["updated_at"]),
             last_modified=(
                 _parse_datetime(data["last_modified"]) if data.get("last_modified") else None
+            ),
+            last_merge_at=(
+                _parse_datetime(data["last_merge_at"]) if data.get("last_merge_at") else None
             ),
             extra_data=data.get("extra_data"),
         )

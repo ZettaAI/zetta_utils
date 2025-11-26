@@ -408,7 +408,7 @@ class SegmentModel(Base):
         ),
     )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict:  # pylint: disable=too-many-branches
         """Convert the model to a dictionary"""
         result = {
             "seed_id": self.seed_id,

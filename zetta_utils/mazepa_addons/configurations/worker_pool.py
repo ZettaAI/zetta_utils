@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import multiprocessing
 import os
+import signal
 import sys
 import time
 from contextlib import ExitStack
@@ -37,6 +38,10 @@ def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing
 
 
 def worker_init(suppress_worker_logs: bool, multiprocessing_start_method: str) -> None:
+    # Reset signal handlers inherited from parent to default behavior
+    # This prevents parent's signal handlers from interfering with worker cleanup
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
     # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
     if suppress_worker_logs:

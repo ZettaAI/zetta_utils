@@ -484,7 +484,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
         if len(idx_chunks) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-            with multiprocessing.get_context('fork').Pool() as pool_obj:
+            with multiprocessing.get_context("forkserver").Pool() as pool_obj:
                 tasks = pool_obj.map(
                     self._make_task,
                     zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
@@ -592,7 +592,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 next_chunk_id = task_idxs[-1, -1, -1].chunk_id + self.l0_chunks_per_task
 
                 if len(task_idxs) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-                    with multiprocessing.get_context('fork').Pool() as pool_obj:
+                    with multiprocessing.get_context("forkserver").Pool() as pool_obj:
                         tasks_split = pool_obj.map(
                             self._make_task,
                             zip(

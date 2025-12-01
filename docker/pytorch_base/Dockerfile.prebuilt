@@ -1,11 +1,12 @@
 # syntax = docker/dockerfile:1
+# docker build -t us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.9_torch2.9.1_py312 -f docker/pytorch_base/Dockerfile.prebuilt .
 FROM ubuntu:24.04
 
 ARG PYTHON_VERSION="3.12"
 ARG CUDA_VERSION="12.9"
-ARG TORCH_VERSION="2.8.0"
-ARG TORCH_TENSORRT_VERSION="2.8.0"
-ARG TORCHVISION_VERSION="0.23.0"
+ARG TORCH_VERSION="2.9.1"
+ARG TORCH_TENSORRT_VERSION="2.9.0"
+ARG TORCHVISION_VERSION="0.24.1"
 
 WORKDIR /
 

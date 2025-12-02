@@ -8,7 +8,7 @@ import fastremap
 import numpy as np
 import torch
 from kornia import morphology
-from skimage.morphology import diamond, disk, square, star
+from skimage.morphology import diamond, disk, footprint_rectangle, star
 from typeguard import typechecked
 from typing_extensions import ParamSpec
 
@@ -146,7 +146,7 @@ def _normalize_kernel(
 ) -> torch.Tensor:
     if isinstance(kernel, str):
         if kernel == "square":
-            return convert.to_torch(square(width), device=device)
+            return convert.to_torch(footprint_rectangle((width, width)), device=device)
         if kernel == "diamond":
             return convert.to_torch(diamond(width), device=device)
         if kernel == "disk":

@@ -75,7 +75,6 @@ def process_segment_update(
             updates.append(f"pre-syn: {result['pre_synapse_count']}")
         if "post_synapse_count" in result:
             updates.append(f"post-syn: {result['post_synapse_count']}")
-            
         if updates:
             update_str = ", ".join(updates)
             print(f"[DEBUG] Successfully updated statistics for seed {seed_id}: {update_str}")

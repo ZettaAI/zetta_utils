@@ -1,12 +1,12 @@
-"""Tests for SkeletonUpdateQueueModel."""
+"""Tests for SegmentUpdateQueueModel."""
 
 from datetime import datetime, timezone
 
-from zetta_utils.task_management.db.models import SkeletonUpdateQueueModel
+from zetta_utils.task_management.db.models import SegmentUpdateQueueModel
 
 
-class TestSkeletonUpdateQueueModel:
-    """Test SkeletonUpdateQueueModel functionality."""
+class TestSegmentUpdateQueueModel:
+    """Test SegmentUpdateQueueModel functionality."""
 
     def test_to_dict_complete(self, db_session, project_factory):
         """Test to_dict method with all fields populated."""
@@ -16,7 +16,7 @@ class TestSkeletonUpdateQueueModel:
         now = datetime.now(timezone.utc)
 
         # Create model with all fields
-        model = SkeletonUpdateQueueModel(
+        model = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -55,7 +55,7 @@ class TestSkeletonUpdateQueueModel:
         now = datetime.now(timezone.utc)
 
         # Create model with minimal fields
-        model = SkeletonUpdateQueueModel(
+        model = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=None,  # nullable
@@ -103,7 +103,7 @@ class TestSkeletonUpdateQueueModel:
         }
 
         # Test from_dict
-        model = SkeletonUpdateQueueModel.from_dict(data)
+        model = SegmentUpdateQueueModel.from_dict(data)
 
         # Verify all fields
         assert model.project_name == project_name
@@ -130,7 +130,7 @@ class TestSkeletonUpdateQueueModel:
         }
 
         # Test from_dict with minimal data
-        model = SkeletonUpdateQueueModel.from_dict(data)
+        model = SegmentUpdateQueueModel.from_dict(data)
 
         # Verify defaults are applied
         assert model.project_name == project_name

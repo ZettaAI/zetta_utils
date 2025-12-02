@@ -1,0 +1,24 @@
+# Dockerfile for Skeleton Update Worker
+FROM python:3.12
+
+ENV PYTHONPATH=/opt/app
+WORKDIR /opt/app
+
+# Install system dependencies
+RUN apt update && apt install -y ffmpeg libsm6 libxext6 unixodbc-dev libboost-dev
+
+# Copy requirements and install Python dependencies
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir '.[modules]'
+
+# Copy the entire codebase
+COPY . /opt/app
+
+# Verify installation
+RUN zetta --help
+
+# Expose port for Cloud Run health check (optional)
+EXPOSE 8080
+
+# Set the entrypoint to run the Segment Update worker (Click-based CLI)
+ENTRYPOINT ["python", "-m", "zetta_utils.task_management.automated_workers.segment_update_worker"]

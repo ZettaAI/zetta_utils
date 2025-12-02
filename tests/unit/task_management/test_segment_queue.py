@@ -1,30 +1,30 @@
-"""Tests for skeleton_queue module."""
+"""Tests for segment_queue module."""
 
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_
 
 from zetta_utils import log
-from zetta_utils.task_management import skeleton_queue
-from zetta_utils.task_management.db.models import SegmentModel, SkeletonUpdateQueueModel
+from zetta_utils.task_management import segment_queue
+from zetta_utils.task_management.db.models import SegmentModel, SegmentUpdateQueueModel
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.skeleton_queue import (
+from zetta_utils.task_management.segment_queue import (
     cleanup_completed_updates,
     get_next_pending_update,
     get_queue_stats,
     mark_update_completed,
     mark_update_failed,
     mark_update_processing,
-    queue_skeleton_updates_for_segments,
+    queue_segment_updates_for_segments,
 )
 
 
-class TestSkeletonQueue:
-    """Test skeleton queue functionality."""
+class TestSegmentQueue:
+    """Test segment queue functionality."""
 
-    def test_queue_skeleton_updates_for_segments_success(self, db_session, project_factory):
-        """Test successfully queueing skeleton updates for segments."""
-        project_name = "test_skeleton_project"
+    def test_queue_segment_updates_for_segments_success(self, db_session, project_factory):
+        """Test successfully queueing segment updates for segments."""
+        project_name = "test_segment_project"
         project_factory(project_name=project_name)
 
         # Create test segments
@@ -55,7 +55,7 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # Queue updates
-        result = queue_skeleton_updates_for_segments(
+        result = queue_segment_updates_for_segments(
             project_name=project_name,
             segment_ids=[67890, 67891],
             db_session=db_session
@@ -64,7 +64,7 @@ class TestSkeletonQueue:
         assert result == 2
 
         # Verify queue entries were created
-        queue_entries = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        queue_entries = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name
         ).all()
         assert len(queue_entries) == 2
@@ -74,12 +74,12 @@ class TestSkeletonQueue:
             assert entry.retry_count == 0
             assert entry.error_message is None
 
-    def test_queue_skeleton_updates_no_segments(self, db_session, project_factory):
+    def test_queue_segment_updates_no_segments(self, db_session, project_factory):
         """Test queueing with no matching segments."""
         project_name = "test_no_segments"
         project_factory(project_name=project_name)
 
-        result = queue_skeleton_updates_for_segments(
+        result = queue_segment_updates_for_segments(
             project_name=project_name,
             segment_ids=[99999],  # Non-existent segment
             db_session=db_session
@@ -87,7 +87,7 @@ class TestSkeletonQueue:
 
         assert result == 0
 
-    def test_queue_skeleton_updates_upsert(self, db_session, project_factory):
+    def test_queue_segment_updates_upsert(self, db_session, project_factory):
         """Test upsert behavior - existing entries should be updated."""
         project_name = "test_upsert_project"
         project_factory(project_name=project_name)
@@ -108,7 +108,7 @@ class TestSkeletonQueue:
         db_session.add(segment)
 
         # Create existing queue entry
-        existing_entry = SkeletonUpdateQueueModel(
+        existing_entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -121,7 +121,7 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # Queue update again - should reset to pending
-        result = skeleton_queue.queue_skeleton_updates_for_segments(
+        result = segment_queue.queue_segment_updates_for_segments(
             project_name=project_name,
             segment_ids=[67890],
             db_session=db_session
@@ -130,7 +130,7 @@ class TestSkeletonQueue:
         assert result == 1
 
         # Verify entry was reset
-        updated_entry = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name,
             seed_id=12345
         ).first()
@@ -146,7 +146,7 @@ class TestSkeletonQueue:
 
         # Create test queue entries
         now = datetime.now(timezone.utc)
-        entry1 = SkeletonUpdateQueueModel(
+        entry1 = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -154,7 +154,7 @@ class TestSkeletonQueue:
             created_at=now - timedelta(minutes=5),
             retry_count=0
         )
-        entry2 = SkeletonUpdateQueueModel(
+        entry2 = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12346,
             current_segment_id=67891,
@@ -162,7 +162,7 @@ class TestSkeletonQueue:
             created_at=now - timedelta(minutes=3),
             retry_count=0
         )
-        entry3 = SkeletonUpdateQueueModel(
+        entry3 = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12347,
             current_segment_id=67892,
@@ -197,7 +197,7 @@ class TestSkeletonQueue:
         project_factory(project_name=project_name)
 
         # Create pending entry
-        entry = SkeletonUpdateQueueModel(
+        entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -218,7 +218,7 @@ class TestSkeletonQueue:
         assert result is True
 
         # Verify status changed
-        updated_entry = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name,
             seed_id=12345
         ).first()
@@ -245,7 +245,7 @@ class TestSkeletonQueue:
         project_factory(project_name=project_name)
 
         # Create processing entry
-        entry = SkeletonUpdateQueueModel(
+        entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -266,7 +266,7 @@ class TestSkeletonQueue:
         assert result is True
 
         # Verify status changed
-        updated_entry = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name,
             seed_id=12345
         ).first()
@@ -280,7 +280,7 @@ class TestSkeletonQueue:
         project_factory(project_name=project_name)
 
         # Create processing entry
-        entry = SkeletonUpdateQueueModel(
+        entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -303,7 +303,7 @@ class TestSkeletonQueue:
         assert result is True
 
         # Verify it's set to retry
-        updated_entry = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name,
             seed_id=12345
         ).first()
@@ -318,7 +318,7 @@ class TestSkeletonQueue:
         project_factory(project_name=project_name)
 
         # Create entry with max retries
-        entry = SkeletonUpdateQueueModel(
+        entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -341,7 +341,7 @@ class TestSkeletonQueue:
         assert result is True
 
         # Verify it's permanently failed
-        updated_entry = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name,
             seed_id=12345
         ).first()
@@ -356,35 +356,35 @@ class TestSkeletonQueue:
 
         # Create entries with different statuses
         entries = [
-            SkeletonUpdateQueueModel(
+            SegmentUpdateQueueModel(
                 project_name=project_name,
                 seed_id=12345,
                 current_segment_id=67890,
                 status="pending",
                 created_at=datetime.now(timezone.utc)
             ),
-            SkeletonUpdateQueueModel(
+            SegmentUpdateQueueModel(
                 project_name=project_name,
                 seed_id=12346,
                 current_segment_id=67891,
                 status="pending",
                 created_at=datetime.now(timezone.utc)
             ),
-            SkeletonUpdateQueueModel(
+            SegmentUpdateQueueModel(
                 project_name=project_name,
                 seed_id=12347,
                 current_segment_id=67892,
                 status="processing",
                 created_at=datetime.now(timezone.utc)
             ),
-            SkeletonUpdateQueueModel(
+            SegmentUpdateQueueModel(
                 project_name=project_name,
                 seed_id=12348,
                 current_segment_id=67893,
                 status="completed",
                 created_at=datetime.now(timezone.utc)
             ),
-            SkeletonUpdateQueueModel(
+            SegmentUpdateQueueModel(
                 project_name=project_name,
                 seed_id=12349,
                 current_segment_id=67894,
@@ -436,7 +436,7 @@ class TestSkeletonQueue:
         recent_date = now - timedelta(days=3)
 
         # Create old and recent completed entries
-        old_entry = SkeletonUpdateQueueModel(
+        old_entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12345,
             current_segment_id=67890,
@@ -445,7 +445,7 @@ class TestSkeletonQueue:
             last_attempt=old_date
         )
 
-        recent_entry = SkeletonUpdateQueueModel(
+        recent_entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12346,
             current_segment_id=67891,
@@ -455,7 +455,7 @@ class TestSkeletonQueue:
         )
 
         # Also create non-completed entry (should not be cleaned)
-        pending_entry = SkeletonUpdateQueueModel(
+        pending_entry = SegmentUpdateQueueModel(
             project_name=project_name,
             seed_id=12347,
             current_segment_id=67892,
@@ -476,7 +476,7 @@ class TestSkeletonQueue:
         assert deleted_count == 1  # Only old completed entry should be deleted
 
         # Verify correct entries remain
-        remaining_entries = db_session.query(SkeletonUpdateQueueModel).filter_by(
+        remaining_entries = db_session.query(SegmentUpdateQueueModel).filter_by(
             project_name=project_name
         ).all()
 
@@ -485,13 +485,13 @@ class TestSkeletonQueue:
         # Recent completed + pending
         assert remaining_seed_ids == {12346, 12347}
 
-    def test_queue_skeleton_updates_with_empty_segment_ids(self, db_session, project_factory):
+    def test_queue_segment_updates_with_empty_segment_ids(self, db_session, project_factory):
         """Test edge case with empty segment_ids list."""
         project_name = "test_empty_segment_ids"
         project_factory(project_name=project_name)
 
         # Test with empty list of segment_ids
-        result = queue_skeleton_updates_for_segments(
+        result = queue_segment_updates_for_segments(
             project_name=project_name,
             segment_ids=[],
             db_session=db_session
@@ -500,7 +500,7 @@ class TestSkeletonQueue:
         # Should return 0 for empty segment_ids
         assert result == 0
 
-    def test_queue_skeleton_updates_empty_queue_data_edge_case(
+    def test_queue_segment_updates_empty_queue_data_edge_case(
         self, db_session, project_factory, mocker
     ):
         """Test edge case where affected_segments exist but queue_data remains empty (line 98)."""
@@ -512,7 +512,7 @@ class TestSkeletonQueue:
             logger = log.get_logger()
 
             with get_session_context(db_session) as session:
-                print(f"Queueing skeleton updates for project {project_name}")
+                print(f"Queueing segment updates for project {project_name}")
                 print(f"Segment IDs: {segment_ids}")
 
                 # Find segments as normal
@@ -534,10 +534,10 @@ class TestSkeletonQueue:
 
                 count = len(affected_segments)
                 print(
-                    f"Found {count} segments to queue for skeleton updates"
+                    f"Found {count} segments to queue for segment updates"
                 )
                 logger.info(
-                    f"Found {count} segments to queue for skeleton updates"
+                    f"Found {count} segments to queue for segment updates"
                 )
 
                 # Simulate edge case: queue_data stays empty despite affected_segments existing
@@ -552,8 +552,8 @@ class TestSkeletonQueue:
 
         # Apply the patch
         mocker.patch.object(
-            skeleton_queue,
-            "queue_skeleton_updates_for_segments",
+            segment_queue,
+            "queue_segment_updates_for_segments",
             side_effect=patched_function,
         )
 
@@ -574,7 +574,7 @@ class TestSkeletonQueue:
         db_session.commit()
 
         # This should hit line 98: return 0 when queue_data is empty but affected_segments exists
-        result = skeleton_queue.queue_skeleton_updates_for_segments(
+        result = segment_queue.queue_segment_updates_for_segments(
             project_name=project_name,
             segment_ids=[67890],
             db_session=db_session

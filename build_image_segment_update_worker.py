@@ -5,11 +5,11 @@ import subprocess
 
 BUILD_COMMAND_TMPL = (
     "docker build --platform linux/amd64 --network=host "
-    "-t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/skeleton_update_worker:{TAG} "
-    "-f zetta_utils/task_management/automated_workers/Dockerfile.skeleton_update_worker ."
+    "-t {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/segment_update_worker:{TAG} "
+    "-f zetta_utils/task_management/automated_workers/Dockerfile.segment_update_worker ."
 )
 PUSH_COMMAND_TMPL = (
-    "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/skeleton_update_worker:{TAG}"
+    "docker push {REGION}-docker.pkg.dev/{PROJECT}/{REPO}/segment_update_worker:{TAG}"
 )
 
 
@@ -46,9 +46,9 @@ def main():
     print(f"Running: \n{push_command}")
     subprocess.call(push_command, shell=True)
 
-    print(f"\nAdding git tag skeleton_update_worker_{args.tag}.")
+    print(f"\nAdding git tag segment_update_worker_{args.tag}.")
     subprocess.call(
-        f"git tag skeleton_update_worker_{args.tag} && git push origin skeleton_update_worker_{args.tag}",
+        f"git tag segment_update_worker_{args.tag} && git push origin segment_update_worker_{args.tag}",
         shell=True,
     )
 

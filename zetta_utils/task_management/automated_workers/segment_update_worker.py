@@ -1,8 +1,9 @@
 """
-Skeleton Update Worker
+Segment Statistics Update Worker
 
-Background worker that processes skeleton length updates from the queue.
-Calls Cave API to get updated skeleton lengths after PCG edits.
+Background worker that processes segment statistics updates from the queue.
+Calls Cave API to get updated skeleton lengths and synapse counts after PCG edits.
+Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
 """
 
 import time
@@ -11,7 +12,7 @@ import click
 
 from zetta_utils import log
 from zetta_utils.task_management.segment import update_segment_info
-from zetta_utils.task_management.skeleton_queue import (
+from zetta_utils.task_management.segment_queue import (
     cleanup_completed_updates,
     get_next_pending_update,
     get_queue_stats,
@@ -23,13 +24,15 @@ from zetta_utils.task_management.skeleton_queue import (
 logger = log.get_logger()
 
 
-def process_skeleton_update(
+def process_segment_update(
     project_name: str,
     seed_id: int,
     server_address: str = "https://proofreading.zetta.ai",
 ) -> bool:
     """
-    Process a single skeleton update by calling Cave API.
+    Process a single segment statistics update by calling Cave API.
+    
+    Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
     
     Args:
         project_name: Project name
@@ -40,8 +43,8 @@ def process_skeleton_update(
         True if successful, False if failed
     """
     try:
-        print(f"[DEBUG] Processing skeleton update for seed {seed_id}")
-        logger.info(f"Processing skeleton update for seed {seed_id}")
+        print(f"[DEBUG] Processing segment update for seed {seed_id}")
+        logger.info(f"Processing segment update for seed {seed_id}")
 
         print(
             f"[DEBUG] Calling update_segment_info with project={project_name}, "  # pylint: disable=line-too-long
@@ -64,31 +67,35 @@ def process_skeleton_update(
             )
             return False
 
+        # Log all updated statistics
+        updates = []
         if "skeleton_path_length_mm" in result:
-            print(
-                f"[DEBUG] Successfully updated skeleton length for seed {seed_id}: "  # pylint: disable=line-too-long
-                f"{result['skeleton_path_length_mm']:.2f} mm"  # pylint: disable=line-too-long
-            )  # pylint: disable=line-too-long
-            logger.info(
-                f"Updated skeleton length for seed {seed_id}: "
-                f"{result['skeleton_path_length_mm']:.2f} mm"
-            )
+            updates.append(f"skeleton: {result['skeleton_path_length_mm']:.2f} mm")
+        if "pre_synapse_count" in result:
+            updates.append(f"pre-syn: {result['pre_synapse_count']}")
+        if "post_synapse_count" in result:
+            updates.append(f"post-syn: {result['post_synapse_count']}")
+            
+        if updates:
+            update_str = ", ".join(updates)
+            print(f"[DEBUG] Successfully updated statistics for seed {seed_id}: {update_str}")
+            logger.info(f"Updated statistics for seed {seed_id}: {update_str}")
         else:
-            print(f"[DEBUG] No skeleton length returned for seed {seed_id}")
-            logger.info(f"Completed update for seed {seed_id} (no skeleton length returned)")
+            print(f"[DEBUG] No statistics returned for seed {seed_id}")
+            logger.info(f"Completed update for seed {seed_id} (no statistics returned)")
 
         print(f"[DEBUG] Successfully processed seed {seed_id}")
         return True
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        print(f"[DEBUG] Exception processing skeleton update for seed {seed_id}: {e}")
-        logger.error(f"Error processing skeleton update for seed {seed_id}: {e}")
+        print(f"[DEBUG] Exception processing segment update for seed {seed_id}: {e}")
+        logger.error(f"Error processing segment update for seed {seed_id}: {e}")
         return False
 
 
-def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-statements
+def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-statements
     project_name: str,
-    user_id: str = "skeleton_update_worker",
+    user_id: str = "segment_update_worker",
     polling_period: float = 10.0,
     server_address: str = "https://proofreading.zetta.ai",
     max_retries: int = 5,
@@ -96,7 +103,7 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
     completed_cleanup_days: int = 7,
 ) -> None:
     """
-    Run the skeleton update background worker.
+    Run the segment update background worker.
     
     Args:
         project_name: Project name to process updates for
@@ -107,7 +114,7 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
         cleanup_interval_hours: How often to run cleanup (hours)
         completed_cleanup_days: Remove completed updates older than this many days
     """
-    print("[DEBUG] Starting skeleton update worker")
+    print("[DEBUG] Starting segment update worker")
     print(
         f"[DEBUG] Worker config: project={project_name}, user={user_id}, "  # pylint: disable=line-too-long
         f"polling={polling_period}s"  # pylint: disable=line-too-long
@@ -119,7 +126,7 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
     )  # pylint: disable=line-too-long
 
     logger.info(
-        f"Starting skeleton update worker for project '{project_name}' "
+        f"Starting segment update worker for project '{project_name}' "
         f"with user '{user_id}' (polling every {polling_period}s)"
     )
 
@@ -163,7 +170,7 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
                         "starting update"  # pylint: disable=line-too-long
                     )  # pylint: disable=line-too-long
                     # Process the update
-                    success = process_skeleton_update(
+                    success = process_segment_update(
                         project_name=project_name,
                         seed_id=seed_id,
                         server_address=server_address
@@ -175,7 +182,7 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
                         )  # pylint: disable=line-too-long
                         # Mark as completed
                         mark_update_completed(project_name=project_name, seed_id=seed_id)
-                        logger.info(f"Successfully completed skeleton update for seed {seed_id}")
+                        logger.info(f"Successfully completed segment update for seed {seed_id}")
                     else:
                         print(f"[DEBUG] Processing failed for seed {seed_id}, marking as failed")
                         # Mark as failed (will retry or permanently fail based on retry count)
@@ -235,12 +242,12 @@ def run_skeleton_update_worker(  # pylint: disable=too-many-branches, too-many-s
 @click.option(
     "--project_name", "-p",
     required=True,
-    help="Name of the project to process skeleton updates for"
+    help="Name of the project to process segment updates for"
 )
 @click.option(
     "--user_id", "-u",
-    default="skeleton_update_worker",
-    help="User ID for the worker (default: skeleton_update_worker)"
+    default="segment_update_worker",
+    help="User ID for the worker (default: segment_update_worker)"
 )
 @click.option(
     "--polling_period", "-t",
@@ -280,8 +287,8 @@ def main(
     cleanup_interval_hours: int,
     completed_cleanup_days: int,
 ) -> None:
-    """Run the skeleton update background worker."""
-    run_skeleton_update_worker(
+    """Run the segment update background worker."""
+    run_segment_update_worker(
         project_name=project_name,
         user_id=user_id,
         polling_period=polling_period,

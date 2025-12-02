@@ -1,7 +1,8 @@
 """
-Skeleton update queue management functions.
+Segment statistics update queue management functions.
 
-This module handles queueing and processing skeleton length updates after PCG edits.
+This module handles queueing and processing segment statistics updates after PCG edits.
+Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
 """
 
 import logging
@@ -11,22 +12,22 @@ from typing import Any, Optional
 from sqlalchemy import and_, text
 from sqlalchemy.dialects.postgresql import insert
 
-from zetta_utils.task_management.db.models import SegmentModel, SkeletonUpdateQueueModel
+from zetta_utils.task_management.db.models import SegmentModel, SegmentUpdateQueueModel
 from zetta_utils.task_management.db.session import get_session_context
 
 logger = logging.getLogger(__name__)
 
 
-def queue_skeleton_updates_for_segments(
+def queue_segment_updates_for_segments(
     project_name: str,
     segment_ids: list[int],
     db_session: Any = None,
 ) -> int:
     """
-    Queue skeleton updates for segments that have seed points.
+    Queue segment statistics updates for segments that have seed points.
     
     This function finds all segments (by seed_id) that are affected by the given
-    segment_ids and queues them for skeleton length updates.
+    segment_ids and queues them for skeleton length and synapse count updates.
     
     Args:
         project_name: Project name
@@ -34,7 +35,7 @@ def queue_skeleton_updates_for_segments(
         db_session: Optional database session
         
     Returns:
-        Number of skeleton updates queued
+        Number of segment statistics updates queued
     """
     with get_session_context(db_session) as session:
         print(f"Queueing skeleton updates for project {project_name}")
@@ -78,7 +79,7 @@ def queue_skeleton_updates_for_segments(
 
         if queue_data:
             # Use PostgreSQL UPSERT (ON CONFLICT DO UPDATE)
-            stmt = insert(SkeletonUpdateQueueModel).values(queue_data)
+            stmt = insert(SegmentUpdateQueueModel).values(queue_data)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["project_name", "seed_id"],
                 set_={
@@ -105,7 +106,7 @@ def get_next_pending_update(
     db_session: Any = None,
 ) -> Optional[dict]:
     """
-    Get the next pending skeleton update from the queue.
+    Get the next pending segment statistics update from the queue.
     
     Args:
         project_name: Project name
@@ -116,14 +117,14 @@ def get_next_pending_update(
     """
     with get_session_context(db_session) as session:
         queue_entry = (
-            session.query(SkeletonUpdateQueueModel)
+            session.query(SegmentUpdateQueueModel)
             .filter(
                 and_(
-                    SkeletonUpdateQueueModel.project_name == project_name,
-                    SkeletonUpdateQueueModel.status == "pending"
+                    SegmentUpdateQueueModel.project_name == project_name,
+                    SegmentUpdateQueueModel.status == "pending"
                 )
             )
-            .order_by(SkeletonUpdateQueueModel.created_at.asc())
+            .order_by(SegmentUpdateQueueModel.created_at.asc())
             .first()
         )
 
@@ -150,11 +151,11 @@ def mark_update_processing(
     """
     with get_session_context(db_session) as session:
         queue_entry = (
-            session.query(SkeletonUpdateQueueModel)
+            session.query(SegmentUpdateQueueModel)
             .filter(
                 and_(
-                    SkeletonUpdateQueueModel.project_name == project_name,
-                    SkeletonUpdateQueueModel.seed_id == seed_id
+                    SegmentUpdateQueueModel.project_name == project_name,
+                    SegmentUpdateQueueModel.seed_id == seed_id
                 )
             )
             .first()
@@ -186,11 +187,11 @@ def mark_update_completed(
     """
     with get_session_context(db_session) as session:
         queue_entry = (
-            session.query(SkeletonUpdateQueueModel)
+            session.query(SegmentUpdateQueueModel)
             .filter(
                 and_(
-                    SkeletonUpdateQueueModel.project_name == project_name,
-                    SkeletonUpdateQueueModel.seed_id == seed_id
+                    SegmentUpdateQueueModel.project_name == project_name,
+                    SegmentUpdateQueueModel.seed_id == seed_id
                 )
             )
             .first()
@@ -229,11 +230,11 @@ def mark_update_failed(
     """
     with get_session_context(db_session) as session:
         queue_entry = (
-            session.query(SkeletonUpdateQueueModel)
+            session.query(SegmentUpdateQueueModel)
             .filter(
                 and_(
-                    SkeletonUpdateQueueModel.project_name == project_name,
-                    SkeletonUpdateQueueModel.seed_id == seed_id
+                    SegmentUpdateQueueModel.project_name == project_name,
+                    SegmentUpdateQueueModel.seed_id == seed_id
                 )
             )
             .first()
@@ -280,7 +281,7 @@ def get_queue_stats(project_name: str, db_session: Any = None) -> dict:
                 SELECT 
                     status,
                     COUNT(*) as count
-                FROM skeleton_update_queue 
+                FROM segment_update_queue 
                 WHERE project_name = :project_name
                 GROUP BY status
             """),
@@ -315,12 +316,12 @@ def cleanup_completed_updates(
         cutoff_date = cutoff_date.replace(day=cutoff_date.day - days_old)
 
         deleted_count = (
-            session.query(SkeletonUpdateQueueModel)
+            session.query(SegmentUpdateQueueModel)
             .filter(
                 and_(
-                    SkeletonUpdateQueueModel.project_name == project_name,
-                    SkeletonUpdateQueueModel.status == "completed",
-                    SkeletonUpdateQueueModel.last_attempt < cutoff_date
+                    SegmentUpdateQueueModel.project_name == project_name,
+                    SegmentUpdateQueueModel.status == "completed",
+                    SegmentUpdateQueueModel.last_attempt < cutoff_date
                 )
             )
             .delete()

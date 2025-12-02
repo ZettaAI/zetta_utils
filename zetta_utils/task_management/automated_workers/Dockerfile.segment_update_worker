@@ -20,5 +20,5 @@ RUN zetta --help
 # Expose port for Cloud Run health check (optional)
 EXPOSE 8080
 
-# Set the entrypoint to run the Skeleton Update worker (Click-based CLI)
-ENTRYPOINT ["python", "-m", "zetta_utils.task_management.automated_workers.skeleton_update_worker"]
+# Set the entrypoint to run the Segment Update worker (Click-based CLI)
+ENTRYPOINT ["python", "-m", "zetta_utils.task_management.automated_workers.segment_update_worker"]

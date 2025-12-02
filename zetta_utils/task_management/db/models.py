@@ -1029,23 +1029,24 @@ class SegmentEditEventModel(Base):
         )
 
 
-class SkeletonUpdateQueueModel(Base):
+class SegmentUpdateQueueModel(Base):
     """
-    SQLAlchemy model for the skeleton_update_queue table.
+    SQLAlchemy model for the segment_update_queue table.
     
-    Tracks segments that need skeleton length updates after PCG edits.
+    Tracks segments that need skeleton length and synapse count updates after PCG edits.
+    Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
     Keyed by seed_id to ensure deduplication - multiple edits to the same
     segment are collapsed into a single update request.
     """
 
-    __tablename__ = "skeleton_update_queue"
+    __tablename__ = "segment_update_queue"
 
     project_name: Mapped[str] = mapped_column(String, primary_key=True)
     seed_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
 
     current_segment_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     status: Mapped[str] = mapped_column(
-        Enum("pending", "processing", "completed", "failed", name="skeleton_update_status"),
+        Enum("pending", "processing", "completed", "failed", name="segment_update_status"),
         nullable=False,
         default="pending"
     )
@@ -1057,11 +1058,11 @@ class SkeletonUpdateQueueModel(Base):
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
-        Index("idx_skeleton_queue_status", "status"),
-        Index("idx_skeleton_queue_created", "created_at"),
-        Index("idx_skeleton_queue_last_attempt", "last_attempt"),
+        Index("idx_segment_queue_status", "status"),
+        Index("idx_segment_queue_created", "created_at"),
+        Index("idx_segment_queue_last_attempt", "last_attempt"),
         Index(
-            "idx_skeleton_queue_pending", "project_name", "status", "created_at"
+            "idx_segment_queue_pending", "project_name", "status", "created_at"
         ),
     )
 
@@ -1079,7 +1080,7 @@ class SkeletonUpdateQueueModel(Base):
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SkeletonUpdateQueueModel":
+    def from_dict(cls, data: dict) -> "SegmentUpdateQueueModel":
         """Create a model instance from a dictionary"""
         return cls(
             project_name=data["project_name"],

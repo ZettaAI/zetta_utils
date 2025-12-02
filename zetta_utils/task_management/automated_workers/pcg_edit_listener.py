@@ -18,9 +18,7 @@ from caveclient import CAVEclient
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
 from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
-from zetta_utils.task_management.segment_queue import (
-    queue_segment_updates_for_segments,
-)
+from zetta_utils.task_management.segment_queue import queue_segment_updates_for_segments
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
     update_supervoxels_for_merge,

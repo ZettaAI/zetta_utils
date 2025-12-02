@@ -6,7 +6,7 @@ Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import and_, text
@@ -313,7 +313,7 @@ def cleanup_completed_updates(
     """
     with get_session_context(db_session) as session:
         cutoff_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        cutoff_date = cutoff_date.replace(day=cutoff_date.day - days_old)
+        cutoff_date = cutoff_date - timedelta(days=days_old)
 
         deleted_count = (
             session.query(SegmentUpdateQueueModel)

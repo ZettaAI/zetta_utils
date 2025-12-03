@@ -22,18 +22,22 @@ if "sphinx" not in sys.modules:  # pragma: no cover
     os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
 
 logger = get_logger("zetta_utils")
-ignore_warnings_from = [
-    "python_jsonschema_objects",
-    "kornia",
-    "google",
-    "pytorch_lightning",
-    "lightning_fabric",
-    "pkg_resources",
+ignore_warnings_from: list[str] = [
+    # "python_jsonschema_objects",
+    # "kornia",
+    # "google",
+    # "pytorch_lightning",
+    # "lightning_fabric",
+    # "pkg_resources",
+]
+ignore_warning_categories: list[type[Warning]] = [
+    # DeprecationWarning,
 ]
 
 for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+for category in ignore_warning_categories:
+    warnings.filterwarnings("ignore", category=category)
 
 
 def _load_core_modules():

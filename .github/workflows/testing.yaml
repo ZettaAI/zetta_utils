@@ -83,13 +83,13 @@ jobs:
         shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: coverage run -m py.test ./tests/unit
+        run: pytest ./tests/unit  # pyproject.toml defines the cov generation arguments
         shell: bash -l {0}
       - name: Send coverage repot to codecov
         uses: codecov/codecov-action@v3
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         with:
-          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
+          files: coverage.xml
 
 
 

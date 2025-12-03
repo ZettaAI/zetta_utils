@@ -14,7 +14,7 @@ def test_skip_on_empty_datas(mocker):
 
     wrapie.__call__ = wrapie_call
 
-    wrapped = multitensor.skip_on_empty_datas(wrapie)
+    wrapped: multitensor.MultiTensorOp = multitensor.skip_on_empty_datas(wrapie)
     assert wrapped(torch.Tensor([0]), torch.Tensor([0])) == torch.Tensor([0])
 
 

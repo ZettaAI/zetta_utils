@@ -817,7 +817,6 @@ def test_supports_dict_with_targets():
         return x + y + z
 
     in_np, expected_np = np.array([1]), np.array([3])
-    # assert_array_equal(f(in_np, 1), expected_np)
     assert_array_equal(f(in_np, 1), expected_np)
 
     in_dict = {
@@ -828,12 +827,14 @@ def test_supports_dict_with_targets():
         "ndarray": expected_np,
         "dummy": np.array([42]),
     }
+
+    # With targets kwarg, only "ndarray" is modified
     res = f(in_dict, 1, targets=["ndarray"])  # pylint: disable=unexpected-keyword-arg
     assert res == expected_dict
 
     # make sure `targets` is not useable without input dict
-    with pytest.raises(Exception):
-        f(in_np, 1, targets=["ndarray"])  # type: ignore # pylint: disable=unexpected-keyword-arg
+    with pytest.raises(RuntimeError):
+        f(in_np, 1, targets=["ndarray"])  # pylint: disable=unexpected-keyword-arg
 
 
 @pytest.mark.parametrize(

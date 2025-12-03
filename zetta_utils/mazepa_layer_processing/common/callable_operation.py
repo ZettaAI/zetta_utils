@@ -45,7 +45,7 @@ class CallableOperation(Generic[P, IndexT, R]):
     ) -> None:
         assert len(args) == 0
         fn_kwargs = _process_callable_kwargs(idx, kwargs)
-        result = self.fn(**fn_kwargs)
+        result = self.fn(*args, **fn_kwargs)
         dst[idx] = result
 
 

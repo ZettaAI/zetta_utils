@@ -46,6 +46,7 @@ class TimingTracker:
         name = self._get_shared_memory_name()
         try:
             shm = shared_memory.SharedMemory(name=name, create=True, size=TIMING_SIZE)
+            assert shm.buf is not None
             # Initialize with zeros: wait_time, lease_time, lease_count, start_time
             shm.buf[:TIMING_SIZE] = struct.pack(TIMING_FORMAT, 0.0, 0.0, 0.0, time.time())
             return shm
@@ -59,6 +60,7 @@ class TimingTracker:
         shm = None
         try:
             shm = self._get_shared_memory()
+            assert shm.buf is not None
             # Read current data: wait_time, lease_time, lease_count, start_time
             current_data = struct.unpack(TIMING_FORMAT, shm.buf[:TIMING_SIZE])
             total_wait_time = current_data[0] + wait_time
@@ -82,6 +84,7 @@ class TimingTracker:
         shm = None
         try:
             shm = self._get_shared_memory()
+            assert shm.buf is not None
             current_data = struct.unpack(TIMING_FORMAT, shm.buf[:TIMING_SIZE])
             wait_time = current_data[0]
             total_lease_time = current_data[1] + lease_time
@@ -103,6 +106,7 @@ class TimingTracker:
         shm = None
         try:
             shm = self._get_shared_memory()
+            assert shm.buf is not None
             data = struct.unpack(TIMING_FORMAT, shm.buf[:TIMING_SIZE])
             return data[0], data[1], int(data[2]), data[3]
         except FileNotFoundError as e:
@@ -118,6 +122,7 @@ class TimingTracker:
         shm = None
         try:
             shm = self._get_shared_memory()
+            assert shm.buf is not None
             shm.buf[:TIMING_SIZE] = struct.pack(TIMING_FORMAT, 0.0, 0.0, 0.0, time.time())
         except FileNotFoundError as e:
             raise RuntimeError(

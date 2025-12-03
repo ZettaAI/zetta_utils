@@ -229,7 +229,8 @@ def imgaug_augment(  # pylint: disable=too-many-locals,too-many-branches,too-man
                 return_batch=True,
             )
 
-        elif mode == "3d":
+        else:
+            assert mode == "3d"
             # Process the stack one at a time while making sure the same transformation
             # is being applied. See https://github.com/aleju/imgaug/issues/51
             assert images is not None

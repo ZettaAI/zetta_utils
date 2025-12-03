@@ -1,4 +1,4 @@
-from typing import Protocol, TypeVar
+from typing import Protocol
 
 import torch
 from typing_extensions import ParamSpec
@@ -25,10 +25,7 @@ class MultiTensorOp(Protocol[P]):
         ...
 
 
-OpT = TypeVar("OpT", bound=MultiTensorOp)
-
-
-def skip_on_empty_datas(fn: OpT) -> OpT:
+def skip_on_empty_datas(fn: MultiTensorOp[P]) -> MultiTensorOp[P]:
     """
     Decorator that ensures early exit for a tensor op when `data1` and 'data2' are both zeros.
     """
@@ -43,7 +40,7 @@ def skip_on_empty_datas(fn: OpT) -> OpT:
             result = fn(data1, data2, *args, **kwargs)
         return result
 
-    return wrapped  # type: ignore
+    return wrapped
 
 
 @builder.register("compute_pixel_error")

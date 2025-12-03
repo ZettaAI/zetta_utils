@@ -16,14 +16,11 @@ from typing import Dict, List, Tuple
 
 import psycopg2
 from google.cloud import storage  # type: ignore[attr-defined]
+from neuroglancer.viewer_state import AnnotationLayer, LineAnnotation
 from sqlalchemy import create_engine, inspect
 from sqlalchemy import text as sql
 from sqlalchemy.engine import URL
 
-from zetta_utils.db_annotations.precomp_annotations import (
-    AnnotationLayer,
-    LineAnnotation,
-)
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer

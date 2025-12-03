@@ -25,9 +25,9 @@ from numpy.typing import NDArray
 
 import zetta_utils.tensor_ops.convert as convert
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.deprecated.precomputed import PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.cloudvol import build_cv_layer
-from zetta_utils.layer.volumetric.precomputed import PrecomputedInfoSpec
 
 # Configuration
 resolution: Vec3D = Vec3D(8, 8, 42)  # working resolution

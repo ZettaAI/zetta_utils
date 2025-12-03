@@ -8,6 +8,8 @@ import cc3d
 import fsspec
 import numpy as np
 import pandas as pd
+import trimesh
+from cloudvolume import CloudVolume
 
 from zetta_utils import builder
 from zetta_utils.geometry import Vec3D
@@ -61,7 +63,9 @@ def _find_axis_contacts(
     )
 
 
-def _compute_overlaps(candidate_seg: np.ndarray, proofread_seg: np.ndarray) -> pd.DataFrame:
+def _compute_overlaps(
+    candidate_seg: np.ndarray, proofread_seg: np.ndarray
+) -> tuple[pd.DataFrame, set[int]]:
     cc_proofread = cc3d.connected_components(proofread_seg, connectivity=6)
     flat_candidate = candidate_seg.ravel()
     flat_cc_proof = cc_proofread.ravel()
@@ -72,7 +76,85 @@ def _compute_overlaps(candidate_seg: np.ndarray, proofread_seg: np.ndarray) -> p
             "cc_proof": flat_cc_proof[valid_mask],
         }
     )
-    return df.groupby(["cand", "cc_proof"]).size().reset_index(name="count")
+    counts_df = df.groupby(["cand", "cc_proof"]).size().reset_index(name="count")
+    cc_per_cand = counts_df.groupby("cand")["cc_proof"].nunique()
+    merger_ids = set(cc_per_cand[cc_per_cand > 1].index)
+    return counts_df, merger_ids
+
+
+def _compute_contact_stats(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    aff: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+) -> pd.DataFrame:
+    df = pd.DataFrame(
+        {
+            "seg_a": seg_a,
+            "seg_b": seg_b,
+            "aff": aff,
+            "x": x,
+            "y": y,
+            "z": z,
+        }
+    )
+    grouped = df.groupby(["seg_a", "seg_b"])
+    stats = grouped.agg(
+        aff_mean=("aff", "mean"),
+        aff_median=("aff", "median"),
+        count=("aff", "size"),
+        aff_sum=("aff", "sum"),
+        x_weighted=("x", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+        y_weighted=("y", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+        z_weighted=("z", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+    ).reset_index()
+    stats["com_x"] = stats["x_weighted"] / stats["aff_sum"]
+    stats["com_y"] = stats["y_weighted"] / stats["aff_sum"]
+    stats["com_z"] = stats["z_weighted"] / stats["aff_sum"]
+    return stats[["seg_a", "seg_b", "aff_mean", "aff_median", "count", "com_x", "com_y", "com_z"]]
+
+
+def _sample_mesh_surface_points(
+    cv: CloudVolume,
+    segment_ids: list[int],
+    bbox_start: np.ndarray,
+    bbox_end: np.ndarray,
+    n_points: int = 2000,
+) -> dict[int, np.ndarray]:
+    """Download meshes, clip to bbox, sample surface points."""
+    result = {}
+    for seg_id in segment_ids:
+        mesh_data = cv.mesh.get(seg_id)
+        if mesh_data is None:
+            continue
+        mesh_obj = mesh_data[seg_id] if isinstance(mesh_data, dict) else mesh_data
+        vertices, faces = mesh_obj.vertices, mesh_obj.faces
+        if len(vertices) == 0 or len(faces) == 0:
+            continue
+
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+
+        # Clip to bbox using slice_plane for each face
+        box_center = (bbox_start + bbox_end) / 2
+        box_extents = bbox_end - bbox_start
+        box = trimesh.creation.box(extents=box_extents)
+        box.apply_translation(box_center)
+        normals = np.array(box.facets_normal)
+        clipped = mesh.slice_plane(box.facets_origin, -normals)
+
+        if clipped is None or len(clipped.vertices) == 0 or len(clipped.faces) == 0:
+            continue
+
+        # Sample points on surface
+        sample_result = trimesh.sample.sample_surface(
+            clipped, min(n_points, len(clipped.faces) * 10)
+        )
+        points = sample_result[0]
+        result[seg_id] = points.astype(np.float32)
+
+    return result
 
 
 def _save_npz(path: str, arrays: dict[str, Any]) -> None:
@@ -83,12 +165,44 @@ def _save_npz(path: str, arrays: dict[str, Any]) -> None:
         f.write(buffer.read())
 
 
+def _find_all_contacts(
+    candidate_seg: np.ndarray, affinity_mean: np.ndarray, start: Vec3D, exclude_ids: set[int]
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    contacts = [_find_axis_contacts(candidate_seg, affinity_mean, ax, start) for ax in range(3)]
+    seg_a = np.concatenate([c[0] for c in contacts])
+    seg_b = np.concatenate([c[1] for c in contacts])
+    aff = np.concatenate([c[2] for c in contacts])
+    x = np.concatenate([c[3] for c in contacts])
+    y = np.concatenate([c[4] for c in contacts])
+    z = np.concatenate([c[5] for c in contacts])
+
+    swap = seg_a > seg_b
+    seg_lo, seg_hi = np.where(swap, seg_b, seg_a), np.where(swap, seg_a, seg_b)
+    keep = ~(np.isin(seg_lo, list(exclude_ids)) | np.isin(seg_hi, list(exclude_ids)))
+    return seg_lo[keep], seg_hi[keep], aff[keep], x[keep], y[keep], z[keep]
+
+
+def _save_mesh_points(
+    output_path: str, coord_str: str, mesh_points: dict[int, np.ndarray]
+) -> None:
+    seg_ids = np.array(list(mesh_points.keys()), dtype=np.int32)
+    all_points = np.concatenate(list(mesh_points.values()))
+    offsets = np.cumsum([0] + [len(pts) for pts in mesh_points.values()][:-1]).astype(np.int32)
+    counts = np.array([len(pts) for pts in mesh_points.values()], dtype=np.int32)
+    _save_npz(
+        f"{output_path}/mesh_points_{coord_str}.npz",
+        {"seg_ids": seg_ids, "points": all_points, "offsets": offsets, "counts": counts},
+    )
+
+
 @builder.register("ContactAnalysisOp")
 @taskable_operation_cls
 @attrs.frozen
 class ContactAnalysisOp:
     output_path: str
+    mesh_path: str | None = None
     min_contact_vx: int = 10
+    n_surface_points: int = 2000
     crop_pad: Sequence[int] = (0, 0, 0)
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
@@ -111,30 +225,16 @@ class ContactAnalysisOp:
             affinity_raw = np.asarray(affinity[idx])
 
         affinity_mean = np.mean(affinity_raw, axis=0)
-        counts_df = _compute_overlaps(candidate_seg, proofread_seg)
-        edge_ids = _get_edge_segment_ids(candidate_seg)
+        counts_df, merger_ids = _compute_overlaps(candidate_seg, proofread_seg)
+        exclude_ids = _get_edge_segment_ids(candidate_seg) | merger_ids
 
-        contacts = [
-            _find_axis_contacts(candidate_seg, affinity_mean, ax, idx.start) for ax in range(3)
-        ]
-        seg_a = np.concatenate([c[0] for c in contacts])
-        seg_b = np.concatenate([c[1] for c in contacts])
-        aff = np.concatenate([c[2] for c in contacts])
-        x = np.concatenate([c[3] for c in contacts])
-        y = np.concatenate([c[4] for c in contacts])
-        z = np.concatenate([c[5] for c in contacts])
-
-        swap = seg_a > seg_b
-        seg_lo, seg_hi = np.where(swap, seg_b, seg_a), np.where(swap, seg_a, seg_b)
-        keep = ~(np.isin(seg_lo, list(edge_ids)) | np.isin(seg_hi, list(edge_ids)))
-        seg_lo, seg_hi, aff, x, y, z = (
-            seg_lo[keep],
-            seg_hi[keep],
-            aff[keep],
-            x[keep],
-            y[keep],
-            z[keep],
+        seg_lo, seg_hi, aff, x, y, z = _find_all_contacts(
+            candidate_seg, affinity_mean, idx.start, exclude_ids
         )
+        contact_stats = _compute_contact_stats(seg_lo, seg_hi, aff, x, y, z)
+
+        # Sample mesh surface points if mesh_path provided
+        mesh_points = self._sample_meshes(idx, seg_lo, seg_hi)
 
         coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
         with semaphore("write"):
@@ -150,6 +250,19 @@ class ContactAnalysisOp:
                 },
             )
             _save_npz(
+                f"{self.output_path}/contact_stats_{coord_str}.npz",
+                {
+                    "seg_a": contact_stats["seg_a"].values.astype(np.int32),
+                    "seg_b": contact_stats["seg_b"].values.astype(np.int32),
+                    "aff_mean": contact_stats["aff_mean"].values.astype(np.float32),
+                    "aff_median": contact_stats["aff_median"].values.astype(np.float32),
+                    "count": contact_stats["count"].values.astype(np.int32),
+                    "com_x": contact_stats["com_x"].values.astype(np.float32),
+                    "com_y": contact_stats["com_y"].values.astype(np.float32),
+                    "com_z": contact_stats["com_z"].values.astype(np.float32),
+                },
+            )
+            _save_npz(
                 f"{self.output_path}/overlaps_{coord_str}.npz",
                 {
                     "cand_id": counts_df["cand"].values.astype(np.int64),
@@ -157,3 +270,25 @@ class ContactAnalysisOp:
                     "count": counts_df["count"].values.astype(np.int32),
                 },
             )
+            if mesh_points:
+                _save_mesh_points(self.output_path, coord_str, mesh_points)
+
+    def _sample_meshes(
+        self, idx: VolumetricIndex, seg_lo: np.ndarray, seg_hi: np.ndarray
+    ) -> dict[int, np.ndarray]:
+        if self.mesh_path is None:
+            return {}
+        valid_segs = list(set(np.unique(seg_lo).tolist() + np.unique(seg_hi).tolist()))
+        if not valid_segs:
+            return {}
+        cv = CloudVolume(self.mesh_path, use_https=True, progress=False)
+        resolution = idx.resolution
+        bbox_start = np.array([idx.start[0], idx.start[1], idx.start[2]]) * np.array(
+            [resolution[0], resolution[1], resolution[2]]
+        )
+        bbox_end = np.array([idx.stop[0], idx.stop[1], idx.stop[2]]) * np.array(
+            [resolution[0], resolution[1], resolution[2]]
+        )
+        return _sample_mesh_surface_points(
+            cv, valid_segs, bbox_start, bbox_end, self.n_surface_points
+        )

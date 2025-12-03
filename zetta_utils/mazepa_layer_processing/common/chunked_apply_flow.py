@@ -34,7 +34,8 @@ class ChunkedApplyFlowSchema(Generic[P, IndexT, R_co]):
         idx_chunks = self.chunker(idx)
         tasks = [
             self.operation.make_task(
-                idx=idx_chunk,
+                idx_chunk,
+                *args,
                 **kwargs,
             )
             for idx_chunk in idx_chunks

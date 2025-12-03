@@ -5,7 +5,7 @@ import multiprocessing
 from abc import ABC
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
+from typing import Any, Generic, List, Literal, Mapping, Optional, Tuple, TypeVar
 
 import attrs
 import cachetools
@@ -223,6 +223,10 @@ def get_weight_template(
             )
             for z in range(1, 2 * z_pad + 1)
         ]
+    else:
+        raise NotImplementedError(
+            f"Expected processing_blend_mode 'linear' or 'quadratic', got {processing_blend_mode}"
+        )
 
     weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
     weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
@@ -470,10 +474,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     def _make_task(
         self,
         arg: Tuple[
-            VolumetricIndex, VolumetricBasedLayerProtocol | None, dict[str, Any]
+            VolumetricIndex,
+            VolumetricBasedLayerProtocol | None,
+            tuple[Any, ...],
+            Mapping[str, Any],
         ],  # cannot type with P.kwargs
     ) -> mazepa.tasks.Task[R_co]:
-        return self.op.make_task(idx=arg[0], dst=arg[1], **arg[2]).with_worker_type(
+        return self.op.make_task(arg[0], arg[1], *arg[2], **arg[3]).with_worker_type(
             self.op_worker_type
         )
 
@@ -481,19 +488,29 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx_chunks: List[VolumetricIndex],
         dst: VolumetricBasedLayerProtocol | None,
-        op_kwargs: P.kwargs,
+        op_kwargs: Mapping[str, Any],
     ) -> List[mazepa.tasks.Task[R_co]]:
         if len(idx_chunks) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
             with multiprocessing.get_context("fork").Pool() as pool_obj:
                 tasks = pool_obj.map(
                     self._make_task,
-                    zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
+                    zip(
+                        idx_chunks,
+                        itertools.repeat(dst),
+                        itertools.repeat(()),
+                        itertools.repeat(op_kwargs),
+                    ),
                 )
         else:
             tasks = list(
                 map(
                     self._make_task,
-                    zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
+                    zip(
+                        idx_chunks,
+                        itertools.repeat(dst),
+                        itertools.repeat(()),
+                        itertools.repeat(op_kwargs),
+                    ),
                 )
             )
         return tasks
@@ -502,7 +519,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol,
-        op_kwargs: P.kwargs,
+        op_kwargs: Mapping[str, Any],
     ) -> Tuple[List[mazepa.tasks.Task[R_co]], VolumetricBasedLayerProtocol | None]:
         dst_temp = self._get_temp_dst(dst, idx, self.flow_id)
         have_processing_gap = self.processing_gap is not None and self.processing_gap != Vec3D[
@@ -523,7 +540,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         red_chunks: List[VolumetricIndex],
         red_shape: Vec3D[int],
         dst: VolumetricBasedLayerProtocol,
-        op_kwargs: P.kwargs,
+        op_kwargs: Mapping[str, Any],
     ) -> Tuple[
         List[mazepa.tasks.Task[R_co]],
         List[List[VolumetricIndex]],
@@ -598,6 +615,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                             zip(
                                 task_idxs.ravel(),
                                 itertools.repeat(dst_temp),
+                                itertools.repeat(()),
                                 itertools.repeat(op_kwargs),
                             ),
                         )
@@ -608,6 +626,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                             zip(
                                 task_idxs.ravel(),
                                 itertools.repeat(dst_temp),
+                                itertools.repeat(()),
                                 itertools.repeat(op_kwargs),
                             ),
                         )
@@ -675,8 +694,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         self,
         idx: VolumetricIndex,
         dst: VolumetricBasedLayerProtocol | None,
-        op_args: P.args,
-        op_kwargs: P.kwargs,
+        *op_args: P.args,
+        **op_kwargs: P.kwargs,
     ) -> mazepa.FlowFnReturnType:
         assert len(op_args) == 0
         assert self.roi_crop_pad is not None

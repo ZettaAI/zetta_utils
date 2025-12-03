@@ -93,7 +93,7 @@ class VolumetricCallableOperation(Generic[P]):
             if self.fn_semaphores is not None:
                 for semaphore_type in self.fn_semaphores:
                     semaphore_stack.enter_context(semaphore(semaphore_type))
-            result_raw = self.fn(**task_kwargs)
+            result_raw = self.fn(*args, **task_kwargs)
             torch.cuda.empty_cache()
         # If no destination layer, we can bail out now.  Possibly we
         # could bail out a bit sooner.  ToDo: study this more.

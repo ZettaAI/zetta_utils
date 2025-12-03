@@ -118,7 +118,8 @@ def to_float32(data: TensorTypeVar) -> TensorTypeVar:
     """
     if isinstance(data, torch.Tensor):
         result = data.float()  # type: TensorTypeVar
-    elif isinstance(data, np.ndarray):
+    else:
+        assert isinstance(data, np.ndarray)
         result = data.astype(np.float32)
 
     return result
@@ -136,7 +137,8 @@ def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
     """
     if isinstance(data, torch.Tensor):
         result = data.byte()  # type: TensorTypeVar
-    elif isinstance(data, np.ndarray):
+    else:
+        assert isinstance(data, np.ndarray)
         result = data.astype(np.uint8)
 
     return result

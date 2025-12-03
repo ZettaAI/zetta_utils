@@ -40,7 +40,7 @@ def run_worker(  # pylint: disable=too-many-locals
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
     resource_monitor_interval: float | None = None,
     debug: bool = False,
-    idle_timeout: int | None = None,
+    idle_timeout: float | None = None,
 ):
     with monitor_resources(resource_monitor_interval):
         start_time = time.time()

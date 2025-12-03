@@ -41,7 +41,7 @@ class SQSQueue(MessageQueue[T]):
     endpoint_url: str | None = None
     insertion_threads: int = 5
     _queue: Any = attrs.field(init=False, default=None)
-    pull_wait_sec: int = 0
+    pull_wait_sec: float = 0.0
     pull_lease_sec: int = 10  # TODO: get a better value
 
     def _get_tq_queue(self) -> Any:

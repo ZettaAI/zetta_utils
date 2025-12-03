@@ -3,6 +3,7 @@ import time
 from unittest import mock
 
 import pytest
+from docker.errors import DockerException
 
 import docker
 from zetta_utils import constants
@@ -39,7 +40,7 @@ def datastore_emulator():
         elapsed_time += stop_time
         try:
             container.reload()
-        except docker.errors.DockerException:  # type: ignore
+        except DockerException:
             break
 
     if container.status != "running":
@@ -86,7 +87,7 @@ def firestore_emulator():
         elapsed_time += stop_time
         try:
             container.reload()
-        except docker.errors.DockerException:  # type: ignore
+        except DockerException:
             break
 
     if container.status != "running":

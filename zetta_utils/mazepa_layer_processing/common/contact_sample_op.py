@@ -246,8 +246,8 @@ def _compute_contact_counts(seg_a: np.ndarray, seg_b: np.ndarray) -> dict[tuple[
 
 def _download_and_clip_meshes(
     cv: CloudVolume, segment_ids: list[int], bbox_start: np.ndarray, bbox_end: np.ndarray
-) -> dict[int, np.ndarray]:
-    """Download meshes and clip to bounding box, return vertices."""
+) -> dict[int, trimesh.Trimesh]:
+    """Download meshes and clip to bounding box, return trimesh objects."""
     if not segment_ids:
         return {}
 
@@ -255,32 +255,40 @@ def _download_and_clip_meshes(
     box = trimesh.creation.box(extents=bbox_end - bbox_start)
     box.apply_translation((bbox_start + bbox_end) / 2)
 
-    result: dict[int, np.ndarray] = {}
+    result: dict[int, trimesh.Trimesh] = {}
     for seg_id in segment_ids:
         mesh_obj = meshes.get(seg_id)
         if mesh_obj is None or len(mesh_obj.vertices) == 0 or len(mesh_obj.faces) == 0:
             continue
         mesh = trimesh.Trimesh(vertices=mesh_obj.vertices, faces=mesh_obj.faces)
         clipped = mesh.slice_plane(box.facets_origin, -np.array(box.facets_normal))
-        if clipped is not None and len(clipped.vertices) > 0:
-            result[seg_id] = clipped.vertices.astype(np.float32)
+        if clipped is not None and len(clipped.vertices) > 0 and len(clipped.faces) > 0:
+            result[seg_id] = clipped
     return result
 
 
-def _crop_to_sphere(points: np.ndarray, center: np.ndarray, radius: float) -> np.ndarray:
-    """Filter points within sphere."""
-    if len(points) == 0:
-        return points
-    return points[np.linalg.norm(points - center, axis=1) <= radius]
+def _crop_mesh_to_sphere(
+    mesh: trimesh.Trimesh, center: np.ndarray, radius: float
+) -> trimesh.Trimesh | None:
+    """Clip mesh to sphere, keeping only faces fully inside."""
+    vertex_dists = np.linalg.norm(mesh.vertices - center, axis=1)
+    vertex_inside = vertex_dists <= radius
+    face_inside = vertex_inside[mesh.faces].all(axis=1)
+    if not face_inside.any():
+        return None
+    result = mesh.submesh([face_inside], append=True)
+    if isinstance(result, list):
+        return result[0] if result else None
+    return result
 
 
-def _sample_points(points: np.ndarray, n: int, seed: int = 42) -> np.ndarray:
-    """Randomly sample N points (with replacement if needed)."""
-    if len(points) == 0:
+def _sample_mesh_points(mesh: trimesh.Trimesh, n: int) -> np.ndarray:
+    """Sample N points from mesh surface, area-weighted."""
+    if mesh is None or len(mesh.faces) == 0:
         return np.zeros((n, 3), dtype=np.float32)
-    rng = np.random.default_rng(seed)
-    indices = rng.choice(len(points), n, replace=len(points) < n)
-    return points[indices]
+    result = trimesh.sample.sample_surface(mesh, n)
+    points = result[0]
+    return points.astype(np.float32)
 
 
 def _compute_affinity_weighted_com(
@@ -430,22 +438,22 @@ def _all_contacts_in_sphere(
 def _generate_single_sample(
     seg_a_id: int,
     seg_b_id: int,
-    mesh_points: dict[int, np.ndarray],
+    meshes: dict[int, trimesh.Trimesh],
     contact_data: dict[tuple[int, int], list[tuple[int, int, int, float]]],
     cand_to_proof: dict[int, set[int]],
     cfg: SampleConfig,
 ) -> dict[str, Any] | None:
     """Generate a single training sample for a contact pair."""
-    mesh_a, mesh_b = mesh_points.get(seg_a_id), mesh_points.get(seg_b_id)
+    mesh_a, mesh_b = meshes.get(seg_a_id), meshes.get(seg_b_id)
     if mesh_a is None or mesh_b is None:
         return None
 
     contacts = contact_data[(seg_a_id, seg_b_id)]
     com = _compute_affinity_weighted_com(contacts, cfg.resolution)
 
-    mesh_a_cropped = _crop_to_sphere(mesh_a, com, cfg.sphere_radius_nm)
-    mesh_b_cropped = _crop_to_sphere(mesh_b, com, cfg.sphere_radius_nm)
-    if len(mesh_a_cropped) == 0 or len(mesh_b_cropped) == 0:
+    mesh_a_cropped = _crop_mesh_to_sphere(mesh_a, com, cfg.sphere_radius_nm)
+    mesh_b_cropped = _crop_mesh_to_sphere(mesh_b, com, cfg.sphere_radius_nm)
+    if mesh_a_cropped is None or mesh_b_cropped is None:
         return None
 
     if not _all_contacts_in_sphere(contacts, com, cfg.sphere_radius_nm, cfg.resolution):
@@ -460,8 +468,8 @@ def _generate_single_sample(
         "should_merge": label,
         "n_contacts": n_contacts,
         "contacts": contacts_padded.tolist(),
-        "pointcloud_a": _sample_points(mesh_a_cropped, cfg.n_pointcloud_points).tolist(),
-        "pointcloud_b": _sample_points(mesh_b_cropped, cfg.n_pointcloud_points).tolist(),
+        "pointcloud_a": _sample_mesh_points(mesh_a_cropped, cfg.n_pointcloud_points).tolist(),
+        "pointcloud_b": _sample_mesh_points(mesh_b_cropped, cfg.n_pointcloud_points).tolist(),
         **cfg.metadata,
     }
 
@@ -473,7 +481,7 @@ def _download_meshes_for_pairs(
     crop_pad: Sequence[int],
     resolution: np.ndarray,
     coord_str: str,
-) -> dict[int, np.ndarray]:
+) -> dict[int, trimesh.Trimesh]:
     """Download and clip meshes for segment IDs."""
     if mesh_cv is None or not segs:
         return {}
@@ -482,9 +490,9 @@ def _download_meshes_for_pairs(
         np.array([idx_padded.start[0], idx_padded.start[1], idx_padded.start[2]]) * resolution
     )
     bbox_end = np.array([idx_padded.stop[0], idx_padded.stop[1], idx_padded.stop[2]]) * resolution
-    mesh_points = _download_and_clip_meshes(mesh_cv, list(segs), bbox_start, bbox_end)
-    print(f"[{coord_str}] Downloaded {len(mesh_points)} meshes", flush=True)
-    return mesh_points
+    meshes = _download_and_clip_meshes(mesh_cv, list(segs), bbox_start, bbox_end)
+    print(f"[{coord_str}] Downloaded {len(meshes)} meshes", flush=True)
+    return meshes
 
 
 def _make_sample_config(
@@ -519,7 +527,7 @@ def _make_sample_config(
 
 def _generate_all_samples(
     valid_pairs: list[tuple[int, int, int]],
-    mesh_points: dict[int, np.ndarray],
+    meshes: dict[int, trimesh.Trimesh],
     contact_data: dict[tuple[int, int], list[tuple[int, int, int, float]]],
     cand_to_proof: dict[int, set[int]],
     cfg: SampleConfig,
@@ -528,7 +536,7 @@ def _generate_all_samples(
     samples, n_no_mesh = [], 0
     for seg_a_id, seg_b_id, _ in valid_pairs:
         sample = _generate_single_sample(
-            seg_a_id, seg_b_id, mesh_points, contact_data, cand_to_proof, cfg
+            seg_a_id, seg_b_id, meshes, contact_data, cand_to_proof, cfg
         )
         if sample is None:
             n_no_mesh += 1

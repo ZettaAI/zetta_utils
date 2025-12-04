@@ -32,8 +32,10 @@ from zetta_utils.task_management.split_edit import (
 from zetta_utils.task_management.task import (
     add_segment_type_and_instructions,
     get_task,
+    get_task_cross_project,
     release_task,
     start_task,
+    start_task_cross_project,
     update_task,
 )
 from zetta_utils.task_management.task_type import get_task_type
@@ -666,3 +668,52 @@ async def filter_unlocked_segments_api(
     except Exception as e:
         logger.error(f"Failed to filter unlocked segments: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to filter unlocked segments: {str(e)}")
+
+
+@api.get("/tasks/{task_id}")
+async def get_task_cross_project_api(task_id: str) -> dict:
+    """
+    Get a task by ID across all projects.
+    
+    :param task_id: The ID of the task to get
+    :return: The task data with project name included
+    """
+    try:
+        # Use the reusable cross-project function
+        task, project_name = get_task_cross_project(task_id=task_id)
+        
+        result = {k.replace("task", "task"): v for k, v in task.items()}
+        result["ng_state"] = result["ng_state"]
+        
+        # Add segment type and instructions if task has a segment_seed_id
+        result = add_segment_type_and_instructions(result, project_name)
+        
+        # Include the project name in the response
+        result["project_name"] = project_name
+        
+        return result
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to get task across projects: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get task: {str(e)}")
+
+
+@api.post("/start_task_cross_project")
+async def start_task_cross_project_api(
+    user_id: str,
+    task_id: str | None = None,
+) -> str | None:
+    """
+    Start a task for a user across all projects they have access to.
+    Tasks are selected by highest priority across all projects.
+    
+    :param user_id: The ID of the user starting the task
+    :param task_id: Optional specific task ID to start
+    :return: The ID of the started task, or None if no task available
+    """
+    try:
+        return start_task_cross_project(user_id=user_id, task_id=task_id)
+    except Exception as e:
+        logger.error(f"Failed to start cross-project task: {e}")
+        raise HTTPException(status_code=409, detail=f"Failed to start task: {str(e)}")

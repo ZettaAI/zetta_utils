@@ -23,4 +23,4 @@ def lrpadprint(
 
 
 def utcnow_ISO8601() -> str:  # pragma: no cover # pylint: disable=invalid-name
-    return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    return datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")

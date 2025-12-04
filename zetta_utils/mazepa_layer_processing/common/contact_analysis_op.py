@@ -38,13 +38,13 @@ def _get_edge_segment_ids(seg: np.ndarray) -> np.ndarray:
 
 
 def _find_contacts_fast(
-    candidate_seg: np.ndarray, affinity_mean: np.ndarray, start: Vec3D
+    candidate_seg: np.ndarray, affinity_raw: np.ndarray, start: Vec3D
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Find all contacts across all 3 axes efficiently."""
+    """Find all contacts across all 3 axes, using relevant axis affinity for each contact."""
     results = []
     sx, sy, sz = int(start[0]), int(start[1]), int(start[2])
 
-    # X-axis contacts
+    # X-axis contacts - use affinity_raw[0] at second voxel position
     mask = (
         (candidate_seg[:-1] != candidate_seg[1:])
         & (candidate_seg[:-1] != 0)
@@ -56,14 +56,14 @@ def _find_contacts_fast(
             (
                 candidate_seg[:-1][mask],
                 candidate_seg[1:][mask],
-                affinity_mean[:-1][mask],
+                affinity_raw[0, 1:][mask],
                 idx[0] + sx,
                 idx[1] + sy,
                 idx[2] + sz,
             )
         )
 
-    # Y-axis contacts
+    # Y-axis contacts - use affinity_raw[1] at second voxel position
     mask = (
         (candidate_seg[:, :-1] != candidate_seg[:, 1:])
         & (candidate_seg[:, :-1] != 0)
@@ -75,14 +75,14 @@ def _find_contacts_fast(
             (
                 candidate_seg[:, :-1][mask],
                 candidate_seg[:, 1:][mask],
-                affinity_mean[:, :-1][mask],
+                affinity_raw[1, :, 1:][mask],
                 idx[0] + sx,
                 idx[1] + sy,
                 idx[2] + sz,
             )
         )
 
-    # Z-axis contacts
+    # Z-axis contacts - use affinity_raw[2] at second voxel position
     mask = (
         (candidate_seg[:, :, :-1] != candidate_seg[:, :, 1:])
         & (candidate_seg[:, :, :-1] != 0)
@@ -94,7 +94,7 @@ def _find_contacts_fast(
             (
                 candidate_seg[:, :, :-1][mask],
                 candidate_seg[:, :, 1:][mask],
-                affinity_mean[:, :, :-1][mask],
+                affinity_raw[2, :, :, 1:][mask],
                 idx[0] + sx,
                 idx[1] + sy,
                 idx[2] + sz,
@@ -106,13 +106,24 @@ def _find_contacts_fast(
         empty_f = np.array([], dtype=np.float32)
         return empty, empty, empty_f, empty, empty, empty
 
+    seg_a = np.concatenate([r[0] for r in results])
+    seg_b = np.concatenate([r[1] for r in results])
+    aff = np.concatenate([r[2] for r in results])
+    x = np.concatenate([r[3] for r in results])
+    y = np.concatenate([r[4] for r in results])
+    z = np.concatenate([r[5] for r in results])
+
+    # Deduplicate contacts that appear on multiple axes, averaging their affinities
+    df = pd.DataFrame({"seg_a": seg_a, "seg_b": seg_b, "x": x, "y": y, "z": z, "aff": aff})
+    deduped = df.groupby(["seg_a", "seg_b", "x", "y", "z"], as_index=False).agg({"aff": "mean"})
+
     return (
-        np.concatenate([r[0] for r in results]),
-        np.concatenate([r[1] for r in results]),
-        np.concatenate([r[2] for r in results]),
-        np.concatenate([r[3] for r in results]),
-        np.concatenate([r[4] for r in results]),
-        np.concatenate([r[5] for r in results]),
+        deduped["seg_a"].values,
+        deduped["seg_b"].values,
+        deduped["aff"].values.astype(np.float32),
+        deduped["x"].values,
+        deduped["y"].values,
+        deduped["z"].values,
     )
 
 
@@ -327,11 +338,11 @@ def _build_chunk_data(  # noqa: PLR0913
 
 def _find_all_contacts(
     candidate_seg: np.ndarray,
-    affinity_mean: np.ndarray,
+    affinity_raw: np.ndarray,
     start: Vec3D,
     crop_pad: Sequence[int],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    seg_a, seg_b, aff, x, y, z = _find_contacts_fast(candidate_seg, affinity_mean, start)
+    seg_a, seg_b, aff, x, y, z = _find_contacts_fast(candidate_seg, affinity_raw, start)
 
     swap = seg_a > seg_b
     seg_lo, seg_hi = np.where(swap, seg_b, seg_a), np.where(swap, seg_a, seg_b)
@@ -400,11 +411,6 @@ class ContactAnalysisOp:
         t0 = time.time()
 
         t1 = time.time()
-        affinity_mean = np.mean(affinity_raw, axis=0)
-        print(f"[{coord_str}]   np.mean: {time.time() - t1:.2f}s", flush=True)
-        del affinity_raw
-
-        t1 = time.time()
         overlap_cand, overlap_proof, overlap_count = _compute_overlaps(
             candidate_seg, proofread_seg
         )
@@ -420,9 +426,9 @@ class ContactAnalysisOp:
         print(f"[{coord_str}] Finding contacts...", flush=True)
         t0 = time.time()
         seg_lo, seg_hi, aff, x, y, z = _find_all_contacts(
-            candidate_seg, affinity_mean, idx_padded.start, self.crop_pad
+            candidate_seg, affinity_raw, idx_padded.start, self.crop_pad
         )
-        del candidate_seg, affinity_mean
+        del candidate_seg, affinity_raw
         contact_stats = _compute_contact_stats(seg_lo, seg_hi, aff, x, y, z)
         n_pairs = len(contact_stats)
         print(

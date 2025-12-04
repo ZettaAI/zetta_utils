@@ -33,6 +33,7 @@ from zetta_utils.task_management.task import (
     add_segment_type_and_instructions,
     get_task,
     get_task_cross_project,
+    get_task_feedback_cross_project,
     release_task,
     start_task,
     start_task_cross_project,
@@ -717,3 +718,22 @@ async def start_task_cross_project_api(
     except Exception as e:
         logger.error(f"Failed to start cross-project task: {e}")
         raise HTTPException(status_code=409, detail=f"Failed to start task: {str(e)}")
+
+
+@api.get("/task_feedback_cross_project")
+async def get_task_feedback_cross_project_api(
+    user_id: str,
+    limit: int = 20,
+) -> list[dict]:
+    """
+    Get task feedback entries for a user across all projects they have access to.
+    
+    :param user_id: The ID of the user to get feedback for
+    :param limit: Maximum number of feedback entries to return (default: 20)
+    :return: List of feedback entries with task and feedback data across all projects
+    """
+    try:
+        return get_task_feedback_cross_project(user_id=user_id, limit=limit)
+    except Exception as e:
+        logger.error(f"Failed to get cross-project task feedback: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get task feedback: {str(e)}")

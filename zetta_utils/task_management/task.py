@@ -15,6 +15,7 @@ from .db.models import (
     DependencyModel,
     SegmentModel,
     SegmentTypeModel,
+    TaskFeedbackModel,
     TaskModel,
     TaskTypeModel,
     UserModel,
@@ -984,9 +985,6 @@ def start_task_cross_project(
 
         if selected_task is not None:
             logger.info(f"Selected task type: {type(selected_task)}, value: {selected_task}")
-            if isinstance(selected_task, str):
-                logger.error(f"ERROR: selected_task is unexpectedly a string: {selected_task}")
-                raise TaskValidationError(f"Internal error: selected_task is a string: {selected_task}")  # pylint: disable=line-too-long
             project_name = str(selected_task.project_name)
             task_data = selected_task.to_dict()
             _validate_task(session, project_name, task_data)
@@ -1046,6 +1044,94 @@ def get_task_cross_project(
             return cast(Task, result), project_name
         except NoResultFound as exc:
             raise KeyError(f"Task {task_id} not found in any project") from exc
+
+
+def get_task_feedback_cross_project(
+    *,
+    user_id: str,
+    limit: int = 20,
+    db_session: Session | None = None,
+) -> list[dict]:
+    """
+    Get task feedback entries for a user across all projects they have access to.
+    
+    :param user_id: The ID of the user to get feedback for
+    :param limit: Maximum number of feedback entries to return (default: 20)
+    :param db_session: Database session to use (optional)
+    :return: List of feedback entries with task and feedback data across all projects
+    :raises UserValidationError: If the user is not found in any project
+    :raises RuntimeError: If the database operation fails
+    """
+    with get_session_context(db_session) as session:
+        # Build user qualifications to find all accessible projects
+        user_qualifications, _, _ = _build_user_qualifications_map(session, user_id)
+
+        if not user_qualifications:
+            raise UserValidationError(f"User {user_id} not found in any project")
+
+        project_names = list(user_qualifications.keys())
+
+        # Query feedback entries across all accessible projects
+        feedback_query = (
+            select(TaskFeedbackModel)
+            .where(TaskFeedbackModel.project_name.in_(project_names))
+            .where(TaskFeedbackModel.user_id == user_id)
+            .order_by(TaskFeedbackModel.created_at.desc())
+            .limit(limit)
+        )
+
+        feedbacks = session.execute(feedback_query).scalars().all()
+
+        feedback_data = []
+        for feedback in feedbacks:
+            # Get original task data
+            original_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.task_id,
+                )
+                .first()
+            )
+
+            # Get feedback task data
+            feedback_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.feedback_task_id,
+                )
+                .first()
+            )
+
+            # Map completion status to feedback type
+            feedback_type = feedback_task.completion_status if feedback_task else "Unknown"
+            feedback_color = "red"  # Default to red for unknown statuses
+
+            if feedback_type == "Accurate":
+                feedback_color = "green"
+            elif feedback_type == "Fair":
+                feedback_color = "yellow"
+            elif feedback_type == "Inaccurate":
+                feedback_color = "red"
+
+            feedback_data.append(
+                {
+                    "project_name": feedback.project_name,  # Include project name
+                    "task_id": feedback.task_id,
+                    "task_link": original_task.ng_state if original_task else None,
+                    "feedback_link": feedback_task.ng_state if feedback_task else None,
+                    "feedback": feedback_type,
+                    "feedback_color": feedback_color,
+                    "note": feedback_task.note if feedback_task else None,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                    "user_id": feedback.user_id,
+                    "feedback_id": feedback.feedback_id,
+                    "feedback_task_id": feedback.feedback_task_id,
+                }
+            )
+
+        return feedback_data
 
 
 def get_task(

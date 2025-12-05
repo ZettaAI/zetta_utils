@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import io
 import time
 from collections import defaultdict
@@ -122,27 +123,30 @@ def _blackout_segments(seg: np.ndarray, ids_to_remove: set[int]) -> np.ndarray:
     if not ids_to_remove:
         return seg
     seg = seg.copy()
-    for seg_id in ids_to_remove:
-        seg[seg == seg_id] = 0
+    mask = np.isin(seg, list(ids_to_remove))
+    seg[mask] = 0
     return seg
 
 
 def _find_axis_contacts(
-    seg_lo: np.ndarray, seg_hi: np.ndarray, aff_slice: np.ndarray, offset: tuple[int, int, int]
+    seg_lo: np.ndarray,
+    seg_hi: np.ndarray,
+    aff_slice: np.ndarray,
+    offset: tuple[float, float, float],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Find contacts along one axis."""
+    """Find contacts along one axis. Returns face centers (with 0.5 offset on contact axis)."""
     mask = (seg_lo != seg_hi) & (seg_lo != 0) & (seg_hi != 0)
     idx = np.nonzero(mask)
     if len(idx[0]) == 0:
         empty_i, empty_f = np.array([], dtype=np.int64), np.array([], dtype=np.float32)
-        return empty_i, empty_i, empty_f, empty_i, empty_i, empty_i
+        return empty_i, empty_i, empty_f, empty_f, empty_f, empty_f
     return (
         seg_lo[mask],
         seg_hi[mask],
         aff_slice[mask],
-        idx[0] + offset[0],
-        idx[1] + offset[1],
-        idx[2] + offset[2],
+        idx[0].astype(np.float32) + offset[0],
+        idx[1].astype(np.float32) + offset[1],
+        idx[2].astype(np.float32) + offset[2],
     )
 
 
@@ -155,13 +159,17 @@ def _dedupe_and_average_contacts(
     z: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Average affinities for voxels touching on multiple axes and normalize order."""
-    df = pd.DataFrame({"seg_a": seg_a, "seg_b": seg_b, "x": x, "y": y, "z": z, "aff": aff})
-    deduped = df.groupby(["seg_a", "seg_b", "x", "y", "z"], as_index=False).agg({"aff": "mean"})
-    seg_a, seg_b = deduped["seg_a"].values, deduped["seg_b"].values
+    # Normalize segment order BEFORE grouping to avoid duplicates
     swap = seg_a > seg_b
+    seg_a_norm = np.where(swap, seg_b, seg_a)
+    seg_b_norm = np.where(swap, seg_a, seg_b)
+    df = pd.DataFrame(
+        {"seg_a": seg_a_norm, "seg_b": seg_b_norm, "x": x, "y": y, "z": z, "aff": aff}
+    )
+    deduped = df.groupby(["seg_a", "seg_b", "x", "y", "z"], as_index=False).agg({"aff": "mean"})
     return (
-        np.where(swap, seg_b, seg_a),
-        np.where(swap, seg_a, seg_b),
+        deduped["seg_a"].values,
+        deduped["seg_b"].values,
         deduped["aff"].values.astype(np.float32),
         deduped["x"].values,
         deduped["y"].values,
@@ -208,19 +216,39 @@ def _find_contacts(
     sx, sy, sz = int(start[0]), int(start[1]), int(start[2])
     results = []
 
-    for seg_lo, seg_hi, aff_slice in [
-        (candidate_seg[:-1], candidate_seg[1:], affinity_raw[0, 1:]),
-        (candidate_seg[:, :-1], candidate_seg[:, 1:], affinity_raw[1, :, 1:]),
-        (candidate_seg[:, :, :-1], candidate_seg[:, :, 1:], affinity_raw[2, :, :, 1:]),
+    t0 = time.time()
+    # For each axis, offset by 0.5 on the contact axis to get face center
+    # Extra 0.5 on Z axis
+    for seg_lo, seg_hi, aff_slice, offset in [
+        (
+            candidate_seg[:-1],
+            candidate_seg[1:],
+            affinity_raw[0, 1:],
+            (sx + 0.5, sy, sz + 0.5),
+        ),  # X
+        (
+            candidate_seg[:, :-1],
+            candidate_seg[:, 1:],
+            affinity_raw[1, :, 1:],
+            (sx, sy + 0.5, sz + 0.5),
+        ),  # Y
+        (
+            candidate_seg[:, :, :-1],
+            candidate_seg[:, :, 1:],
+            affinity_raw[2, :, :, 1:],
+            (sx, sy, sz + 1.0),
+        ),  # Z
     ]:
-        r = _find_axis_contacts(seg_lo, seg_hi, aff_slice, (sx, sy, sz))
+        r = _find_axis_contacts(seg_lo, seg_hi, aff_slice, offset)
         if len(r[0]) > 0:
             results.append(r)
+    print(f"      axis contacts: {time.time() - t0:.1f}s", flush=True)
 
     if not results:
         empty_i, empty_f = np.array([], dtype=np.int64), np.array([], dtype=np.float32)
         return empty_i, empty_i, empty_f, empty_i, empty_i, empty_i
 
+    t0 = time.time()
     seg_a = np.concatenate([r[0] for r in results])
     seg_b = np.concatenate([r[1] for r in results])
     aff = np.concatenate([r[2] for r in results])
@@ -229,11 +257,17 @@ def _find_contacts(
         np.concatenate([r[4] for r in results]),
         np.concatenate([r[5] for r in results]),
     )
+    # Normalize segment order so seg_a < seg_b
+    swap = seg_a > seg_b
+    seg_a, seg_b = np.where(swap, seg_b, seg_a), np.where(swap, seg_a, seg_b)
+    print(f"      concatenate ({len(seg_a)} contacts): {time.time() - t0:.1f}s", flush=True)
 
-    seg_a, seg_b, aff, x, y, z = _dedupe_and_average_contacts(seg_a, seg_b, aff, x, y, z)
-    return _filter_pairs_to_kernel(
+    t0 = time.time()
+    result = _filter_pairs_to_kernel(
         seg_a, seg_b, aff, x, y, z, start, candidate_seg.shape, crop_pad
     )
+    print(f"      filter kernel ({len(result[0])} after): {time.time() - t0:.1f}s", flush=True)
+    return result
 
 
 def _compute_contact_counts(seg_a: np.ndarray, seg_b: np.ndarray) -> dict[tuple[int, int], int]:
@@ -292,7 +326,7 @@ def _sample_mesh_points(mesh: trimesh.Trimesh, n: int) -> np.ndarray:
 
 
 def _compute_affinity_weighted_com(
-    contacts: list[tuple[int, int, int, float]], resolution: np.ndarray
+    contacts: list[tuple[float, float, float, float]], resolution: np.ndarray
 ) -> np.ndarray:
     """Compute affinity-weighted center of mass in nm."""
     x = np.array([c[0] for c in contacts])
@@ -314,7 +348,7 @@ def _compute_affinity_weighted_com(
 
 
 def _make_contact_array(
-    contacts: list[tuple[int, int, int, float]], resolution: np.ndarray, max_size: int
+    contacts: list[tuple[float, float, float, float]], resolution: np.ndarray, max_size: int
 ) -> tuple[np.ndarray, int]:
     """Create padded contact array from contact list."""
     x = np.array([c[0] for c in contacts]) * resolution[0]
@@ -342,6 +376,7 @@ def _make_empty_table() -> pa.Table:
             "chunk_coord": pa.array([], type=pa.list_(pa.int64())),
             "chunk_size": pa.array([], type=pa.list_(pa.int64())),
             "crop_pad": pa.array([], type=pa.list_(pa.int64())),
+            "sphere_radius_nm": pa.array([], type=pa.float64()),
             "candidate_path": pa.array([], type=pa.string()),
             "reference_path": pa.array([], type=pa.string()),
             "affinity_path": pa.array([], type=pa.string()),
@@ -413,16 +448,16 @@ def _build_contact_lookup(
     cy: np.ndarray,
     cz: np.ndarray,
     aff: np.ndarray,
-) -> dict[tuple[int, int], list[tuple[int, int, int, float]]]:
-    """Build lookup from segment pair to contact voxels."""
-    data: dict[tuple[int, int], list[tuple[int, int, int, float]]] = defaultdict(list)
+) -> dict[tuple[int, int], list[tuple[float, float, float, float]]]:
+    """Build lookup from segment pair to contact face centers."""
+    data: dict[tuple[int, int], list[tuple[float, float, float, float]]] = defaultdict(list)
     for a, b, x, y, z, af in zip(seg_a, seg_b, cx, cy, cz, aff):
-        data[(int(a), int(b))].append((int(x), int(y), int(z), float(af)))
+        data[(int(a), int(b))].append((float(x), float(y), float(z), float(af)))
     return data
 
 
 def _all_contacts_in_sphere(
-    contacts: list[tuple[int, int, int, float]],
+    contacts: list[tuple[float, float, float, float]],
     center: np.ndarray,
     radius: float,
     resolution: np.ndarray,
@@ -439,7 +474,7 @@ def _generate_single_sample(
     seg_a_id: int,
     seg_b_id: int,
     meshes: dict[int, trimesh.Trimesh],
-    contact_data: dict[tuple[int, int], list[tuple[int, int, int, float]]],
+    contact_data: dict[tuple[int, int], list[tuple[float, float, float, float]]],
     cand_to_proof: dict[int, set[int]],
     cfg: SampleConfig,
 ) -> dict[str, Any] | None:
@@ -518,6 +553,7 @@ def _make_sample_config(
             "chunk_coord": chunk_coord,
             "chunk_size": [int(idx.stop[i] - idx.start[i]) for i in range(3)],
             "crop_pad": list(crop_pad),
+            "sphere_radius_nm": sphere_radius_nm,
             "candidate_path": candidate_path,
             "reference_path": reference_path,
             "affinity_path": affinity_path,
@@ -528,7 +564,7 @@ def _make_sample_config(
 def _generate_all_samples(
     valid_pairs: list[tuple[int, int, int]],
     meshes: dict[int, trimesh.Trimesh],
-    contact_data: dict[tuple[int, int], list[tuple[int, int, int, float]]],
+    contact_data: dict[tuple[int, int], list[tuple[float, float, float, float]]],
     cand_to_proof: dict[int, set[int]],
     cfg: SampleConfig,
 ) -> list[dict[str, Any]]:
@@ -545,6 +581,14 @@ def _generate_all_samples(
     print(f"[{cfg.coord_str}]   no mesh: -{n_no_mesh}", flush=True)
     print(f"[{cfg.coord_str}]   final samples: {len(samples)}", flush=True)
     return samples
+
+
+@contextlib.contextmanager
+def _timed(label: str, coord_str: str):
+    """Context manager for timing code blocks."""
+    t0 = time.time()
+    yield
+    print(f"[{coord_str}]   {label}: {time.time() - t0:.1f}s", flush=True)
 
 
 def process_contact_samples(
@@ -573,30 +617,42 @@ def process_contact_samples(
         sphere_radius_nm,
     )
 
-    exclude_ids, cand_to_proof = _find_excluded_segments_and_overlaps(
-        candidate_seg, proofread_seg, flt.min_seg_size_vx, flt.min_overlap_vx, cfg.coord_str
-    )
-    seg_a, seg_b, aff, cx, cy, cz = _find_contacts(
-        _blackout_segments(candidate_seg, exclude_ids), affinity_raw, idx.start, crop_pad
-    )
+    with _timed("overlaps/filtering", cfg.coord_str):
+        exclude_ids, cand_to_proof = _find_excluded_segments_and_overlaps(
+            candidate_seg, proofread_seg, flt.min_seg_size_vx, flt.min_overlap_vx, cfg.coord_str
+        )
+
+    with _timed(f"blackout ({len(exclude_ids)} segs)", cfg.coord_str):
+        candidate_seg = _blackout_segments(candidate_seg, exclude_ids)
+
+    with _timed("find contacts", cfg.coord_str):
+        seg_a, seg_b, aff, cx, cy, cz = _find_contacts(
+            candidate_seg, affinity_raw, idx.start, crop_pad
+        )
     if len(seg_a) == 0:
         print(f"[{cfg.coord_str}] No contacts found", flush=True)
         return []
 
-    valid_pairs, segs = _filter_contact_pairs(
-        _compute_contact_counts(seg_a, seg_b),
-        flt.min_contact_vx,
-        flt.max_contact_vx,
-        cfg.coord_str,
-    )
+    with _timed("filter pairs", cfg.coord_str):
+        valid_pairs, segs = _filter_contact_pairs(
+            _compute_contact_counts(seg_a, seg_b),
+            flt.min_contact_vx,
+            flt.max_contact_vx,
+            cfg.coord_str,
+        )
     if not valid_pairs:
         return []
 
-    mesh_points = _download_meshes_for_pairs(
-        mesh_cv, segs, idx, crop_pad, cfg.resolution, cfg.coord_str
-    )
-    contact_data = _build_contact_lookup(seg_a, seg_b, cx, cy, cz, aff)
-    return _generate_all_samples(valid_pairs, mesh_points, contact_data, cand_to_proof, cfg)
+    with _timed("mesh download", cfg.coord_str):
+        meshes = _download_meshes_for_pairs(
+            mesh_cv, segs, idx, crop_pad, cfg.resolution, cfg.coord_str
+        )
+
+    with _timed("build lookup", cfg.coord_str):
+        contact_data = _build_contact_lookup(seg_a, seg_b, cx, cy, cz, aff)
+
+    with _timed("generate samples", cfg.coord_str):
+        return _generate_all_samples(valid_pairs, meshes, contact_data, cand_to_proof, cfg)
 
 
 @builder.register("ContactSampleOp")

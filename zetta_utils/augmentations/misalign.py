@@ -178,7 +178,7 @@ class MisalignProcessor(JointIndexDataProcessor[T, VolumetricIndex]):
                 z_misal_slice = slice(this_z_chosen, tensor.shape[-1])
             tensor[
                 :, x_start : x_start + x_size, y_start : y_start + y_size, z_misal_slice
-            ] = copy.deepcopy(  # type: ignore  # guaranteed same type as target
+            ] = copy.deepcopy(
                 tensor[
                     :,
                     x_start_misal : x_start_misal + x_size,

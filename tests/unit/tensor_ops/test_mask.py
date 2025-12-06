@@ -17,7 +17,7 @@ def test_skip_on_empty_data(mocker):
 
     wrapie.__call__ = wrapie_call
 
-    wrapped = mask.skip_on_empty_data(wrapie)
+    wrapped: mask.TensorOp = mask.skip_on_empty_data(wrapie)
     assert wrapped(torch.Tensor([0])) == torch.Tensor([0])
 
 

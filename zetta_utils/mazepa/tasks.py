@@ -171,7 +171,10 @@ class _TaskableOperation(Generic[P, R_co]):
     """
 
     fn: Callable[P, R_co]
-    operation_name: str = "Unclassified Task"
+    operation_name: str = attrs.field(
+        default=None,
+        converter=attrs.converters.default_if_none("Unclassified Task")  # type: ignore[misc]
+    )
     id_fn: Callable[[Callable, list, dict], str] = attrs.field(
         default=functools.partial(id_generation.generate_invocation_id, prefix="task")
     )

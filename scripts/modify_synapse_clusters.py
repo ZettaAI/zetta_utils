@@ -168,7 +168,7 @@ def get_bounding_boxes(state, layer_name: str, return_union: bool = False):
         if union_bbox is None:
             union_bbox = bbox
         else:
-            union_bbox = union_bbox.supremum(bbox)  # type: ignore[unreachable]
+            union_bbox = union_bbox.supremum(bbox)
     if return_union:
         return bboxes, union_bbox
     return bboxes

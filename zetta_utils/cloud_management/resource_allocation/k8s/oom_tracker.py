@@ -108,6 +108,7 @@ def _get_main_container_status() -> int:
 
 def monitor_loop():
     log_pod_runtime()
+    pod_name = os.getenv("POD_NAME")
     history: deque = deque(maxlen=WINDOW_SIZE)
     total_bytes = get_memory_limit_bytes()
     if total_bytes < 0:
@@ -128,9 +129,13 @@ def monitor_loop():
                     growth_alert = True
 
             if growth_alert and usage_pct > PERCENTAGE_THRESHOLD:
+                logger.warning(f"⚠️ {pod_name} potentially could get OOM Killed.")
+                run_id = os.environ["RUN_ID"]
+                info: DBRowDataT = {RunInfo.WORKER_STATE.value: "potential OOM Killed"}
+                update_run_info(run_id, info)
                 log_pod_runtime()
         except Exception as e:
-            print(e)
+            logger.warning(e)
 
         time.sleep(CHECK_INTERVAL)
     log_pod_runtime()

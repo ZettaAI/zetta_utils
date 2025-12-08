@@ -4,7 +4,6 @@ import contextlib
 import logging
 import multiprocessing
 import os
-import signal
 import sys
 import time
 from contextlib import ExitStack
@@ -13,7 +12,7 @@ from itertools import repeat
 import pebble
 
 from zetta_utils import builder, log, try_load_train_inference
-from zetta_utils.common import monitor_resources
+from zetta_utils.common import monitor_resources, reset_signal_handlers
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
@@ -43,8 +42,7 @@ def worker_init(
 ) -> None:
     # Reset signal handlers inherited from parent to default behavior
     # This prevents parent's signal handlers from interfering with worker cleanup
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    reset_signal_handlers()
     # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
     if suppress_worker_logs:

@@ -724,16 +724,18 @@ async def start_task_cross_project_api(
 async def get_task_feedback_cross_project_api(
     user_id: str,
     limit: int = 20,
+    skip: int = 0,
 ) -> list[dict]:
     """
     Get task feedback entries for a user across all projects they have access to.
     
     :param user_id: The ID of the user to get feedback for
     :param limit: Maximum number of feedback entries to return (default: 20)
+    :param skip: Number of items to skip (pagination)
     :return: List of feedback entries with task and feedback data across all projects
     """
     try:
-        return get_task_feedback_cross_project(user_id=user_id, limit=limit)
+        return get_task_feedback_cross_project(user_id=user_id, limit=limit, skip=skip)
     except Exception as e:
         logger.error(f"Failed to get cross-project task feedback: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get task feedback: {str(e)}")

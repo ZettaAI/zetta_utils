@@ -682,6 +682,7 @@ def _select_available_task_across_projects(
             .where(TaskModel.is_active.is_(True))
             .where(TaskModel.is_paused == False)
             .where(TaskModel.completion_status == "")
+            .where(TaskModel.assigned_user_id == "")
             .where(TaskModel.task_type.in_(qualified_types))
             .where(TaskModel.active_user_id == "")
             .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
@@ -710,7 +711,12 @@ def _select_available_task_across_projects(
         .with_for_update(skip_locked=True)
     )
     locked = db_session.execute(lock_query).scalar_one_or_none()
-    if locked and locked.active_user_id == "" and locked.completion_status == "":
+    if (
+        locked
+        and locked.active_user_id == ""
+        and locked.completion_status == ""
+        and locked.assigned_user_id == ""
+    ):
         logger.info(
             f"Found available task {locked.task_id} of type {locked.task_type} in project {locked.project_name}"  # pylint: disable=C0301
         )
@@ -744,6 +750,7 @@ def _select_idle_task_across_projects(
             .where(TaskModel.is_active.is_(True))
             .where(TaskModel.is_paused == False)
             .where(TaskModel.completion_status == "")
+            .where(TaskModel.assigned_user_id == "")
             .where(TaskModel.task_type.in_(qualified_types))
             .where(TaskModel.last_leased_ts < oldest_allowed_ts)
             .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
@@ -779,6 +786,7 @@ def _select_idle_task_across_projects(
             locked.last_leased_ts < oldest_allowed_ts
             and locked.completion_status == ""
             and not locked.is_paused
+            and locked.assigned_user_id == ""
         ):
             logger.info(
                 f"Found idle task {locked.task_id} in project {locked.project_name}"
@@ -810,7 +818,14 @@ def _auto_select_task_cross_project(
     return _select_idle_task_across_projects(db_session, user_qualifications)
 
 
+# Backward-compatible wrapper; preferred name is _get_active_user_with_qualifications
 def _build_user_qualifications_map(
+    db_session: Session, user_id: str
+) -> tuple[dict[str, _UserProjectQualifications], str | None, str | None]:
+    return _get_active_user_with_qualifications(db_session, user_id)
+
+
+def _get_active_user_with_qualifications(
     db_session: Session, user_id: str
 ) -> tuple[dict[str, _UserProjectQualifications], str | None, str | None]:
     """
@@ -1050,6 +1065,7 @@ def get_task_feedback_cross_project(
     *,
     user_id: str,
     limit: int = 20,
+    skip: int = 0,
     db_session: Session | None = None,
 ) -> list[dict]:
     """
@@ -1058,6 +1074,7 @@ def get_task_feedback_cross_project(
     :param user_id: The ID of the user to get feedback for
     :param limit: Maximum number of feedback entries to return (default: 20)
     :param db_session: Database session to use (optional)
+    :param skip: Number of records to skip for pagination (default: 0)
     :return: List of feedback entries with task and feedback data across all projects
     :raises UserValidationError: If the user is not found in any project
     :raises RuntimeError: If the database operation fails
@@ -1078,6 +1095,7 @@ def get_task_feedback_cross_project(
             .where(TaskFeedbackModel.user_id == user_id)
             .order_by(TaskFeedbackModel.created_at.desc())
             .limit(limit)
+            .offset(skip)
         )
 
         feedbacks = session.execute(feedback_query).scalars().all()

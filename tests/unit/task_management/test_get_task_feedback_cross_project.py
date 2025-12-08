@@ -121,7 +121,7 @@ def _mk_feedback_task(task_id: str, status: str, note: str | None = None) -> Tas
 
 
 def test_get_task_feedback_cross_project_success(
-    db_session, two_projects, task_types, qualified_user
+    clean_db, db_session, two_projects, task_types, qualified_user
 ):
     projA, projB = two_projects
     # task_types fixture ensures required task types exist in both projects
@@ -216,6 +216,49 @@ def test_get_task_feedback_cross_project_success(
     assert r3["task_link"] is None
     assert r3["feedback_link"] is None
     assert r3["note"] is None
+
+
+def test_get_task_feedback_cross_project_with_skip(
+    clean_db, db_session, two_projects, task_types, qualified_user
+):
+    projA, projB = two_projects
+
+    # Create original and feedback tasks
+    create_task(project_name=projA, data=_mk_trace_task("orig1"), db_session=db_session)
+    create_task(project_name=projA, data=_mk_feedback_task("fb1", status="Accurate"), db_session=db_session) # pylint: disable=line-too-long
+
+    create_task(project_name=projB, data=_mk_trace_task("orig3"), db_session=db_session)
+    create_task(project_name=projB, data=_mk_feedback_task("fb3", status="Inaccurate"), db_session=db_session) # pylint: disable=line-too-long
+
+    create_task(project_name=projA, data=_mk_trace_task("orig2"), db_session=db_session)
+    create_task(project_name=projA, data=_mk_feedback_task("fb2", status="Fair"), db_session=db_session) # pylint: disable=line-too-long
+
+    # Feedback links with timestamps to define order
+    now = datetime.now(timezone.utc)
+    fb_rows = [
+        (projA, "orig1", "fb1", qualified_user, now),
+        (projB, "orig3", "fb3", qualified_user, now - timedelta(minutes=1)),
+        (projA, "orig2", "fb2", qualified_user, now - timedelta(minutes=2)),
+        (projB, "missing_orig", "missing_fb", qualified_user, now - timedelta(minutes=3)),
+    ]
+    for i, (pn, t_id, fb_id, uid, ts) in enumerate(fb_rows, start=1):
+        db_session.add(
+            TaskFeedbackModel(
+                project_name=pn,
+                feedback_id=i,
+                task_id=t_id,
+                feedback_task_id=fb_id,
+                user_id=uid,
+                created_at=ts,
+            )
+        )
+    db_session.commit()
+
+    # Skip the first (newest) item
+    result = get_task_feedback_cross_project(
+        user_id=qualified_user, limit=10, skip=1, db_session=db_session
+    )
+    assert [r["feedback_id"] for r in result] == [2, 3, 4]
 
 
 def test_get_task_feedback_cross_project_user_not_found(monkeypatch, db_session):

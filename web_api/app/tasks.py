@@ -277,7 +277,7 @@ async def get_task_feedback_api(
             feedback_type = feedback_task.completion_status if feedback_task else "Unknown"
             feedback_color = "red"  # Default to red for unknown statuses
 
-            if feedback_type == "Accurate":
+            if feedback_type == "Perfect" or feedback_type == "Accurate":
                 feedback_color = "green"
             elif feedback_type == "Fair":
                 feedback_color = "yellow"

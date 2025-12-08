@@ -10,7 +10,7 @@ from typing import Dict, List, Literal, Mapping, Optional
 from kubernetes.client.exceptions import ApiException
 
 from kubernetes import client as k8s_client
-from kubernetes import watch  # type: ignore
+from kubernetes import config, watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
 
@@ -317,3 +317,31 @@ def stream_pod_logs(
                 prefix=prefix,
                 tail_lines=tail_lines,
             )
+
+
+def is_oom_killed(container_status):
+    """
+    Return True if the container terminated due to OOMKilled.
+    """
+    state = container_status.state
+    if state and state.terminated:
+        return state.terminated.reason == "OOMKilled"
+    return False
+
+
+def watch_for_oom_kills(namespace="default"):
+    config.load_kube_config()
+    v1 = k8s_client.CoreV1Api()
+    w = watch.Watch()
+    try:
+        for event in w.stream(v1.list_namespaced_pod, namespace=namespace):
+            pod = event["object"]
+            pod_name = pod.metadata.name
+            if pod.status.container_statuses:
+                for cs in pod.status.container_statuses:
+                    if is_oom_killed(cs):
+                        logger.warning(f"⚠️ [OOMKilled] {pod_name}.")
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        logger.warning(err)
+    finally:
+        w.stop()

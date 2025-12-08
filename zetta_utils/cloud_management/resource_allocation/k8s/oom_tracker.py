@@ -5,6 +5,9 @@ import time
 from collections import deque
 
 from kubernetes import client, config  # type: ignore
+from zetta_utils import log
+from zetta_utils.layer.db_layer.backend import DBRowDataT
+from zetta_utils.run import RunInfo, update_run_info
 
 from .log_pod_runtime import log_pod_runtime
 
@@ -14,6 +17,8 @@ CHECK_INTERVAL = 1
 WINDOW_SIZE = 60
 GROWTH_THRESHOLD_PERCENT = 10
 PERCENTAGE_THRESHOLD = 0.85
+
+logger = log.get_logger("zetta_utils")
 
 
 def get_memory_limit_bytes() -> int:
@@ -131,7 +136,25 @@ def monitor_loop():
     log_pod_runtime()
 
 
+def check_if_restarted():
+    config.load_incluster_config()
+    v1 = client.CoreV1Api()
+    pod_name = os.getenv("POD_NAME")
+    namespace = os.getenv("POD_NAMESPACE", "default")
+    pod = v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+
+    for c in pod.status.container_statuses:
+        if c.restart_count > 0:
+            last = c.last_state.terminated
+            if last:
+                logger.warning(f"⚠️ {pod_name} restarted. Reason: {last.reason}")
+                run_id = os.environ["RUN_ID"]
+                info: DBRowDataT = {RunInfo.WORKER_STATE.value: last.reason}
+                update_run_info(run_id, info)
+
+
 if __name__ == "__main__":
     if not POD_NAME:
         raise RuntimeError("POD_NAME environment variable must be set.")
+    check_if_restarted()
     monitor_loop()

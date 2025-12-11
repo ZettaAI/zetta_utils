@@ -1,4 +1,5 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
+# mypy: disable-error-code="misc,method-assign,attr-defined"
 import os
 import pathlib
 from copy import deepcopy

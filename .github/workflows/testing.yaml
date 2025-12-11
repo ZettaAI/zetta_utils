@@ -2,7 +2,7 @@ name: CI Pipeline
 
 on:
   pull_request:
-    type: [ opened, synchronize ]
+    types: [ opened, synchronize ]
   push:
     branches: [ main ]
 
@@ -38,8 +38,27 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+
+      - name: Smart submodule checkout
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
@@ -117,8 +136,27 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+
+      - name: Smart submodule checkout
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
@@ -192,8 +230,27 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+
+      - name: Smart submodule checkout
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
@@ -263,8 +320,27 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+
+      - name: Smart submodule checkout
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46

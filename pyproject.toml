@@ -94,7 +94,7 @@ chunkedgraph = [
   # Note: graph_tool must be installed separately via conda:
   # conda install -c conda-forge graph-tool-base
 ]
-convnet = ["torch >= 2.0", "artificery >= 0.0.3.3", "onnx2torch", "nvidia-ml-py >= 13.580"]
+convnet = ["torch >= 2.0", "onnx2torch", "nvidia-ml-py >= 13.580"]
 databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.24.0",
@@ -207,14 +207,14 @@ tensor-ops = [
   "torchfields >= 0.1.2",
   "kornia >= 0.6.12",
   "opencv-python-headless >= 4.5.5",
-  "scikit-image >= 0.19.3",
+  "scikit-image >= 0.25.0",  # footprint_rectangle
 ]
 
 tensor-typing = ["torch >= 2.0", "numpy"]
 
 test = [
   "zetta_utils[types]",
-  "testcontainers==4.11.0",
+  "testcontainers>4.11.0",
   "docker>=7.0.0",
   "black == 21.9b0",
   "click == 8.0.1",
@@ -235,7 +235,7 @@ test = [
 training = [
   "zetta_utils[tensor_ops,cloudvol,convnet,viz,gcs,augmentations]",
   "torch >= 2.0",
-  "lightning[pytorch] ~= 2.2",
+  "lightning ~= 2.2",
   "torchmetrics >= 0.11.4",
   "wandb >= 0.13.1",
   "kubernetes",

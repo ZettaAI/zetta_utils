@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=312
 
-FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.5.1_torch2.6.0_py${PYTHON_VERSION}"
+FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.9_torch2.9.1_py${PYTHON_VERSION}"
 
 ENV DEBIAN_FRONTEND="noninteractive"
 

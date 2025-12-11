@@ -102,7 +102,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
     def save_checkpoint(
-        self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
+        self, filepath, weights_only: bool | None = False, storage_options: Any | None = None
     ):  # pylint: disable=too-many-locals
         if filepath.startswith("./"):
             filepath = f"{self.default_root_dir}/{filepath[2:]}"

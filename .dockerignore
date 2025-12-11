@@ -1,4 +1,13 @@
 specs/**
+scripts/
+notebooks/
+layer/
+tests/
+*.tif
+*.txt
+*.json
+*.csv
+*.log
 
 # Traing data logging
 **/wandb/**

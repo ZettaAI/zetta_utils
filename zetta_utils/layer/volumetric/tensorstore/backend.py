@@ -309,11 +309,19 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
-        return Vec3D[int](*ts.chunk_layout.grid_origin[0:3])
+        grid_origin = ts.chunk_layout.grid_origin
+        assert grid_origin is not None
+        x, y, z = grid_origin[0:3]
+        assert x is not None and y is not None and z is not None
+        return Vec3D[int](x, y, z)
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))
-        return Vec3D[int](*ts.chunk_layout.read_chunk.shape[0:3])
+        chunk_shape = ts.chunk_layout.read_chunk.shape
+        assert chunk_shape is not None
+        x, y, z = chunk_shape[0:3]
+        assert x is not None and y is not None and z is not None
+        return Vec3D[int](x, y, z)
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
         ts = _get_ts_at_resolution(self.path, self.cache_bytes_limit, str(list(resolution)))

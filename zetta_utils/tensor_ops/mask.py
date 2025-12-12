@@ -1,6 +1,6 @@
 import copy
 from functools import reduce
-from typing import Callable, Literal, Protocol, Sequence, TypeVar, Union
+from typing import Callable, Literal, Protocol, Sequence, Union
 
 import cc3d
 import einops
@@ -34,10 +34,7 @@ class TensorOp(Protocol[P]):
         ...
 
 
-OpT = TypeVar("OpT", bound=TensorOp)
-
-
-def skip_on_empty_data(fn: OpT) -> OpT:
+def skip_on_empty_data(fn: TensorOp[P]) -> TensorOp[P]:
     """
     Decorator that ensures early exit for a tensor op when `data` is 0.
     """
@@ -49,7 +46,7 @@ def skip_on_empty_data(fn: OpT) -> OpT:
             result = fn(data, *args, **kwargs)
         return result
 
-    return wrapped  # type: ignore
+    return wrapped
 
 
 @builder.register("filter_cc")

@@ -305,8 +305,8 @@ def load_segmentation():
         seg_layer_name = get_segmentation_layer_name(state)
         layer_data = nglui.parser.get_layer(state, seg_layer_name)
         source_path = layer_data["source"]
-        if isinstance(source_path, dict):  # type: ignore[unreachable]
-            source_path = source_path["url"]  # type: ignore[unreachable]
+        if isinstance(source_path, dict):
+            source_path = source_path["url"]
         # resolution = get_resolution(layer_data)
     if "/|neuroglancer-precomputed:" in source_path:
         source_path = source_path.split("/|neuroglancer-precomputed:")[0]

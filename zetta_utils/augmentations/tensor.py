@@ -189,7 +189,7 @@ def apply_to_random_sections(
     for i in chosen_sections:
         processed = astype(fn(data[..., i]), result)
         assert isinstance(processed, type(result))
-        result[..., i] = processed  # type: ignore # mypy bug
+        result[..., i] = processed
     return result
 
 

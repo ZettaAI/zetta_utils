@@ -32,9 +32,9 @@ class DummyBuffer:
 
 
 def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing.FileIO
-    sys.stdin = DummyBuffer()  # type: ignore
-    sys.stdout = DummyBuffer()  # type: ignore
-    sys.stderr = DummyBuffer()  # type: ignore
+    sys.stdin = DummyBuffer()
+    sys.stdout = DummyBuffer()
+    sys.stderr = DummyBuffer()
 
 
 def worker_init(
@@ -61,12 +61,12 @@ def run_local_worker(
     outcome_queue_name: str,
     local: bool = True,
     sleep_sec: float = 0.1,
-    idle_timeout: int | None = None,
+    idle_timeout: float | None = None,
 ) -> None:
     logger.info("Creating a local worker in this process....")
     queue_type = FileQueue if local else SQSQueue
-    task_queue = queue_type(name=task_queue_name)
-    outcome_queue = queue_type(name=outcome_queue_name, pull_wait_sec=1.0)
+    task_queue: FileQueue | SQSQueue = queue_type(name=task_queue_name)
+    outcome_queue: FileQueue | SQSQueue = queue_type(name=outcome_queue_name, pull_wait_sec=1.0)
     run_worker(
         task_queue=task_queue,
         outcome_queue=outcome_queue,
@@ -84,7 +84,7 @@ def setup_local_worker_pool(
     outcome_queue_name: str,
     local: bool,
     sleep_sec: float,
-    idle_timeout: int | None,
+    idle_timeout: float | None,
     suppress_worker_logs: bool,
     resource_monitor_interval: float | None,
 ):
@@ -137,7 +137,7 @@ def run_worker_manager(
     sleep_sec: float = 1.0,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
-    idle_timeout: int | None = None,
+    idle_timeout: float | None = None,
     suppress_worker_logs: bool = False,
     resource_monitor_interval: float | None = 1.0,
 ):

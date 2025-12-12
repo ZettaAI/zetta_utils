@@ -32,14 +32,25 @@ T = TypeVar("T")
 
 @attrs.frozen
 class DictSupportingTensorOp(Generic[P]):
-    fn: Callable  # [Concatenate[TensorTypeVar, P], TensorTypeVar]
+    """Wrapper that allows a function to work on both single tensors and dicts of tensors.
+
+    This class wraps a tensor operation function to enable it to process both individual
+    tensors and dictionaries of tensors. When called with a dict, it applies the wrapped
+    function to each tensor value. Optionally, a `targets` keyword argument can be passed
+    to the `__call__` method to apply the function only to specific keys in the dict.
+
+    :param fn: The underlying function that operates on a single tensor.
+
+    """
+
+    fn: Callable
 
     @overload
     def __call__(
         self,
         data: TensorTypeVar,
-        *args: P.args,
-        **kwargs: P.kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> TensorTypeVar:
         ...
 
@@ -47,27 +58,25 @@ class DictSupportingTensorOp(Generic[P]):
     def __call__(
         self,
         data: Mapping[Any, TensorTypeVar],
-        *args: P.args,
-        targets: Container[str] | None = None,
-        **kwargs: P.kwargs,
+        *args: Any,
+        **kwargs: Any,
     ) -> dict[Any, TensorTypeVar]:
         ...
 
-    @typechecked
     def __call__(
-        self, data, *args: P.args, targets: Container[str] | None = None, **kwargs: P.kwargs
+        self, data, *args: Any, **kwargs: Any
     ):
+        targets: Container[str] | None = kwargs.pop('targets', None)
+
+        if targets is not None and not isinstance(data, Mapping):
+            raise RuntimeError("`data` must be a Mapping when `targets` is specified.")
+
         if isinstance(data, Mapping):
-            new_data = {}
-            for k in data.keys():
-                if targets is None or k in targets:
-                    new_data[k] = self.fn(data[k], *args, **kwargs)
-                else:
-                    new_data[k] = data[k]
-            return new_data
+            return {
+                k: self.fn(v, *args, **kwargs) if (targets is None or k in targets) else v
+                for k, v in data.items()
+            }
         else:
-            if targets is not None:
-                raise RuntimeError("`data` must be a Mapping when `targets` is specified.")
             return self.fn(data, *args, **kwargs)
 
 
@@ -85,28 +94,41 @@ def supports_dict(
     ...
 
 
-def supports_dict(fn):
-    return DictSupportingTensorOp(fn)
+def supports_dict(fn) -> DictSupportingTensorOp:
+    """Decorator that allows a function to work on both single tensors and dicts of tensors.
+
+    When decorating a function with `@supports_dict`, the wrapped function can be called with:
+    - A single tensor: applies the function to the tensor and returns the result
+    - A dict of tensors: applies the function to each tensor in the dict and returns a dict
+    - A dict with `targets` parameter: applies the function only to specified keys
+
+    The `targets` parameter can be passed at call time (e.g., from builder specs with
+    `{"@type": "function_name", "targets": ["key1", "key2"]}`) to selectively apply
+    the function to only specified keys in a dict.
+
+    :param fn: Function that operates on a single tensor.
+    :return: Wrapped function that handles both single tensors and dicts of tensors.
+
+    """
+    return DictSupportingTensorOp(fn=fn)
 
 
 @builder.register("rearrange")
 @supports_dict
 def rearrange(data: TensorTypeVar, pattern: str, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.rearrange(  # type: ignore # bad typing by einops
-        tensor=data, pattern=pattern, **kwargs
-    )
+    return einops.rearrange(tensor=data, pattern=pattern, **kwargs)
 
 
 @builder.register("reduce")
 @supports_dict
 def reduce(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.reduce(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+    return einops.reduce(tensor=data, **kwargs)
 
 
 @builder.register("repeat")
 @supports_dict
 def repeat(data: TensorTypeVar, **kwargs) -> TensorTypeVar:  # pragma: no cover
-    return einops.repeat(tensor=data, **kwargs)  # type: ignore # bad typing by einops
+    return einops.repeat(tensor=data, **kwargs)
 
 
 @builder.register("multiply")
@@ -143,7 +165,7 @@ def int_divide(data: TensorTypeVar, value) -> TensorTypeVar:  # pragma: no cover
 @supports_dict
 @typechecked
 def unsqueeze(
-    data: TensorTypeVar, dim: Union[SupportsIndex, Sequence[SupportsIndex]] = 0
+    data: TensorTypeVar, dim: SupportsIndex | tuple[SupportsIndex, ...] = 0
 ) -> TensorTypeVar:
     """
     Returns a new tensor with new dimensions of size one inserted at the specified positions.
@@ -169,7 +191,7 @@ def unsqueeze(
 @typechecked
 def squeeze(
     data: TensorTypeVar,
-    dim: Optional[Union[SupportsIndex, Sequence[SupportsIndex]]] = None,
+    dim: SupportsIndex | tuple[SupportsIndex, ...] | None = None,
 ) -> TensorTypeVar:
     """
     Returns a tensor with all the dimensions of input of size 1 removed.
@@ -187,7 +209,7 @@ def squeeze(
             raise ValueError(f"Cannot use `torch.squeeze` with dim of type '{type(dim)}'")
     else:
         assert isinstance(data, np.ndarray)
-        result = data.squeeze(axis=dim)  # type: ignore # mypy thinkgs None is not ok, but it is
+        result = data.squeeze(axis=dim)
 
     return result
 

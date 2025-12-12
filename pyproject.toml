@@ -216,7 +216,7 @@ test = [
   "zetta_utils[types]",
   "testcontainers>4.11.0",
   "docker>=7.0.0",
-  "black == 21.9b0",
+  "black == 24.3.0",
   "click == 8.0.1",
   "pydocstyle == 6.1.1",
   "flake8 == 4.0.1",

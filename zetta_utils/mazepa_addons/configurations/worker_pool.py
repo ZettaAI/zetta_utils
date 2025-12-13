@@ -7,13 +7,13 @@ import os
 import sys
 import time
 from contextlib import ExitStack
-from itertools import repeat
 
 import pebble
 
 from zetta_utils import builder, log, try_load_train_inference
 from zetta_utils.common import monitor_resources, reset_signal_handlers
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
+from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.message_queues import FileQueue, SQSQueue
 
@@ -62,19 +62,22 @@ def run_local_worker(
     local: bool = True,
     sleep_sec: float = 0.1,
     idle_timeout: int | None = None,
-) -> None:
+    pool_name: str | None = None,
+) -> str:
     logger.info("Creating a local worker in this process....")
     queue_type = FileQueue if local else SQSQueue
     task_queue = queue_type(name=task_queue_name)
     outcome_queue = queue_type(name=outcome_queue_name, pull_wait_sec=1.0)
-    run_worker(
+    exit_reason = run_worker(
         task_queue=task_queue,
         outcome_queue=outcome_queue,
         sleep_sec=sleep_sec,
         max_pull_num=1,
         idle_timeout=idle_timeout,
+        pool_name=pool_name,
     )
-    logger.info("Local worker returned.")
+    logger.info(f"Local worker returned: {exit_reason}")
+    return exit_reason
 
 
 @contextlib.contextmanager
@@ -93,41 +96,66 @@ def setup_local_worker_pool(
     Note that worker pools will inherit the current process' multiprocessing start method.
     """
     with monitor_resources(resource_monitor_interval):
-        current_log_level = logging.getLevelName(logging.getLogger("mazepa").getEffectiveLevel())
-        pool = pebble.ProcessPool(
-            max_workers=num_procs,
-            context=multiprocessing.get_context(
-                "spawn"
-            ),  # 'fork' has issues with CV sharded reads
-            initializer=worker_init,
-            initargs=[suppress_worker_logs, multiprocessing.get_start_method(), current_log_level],
-        )
+        # Create pool activity tracker for coordinated idle timeout
+        pool_name = f"{task_queue_name}_{outcome_queue_name}"
+        activity_tracker = None
+        if idle_timeout is not None:
+            activity_tracker = PoolActivityTracker(pool_name)
+            activity_tracker.create_shared_memory().close()
+            logger.info(f"Created pool activity tracker for idle timeout management: {pool_name}")
+
         try:
-            future = pool.map(
-                run_local_worker,
-                repeat(task_queue_name, num_procs),
-                repeat(outcome_queue_name, num_procs),
-                repeat(local, num_procs),
-                repeat(sleep_sec, num_procs),
-                repeat(idle_timeout, num_procs),
+            current_log_level = logging.getLevelName(
+                logging.getLogger("mazepa").getEffectiveLevel()
             )
-            idle_line = (
-                "Idle timeout not set."
-                if idle_timeout is None
-                else f"Idle timeout {idle_timeout:.1f}s."
+            pool = pebble.ProcessPool(
+                max_workers=num_procs,
+                context=multiprocessing.get_context(
+                    "spawn"
+                ),  # 'fork' has issues with CV sharded reads
+                initializer=worker_init,
+                initargs=[
+                    suppress_worker_logs,
+                    multiprocessing.get_start_method(),
+                    current_log_level,
+                ],
             )
-            logger.info(
-                f"Created {num_procs} local workers attached to queues "
-                f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
-            )
-            yield future
+            try:
+                futures = []
+                for _ in range(num_procs):
+                    future = pool.schedule(
+                        run_local_worker,
+                        args=[
+                            task_queue_name,
+                            outcome_queue_name,
+                            local,
+                            sleep_sec,
+                            idle_timeout,
+                            pool_name,
+                        ],
+                    )
+                    futures.append(future)
+
+                idle_line = (
+                    "Idle timeout not set."
+                    if idle_timeout is None
+                    else f"Idle timeout {idle_timeout:.1f}s (pool-wide coordination)."
+                )
+                logger.info(
+                    f"Created {num_procs} local workers attached to queues "
+                    f"`{task_queue_name}` / `{outcome_queue_name}`. " + idle_line
+                )
+                yield futures
+            finally:
+                pool.stop()
+                pool.join()
+                logger.info(
+                    f"Cleaned up {num_procs} local workers that were attached to queues "
+                    f"`{task_queue_name}` / `{outcome_queue_name}`."
+                )
         finally:
-            pool.stop()
-            pool.join()
-            logger.info(
-                f"Cleaned up {num_procs} local workers that were attached to queues "
-                f"`{task_queue_name}` / `{outcome_queue_name}`."
-            )
+            if activity_tracker:
+                activity_tracker.unlink()
 
 
 @builder.register("mazepa.run_worker_manager")
@@ -153,11 +181,25 @@ def run_worker_manager(
             suppress_worker_logs=suppress_worker_logs,
             resource_monitor_interval=resource_monitor_interval,
         )
-        pool_future = stack.enter_context(worker_pool_ctx)
+        pool_futures = stack.enter_context(worker_pool_ctx)
 
         while True:
-            if pool_future and pool_future.done():
-                logger.info("All worker processes have returned, cleaning the worker pool...")
-                break
-            time.sleep(sleep_sec)
+            for i, future in enumerate(pool_futures):
+                if future.done():
+                    try:
+                        exit_reason = future.result(timeout=0)
+                        logger.info(
+                            f"Worker {i} has returned (reason: {exit_reason}), "
+                            f"cleaning the worker pool..."
+                        )
+                    except Exception as e:  # pylint: disable=broad-except
+                        logger.info(
+                            f"Worker {i} has returned with exception ({type(e).__name__}: {e}), "
+                            f"cleaning the worker pool..."
+                        )
+                    break
+            else:
+                time.sleep(sleep_sec)
+                continue
+            break
         logger.info("Exiting worker manager.")

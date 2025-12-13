@@ -59,7 +59,15 @@ def queues_with_worker(task_queue, outcome_queue):
 
 @pytest.fixture
 def queues_with_idle_worker(task_queue, outcome_queue):
-    max_runtime = 10.0
+    from zetta_utils.mazepa.pool_activity import PoolActivityTracker
+
+    max_runtime = 3.0
+    pool_name = "test_idle_worker_pool"
+
+    # Create shared memory for idle timeout tracking
+    tracker = PoolActivityTracker(pool_name)
+    tracker.create_shared_memory().close()
+
     worker = partial(
         mazepa.run_worker,
         task_queue=task_queue,
@@ -68,8 +76,13 @@ def queues_with_idle_worker(task_queue, outcome_queue):
         max_runtime=max_runtime,
         debug=True,
         idle_timeout=0.5,
+        pool_name=pool_name,
     )
+
     yield worker, max_runtime
+
+    # Cleanup
+    tracker.unlink()
 
 
 def return_false_fn(*args, **kwargs):

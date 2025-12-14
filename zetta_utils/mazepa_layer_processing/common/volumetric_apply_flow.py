@@ -5,7 +5,7 @@ import multiprocessing
 from abc import ABC
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
+from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar, assert_never
 
 import attrs
 import cachetools
@@ -224,6 +224,8 @@ def get_weight_template(
             )
             for z in range(1, 2 * z_pad + 1)
         ]
+    else:
+        assert_never(processing_blend_mode)
 
     weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
     weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)

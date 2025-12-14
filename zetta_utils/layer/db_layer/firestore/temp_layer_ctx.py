@@ -13,5 +13,7 @@ def temp_firestore_layer_ctx(
     db_layer = build_firestore_layer(
         collection=get_unique_id(prefix=prefix, add_uuid=False), database=database, project=project
     )
-    yield db_layer
-    db_layer.backend.clear()
+    try:
+        yield db_layer
+    finally:
+        db_layer.backend.clear()

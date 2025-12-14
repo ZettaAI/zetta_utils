@@ -23,7 +23,7 @@ apeye==1.4.1
     # via sphinx-toolbox
 apeye-core==1.1.5
     # via apeye
-astroid==3.1.0
+astroid==4.0.2
     # via pylint
 asttokens==3.0.1
     # via stack-data
@@ -453,7 +453,7 @@ ipython-pygments-lexers==1.1.1
     # via ipython
 ipywidgets==8.1.8
     # via zetta-utils (pyproject.toml)
-isort==5.13.2
+isort==7.0.0
     # via
     #   zetta-utils (pyproject.toml)
     #   pylint
@@ -918,7 +918,7 @@ pygments==2.19.2
     #   sphinx
     #   sphinx-prompt
     #   sphinx-tabs
-pylint==3.1.0
+pylint==4.0.4
     # via zetta-utils (pyproject.toml)
 pyparsing==3.2.5
     # via

@@ -247,8 +247,6 @@ fill-voids==2.1.1
     # via
     #   fastmorph
     #   kimimaro
-flake8==4.0.1
-    # via zetta-utils (pyproject.toml)
 flask==2.2.5
     # via
     #   zetta-utils (pyproject.toml)
@@ -458,7 +456,7 @@ ipython-pygments-lexers==1.1.1
     # via ipython
 ipywidgets==8.1.8
     # via zetta-utils (pyproject.toml)
-isort==5.10.1
+isort==5.13.2
     # via
     #   zetta-utils (pyproject.toml)
     #   pylint
@@ -542,10 +540,8 @@ matplotlib==3.10.8
     #   imaug
 matplotlib-inline==0.2.1
     # via ipython
-mccabe==0.6.1
-    # via
-    #   flake8
-    #   pylint
+mccabe==0.7.0
+    # via pylint
 mdurl==0.1.2
     # via markdown-it-py
 meshparty==2.0.3
@@ -903,8 +899,6 @@ pybind11==3.0.1
     # via
     #   crackle-codec
     #   osteoid
-pycodestyle==2.8.0
-    # via flake8
 pycollada==0.9.2
     # via trimesh
 pycparser==2.23
@@ -915,8 +909,6 @@ pydantic-core==2.41.5
     # via pydantic
 pydocstyle==6.1.1
     # via zetta-utils (pyproject.toml)
-pyflakes==2.4.0
-    # via flake8
 pyfqmr==0.5.0
     # via zetta-utils (pyproject.toml)
 pygments==2.19.2

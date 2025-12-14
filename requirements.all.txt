@@ -35,7 +35,6 @@ attrs==25.4.0
     #   aiohttp
     #   caveclient
     #   jsonschema
-    #   pytest
     #   referencing
 autodocsumm==0.2.14
     # via sphinx-toolbox
@@ -145,10 +144,8 @@ contourpy==1.3.3
     # via matplotlib
 coolname==2.2.0
     # via zetta-utils (pyproject.toml)
-coverage==7.10.6
-    # via
-    #   zetta-utils (pyproject.toml)
-    #   pytest-cov
+coverage==7.13.0
+    # via pytest-cov
 crackle-codec==0.36.0
     # via cloud-volume
 crc32c==2.8
@@ -821,7 +818,9 @@ platformdirs==4.5.1
     #   virtualenv
     #   wandb
 pluggy==1.6.0
-    # via pytest
+    # via
+    #   pytest
+    #   pytest-cov
 posix-ipc==1.3.2
     # via cloud-volume
 pox==0.3.6
@@ -878,8 +877,6 @@ ptyprocess==0.7.0
     # via pexpect
 pure-eval==0.2.3
     # via stack-data
-py==1.11.0
-    # via pytest
 py-cpuinfo==9.0.0
     # via
     #   blosc2
@@ -916,6 +913,7 @@ pygments==2.19.2
     #   ipython
     #   ipython-pygments-lexers
     #   pdbp
+    #   pytest
     #   rich
     #   sphinx
     #   sphinx-prompt
@@ -930,16 +928,16 @@ pysimdjson==7.0.2
     # via cloud-volume
 pyspng-seunglab==1.1.2
     # via cloud-volume
-pytest==7.1.1
+pytest==9.0.2
     # via
     #   zetta-utils (pyproject.toml)
     #   compressed-segmentation
     #   kimimaro
     #   pytest-cov
     #   pytest-mock
-pytest-cov==3.0.0
+pytest-cov==7.0.0
     # via zetta-utils (pyproject.toml)
-pytest-mock==3.8.2
+pytest-mock==3.15.1
     # via zetta-utils (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via
@@ -1197,9 +1195,7 @@ tinybrain==1.7.0
 toml==0.10.2
     # via pre-commit
 tomli==1.2.3
-    # via
-    #   black
-    #   pytest
+    # via black
 tomlkit==0.13.3
     # via pylint
 torch==2.9.1

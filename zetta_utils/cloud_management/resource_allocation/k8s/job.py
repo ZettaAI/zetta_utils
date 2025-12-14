@@ -86,6 +86,7 @@ def get_job(
     suspend: Optional[bool] = False,
 ) -> k8s_client.V1Job:
     name = f"run-{name}"
+    labels = labels or {"app": name}
     meta = k8s_client.V1ObjectMeta(name=name, labels=labels)
     job_spec = get_job_spec(
         pod_spec=pod_spec,

@@ -87,7 +87,7 @@ def _get_scaled_object_manifest(
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_SCALED_OBJECT.value,
-        "metadata": {"name": name, "annotations": {}},
+        "metadata": {"name": name, "annotations": {}, "labels": {"run_id": run_id}},
         "spec": {
             "scaleTargetRef": {
                 "kind": target_kind,
@@ -121,7 +121,7 @@ def _get_scaled_job_manifest(
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_SCALED_JOB.value,
-        "metadata": {"name": name, "annotations": {}},
+        "metadata": {"name": name, "annotations": {}, "labels": {"run_id": run_id}},
         "spec": {
             "jobTargetRef": api.sanitize_for_serialization(job_spec),
             "pollingInterval": polling_interval,

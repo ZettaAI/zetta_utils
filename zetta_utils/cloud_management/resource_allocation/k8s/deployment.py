@@ -106,6 +106,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         labels_final = {"run_id": run_id}
     else:
         labels_final = labels
+        labels_final["run_id"] = run_id
 
     worker_command = get_mazepa_worker_command(
         task_queue_spec,

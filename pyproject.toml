@@ -312,4 +312,5 @@ warn_unused_ignores = true
 [tool.isort]
 known_third_party = "wandb"
 profile = "black"
-skip = ["__init__.py", "specs"]
+skip = ["specs"]
+skip_glob = ["**/__init__.py"]

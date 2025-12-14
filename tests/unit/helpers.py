@@ -4,6 +4,10 @@ import numpy as np
 import torch
 
 
+class DummyException(Exception):
+    pass
+
+
 def assert_array_equal(a, b):
     """Generic assertion for equality testing."""
     if isinstance(a, np.ndarray):

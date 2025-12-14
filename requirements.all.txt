@@ -103,7 +103,7 @@ charset-normalizer==3.4.4
     # via
     #   requests
     #   trimesh
-click==8.0.1
+click==8.0.4
     # via
     #   zetta-utils (pyproject.toml)
     #   black
@@ -907,7 +907,7 @@ pydantic==2.12.5
     # via wandb
 pydantic-core==2.41.5
     # via pydantic
-pydocstyle==6.1.1
+pydocstyle==6.3.0
     # via zetta-utils (pyproject.toml)
 pyfqmr==0.5.0
     # via zetta-utils (pyproject.toml)

@@ -383,7 +383,7 @@ class SegmentModel(Base):
     post_synapse_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     status: Mapped[str] = mapped_column(
-        Enum("Raw", "Proofread", "Duplicate", "Wrong type", name="segment_status"),
+        Enum("Raw", "Proofread", "Duplicate", "Wrong type", "Verified", name="segment_status"),
         nullable=False,
         default="Raw",
     )

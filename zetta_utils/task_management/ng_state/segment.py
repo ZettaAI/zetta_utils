@@ -110,6 +110,7 @@ def _add_core_layers(ng_state: dict, segment, project):
             "type": "segmentation",
             "source": project.segmentation_path,
             "tab": "segments",
+            "selectedAlpha": 0.2,
             "segments": ([str(segment.current_segment_id)] if segment.current_segment_id else []),
             "name": "Segmentation",
         }

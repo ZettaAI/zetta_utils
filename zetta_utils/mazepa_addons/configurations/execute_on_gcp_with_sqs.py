@@ -324,7 +324,9 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             resource_monitor_interval=resource_monitor_interval,
         )
 
-        thread = threading.Thread(target=k8s.pod.watch_for_oom_kills, daemon=True)
+        thread = threading.Thread(
+            target=k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
+        )
         thread.start()
 
         with ExitStack() as stack:

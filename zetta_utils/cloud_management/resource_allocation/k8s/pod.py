@@ -319,28 +319,23 @@ def stream_pod_logs(
             )
 
 
-def is_oom_killed(container_status):
-    """
-    Return True if the container terminated due to OOMKilled.
-    """
-    state = container_status.state
-    if state and state.terminated:
-        return state.terminated.reason == "OOMKilled"
-    return False
-
-
-def watch_for_oom_kills(namespace="default"):
+def watch_for_oom_kills(run_id: str, namespace="default"):
     config.load_kube_config()
     v1 = k8s_client.CoreV1Api()
     w = watch.Watch()
+    pods = set()
     try:
         for event in w.stream(v1.list_namespaced_pod, namespace=namespace):
             pod = event["object"]
             pod_name = pod.metadata.name
+            if pod_name in pods or run_id not in pod_name:
+                continue
             if pod.status.container_statuses:
                 for cs in pod.status.container_statuses:
-                    if is_oom_killed(cs):
+                    state = cs.state
+                    if state and state.terminated and state.terminated.reason == "OOMKilled":
                         logger.warning(f"⚠️ [OOMKilled] {pod_name}.")
+                        pods.add(pod_name)
     except Exception as err:  # pylint: disable=broad-exception-caught
         logger.warning(err)
     finally:

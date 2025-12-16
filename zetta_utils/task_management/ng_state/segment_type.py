@@ -73,6 +73,7 @@ def get_segment_type_layers(
         "type": "segmentation",
         "source": segmentation_path,
         "tab": "segments",
+        "selectedAlpha": 0.2,
         "name": seg_layer_name,
         "visible": False,
     }

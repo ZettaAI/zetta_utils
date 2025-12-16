@@ -358,6 +358,7 @@ def _build_neuroglancer_state(
         "type": "segmentation",
         "source": segmentation_path,
         "tab": "segments",
+        "selectedAlpha": 0.2,
         "name": "Segmentation",
     }
 

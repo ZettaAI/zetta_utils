@@ -522,7 +522,7 @@ def _lightning_train_remote(
             stack.enter_context(workers_ctx)
 
         thread = threading.Thread(
-            target=resource_allocation.k8s.pod.watch_for_oom_kills, daemon=True
+            target=resource_allocation.k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
         )
         thread.start()
 

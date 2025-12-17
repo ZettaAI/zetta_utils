@@ -31,6 +31,54 @@ from zetta_utils.task_management.supervoxel import (
 
 logger = logging.getLogger(__name__)
 
+# Cache for CAVE clients per datastack
+_cave_clients_cache: dict[str, Optional[CAVEclient]] = {}
+
+
+def _get_server_address_for_datastack(datastack_name: Optional[str]) -> str:
+    """Get the appropriate server address for a datastack."""
+    if datastack_name and datastack_name.startswith("wclee"):
+        return "https://global.daf-apis.com"
+    return "https://data.proofreading.zetta.ai"
+
+
+def _get_or_create_cave_client(
+    datastack_name: Optional[str],
+    server_address: str,
+) -> Optional[CAVEclient]:
+    """Get or create a cached CAVE client for the given datastack."""
+    cache_key = f"{datastack_name}:{server_address}"
+
+    if cache_key in _cave_clients_cache:
+        return _cave_clients_cache[cache_key]
+
+    try:
+        client = CAVEclient(
+            datastack_name=datastack_name,
+            server_address=server_address,
+            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
+        )
+        _cave_clients_cache[cache_key] = client
+        logger.info(f"Created CAVEclient for datastack '{datastack_name}'")
+        return client
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Could not create CAVEclient for '{datastack_name}': {e}")
+        _cave_clients_cache[cache_key] = None
+        return None
+
+
+class ProjectConfig:
+    """Cached project configuration."""
+
+    def __init__(self, project_name: str, datastack_name: Optional[str]):
+        self.project_name = project_name
+        self.datastack_name = datastack_name
+        self.server_address = _get_server_address_for_datastack(datastack_name)
+
+    def get_cave_client(self) -> Optional[CAVEclient]:
+        """Get CAVE client for this project."""
+        return _get_or_create_cave_client(self.datastack_name, self.server_address)
+
 
 def _find_moved_seed_ids(old_root_ids: list[int]) -> list[int]:
     """Return seed_ids that currently belong to any of old_root_ids roots.
@@ -404,7 +452,7 @@ def get_new_root_for_coordinate(
         return None
 
 
-def process_merge_event(
+def process_merge_event(  # pylint: disable=too-many-branches,too-many-statements
     event_data: dict[str, Any],
     project_name: str,
     cave_client: Optional[CAVEclient],
@@ -535,6 +583,7 @@ def process_merge_event(
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing merge event: {e}", exc_info=True)
+        raise
 
 
 def process_split_event(  # pylint: disable=unused-argument
@@ -672,6 +721,7 @@ def process_split_event(  # pylint: disable=unused-argument
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(f"Error processing split event: {e}", exc_info=True)
+        raise
 
 
 def process_edit_event(
@@ -711,6 +761,43 @@ def process_edit_event(
         logger.warning("No new_root_ids in event data")
 
 
+def _load_projects_cache(
+    project_name: Optional[str] = None,
+) -> dict[str, ProjectConfig]:
+    """Load project configurations from database.
+
+    Args:
+        project_name: If provided, load only this project. Otherwise load all.
+
+    Returns:
+        Dict mapping project_name -> ProjectConfig
+    """
+    projects_cache: dict[str, ProjectConfig] = {}
+
+    with get_session_context() as session:
+        if project_name:
+            project = (
+                session.query(ProjectModel)
+                .filter_by(project_name=project_name)
+                .first()
+            )
+            if not project:
+                raise ValueError(f"Project '{project_name}' not found!")
+            projects_cache[project_name] = ProjectConfig(
+                project_name=project.project_name,
+                datastack_name=project.datastack_name,
+            )
+        else:
+            all_projects = session.query(ProjectModel).all()
+            for proj in all_projects:
+                projects_cache[proj.project_name] = ProjectConfig(
+                    project_name=proj.project_name,
+                    datastack_name=proj.datastack_name,
+                )
+
+    return projects_cache
+
+
 def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-statements
     project_id: str,
     subscription_name: str,
@@ -726,83 +813,46 @@ def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-stateme
     Args:
         project_id: GCP project ID
         subscription_name: Pub/Sub subscription name
-        project_name: Task management project name (auto-detected from
-            table_id in messages if not provided)
-        datastack_name: CAVE datastack name (auto-detected from project)
-        server_address: PCG server address (auto-detected from project,
-            defaults to https://data.proofreading.zetta.ai)
+        project_name: Task management project name. If provided, only process
+            messages for this project. If not provided, load all projects from
+            database and process messages for any known project (based on table_id).
+        datastack_name: CAVE datastack name (auto-detected from project if not provided)
+        server_address: PCG server address (auto-detected from project/datastack)
         poll_interval_sec: How often to poll for messages
         max_messages: Maximum messages to pull per batch
     """
     print("[DEBUG] Starting PCG edit listener")
     logger.info("Starting PCG edit listener")
 
-    # Get project configuration from database if project_name provided
-    project = None
-    if project_name:
-        print("[DEBUG] Connecting to database...")
-        with get_session_context() as session:
-            print("[DEBUG] Database connection established")
-            print(f"[DEBUG] Querying for project: {project_name}")
-            project = (
-                session.query(ProjectModel)
-                .filter_by(project_name=project_name)
-                .first()
-            )
-            print(f"[DEBUG] Project found: {project is not None}")
-            if not project:
-                raise ValueError(f"Project '{project_name}' not found!")
+    # Load project configurations from database
+    print("[DEBUG] Loading projects from database...")
+    projects_cache = _load_projects_cache(project_name)
 
-        print("[DEBUG] Checking datastack_name...")
-        # Use provided values or get from project
-        if datastack_name is None and project:
-            datastack_name = project.datastack_name
-            if not datastack_name:
-                raise ValueError(
-                    f"No datastack_name for project '{project_name}'"
+    if not projects_cache:
+        raise ValueError("No projects found in database!")
+
+    project_names = list(projects_cache.keys())
+    logger.info(f"Loaded {len(projects_cache)} project(s): {project_names}")
+    print(f"[DEBUG] Loaded projects: {project_names}")
+
+    # Override settings if explicitly provided
+    if datastack_name or server_address:
+        for proj_config in projects_cache.values():
+            if datastack_name:
+                proj_config.datastack_name = datastack_name
+                proj_config.server_address = _get_server_address_for_datastack(
+                    datastack_name
                 )
-        print(f"[DEBUG] Datastack: {datastack_name}")
-
-    # Set server_address (default if not provided)
-    print("[DEBUG] Checking server_address...")
-    if server_address is None:
-        # Follow same pattern as cave_synapse_mgr.py
-        if datastack_name and datastack_name.startswith("wclee"):
-            server_address = "https://global.daf-apis.com"
-        else:
-            server_address = "https://data.proofreading.zetta.ai"
-    print(f"[DEBUG] Server: {server_address}")
+            if server_address:
+                proj_config.server_address = server_address
 
     print("[DEBUG] Creating PubSub queue...")
-    logger.info(f"Using datastack: {datastack_name}")
-    logger.info(f"Using server: {server_address}")
-
     pubsub_queue: PubSubPullQueue = PubSubPullQueue(
         name="pcg_edit_queue",
         project_id=project_id,
         subscription_name=subscription_name,
     )
     print("[DEBUG] PubSub queue created")
-
-    # Try to create CAVE client for lineage queries
-    # Optional: works without it if PubSub events include old_root_ids
-    print("[DEBUG] Initializing CAVEclient...")
-    cave_client = None
-    try:
-        cave_client = CAVEclient(
-            datastack_name=datastack_name,
-            server_address=server_address,
-            auth_token=os.getenv("CAVE_AUTH_TOKEN"),
-        )
-        logger.info("CAVEclient initialized successfully")
-        print("[DEBUG] CAVEclient initialized successfully")
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Could not initialize CAVEclient: {e}")
-        logger.info(
-            "Continuing without CAVEclient. "
-            "Events must include old_root_ids."
-        )
-        print(f"[DEBUG] CAVEclient failed: {e}")
 
     print("[DEBUG] Starting main listener loop...")
     logger.info(
@@ -824,7 +874,7 @@ def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-stateme
                     # Extract attributes from payload
                     message_attributes = msg.payload.pop("_pubsub_attributes", {})
 
-                    # Use table_id as project_name if project_name not provided
+                    # Determine project_name from message or parameter
                     msg_project_name = (
                         project_name or message_attributes.get("table_id")
                     )
@@ -836,12 +886,32 @@ def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-stateme
                         msg.acknowledge_fn()
                         continue
 
+                    # Check if this project is in our cache
+                    if msg_project_name not in projects_cache:
+                        logger.debug(
+                            f"Project '{msg_project_name}' not in database. "
+                            "Skipping message."
+                        )
+                        msg.acknowledge_fn()
+                        continue
+
+                    # Get project configuration
+                    proj_config = projects_cache[msg_project_name]
+                    msg_cave_client = proj_config.get_cave_client()
+                    msg_server_address = proj_config.server_address
+
+                    print(
+                        f"[DEBUG] Processing message for project '{msg_project_name}' "
+                        f"(datastack: {proj_config.datastack_name}, "
+                        f"server: {msg_server_address})"
+                    )
+
                     process_edit_event(
                         msg.payload,
                         message_attributes,
                         msg_project_name,
-                        cave_client,
-                        server_address
+                        msg_cave_client,
+                        msg_server_address,
                     )
                     msg.acknowledge_fn()
                 except Exception as e:  # pylint: disable=broad-exception-caught

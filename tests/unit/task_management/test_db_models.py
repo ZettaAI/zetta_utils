@@ -401,6 +401,7 @@ def test_to_dict_full_segment_model(db_session):
         expected_segment_type="neuron",
         batch="batch_001",
         current_segment_id=67890,
+        last_merge_at=now,
         skeleton_path_length_mm=1.5,
         pre_synapse_count=10,
         post_synapse_count=20,
@@ -422,6 +423,7 @@ def test_to_dict_full_segment_model(db_session):
     assert result["root_y"] == 250.0
     assert result["root_z"] == 350.0
     assert result["current_segment_id"] == 67890
+    assert result["last_merge_at"] == now.isoformat()
     assert result["skeleton_path_length_mm"] == 1.5
     assert result["pre_synapse_count"] == 10
     assert result["post_synapse_count"] == 20

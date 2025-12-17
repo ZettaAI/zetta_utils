@@ -897,7 +897,18 @@ def run_pcg_edit_listener(  # pylint: disable=too-many-branches,too-many-stateme
 
                     # Get project configuration
                     proj_config = projects_cache[msg_project_name]
-                    msg_cave_client = proj_config.get_cave_client()
+                    # Be resilient to CAVEclient initialization failures:
+                    # if creating a client raises, proceed without one.
+                    try:
+                        msg_cave_client = proj_config.get_cave_client()
+                    except Exception as exc:  # pylint: disable=broad-exception-caught
+                        logger.warning(
+                            "CAVEclient initialization failed for project '%s': %s. "
+                            "Proceeding without CAVEclient.",
+                            msg_project_name,
+                            exc,
+                        )
+                        msg_cave_client = None
                     msg_server_address = proj_config.server_address
 
                     print(

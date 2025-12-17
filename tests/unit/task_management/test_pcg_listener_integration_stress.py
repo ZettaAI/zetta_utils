@@ -14,9 +14,20 @@ import pytest
 
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
 from zetta_utils.task_management.automated_workers.pcg_edit_listener import (
+    ProjectConfig,
     run_pcg_edit_listener,
 )
 from zetta_utils.task_management.db.models import ProjectModel
+
+
+def _create_mock_projects_cache(project_name: str, datastack_name: str = "test_datastack"):
+    """Create a mock projects cache for testing."""
+    return {
+        project_name: ProjectConfig(
+            project_name=project_name,
+            datastack_name=datastack_name,
+        )
+    }
 
 
 class MockPubSubMessage:
@@ -202,6 +213,9 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
             "zetta_utils.task_management.automated_workers.pcg_edit_listener.process_edit_event",
             side_effect=mock_process_event,
         ), patch(
+            "zetta_utils.task_management.automated_workers.pcg_edit_listener._load_projects_cache",
+            return_value=_create_mock_projects_cache("stress_table"),
+        ), patch(
             "time.sleep"
         ):
 
@@ -262,13 +276,6 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         mock_queue.pull.side_effect = mock_pull
 
-        # Mock database session (only called once)
-        mock_session = Mock()
-        mock_session.query.return_value.filter_by.return_value.first.return_value = None
-
-        def mock_session_context():
-            return mock_session
-
         process_call_count = 0
 
         def mock_process_event(*_, **__):
@@ -280,8 +287,9 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         with patch(
                 "zetta_utils.task_management.automated_workers.pcg_edit_listener.PubSubPullQueue"
         ) as mock_queue_class, patch(
-            "zetta_utils.task_management.automated_workers.pcg_edit_listener.get_session_context"
-        ) as mock_session_ctx, patch(
+            "zetta_utils.task_management.automated_workers.pcg_edit_listener._load_projects_cache",
+            return_value=_create_mock_projects_cache("failure_table"),
+        ), patch(
             "zetta_utils.task_management.automated_workers.pcg_edit_listener.process_edit_event",
             side_effect=mock_process_event,
         ), patch(
@@ -289,7 +297,6 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         ):
 
             mock_queue_class.return_value = mock_queue
-            mock_session_ctx.side_effect = mock_session_context
 
             try:
                 run_pcg_edit_listener(
@@ -345,10 +352,18 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         with patch(
                 "zetta_utils.task_management.automated_workers.pcg_edit_listener.PubSubPullQueue"
         ) as mock_queue_class, patch(
-            "zetta_utils.task_management.automated_workers.pcg_edit_listener.CAVEclient",
+            "zetta_utils.task_management.automated_workers."
+            "pcg_edit_listener._load_projects_cache",
+            return_value=_create_mock_projects_cache(
+                "cave_failure_table", self.datastack_name
+            ),
+        ), patch(
+            "zetta_utils.task_management.automated_workers."
+            "pcg_edit_listener._get_or_create_cave_client",
             side_effect=mock_cave_client_init,
         ), patch(
-            "zetta_utils.task_management.automated_workers.pcg_edit_listener.process_edit_event",
+            "zetta_utils.task_management.automated_workers."
+            "pcg_edit_listener.process_edit_event",
             side_effect=mock_process_event,
         ), patch(
             "time.sleep"
@@ -422,6 +437,9 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
         with patch(
                 "zetta_utils.task_management.automated_workers.pcg_edit_listener.PubSubPullQueue"
         ) as mock_queue_class, patch(
+            "zetta_utils.task_management.automated_workers.pcg_edit_listener._load_projects_cache",
+            return_value=_create_mock_projects_cache("memory_table"),
+        ), patch(
             "zetta_utils.task_management.automated_workers.pcg_edit_listener.process_edit_event",
             side_effect=mock_process_event,
         ), patch(
@@ -565,7 +583,10 @@ class TestPCGListenerIntegrationStress:  # pylint: disable=attribute-defined-out
 
         with patch(
                 "zetta_utils.task_management.automated_workers.pcg_edit_listener.PubSubPullQueue"
-        ) as mock_queue_class, patch("time.sleep"):
+        ) as mock_queue_class, patch(
+            "zetta_utils.task_management.automated_workers.pcg_edit_listener._load_projects_cache",
+            return_value=_create_mock_projects_cache("shutdown_table"),
+        ), patch("time.sleep"):
 
             mock_queue_class.return_value = mock_queue
 

@@ -725,6 +725,7 @@ class TaskFeedbackModel(Base):
 
     task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     feedback_task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    trace_feedback_task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     user_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -741,6 +742,7 @@ class TaskFeedbackModel(Base):
             "feedback_id": self.feedback_id,
             "task_id": self.task_id,
             "feedback_task_id": self.feedback_task_id,
+            "trace_feedback_task_id": self.trace_feedback_task_id,
             "user_id": self.user_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

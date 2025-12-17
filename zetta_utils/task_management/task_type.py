@@ -100,7 +100,7 @@ def add_standard_task_types(
         },
         {
             "task_type": "trace_feedback_v0",
-            "completion_statuses": ["Faulty Task", "Accurate", "Inaccurate", "Fair"],
+            "completion_statuses": ["Faulty Task", "Accurate", "Inaccurate", "Fair", "Perfect"],
             "description": "Verify the results of this completed tracing task",
         },
     ]

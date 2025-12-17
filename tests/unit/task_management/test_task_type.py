@@ -56,7 +56,7 @@ def test_add_standard_task_types(clean_db, db_session, project_name):
     # Verify completion statuses
     assert result["trace_v0"] == ["Done", "Can't Continue", "Merger", "Wrong Cell Type"]
     assert result["trace_postprocess_v0"] == ["Done"]
-    assert result["trace_feedback_v0"] == ["Faulty Task", "Accurate", "Inaccurate", "Fair"]
+    assert result["trace_feedback_v0"] == ["Faulty Task", "Accurate", "Inaccurate", "Fair", "Perfect"]
 
     # Verify they exist in the database
     trace_type = get_task_type(
@@ -85,6 +85,7 @@ def test_add_standard_task_types(clean_db, db_session, project_name):
         "Accurate",
         "Inaccurate",
         "Fair",
+        "Perfect",
     ]
 
 

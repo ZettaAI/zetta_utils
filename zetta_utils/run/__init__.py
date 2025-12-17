@@ -33,6 +33,7 @@ class RunInfo(Enum):
     TIMESTAMP = "timestamp"
     PARAMS = "params"
     RESULTS = "results"
+    WORKER_STATE = "worker_state"
 
 
 class RunState(Enum):

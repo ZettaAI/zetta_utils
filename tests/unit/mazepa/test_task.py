@@ -13,6 +13,8 @@ from zetta_utils.mazepa import (
 )
 from zetta_utils.mazepa.exceptions import MazepaTimeoutError
 
+from ..helpers import DummyException
+
 
 def test_make_taskable_operation_cls() -> None:
     @taskable_operation_cls(operation_name="OpDummyClass1")
@@ -68,7 +70,7 @@ def test_task_runtime_limit() -> None:
 def test_task_no_handle_exc() -> None:
     @taskable_operation(runtime_limit_sec=0.1)
     def dummy_task_fn():
-        raise Exception()
+        raise DummyException()
 
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()

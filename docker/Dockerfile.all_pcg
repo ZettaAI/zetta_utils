@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 ARG PYTHON_VERSION=312
-ARG GRAPH_TOOL_VERSION="2.97"
+ARG GRAPH_TOOL_VERSION="2.98"
 ARG GRAPH_TOOL_MICROARCH="x86_64_v3"
 
-FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.6_cudnn9.5.1_torch2.6.0_py${PYTHON_VERSION}"
+FROM "us-central1-docker.pkg.dev/zetta-research/zutils/zutils_base:cuda12.9_torch2.9.1_py${PYTHON_VERSION}"
 
 ENV DEBIAN_FRONTEND="noninteractive"
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
-COPY pyproject.toml /opt/zetta_utils/
+COPY pyproject.toml requirements*.txt /opt/zetta_utils/
 COPY install_zutils.py /opt/zetta_utils/
 ENV PYTHONPATH=/opt/zetta_utils
 WORKDIR /opt/zetta_utils

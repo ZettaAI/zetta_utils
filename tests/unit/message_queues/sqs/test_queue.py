@@ -5,7 +5,7 @@ from typing import Any
 import boto3
 import coolname
 import pytest
-from moto import mock_sqs
+from moto import mock_aws
 
 import docker
 from zetta_utils import common
@@ -29,7 +29,7 @@ def aws_credentials():
 @pytest.fixture(scope="module")
 def sqs_endpoint(aws_credentials):
     """Ensure that SQS service is up and responsive."""
-    with mock_sqs():
+    with mock_aws():
         client = docker.from_env()  # type: ignore
         container = client.containers.run(
             "softwaremill/elasticmq-native", detach=True, ports={"9324/tcp": 9324}, remove=True

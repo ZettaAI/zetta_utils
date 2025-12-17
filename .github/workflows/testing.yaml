@@ -2,7 +2,7 @@ name: CI Pipeline
 
 on:
   pull_request:
-    type: [ opened, synchronize ]
+    types: [ opened, synchronize, reopened ]
   push:
     branches: [ main ]
 
@@ -38,14 +38,34 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -83,13 +103,13 @@ jobs:
         shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: coverage run -m py.test ./tests/unit
+        run: pytest ./tests/unit  # pyproject.toml defines the cov generation arguments
         shell: bash -l {0}
-      - name: Send coverage repot to codecov
+      - name: Send coverage report to codecov
         uses: codecov/codecov-action@v3
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         with:
-          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
+          files: coverage.xml
 
 
 
@@ -117,14 +137,34 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -162,11 +202,11 @@ jobs:
         shell: bash -l {0}
       - name: Run pylint
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: pylint ${{ steps.changed-py-files.outputs.all_changed_files }}
+        run: pylint --recursive=y .
         shell: bash -l {0}
       - name: Run isort
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: isort --check-only --df --verbose --om --profile black .
+        run: isort --check-only --df --verbose --om --profile black --recursive .
         shell: bash -l {0}
   mypy:
     strategy:
@@ -192,14 +232,34 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -263,14 +323,34 @@ jobs:
         with:
           lfs: 'false'
           submodules: true
-          ssh-key: ${{ secrets.git_ssh_key  }}
+          ssh-key: ${{ secrets.git_ssh_key }}
           token: ${{ steps.app_token.outputs.token }}
+      - name: Checkout matching internal branch
+        run: |
+          # Try to checkout matching branch in internal, fallback to main
+          BRANCH_NAME="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          echo "Current branch: $BRANCH_NAME"
+
+          cd zetta_utils/internal
+
+          # Check if matching branch exists in internal
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Found matching branch '$BRANCH_NAME' in internal, checking out"
+            git fetch origin "$BRANCH_NAME"
+            git checkout -B "$BRANCH_NAME" FETCH_HEAD
+          else
+            echo "No matching branch in internal, using main (already checked out)"
+            # Already on main from submodule init, no action needed
+          fi
+        shell: bash
       - name: Get changed files
         id: changed-py-files
         uses: tj-actions/changed-files@v46
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Get changed files
         id: changed-docs-files
         uses: tj-actions/changed-files@v46

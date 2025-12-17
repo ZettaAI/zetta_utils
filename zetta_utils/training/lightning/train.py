@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import ExitStack
 from typing import Any, Dict, Final, List, Literal, Optional
 
@@ -519,6 +520,11 @@ def _lightning_train_remote(
                 tail_lines=follow_logs_tail_lines,
             )
             stack.enter_context(workers_ctx)
+
+        thread = threading.Thread(
+            target=resource_allocation.k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
+        )
+        thread.start()
 
         if follow_logs:
             resource_allocation.k8s.follow_job_logs(

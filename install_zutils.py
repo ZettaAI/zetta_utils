@@ -749,16 +749,18 @@ def main():
             )
 
         install_mode = args.mode
+
+        # Check if pinned requirements file exists
+        requirements_file = f"requirements.{install_mode}.txt"
+        if not os.path.exists(requirements_file):
+            print_error(
+                f"Pinned requirements file not found: {requirements_file}\n\n"
+                "Please ensure the requirements file exists in the repository.\n"
+                "To generate it, run: ./update_pinned_requirements.sh"
+            )
+
         run_command(
-            "pip install pip-tools",
-            "Installing `pip-tools` python package to generate dependency list",
-        )
-        run_command(
-            f"pip-compile --all-build-deps --extra {install_mode} -o requirements.{install_mode}.txt --strip-extras pyproject.toml",
-            "Generating pinned package list with resolved conflicts",
-        )
-        run_command(
-            f"pip install -r requirements.{install_mode}.txt && pip install --no-deps -e .",
+            f"pip install -r {requirements_file} && pip install --no-deps -e .",
             "Installing pinned dependencies and zetta_utils package",
         )
 

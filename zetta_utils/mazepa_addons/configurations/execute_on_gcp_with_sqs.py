@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import os
+import threading
 from contextlib import AbstractContextManager, ExitStack
 from typing import Any, Final, Iterable, Literal, Optional, TypedDict, Union
 
@@ -322,6 +323,11 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             suppress_worker_logs=suppress_worker_logs,
             resource_monitor_interval=resource_monitor_interval,
         )
+
+        thread = threading.Thread(
+            target=k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
+        )
+        thread.start()
 
         with ExitStack() as stack:
             for mngr in ctx_managers:

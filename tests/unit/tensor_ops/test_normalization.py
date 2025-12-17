@@ -28,8 +28,8 @@ def test_result_matches_input(in_tensor, expected_shape, on_cuda):
 
 def test_int8_and_uint8():
     int8_tensor = torch.full((64, 64), 42, dtype=torch.int8)
-    uint8_tensor = torch.full((64, 64), 42 + 128, dtype=torch.uint8)
-    assert torch.equal(apply_clahe(int8_tensor), apply_clahe(uint8_tensor))
+    uint8_tensor = torch.full((64, 64), 42, dtype=torch.uint8)
+    assert torch.equal(apply_clahe(int8_tensor), apply_clahe(uint8_tensor) - 128)
 
 
 @pytest.mark.parametrize(

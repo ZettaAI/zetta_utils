@@ -2,6 +2,10 @@ import signal
 from contextlib import contextmanager
 
 
+def reset_signal_handlers():  # pragma: no cover
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
 @contextmanager
 def custom_signal_handler_ctx(fn, target_signal):  # pragma: no cover
     original_signal_handler = signal.getsignal(target_signal)  # eg signal.SIGINT

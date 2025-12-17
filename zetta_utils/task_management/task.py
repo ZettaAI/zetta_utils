@@ -1,7 +1,7 @@
 # pylint: disable=singleton-comparison,too-many-lines
 import time
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any, TypedDict, cast
 
 from sqlalchemy import BigInteger, func, select
 from sqlalchemy.exc import NoResultFound
@@ -15,6 +15,7 @@ from .db.models import (
     DependencyModel,
     SegmentModel,
     SegmentTypeModel,
+    TaskFeedbackModel,
     TaskModel,
     TaskTypeModel,
     UserModel,
@@ -31,6 +32,12 @@ _MAX_IDLE_SECONDS = 90
 
 def get_max_idle_seconds() -> float:
     return _MAX_IDLE_SECONDS
+
+
+class _UserProjectQualifications(TypedDict):
+    user_id: str
+    task_types: list[str]
+    segment_types: list[str]
 
 
 def _validate_task(db_session: Session, project_name: str, task: dict) -> Task:
@@ -610,6 +617,539 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
             return result
 
     return None
+
+
+def _select_assigned_task_across_projects(
+    db_session: Session, user_qualifications: dict[str, _UserProjectQualifications]
+) -> TaskModel | None:
+    """Find a task explicitly assigned to the user across accessible projects."""
+    logger.info("Looking for assigned tasks across all projects")
+    for project_name, qualifications in user_qualifications.items():
+        qualified_types = qualifications.get("task_types", [])
+        qualified_segment_types = qualifications.get("segment_types", [])
+        if not qualified_types or not qualified_segment_types:
+            continue
+        query = (
+            select(TaskModel)
+            .join(
+                SegmentModel,
+                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                == SegmentModel.seed_id,
+            )
+            .where(TaskModel.project_name == project_name)
+            .where(SegmentModel.project_name == project_name)
+            .where(TaskModel.is_active.is_(True))
+            .where(TaskModel.is_paused == False)
+            .where(TaskModel.completion_status == "")
+            .where(TaskModel.task_type.in_(qualified_types))
+            .where(TaskModel.assigned_user_id == qualifications["user_id"])
+            .where(TaskModel.active_user_id == "")
+            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+        )
+        result = db_session.execute(query).scalar_one_or_none()
+        if result:
+            logger.info(
+                f"Found assigned task {result.task_id} in project {project_name}"
+            )
+            return result
+    return None
+
+
+def _select_available_task_across_projects(
+    db_session: Session, user_qualifications: dict[str, _UserProjectQualifications]
+) -> TaskModel | None:
+    """Find the highest-priority available task across projects, then lock it."""
+    logger.info("Looking for available tasks across all projects")
+    best_task: TaskModel | None = None
+    best_priority: int | None = None
+    for project_name, qualifications in user_qualifications.items():
+        qualified_types = qualifications.get("task_types", [])
+        qualified_segment_types = qualifications.get("segment_types", [])
+        if not qualified_types or not qualified_segment_types:
+            continue
+        project_query = (
+            select(TaskModel)
+            .join(
+                SegmentModel,
+                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                == SegmentModel.seed_id,
+            )
+            .where(TaskModel.project_name == project_name)
+            .where(SegmentModel.project_name == project_name)
+            .where(TaskModel.is_active.is_(True))
+            .where(TaskModel.is_paused == False)
+            .where(TaskModel.completion_status == "")
+            .where(TaskModel.assigned_user_id == "")
+            .where(TaskModel.task_type.in_(qualified_types))
+            .where(TaskModel.active_user_id == "")
+            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
+            .limit(1)
+        )
+        result = db_session.execute(project_query).scalar_one_or_none()
+        if result:
+            if (
+                best_task is None
+                or result.priority > cast(int, best_priority)
+                or (
+                    result.priority == best_priority
+                    and result.id_nonunique < best_task.id_nonunique
+                )
+            ):
+                best_task = result
+                best_priority = result.priority
+    if best_task is None:
+        return None
+    # Lock and re-check availability
+    lock_query = (
+        select(TaskModel)
+        .where(TaskModel.task_id == best_task.task_id)
+        .where(TaskModel.project_name == best_task.project_name)
+        .with_for_update(skip_locked=True)
+    )
+    locked = db_session.execute(lock_query).scalar_one_or_none()
+    if (
+        locked
+        and locked.active_user_id == ""
+        and locked.completion_status == ""
+        and locked.assigned_user_id == ""
+    ):
+        logger.info(
+            f"Found available task {locked.task_id} of type {locked.task_type} in project {locked.project_name}"  # pylint: disable=C0301
+        )
+        return locked
+    return None
+
+
+def _select_idle_task_across_projects(
+    db_session: Session, user_qualifications: dict[str, _UserProjectQualifications]
+) -> TaskModel | None:
+    """Find the best idle task across projects, then lock and verify idleness."""
+    oldest_allowed_ts = time.time() - get_max_idle_seconds()
+    logger.info("Looking for idle tasks across all projects")
+    best_idle: TaskModel | None = None
+    best_priority: int | None = None
+    best_lease: float | None = None
+    for project_name, qualifications in user_qualifications.items():
+        qualified_types = qualifications.get("task_types", [])
+        qualified_segment_types = qualifications.get("segment_types", [])
+        if not qualified_types or not qualified_segment_types:
+            continue
+        project_query = (
+            select(TaskModel)
+            .join(
+                SegmentModel,
+                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                == SegmentModel.seed_id,
+            )
+            .where(TaskModel.project_name == project_name)
+            .where(SegmentModel.project_name == project_name)
+            .where(TaskModel.is_active.is_(True))
+            .where(TaskModel.is_paused == False)
+            .where(TaskModel.completion_status == "")
+            .where(TaskModel.assigned_user_id == "")
+            .where(TaskModel.task_type.in_(qualified_types))
+            .where(TaskModel.last_leased_ts < oldest_allowed_ts)
+            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .order_by(TaskModel.priority.desc(), TaskModel.last_leased_ts.desc())
+            .limit(1)
+        )
+        result = db_session.execute(project_query).scalar_one_or_none()
+        if result:
+            if (
+                best_idle is None
+                or result.priority > cast(int, best_priority)
+                or (
+                    result.priority == best_priority
+                    and result.last_leased_ts > cast(float, best_lease)
+                )
+            ):
+                best_idle = result
+                best_priority = result.priority
+                best_lease = result.last_leased_ts
+    if best_idle is None:
+        return None
+    # Lock and verify still idle
+    lock_query = (
+        select(TaskModel)
+        .where(TaskModel.task_id == best_idle.task_id)
+        .where(TaskModel.project_name == best_idle.project_name)
+        .with_for_update(skip_locked=True)
+    )
+    locked = db_session.execute(lock_query).scalar_one_or_none()
+    if locked:
+        db_session.refresh(locked)
+        if (
+            locked.last_leased_ts < oldest_allowed_ts
+            and locked.completion_status == ""
+            and not locked.is_paused
+            and locked.assigned_user_id == ""
+        ):
+            logger.info(
+                f"Found idle task {locked.task_id} in project {locked.project_name}"
+            )
+            return locked
+    return None
+
+
+def _auto_select_task_cross_project(
+    db_session: Session, user_qualifications: dict[str, _UserProjectQualifications]
+) -> TaskModel | None:
+    """
+    Auto-select an appropriate task across projects using three strategies:
+    1) user-assigned, 2) available by priority, 3) idle recovery.
+    """
+    logger.info("Auto-selecting task across all projects")
+    if not user_qualifications:
+        logger.info("User has no project qualifications")
+        return None
+    # 1) Assigned to user
+    result = _select_assigned_task_across_projects(db_session, user_qualifications)
+    if result:
+        return result
+    # 2) Available by priority
+    result = _select_available_task_across_projects(db_session, user_qualifications)
+    if result:
+        return result
+    # 3) Idle task recovery
+    return _select_idle_task_across_projects(db_session, user_qualifications)
+
+
+# Backward-compatible wrapper; preferred name is _get_active_user_with_qualifications
+def _build_user_qualifications_map(
+    db_session: Session, user_id: str
+) -> tuple[dict[str, _UserProjectQualifications], str | None, str | None]:
+    return _get_active_user_with_qualifications(db_session, user_id)
+
+
+def _get_active_user_with_qualifications(
+    db_session: Session, user_id: str
+) -> tuple[dict[str, _UserProjectQualifications], str | None, str | None]:
+    """
+    Build a map of project -> qualifications and detect current active project/task.
+    Returns (qualifications_map, active_project, active_task_id).
+    """
+    users_query = select(UserModel).where(UserModel.user_id == user_id)
+    users = db_session.execute(users_query).scalars().all()
+    if not users:
+        raise UserValidationError(f"User {user_id} not found in any project")
+    user_qualifications: dict[str, _UserProjectQualifications] = {}
+    current_active_project: str | None = None
+    current_active_task_id: str | None = None
+    for user in users:
+        if user.active_task and user.active_task != "":
+            if current_active_project is not None:
+                raise UserValidationError(
+                    "User has active tasks in multiple projects: "
+                    f"{current_active_project} and {user.project_name}"
+                )
+            current_active_project = str(user.project_name)
+            current_active_task_id = user.active_task
+        user_qualifications[user.project_name] = {
+            "user_id": user.user_id,
+            "task_types": user.qualified_task_types or [],
+            "segment_types": user.qualified_segment_types or [],
+        }
+    return user_qualifications, current_active_project, current_active_task_id
+
+
+def _find_task_across_projects(
+    db_session: Session, task_id: str, projects: list[str]
+) -> TaskModel | None:
+    for project_name in projects:
+        task_query = (
+            select(TaskModel)
+            .where(TaskModel.task_id == task_id)
+            .where(TaskModel.project_name == project_name)
+        )
+        found = db_session.execute(task_query).scalar_one_or_none()
+        if found:
+            return found
+    return None
+
+
+def _validate_user_for_task_in_project(
+    db_session: Session, user_id: str, project_name: str, task_model: TaskModel
+) -> None:
+    """Validate that user is qualified for task type and segment type in a project."""
+    project_user_query = (
+        select(UserModel)
+        .where(UserModel.user_id == user_id)
+        .where(UserModel.project_name == project_name)
+    )
+    project_user = db_session.execute(project_user_query).scalar_one()
+    task_data = task_model.to_dict()
+    if (
+        not project_user.qualified_task_types
+        or task_data["task_type"] not in project_user.qualified_task_types
+    ):
+        raise UserValidationError("User not qualified for this task type")
+    if project_user.qualified_segment_types and task_data.get("extra_data"):
+        extra_data = task_data["extra_data"]
+        if "seed_id" in extra_data:
+            seed_id = extra_data["seed_id"]
+            segment_query = (
+                select(SegmentModel)
+                .where(SegmentModel.project_name == project_name)
+                .where(SegmentModel.seed_id == seed_id)
+            )
+            segment = db_session.execute(segment_query).scalar_one_or_none()
+            if segment and segment.expected_segment_type:
+                if segment.expected_segment_type not in project_user.qualified_segment_types:
+                    raise UserValidationError("User not qualified for this segment type")
+
+
+def _lock_and_assign_cross_project(
+    db_session: Session,
+    selected_task: TaskModel,
+    user_id: str,
+    user_qualifications: dict[str, _UserProjectQualifications],
+) -> None:
+    """Lock needed rows, clear other active tasks, and assign this task to the user."""
+    project_name = str(selected_task.project_name)
+    current_time = time.time()
+    # Lock user in target project
+    locked_user_query = (
+        select(UserModel)
+        .where(UserModel.user_id == user_id)
+        .where(UserModel.project_name == project_name)
+        .with_for_update()
+    )
+    locked_user = db_session.execute(locked_user_query).scalar_one()
+    # Clear active tasks from other projects
+    for other_project in user_qualifications.keys():
+        if other_project == project_name:
+            continue
+        other_user_query = (
+            select(UserModel)
+            .where(UserModel.user_id == user_id)
+            .where(UserModel.project_name == other_project)
+            .with_for_update()
+        )
+        other_user = db_session.execute(other_user_query).scalar_one()
+        other_user.active_task = ""
+    # Lock the task
+    locked_task_query = (
+        select(TaskModel)
+        .where(TaskModel.task_id == selected_task.task_id)
+        .where(TaskModel.project_name == project_name)
+        .with_for_update()
+    )
+    locked_task = db_session.execute(locked_task_query).scalar_one()
+    # Assign
+    locked_user.active_task = locked_task.task_id
+    locked_task.active_user_id = user_id
+    locked_task.last_leased_ts = current_time
+    if locked_task.first_start_ts is None:
+        locked_task.first_start_ts = current_time
+
+
+def start_task_cross_project(
+    *,
+    user_id: str,
+    task_id: str | None = None,
+    db_session: Session | None = None,
+) -> str | None:
+    """
+    Start a task for a user across all projects they have access to.
+    Tasks are selected by highest priority across all projects.
+    
+    :param user_id: The user requesting a task
+    :param task_id: Optional specific task ID to start
+    :param db_session: Database session to use (optional)
+    :return: The ID of the started task, or None if no task available
+    :raises UserValidationError: If user validation fails
+    :raises TaskValidationError: If task validation fails
+    """
+    with get_session_context(db_session) as session:
+        # Build qualifications and detect any current active task
+        (
+            user_qualifications,
+            current_active_project,
+            current_active_task_id,
+        ) = _build_user_qualifications_map(session, user_id)
+        # If user has an active task and specific task_id requested, validate they match
+        if task_id is not None and current_active_task_id is not None:
+            if current_active_task_id != task_id:
+                raise UserValidationError(
+                    f"User already has an active task {current_active_task_id} "
+                    f"which is different from requested task {task_id}"
+                )
+        # Select task based on whether task_id is specified
+        if task_id is None and current_active_task_id is None:
+            selected_task = _auto_select_task_cross_project(session, user_qualifications)
+        elif task_id is not None:
+            selected_task = _find_task_across_projects(
+                session, task_id, list(user_qualifications.keys())
+            )
+            if not selected_task:
+                raise TaskValidationError(
+                    f"Task {task_id} not found in any accessible project"
+                )
+        else:
+            # Return to current active task
+            task_query = (
+                select(TaskModel)
+                .where(TaskModel.task_id == current_active_task_id)
+                .where(TaskModel.project_name == current_active_project)
+            )
+            selected_task = session.execute(task_query).scalar_one()
+
+        if selected_task is not None:
+            logger.info(f"Selected task type: {type(selected_task)}, value: {selected_task}")
+            project_name = str(selected_task.project_name)
+            task_data = selected_task.to_dict()
+            _validate_task(session, project_name, task_data)
+            # Validate user for task type and segment type in that project
+            _validate_user_for_task_in_project(session, user_id, project_name, selected_task)
+            # Check if task is idle and can be taken over
+            if task_data["active_user_id"] != "":
+                _atomic_task_takeover(
+                    session,
+                    project_name,
+                    selected_task,
+                    user_id,
+                    task_data,
+                )
+            else:
+                _lock_and_assign_cross_project(
+                    session, selected_task, user_id, user_qualifications
+                )
+            session.flush()  # Ensure changes are written to DB before commit
+            session.commit()
+            return str(selected_task.task_id)
+
+        return None
+
+
+def get_task_cross_project(
+    *,
+    task_id: str,
+    process_ng_state: bool = True,
+    db_session: Session | None = None,
+) -> tuple[Task, str]:
+    """
+    Retrieve a task record by ID across all projects.
+    
+    :param task_id: The unique identifier of the task
+    :param process_ng_state: Whether to process ng_state seed_id format (default: True)
+    :param db_session: Database session to use (optional)
+    :return: Tuple of (task record, project_name)
+    :raises KeyError: If the task does not exist in any project
+    :raises RuntimeError: If the database operation fails
+    """
+    with get_session_context(db_session) as session:
+        # Find the task across all projects
+        cross_project_query = (
+            select(TaskModel)
+            .where(TaskModel.task_id == task_id)
+        )
+        try:
+            task_model = session.execute(cross_project_query).scalar_one()
+            project_name = str(task_model.project_name)
+
+            # Handle ng_state and ng_state_initial special formats
+            if process_ng_state:
+                _process_ng_state_seed_id(session, project_name, task_model)
+
+            result = task_model.to_dict()
+            return cast(Task, result), project_name
+        except NoResultFound as exc:
+            raise KeyError(f"Task {task_id} not found in any project") from exc
+
+
+def get_task_feedback_cross_project(
+    *,
+    user_id: str,
+    limit: int = 20,
+    skip: int = 0,
+    db_session: Session | None = None,
+) -> list[dict]:
+    """
+    Get task feedback entries for a user across all projects they have access to.
+    
+    :param user_id: The ID of the user to get feedback for
+    :param limit: Maximum number of feedback entries to return (default: 20)
+    :param db_session: Database session to use (optional)
+    :param skip: Number of records to skip for pagination (default: 0)
+    :return: List of feedback entries with task and feedback data across all projects
+    :raises UserValidationError: If the user is not found in any project
+    :raises RuntimeError: If the database operation fails
+    """
+    with get_session_context(db_session) as session:
+        # Build user qualifications to find all accessible projects
+        user_qualifications, _, _ = _build_user_qualifications_map(session, user_id)
+
+        if not user_qualifications:
+            raise UserValidationError(f"User {user_id} not found in any project")
+
+        project_names = list(user_qualifications.keys())
+
+        # Query feedback entries across all accessible projects
+        feedback_query = (
+            select(TaskFeedbackModel)
+            .where(TaskFeedbackModel.project_name.in_(project_names))
+            .where(TaskFeedbackModel.user_id == user_id)
+            .order_by(TaskFeedbackModel.created_at.desc())
+            .limit(limit)
+            .offset(skip)
+        )
+
+        feedbacks = session.execute(feedback_query).scalars().all()
+
+        feedback_data = []
+        for feedback in feedbacks:
+            # Get original task data
+            original_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.task_id,
+                )
+                .first()
+            )
+
+            # Get feedback task data
+            feedback_task = (
+                session.query(TaskModel)
+                .filter(
+                    TaskModel.project_name == feedback.project_name,
+                    TaskModel.task_id == feedback.feedback_task_id,
+                )
+                .first()
+            )
+
+            # Map completion status to feedback type
+            feedback_type = feedback_task.completion_status if feedback_task else "Unknown"
+            feedback_color = "red"  # Default to red for unknown statuses
+
+            if feedback_type == "Accurate":
+                feedback_color = "green"
+            elif feedback_type == "Fair":
+                feedback_color = "yellow"
+            elif feedback_type == "Inaccurate":
+                feedback_color = "red"
+
+            feedback_data.append(
+                {
+                    "project_name": feedback.project_name,  # Include project name
+                    "task_id": feedback.task_id,
+                    "task_link": original_task.ng_state if original_task else None,
+                    "feedback_link": feedback_task.ng_state if feedback_task else None,
+                    "feedback": feedback_type,
+                    "feedback_color": feedback_color,
+                    "note": feedback_task.note if feedback_task else None,
+                    "created_at": feedback.created_at.isoformat() if feedback.created_at else None,
+                    "user_id": feedback.user_id,
+                    "feedback_id": feedback.feedback_id,
+                    "feedback_task_id": feedback.feedback_task_id,
+                }
+            )
+
+        return feedback_data
 
 
 def get_task(

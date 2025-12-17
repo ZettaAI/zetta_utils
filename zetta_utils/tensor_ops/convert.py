@@ -1,6 +1,8 @@
 """Type conversion functions."""
 from __future__ import annotations
 
+from typing import assert_never
+
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -120,6 +122,8 @@ def to_float32(data: TensorTypeVar) -> TensorTypeVar:
         result = data.float()  # type: TensorTypeVar
     elif isinstance(data, np.ndarray):
         result = data.astype(np.float32)
+    else:
+        assert_never(data)
 
     return result
 
@@ -138,5 +142,7 @@ def to_uint8(data: TensorTypeVar) -> TensorTypeVar:
         result = data.byte()  # type: TensorTypeVar
     elif isinstance(data, np.ndarray):
         result = data.astype(np.uint8)
+    else:
+        assert_never(data)
 
     return result

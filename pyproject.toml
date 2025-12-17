@@ -58,7 +58,7 @@ cli = ["click >= 8.0.1"]
 cloudvol = ["cloud-volume[all_codecs] >= 12.6.2", "zetta_utils[tensor_ops]"]
 tensorstore = [
   "boto3 >= 1.38.15",
-  "tensorstore >= 0.1.73",
+  "tensorstore >= 0.1.73, < 0.1.80",
   "zetta_utils[tensor_ops]",
 ]
 chunkedgraph = [
@@ -66,7 +66,7 @@ chunkedgraph = [
   "protobuf>=4.22.0",
   "requests>=2.25.0",
   "grpcio>=1.36.1",
-  "numpy>=2.2.5",                  # reinstall avoids "Core dumped" for tensorstore and neuroglancer?!
+  "numpy>=2.2.5",
   "pandas",
   "networkx>=2.1",
   "google-cloud-bigtable>=0.33.0",
@@ -217,19 +217,17 @@ test = [
   "testcontainers>4.11.0",
   "docker>=7.0.0",
   "black == 21.9b0",
-  "click == 8.0.1",
-  "pydocstyle == 6.1.1",
-  "flake8 == 4.0.1",
+  "click ~= 8.0.1",  # required by black==21.9b0
+  "pydocstyle >= 6.1.1",
   "mypy == 1.10.1",
   "mypy-extensions == 1.0.0",
-  "pytest == 7.1.1",
-  "pytest-cov == 3.0.0",
-  "coverage == 7.10.6",
-  "pytest-mock == 3.8.2",
-  "pylint == 3.1.0",
-  "isort == 5.10.1",
+  "pytest >= 7.1.1",
+  "pytest-cov >= 3.0.0",
+  "pytest-mock >= 3.8.2",
+  "pylint >= 3.1.0",
+  "isort >= 5.12.0",
   "pre-commit == 2.19.0",
-  "moto == 4.1.0",
+  "moto >= 4.1.0",
   "psycopg2-binary >= 2.9.0", # for task_management tests
 ]
 training = [
@@ -273,7 +271,7 @@ max-locals = 25
 additional-builtins = '''reveal_type'''
 good-names = '''sm,lr,ts,df,e,i,j,k,id,logger,n,on,tz,x,y,z,r,ex,ey,cv,s,f,v,a,b,mu,fn,fp,op,q,cf,tb,dx,dy,dz'''
 [tool.pylint.message_control]
-disable = '''duplicate-code,C0103,cyclic-import,too-many-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,logging-not-lazy,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable,no-else-return,unsupported-membership-test,abstract-class-instantiated,unpacking-non-sequence,no-self-use'''
+disable = '''duplicate-code,C0103,cyclic-import,too-many-arguments,too-many-instance-attributes,too-many-positional-arguments,missing-docstring,too-few-public-methods,logging-fstring-interpolation,logging-not-lazy,not-callable,no-member,unsubscriptable-object,pointless-string-statement,wrong-import-order,not-an-iterable,no-else-return,unsupported-membership-test,abstract-class-instantiated,unpacking-non-sequence,no-self-use'''
 extension-pkg-allow-list = ["pymssql._mssql", "abiss"]
 
 [tool.pylint.miscellaneous]
@@ -314,4 +312,5 @@ warn_unused_ignores = true
 [tool.isort]
 known_third_party = "wandb"
 profile = "black"
-skip = ["__init__.py", "specs"]
+skip = ["specs"]
+skip_glob = ["**/__init__.py"]

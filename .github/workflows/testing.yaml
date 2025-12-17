@@ -64,6 +64,8 @@ jobs:
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -101,13 +103,13 @@ jobs:
         shell: bash -l {0}
       - name: Run pytest
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: coverage run -m py.test ./tests/unit
+        run: pytest ./tests/unit  # pyproject.toml defines the cov generation arguments
         shell: bash -l {0}
-      - name: Send coverage repot to codecov
+      - name: Send coverage report to codecov
         uses: codecov/codecov-action@v3
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         with:
-          files: /home/runner/work/zetta_utils/zetta_utils/coverage.xml
+          files: coverage.xml
 
 
 
@@ -161,6 +163,8 @@ jobs:
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -198,11 +202,11 @@ jobs:
         shell: bash -l {0}
       - name: Run pylint
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: pylint ${{ steps.changed-py-files.outputs.all_changed_files }}
+        run: pylint --recursive=y .
         shell: bash -l {0}
       - name: Run isort
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: isort --check-only --df --verbose --om --profile black .
+        run: isort --check-only --df --verbose --om --profile black --recursive .
         shell: bash -l {0}
   mypy:
     strategy:
@@ -254,6 +258,8 @@ jobs:
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Setup Conda
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         uses: conda-incubator/setup-miniconda@v3
@@ -343,6 +349,8 @@ jobs:
         with:
           files: |
             **/*.py
+            pyproject.toml
+            requirements*.txt
       - name: Get changed files
         id: changed-docs-files
         uses: tj-actions/changed-files@v46

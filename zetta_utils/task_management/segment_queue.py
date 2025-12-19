@@ -133,6 +133,33 @@ def get_next_pending_update(
         return None
 
 
+def get_next_pending_update_any(
+    db_session: Any = None,
+) -> Optional[dict]:
+    """
+    Get the next pending segment statistics update from the queue across all projects.
+
+    Args:
+        db_session: Optional database session
+
+    Returns:
+        Dictionary with queue entry data, or None if no pending updates
+    """
+    with get_session_context(db_session) as session:
+        queue_entry = (
+            session.query(SegmentUpdateQueueModel)
+            .filter(
+                SegmentUpdateQueueModel.status == "pending"
+            )
+            .order_by(SegmentUpdateQueueModel.created_at.asc())
+            .first()
+        )
+
+        if queue_entry:
+            return queue_entry.to_dict()
+        return None
+
+
 def mark_update_processing(
     project_name: str,
     seed_id: int,

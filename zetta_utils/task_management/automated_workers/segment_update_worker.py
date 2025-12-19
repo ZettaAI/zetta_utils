@@ -11,10 +11,13 @@ import time
 import click
 
 from zetta_utils import log
+from zetta_utils.task_management.db.models import ProjectModel
+from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment import update_segment_info
 from zetta_utils.task_management.segment_queue import (
     cleanup_completed_updates,
     get_next_pending_update,
+    get_next_pending_update_any,
     get_queue_stats,
     mark_update_completed,
     mark_update_failed,
@@ -92,8 +95,8 @@ def process_segment_update(
         return False
 
 
-def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-statements
-    project_name: str,
+def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    project_name: str | None,
     user_id: str = "segment_update_worker",
     polling_period: float = 10.0,
     server_address: str = "https://proofreading.zetta.ai",
@@ -106,6 +109,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
     
     Args:
         project_name: Project name to process updates for
+            If None, process updates across all projects
         user_id: User ID for the worker
         polling_period: How often to poll for new updates (seconds)
         server_address: Cave server address
@@ -116,7 +120,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
     """
     print("[DEBUG] Starting segment update worker")
     print(
-        f"[DEBUG] Worker config: project={project_name}, user={user_id}, "  # pylint: disable=line-too-long
+        f"[DEBUG] Worker config: project={project_name if project_name else 'ALL'}, user={user_id}, "  # pylint: disable=line-too-long
         f"polling={polling_period}s"  # pylint: disable=line-too-long
     )  # pylint: disable=line-too-long
     print(f"[DEBUG] Server: {server_address}, max_retries={max_retries}")  # pylint: disable=line-too-long
@@ -141,26 +145,30 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
             loop_count += 1
             try:
                 print(f"[DEBUG] Worker loop #{loop_count} - checking for pending updates")
-                # Get next pending update
-                update_entry = get_next_pending_update(project_name=project_name)
+                # Get next pending update (single project or across all)
+                if project_name:
+                    update_entry = get_next_pending_update(project_name=project_name)
+                else:
+                    update_entry = get_next_pending_update_any()
                 print(f"[DEBUG] get_next_pending_update returned: {update_entry}")
 
                 if update_entry:
                     seed_id = update_entry["seed_id"]
+                    proj_for_entry = update_entry["project_name"]
                     processed_count += 1
 
                     print(
-                        f"[DEBUG] Found pending update for seed {seed_id}, "  # pylint: disable=line-too-long
+                        f"[DEBUG] Found pending update for seed {seed_id} (project {proj_for_entry}), "  # pylint: disable=line-too-long
                         f"retry count: {update_entry['retry_count']}"  # pylint: disable=line-too-long
                     )  # pylint: disable=line-too-long
                     logger.info(
-                        f"Processing update #{processed_count}: seed {seed_id} "
+                        f"Processing update #{processed_count}: seed {seed_id} (project {proj_for_entry}) "  # pylint: disable=line-too-long
                         f"(retry {update_entry['retry_count']})"
                     )
 
                     # Mark as processing
                     print(f"[DEBUG] Marking seed {seed_id} as processing")
-                    if not mark_update_processing(project_name=project_name, seed_id=seed_id):
+                    if not mark_update_processing(project_name=proj_for_entry, seed_id=seed_id):
                         print(f"[DEBUG] Failed to mark seed {seed_id} as processing")
                         logger.warning(f"Could not mark seed {seed_id} as processing")
                         continue
@@ -171,7 +179,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
                     )  # pylint: disable=line-too-long
                     # Process the update
                     success = process_segment_update(
-                        project_name=project_name,
+                        project_name=proj_for_entry,
                         seed_id=seed_id,
                         server_address=server_address
                     )
@@ -181,14 +189,14 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
                             f"[DEBUG] Processing succeeded for seed {seed_id}, marking as completed"  # pylint: disable=line-too-long
                         )  # pylint: disable=line-too-long
                         # Mark as completed
-                        mark_update_completed(project_name=project_name, seed_id=seed_id)
-                        logger.info(f"Successfully completed segment update for seed {seed_id}")
+                        mark_update_completed(project_name=proj_for_entry, seed_id=seed_id)
+                        logger.info(f"Successfully completed segment update for seed {seed_id} (project {proj_for_entry})")  # pylint: disable=line-too-long
                     else:
                         print(f"[DEBUG] Processing failed for seed {seed_id}, marking as failed")
                         # Mark as failed (will retry or permanently fail based on retry count)
                         error_msg = f"Cave API call failed for seed {seed_id}"
                         mark_update_failed(
-                            project_name=project_name,
+                            project_name=proj_for_entry,
                             seed_id=seed_id,
                             error_message=error_msg,
                             max_retries=max_retries
@@ -212,18 +220,33 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
                 current_time = time.time()
                 if current_time - last_cleanup > cleanup_interval_sec:
                     try:
-                        cleaned_count = cleanup_completed_updates(
-                            project_name=project_name,
-                            days_old=completed_cleanup_days
-                        )
-                        if cleaned_count > 0:
-                            logger.info(f"Cleaned up {cleaned_count} old completed entries")
+                        if project_name:
+                            cleaned_count = cleanup_completed_updates(
+                                project_name=project_name,
+                                days_old=completed_cleanup_days
+                            )
+                            if cleaned_count > 0:
+                                logger.info(f"Cleaned up {cleaned_count} old completed entries for project {project_name}")  # pylint: disable=line-too-long
+                        else:
+                            # Cleanup across all projects
+                            with get_session_context(None) as session:
+                                projects = [
+                                    row.project_name for row in session.query(ProjectModel.project_name).all()  # pylint: disable=line-too-long
+                                ]
+                            total_cleaned = 0
+                            for pn in projects:
+                                total_cleaned += cleanup_completed_updates(
+                                    project_name=pn,
+                                    days_old=completed_cleanup_days
+                                )
+                            if total_cleaned > 0:
+                                logger.info(f"Cleaned up {total_cleaned} old completed entries across all projects")  # pylint: disable=line-too-long
                         last_cleanup = current_time
                     except Exception as e:  # pylint: disable=broad-exception-caught
                         logger.error(f"Error during cleanup: {e}")
 
                 # Log queue stats periodically
-                if processed_count % 10 == 0 and processed_count > 0:
+                if project_name and processed_count % 10 == 0 and processed_count > 0:
                     try:
                         stats = get_queue_stats(project_name=project_name)
                         logger.info(f"Queue stats: {stats}")
@@ -241,8 +264,9 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
 @click.command()
 @click.option(
     "--project_name", "-p",
-    required=True,
-    help="Name of the project to process segment updates for"
+    required=False,
+    default=None,
+    help="Project name to process. If omitted, process all projects."
 )
 @click.option(
     "--user_id", "-u",

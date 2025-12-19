@@ -170,6 +170,7 @@ def test_get_task_feedback_cross_project_success(
                 feedback_id=i,  # explicit for deterministic assertions
                 task_id=t_id,
                 feedback_task_id=fb_id,
+                trace_feedback_task_id=fb_id,
                 user_id=user_id,
                 created_at=ts,
             )
@@ -248,6 +249,7 @@ def test_get_task_feedback_cross_project_with_skip(
                 feedback_id=i,
                 task_id=t_id,
                 feedback_task_id=fb_id,
+                trace_feedback_task_id=fb_id,
                 user_id=uid,
                 created_at=ts,
             )

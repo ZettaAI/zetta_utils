@@ -312,7 +312,7 @@ class TestSegmentQueue:
         assert updated_entry.status == "pending"  # Should retry
         assert updated_entry.retry_count == 1
 
-    def test_get_next_pending_update_any_across_projects(self, db_session, project_factory):
+    def test_get_next_pending_update_any_across_projects(self, clean_db, db_session, project_factory):
         """Ensure global fetch returns the oldest pending across all projects."""
         # Create two projects
         project_a = project_factory(project_name="proj_a")
@@ -345,7 +345,7 @@ class TestSegmentQueue:
         assert result["project_name"] == project_b
         assert result["seed_id"] == 20001
 
-    def test_get_next_pending_update_any_none(self, db_session, project_factory):
+    def test_get_next_pending_update_any_none(self, clean_db, db_session, project_factory):
         """Global fetch returns None when there are no pending entries."""
         project_factory(project_name="proj_empty")
         # Create a non-pending entry to ensure it's ignored

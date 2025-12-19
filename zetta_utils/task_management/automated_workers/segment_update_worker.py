@@ -97,7 +97,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
     user_id: str = "segment_update_worker",
     polling_period: float = 10.0,
     server_address: str = "https://proofreading.zetta.ai",
-    max_retries: int = 5,
+    max_retries: int = 0,
     cleanup_interval_hours: int = 24,
     completed_cleanup_days: int = 7,
 ) -> None:
@@ -110,6 +110,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
         polling_period: How often to poll for new updates (seconds)
         server_address: Cave server address
         max_retries: Maximum retries before marking as permanently failed
+            (0 or less = unlimited retries)
         cleanup_interval_hours: How often to run cleanup (hours)
         completed_cleanup_days: Remove completed updates older than this many days
     """
@@ -262,8 +263,8 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
 @click.option(
     "--max_retries", "-r",
     type=int,
-    default=5,
-    help="Maximum retries before permanent failure (default: 5)"
+    default=0,
+    help="Maximum retries before permanent failure (0 = unlimited)"
 )
 @click.option(
     "--cleanup_interval_hours",

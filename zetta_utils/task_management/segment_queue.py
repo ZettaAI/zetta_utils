@@ -217,6 +217,7 @@ def mark_update_failed(
     
     If retry count exceeds max_retries, marks as permanently failed.
     Otherwise, resets to pending for retry.
+    If max_retries <= 0, never marks as failed (unlimited retries).
     
     Args:
         project_name: Project name
@@ -245,18 +246,28 @@ def mark_update_failed(
             queue_entry.retry_count += 1
             queue_entry.error_message = error_message
 
-            if queue_entry.retry_count >= max_retries:
-                queue_entry.status = "failed"
-                logger.warning(
-                    f"Skeleton update for seed {seed_id} permanently failed "
-                    f"after {queue_entry.retry_count} attempts: {error_message}"
+            # Unlimited retries if max_retries <= 0
+            if max_retries <= 0:
+                queue_entry.status = "pending"
+                logger.info(
+                    (
+                        f"Skeleton update for seed {seed_id} failed (attempt {queue_entry.retry_count}), "  # pylint: disable=line-too-long
+                        "unlimited retries enabled; re-queuing as pending"
+                    )
                 )
             else:
-                queue_entry.status = "pending"  # Retry
-                logger.info(
-                    f"Skeleton update for seed {seed_id} failed "
-                    f"(attempt {queue_entry.retry_count}), will retry: {error_message}"
-                )
+                if queue_entry.retry_count >= max_retries:
+                    queue_entry.status = "failed"
+                    logger.warning(
+                        f"Skeleton update for seed {seed_id} permanently failed "
+                        f"after {queue_entry.retry_count} attempts: {error_message}"
+                    )
+                else:
+                    queue_entry.status = "pending"  # Retry
+                    logger.info(
+                        f"Skeleton update for seed {seed_id} failed "
+                        f"(attempt {queue_entry.retry_count}), will retry: {error_message}"
+                    )
 
             session.commit()
             return True

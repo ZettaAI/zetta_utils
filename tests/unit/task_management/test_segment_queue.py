@@ -349,6 +349,43 @@ class TestSegmentQueue:
         assert updated_entry.status == "failed"  # Permanently failed
         assert updated_entry.retry_count == 3
 
+    def test_mark_update_failed_unlimited_retries(self, db_session, project_factory):
+        """Test mark_update_failed with unlimited retries (max_retries <= 0)."""
+        project_name = "test_failed_unlimited"
+        project_factory(project_name=project_name)
+
+        # Create processing entry
+        entry = SegmentUpdateQueueModel(
+            project_name=project_name,
+            seed_id=12345,
+            current_segment_id=67890,
+            status="processing",
+            created_at=datetime.now(timezone.utc),
+            retry_count=0,
+        )
+        db_session.add(entry)
+        db_session.commit()
+
+        # Mark as failed with unlimited retries
+        result = mark_update_failed(
+            project_name=project_name,
+            seed_id=12345,
+            error_message="Test error unlimited",
+            max_retries=0,  # Unlimited
+            db_session=db_session,
+        )
+
+        assert result is True
+
+        updated_entry = db_session.query(SegmentUpdateQueueModel).filter_by(
+            project_name=project_name,
+            seed_id=12345,
+        ).first()
+
+        # Should be re-queued as pending and retry_count incremented
+        assert updated_entry.status == "pending"
+        assert updated_entry.retry_count == 1
+
     def test_get_queue_stats(self, db_session, project_factory):
         """Test getting queue statistics."""
         project_name = "test_stats_project"

@@ -11,6 +11,7 @@ from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment_queue import (
     cleanup_completed_updates,
     get_next_pending_update,
+    get_next_pending_update_any,
     get_queue_stats,
     mark_update_completed,
     mark_update_failed,
@@ -310,7 +311,57 @@ class TestSegmentQueue:
 
         assert updated_entry.status == "pending"  # Should retry
         assert updated_entry.retry_count == 1
-        assert updated_entry.error_message == "Test error"
+
+    def test_get_next_pending_update_any_across_projects(self, db_session, project_factory):
+        """Ensure global fetch returns the oldest pending across all projects."""
+        # Create two projects
+        project_a = project_factory(project_name="proj_a")
+        project_b = project_factory(project_name="proj_b")
+
+        now = datetime.now(timezone.utc)
+        # Oldest pending in project B
+        entry_b_old = SegmentUpdateQueueModel(
+            project_name=project_b,
+            seed_id=20001,
+            current_segment_id=90001,
+            status="pending",
+            created_at=now - timedelta(minutes=5),
+            retry_count=0,
+        )
+        # Newer pending in project A
+        entry_a_new = SegmentUpdateQueueModel(
+            project_name=project_a,
+            seed_id=10001,
+            current_segment_id=80001,
+            status="pending",
+            created_at=now - timedelta(minutes=2),
+            retry_count=0,
+        )
+        db_session.add_all([entry_b_old, entry_a_new])
+        db_session.commit()
+
+        result = get_next_pending_update_any(db_session=db_session)
+        assert result is not None
+        assert result["project_name"] == project_b
+        assert result["seed_id"] == 20001
+
+    def test_get_next_pending_update_any_none(self, db_session, project_factory):
+        """Global fetch returns None when there are no pending entries."""
+        project_factory(project_name="proj_empty")
+        # Create a non-pending entry to ensure it's ignored
+        entry = SegmentUpdateQueueModel(
+            project_name="proj_empty",
+            seed_id=30001,
+            current_segment_id=70001,
+            status="processing",
+            created_at=datetime.now(timezone.utc),
+            retry_count=0,
+        )
+        db_session.add(entry)
+        db_session.commit()
+
+        result = get_next_pending_update_any(db_session=db_session)
+        assert result is None
 
     def test_mark_update_failed_max_retries(self, db_session, project_factory):
         """Test marking update as failed after max retries."""

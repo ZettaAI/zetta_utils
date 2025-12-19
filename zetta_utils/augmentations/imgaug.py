@@ -1,7 +1,17 @@
 from __future__ import annotations
 
 import collections
-from typing import Any, Final, Iterable, Literal, Sequence, Tuple, TypeVar, overload
+from typing import (
+    Any,
+    Final,
+    Iterable,
+    Literal,
+    Sequence,
+    Tuple,
+    TypeVar,
+    assert_never,
+    overload,
+)
 
 import numpy as np
 import torch
@@ -297,6 +307,8 @@ def imgaug_augment(  # pylint: disable=too-many-locals,too-many-branches,too-man
                 np.stack(res_seg, axis=0) if res_seg else None,
                 np.stack(res_heat, axis=0) if res_heat else None,
             )
+        else:
+            assert_never(mode)
 
         if "images" in aug_group:
             aug_group["images"] = _ensure_cxyn(res.images_aug, aug_group["images"])  # type: ignore

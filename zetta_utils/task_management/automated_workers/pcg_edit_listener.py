@@ -16,7 +16,11 @@ import requests
 from caveclient import CAVEclient
 
 from zetta_utils.message_queues.pubsub import PubSubPullQueue
-from zetta_utils.task_management.db.models import ProjectModel
+from zetta_utils.task_management.db.models import (
+    ProjectModel,
+    SegmentModel,
+    SupervoxelModel,
+)
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.supervoxel import (
     get_supervoxels_by_segment,
@@ -25,6 +29,120 @@ from zetta_utils.task_management.supervoxel import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _find_moved_seed_ids(old_root_ids: list[int]) -> list[int]:
+    """Return seed_ids that currently belong to any of old_root_ids roots.
+
+    Looks up SegmentModel.seed_id by joining SupervoxelModel on supervoxel_id.
+    """
+    if not old_root_ids:
+        return []
+
+    try:
+        with get_session_context() as session:
+            rows = (
+                session.query(SegmentModel.seed_id)
+                .join(
+                    SupervoxelModel, SupervoxelModel.supervoxel_id == SegmentModel.seed_id
+                )
+                .filter(SupervoxelModel.current_segment_id.in_(old_root_ids))
+                .all()
+            )
+            return [int(r.seed_id) for r in rows]
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Could not pre-compute moved seed_ids: {exc}")
+        return []
+
+
+def _resolve_duplicates_in_root(
+    project_name: str, root_id: int
+) -> int:
+    """Mark all but one segment under a root as Duplicate.
+
+    Keeps the primary seed (earliest last_merge_at; None treated as earliest).
+    Tie-breakers: created_at, then seed_id.
+
+    Returns number of segments marked as Duplicate.
+    """
+    with get_session_context() as session:
+        rows = (
+            session.query(
+                SegmentModel.seed_id, SegmentModel.last_merge_at, SegmentModel.created_at
+            )
+            .filter(
+                SegmentModel.project_name == project_name,
+                SegmentModel.current_segment_id == root_id,
+                SegmentModel.status != "Duplicate",
+            )
+            .all()
+        )
+
+        if not rows:
+            return 0
+
+        def sort_key(r):
+            lm = r.last_merge_at.timestamp() if r.last_merge_at else float("-inf")
+            created = r.created_at.timestamp() if r.created_at else 0.0
+            return (lm, created, int(r.seed_id))
+
+        rows.sort(key=sort_key)  # earliest first
+        primary_seed_id = int(rows[0].seed_id)
+
+        now_ts = datetime.now(timezone.utc)
+        result = (
+            session.query(SegmentModel)
+            .filter(
+                SegmentModel.project_name == project_name,
+                SegmentModel.current_segment_id == root_id,
+                SegmentModel.status != "Duplicate",
+                SegmentModel.seed_id != primary_seed_id,
+            )
+            .update(
+                {SegmentModel.status: "Duplicate", SegmentModel.updated_at: now_ts},
+                synchronize_session=False,
+            )
+        )
+        session.commit()
+        return int(result)
+
+
+def _apply_merge_updates(
+    project_name: str,
+    moved_seed_ids: list[int],
+    new_root_id: int,
+    edit_timestamp: datetime,
+) -> None:
+    """Update moved segments and resolve duplicates under the new root.
+
+    - Sets current_segment_id and last_merge_at for moved seeds
+    - Resolves duplicates for the new_root_id
+    """
+    if not moved_seed_ids:
+        # Nothing moved — still run duplicate resolution in case other seeds collide
+        _resolve_duplicates_in_root(project_name, new_root_id)
+        return
+
+    with get_session_context() as session:
+        now_ts = datetime.now(timezone.utc)
+        (
+            session.query(SegmentModel)
+            .filter(
+                SegmentModel.project_name == project_name,
+                SegmentModel.seed_id.in_(moved_seed_ids),
+            )
+            .update(
+                {
+                    SegmentModel.current_segment_id: new_root_id,
+                    SegmentModel.last_merge_at: edit_timestamp,
+                    SegmentModel.updated_at: now_ts,
+                },
+                synchronize_session=False,
+            )
+        )
+        session.commit()
+
+    _resolve_duplicates_in_root(project_name, new_root_id)
 
 
 def get_old_roots_from_lineage_graph(
@@ -382,9 +500,19 @@ def process_merge_event(
                 edit_timestamp=edit_timestamp,
                 operation_type="merge",
             )
-            logger.info(
-                f"Updated {count} supervoxels for merge: {old_roots} -> {new_root_id}"
-            )
+            logger.info(f"Updated {count} supervoxels for merge: {old_roots} -> {new_root_id}")
+
+            # Update moved segments and resolve duplicates
+            moved_seed_ids = _find_moved_seed_ids(old_roots)
+            try:
+                _apply_merge_updates(
+                    project_name=project_name,
+                    moved_seed_ids=moved_seed_ids,
+                    new_root_id=new_root_id,
+                    edit_timestamp=edit_timestamp,
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.error(f"Error updating segments/duplicates after merge: {exc}")
         else:
             logger.warning(f"No old roots found for new root {new_root_id}")
 

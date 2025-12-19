@@ -9,6 +9,9 @@ tests/
 *.csv
 *.log
 
+# Keep the Python pinned requirements
+!requirements*.txt
+
 # Traing data logging
 **/wandb/**
 **/.neptune/**

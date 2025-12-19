@@ -83,6 +83,7 @@ class TestTaskFeedbackModelDatabase:
             feedback_id=1,
             task_id="test_task",
             feedback_task_id="test_feedback_task",
+            trace_feedback_task_id="test_feedback_task",
             created_at=now,
             user_id="test_user@zetta.ai",
         )
@@ -117,6 +118,7 @@ class TestTaskFeedbackModelDatabase:
             feedback_id=1,
             task_id="task1",
             feedback_task_id="feedback1",
+            trace_feedback_task_id="feedback1",
             created_at=now,
             user_id="user1@zetta.ai",
         )
@@ -130,6 +132,7 @@ class TestTaskFeedbackModelDatabase:
             feedback_id=2,
             task_id="task2",
             feedback_task_id="feedback2",
+            trace_feedback_task_id="feedback2",
             created_at=now,
             user_id="user2@zetta.ai",
         )
@@ -176,6 +179,7 @@ class TestTaskFeedbackModelDatabase:
             feedback_id=1,
             task_id=sample_original_task["task_id"],
             feedback_task_id=sample_feedback_task["task_id"],
+            trace_feedback_task_id=sample_feedback_task["task_id"],
             created_at=datetime.now(timezone.utc),
             user_id="feedback_user@zetta.ai",
         )
@@ -212,6 +216,7 @@ class TestTaskFeedbackModelDatabase:
                 feedback_id=i + 1,
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=now,
                 user_id=f"user_{i}@zetta.ai",
             )
@@ -247,6 +252,7 @@ class TestTaskFeedbackModelDatabase:
                 feedback_id=i + 1,
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=now,
                 user_id=user,
             )
@@ -282,6 +288,7 @@ class TestTaskFeedbackModelDatabase:
                 feedback_id=i + 1,
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=timestamp,
                 user_id=f"user_{i}@zetta.ai",
             )
@@ -314,6 +321,7 @@ class TestTaskFeedbackModelDatabase:
                 # feedback_id will be auto-assigned
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=now,
                 user_id=f"user_{i}@zetta.ai",
             )
@@ -341,6 +349,7 @@ class TestTaskFeedbackModelDatabase:
             feedback_id=1,
             task_id="task_1",
             feedback_task_id="feedback_task_1",
+            trace_feedback_task_id="feedback_task_1",
             created_at=utc_time,
             user_id="user@zetta.ai",
         )
@@ -372,6 +381,7 @@ class TestTaskFeedbackModelDatabase:
                 project_name=project_name,
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=now,
                 user_id=f"user_{i % 3}@zetta.ai",  # 3 different users
             )
@@ -417,6 +427,7 @@ class TestTaskFeedbackModelDatabase:
                 project_name=project_name,
                 task_id=f"task_{i}",
                 feedback_task_id=f"feedback_task_{i}",
+                trace_feedback_task_id=f"feedback_task_{i}",
                 created_at=now,
                 user_id=f"user_{i % 10}@zetta.ai",
             )

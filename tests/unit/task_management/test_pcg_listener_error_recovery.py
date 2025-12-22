@@ -321,7 +321,7 @@ class TestPCGListenerErrorRecovery:  # pylint: disable=attribute-defined-outside
                 # Every 10th allocation fails
                 raise MemoryError("Out of memory")
 
-            return Mock()  # Return mock object
+            return []  # Return empty list (get_supervoxels_by_segment returns list)
 
         # Test large split operation under memory pressure
         event_data = {
@@ -336,6 +336,14 @@ class TestPCGListenerErrorRecovery:  # pylint: disable=attribute-defined-outside
              patch("zetta_utils.task_management.automated_workers."
                    "pcg_edit_listener.get_old_roots_from_lineage_graph",
             return_value={700000: [600000]},
+        ), \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.get_supervoxel_ids_from_segment",
+            return_value=[],
+        ), \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.update_supervoxels_for_split",
+            return_value=0,
         ):
 
             try:
@@ -480,7 +488,9 @@ class TestPCGListenerErrorRecovery:  # pylint: disable=attribute-defined-outside
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
-            with patch("zetta_utils.task_management.supervoxel.update_supervoxels_for_merge",
+            # Patch the function as imported in the pcg_edit_listener module
+            with patch("zetta_utils.task_management.automated_workers."
+                       "pcg_edit_listener.update_supervoxels_for_merge",
                        side_effect=mock_function,
             ):
 

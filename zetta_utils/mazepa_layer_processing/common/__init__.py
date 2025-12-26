@@ -20,3 +20,4 @@ from .volumetric_callable_operation import (
 )
 from .. import ChunkableOpProtocol, VolumetricOpProtocol
 from .interpolate_flow import build_interpolate_flow
+from .contact_analysis_op import ContactAnalysisOp

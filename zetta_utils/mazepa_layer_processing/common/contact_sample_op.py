@@ -660,6 +660,7 @@ def process_contact_samples(
 @attrs.frozen
 class ContactSampleOp:
     output_path: str
+    sphere_radius_nm: float
     crop_pad: Sequence[int] = (0, 0, 0)
     min_seg_size_vx: int = 2000
     min_overlap_vx: int = 1000
@@ -705,8 +706,6 @@ class ContactSampleOp:
             min_contact_vx=self.min_contact_vx,
             max_contact_vx=self.max_contact_vx,
         )
-        resolution = np.array([idx.resolution[0], idx.resolution[1], idx.resolution[2]])
-        sphere_radius_nm = float(min(np.array(self.crop_pad) * resolution))
         samples = process_contact_samples(
             candidate_seg,
             proofread_seg,
@@ -719,7 +718,7 @@ class ContactSampleOp:
             affinity_layer.backend.name,
             flt,
             self.n_pointcloud_points,
-            sphere_radius_nm,
+            self.sphere_radius_nm,
         )
         print(f"[{coord_str}] Processing done: {time.time() - t0:.1f}s", flush=True)
 

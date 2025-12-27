@@ -116,6 +116,21 @@ class VolumetricCallableOperation(Generic[P]):
         with semaphore("write"):
             dst_with_crop[idx] = tensor
 
+    def processing_fn(self, **kwargs: Any) -> Any:
+        """
+        Process the data with semaphores if needed.
+
+        :param kwargs: Named tensors to process
+        :return: Processed tensor
+        """
+        with ExitStack() as semaphore_stack:
+            if self.fn_semaphores is not None:
+                for semaphore_type in self.fn_semaphores:
+                    semaphore_stack.enter_context(semaphore(semaphore_type))
+            result_raw = self.fn(**kwargs)
+            torch.cuda.empty_cache()
+        return result_raw
+
     def __call__(  # pylint: disable=keyword-arg-before-vararg
         self,
         idx: VolumetricIndex,
@@ -126,12 +141,7 @@ class VolumetricCallableOperation(Generic[P]):
         assert len(args) == 0
         task_kwargs = self.read(idx, *args, **kwargs)
 
-        with ExitStack() as semaphore_stack:
-            if self.fn_semaphores is not None:
-                for semaphore_type in self.fn_semaphores:
-                    semaphore_stack.enter_context(semaphore(semaphore_type))
-            result_raw = self.fn(**task_kwargs)
-            torch.cuda.empty_cache()
+        result_raw = self.processing_fn(**task_kwargs)
 
         # If no destination layer, we can bail out now.  Possibly we
         # could bail out a bit sooner.  ToDo: study this more.

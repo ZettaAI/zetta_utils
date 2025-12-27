@@ -5,7 +5,17 @@ import multiprocessing
 from abc import ABC
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar, assert_never, cast
+from typing import (
+    Any,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    TypeVar,
+    assert_never,
+    cast,
+)
 
 import attrs
 import cachetools
@@ -355,7 +365,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     l0_chunks_per_task: int = 0
     op_worker_type: str | None = None
     reduction_worker_type: str | None = None
-    stack_size: int | None = None
+    task_stack_size: int | None = None
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -402,14 +412,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         return backend_chunk_size
 
     def __attrs_post_init__(self):  # pylint: disable=too-many-branches
-        if self.stack_size is not None:
-            if self.stack_size < 1:
-                raise ValueError(f"`stack_size` must be >= 1, got {self.stack_size}")
+        if self.task_stack_size is not None:
+            if self.task_stack_size < 1:
+                raise ValueError(f"`task_stack_size` must be >= 1, got {self.task_stack_size}")
             if not isinstance(self.op, StackableVolumetricOpProtocol):
                 raise TypeError(
-                    f"`stack_size` was provided ({self.stack_size}), but the operation "
+                    f"`task_stack_size` was provided ({self.task_stack_size}), but the operation "
                     f"{type(self.op).__name__} does not implement StackableVolumetricOpProtocol. "
-                    f"Operations must have `read`, `write`, and `fn` methods to support stacking."
+                    f"Operations must have `read`, `write`, and `processing_fn` methods to support stacking."
                 )
 
         if self.roi_crop_pad is None:
@@ -498,14 +508,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol | None,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
-        """Create tasks with optional batching based on stack_size."""
+        """Create tasks with optional batching based on task_stack_size."""
         # Flatten if needed
         if isinstance(idx_chunks, np.ndarray):
             idx_chunks_flat = list(idx_chunks.ravel())
         else:
             idx_chunks_flat = idx_chunks
 
-        if self.stack_size is None or self.stack_size == 1:
+        if self.task_stack_size is None or self.task_stack_size == 1:
             # No stacking, create one task per index
             if len(idx_chunks_flat) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
                 with multiprocessing.get_context("fork").Pool(
@@ -538,8 +548,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             )
 
             tasks = []
-            for batch_start in range(0, len(idx_chunks_flat), self.stack_size):
-                batch_end = min(batch_start + self.stack_size, len(idx_chunks_flat))
+            for batch_start in range(0, len(idx_chunks_flat), self.task_stack_size):
+                batch_end = min(batch_start + self.task_stack_size, len(idx_chunks_flat))
                 batch_indices = idx_chunks_flat[batch_start:batch_end]
 
                 task = stacked_op.make_task(
@@ -811,7 +821,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     ) -> mazepa.FlowFnReturnType:
         """Handle case with deferred blending."""
         assert self.roi_crop_pad is not None
-        (tasks, _, _, dst_temps) = self.make_tasks_with_checkerboarding(
+        (tasks, _, _, _) = self.make_tasks_with_checkerboarding(
             idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
         )
         logger.info(

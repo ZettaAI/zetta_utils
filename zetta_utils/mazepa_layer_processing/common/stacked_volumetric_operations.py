@@ -108,13 +108,8 @@ class StackedVolumetricOperations(Generic[P]):
                     f"Only torch.Tensor and np.ndarray are supported for stacking."
                 )
 
-        # Process the batch with the base operation's function
-        if hasattr(self.base_op, "fn"):
-            batched_result: Any = self.base_op.fn(**stacked_kwargs)
-        else:
-            raise NotImplementedError(
-                f"{type(self.base_op).__name__} does not expose 'fn' for batched processing."
-            )
+        # Process the batch with the base operation's processing function
+        batched_result: Any = self.base_op.processing_fn(**stacked_kwargs)
 
         # Unstack and write results
         for i, (idx, dst) in enumerate(zip(indices, dsts_list)):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Optional, Protocol, TypeVar, runtime_checkable
+from typing import Optional, Protocol, TypeVar, runtime_checkable
 
 from typing_extensions import ParamSpec
 
@@ -124,16 +124,24 @@ class StackableVolumetricOpProtocol(VolumetricOpProtocol[P, R_co, DstLayerT_cont
     Extension of VolumetricOpProtocol with read/write methods exposed.
     Enables batching multiple indices for optimized I/O operations.
 
-    Requires an `fn` attribute that represents the pure processing function
-    that can be called independently of I/O operations, allowing for batched processing.
+    Requires a `processing_fn` method that performs the core processing logic
+    and can be called independently of I/O operations, allowing for batched processing.
     """
-
-    fn: Callable[..., Tensor]  # The processing function, returns a Tensor
 
     def with_added_crop_pad(
         self, crop_pad: Vec3D[int]
     ) -> StackableVolumetricOpProtocol[P, R_co, DstLayerT_contra]:
         ...
+
+    def processing_fn(self, **kwargs: dict[str, Tensor]) -> Tensor:
+        """
+        Process the data.
+        Should accept both stacked and non-stacked Tensors.
+        Can only accept Tensors.
+
+        :param kwargs: Named tensors
+        :return: Processed tensor
+        """
 
     def read(
         self,

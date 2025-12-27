@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Protocol, TypeVar, runtime_checkable
+from typing import Callable, Optional, Protocol, TypeVar, runtime_checkable
 
 from typing_extensions import ParamSpec
 
@@ -11,6 +11,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndex,
     VolumetricLayer,
 )
+from zetta_utils.tensor_typing import Tensor
 
 P = ParamSpec("P")
 R_co = TypeVar("R_co", covariant=True)
@@ -115,3 +116,39 @@ class VolumetricOpProtocol(Protocol[P, R_co, DstLayerT_contra]):
         **kwargs: P.kwargs,
     ) -> mazepa.Task[R_co]:
         ...
+
+
+@runtime_checkable
+class StackableVolumetricOpProtocol(VolumetricOpProtocol[P, R_co, DstLayerT_contra], Protocol):
+    """
+    Extension of VolumetricOpProtocol with read/write methods exposed.
+    Enables batching multiple indices for optimized I/O operations.
+
+    Requires an `fn` attribute that represents the pure processing function
+    that can be called independently of I/O operations, allowing for batched processing.
+    """
+
+    fn: Callable[..., Tensor]  # The processing function, returns a Tensor
+
+    def with_added_crop_pad(
+        self, crop_pad: Vec3D[int]
+    ) -> StackableVolumetricOpProtocol[P, R_co, DstLayerT_contra]:
+        ...
+
+    def read(
+        self,
+        idx: VolumetricIndex,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> dict[str, Tensor]:
+        """Read all source data for this operation and return as named tensors."""
+
+    def write(
+        self,
+        idx: VolumetricIndex,
+        dst: DstLayerT_contra,
+        tensor: Tensor,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> None:
+        """Write tensor data to destination."""

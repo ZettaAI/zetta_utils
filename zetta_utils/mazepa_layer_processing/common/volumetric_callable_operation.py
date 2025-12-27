@@ -75,6 +75,47 @@ class VolumetricCallableOperation(Generic[P]):
                 )
         self.input_crop_pad = input_crop_pad_raw.int()
 
+    def read(  # pylint: disable=keyword-arg-before-vararg
+        self,
+        idx: VolumetricIndex,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> dict[str, Any]:
+        """Read all source data for this operation."""
+        assert len(args) == 0
+        idx_input = copy.deepcopy(idx)
+        idx_input.resolution = self.get_input_resolution(idx.resolution)
+        idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
+
+        with semaphore("read"):
+            task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
+
+        return task_kwargs
+
+    def write(  # pylint: disable=keyword-arg-before-vararg,unused-argument
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricLayer,
+        tensor: Any,
+        *args: P.args,
+        **kwargs: P.kwargs,
+    ) -> None:
+        """Write tensor data to destination."""
+        assert len(args) == 0
+        # Data crop amount is determined by the index pad and the
+        # difference between the resolutions of idx and dst_idx.
+        # Padding was applied before the first read processor, so cropping
+        # should be done as last write processor.
+        if tuple(self.crop_pad) != (0, 0, 0):
+            dst_with_crop = dst.with_procs(
+                write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
+            )
+        else:
+            dst_with_crop = dst
+
+        with semaphore("write"):
+            dst_with_crop[idx] = tensor
+
     def __call__(  # pylint: disable=keyword-arg-before-vararg
         self,
         idx: VolumetricIndex,
@@ -83,11 +124,7 @@ class VolumetricCallableOperation(Generic[P]):
         **kwargs: P.kwargs,
     ) -> Any:
         assert len(args) == 0
-        idx_input = copy.deepcopy(idx)
-        idx_input.resolution = self.get_input_resolution(idx.resolution)
-        idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
-        with semaphore("read"):
-            task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
+        task_kwargs = self.read(idx, *args, **kwargs)
 
         with ExitStack() as semaphore_stack:
             if self.fn_semaphores is not None:
@@ -95,22 +132,11 @@ class VolumetricCallableOperation(Generic[P]):
                     semaphore_stack.enter_context(semaphore(semaphore_type))
             result_raw = self.fn(**task_kwargs)
             torch.cuda.empty_cache()
+
         # If no destination layer, we can bail out now.  Possibly we
         # could bail out a bit sooner.  ToDo: study this more.
         if dst is not None:
-            # Data crop amount is determined by the index pad and the
-            # difference between the resolutions of idx and dst_idx.
-            # Padding was applied before the first read processor, so cropping
-            # should be done as last write processor.
-            if tuple(self.crop_pad) != (0, 0, 0):
-                dst_with_crop = dst.with_procs(
-                    write_procs=dst.write_procs + (partial(tensor_ops.crop, crop=self.crop_pad),)
-                )
-            else:
-                dst_with_crop = dst
-
-            with semaphore("write"):
-                dst_with_crop[idx] = result_raw
+            self.write(idx, dst, result_raw, *args, **kwargs)
             return None
         else:
             return result_raw

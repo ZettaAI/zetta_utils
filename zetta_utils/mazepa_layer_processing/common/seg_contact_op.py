@@ -157,7 +157,36 @@ def _find_contacts(
     return seg_a, seg_b, aff_vals, x, y, z
 
 
-def _filter_pairs_to_kernel(
+def _filter_pairs_touching_boundary(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    aff: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    start: Vec3D,
+    shape: tuple[int, ...],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Exclude pairs that have any contact touching the padded boundary."""
+    padded_start = np.array([start[0], start[1], start[2]])
+    padded_end = padded_start + np.array(shape)
+    on_boundary = (
+        (x <= padded_start[0])
+        | (x >= padded_end[0] - 1)
+        | (y <= padded_start[1])
+        | (y >= padded_end[1] - 1)
+        | (z <= padded_start[2])
+        | (z >= padded_end[2] - 1)
+    )
+    pairs_on_boundary: set[tuple[int, int]] = set()
+    for a, b, on_b in zip(seg_a, seg_b, on_boundary):
+        if on_b:
+            pairs_on_boundary.add((int(a), int(b)))
+    keep = np.array([(int(a), int(b)) not in pairs_on_boundary for a, b in zip(seg_a, seg_b)])
+    return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
+
+
+def _filter_pairs_by_com(
     seg_a: np.ndarray,
     seg_b: np.ndarray,
     aff: np.ndarray,
@@ -168,21 +197,36 @@ def _filter_pairs_to_kernel(
     shape: tuple[int, ...],
     crop_pad: Sequence[int],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Exclude pairs that have any contact outside the kernel region."""
+    """Exclude pairs whose affinity-weighted COM falls outside the kernel region."""
     kernel_start = np.array([start[0], start[1], start[2]]) + np.array(crop_pad)
     kernel_end = np.array([start[0], start[1], start[2]]) + np.array(shape) - np.array(crop_pad)
-    outside_kernel = (
-        (x < kernel_start[0])
-        | (x >= kernel_end[0])
-        | (y < kernel_start[1])
-        | (y >= kernel_end[1])
-        | (z < kernel_start[2])
-        | (z >= kernel_end[2])
-    )
+
+    contact_data = _build_contact_lookup(seg_a, seg_b, x, y, z, aff)
     pairs_outside: set[tuple[int, int]] = set()
-    for a, b, out in zip(seg_a, seg_b, outside_kernel):
-        if out:
-            pairs_outside.add((int(a), int(b)))
+
+    for (a, b), contacts in contact_data.items():
+        xs = np.array([c[0] for c in contacts])
+        ys = np.array([c[1] for c in contacts])
+        zs = np.array([c[2] for c in contacts])
+        affs = np.array([c[3] for c in contacts])
+        aff_sum = affs.sum()
+        if aff_sum > 0:
+            com_x = (xs * affs).sum() / aff_sum
+            com_y = (ys * affs).sum() / aff_sum
+            com_z = (zs * affs).sum() / aff_sum
+        else:
+            com_x, com_y, com_z = xs.mean(), ys.mean(), zs.mean()
+
+        if (
+            com_x < kernel_start[0]
+            or com_x >= kernel_end[0]
+            or com_y < kernel_start[1]
+            or com_y >= kernel_end[1]
+            or com_z < kernel_start[2]
+            or com_z >= kernel_end[2]
+        ):
+            pairs_outside.add((a, b))
+
     keep = np.array([(int(a), int(b)) not in pairs_outside for a, b in zip(seg_a, seg_b)])
     return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
 
@@ -414,8 +458,15 @@ class SegContactOp:
         if len(seg_a) == 0:
             return
 
-        # Filter to kernel region
-        seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_to_kernel(
+        # Filter out pairs touching padded boundary (may have incomplete contacts)
+        seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_touching_boundary(
+            seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape
+        )
+        if len(seg_a) == 0:
+            return
+
+        # Filter out pairs with COM outside kernel region
+        seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_com(
             seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape, self.crop_pad
         )
         if len(seg_a) == 0:

@@ -8,7 +8,8 @@ from zetta_utils.mazepa_layer_processing.common.seg_contact_op import (
     _compute_affinity_weighted_com,
     _compute_contact_counts,
     _compute_overlaps,
-    _filter_pairs_to_kernel,
+    _filter_pairs_by_com,
+    _filter_pairs_touching_boundary,
     _find_axis_contacts,
     _find_contacts,
     _find_merger_segment_ids,
@@ -74,12 +75,36 @@ def test_find_contacts_normalizes_order():
     assert all(a < b for a, b in zip(seg_a, seg_b))
 
 
-def test_filter_pairs_to_kernel():
-    """Test filtering contacts to kernel region."""
+def test_filter_pairs_touching_boundary():
+    """Test filtering contacts touching padded boundary."""
     seg_a = np.array([1, 1, 2], dtype=np.int64)
     seg_b = np.array([2, 2, 3], dtype=np.int64)
     aff = np.array([0.5, 0.6, 0.7], dtype=np.float32)
-    x = np.array([5.0, 15.0, 10.0], dtype=np.float32)  # 5 outside, 15 outside
+    x = np.array([0.0, 10.0, 10.0], dtype=np.float32)  # 0 is on boundary
+    y = np.array([10.0, 10.0, 10.0], dtype=np.float32)
+    z = np.array([10.0, 10.0, 10.0], dtype=np.float32)
+
+    shape = (20, 20, 20)
+    start = Vec3D(0, 0, 0)
+
+    result = _filter_pairs_touching_boundary(seg_a, seg_b, aff, x, y, z, start, shape)
+    seg_a_f, seg_b_f, aff_f, x_f, y_f, z_f = result
+
+    # Pair (1, 2) has contact at x=0 which is on boundary
+    # So only (2, 3) should remain
+    assert len(seg_a_f) == 1
+    assert seg_a_f[0] == 2
+    assert seg_b_f[0] == 3
+
+
+def test_filter_pairs_by_com():
+    """Test filtering contacts by COM outside kernel region."""
+    # Pair (1, 2) has contacts at x=4 and x=6, COM at x=5 which is on kernel boundary
+    # Pair (2, 3) has contact at x=10 which is inside kernel
+    seg_a = np.array([1, 1, 2], dtype=np.int64)
+    seg_b = np.array([2, 2, 3], dtype=np.int64)
+    aff = np.array([0.5, 0.5, 0.7], dtype=np.float32)
+    x = np.array([4.0, 6.0, 10.0], dtype=np.float32)
     y = np.array([10.0, 10.0, 10.0], dtype=np.float32)
     z = np.array([10.0, 10.0, 10.0], dtype=np.float32)
 
@@ -87,14 +112,34 @@ def test_filter_pairs_to_kernel():
     shape = (20, 20, 20)
     start = Vec3D(0, 0, 0)
 
-    result = _filter_pairs_to_kernel(seg_a, seg_b, aff, x, y, z, start, shape, crop_pad)
+    result = _filter_pairs_by_com(seg_a, seg_b, aff, x, y, z, start, shape, crop_pad)
     seg_a_f, seg_b_f, aff_f, x_f, y_f, z_f = result
 
-    # Pair (1, 2) has contacts at x=5 and x=15 which are outside kernel (5-15)
-    # So only (2, 3) should remain
-    assert len(seg_a_f) == 1
-    assert seg_a_f[0] == 2
-    assert seg_b_f[0] == 3
+    # Pair (1, 2) has COM at x=5 which is exactly on kernel start boundary (included)
+    # Pair (2, 3) has COM at x=10 which is inside kernel
+    # Both should remain
+    assert len(seg_a_f) == 3
+
+
+def test_filter_pairs_by_com_outside():
+    """Test filtering contacts by COM outside kernel region."""
+    # Pair (1, 2) has contacts at x=2 and x=4, COM at x=3 which is outside kernel
+    seg_a = np.array([1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2], dtype=np.int64)
+    aff = np.array([0.5, 0.5], dtype=np.float32)
+    x = np.array([2.0, 4.0], dtype=np.float32)
+    y = np.array([10.0, 10.0], dtype=np.float32)
+    z = np.array([10.0, 10.0], dtype=np.float32)
+
+    crop_pad = (5, 5, 5)
+    shape = (20, 20, 20)
+    start = Vec3D(0, 0, 0)
+
+    result = _filter_pairs_by_com(seg_a, seg_b, aff, x, y, z, start, shape, crop_pad)
+    seg_a_f, seg_b_f, aff_f, x_f, y_f, z_f = result
+
+    # Pair (1, 2) has COM at x=3 which is outside kernel (5-15)
+    assert len(seg_a_f) == 0
 
 
 def test_compute_overlaps_basic():

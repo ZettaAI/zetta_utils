@@ -13,6 +13,8 @@ Contacts represent interfaces between two segments. Each contact has:
 
 Contacts are spatially indexed by their COM and stored in chunks following a precomputed-like naming convention.
 
+The `max_contact_span` constraint ensures that any contact can be fully computed within a single processing window. When generating contacts, processing chunks must have padding >= `max_contact_span / 2`. Contacts exceeding this span are filtered out during generation.
+
 **Indexing (bounds, chunks) uses voxels at a specified resolution. Contact data (COM, faces, pointclouds) is stored in nanometers.**
 
 ## Contact Dataclass
@@ -152,6 +154,8 @@ Per contact:
   - com: float32[3] (x, y, z in nm)
   - n_faces: uint32
   - contact_faces: float32[n_faces, 4] (x, y, z, affinity per face)
+  - partner_metadata_len: uint32
+  - partner_metadata: uint8[partner_metadata_len] (JSON-encoded dict)
 ```
 
 ### local_point_clouds/{radius}nm_{n_points}pts/
@@ -269,15 +273,3 @@ zetta_utils/layer/volumetric/contact/
 - Ensures contacts can be fully computed within a processing window
 - Processing chunk must have padding >= max_contact_span / 2 (in voxels)
 - Contacts exceeding this span are filtered out during generation
-
-### Why separate folders for point clouds and decisions?
-- Point clouds are expensive to compute/store, may not always be needed
-- Multiple point cloud configurations (different radii) can coexist
-- Merge decisions can come from multiple sources (ground truth, models)
-- Each can be added/updated independently
-
-### Why custom binary format?
-- Compact storage for large datasets
-- Direct memory mapping possible
-- No external dependencies for reading/writing
-- Variable-length contact_faces handled with per-contact n_faces field

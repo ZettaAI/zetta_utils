@@ -1,27 +1,27 @@
-# Contact Layer Format Design
+# SegContact Layer Format Design
 
 A chunked spatial storage format for contact data between segmentation objects.
 
 ## Overview
 
-Contacts represent interfaces between two segments. Each contact has:
+SegContacts represent interfaces between two segments. Each contact has:
 - A unique integer ID
 - A center of mass (COM) in 3D space
 - Contact faces (3D points with affinity values)
 - Optional local point clouds (mesh samples around COM)
 - Optional merge decisions from various authorities
 
-Contacts are spatially indexed by their COM and stored in chunks following a precomputed-like naming convention.
+SegContacts are spatially indexed by their COM and stored in chunks following a precomputed-like naming convention.
 
 The `max_contact_span` constraint ensures that any contact can be fully computed within a single processing window. When generating contacts, processing chunks must have padding >= `max_contact_span / 2`. Contacts exceeding this span are filtered out during generation.
 
-**Indexing (bounds, chunks) uses voxels at a specified resolution. Contact data (COM, faces, pointclouds) is stored in nanometers.**
+**Indexing (bounds, chunks) uses voxels at a specified resolution. SegContact data (COM, faces, pointclouds) is stored in nanometers.**
 
-## Contact Dataclass
+## SegContact Dataclass
 
 ```python
 @attrs.frozen
-class Contact:
+class SegContact:
     id: int
     seg_a: int
     seg_b: int
@@ -37,8 +37,8 @@ class Contact:
 
     def with_converted_coordinates(
         self, from_res: Vec3D, to_res: Vec3D
-    ) -> Contact:
-        """Return new Contact with coordinates converted between resolutions."""
+    ) -> SegContact:
+        """Return new SegContact with coordinates converted between resolutions."""
         ...
 ```
 
@@ -49,7 +49,7 @@ The `info` JSON file at the dataset root:
 ```json
 {
   "format_version": "1.0",
-  "type": "contact",
+  "type": "seg_contact",
 
   "resolution": [16, 16, 40],
   "voxel_offset": [0, 0, 0],
@@ -82,7 +82,7 @@ The `info` JSON file at the dataset root:
 | Field | Type | Description |
 |-------|------|-------------|
 | `format_version` | string | Format version for compatibility |
-| `type` | string | Always `"contact"` |
+| `type` | string | Always `"seg_contact"` |
 | `resolution` | [x, y, z] | Voxel size in nanometers |
 | `voxel_offset` | [x, y, z] | Dataset start in voxels |
 | `size` | [x, y, z] | Dataset dimensions in voxels |
@@ -98,7 +98,7 @@ The `info` JSON file at the dataset root:
 ## Directory Structure
 
 ```
-contact_dataset/
+seg_contact_dataset/
 ├── info
 ├── contacts/
 │   ├── 0-256_0-256_0-128
@@ -131,9 +131,9 @@ x_end = x_start + chunk_size[0]
 filename = f"{x_start}-{x_end}_{y_start}-{y_end}_{z_start}-{z_end}"
 ```
 
-## Contact Assignment Rule
+## SegContact Assignment Rule
 
-A contact is assigned to the chunk containing its **center of mass (COM)**. The `max_contact_span` constraint ensures contacts don't extend beyond what can be processed in a single operation.
+A seg_contact is assigned to the chunk containing its **center of mass (COM)**. The `max_contact_span` constraint ensures contacts don't extend beyond what can be processed in a single operation.
 
 ## Binary Data Formats
 
@@ -199,9 +199,9 @@ To read contacts in a bounding box:
    - Filter contacts whose COM is within query bbox
 4. Optionally load corresponding local_point_clouds and merge_decisions
 
-## Writing Contacts
+## Writing SegContacts
 
-Contacts are typically generated via a subchunkable operation:
+SegContacts are typically generated via a subchunkable operation:
 
 1. Process each chunk with padding >= `max_contact_span / 2` (in voxels)
 2. Find contacts, compute COM for each
@@ -212,30 +212,30 @@ Contacts are typically generated via a subchunkable operation:
 
 Following the pattern of `VolumetricAnnotationLayer`:
 
-### VolumetricContactLayer
+### VolumetricSegContactLayer
 
 ```python
 @attrs.frozen
-class VolumetricContactLayer(Layer[VolumetricIndex, Sequence[Contact], Sequence[Contact]]):
-    backend: ContactLayerBackend
+class VolumetricSegContactLayer(Layer[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]):
+    backend: SegContactLayerBackend
     readonly: bool = False
 
     index_procs: tuple[IndexProcessor[VolumetricIndex], ...] = ()
-    read_procs: tuple[ContactDataProcT, ...] = ()
-    write_procs: tuple[ContactDataProcT, ...] = ()
+    read_procs: tuple[SegContactDataProcT, ...] = ()
+    write_procs: tuple[SegContactDataProcT, ...] = ()
 
-    def __getitem__(self, idx: VolumetricIndex) -> Sequence[Contact]:
+    def __getitem__(self, idx: VolumetricIndex) -> Sequence[SegContact]:
         ...
 
-    def __setitem__(self, idx: VolumetricIndex, data: Sequence[Contact]):
+    def __setitem__(self, idx: VolumetricIndex, data: Sequence[SegContact]):
         ...
 ```
 
-### ContactLayerBackend
+### SegContactLayerBackend
 
 ```python
 @attrs.define
-class ContactLayerBackend(Backend[VolumetricIndex, Sequence[Contact], Sequence[Contact]]):
+class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]):
     path: str
     resolution: Vec3D[int]  # voxel size in nm
     voxel_offset: Vec3D[int]  # dataset start in voxels
@@ -244,21 +244,21 @@ class ContactLayerBackend(Backend[VolumetricIndex, Sequence[Contact], Sequence[C
     max_contact_span: int  # in voxels
     # ... other info fields
 
-    def read(self, idx: VolumetricIndex) -> Sequence[Contact]:
+    def read(self, idx: VolumetricIndex) -> Sequence[SegContact]:
         ...
 
-    def write(self, idx: VolumetricIndex, data: Sequence[Contact]):
+    def write(self, idx: VolumetricIndex, data: Sequence[SegContact]):
         ...
 ```
 
 ## File Structure
 
 ```
-zetta_utils/layer/volumetric/contact/
+zetta_utils/layer/volumetric/seg_contact/
 ├── __init__.py
-├── contact.py      # Contact dataclass
-├── backend.py      # ContactLayerBackend
-├── layer.py        # VolumetricContactLayer
+├── contact.py      # SegContact dataclass
+├── backend.py      # SegContactLayerBackend
+├── layer.py        # VolumetricSegContactLayer
 └── build.py        # Builder functions
 ```
 

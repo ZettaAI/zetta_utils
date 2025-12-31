@@ -5,12 +5,12 @@ from typing import Any
 import attrs
 import numpy as np
 
-from zetta_utils.geometry import Vec3D, BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
 
 
 @attrs.frozen
-class Contact:
+class SegContact:
     """Represents a contact interface between two segments."""
 
     id: int
@@ -42,9 +42,7 @@ class Contact:
             and start_nm[2] <= self.com[2] < end_nm[2]
         )
 
-    def with_converted_coordinates(
-        self, from_res: Vec3D, to_res: Vec3D
-    ) -> Contact:
+    def with_converted_coordinates(self, from_res: Vec3D, to_res: Vec3D) -> SegContact:
         """Return new Contact with coordinates converted between resolutions.
 
         Note: Contact coordinates are stored in nanometers, so resolution
@@ -53,7 +51,7 @@ class Contact:
         """
         # Coordinates are in nm, they don't change with resolution
         # Just return a copy with same values
-        return Contact(
+        return SegContact(
             id=self.id,
             seg_a=self.seg_a,
             seg_b=self.seg_b,

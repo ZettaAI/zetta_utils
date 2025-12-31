@@ -1,21 +1,20 @@
-import tempfile
-import os
 import json
+import os
+import tempfile
 
 import numpy as np
 import pytest
 
-from zetta_utils.geometry import Vec3D, BBox3D
+from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.layer.volumetric.contact import Contact, ContactLayerBackend
-
+from zetta_utils.layer.volumetric.seg_contact import SegContact, SegContactLayerBackend
 
 # --- Chunk naming tests ---
 
 
 def test_get_chunk_name():
     """Test chunk naming follows precomputed format."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test",
         resolution=Vec3D(16, 16, 40),
         voxel_offset=Vec3D(0, 0, 0),
@@ -36,7 +35,7 @@ def test_get_chunk_name():
 
 def test_get_chunk_name_with_offset():
     """Test chunk naming with non-zero voxel offset."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test",
         resolution=Vec3D(16, 16, 40),
         voxel_offset=Vec3D(100, 200, 50),
@@ -51,7 +50,7 @@ def test_get_chunk_name_with_offset():
 
 def test_get_chunk_path():
     """Test chunk path includes contacts subdirectory."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test_dataset",
         resolution=Vec3D(16, 16, 40),
         voxel_offset=Vec3D(0, 0, 0),
@@ -69,7 +68,7 @@ def test_get_chunk_path():
 
 def test_com_to_chunk_idx():
     """Test converting COM in nanometers to chunk grid index."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test",
         resolution=Vec3D(16, 16, 40),
         voxel_offset=Vec3D(0, 0, 0),
@@ -93,7 +92,7 @@ def test_com_to_chunk_idx():
 
 def test_com_to_chunk_idx_with_offset():
     """Test COM to chunk index with non-zero voxel offset."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test",
         resolution=Vec3D(16, 16, 40),
         voxel_offset=Vec3D(100, 0, 0),  # offset of 100 voxels in x = 1600 nm
@@ -111,7 +110,7 @@ def test_com_to_chunk_idx_with_offset():
 
 def test_com_to_chunk_idx_different_resolutions():
     """Test COM to chunk index with anisotropic resolution."""
-    backend = ContactLayerBackend(
+    backend = SegContactLayerBackend(
         path="/tmp/test",
         resolution=Vec3D(8, 8, 40),  # different z resolution
         voxel_offset=Vec3D(0, 0, 0),
@@ -132,7 +131,7 @@ def test_com_to_chunk_idx_different_resolutions():
 def test_write_info_creates_file():
     """Test that write_info creates a valid info JSON file."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -149,7 +148,7 @@ def test_write_info_creates_file():
         with open(info_path, "r") as f:
             info = json.load(f)
 
-        assert info["type"] == "contact"
+        assert info["type"] == "seg_contact"
         assert info["resolution"] == [16, 16, 40]
         assert info["chunk_size"] == [256, 256, 128]
 
@@ -157,7 +156,7 @@ def test_write_info_creates_file():
 def test_write_info_all_fields():
     """Test that write_info writes all required fields."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(100, 200, 50),
@@ -172,7 +171,7 @@ def test_write_info_all_fields():
             info = json.load(f)
 
         assert info["format_version"] == "1.0"
-        assert info["type"] == "contact"
+        assert info["type"] == "seg_contact"
         assert info["resolution"] == [16, 16, 40]
         assert info["voxel_offset"] == [100, 200, 50]
         assert info["size"] == [1000, 1000, 500]
@@ -184,7 +183,7 @@ def test_from_path_loads_info():
     """Test loading backend from existing info file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         # First create and write
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(100, 200, 50),
@@ -195,7 +194,7 @@ def test_from_path_loads_info():
         backend.write_info()
 
         # Then load from path
-        loaded = ContactLayerBackend.from_path(temp_dir)
+        loaded = SegContactLayerBackend.from_path(temp_dir)
 
         assert loaded.resolution == Vec3D(16, 16, 40)
         assert loaded.voxel_offset == Vec3D(100, 200, 50)
@@ -208,25 +207,25 @@ def test_from_path_missing_info_raises():
     """Test that from_path raises when info file doesn't exist."""
     with tempfile.TemporaryDirectory() as temp_dir:
         with pytest.raises(FileNotFoundError):
-            ContactLayerBackend.from_path(temp_dir)
+            SegContactLayerBackend.from_path(temp_dir)
 
 
 # --- Chunk write/read tests ---
 
 
-def make_contact(
+def make_seg_contact(
     id: int,
     seg_a: int,
     seg_b: int,
     com: tuple[float, float, float],
     n_faces: int = 3,
-) -> Contact:
-    """Helper to create a Contact for testing."""
+) -> SegContact:
+    """Helper to create a SegContact for testing."""
     contact_faces = np.array(
         [[com[0] + i, com[1] + i, com[2] + i, 0.5 + i * 0.1] for i in range(n_faces)],
         dtype=np.float32,
     )
-    return Contact(
+    return SegContact(
         id=id,
         seg_a=seg_a,
         seg_b=seg_b,
@@ -238,7 +237,7 @@ def make_contact(
 def test_write_chunk_creates_file():
     """Test that write_chunk creates a chunk file."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -247,7 +246,7 @@ def test_write_chunk_creates_file():
             max_contact_span=512,
         )
 
-        contact = make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0))
+        contact = make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0))
         backend.write_chunk((0, 0, 0), [contact])
 
         chunk_path = backend.get_chunk_path((0, 0, 0))
@@ -257,7 +256,7 @@ def test_write_chunk_creates_file():
 def test_write_read_chunk_single_contact():
     """Test round-trip of a single contact through write_chunk/read_chunk."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -266,7 +265,9 @@ def test_write_read_chunk_single_contact():
             max_contact_span=512,
         )
 
-        contact = make_contact(id=42, seg_a=100, seg_b=200, com=(100.0, 200.0, 300.0), n_faces=5)
+        contact = make_seg_contact(
+            id=42, seg_a=100, seg_b=200, com=(100.0, 200.0, 300.0), n_faces=5
+        )
         backend.write_chunk((0, 0, 0), [contact])
 
         contacts_read = backend.read_chunk((0, 0, 0))
@@ -284,7 +285,7 @@ def test_write_read_chunk_single_contact():
 def test_write_read_chunk_multiple_contacts():
     """Test round-trip of multiple contacts in a single chunk."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -294,9 +295,9 @@ def test_write_read_chunk_multiple_contacts():
         )
 
         contacts = [
-            make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0), n_faces=3),
-            make_contact(id=2, seg_a=100, seg_b=300, com=(200.0, 200.0, 200.0), n_faces=7),
-            make_contact(id=3, seg_a=200, seg_b=300, com=(300.0, 300.0, 300.0), n_faces=1),
+            make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0), n_faces=3),
+            make_seg_contact(id=2, seg_a=100, seg_b=300, com=(200.0, 200.0, 200.0), n_faces=7),
+            make_seg_contact(id=3, seg_a=200, seg_b=300, com=(300.0, 300.0, 300.0), n_faces=1),
         ]
         backend.write_chunk((0, 0, 0), contacts)
 
@@ -315,7 +316,7 @@ def test_write_read_chunk_multiple_contacts():
 def test_write_read_chunk_empty():
     """Test writing and reading an empty chunk."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -333,7 +334,7 @@ def test_write_read_chunk_empty():
 def test_read_chunk_nonexistent_returns_empty():
     """Test reading a chunk that doesn't exist returns empty list."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -349,7 +350,7 @@ def test_read_chunk_nonexistent_returns_empty():
 def test_write_read_chunk_with_partner_metadata():
     """Test round-trip of contact with partner_metadata."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -358,7 +359,7 @@ def test_write_read_chunk_with_partner_metadata():
             max_contact_span=512,
         )
 
-        contact = Contact(
+        contact = SegContact(
             id=1,
             seg_a=100,
             seg_b=200,
@@ -371,13 +372,16 @@ def test_write_read_chunk_with_partner_metadata():
         contacts_read = backend.read_chunk((0, 0, 0))
 
         assert len(contacts_read) == 1
-        assert contacts_read[0].partner_metadata == {100: {"type": "axon"}, 200: {"type": "dendrite"}}
+        assert contacts_read[0].partner_metadata == {
+            100: {"type": "axon"},
+            200: {"type": "dendrite"},
+        }
 
 
 def test_write_read_chunk_with_no_partner_metadata():
     """Test round-trip of contact without partner_metadata."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -386,7 +390,7 @@ def test_write_read_chunk_with_no_partner_metadata():
             max_contact_span=512,
         )
 
-        contact = Contact(
+        contact = SegContact(
             id=1,
             seg_a=100,
             seg_b=200,
@@ -405,7 +409,7 @@ def test_write_read_chunk_with_no_partner_metadata():
 def test_write_read_chunk_large_contact_faces():
     """Test contact with many faces."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -416,7 +420,7 @@ def test_write_read_chunk_large_contact_faces():
 
         n_faces = 1000
         contact_faces = np.random.rand(n_faces, 4).astype(np.float32)
-        contact = Contact(
+        contact = SegContact(
             id=1,
             seg_a=100,
             seg_b=200,
@@ -438,7 +442,7 @@ def test_write_read_chunk_large_contact_faces():
 def test_write_distributes_contacts_to_chunks():
     """Test that write() distributes contacts to correct chunks based on COM."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -452,8 +456,8 @@ def test_write_distributes_contacts_to_chunks():
         # Contact 1: COM in chunk (0,0,0)
         # Contact 2: COM in chunk (1,0,0)
         contacts = [
-            make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
-            make_contact(id=2, seg_a=100, seg_b=300, com=(5000.0, 100.0, 100.0)),  # > 4096
+            make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
+            make_seg_contact(id=2, seg_a=100, seg_b=300, com=(5000.0, 100.0, 100.0)),  # > 4096
         ]
 
         idx = VolumetricIndex(
@@ -476,7 +480,7 @@ def test_write_distributes_contacts_to_chunks():
 def test_read_filters_by_bbox():
     """Test that read() filters contacts to those within the query bbox."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -489,9 +493,9 @@ def test_read_filters_by_bbox():
         # Write contacts at different positions within chunk (0,0,0)
         # All within first chunk (0-4096 nm in x)
         contacts = [
-            make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
-            make_contact(id=2, seg_a=100, seg_b=300, com=(2000.0, 100.0, 100.0)),
-            make_contact(id=3, seg_a=200, seg_b=300, com=(3500.0, 100.0, 100.0)),
+            make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
+            make_seg_contact(id=2, seg_a=100, seg_b=300, com=(2000.0, 100.0, 100.0)),
+            make_seg_contact(id=3, seg_a=200, seg_b=300, com=(3500.0, 100.0, 100.0)),
         ]
         backend.write_chunk((0, 0, 0), contacts)
 
@@ -511,7 +515,7 @@ def test_read_filters_by_bbox():
 def test_read_spans_multiple_chunks():
     """Test that read() can span multiple chunks."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -522,14 +526,20 @@ def test_read_spans_multiple_chunks():
         backend.write_info()
 
         # Write to chunk (0,0,0)
-        backend.write_chunk((0, 0, 0), [
-            make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
-        ])
+        backend.write_chunk(
+            (0, 0, 0),
+            [
+                make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0)),
+            ],
+        )
 
         # Write to chunk (1,0,0)
-        backend.write_chunk((1, 0, 0), [
-            make_contact(id=2, seg_a=100, seg_b=300, com=(5000.0, 100.0, 100.0)),
-        ])
+        backend.write_chunk(
+            (1, 0, 0),
+            [
+                make_seg_contact(id=2, seg_a=100, seg_b=300, com=(5000.0, 100.0, 100.0)),
+            ],
+        )
 
         # Query spanning both chunks (0-512 voxels in x)
         idx = VolumetricIndex(
@@ -546,7 +556,7 @@ def test_read_spans_multiple_chunks():
 def test_read_empty_region():
     """Test reading from a region with no contacts."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -568,7 +578,7 @@ def test_read_empty_region():
 def test_round_trip_full():
     """Full round-trip test: write via write(), read via read()."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        backend = ContactLayerBackend(
+        backend = SegContactLayerBackend(
             path=temp_dir,
             resolution=Vec3D(16, 16, 40),
             voxel_offset=Vec3D(0, 0, 0),
@@ -579,8 +589,8 @@ def test_round_trip_full():
         backend.write_info()
 
         contacts = [
-            make_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0), n_faces=5),
-            make_contact(id=2, seg_a=100, seg_b=300, com=(200.0, 200.0, 200.0), n_faces=10),
+            make_seg_contact(id=1, seg_a=100, seg_b=200, com=(100.0, 100.0, 100.0), n_faces=5),
+            make_seg_contact(id=2, seg_a=100, seg_b=300, com=(200.0, 200.0, 200.0), n_faces=10),
         ]
 
         write_idx = VolumetricIndex(

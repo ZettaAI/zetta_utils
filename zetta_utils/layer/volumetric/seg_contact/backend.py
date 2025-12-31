@@ -8,14 +8,15 @@ import attrs
 import numpy as np
 
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.backend_base import Backend
 from zetta_utils.layer.volumetric import VolumetricIndex
 
-from .contact import Contact
+from .contact import SegContact
 
 
 @attrs.define
-class ContactLayerBackend:
-    """Backend for reading/writing contact data in chunked format."""
+class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]):
+    """Backend for reading/writing seg_contact data in chunked format."""
 
     path: str
     resolution: Vec3D[int]  # voxel size in nm
@@ -24,8 +25,15 @@ class ContactLayerBackend:
     chunk_size: Vec3D[int]  # chunk dimensions in voxels
     max_contact_span: int  # in voxels
 
+    @property
+    def name(self) -> str:
+        return self.path
+
+    def with_changes(self, **kwargs) -> SegContactLayerBackend:
+        return attrs.evolve(self, **kwargs)
+
     @classmethod
-    def from_path(cls, path: str) -> ContactLayerBackend:
+    def from_path(cls, path: str) -> SegContactLayerBackend:
         """Load backend from existing info file."""
         info_path = os.path.join(path, "info")
         if not os.path.exists(info_path):
@@ -45,7 +53,7 @@ class ContactLayerBackend:
         """Write info file to disk."""
         info = {
             "format_version": "1.0",
-            "type": "contact",
+            "type": "seg_contact",
             "resolution": list(self.resolution),
             "voxel_offset": list(self.voxel_offset),
             "size": list(self.size),
@@ -56,16 +64,16 @@ class ContactLayerBackend:
         with open(os.path.join(self.path, "info"), "w") as f:
             json.dump(info, f, indent=2)
 
-    def read(self, idx: VolumetricIndex) -> Sequence[Contact]:
+    def read(self, idx: VolumetricIndex) -> Sequence[SegContact]:
         """Read contacts whose COM falls within the given index."""
         # Get bbox in nm
         bbox = idx.bbox
-        start_nm = Vec3D(
+        start_nm: Vec3D = Vec3D(
             bbox.start[0] * idx.resolution[0],
             bbox.start[1] * idx.resolution[1],
             bbox.start[2] * idx.resolution[2],
         )
-        end_nm = Vec3D(
+        end_nm: Vec3D = Vec3D(
             bbox.end[0] * idx.resolution[0],
             bbox.end[1] * idx.resolution[1],
             bbox.end[2] * idx.resolution[2],
@@ -73,7 +81,9 @@ class ContactLayerBackend:
 
         # Find which chunks to read
         start_chunk = self.com_to_chunk_idx(start_nm)
-        end_chunk = self.com_to_chunk_idx(Vec3D(end_nm[0] - 0.001, end_nm[1] - 0.001, end_nm[2] - 0.001))
+        end_chunk = self.com_to_chunk_idx(
+            Vec3D(end_nm[0] - 0.001, end_nm[1] - 0.001, end_nm[2] - 0.001)
+        )
 
         result = []
         for gx in range(start_chunk[0], end_chunk[0] + 1):
@@ -90,10 +100,10 @@ class ContactLayerBackend:
                             result.append(c)
         return result
 
-    def write(self, idx: VolumetricIndex, data: Sequence[Contact]) -> None:
+    def write(self, idx: VolumetricIndex, data: Sequence[SegContact]) -> None:
         """Write contacts to appropriate chunks based on their COM."""
         # Group contacts by chunk
-        chunk_contacts: dict[tuple[int, int, int], list[Contact]] = {}
+        chunk_contacts: dict[tuple[int, int, int], list[SegContact]] = {}
         for contact in data:
             chunk_idx = self.com_to_chunk_idx(contact.com)
             if chunk_idx not in chunk_contacts:
@@ -133,7 +143,7 @@ class ContactLayerBackend:
         gz = int((com_vx[2] - self.voxel_offset[2]) // self.chunk_size[2])
         return (gx, gy, gz)
 
-    def write_chunk(self, chunk_idx: tuple[int, int, int], contacts: Sequence[Contact]) -> None:
+    def write_chunk(self, chunk_idx: tuple[int, int, int], contacts: Sequence[SegContact]) -> None:
         """Write contacts to a specific chunk file."""
         import struct
 
@@ -162,7 +172,7 @@ class ContactLayerBackend:
                 else:
                     f.write(struct.pack("<I", 0))
 
-    def read_chunk(self, chunk_idx: tuple[int, int, int]) -> Sequence[Contact]:
+    def read_chunk(self, chunk_idx: tuple[int, int, int]) -> Sequence[SegContact]:
         """Read contacts from a specific chunk file."""
         import struct
 
@@ -197,7 +207,7 @@ class ContactLayerBackend:
                     partner_metadata = None
 
                 contacts.append(
-                    Contact(
+                    SegContact(
                         id=id_,
                         seg_a=seg_a,
                         seg_b=seg_b,

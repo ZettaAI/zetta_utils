@@ -24,10 +24,46 @@ class Contact:
 
     def in_bounds(self, idx: VolumetricIndex) -> bool:
         """Check if COM falls within the given volumetric index."""
-        raise NotImplementedError
+        bbox = idx.bbox
+        # Convert bbox to nm
+        start_nm = (
+            bbox.start[0] * idx.resolution[0],
+            bbox.start[1] * idx.resolution[1],
+            bbox.start[2] * idx.resolution[2],
+        )
+        end_nm = (
+            bbox.end[0] * idx.resolution[0],
+            bbox.end[1] * idx.resolution[1],
+            bbox.end[2] * idx.resolution[2],
+        )
+        return (
+            start_nm[0] <= self.com[0] < end_nm[0]
+            and start_nm[1] <= self.com[1] < end_nm[1]
+            and start_nm[2] <= self.com[2] < end_nm[2]
+        )
 
     def with_converted_coordinates(
         self, from_res: Vec3D, to_res: Vec3D
     ) -> Contact:
-        """Return new Contact with coordinates converted between resolutions."""
-        raise NotImplementedError
+        """Return new Contact with coordinates converted between resolutions.
+
+        Note: Contact coordinates are stored in nanometers, so resolution
+        conversion doesn't change the values - this method exists for API
+        consistency with other layer types.
+        """
+        # Coordinates are in nm, they don't change with resolution
+        # Just return a copy with same values
+        return Contact(
+            id=self.id,
+            seg_a=self.seg_a,
+            seg_b=self.seg_b,
+            com=self.com,
+            contact_faces=self.contact_faces.copy(),
+            local_pointclouds=(
+                {k: v.copy() for k, v in self.local_pointclouds.items()}
+                if self.local_pointclouds is not None
+                else None
+            ),
+            merge_decisions=self.merge_decisions,
+            partner_metadata=self.partner_metadata,
+        )

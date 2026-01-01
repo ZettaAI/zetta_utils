@@ -80,7 +80,7 @@ def test_getitem_empty():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         result = layer[idx]
 
@@ -98,7 +98,7 @@ def test_getitem_single_contact():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         result = layer[idx]
 
@@ -121,7 +121,7 @@ def test_getitem_multiple_contacts():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         result = layer[idx]
 
@@ -143,10 +143,10 @@ def test_getitem_filters_by_bbox():
 
         layer = VolumetricSegContactLayer(backend=backend)
 
-        # Query only first part (0-1000 nm in x = 0-62.5 voxels at 16nm)
+        # Query only first part (0-1024 nm in x = 0-64 voxels at 16nm)
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 64), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [64, 256, 128], [16, 16, 40]),
         )
         result = layer[idx]
 
@@ -167,7 +167,7 @@ def test_setitem_single_contact():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         layer[idx] = [contact]
 
@@ -190,7 +190,7 @@ def test_setitem_multiple_contacts():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         layer[idx] = contacts
 
@@ -207,7 +207,7 @@ def test_setitem_readonly_raises():
         contact = make_seg_contact()
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
 
         with pytest.raises(Exception):  # Could be IOError, PermissionError, etc.
@@ -229,7 +229,7 @@ def test_setitem_distributes_to_chunks():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 512), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [512, 256, 128], [16, 16, 40]),
         )
         layer[idx] = contacts
 
@@ -263,7 +263,7 @@ def test_round_trip():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         layer[idx] = contacts
 

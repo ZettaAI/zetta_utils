@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 import attrs
 import numpy as np
-from cloudfiles import CloudFile
+from cloudfiles import CloudFile, CloudFiles
 
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.backend_base import Backend
@@ -75,18 +75,10 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
 
     def read(self, idx: VolumetricIndex) -> Sequence[SegContact]:
         """Read contacts whose COM falls within the given index."""
-        # Get bbox in nm
+        # bbox.start and bbox.end are already in nm
         bbox = idx.bbox
-        start_nm: Vec3D = Vec3D(
-            bbox.start[0] * idx.resolution[0],
-            bbox.start[1] * idx.resolution[1],
-            bbox.start[2] * idx.resolution[2],
-        )
-        end_nm: Vec3D = Vec3D(
-            bbox.end[0] * idx.resolution[0],
-            bbox.end[1] * idx.resolution[1],
-            bbox.end[2] * idx.resolution[2],
-        )
+        start_nm = bbox.start
+        end_nm = bbox.end
 
         # Find which chunks to read
         start_chunk = self.com_to_chunk_idx(start_nm)
@@ -108,6 +100,82 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                         ):
                             result.append(c)
         return result
+
+    def get_contact_counts(self, idx: VolumetricIndex) -> dict[tuple[int, int, int], int]:
+        """Get count of contacts per chunk within the given bounds.
+
+        Uses batch fetching to download all overlapping chunks in parallel.
+        Returns dict mapping chunk_idx -> count of contacts with COM in bounds.
+        """
+        # bbox.start and bbox.end are already in nm
+        bbox = idx.bbox
+        start_nm = bbox.start
+        end_nm = bbox.end
+
+        start_chunk = self.com_to_chunk_idx(start_nm)
+        end_chunk = self.com_to_chunk_idx(
+            Vec3D(end_nm[0] - 0.001, end_nm[1] - 0.001, end_nm[2] - 0.001)
+        )
+
+        # Build list of chunk indices and relative paths
+        chunk_indices = []
+        relative_paths = []
+        for gx in range(start_chunk[0], end_chunk[0] + 1):
+            for gy in range(start_chunk[1], end_chunk[1] + 1):
+                for gz in range(start_chunk[2], end_chunk[2] + 1):
+                    chunk_idx = (gx, gy, gz)
+                    chunk_indices.append(chunk_idx)
+                    chunk_name = self.get_chunk_name(chunk_idx)
+                    relative_paths.append(f"contacts/{chunk_name}")
+
+        if not chunk_indices:
+            return {}
+
+        # Batch fetch all chunks in parallel
+        cf = CloudFiles(self.path)
+        chunk_data_list = cf.get(relative_paths)
+
+        # Parse and count contacts in bounds for each chunk
+        # CloudFiles.get() returns list of dicts with 'path', 'content', 'error' keys
+        result = {}
+        for chunk_idx, item in zip(chunk_indices, chunk_data_list):
+            content = item.get("content") if isinstance(item, dict) else item
+            if content is None:
+                result[chunk_idx] = 0
+                continue
+            count = self._count_contacts_in_bounds(content, start_nm, end_nm)
+            result[chunk_idx] = count
+
+        return result
+
+    def _count_contacts_in_bounds(self, chunk_data: bytes, start_nm: Vec3D, end_nm: Vec3D) -> int:
+        """Parse chunk binary data and count contacts with COM in bounds."""
+        count = 0
+        with io.BytesIO(chunk_data) as f:
+            n_contacts = struct.unpack("<I", f.read(4))[0]
+
+            for _ in range(n_contacts):
+                # Skip id, seg_a, seg_b (24 bytes)
+                f.read(24)
+                # Read COM
+                com = struct.unpack("<fff", f.read(12))
+                # Skip n_faces and contact_faces
+                n_faces = struct.unpack("<I", f.read(4))[0]
+                f.read(n_faces * 4 * 4)
+                # Skip metadata
+                metadata_len = struct.unpack("<I", f.read(4))[0]
+                if metadata_len > 0:
+                    f.read(metadata_len)
+
+                # Check if COM is in bounds
+                if (
+                    start_nm[0] <= com[0] < end_nm[0]
+                    and start_nm[1] <= com[1] < end_nm[1]
+                    and start_nm[2] <= com[2] < end_nm[2]
+                ):
+                    count += 1
+
+        return count
 
     def write(self, idx: VolumetricIndex, data: Sequence[SegContact]) -> None:
         """Write contacts to appropriate chunks based on their COM."""

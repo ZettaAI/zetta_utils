@@ -470,7 +470,7 @@ def test_write_distributes_contacts_to_chunks():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 512), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [512, 256, 128], [16, 16, 40]),
         )
         backend.write(idx, contacts)
 
@@ -510,7 +510,7 @@ def test_read_filters_by_bbox():
         # Query only first half of chunk (0-128 voxels = 0-2048 nm in x)
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 128), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [128, 256, 128], [16, 16, 40]),
         )
         result = backend.read(idx)
 
@@ -552,7 +552,7 @@ def test_read_spans_multiple_chunks():
         # Query spanning both chunks (0-512 voxels in x)
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 512), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [512, 256, 128], [16, 16, 40]),
         )
         result = backend.read(idx)
 
@@ -576,7 +576,7 @@ def test_read_empty_region():
 
         idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         result = backend.read(idx)
 
@@ -607,14 +607,14 @@ def test_round_trip_full():
 
         write_idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         backend.write(write_idx, contacts)
 
         # Read back
         read_idx = VolumetricIndex(
             resolution=Vec3D(16, 16, 40),
-            bbox=BBox3D.from_slices((slice(0, 256), slice(0, 256), slice(0, 128))),
+            bbox=BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40]),
         )
         result = backend.read(read_idx)
 

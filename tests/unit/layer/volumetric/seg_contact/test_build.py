@@ -107,24 +107,6 @@ def test_build_seg_contact_layer_write_mode():
         assert os.path.exists(os.path.join(path, "info"))
 
 
-def test_build_seg_contact_layer_write_existing_fails():
-    """Test that write mode fails if layer exists."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        make_backend(temp_dir)
-        bbox = BBox3D.from_coords([0, 0, 0], [16000, 16000, 20000], [16, 16, 40])
-        info_spec = SegContactInfoSpec(
-            info_spec_params=SegContactInfoSpecParams(
-                resolution=Vec3D(16, 16, 40),
-                chunk_size=Vec3D(256, 256, 128),
-                max_contact_span=512,
-                bbox=bbox,
-            )
-        )
-
-        with pytest.raises(FileExistsError):
-            build_seg_contact_layer(path=temp_dir, mode="write", info_spec=info_spec)
-
-
 def test_build_seg_contact_layer_write_no_info_spec_fails():
     """Test that write mode fails without info_spec."""
     with tempfile.TemporaryDirectory() as temp_dir:

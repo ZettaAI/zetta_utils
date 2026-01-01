@@ -5,7 +5,7 @@ PyTorch-based neural network utilities for connectomics and computer vision work
 ## Core Components
 Model Management (utils.py): load_model() (supports loading models from JSON builder format, JIT, and ONNX formats), load_weights_file() (loads pre-trained weights with component filtering), save_model() (saves model state dictionaries), load_and_run_model() (convenience function for inference with automatic type conversion)
 
-Architecture Components (architecture/): ConvBlock (flexible convolutional block with residual connections, normalization, and activation), UNet (complete U-Net implementation with skip connections sum/concat modes), Primitives (extensive collection of neural network building blocks)
+Architecture Components (architecture/): ConvBlock (flexible convolutional block with residual connections, normalization, and activation), UNet (complete U-Net implementation with skip connections sum/concat modes), Primitives (extensive collection of neural network building blocks), Point Cloud Networks (PointNet, PointNet++)
 
 Inference Runner (simple_inference_runner.py): SimpleInferenceRunner (cached inference runner with GPU memory management), supports 2D/3D operations, sigmoid activation, and zero-skipping optimizations
 
@@ -16,8 +16,12 @@ UNet Architecture: Traditional U-Net with encoder-decoder structure, configurabl
 
 Primitive Components: Tensor Operations (View, Flatten, Unflatten, Crop, CenterCrop), Pooling (MaxPool2DFlatten, AvgPool2DFlatten), Utilities (RescaleValues, Clamp, UpConv, SplitTuple), Multi-head (MultiHeaded, MultiHeadedOutput for multi-task learning)
 
+Point Cloud Networks (pointcloud.py): PointNet/PointNet++ (wraps pointnet package for classification and segmentation)
+
 ## Builder Registrations
 Core Components: ConvBlock (versioned >=0.0.2), UNet (versioned >=0.0.2), SimpleInferenceRunner, load_model, load_weights_file
+
+Point Cloud (requires pip install zetta_utils[pointcloud]): pointnet.PointNetCls, pointnet.PointNetSeg, pointnet.PointNet2ClsSSG, pointnet.PointNet2SegSSG, pointnet.PointNet2ClsMSG, pointnet.PointNet2SegMSG, pointnet.STN
 
 PyTorch Integrations: All torch.nn.* classes auto-registered, All torch.optim.* classes auto-registered, PyTorch functional operations registered, custom builders for Sequential, Upsample, GroupNorm
 

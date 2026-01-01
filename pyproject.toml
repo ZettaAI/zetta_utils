@@ -95,6 +95,12 @@ chunkedgraph = [
   # conda install -c conda-forge graph-tool-base
 ]
 convnet = ["torch >= 2.0", "onnx2torch", "nvidia-ml-py >= 13.580"]
+pointcloud = [
+  "zetta_utils[convnet]",
+  "pointnet >= 0.1.1",
+  # torch-geometric is optional for DGCNN; install separately if needed:
+  # pip install torch-geometric
+]
 databackends = ["google-cloud-datastore", "google-cloud-firestore"]
 docs = [
   "piccolo_theme >= 0.24.0",
@@ -166,6 +172,7 @@ modules = [
   "zetta_utils[meshing]",
   "zetta_utils[skeletonization]",
   "zetta_utils[chunkedgraph]",
+  "zetta_utils[pointcloud]",
 ]
 montaging = ["zetta_utils[cloudvol, databackends, mazepa]", "torch >= 2.0"]
 public = [

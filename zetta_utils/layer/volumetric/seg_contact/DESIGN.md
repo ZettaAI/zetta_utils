@@ -34,12 +34,6 @@ class SegContact:
     def in_bounds(self, idx: VolumetricIndex) -> bool:
         """Check if COM falls within the given volumetric index."""
         ...
-
-    def with_converted_coordinates(
-        self, from_res: Vec3D, to_res: Vec3D
-    ) -> SegContact:
-        """Return new SegContact with coordinates converted between resolutions."""
-        ...
 ```
 
 ## Info File Structure

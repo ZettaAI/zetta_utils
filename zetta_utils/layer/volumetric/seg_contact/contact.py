@@ -54,30 +54,3 @@ class SegContact:
             and start_nm[1] <= self.com[1] < end_nm[1]
             and start_nm[2] <= self.com[2] < end_nm[2]
         )
-
-    def with_converted_coordinates(self, _from_res: Vec3D, _to_res: Vec3D) -> SegContact:
-        """Return new Contact with coordinates converted between resolutions.
-
-        Note: Contact coordinates are stored in nanometers, so resolution
-        conversion doesn't change the values - this method exists for API
-        consistency with other layer types.
-        """
-        # Coordinates are in nm, they don't change with resolution
-        # Just return a copy with same values
-        return SegContact(
-            id=self.id,
-            seg_a=self.seg_a,
-            seg_b=self.seg_b,
-            com=self.com,
-            contact_faces=self.contact_faces.copy(),
-            local_pointclouds=(
-                {
-                    cfg: {seg_id: pts.copy() for seg_id, pts in segs.items()}
-                    for cfg, segs in self.local_pointclouds.items()
-                }
-                if self.local_pointclouds is not None
-                else None
-            ),
-            merge_decisions=self.merge_decisions,
-            partner_metadata=self.partner_metadata,
-        )

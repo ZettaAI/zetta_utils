@@ -1,3 +1,4 @@
+"@version": "0.4"
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
 #DST_PATH: "assets/outputs/test_uint8_exc_no_dst_but_not_skip_intermediaries"
 

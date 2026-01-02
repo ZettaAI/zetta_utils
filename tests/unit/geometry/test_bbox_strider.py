@@ -280,6 +280,30 @@ def test_bbox_strider_len(
             Vec3D(1, 1, 1),
             IntVec3D(2, 2, 2),
             IntVec3D(2, 2, 2),
+            IntVec3D(0, 0, 0),
+            "exact",
+            IntVec3D(4, 4, 4),
+            0,
+            BBox3D.from_slices((slice(0, 1), slice(-1, 2), slice(0, 3))),
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(1, 2, 3),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
+            IntVec3D(0, 0, 0),
+            "exact",
+            IntVec3D(4, 2, 4),
+            0,
+            BBox3D.from_slices((slice(0, 1), slice(-1, 0), slice(0, 3))),
+        ],
+        [
+            Vec3D(0, -1, 0),
+            Vec3D(1, 2, 3),
+            Vec3D(1, 1, 1),
+            IntVec3D(2, 2, 2),
+            IntVec3D(2, 2, 2),
             None,
             "exact",
             None,
@@ -296,7 +320,7 @@ def test_bbox_strider_len(
             "exact",
             IntVec3D(4, 4, 4),
             0,
-            BBox3D.from_slices((slice(0, 4), slice(-1, 0), slice(0, 4))),
+            BBox3D.from_slices((slice(0, 4), slice(-1, 2), slice(0, 4))),
         ],
         [
             Vec3D(0, 0, 0),
@@ -409,6 +433,104 @@ def test_bbox_strider_get_nth_res(
     )
     bbox = strider.get_nth_chunk_bbox(idx)
     assert bbox.start.allclose(expected.start) and bbox.end.allclose(expected.end)
+
+
+@pytest.mark.parametrize(
+    "start_coord, end_coord, resolution, chunk_size, stride, stride_start_offset, mode, max_superchunk_size, expected_num_chunks",
+    [
+        # bbox smaller than max_superchunk_size in all dimensions
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(100, 100, 100),
+            Vec3D(1, 1, 1),
+            IntVec3D(50, 50, 50),
+            IntVec3D(50, 50, 50),
+            None,
+            "expand",
+            IntVec3D(200, 200, 200),
+            1,
+        ],
+        # bbox smaller in some dimensions only (anisotropic)
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(100, 500, 100),
+            Vec3D(1, 1, 1),
+            IntVec3D(50, 50, 50),
+            IntVec3D(50, 50, 50),
+            None,
+            "expand",
+            IntVec3D(200, 200, 200),
+            3,
+        ],
+        # small bbox with weird alignment
+        [
+            Vec3D(15, 23, 7),
+            Vec3D(115, 123, 107),
+            Vec3D(1, 1, 1),
+            IntVec3D(50, 50, 50),
+            IntVec3D(50, 50, 50),
+            IntVec3D(5, 3, 7),
+            "expand",
+            IntVec3D(300, 300, 300),
+            1,
+        ],
+        # very small bbox (smaller than chunk_size)
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(30, 30, 30),
+            Vec3D(1, 1, 1),
+            IntVec3D(50, 50, 50),
+            IntVec3D(50, 50, 50),
+            None,
+            "expand",
+            IntVec3D(200, 200, 200),
+            1,
+        ],
+        # edge case: bbox exactly equals max_superchunk_size
+        [
+            Vec3D(0, 0, 0),
+            Vec3D(200, 200, 200),
+            Vec3D(1, 1, 1),
+            IntVec3D(50, 50, 50),
+            IntVec3D(50, 50, 50),
+            None,
+            "expand",
+            IntVec3D(200, 200, 200),
+            1,
+        ],
+    ],
+)
+def test_bbox_strider_superchunking_small_bbox(
+    start_coord,
+    end_coord,
+    resolution,
+    chunk_size,
+    stride,
+    stride_start_offset,
+    mode,
+    max_superchunk_size,
+    expected_num_chunks,
+):
+    strider = BBoxStrider(
+        bbox=BBox3D.from_coords(
+            start_coord=start_coord, end_coord=end_coord, resolution=resolution
+        ),
+        chunk_size=chunk_size,
+        resolution=resolution,
+        stride=stride,
+        stride_start_offset=stride_start_offset,
+        mode=mode,
+        max_superchunk_size=max_superchunk_size,
+    )
+    assert strider.num_chunks == expected_num_chunks
+
+    # Verify no overlapping chunks (for non-overlapping stride)
+    all_bboxes = strider.get_all_chunk_bboxes()
+    for i, bbox1 in enumerate(all_bboxes):
+        for bbox2 in all_bboxes[i + 1 :]:
+            assert not bbox1.intersects(
+                bbox2
+            ), f"Chunks {i} overlap: {bbox1.bounds} and {bbox2.bounds}"
 
 
 def test_bbox_strider_exc(mocker):

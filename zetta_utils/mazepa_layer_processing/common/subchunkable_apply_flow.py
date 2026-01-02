@@ -93,6 +93,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
     generate_ng_link: bool = False,
     op_worker_type: str | None = None,
     reduction_worker_type: str | None = None,
+    task_stack_size: int | None = None,
     fn: Callable[P, Tensor] | None = None,
     fn_semaphores: Sequence[SemaphoreType] | None = None,
     op: VolumetricOpProtocol[P, None, Any] | None = None,
@@ -184,6 +185,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
         allow_cache_up_to_level=allow_cache_up_to_level,
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
+        task_stack_size=task_stack_size,
         print_summary=print_summary,
         generate_ng_link=generate_ng_link,
         fn=fn,
@@ -223,6 +225,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     allow_cache_up_to_level: int | None = None,
     op_worker_type: str | None = None,
     reduction_worker_type: str | None = None,
+    task_stack_size: int | None = None,
     print_summary: bool = True,
     generate_ng_link: bool = False,
     fn: Callable[P, Tensor] | None = None,
@@ -574,6 +577,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         auto_divisibility=auto_divisibility,
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
+        task_stack_size=task_stack_size,
         print_summary=print_summary,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
@@ -850,6 +854,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     op_args: Iterable,
     op_kwargs: Mapping[str, Any],
     processing_gap: Vec3D[int],
+    task_stack_size: int | None,
 ) -> None:  # pragma: no cover
     summary = ""
     summary += (
@@ -985,6 +990,14 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         + "\n"
     )
     summary += lrpad(f"Processing gap: {processing_gap.pformat()}  ", level=2, length=120) + "\n"
+    summary += (
+        lrpad(
+            f"Task stack size: {task_stack_size if task_stack_size is not None else 'None'}  ",
+            level=2,
+            length=120,
+        )
+        + "\n"
+    )
 
     summary += lrpad(f"# of op_args supplied: {len(list(op_args))}", level=2, length=120) + "\n"
     summary += lrpad("op_kwargs supplied:", level=2, length=120) + "\n"
@@ -1069,6 +1082,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     auto_divisibility: bool,
     op_worker_type: str | None,
     reduction_worker_type: str | None,
+    task_stack_size: int | None,
     print_summary: bool,
     generate_ng_link: bool,
     op: VolumetricOpProtocol[P, None, Any],
@@ -1222,7 +1236,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             )
         else:
             dst = deepcopy(dst).with_changes(
-                backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
+                backend=dst.backend.with_changes(
+                    enforce_chunk_aligned_writes=False,
+                    overwrite_partial_chunks=True,
+                    )
             )
 
     if print_summary:
@@ -1251,6 +1268,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_args=op_args,
             op_kwargs=op_kwargs,
             processing_gap=processing_gap,
+            task_stack_size=task_stack_size,
         )
     """
     Generate flow id for deconflicting intermediaries - must be deterministic for proper
@@ -1278,6 +1296,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         l0_chunks_per_task=num_chunks_below[-1],
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
+        task_stack_size=task_stack_size,
     )
     """
     Iteratively build the hierarchy of schemas
@@ -1306,5 +1325,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             l0_chunks_per_task=num_chunks_below[-level - 1],
             op_worker_type=op_worker_type,
             reduction_worker_type=reduction_worker_type,
+            task_stack_size=None,  # Only stack at the bottom level (level 0)
         )
     return flow_schema(idx, dst, op_args, op_kwargs)

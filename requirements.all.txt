@@ -6,7 +6,7 @@ affine==2.4.0
     # via zetta-utils (pyproject.toml)
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.2
+aiohttp==3.13.3
     # via
     #   zetta-utils (pyproject.toml)
     #   fsspec
@@ -17,13 +17,13 @@ alabaster==0.7.16
     # via sphinx
 annotated-types==0.7.0
     # via pydantic
-anyio==4.12.0
+anyio==4.12.1
     # via httpx
 apeye==1.4.1
     # via sphinx-toolbox
 apeye-core==1.1.5
     # via apeye
-astroid==4.0.2
+astroid==4.0.3
     # via pylint
 asttokens==3.0.1
     # via stack-data
@@ -38,7 +38,7 @@ attrs==25.4.0
     #   referencing
 autodocsumm==0.2.14
     # via sphinx-toolbox
-awscli==1.43.15
+awscli==1.44.20
     # via zetta-utils (pyproject.toml)
 babel==2.17.0
     # via sphinx
@@ -46,21 +46,21 @@ beautifulsoup4==4.14.3
     # via sphinx-toolbox
 black==21.9b0
     # via zetta-utils (pyproject.toml)
-blosc==1.11.3
+blosc==1.11.4
     # via
     #   cloud-volume
     #   intern
     #   meshparty
 blosc2==3.12.2
     # via tables
-boto3==1.42.9
+boto3==1.42.30
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
     #   cloud-volume
     #   moto
     #   task-queue
-botocore==1.42.9
+botocore==1.42.30
     # via
     #   awscli
     #   boto3
@@ -73,15 +73,14 @@ brotli==1.2.0
     #   urllib3
 cachecontrol==0.14.4
     # via sphinx-toolbox
-cachetools==6.2.3
+cachetools==6.2.4
     # via
     #   zetta-utils (pyproject.toml)
     #   caveclient
-    #   google-auth
     #   middle-auth-client
 caveclient==8.0.1
     # via pcg-skel
-certifi==2025.11.12
+certifi==2026.1.4
     # via
     #   httpcore
     #   httpx
@@ -120,7 +119,7 @@ cloud-files==5.8.2
     #   zetta-utils (pyproject.toml)
     #   cloud-volume
     #   datastoreflex
-cloud-volume==12.8.0
+cloud-volume==12.9.1
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty
@@ -144,7 +143,7 @@ contourpy==1.3.3
     # via matplotlib
 coolname==2.2.0
     # via zetta-utils (pyproject.toml)
-coverage==7.13.0
+coverage==7.13.1
     # via pytest-cov
 crackle-codec==0.36.0
     # via cloud-volume
@@ -158,7 +157,7 @@ cssutils==2.11.1
     # via dict2css
 cycler==0.12.1
     # via matplotlib
-cython==3.2.3
+cython==3.2.4
     # via
     #   abiss
     #   lsds
@@ -177,7 +176,7 @@ dict2css==0.3.0.post1
     # via sphinx-toolbox
 dijkstra3d==1.15.2
     # via kimimaro
-dill==0.4.0
+dill==0.4.1
     # via
     #   zetta-utils (pyproject.toml)
     #   multiprocess
@@ -234,7 +233,7 @@ fastremap==1.17.7
     #   kimimaro
     #   osteoid
     #   pcg-skel
-filelock==3.20.0
+filelock==3.20.3
     # via
     #   cachecontrol
     #   sphinx-toolbox
@@ -259,7 +258,7 @@ frozenlist==1.8.0
     # via
     #   aiohttp
     #   aiosignal
-fsspec==2025.12.0
+fsspec==2026.1.0
     # via
     #   zetta-utils (pyproject.toml)
     #   gcsfs
@@ -268,7 +267,7 @@ fsspec==2025.12.0
     #   torch
 furl==2.1.4
     # via middle-auth-client
-gcsfs==2025.12.0
+gcsfs==2026.1.0
     # via zetta-utils (pyproject.toml)
 gevent==25.9.1
     # via
@@ -277,9 +276,9 @@ gevent==25.9.1
     #   task-queue
 gitdb==4.0.12
     # via gitpython
-gitpython==3.1.45
+gitpython==3.1.46
     # via wandb
-google-api-core==2.28.1
+google-api-core==2.29.0
     # via
     #   google-api-python-client
     #   google-cloud-bigtable
@@ -292,11 +291,11 @@ google-api-core==2.28.1
     #   google-cloud-pubsub
     #   google-cloud-storage
     #   google-cloud-storage-control
-google-api-python-client==2.187.0
+google-api-python-client==2.188.0
     # via zetta-utils (pyproject.toml)
 google-apitools==0.5.35
     # via neuroglancer
-google-auth==2.43.0
+google-auth==2.47.0
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
@@ -316,20 +315,19 @@ google-auth==2.43.0
     #   google-cloud-pubsub
     #   google-cloud-storage
     #   google-cloud-storage-control
-    #   kubernetes
     #   neuroglancer
     #   task-queue
-google-auth-httplib2==0.2.1
+google-auth-httplib2==0.3.0
     # via google-api-python-client
-google-auth-oauthlib==1.2.2
+google-auth-oauthlib==1.2.4
     # via gcsfs
-google-cloud-bigtable==2.34.0
+google-cloud-bigtable==2.35.0
     # via zetta-utils (pyproject.toml)
-google-cloud-billing==1.17.0
+google-cloud-billing==1.18.0
     # via zetta-utils (pyproject.toml)
-google-cloud-compute==1.40.0
+google-cloud-compute==1.42.0
     # via zetta-utils (pyproject.toml)
-google-cloud-container==2.61.0
+google-cloud-container==2.62.0
     # via zetta-utils (pyproject.toml)
 google-cloud-core==2.5.0
     # via
@@ -340,22 +338,22 @@ google-cloud-core==2.5.0
     #   google-cloud-firestore
     #   google-cloud-storage
     #   task-queue
-google-cloud-datastore==2.21.0
+google-cloud-datastore==2.23.0
     # via
     #   zetta-utils (pyproject.toml)
     #   datastoreflex
-google-cloud-firestore==2.21.0
+google-cloud-firestore==2.23.0
     # via zetta-utils (pyproject.toml)
-google-cloud-pubsub==2.33.0
+google-cloud-pubsub==2.34.0
     # via messagingclient
-google-cloud-storage==3.7.0
+google-cloud-storage==3.8.0
     # via
     #   cloud-files
     #   cloud-volume
     #   gcsfs
-google-cloud-storage-control==1.8.0
+google-cloud-storage-control==1.9.0
     # via gcsfs
-google-crc32c==1.7.1
+google-crc32c==1.8.0
     # via
     #   cloud-files
     #   crackle-codec
@@ -386,6 +384,7 @@ grpcio==1.76.0
     #   google-cloud-billing
     #   google-cloud-compute
     #   google-cloud-container
+    #   google-cloud-datastore
     #   google-cloud-pubsub
     #   google-cloud-storage-control
     #   googleapis-common-protos
@@ -403,7 +402,7 @@ html5lib==1.1
     # via sphinx-toolbox
 httpcore==1.0.9
     # via httpx
-httplib2==0.31.0
+httplib2==0.31.1
     # via
     #   google-api-python-client
     #   google-apitools
@@ -411,7 +410,7 @@ httplib2==0.31.0
     #   oauth2client
 httpx==0.28.1
     # via trimesh
-identify==2.6.15
+identify==2.6.16
     # via pre-commit
 idna==3.11
     # via
@@ -421,7 +420,7 @@ idna==3.11
     #   requests
     #   sphinx-prompt
     #   yarl
-imagecodecs==2025.11.11
+imagecodecs==2026.1.14
     # via cloud-volume
 imagecorruptions-imaug==1.1.3
     # via
@@ -435,7 +434,7 @@ imagesize==1.4.1
     # via sphinx
 imaug==0.4.2
     # via zetta-utils (pyproject.toml)
-importlib-metadata==8.7.0
+importlib-metadata==8.7.1
     # via opentelemetry-api
 inflection==0.5.1
     # via python-jsonschema-objects
@@ -443,9 +442,9 @@ iniconfig==2.3.0
     # via pytest
 intern==1.4.2
     # via cloud-volume
-intervaltree==3.1.0
+intervaltree==3.2.1
     # via cloud-files
-ipython==9.8.0
+ipython==9.9.0
     # via
     #   caveclient
     #   ipywidgets
@@ -473,13 +472,13 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-joblib==1.5.2
+joblib==1.5.3
     # via
     #   intern
     #   scikit-learn
-json5==0.12.1
+json5==0.13.0
     # via cloud-volume
-jsonschema==4.25.1
+jsonschema==4.26.0
     # via
     #   caveclient
     #   cloud-volume
@@ -489,7 +488,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyterlab-widgets==3.0.16
     # via ipywidgets
-kimimaro==5.8.0
+kimimaro==5.8.1
     # via zetta-utils (pyproject.toml)
 kiwisolver==1.4.9
     # via matplotlib
@@ -497,7 +496,7 @@ kornia==0.8.2
     # via zetta-utils (pyproject.toml)
 kornia-rs==0.1.10
     # via kornia
-kubernetes==34.1.0
+kubernetes==35.0.0
     # via zetta-utils (pyproject.toml)
 lazy-loader==0.4
     # via scikit-image
@@ -508,7 +507,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-llvmlite==0.46.0
+llvmlite==0.36.0
     # via numba
 lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976133efb991ebc40171eeed7a22c57ba50a
     # via zetta-utils (pyproject.toml)
@@ -547,7 +546,7 @@ messagingclient==0.3.0
     # via zetta-utils (pyproject.toml)
 microviewer==1.20.0
     # via cloud-volume
-middle-auth-client==3.19.0
+middle-auth-client==3.19.2
     # via zetta-utils (pyproject.toml)
 ml-dtypes==0.5.4
     # via
@@ -555,7 +554,7 @@ ml-dtypes==0.5.4
     #   tensorstore
 more-itertools==10.8.0
     # via cssutils
-moto==5.1.18
+moto==5.1.20
     # via zetta-utils (pyproject.toml)
 mpmath==1.3.0
     # via sympy
@@ -567,7 +566,7 @@ multidict==6.7.0
     # via
     #   aiohttp
     #   yarl
-multiprocess==0.70.18
+multiprocess==0.70.19
     # via pathos
 multiwrapper==0.1.1
     # via
@@ -597,17 +596,17 @@ networkx==3.6.1
     #   trimesh
 neuroglancer==2.41.2
     # via zetta-utils (pyproject.toml)
-nodeenv==1.9.1
+nodeenv==1.10.0
     # via pre-commit
 nose2==0.15.1
     # via intern
-numba==0.63.1
+numba==0.53.1
     # via imagecorruptions-imaug
 numexpr==2.14.1
     # via
     #   blosc2
     #   tables
-numpy==2.3.5
+numpy==2.4.1
     # via
     #   zetta-utils (pyproject.toml)
     #   abiss
@@ -719,17 +718,17 @@ oauth2client==4.1.3
     # via google-apitools
 oauthlib==3.3.1
     # via requests-oauthlib
-onnx==1.20.0
+onnx==1.20.1
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
 onnx2torch==1.5.15
     # via zetta-utils (pyproject.toml)
-opencv-python==4.11.0.86
+opencv-python==4.13.0.90
     # via
     #   imagecorruptions-imaug
     #   imaug
-opencv-python-headless==4.11.0.86
+opencv-python-headless==4.13.0.90
     # via
     #   zetta-utils (pyproject.toml)
     #   imaug
@@ -778,7 +777,7 @@ pandas==2.3.3
     #   pcg-skel
 parso==0.8.5
     # via jedi
-pathos==0.3.4
+pathos==0.3.5
     # via
     #   cloud-files
     #   cloud-volume
@@ -790,7 +789,7 @@ pbr==7.0.3
     # via task-queue
 pcg-skel==1.3.1
     # via zetta-utils (pyproject.toml)
-pdbp==1.8.1
+pdbp==1.8.2
     # via zetta-utils (pyproject.toml)
 pebble==5.1.3
     # via zetta-utils (pyproject.toml)
@@ -798,7 +797,7 @@ pexpect==4.9.0
     # via ipython
 piccolo-theme==0.24.0
     # via zetta-utils (pyproject.toml)
-pillow==12.0.0
+pillow==12.1.0
     # via
     #   imagecorruptions-imaug
     #   imageio
@@ -823,9 +822,9 @@ pluggy==1.6.0
     #   pytest-cov
 posix-ipc==1.3.2
     # via cloud-volume
-pox==0.3.6
+pox==0.3.7
     # via pathos
-ppft==1.7.7
+ppft==1.7.8
     # via pathos
 pre-commit==2.19.0
     # via zetta-utils (pyproject.toml)
@@ -835,7 +834,7 @@ propcache==0.4.1
     # via
     #   aiohttp
     #   yarl
-proto-plus==1.26.1
+proto-plus==1.27.0
     # via
     #   google-api-core
     #   google-cloud-bigtable
@@ -846,7 +845,7 @@ proto-plus==1.26.1
     #   google-cloud-firestore
     #   google-cloud-pubsub
     #   google-cloud-storage-control
-protobuf==6.33.2
+protobuf==6.33.4
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
@@ -866,7 +865,7 @@ protobuf==6.33.2
     #   onnx
     #   proto-plus
     #   wandb
-psutil==7.1.3
+psutil==7.2.1
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-volume
@@ -881,9 +880,9 @@ py-cpuinfo==9.0.0
     # via
     #   blosc2
     #   tables
-pyarrow==22.0.0
+pyarrow==23.0.0
     # via caveclient
-pyasn1==0.6.1
+pyasn1==0.6.2
     # via
     #   oauth2client
     #   pyasn1-modules
@@ -920,7 +919,7 @@ pygments==2.19.2
     #   sphinx-tabs
 pylint==4.0.4
     # via zetta-utils (pyproject.toml)
-pyparsing==3.2.5
+pyparsing==3.3.1
     # via
     #   httplib2
     #   matplotlib
@@ -978,7 +977,7 @@ referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
-regex==2025.11.3
+regex==2026.1.15
     # via black
 requests==2.32.5
     # via
@@ -1040,7 +1039,7 @@ s3transfer==0.16.0
     # via
     #   awscli
     #   boto3
-scikit-image==0.25.2
+scikit-image==0.26.0
     # via
     #   zetta-utils (pyproject.toml)
     #   imagecorruptions-imaug
@@ -1049,7 +1048,7 @@ scikit-learn==1.8.0
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty
-scipy==1.16.3
+scipy==1.17.0
     # via
     #   imagecorruptions-imaug
     #   imaug
@@ -1060,12 +1059,13 @@ scipy==1.16.3
     #   scikit-image
     #   scikit-learn
     #   trimesh
-sentry-sdk==2.47.0
+sentry-sdk==2.49.0
     # via wandb
 setuptools==80.9.0
     # via
     #   imagecorruptions-imaug
     #   lightning-utilities
+    #   numba
     #   pbr
     #   torch
     #   torchfields
@@ -1101,7 +1101,7 @@ snowballstemmer==3.0.1
     #   sphinx
 sortedcontainers==2.4.0
     # via intervaltree
-soupsieve==2.8
+soupsieve==2.8.2
     # via beautifulsoup4
 sphinx==6.2.1
     # via
@@ -1132,7 +1132,7 @@ sphinx-tabs==3.4.5
     # via
     #   zetta-utils (pyproject.toml)
     #   sphinx-toolbox
-sphinx-toolbox==4.1.0
+sphinx-toolbox==4.1.2
     # via zetta-utils (pyproject.toml)
 sphinxcontrib-applehelp==2.0.0
     # via
@@ -1184,11 +1184,11 @@ tenacity==9.1.2
     #   task-queue
 tensorstore==0.1.79
     # via zetta-utils (pyproject.toml)
-testcontainers==4.13.3
+testcontainers==4.14.0
     # via zetta-utils (pyproject.toml)
 threadpoolctl==3.6.0
     # via scikit-learn
-tifffile==2025.12.12
+tifffile==2026.1.14
     # via scikit-image
 tinybrain==1.7.0
     # via zetta-utils (pyproject.toml)
@@ -1196,7 +1196,7 @@ toml==0.10.2
     # via pre-commit
 tomli==1.2.3
     # via black
-tomlkit==0.13.3
+tomlkit==0.14.0
     # via pylint
 torch==2.9.1
     # via
@@ -1219,7 +1219,7 @@ torchvision==0.24.1
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
-tornado==6.5.3
+tornado==6.5.4
     # via neuroglancer
 tqdm==4.67.1
     # via
@@ -1237,7 +1237,7 @@ traitlets==5.14.3
     #   ipython
     #   ipywidgets
     #   matplotlib-inline
-trimesh==4.10.1
+trimesh==4.11.1
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty
@@ -1254,7 +1254,7 @@ types-pillow==10.2.0.20240822
     # via zetta-utils (pyproject.toml)
 types-pyyaml==6.0.12.20250915
     # via zetta-utils (pyproject.toml)
-types-requests==2.32.4.20250913
+types-requests==2.32.4.20260107
     # via zetta-utils (pyproject.toml)
 types-tabulate==0.9.0.20241207
     # via zetta-utils (pyproject.toml)
@@ -1291,7 +1291,7 @@ tzdata==2025.3
     # via pandas
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.3.0
+urllib3==2.6.3
     # via
     #   botocore
     #   caveclient
@@ -1307,9 +1307,9 @@ urllib3==2.3.0
     #   types-requests
 vhacdx==0.0.10
     # via trimesh
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via pre-commit
-wandb==0.23.1
+wandb==0.24.0
     # via zetta-utils (pyproject.toml)
 waterz @ git+https://github.com/ZettaAI/waterz.git@0bac4be4c864b293fa49f11cf0abf52bd1ec81df
     # via zetta-utils (pyproject.toml)
@@ -1319,7 +1319,7 @@ webencodings==0.5.1
     # via html5lib
 websocket-client==1.9.0
     # via kubernetes
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   zetta-utils (pyproject.toml)
     #   flask
@@ -1349,7 +1349,7 @@ zmesh==1.9.0
     # via zetta-utils (pyproject.toml)
 zope-event==6.1
     # via gevent
-zope-interface==8.1.1
+zope-interface==8.2
     # via gevent
 zstandard==0.25.0
     # via

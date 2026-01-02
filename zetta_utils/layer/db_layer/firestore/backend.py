@@ -263,3 +263,6 @@ class FirestoreBackend(DBBackend):
             database=kwargs.get("database"),
             project=kwargs.get("project"),
         )
+
+    def delete(self):  # pragma: no cover
+        raise NotImplementedError("delete() not implemented for FirestoreBackend")

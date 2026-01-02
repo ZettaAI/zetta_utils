@@ -1,12 +1,14 @@
 # pylint: disable=missing-docstring
 from __future__ import annotations
 
+import gc
 import json
 from copy import deepcopy
 from typing import Any, Dict, Optional, Union
 
 import attrs
 import cachetools
+import cloudfiles
 import cloudvolume as cv
 import numpy as np
 from cloudvolume import CloudVolume
@@ -22,7 +24,7 @@ from .. import VolumetricBackend, VolumetricIndex
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024**2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
 
 
 def _serialize_kwargs(kwargs: Dict[str, Any]) -> str:
@@ -155,6 +157,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("delete_black_uploads", True)
         self.cv_kwargs.setdefault("agglomerate", True)
         self.cv_kwargs.setdefault("lru_encoding", "raw")
+        self.cv_kwargs.setdefault("overwrite_partial_chunks", False)
 
     @property
     def name(self) -> str:  # pragma: no cover
@@ -219,6 +222,17 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             " use `backend.with_changes(use_compression=value:bool)` instead."
         )
 
+    @property
+    def overwrite_partial_chunks(self) -> bool:  # pragma: no cover
+        return self.cv_kwargs.get("overwrite_partial_chunks", False)
+
+    @overwrite_partial_chunks.setter
+    def overwrite_partial_chunks(self, value: bool) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set `overwrite_partial_chunks` for CVBackend directly;"
+            " use `backend.with_changes(overwrite_partial_chunks=value:bool)` instead."
+        )
+
     def clear_disk_cache(self) -> None:  # pragma: no cover
         info = get_info(self.path)
         for scale in info["scales"]:
@@ -231,6 +245,12 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             ).cache.flush()
 
     def clear_cache(self) -> None:  # pragma: no cover
+        path_ = abspath(self.path)
+        resolution_kwargs_pairs = _cv_cached.get(path_, set())
+        for resolution, kwargs_key in resolution_kwargs_pairs:
+            cache_key = (path_, resolution, kwargs_key)
+            if cache_key in _cv_cache:
+                _cv_cache[cache_key].image.lru.clear()
         _clear_cv_cache(self.path)
 
     def read(self, idx: VolumetricIndex) -> npt.NDArray:
@@ -278,6 +298,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "name" = value: str
         "use_compression" = value: str
         "enforce_chunk_aligned_writes" = value: bool
+        "overwrite_partial_chunks" = value: bool
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
@@ -293,6 +314,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "allow_cache",
             "use_compression",
             "enforce_chunk_aligned_writes",
+            "overwrite_partial_chunks",
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
@@ -306,6 +328,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         keys_to_cv_kwargs = {
             "use_compression": "compress",
             "enforce_chunk_aligned_writes": "non_aligned_writes",
+            "overwrite_partial_chunks": "overwrite_partial_chunks",
         }
         keys_to_reverse = ["enforce_chunk_aligned_writes"]
         evolve_kwargs = {}
@@ -369,3 +392,14 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name
+
+    def delete(self):
+        self.clear_cache()
+        gc.collect()
+
+        path = abspath(self.path)
+
+        cf = cloudfiles.CloudFiles(path)
+        files_to_delete = list(cf.list())
+        if files_to_delete:
+            cf.delete(files_to_delete)

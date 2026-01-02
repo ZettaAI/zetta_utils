@@ -61,3 +61,6 @@ class VolumetricBasedLayerProtocol(Protocol[DataT, IndexT]):
         **kwargs,
     ) -> VolumetricBasedLayerProtocol[DataT, IndexT]:
         ...
+
+    def delete(self):
+        ...

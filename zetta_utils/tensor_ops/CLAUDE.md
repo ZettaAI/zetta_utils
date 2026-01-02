@@ -16,6 +16,10 @@ Type Conversion System: Seamless conversion between PyTorch tensors and NumPy ar
 
 Mask Operations: Connected component filtering (filter_cc, filter_cc3d), morphological operations via Kornia integration (erosion, dilation, opening, closing), advanced masking utilities with function composition
 
+Filtering Operations: Statistical outlier filtering (nanmedian_filter) using MAD-based sigma threshold and/or absolute threshold, supports voxel-wise masking across channels
+
+Projection Operations: First/last hit projection (first_hit_projection) for collapsing 4D volumes along an axis by taking first or last non-background value
+
 ## Builder Registrations
 Common Operations: rearrange, reduce, repeat, multiply, add, power, divide, int_divide, unsqueeze, squeeze, unsqueeze_to, squeeze_to, interpolate, compare, crop, crop_center, clone, tensor_op_chain, abs, pad_center_to
 
@@ -30,6 +34,10 @@ Mask Operations: filter_cc, filter_cc3d, kornia_opening, kornia_closing, kornia_
 Multi-tensor Operations: compute_pixel_error, erode_combine
 
 Normalization: apply_clahe
+
+Filtering Operations: nanmedian_filter
+
+Projection Operations: first_hit_projection
 
 ## Usage Patterns in Specs
 Augmentation Pipelines:

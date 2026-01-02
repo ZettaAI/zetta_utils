@@ -52,6 +52,8 @@ class BBoxStrider:
     stride_start_offset_in_unit: Vec3D = attrs.field(init=False)
     bbox_snapped: BBox3D = attrs.field(init=False)
     step_limits: Vec3D[int] = attrs.field(init=False)
+    atomic_step_limits: Vec3D[int] = attrs.field(init=False)
+    super_factors: Vec3D[int] = attrs.field(init=False)
     step_start_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     step_end_partial: Tuple[bool, bool, bool] = attrs.field(init=False)
     mode: Optional[Literal["shrink", "expand", "exact"]] = "expand"
@@ -67,28 +69,25 @@ class BBoxStrider:
         if self.mode == "exact":
             self._attrs_post_init_exact()
 
-        # recursively call __attrs_post_init__ if superchunking is set
-        if self.max_superchunk_size is None:
-            return
-        else:
-            if self.mode in ("expand", "shrink"):
-                object.__setattr__(self, "bbox", self.bbox_snapped)
+        if self.max_superchunk_size is not None:
             if not self.max_superchunk_size >= self.chunk_size:
                 raise ValueError("`max_superchunk_size` must be at least as large as `chunk_size`")
             if self.chunk_size != self.stride:
                 raise NotImplementedError(
                     "superchunking is only supported when the `chunk_size` and `stride` are equal"
                 )
-            superchunk_size = self.chunk_size * (self.max_superchunk_size // self.chunk_size)
-            object.__setattr__(self, "chunk_size", superchunk_size)
-            object.__setattr__(self, "stride", superchunk_size)
-            object.__setattr__(self, "mode", "exact")
-            object.__setattr__(self, "max_superchunk_size", None)
-            object.__setattr__(
-                self, "stride_start_offset", self.bbox_snapped.start / self.resolution
+            super_factors = self.max_superchunk_size // self.chunk_size
+            object.__setattr__(self, "super_factors", super_factors)
+            super_step_limits = Vec3D[int](
+                *(
+                    (self.atomic_step_limits[i] + super_factors[i] - 1) // super_factors[i]
+                    for i in range(3)
+                )
             )
-            object.__setattr__(self, "stride_start_offset_in_unit", self.bbox_snapped.start)
-            self.__attrs_post_init__()
+            object.__setattr__(self, "step_limits", super_step_limits)
+        else:
+            object.__setattr__(self, "super_factors", Vec3D[int](1, 1, 1))
+            object.__setattr__(self, "step_limits", self.atomic_step_limits)
 
     def _attrs_post_init_exact(self) -> None:
         if self.chunk_size != self.stride:
@@ -115,21 +114,20 @@ class BBoxStrider:
                 )
             )
         )
-        step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
+        atomic_step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
         bbox_start_diff = bbox_snapped.start - self.bbox.start
         bbox_end_diff = self.bbox.end - bbox_snapped.end
         step_start_partial = tuple(round(e, VEC3D_PRECISION) > 0 for e in bbox_start_diff)
         step_end_partial = tuple(round(e, VEC3D_PRECISION) > 0 for e in bbox_end_diff)
-        step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
-        step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
+        atomic_step_limits += Vec3D[int](*(int(e) for e in step_start_partial))
+        atomic_step_limits += Vec3D[int](*(int(e) for e in step_end_partial))
         logger.debug(
             f"Exact bbox requested; out of {self.bbox.bounds},"
             f" full cubes are in {bbox_snapped.bounds}, given offset"
             f" {stride_start_offset_in_unit}{self.bbox.unit} with chunk size"
             f" {self.chunk_size_in_unit}{self.bbox.unit}."
         )
-        # Use `__setattr__` to keep the object frozen.
-        object.__setattr__(self, "step_limits", step_limits)
+        object.__setattr__(self, "atomic_step_limits", atomic_step_limits)
         object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
@@ -139,7 +137,6 @@ class BBoxStrider:
         step_start_partial = (False, False, False)
         step_end_partial = (False, False, False)
         if self.stride_start_offset is not None:
-            # align stride_start_offset to just larger than the start of the bbox
             stride_start_offset_in_unit = Vec3D[float](*self.stride_start_offset) * self.resolution
             stride_start_offset_in_unit += (
                 (self.bbox.start - stride_start_offset_in_unit)
@@ -154,7 +151,7 @@ class BBoxStrider:
             .snapped(
                 grid_offset=stride_start_offset_in_unit,
                 grid_size=self.stride_in_unit,
-                mode=self.mode,  # type: ignore #mypy doesn't realise that mode has been checked
+                mode=self.mode,  # type: ignore
             )
             .translated_end(self.chunk_size_in_unit, resolution=Vec3D(1, 1, 1))
         )
@@ -181,16 +178,17 @@ class BBoxStrider:
                 )
             )
         )
+        atomic_step_limits = Vec3D[int](0, 0, 0)
         if self.mode == "shrink":
-            step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
-            if not step_limits_raw.allclose(step_limits):
+            atomic_step_limits = floor(round(step_limits_snapped, VEC3D_PRECISION))
+            if not step_limits_raw.allclose(atomic_step_limits):
                 rounded_bbox_bounds = tuple(
                     (
                         bbox_snapped.bounds[i][0],
                         (
                             bbox_snapped.bounds[i][0]
                             + self.chunk_size_in_unit[i]
-                            + (step_limits[i] - 1) * self.stride_in_unit[i]
+                            + (atomic_step_limits[i] - 1) * self.stride_in_unit[i]
                         ),
                     )
                     for i in range(3)
@@ -202,15 +200,15 @@ class BBoxStrider:
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
         if self.mode == "expand":
-            step_limits = ceil(round(step_limits_snapped, VEC3D_PRECISION))
-            if not step_limits_raw.allclose(step_limits):
+            atomic_step_limits = ceil(round(step_limits_snapped, VEC3D_PRECISION))
+            if not step_limits_raw.allclose(atomic_step_limits):
                 rounded_bbox_bounds = tuple(
                     (
                         bbox_snapped.bounds[i][0],
                         (
                             bbox_snapped.bounds[i][0]
                             + self.chunk_size_in_unit[i]
-                            + step_limits[i] * self.stride_in_unit[i]
+                            + atomic_step_limits[i] * self.stride_in_unit[i]
                         ),
                     )
                     for i in range(3)
@@ -221,8 +219,7 @@ class BBoxStrider:
                     f" {self.stride_in_unit}{self.bbox.unit} with chunk size"
                     f" {self.chunk_size_in_unit}{self.bbox.unit}."
                 )
-        # Use `__setattr__` to keep the object frozen.
-        object.__setattr__(self, "step_limits", step_limits)
+        object.__setattr__(self, "atomic_step_limits", atomic_step_limits)
         object.__setattr__(self, "bbox_snapped", bbox_snapped)
         object.__setattr__(self, "step_start_partial", step_start_partial)
         object.__setattr__(self, "step_end_partial", step_end_partial)
@@ -252,20 +249,7 @@ class BBoxStrider:
             ]  # TODO: generator?
         return result
 
-    def get_nth_chunk_bbox(self, n: int) -> BBox3D:
-        """Get nth chunk bbox, in order.
-
-        :param n: Integer chunk index.
-        :return: Volumetric index for the chunk, including
-            ``self.desired_resolution`` and the slice representation of the region
-            at ``self.index_resolution``.
-
-        """
-        steps_along_dim = Vec3D[int](
-            n % self.step_limits[0],
-            (n // self.step_limits[0]) % self.step_limits[1],
-            (n // (self.step_limits[0] * self.step_limits[1])) % self.step_limits[2],
-        )
+    def _get_atomic_bbox(self, steps_along_dim: Vec3D[int]) -> BBox3D:
         if self.mode in ("shrink", "expand"):
             chunk_origin_in_unit = [
                 self.bbox_snapped.bounds[i][0] + self.stride_in_unit[i] * steps_along_dim[i]
@@ -289,7 +273,10 @@ class BBoxStrider:
                 if steps_along_dim[i] == 0 and self.step_start_partial[i]:
                     chunk_origin_in_unit[i] = self.bbox.start[i]
                     chunk_end_in_unit[i] = self.bbox_snapped.start[i]
-                if steps_along_dim[i] == self.step_limits[i] - 1 and self.step_end_partial[i]:
+                if (
+                    steps_along_dim[i] == self.atomic_step_limits[i] - 1
+                    and self.step_end_partial[i]
+                ):
                     chunk_origin_in_unit[i] = self.bbox_snapped.end[i]
                     chunk_end_in_unit[i] = self.bbox.end[i]
         slices = (
@@ -298,5 +285,36 @@ class BBoxStrider:
             slice(chunk_origin_in_unit[2], chunk_end_in_unit[2]),
         )
 
-        result = BBox3D.from_slices(slices)
-        return result
+        return BBox3D.from_slices(slices)
+
+    def get_nth_chunk_bbox(self, n: int) -> BBox3D:
+        """Get nth chunk bbox, in order.
+
+        :param n: Integer chunk index.
+        :return: Volumetric index for the chunk, including
+            ``self.desired_resolution`` and the slice representation of the region
+            at ``self.index_resolution``.
+
+        """
+        super_steps_along_dim = Vec3D[int](
+            n % self.step_limits[0],
+            (n // self.step_limits[0]) % self.step_limits[1],
+            (n // (self.step_limits[0] * self.step_limits[1])) % self.step_limits[2],
+        )
+
+        atomic_start_steps = super_steps_along_dim * self.super_factors
+        atomic_end_steps = Vec3D[int](
+            *(
+                min(
+                    (super_steps_along_dim[i] + 1) * self.super_factors[i],
+                    self.atomic_step_limits[i],
+                )
+                for i in range(3)
+            )
+        )
+
+        bbox_start = self._get_atomic_bbox(atomic_start_steps)
+        if not self.max_superchunk_size:
+            return bbox_start
+        bbox_end = self._get_atomic_bbox(atomic_end_steps - Vec3D[int](1, 1, 1))
+        return bbox_start.supremum(bbox_end)

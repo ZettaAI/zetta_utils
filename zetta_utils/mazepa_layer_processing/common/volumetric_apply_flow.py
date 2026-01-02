@@ -170,12 +170,12 @@ class ReduceByWeightedSum(ReduceOperation):
                     with semaphore("read"):
                         if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
-                            res[subidx_channels] = (
-                                res[subidx_channels] + layer[intscn].astype(float) * weight.numpy()
+                            res[tuple(subidx_channels)] = (
+                                res[tuple(subidx_channels)] + layer[intscn].astype(float) * weight.numpy()
                             )
                         else:
-                            res[subidx_channels] = (
-                                res[subidx_channels] + layer[intscn] * weight.numpy()
+                            res[tuple(subidx_channels)] = (
+                                res[tuple(subidx_channels)] + layer[intscn] * weight.numpy()
                             )
 
                 if not is_floating_point_dtype(dst.backend.dtype):
@@ -334,13 +334,11 @@ def delete_if_local(*args, **kwargs):
     for arg in args:
         if isinstance(arg, VolumetricBasedLayerProtocol):
             if arg.backend.is_local:
-                logger.info(f"Deleting {arg.backend.name}")
                 arg.delete()
 
     for kwarg in kwargs.values():
         if isinstance(kwarg, VolumetricBasedLayerProtocol):
             if kwarg.backend.is_local:
-                logger.info(f"Deleting {kwarg.backend.name}")
                 kwarg.delete()
 
 
@@ -908,13 +906,6 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         )
         stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
         red_chunks = reduction_chunker(idx, mode="exact", stride_start_offset=stride_start_offset)
-        if len(red_chunks) == 8:
-            logger.info("reduction chunker")
-            logger.info(reduction_chunker)
-            logger.info("idx")
-            logger.info(idx.pformat())
-            logger.info("stride_start_offset")
-            logger.info(stride_start_offset)
         red_shape = reduction_chunker.get_shape(
             idx, mode="exact", stride_start_offset=stride_start_offset
         )

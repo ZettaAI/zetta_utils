@@ -1233,7 +1233,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             )
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(
-                    enforce_chunk_aligned_writes=True, overwrite_partial_chunks=True
+                    enforce_chunk_aligned_writes=True, #overwrite_partial_chunks=True
                 )
             )
         else:

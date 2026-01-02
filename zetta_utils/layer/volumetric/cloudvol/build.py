@@ -18,7 +18,7 @@ from . import CVBackend
 # from typeguard import typechecked
 
 
-# @typechecked # ypeError: isinstance() arg 2 must be a type or tuple of types on p3.9
+# @typechecked # TypeError: isinstance() arg 2 must be a type or tuple of types on p3.9
 @builder.register("build_cv_layer", versions=">=0.4")
 def build_cv_layer(  # pylint: disable=too-many-locals
     path: str,

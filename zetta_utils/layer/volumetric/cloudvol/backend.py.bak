@@ -66,7 +66,7 @@ def _get_cv_cached(
                 info=info,
                 provenance={},
                 mip=tuple(resolution),
-                lru_bytes=0 if path_.startswith("mem://") else cache_bytes_limit,
+                lru_bytes=cache_bytes_limit,
                 **kwargs,
             )
         except ScaleUnavailableError as e:
@@ -266,9 +266,13 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     def write(self, idx: VolumetricIndex, data: npt.NDArray):
         # Data in: cxyz
         # Write format: xyzc (b == 1)
+        import time
+        t_start = time.time()
+
         if self.enforce_chunk_aligned_writes:
             self.assert_idx_is_chunk_aligned(idx)
 
+        t_transpose_start = time.time()
         if data.size == 1 and len(data.shape) == 1:
             data_final = data[0]
         elif len(data.shape) == 4:
@@ -278,21 +282,32 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
                 "Data written to CloudVolume backend must be in `cxyz` dimension format, "
                 f"but got a tensor of with ndim == {data.ndim}"
             )
+        t_transpose = time.time() - t_transpose_start
 
+        t_cvol_start = time.time()
         cvol = _get_cv_cached(
             self.path, idx.resolution, cache_bytes_limit=self.cache_bytes_limit, **self.cv_kwargs
         )
         slices = idx.to_slices()
         # Enable autocrop for writes only
         cvol.autocrop = True
+        t_cvol = time.time() - t_cvol_start
 
+        t_dtype_start = time.time()
         if (cvol.dtype == "uint64") and (data_final.dtype == np.int64):
             if data_final.min() < np.int64(0):
                 raise ValueError("Attempting to write negative values to a uint64 CloudVolume")
             data_final = data_final.astype(np.uint64)
+        t_dtype = time.time() - t_dtype_start
 
+        t_write_start = time.time()
         cvol[slices] = data_final
+        t_write = time.time() - t_write_start
+
         cvol.autocrop = False
+
+        t_total = time.time() - t_start
+        print(f"{t_total:.6f}s total writing {slices} (transpose: {t_transpose:.6f}s, get_cvol: {t_cvol:.6f}s, dtype: {t_dtype:.6f}s, write: {t_write:.6f}s)")
 
     def with_changes(self, **kwargs) -> CVBackend:
         """Currently untyped. Supports:

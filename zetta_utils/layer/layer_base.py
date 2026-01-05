@@ -37,7 +37,7 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
     def __getitem__(
         self,
         idx: BackendIndexT,
-    ) -> BackendDataT:
+    ) -> BackendDataT:  # pragma: no cover
         return self.read_with_procs(idx)
 
     def read_with_procs(

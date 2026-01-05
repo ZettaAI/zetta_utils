@@ -4,16 +4,20 @@ from __future__ import annotations
 import os
 import tempfile
 
+import pytest
+
 from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.layer.volumetric.annotation import (
+from zetta_utils.layer.volumetric.annotation import VolumetricAnnotationLayer
+from zetta_utils.layer.volumetric.annotation.annotations import (  # Annotation,; PointAnnotation,
     LineAnnotation,
-    VolumetricAnnotationLayer,
+    PropertySpec,
+    Relationship,
 )
 from zetta_utils.layer.volumetric.annotation.backend import AnnotationLayerBackend
 
 
-def create_backend(temp_dir):
+def create_backend(temp_dir, annotation_type="LINE", properties=None, relations=None):
     backend_path = os.path.join(temp_dir, "annotation_backend")
     os.makedirs(backend_path, exist_ok=True)
 
@@ -22,7 +26,13 @@ def create_backend(temp_dir):
         bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
     )
 
-    backend = AnnotationLayerBackend(path=backend_path, index=index)
+    backend = AnnotationLayerBackend(
+        path=backend_path, annotation_type=annotation_type, index=index
+    )
+    if properties:
+        backend.property_specs = properties
+    if relations:
+        backend.relationships = relations
     return backend
 
 
@@ -39,6 +49,7 @@ def test_getitem_with_volumetric_index():
         )
         backend.write(idx=idx, data=sample_annotations)
 
+        backend = create_backend(temp_dir)
         layer = VolumetricAnnotationLayer(
             backend=backend,
             index_resolution=Vec3D(1, 1, 1),
@@ -69,6 +80,7 @@ def test_getitem_with_resolution_and_slices():
         )
         backend.write(idx=idx, data=sample_annotations)
 
+        backend = create_backend(temp_dir)
         layer = VolumetricAnnotationLayer(
             backend=backend,
             index_resolution=Vec3D(1, 1, 1),
@@ -79,6 +91,7 @@ def test_getitem_with_resolution_and_slices():
 
         assert len(result) == 1
         assert result[0].id == 1
+        assert isinstance(result[0], LineAnnotation)
         assert result[0].start == (2, 4, 6)
         assert result[0].end == (8, 10, 12)
 
@@ -109,6 +122,7 @@ def test_setitem_with_volumetric_index():
             bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
         )
 
+        backend = create_backend(temp_dir)
         result = backend.read(idx=read_idx)
 
         assert result == annotations
@@ -128,6 +142,12 @@ def test_setitem_with_resolution_and_slices():
         ]
         layer[Vec3D(5, 5, 5), 0:500, 0:500, 0:500] = annotations
 
+        backend = create_backend(temp_dir)
+        layer = VolumetricAnnotationLayer(
+            backend=backend,
+            index_resolution=Vec3D(1, 1, 1),
+            allow_slice_rounding=False,
+        )
         read_idx = VolumetricIndex(
             resolution=Vec3D(1, 1, 1),
             bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
@@ -136,8 +156,99 @@ def test_setitem_with_resolution_and_slices():
         written_annotations = layer[read_idx]
 
         assert len(written_annotations) == 1
+        assert isinstance(written_annotations[0], LineAnnotation)
         assert written_annotations[0].start == (10, 20, 30)
         assert written_annotations[0].end == (40, 50, 60)
+
+
+def test_setitem_with_properties():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        properties = (
+            PropertySpec("score", "float32", "Score value in range [0,1]"),
+            PropertySpec("score_pct", "uint8", "Int score in range [0,100]"),
+        )
+        backend = create_backend(temp_dir, "LINE", properties)
+        layer = VolumetricAnnotationLayer(
+            backend=backend,
+            index_resolution=Vec3D(1, 1, 1),
+            allow_slice_rounding=False,
+        )
+
+        annotations = [
+            LineAnnotation(
+                start=(2, 4, 6), end=(8, 10, 12), properties={"score": 0.42, "score_pct": 42}
+            ),
+        ]
+        layer[Vec3D(5, 5, 5), 0:500, 0:500, 0:500] = annotations
+        layer.backend.post_process()
+
+        backend = create_backend(temp_dir)
+        assert backend.property_specs == properties
+        layer = VolumetricAnnotationLayer(
+            backend=backend,
+            index_resolution=Vec3D(1, 1, 1),
+            allow_slice_rounding=False,
+        )
+        read_idx = VolumetricIndex(
+            resolution=Vec3D(1, 1, 1),
+            bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
+        )
+
+        written_annotations = layer[read_idx]
+
+        assert len(written_annotations) == 1
+        assert isinstance(written_annotations[0], LineAnnotation)
+        assert written_annotations[0].start == (10, 20, 30)
+        assert written_annotations[0].end == (40, 50, 60)
+        assert written_annotations[0].properties["score"] == pytest.approx(0.42)
+        assert written_annotations[0].properties["score_pct"] == 42
+
+
+def test_setitem_with_properties_and_relations():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        properties = (
+            PropertySpec("score", "float32", "Score value in range [0,1]"),
+            PropertySpec("score_pct", "uint8", "Int score in range [0,100]"),
+        )
+        relations = (Relationship("Presyn Cell"), Relationship("Postsyn Cell"))
+        backend = create_backend(temp_dir, "LINE", properties, relations)
+        layer = VolumetricAnnotationLayer(
+            backend=backend,
+            index_resolution=Vec3D(1, 1, 1),
+            allow_slice_rounding=False,
+        )
+
+        annotations = [
+            LineAnnotation(
+                start=(2, 4, 6),
+                end=(8, 10, 12),
+                properties={"score": 0.42, "score_pct": 42},
+                relations={"Presyn Cell": 12345, "Postsyn Cell": 67890},
+            ),
+        ]
+        layer[Vec3D(5, 5, 5), 0:500, 0:500, 0:500] = annotations
+        layer.backend.post_process()
+
+        backend = create_backend(temp_dir)
+        assert backend.property_specs == properties
+        layer = VolumetricAnnotationLayer(
+            backend=backend,
+            index_resolution=Vec3D(1, 1, 1),
+            allow_slice_rounding=False,
+        )
+
+        # It's not clear that layer[read_idx] *should* return annotations with relations,
+        # because getting those relations is very expensive and often not needed.  So,
+        # we'll instead check the data this way:
+        written_annotations = list(layer.backend.all_by_id())
+
+        assert len(written_annotations) == 1
+        assert written_annotations[0].start == (10, 20, 30)
+        assert written_annotations[0].end == (40, 50, 60)
+        assert written_annotations[0].properties["score"] == pytest.approx(0.42)
+        assert written_annotations[0].properties["score_pct"] == 42
+        assert written_annotations[0].relations["Presyn Cell"] == [12345]
+        assert written_annotations[0].relations["Postsyn Cell"] == [67890]
 
 
 def test_with_changes():

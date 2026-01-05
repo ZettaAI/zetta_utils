@@ -30,6 +30,7 @@ class LayerGroupDBEntry:
     layers: list[str]
     created_by: str
     modified_by: str | None
+    comment: str | None
 
     @staticmethod
     def from_dict(layer_group_id: str, raw_dict: Mapping) -> LayerGroupDBEntry:
@@ -40,6 +41,7 @@ class LayerGroupDBEntry:
             modified_by=raw_dict.get("modified_by"),
             collection=raw_dict["collection"],
             layers=raw_dict.get("layers", []),
+            comment=raw_dict.get("comment"),
         )
 
 

@@ -1,8 +1,8 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,unsubscriptable-object,unused-variable
-import multiprocessing
 
 import pytest
 
+from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD
 from zetta_utils.geometry import BBox3D, BBoxStrider, IntVec3D, Vec3D
 
 
@@ -57,10 +57,11 @@ def test_bbox_strider_get_all_chunks(mocker):
 
 
 def test_bbox_strider_get_all_chunks_parallel(mocker):
-    num_cores = multiprocessing.cpu_count()
     strider = BBoxStrider(
         bbox=BBox3D.from_coords(
-            start_coord=Vec3D(0, 0, 0), end_coord=Vec3D(2, 1, num_cores), resolution=Vec3D(1, 1, 1)
+            start_coord=Vec3D(0, 0, 0),
+            end_coord=Vec3D(2, 1, MULTIPROCESSING_NUM_TASKS_THRESHOLD + 1),
+            resolution=Vec3D(1, 1, 1),
         ),
         chunk_size=IntVec3D(1, 1, 1),
         stride=IntVec3D(1, 1, 1),

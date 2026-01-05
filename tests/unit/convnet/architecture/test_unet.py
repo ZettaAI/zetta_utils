@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import partial
+from typing import Iterable
 
 import pytest
 import torch
@@ -36,7 +37,7 @@ def test_channel_number(list_num_channels: list[list[int]]):
     out_num_channels = [c for block in list_num_channels for c in block[1:]]
     conv_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.modules.conv._ConvNd):
                     assert e.in_channels == in_num_channels[conv_count]
@@ -62,7 +63,7 @@ def test_kernel_size(kernel_sizes, expected: list[tuple[int]]):
     )
     conv_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.modules.conv._ConvNd):
                     assert e.kernel_size == expected[conv_count]
@@ -87,7 +88,7 @@ def test_stride(strides, expected: list[tuple[int]]):
     )
     conv_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.modules.conv._ConvNd):
                     assert e.stride == expected[conv_count]
@@ -111,7 +112,7 @@ def test_padding(paddings, expected: list[tuple[int]]):
     )
     conv_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.modules.conv._ConvNd):
                     assert e.padding == expected[conv_count]
@@ -128,7 +129,7 @@ def test_norm():
     )
     norm_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.BatchNorm2d):
                     norm_count += 1
@@ -146,7 +147,7 @@ def test_norm_last():
     )
     norm_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.BatchNorm2d):
                     norm_count += 1
@@ -164,7 +165,7 @@ def test_activate_last():
     )
     act_count = 0
     for f in unet.layers:
-        if hasattr(f, "layers"):
+        if hasattr(f, "layers") and isinstance(f.layers, Iterable):
             for e in f.layers:
                 if isinstance(e, torch.nn.LeakyReLU):
                     act_count += 1

@@ -15,7 +15,23 @@ resourceLimits:
     maximum: 100
   - resourceType: 'nvidia-h100-mega-80gb'
     maximum: 100
+
 shieldedInstanceConfig:
   enableSecureBoot: false
   enableIntegrityMonitoring: true
+
 diskSizeGb: 64
+
+serviceAccount: "{CLUSTER_NAME}-worker@{PROJECT_NAME}.iam.gserviceaccount.com"
+locations:
+  - {NODE_LOCATIONS}
+
+autoprovisioningNodePoolDefaults:
+  oauthScopes:
+    - https://www.googleapis.com/auth/cloud-platform
+  upgradeSettings:
+    maxSurge: 0
+    maxUnavailable: 1
+  management:
+    autoUpgrade: true
+    autoRepair: true

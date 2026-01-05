@@ -16,4 +16,12 @@ from .mask import filter_cc  # , coarsen
 # Circular import otherwise
 from . import generators, traceback_supress
 
-from . import common, convert, label, mask, multitensor, normalization
+from . import (
+    common,
+    convert,
+    label,
+    mask,
+    multitensor,
+    normalization,
+    projection
+)

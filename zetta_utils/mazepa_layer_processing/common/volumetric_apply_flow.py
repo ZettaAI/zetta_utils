@@ -5,7 +5,7 @@ import multiprocessing
 from abc import ABC
 from copy import deepcopy
 from os import path
-from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar
+from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar, assert_never
 
 import attrs
 import cachetools
@@ -15,7 +15,8 @@ import torch
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import log, mazepa
+from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, log, mazepa
+from zetta_utils.common import reset_signal_handlers
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
@@ -223,6 +224,8 @@ def get_weight_template(
             )
             for z in range(1, 2 * z_pad + 1)
         ]
+    else:
+        assert_never(processing_blend_mode)
 
     weights_x_t = torch.Tensor(weights_x).unsqueeze(-1).unsqueeze(-1)
     weights_y_t = torch.Tensor(weights_y).unsqueeze(0).unsqueeze(-1)
@@ -483,8 +486,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         dst: VolumetricBasedLayerProtocol | None,
         op_kwargs: P.kwargs,
     ) -> List[mazepa.tasks.Task[R_co]]:
-        if len(idx_chunks) > multiprocessing.cpu_count():
-            with multiprocessing.Pool() as pool_obj:
+        if len(idx_chunks) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
+            with multiprocessing.get_context("fork").Pool(
+                initializer=reset_signal_handlers
+            ) as pool_obj:
                 tasks = pool_obj.map(
                     self._make_task,
                     zip(idx_chunks, itertools.repeat(dst), itertools.repeat(op_kwargs)),
@@ -537,10 +542,10 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         the list of VolumetricIndices and the VolumetricBasedLayerProtocols that can be
         reduced to the final output, as well as the temporary destination layers.
         """
-        red_chunks = list(red_chunks)
         tasks: List[mazepa.tasks.Task[R_co]] = []
         red_chunks_task_idxs: List[List[VolumetricIndex]] = [[] for _ in red_chunks]
         red_chunks_temps: List[List[VolumetricBasedLayerProtocol]] = [[] for _ in red_chunks]
+        red_chunks_3d = np.array(red_chunks, dtype=object).reshape(red_shape, order="F")
         dst_temps: List[VolumetricBasedLayerProtocol] = []
 
         next_chunk_id = idx.chunk_id
@@ -571,31 +576,34 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 idx_expanded = idx.padded(self.processing_blend_pad)
                 idx_expanded.chunk_id = next_chunk_id
 
-                task_idxs = chunker(
+                task_shape = chunker.get_shape(
                     idx_expanded,
                     stride_start_offset=idx_expanded.start,
                     mode="shrink",
-                    chunk_id_increment=self.l0_chunks_per_task,
                 )
+                task_idxs = np.array(
+                    chunker(
+                        idx_expanded,
+                        stride_start_offset=idx_expanded.start,
+                        mode="shrink",
+                        chunk_id_increment=self.l0_chunks_per_task,
+                    ),
+                    dtype=object,
+                ).reshape(task_shape, order="F")
 
-                if len(task_idxs) == 0:
+                if task_shape[0] * task_shape[1] * task_shape[2] == 0:
                     continue
 
-                next_chunk_id = task_idxs[-1].chunk_id + self.l0_chunks_per_task
+                next_chunk_id = task_idxs[-1, -1, -1].chunk_id + self.l0_chunks_per_task
 
-                # get offsets in terms of index inds
-                red_chunk_offsets = tuple(itertools.product((0, 1, 2), (0, 1, 2), (0, 1, 2)))
-                # `set` to handle cases where the shape is 1 in some dimensions
-                red_ind_offsets = set(
-                    offset[2] * red_shape[0] * red_shape[1] + offset[1] * red_shape[0] + offset[0]
-                    for offset in red_chunk_offsets
-                )
-                if len(task_idxs) > multiprocessing.cpu_count():
-                    with multiprocessing.Pool() as pool_obj:
+                if len(task_idxs) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
+                    with multiprocessing.get_context("fork").Pool(
+                        initializer=reset_signal_handlers
+                    ) as pool_obj:
                         tasks_split = pool_obj.map(
                             self._make_task,
                             zip(
-                                task_idxs,
+                                task_idxs.ravel(),
                                 itertools.repeat(dst_temp),
                                 itertools.repeat(op_kwargs),
                             ),
@@ -605,7 +613,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                         map(
                             self._make_task,
                             zip(
-                                task_idxs,
+                                task_idxs.ravel(),
                                 itertools.repeat(dst_temp),
                                 itertools.repeat(op_kwargs),
                             ),
@@ -613,29 +621,58 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                     )
                 tasks += tasks_split
 
-                # TODO: Turn into O(n) algorithm by making everything into 3D arrays
-                # Typing will have to be less strict.
-                for i, task_idx in enumerate(task_idxs):
-                    red_ind = 0
-                    try:
-                        while not task_idx.intersects(red_chunks[red_ind]):
-                            red_ind += 1
-                    # This case catches the case where the chunk is entirely outside
-                    # any reduction chunk; this can happen if, for instance,
-                    # roi_crop_pad is set to [0, 0, 1] and the processing_chunk_size
-                    # is [X, X, 1].
-                    except IndexError as e:
-                        raise ValueError(
-                            f"The processing chunk `{task_idx.pformat()}` does not "
-                            " correspond to any reduction chunk; please check the "
-                            "`roi_crop_pad` and the `processing_chunk_size`."
-                        ) from e
-                    if task_idx.contained_in(red_chunks[red_ind]):
-                        red_chunks_task_idxs[red_ind].append(task_idx)
-                        red_chunks_temps[red_ind].append(dst_temp)
+                red_stops = [
+                    [chunk.stop[0] for chunk in red_chunks_3d[:, 0, 0]],
+                    [chunk.stop[1] for chunk in red_chunks_3d[0, :, 0]],
+                    [chunk.stop[2] for chunk in red_chunks_3d[0, 0, :]],
+                ]
+
+                task_starts = [
+                    [task_idxs[i, 0, 0].start[0] for i in range(task_shape[0])],
+                    [task_idxs[0, i, 0].start[1] for i in range(task_shape[1])],
+                    [task_idxs[0, 0, i].start[2] for i in range(task_shape[2])],
+                ]
+
+                task_to_red_chunks: list[dict[int, int]] = [{}, {}, {}]
+
+                for axis in range(3):
+                    red_stop_ind = 0
+                    for i, task_start in enumerate(task_starts[axis]):
+                        try:
+                            while not task_start < red_stops[axis][red_stop_ind]:
+                                red_stop_ind += 1
+                        # This case catches the case where the chunk is entirely outside
+                        # any reduction chunk; this can happen if, for instance,
+                        # roi_crop_pad is set to [0, 0, 1] and the processing_chunk_size
+                        # is [X, X, 1].
+                        except IndexError as e:
+                            raise ValueError(
+                                f"The processing chunk starting at `{task_start}` in axis {axis}"
+                                " does not correspond to any reduction chunk; please check the "
+                                "`roi_crop_pad` and the `processing_chunk_size`."
+                            ) from e
+                        task_to_red_chunks[axis][i] = red_stop_ind
+
+                flat_red_ind_offsets = set(
+                    i + j * red_shape[0] + k * red_shape[0] * red_shape[1]
+                    for i, j, k in itertools.product(range(3), repeat=3)
+                )
+                for i, task_ind in enumerate(np.ndindex(task_idxs.shape)):
+                    task_idx = task_idxs[*task_ind]
+                    red_ind = Vec3D(
+                        *(task_to_red_chunks[axis][task_ind[axis]] for axis in range(3))
+                    )
+                    flat_red_ind = (
+                        red_ind[0]
+                        + red_shape[0] * red_ind[1]
+                        + red_shape[0] * red_shape[1] * red_ind[2]
+                    )
+                    if task_idx.contained_in(red_chunks[flat_red_ind]):
+                        red_chunks_task_idxs[flat_red_ind].append(task_idx)
+                        red_chunks_temps[flat_red_ind].append(dst_temp)
                     else:
-                        inds = [red_ind + red_ind_offset for red_ind_offset in red_ind_offsets]
-                        for i in inds:
+                        flat_red_inds = [offset + flat_red_ind for offset in flat_red_ind_offsets]
+                        for i in flat_red_inds:
                             if i < len(red_chunks) and task_idx.intersects(red_chunks[i]):
                                 red_chunks_task_idxs[i].append(task_idx)
                                 red_chunks_temps[i].append(dst_temp)
@@ -719,12 +756,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         elif self.processing_blend_mode == "defer":
             assert dst is not None
             stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-            (
-                tasks,
-                _,
-                _,
-                dst_temps,
-            ) = self.make_tasks_with_checkerboarding(
+            (tasks, _, _, dst_temps,) = self.make_tasks_with_checkerboarding(
                 idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
             )
             logger.info(

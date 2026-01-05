@@ -8,8 +8,6 @@ import torch  # pylint: disable=unused-import
 from .building import BuilderPartial
 from .registry import register
 
-LAMBDA_STR_MAX_LENGTH: int = 80
-
 
 @register("lambda", allow_partial=False)
 def efficient_parse_lambda_str(lambda_str: str, name: Optional[str] = None) -> Callable:
@@ -18,8 +16,6 @@ def efficient_parse_lambda_str(lambda_str: str, name: Optional[str] = None) -> C
         raise TypeError("`lambda_str` must be a string.")
     if not lambda_str.startswith("lambda"):
         raise ValueError("`lambda_str` must start with 'lambda'.")
-    if len(lambda_str) > LAMBDA_STR_MAX_LENGTH:
-        raise ValueError(f"`lambda_str` must be at most {LAMBDA_STR_MAX_LENGTH} characters.")
 
     return BuilderPartial(spec={"@type": "invoke_lambda_str", "lambda_str": lambda_str}, name=name)
 

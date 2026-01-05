@@ -8,11 +8,12 @@ from contextlib import contextmanager
 from kubernetes.client import ApiClient
 
 from kubernetes import client as k8s_client
+from kubernetes import config  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation.k8s.secret import secrets_ctx_mngr
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.message_queues.sqs.queue import SQSQueue
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,
@@ -135,6 +136,24 @@ def _get_scaled_job_manifest(
     return manifest
 
 
+def patch_scaledjob(name: str, patch_body: dict):
+    config.load_kube_config()
+    api = k8s_client.CustomObjectsApi()
+    group = "keda.sh"
+    version = "v1alpha1"
+    namespace = "default"
+    plural = "scaledjobs"
+    response = api.patch_namespaced_custom_object(
+        group=group,
+        version=version,
+        namespace=namespace,
+        plural=plural,
+        name=name,
+        body=patch_body,
+    )
+    logger.info(response)
+
+
 @contextmanager
 def sqs_trigger_ctx_mngr(
     run_id: str,
@@ -170,7 +189,7 @@ def scaled_deployment_ctx_mngr(
     max_replicas: int,
     sqs_trigger_name: str,
     queue: SQSQueue,
-    namespace: str | None = "default",
+    namespace: str = "default",
     cool_down_period: int = 300,
 ):
     configuration, _ = get_cluster_data(cluster_info)

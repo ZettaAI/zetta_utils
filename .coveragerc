@@ -2,7 +2,13 @@
 omit =
   *_tmp.py
   zetta_utils/log.py
+  zetta_utils/cli/task_mgmt.py
   zetta_utils/task_management/subtask_structure.py
+  zetta_utils/task_management/segment.py
+  zetta_utils/task_management/seg_trace_utils/*
+  zetta_utils/task_management/ng_state/*
+  zetta_utils/task_management/automated_workers/*.py
+  zetta_utils/task_management/task_types/*.py
   zetta_utils/mazepa_layer_processing/*.py
   zetta_utils/mazepa_layer_processing/**/*.py
   zetta_utils/tensor_mapping/*.py
@@ -27,24 +33,21 @@ omit =
   setup.py
 
 [report]
-exclude_lines =
-    \.\.\.
-
-    # Skip any pass lines such as may be used for @abstractmethod
+exclude_also =
+    ; Skip any pass lines such as may be used for @abstractmethod
     pass
 
-    # Have to re-enable the standard pragma
-    pragma: no cover
-
-    # Don't complain about missing debug-only code:
+    ; Don't complain about missing debug-only code:
     def __repr__
     if self\.debug
 
-    # Don't complain if tests don't hit defensive assertion code:
+    ; Don't complain if tests don't hit defensive assertion code:
     raise AssertionError
     raise NotImplementedError
     raise TypeError
+    ^ +assert_never\(.*?\)$
+    ^ +case _ as unreachable:$
 
-    # Don't complain if non-runnable code isn't run:
+    ; Don't complain if non-runnable code isn't run:
     if 0:
     if __name__ == .__main__.:

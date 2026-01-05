@@ -129,6 +129,13 @@ SLEEPER_SPEC = {
     "arg2": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
 }
 
+SLEEPER_SPEC_SHORT = {
+    "@type": "sleeper_func",
+    "sleep_time": 0.1,
+    "arg1": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+    "arg2": {"@type": "sleeper_func", "sleep_time": SLEEP_TIME},
+}
+
 
 def test_sleeper_serial(register_sleeper_func):
     s = time.time()
@@ -139,12 +146,15 @@ def test_sleeper_serial(register_sleeper_func):
 
 
 def test_sleeper_parallel(register_sleeper_func):
+    # Short first builder to force first parallelization for overhead;
+    # not relevant for fork, but relevant for forkserver as the first call takes a while
+    builder.build(spec=SLEEPER_SPEC_SHORT, parallel=True)
     s = time.time()
     result = builder.build(spec=SLEEPER_SPEC, parallel=True)
     e = time.time()
     assert result is True
-    time_ellapsed = e - s
-    assert time_ellapsed < SLEEP_TIME * 3
+    time_elapsed = e - s
+    assert time_elapsed < SLEEP_TIME * 3
 
 
 @pytest.mark.parametrize(
@@ -296,13 +306,6 @@ def test_lambda(spec: dict, arg: Any, expected: Any):
             ValueError,
         ],
         [{"@type": "lambda", "lambda_str": "notalambdastring"}, ValueError],
-        [
-            {
-                "@type": "lambda",
-                "lambda_str": "lambda really_long_lambda_str_that_can_contain_arbitrary_code_to_execute_like_bitcoin_mining: None",
-            },
-            ValueError,
-        ],
     ],
 )
 def test_lambda_exc(value, expected_exc):

@@ -26,12 +26,13 @@ from .job import (
     wait_for_job_completion,
 )
 from .keda import (
+    patch_scaledjob,
     scaled_deployment_ctx_mngr,
     scaled_job_ctx_mngr,
     sqs_trigger_ctx_mngr,
 )
 from . import keda_deprecated
-from .pod import get_pod_spec, get_mazepa_pod_spec
+from .pod import get_pod_spec, get_mazepa_pod_spec, get_zone_affinities
 from .secret import secrets_ctx_mngr, get_secrets_and_mapping
 from .service import get_service, service_ctx_manager
 from .volume import ADC_MOUNT_PATH, get_common_volumes, get_common_volume_mounts

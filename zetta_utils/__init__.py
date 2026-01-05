@@ -3,17 +3,20 @@
 import os
 import sys
 import warnings
+import multiprocessing
 
-try:
-    import graph_tool
-except Exception:  # pragma: no cover
-    ...
-
-from . import log, typing, parsing, builder, common, constants
-from . import geometry, distributions, layer, ng
 from .log import get_logger
 
-if "sphinx" not in sys.modules:
+# Set global multiprocessing threshold
+MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
+
+# Set start method to `forkserver` if not set elsewhere
+# If not set here, `get_start_method` will set the default
+# to `fork` w/o allow_none and cause issues with dependencies.
+if multiprocessing.get_start_method(allow_none=True) is None:
+    multiprocessing.set_start_method("forkserver")
+
+if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa
 
     os.environ["PYTHONBREAKPOINT"] = "pdbp.set_trace"
@@ -32,18 +35,29 @@ for pkg_name in ignore_warnings_from:
     warnings.filterwarnings("ignore", module=pkg_name)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("mazepa")
-builder.registry.MUTLIPROCESSING_INCOMPATIBLE_CLASSES.add("lightning")
-log.add_supress_traceback_module(builder)
+
+def _load_core_modules():
+    """Load core modules that were previously imported at package level."""
+    from . import log, typing, parsing, builder, common, constants
+    from . import geometry, distributions, layer, ng
+
+    # Add builder module suppression now that it's loaded
+    log.add_supress_traceback_module(builder)
 
 
 def load_all_modules():
+    _load_core_modules()
     load_inference_modules()
     load_training_modules()
     from . import task_management
 
 
 def try_load_train_inference():  # pragma: no cover
+    try:
+        _load_core_modules()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.exception(e)
+
     try:
         load_inference_modules()
 
@@ -66,6 +80,7 @@ def load_submodules():  # pragma: no cover
 
 
 def load_inference_modules():
+    _load_core_modules()
     from . import (
         augmentations,
         convnet,
@@ -87,6 +102,7 @@ def load_inference_modules():
 
 
 def load_training_modules():
+    _load_core_modules()
     from . import (
         augmentations,
         convnet,

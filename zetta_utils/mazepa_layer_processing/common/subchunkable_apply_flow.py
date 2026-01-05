@@ -248,13 +248,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         "defer" may not be used in `processing_blend_modes`.
     :param dst_resolution: The resolution of the destination VolumetricBasedLayerProtocol
         (or resolution to use for computation, even if `dst` is None).
-    :param dst_tighten_bounds: Tighten the VolumetricBasedLayerProtocol's bounds to the
-        given ``bbox`` before any expansions (whether given as a ``bbox`` or  ``start_coord``,
-        ``end_coord``, and ``coord_resolution``) EXCEPT for ``expand_bbox_resolution``.
-        If this is the case, then the processing will happen in the expanded bbox according to
-        all expansion, though the writing will only happen within the tight bounds.
-        Note that this only happens for the ``dst_resolution``, and may result in odd behaviour
-        if the bounds at multiple resolutions are used in a subsequent processes. Requires ``dst``.
     :param processing_chunk_sizes: The base chunk size at each subchunking level in X, Y, Z,
         from the largest to the smallest. Subject to divisibility requirements (see bottom). When
         ``auto_divisibility`` is used, the chunk sizes other than the bottom level chunk size will
@@ -352,7 +345,14 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         ``end_coord``, and ``coord_resolution``.
 
     """
-
+    # FIXME: Remove deprecated help message by 2026-01-01 # pylint:disable=fixme
+    if dst_tighten_bounds:
+        raise ValueError(
+            "`dst_tighten_bounds` is no longer supported. Please use "
+            "`build_cv_layer` to set the layer bounds directly. To do this, add\n"
+            "`info_bbox: #BBOX` to your spec (assuming that #BBOX is the "
+            "bounding box for the run."
+        )
     dst_resolution_ = Vec3D(*dst_resolution)
 
     if dst is None:
@@ -362,8 +362,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
             raise ValueError("Cannot use `expand_bbox_backend` when `dst` is None.")
         if max_reduction_chunk_size is not None:
             raise ValueError("`max_reduction_chunk_size` is unused when `dst` is None.")
-        if dst_tighten_bounds:
-            raise ValueError("`dst_tighten_bounds` cannot be used when `dst` is None.")
         if auto_bbox:
             raise ValueError("`auto_bbox` cannot be used when `dst` is None.")
 
@@ -559,7 +557,6 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         dst=dst,
         dst_resolution=dst_resolution_,
         level_intermediaries_dirs=level_intermediaries_dirs_,
-        dst_tighten_bounds=dst_tighten_bounds,
         skip_intermediaries=skip_intermediaries,
         processing_chunk_sizes=[Vec3D(*v) for v in processing_chunk_sizes],
         processing_gap=Vec3D(*processing_gap),
@@ -831,7 +828,6 @@ def _make_ng_link(
 def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-statements, too-many-branches
     dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
-    dst_tighten_bounds: bool,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
@@ -870,15 +866,6 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
         summary += (
             lrpad("Original BBox bounds, before requested modifications:", 1, length=120) + "\n"
         )
-        if dst_tighten_bounds:
-            summary += (
-                lrpad(
-                    "(Output(s) will be tightened to this BBox, after expansion to resolution if requested)",
-                    2,
-                    length=120,
-                )
-                + "\n"
-            )
         summary += lrpad(f"in {original_bbox.unit}:", 2, length=120) + "\n"
         summary += lrpad(f"{original_bbox.pformat()} {original_bbox.unit}", 3, length=120) + "\n"
         summary += (
@@ -1066,7 +1053,6 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
 def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg, line-too-long, too-many-locals, too-many-branches, too-many-statements
     dst: VolumetricBasedLayerProtocol | None,
     dst_resolution: Vec3D,
-    dst_tighten_bounds: bool,
     level_intermediaries_dirs: Sequence[str | None],
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
@@ -1101,8 +1087,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
 
     if expand_bbox_resolution:
         bbox = _expand_bbox_resolution(bbox, dst_resolution)
-
-    original_bbox_resolution = deepcopy(bbox)
 
     if expand_bbox_backend and dst is not None:
         bbox = _expand_bbox_backend(bbox, dst, dst_resolution)
@@ -1240,25 +1224,11 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(enforce_chunk_aligned_writes=False)
             )
-        if dst_tighten_bounds is True:
-            dst = deepcopy(dst).with_changes(
-                backend=dst.backend.with_changes(
-                    voxel_offset_res=(
-                        (original_bbox_resolution.start / dst_resolution).int(),
-                        dst_resolution,
-                    ),
-                    dataset_size_res=(
-                        (original_bbox_resolution.shape / dst_resolution).int(),
-                        dst_resolution,
-                    ),
-                )
-            )
 
     if print_summary:
         _print_summary(
             dst=dst,
             dst_resolution=dst_resolution,
-            dst_tighten_bounds=dst_tighten_bounds,
             level_intermediaries_dirs=level_intermediaries_dirs,
             skip_intermediaries=skip_intermediaries,
             processing_chunk_sizes=processing_chunk_sizes,

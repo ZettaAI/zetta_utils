@@ -20,6 +20,7 @@ def _interpolate(
     src: npt.NDArray,
     scale_factor: Union[float, Sequence[float]],
     mode: tensor_ops.InterpolationMode,
+    align_corners: bool | None = None,
     mask_value_thr: float = 0,
 ) -> npt.NDArray:
     # This dummy function is necessary to rename `src` to `data` arg
@@ -27,6 +28,7 @@ def _interpolate(
         data=src,
         scale_factor=scale_factor,
         mode=mode,
+        align_corners=align_corners,
         mask_value_thr=mask_value_thr,
         unsqueeze_input_to=5,
     )
@@ -37,6 +39,7 @@ def _interpolate(
 def make_interpolate_operation(
     res_change_mult: Sequence[float],
     mode: tensor_ops.InterpolationMode,
+    align_corners: bool | None = None,
     mask_value_thr: float = 0,
 ):
     op = VolumetricCallableOperation(
@@ -44,6 +47,7 @@ def make_interpolate_operation(
             _interpolate,
             mode=mode,
             scale_factor=1 / Vec3D(*res_change_mult),
+            align_corners=align_corners,
             mask_value_thr=mask_value_thr,
         ),
         res_change_mult=Vec3D(*res_change_mult),
@@ -70,6 +74,7 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
     bbox: BBox3D | None = None,
     auto_bbox: bool = False,
     dst_tighten_bounds: bool = False,
+    align_corners: bool | None = None,
     mask_value_thr: float = 0,
 ) -> mazepa.Flow:
     if dst is None:
@@ -101,6 +106,7 @@ def build_interpolate_flow(  # pylint: disable=too-many-locals
                 op=make_interpolate_operation(
                     res_change_mult=dst_res / last_res,
                     mode=mode,
+                    align_corners=align_corners,
                     mask_value_thr=mask_value_thr,
                 ),
                 dst=dst,

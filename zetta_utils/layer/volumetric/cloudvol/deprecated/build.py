@@ -26,6 +26,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
     index_resolution: Sequence[float] | None = None,
     data_resolution: Sequence[float] | None = None,
     interpolation_mode: InterpolationMode | None = None,
+    mask_value_thr: float = 0.0,
     readonly: bool = False,
     info_extend_if_exists: bool = True,
     info_reference_path: str | None = None,
@@ -61,6 +62,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             JointIndexDataProcessor[npt.NDArray | torch.Tensor, VolumetricIndex],
         ]
     ] = (),
+    cache_bytes_limit: int | None = None,
 ) -> VolumetricLayer:  # pragma: no cover # trivial conditional, delegation only
     """Build a CloudVolume layer.
 
@@ -74,6 +76,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         from ``data_resolution`` to ``desired_resolution`` using the given ``interpolation_mode``.
     :param interpolation_mode: Specification of the interpolation mode to use when
         ``data_resolution`` differs from ``desired_resolution``.
+    :param mask_value_thr: Above which value mask interpolation values are considered ``True``.
     :param readonly: Whether layer is read only.
     :param info_reference_path: Path to a reference CloudVolume for info.
     :param info_type: Type of the volume. Takes precedence over ``info_fields_overrides["type"]``.
@@ -115,6 +118,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         returning it to the user.
     :param write_procs: List of processors that will be applied to the data given by
         the user before writing it to the backend.
+    :param cache_bytes_limit: Cache size limit in bytes.
     :return: Layer built according to the spec.
 
     """
@@ -145,6 +149,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
             add_scales_exclude_fields=info_add_scales_exclude_fields,
             only_retain_scales=info_only_retain_scales,
         ),
+        cache_bytes_limit=cache_bytes_limit,
     )
 
     result = build_volumetric_layer(
@@ -153,6 +158,7 @@ def build_cv_layer(  # pylint: disable=too-many-locals
         index_resolution=index_resolution,
         data_resolution=data_resolution,
         interpolation_mode=interpolation_mode,
+        mask_value_thr=mask_value_thr,
         readonly=readonly,
         allow_slice_rounding=allow_slice_rounding,
         index_procs=index_procs,

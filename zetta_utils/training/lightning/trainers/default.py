@@ -78,12 +78,12 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             f"{experiment_version}",
         )
 
-        kwargs["callbacks"] = get_progress_bar_callbacks(
-            **progress_bar_kwargs
-        ) + get_checkpointing_callbacks(
+        kwargs["callbacks"] = get_checkpointing_callbacks(
             log_dir=log_dir,
             **checkpointing_kwargs,
         )
+        if kwargs.setdefault("enable_progress_bar", True):
+            kwargs["callbacks"].extend(get_progress_bar_callbacks(**progress_bar_kwargs))
 
         super().__init__(*args, **kwargs)
 
@@ -101,14 +101,19 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         # checkpoints on GCP.
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
-    @pl.utilities.rank_zero.rank_zero_only
     def save_checkpoint(
-        self, filepath, weights_only: bool = False, storage_options: Optional[Any] = None
+        self, filepath, weights_only: bool | None = False, storage_options: Any | None = None
     ):  # pylint: disable=too-many-locals
         if filepath.startswith("./"):
             filepath = f"{self.default_root_dir}/{filepath[2:]}"
+
+        # Lightning requires save_checkpoint to be called on all ranks!
         super().save_checkpoint(filepath, weights_only, storage_options)
 
+        if not self.is_global_zero:
+            return
+
+        # Remaining code is only executed on rank 0
         regime = self.lightning_module
         for k, v in regime._modules.items():  # pylint: disable=protected-access
             model_spec: JsonSerializableValue = get_initial_builder_spec(v)
@@ -232,8 +237,8 @@ class ConfigureLogging(pl.callbacks.Callback):
         self.exp_name = exp_name
         self.exp_version = exp_version
 
-    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
-        if not os.environ.get("WANDB_MODE", None) == "offline":  # pragma: no cover
+    def on_fit_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule):  # pragma: no cover
+        if not os.environ.get("WANDB_MODE", None) == "offline":
             api_key = os.environ.get("WANDB_API_KEY", None)
             wandb.login(key=api_key)
 

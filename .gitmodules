@@ -4,3 +4,6 @@
 [submodule "specs"]
 	path = specs
 	url = git@github.com:ZettaAI/specs.git
+[submodule "vscode_zutils"]
+	path = vscode_zutils
+	url = git@github.com:ZettaAI/vscode-zutils.git

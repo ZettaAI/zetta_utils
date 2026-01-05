@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import uuid
 from typing import (
     Any,
@@ -56,8 +57,7 @@ class FlowSchema(Protocol[P]):
         self,
         *args: P.args,
         **kwargs: P.kwargs,
-    ) -> Flow:
-        ...
+    ) -> Flow: ...
 
 
 @runtime_checkable
@@ -66,8 +66,7 @@ class RawFlowSchemaCls(Protocol[P]):
     Interface for a type that can be decorated with ``@flow_schema_cls``.
     """
 
-    def flow(self, *args: P.args, **kwargs: P.kwargs) -> FlowFnReturnType:
-        ...
+    def flow(self, *args: P.args, **kwargs: P.kwargs) -> FlowFnReturnType: ...
 
 
 @attrs.mutable
@@ -140,8 +139,19 @@ class _FlowSchema(Generic[P]):
         return result
 
 
-def flow_schema(fn: Callable[P, FlowFnReturnType]) -> FlowSchema[P]:
+def flow_schema(fn: Callable[P, Any]) -> FlowSchema[P]:
     """Decorator for generator functions defining mazepa flows."""
+
+    # If the function is not a generator, wrap it to make it one
+    if not inspect.isgeneratorfunction(fn):
+
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            fn(*args, **kwargs)
+            yield from ()
+
+        return _FlowSchema[P](wrapper)
+
     return _FlowSchema[P](fn)
 
 
@@ -168,7 +178,11 @@ def concurrent_flow(stages: Sequence[Flow | Task]):
 
 
 @flow_schema
-def sequential_flow(stages: Sequence[Flow | Task]):
+def sequential_flow(stages: Sequence[Flow | Task | Callable]):
     for e in stages:
-        yield e
+        if callable(e) and not isinstance(e, (Flow, Task)):
+            # Call the function directly instead of yielding
+            e()
+        else:
+            yield e
         yield Dependency()

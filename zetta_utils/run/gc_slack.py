@@ -8,7 +8,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from zetta_utils.log import get_logger
-from zetta_utils.run import RUN_DB
+from zetta_utils.run.db import RUN_DB
 
 logger = get_logger("zetta_utils")
 slack_client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])

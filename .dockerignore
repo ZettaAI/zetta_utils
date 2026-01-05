@@ -1,4 +1,16 @@
 specs/**
+scripts/
+notebooks/
+layer/
+tests/
+*.tif
+*.txt
+*.json
+*.csv
+*.log
+
+# Keep the Python pinned requirements
+!requirements*.txt
 
 # Traing data logging
 **/wandb/**

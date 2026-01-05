@@ -28,6 +28,7 @@ def build_volumetric_layer(
     allow_slice_rounding: bool = False,
     data_resolution: Sequence[float] | None = None,
     interpolation_mode: InterpolationMode | None = None,
+    mask_value_thr: float = 0,
     readonly: bool = False,
     index_procs: Iterable[IndexProcessor[VolumetricIndex]] = (),
     read_procs: Iterable[
@@ -48,6 +49,7 @@ def build_volumetric_layer(
         from ``data_resolution`` to ``desired_resolution`` using the given ``interpolation_mode``.
     :param interpolation_mode: Specification of the interpolation mode to use when
         ``data_resolution`` differs from ``desired_resolution``.
+    :param mask_value_thr: Above which value mask interpolation values are considered ``True``.
     :param readonly: Whether layer is read only.
     :param allow_slice_rounding: Whether layer allows IO operations where the specified index
         corresponds to a non-integer number of pixels at the desired resolution. When
@@ -68,6 +70,7 @@ def build_volumetric_layer(
         resolution_interpolator = DataResolutionInterpolator(
             data_resolution=data_resolution,
             interpolation_mode=interpolation_mode,
+            mask_value_thr=mask_value_thr,
             allow_slice_rounding=allow_slice_rounding,
         )
         read_procs = [resolution_interpolator] + list(read_procs)

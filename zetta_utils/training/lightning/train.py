@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import ExitStack
 from typing import Any, Dict, Final, List, Literal, Optional
 
@@ -35,14 +36,15 @@ def distributed_available() -> bool:
 
 @builder.register("lightning_train", allow_parallel=False)
 @typeguard.typechecked
-def lightning_train(
+def lightning_train(  # pylint: disable=too-many-locals
     regime: pl.LightningModule | dict[str, Any],
     trainer: pl.Trainer | dict[str, Any],
     train_dataloader: torch.utils.data.DataLoader | dict[str, Any],
     val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
     full_state_ckpt_path: str = "last",
     num_nodes: int = 1,
-    retry_count: int = 3,
+    retry_count: int = 0,
+    max_restarts: int = 1,
     local_run: bool = True,
     follow_logs: bool = False,
     follow_logs_tail_lines: int | None = None,
@@ -55,6 +57,8 @@ def lightning_train(
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -74,6 +78,8 @@ def lightning_train(
     :param num_nodes: Number of GPU nodes for distributed training.
     :param retry_count: Max retry count for the master train job;
         excludes failures due to pod distruptions.
+    :param max_restarts: Torch Elastic: The maximum amount of restarts that elastic agent\
+        will conduct on workers before failure.
     :param local_run: If True run the training locally.
     :param follow_logs: If True, eagerly print logs from the pod.
         If False, will wait until job completes successfully.
@@ -89,6 +95,8 @@ def lightning_train(
     :param provisioning_model: VM provision type to use for worker pods.
     :param gpu_accelerator_type: Schedule on nodes with given gpu type.
         Eg., "nvidia-tesla-t4". `gcloud compute accelerator-types list`.
+    :param required_zones: K8S will schedule workers in these zones.
+    :param preferred_zones: K8S will try to schedule workers in these zones.
     """
     args_mapping = {
         "regime": regime,
@@ -98,19 +106,26 @@ def lightning_train(
     }
 
     if local_run:
+        train_dataloader_ = (
+            train_dataloader
+            if not isinstance(train_dataloader, dict)
+            else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+        )
+        train_dataloader_.worker_init_fn = _load_modules
+
+        val_dataloader_ = (
+            val_dataloader
+            if not isinstance(val_dataloader, dict)
+            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+        )
+        if val_dataloader_ is not None:
+            val_dataloader_.worker_init_fn = _load_modules
+
         _lightning_train_local(
             regime=regime if not isinstance(regime, dict) else builder.build(regime),
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
-            train_dataloader=(
-                train_dataloader
-                if not isinstance(train_dataloader, dict)
-                else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
-            ),
-            val_dataloader=(
-                val_dataloader
-                if not isinstance(val_dataloader, dict)
-                else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
-            ),
+            train_dataloader=train_dataloader_,
+            val_dataloader=val_dataloader_,
             full_state_ckpt_path=full_state_ckpt_path,
         )
         return
@@ -167,6 +182,9 @@ def lightning_train(
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
         gpu_accelerator_type=gpu_accelerator_type,
+        max_restarts=max_restarts,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
 
@@ -177,6 +195,7 @@ def _multinode_train_launch(
     num_nodes: int,
     nproc_per_node: int,
     rdzv_backend: str = "c10d",
+    max_restarts: int = 1,
     **kwargs,  # pylint: disable=unused-argument
 ):
     # worker pods have MY_ROLE env set to `worker`
@@ -185,7 +204,7 @@ def _multinode_train_launch(
         run_id=run_id,
         min_nodes=num_nodes,
         max_nodes=num_nodes,
-        max_restarts=1,
+        max_restarts=max_restarts,
         nproc_per_node=nproc_per_node,
         rdzv_backend=rdzv_backend,
         rdzv_endpoint="master:29400" if is_worker else "localhost:29400",
@@ -313,6 +332,9 @@ def _lightning_train_remote(
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     gpu_accelerator_type: str | None = None,
+    max_restarts: int = 1,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ):  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     """
     Parse spec and launch single/multinode training accordingly.
@@ -343,6 +365,7 @@ def _lightning_train_remote(
         train_args["run_id"] = run.RUN_ID
         train_args["num_nodes"] = num_nodes
         train_args["nproc_per_node"] = num_devices
+        train_args["max_restarts"] = max_restarts
         train_args["trainer"]["num_nodes"] = num_nodes
         train_spec = {"@type": "_multinode_train_launch", **train_args}
     else:
@@ -390,11 +413,25 @@ def _lightning_train_remote(
     flags = ""
     if builder.PARALLEL_BUILD_ALLOWED:
         flags += " -p"
+    env_secret_mapping["RUN_ID"] = run.RUN_ID
+
+    required_affinity, preferred_affinity = resource_allocation.k8s.get_zone_affinities(
+        required_zones, preferred_zones
+    )
+    affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=required_affinity,
+            preferred_during_scheduling_ignored_during_execution=(
+                [preferred_affinity] if preferred_affinity else None
+            ),
+        )
+    )
+
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=run.RUN_ID,
         image=image,
-        command=["/bin/bash"],
-        command_args=["-c", f"zetta run {flags} specs/train.cue"],
+        command=f"zetta run {flags} specs/train.cue",
+        affinity=affinity,
         envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
@@ -450,11 +487,12 @@ def _lightning_train_remote(
                 node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
 
             flags += " --no-main-run-process"
+            env_secret_mapping["RUN_ID"] = run.RUN_ID
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
-                command=["/bin/bash"],
-                command_args=["-c", f"zetta run -r {run.RUN_ID} {flags} specs/train.cue"],
+                command=f"zetta run -r {run.RUN_ID} {flags} specs/train.cue",
+                affinity=affinity,
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
                 host_network=True,
@@ -478,8 +516,15 @@ def _lightning_train_remote(
                 cluster_info=cluster_info,
                 deployment=worker_deployment,
                 secrets=[],
+                stream_logs=True,
+                tail_lines=follow_logs_tail_lines,
             )
             stack.enter_context(workers_ctx)
+
+        thread = threading.Thread(
+            target=resource_allocation.k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
+        )
+        thread.start()
 
         if follow_logs:
             resource_allocation.k8s.follow_job_logs(

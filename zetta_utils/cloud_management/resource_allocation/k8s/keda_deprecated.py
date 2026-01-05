@@ -12,7 +12,7 @@ from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation.k8s.secret import secrets_ctx_mngr
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.message_queues.sqs.queue import SQSQueue
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,
@@ -170,7 +170,7 @@ def scaled_deployment_ctx_mngr(
     secrets: list[k8s_client.V1Secret],
     max_replicas: int,
     queue: SQSQueue,
-    namespace: str | None = "default",
+    namespace: str = "default",
     cool_down_period: int = 300,
 ):
     configuration, _ = get_cluster_data(cluster_info)

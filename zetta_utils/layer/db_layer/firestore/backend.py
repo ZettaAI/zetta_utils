@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import sys
-from copy import copy, deepcopy
+from copy import deepcopy
 from typing import Any, Optional
 
 import attrs
 import numpy as np
 from google.api_core.exceptions import GoogleAPICallError
-from google.cloud.firestore import And, Client, FieldFilter, Or
+from google.cloud.firestore import And, ArrayRemove, ArrayUnion, Client, FieldFilter, Or
 from tenacity import (
     retry,
     retry_if_not_exception_type,
@@ -115,9 +115,17 @@ class FirestoreBackend(DBBackend):
     def write(self, idx: DBIndex, data: DBDataT):
         doc_refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
         bulk_writer = self.client.bulk_writer()
-        for ref, row_data in zip(doc_refs, data):
-            row_data = copy(row_data)
+        for ref, _row_data in zip(doc_refs, data):
+            row_data: DBRowDataT = {}
             row_data["_id_nonunique"] = np.random.randint(sys.maxsize)
+            for k, v in _row_data.items():
+                # handle array values for additions/removals
+                if k[0] == "+":
+                    row_data[k[1:]] = ArrayUnion(v)
+                elif k[0] == "-":
+                    row_data[k[1:]] = ArrayRemove(v)
+                else:
+                    row_data[k] = v
             bulk_writer.set(ref, row_data, merge=True)
         bulk_writer.flush()
 

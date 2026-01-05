@@ -9,8 +9,9 @@ from typing import Any, Dict, List, Literal, Optional
 
 from kubernetes import client as k8s_client
 from zetta_utils import builder, log
+from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa import SemaphoreType
-from zetta_utils.run import (
+from zetta_utils.run.resource import (
     Resource,
     ResourceTypes,
     deregister_resource,
@@ -18,7 +19,7 @@ from zetta_utils.run import (
 )
 
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
-from .pod import get_mazepa_pod_spec
+from .pod import get_mazepa_pod_spec, stream_pod_logs
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
@@ -37,6 +38,8 @@ def _get_mazepa_deployment(
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -49,6 +52,8 @@ def _get_mazepa_deployment(
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
         cave_secret_available=cave_secret_available,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -92,6 +97,10 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    suppress_worker_logs: bool = False,
+    resource_monitor_interval: float | None = 1.0,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -99,7 +108,12 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         labels_final = labels
 
     worker_command = get_mazepa_worker_command(
-        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
+        task_queue_spec,
+        outcome_queue_spec,
+        num_procs,
+        semaphores_spec,
+        suppress_worker_logs=suppress_worker_logs,
+        resource_monitor_interval=resource_monitor_interval,
     )
     logger.debug(f"Making a deployment with worker command: '{worker_command}'")
 
@@ -116,6 +130,8 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         gpu_accelerator_type=gpu_accelerator_type,
         adc_available=adc_available,
         cave_secret_available=cave_secret_available,
+        required_zones=required_zones,
+        preferred_zones=preferred_zones,
     )
 
 
@@ -155,11 +171,27 @@ def deployment_ctx_mngr(
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
     secrets: List[k8s_client.V1Secret],
-    namespace: Optional[str] = "default",
+    namespace: str = "default",
+    stream_logs: bool = False,
+    tail_lines: int | None = None,
 ):
+    def _stream_deployment_logs():
+        dep_selector = ",".join(
+            f"{k}={v}" for k, v in deployment.spec.selector.match_labels.items()
+        )
+        _name = deployment.metadata.name
+        stream_pod_logs(
+            cluster_info,
+            dep_selector=dep_selector,
+            namespace=namespace,
+            prefix=f"{_name[:7]}...{_name[-7:]}",
+            tail_lines=tail_lines,
+        )
+
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_apps_v1_api = k8s_client.AppsV1Api()
+    log_streamer = None
 
     with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
         logger.info(f"Creating k8s deployment `{deployment.metadata.name}`")
@@ -172,6 +204,10 @@ def deployment_ctx_mngr(
             )
         )
 
+        if stream_logs:
+            log_streamer = RepeatTimer(15, _stream_deployment_logs)
+            log_streamer.start()
+
         try:
             yield
         finally:
@@ -182,6 +218,8 @@ def deployment_ctx_mngr(
             # need to create a new client for the above to take effect
             k8s_apps_v1_api = k8s_client.AppsV1Api()
             logger.info(f"Deleting k8s deployment `{deployment.metadata.name}`")
+            if log_streamer:
+                log_streamer.cancel()
             k8s_apps_v1_api.delete_namespaced_deployment(
                 name=deployment.metadata.name, namespace=namespace
             )

@@ -4,12 +4,17 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+import time
 from typing import Dict, List, Literal, Mapping, Optional
 
-from kubernetes import client as k8s_client
-from zetta_utils import log
-from zetta_utils.cloud_management.resource_allocation.k8s import volume
+from kubernetes.client.exceptions import ApiException
 
+from kubernetes import client as k8s_client
+from kubernetes import config, watch  # type: ignore
+from zetta_utils import log
+from zetta_utils.cloud_management.resource_allocation import k8s
+
+from .common import ClusterInfo, get_cluster_data
 from .secret import get_worker_env_vars
 
 logger = log.get_logger("zetta_utils")
@@ -18,9 +23,9 @@ logger = log.get_logger("zetta_utils")
 def get_pod_spec(
     name: str,
     image: str,
-    command: List[str],
-    command_args: List[str],
+    command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
+    affinity: Optional[k8s_client.V1Affinity] = None,
     dns_policy: Optional[str] = "Default",
     envs: Optional[List[k8s_client.V1EnvVar]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
@@ -37,18 +42,45 @@ def get_pod_spec(
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
+    env_secret_mapping = env_secret_mapping or {}
+
+    try:
+        envs.append(k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID")))
+    except KeyError:
+        ...
+
+    envs.append(
+        k8s_client.V1EnvVar(
+            name="POD_NAME",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
+    )
+    envs.extend(get_worker_env_vars(env_secret_mapping))
+
     host_aliases = host_aliases or []
     tolerations = tolerations or []
     volumes = volumes or []
     volume_mounts = volume_mounts or []
+
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
+    cmd = f"python -m {module}"
+    pre_stop_hook = k8s_client.V1Lifecycle(
+        pre_stop=k8s_client.V1LifecycleHandler(
+            _exec=k8s_client.V1ExecAction(command=["/bin/bash", "-c", cmd])
+        )
+    )
+
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
     container = k8s_client.V1Container(
-        command=command,
-        args=command_args,
-        env=envs + get_worker_env_vars(env_secret_mapping),
-        name=name,
+        command=["/bin/bash", "-c"],
+        args=[command],
+        env=envs,
+        name="main",
         image=image,
         image_pull_policy=image_pull_policy,
+        lifecycle=pre_stop_hook,
         ports=ports,
         resources=k8s_client.V1ResourceRequirements(
             limits=resources,
@@ -59,8 +91,21 @@ def get_pod_spec(
         volume_mounts=volume_mounts,
     )
 
+    module = "zetta_utils.cloud_management.resource_allocation.k8s.oom_tracker"
+    sidecar_container = k8s_client.V1Container(
+        command=["/bin/bash", "-c"],
+        args=[f"python -m {module}"],
+        env=envs,
+        name="runtime",
+        image=image,
+        termination_message_path="/dev/termination-log",
+        termination_message_policy="File",
+        volume_mounts=volume_mounts,
+    )
+
     return k8s_client.V1PodSpec(
-        containers=[container],
+        affinity=affinity,
+        containers=[container, sidecar_container],
         dns_policy=dns_policy,
         hostname=hostname,
         host_network=host_network,
@@ -69,10 +114,45 @@ def get_pod_spec(
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
-        termination_grace_period_seconds=30,
+        termination_grace_period_seconds=60,
         tolerations=tolerations,
         volumes=volumes,
     )
+
+
+def get_zone_affinities(
+    required_zones: list[str] | None = None, preferred_zones: list[str] | None = None
+):
+    required_zone_affinity = None
+    preferred_zone_affinity = None
+    if required_zones:
+        required_zone_affinity = k8s_client.V1NodeSelector(
+            node_selector_terms=[
+                k8s_client.V1NodeSelectorTerm(
+                    match_expressions=[
+                        k8s_client.V1NodeSelectorRequirement(
+                            key="topology.kubernetes.io/zone",
+                            operator="In",
+                            values=required_zones,
+                        )
+                    ]
+                )
+            ]
+        )
+
+    if preferred_zones:
+        preferred_zone_affinity = k8s_client.V1PreferredSchedulingTerm(
+            weight=100,
+            preference=k8s_client.V1NodeSelectorTerm(
+                match_expressions=[
+                    k8s_client.V1NodeSelectorRequirement(
+                        key="topology.kubernetes.io/zone", operator="In", values=preferred_zones
+                    )
+                ]
+            ),
+        )
+
+    return (required_zone_affinity, preferred_zone_affinity)
 
 
 def get_mazepa_pod_spec(
@@ -86,6 +166,8 @@ def get_mazepa_pod_spec(
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    required_zones: list[str] | None = None,
+    preferred_zones: list[str] | None = None,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -98,21 +180,163 @@ def get_mazepa_pod_spec(
     envs = []
     if adc_available:
         envs.append(
-            k8s_client.V1EnvVar(name="GOOGLE_APPLICATION_CREDENTIALS", value=volume.ADC_MOUNT_PATH)
+            k8s_client.V1EnvVar(
+                name="GOOGLE_APPLICATION_CREDENTIALS", value=k8s.volume.ADC_MOUNT_PATH
+            )
         )
+
+    required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
+    affinity = k8s_client.V1Affinity(
+        node_affinity=k8s_client.V1NodeAffinity(
+            required_during_scheduling_ignored_during_execution=required_affinity,
+            preferred_during_scheduling_ignored_during_execution=(
+                [preferred_affinity] if preferred_affinity else None
+            ),
+        )
+    )
 
     return get_pod_spec(
         name="zutils-worker",
         image=image,
-        command=["/bin/sh"],
-        command_args=["-c", command],
+        command=command,
         resources=resources,
+        affinity=affinity,
         envs=envs,
         env_secret_mapping=env_secret_mapping,
         node_selector=node_selector,
         restart_policy=restart_policy,
         tolerations=[schedule_toleration],
-        volumes=volume.get_common_volumes(cave_secret_available=cave_secret_available),
-        volume_mounts=volume.get_common_volume_mounts(cave_secret_available=cave_secret_available),
+        volumes=k8s.volume.get_common_volumes(cave_secret_available=cave_secret_available),
+        volume_mounts=k8s.volume.get_common_volume_mounts(
+            cave_secret_available=cave_secret_available
+        ),
         resource_requests=resource_requests,
     )
+
+
+def _wait_for_pod_start(
+    pod_name: str,
+    namespace: str,
+    core_api: k8s_client.CoreV1Api,
+    poll_interval: int = 15,
+    timeout: int = 600,
+):
+    start_time = time.time()
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            raise TimeoutError(
+                f"Timed out waiting for pod `{pod_name}` to become ready after {timeout} seconds."
+            )
+
+        try:
+            pod = core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
+        except k8s_client.exceptions.ApiException as e:
+            if e.status == 404:
+                logger.info(f"Pod `{pod_name}` not found yet. Retrying...")
+                time.sleep(poll_interval)
+                continue
+            raise
+
+        phase = pod.status.phase
+        container_statuses = pod.status.container_statuses or []
+
+        if container_statuses and all(cs.ready for cs in container_statuses):
+            logger.info(f"Pod `{pod_name}` is running and all containers are ready.")
+            return
+
+        logger.info(
+            f"Waiting for `{pod_name}` to start. "
+            f"Phase: {phase}. Ready states: {[cs.ready for cs in container_statuses]}"
+        )
+        time.sleep(poll_interval)
+
+
+def _reset_core_api(cluster_info: ClusterInfo):
+    configuration, _ = get_cluster_data(cluster_info)
+    k8s_client.Configuration.set_default(configuration)
+    return k8s_client.CoreV1Api()
+
+
+def stream_pod_logs(
+    cluster_info: ClusterInfo,
+    dep_selector: str | None = None,
+    pod_name: str | None = None,
+    namespace: str = "default",
+    prefix: str = "",
+    tail_lines: int | None = None,
+):
+    core_api = _reset_core_api(cluster_info)
+    if pod_name is None:
+        pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=dep_selector).items
+        if pods:
+            pod_name = pods[0].metadata.name
+        else:
+            logger.info(f"No pods found for {dep_selector}. Waiting...")
+            return
+
+    _wait_for_pod_start(pod_name, namespace, core_api)
+    try:
+        log_stream = watch.Watch().stream(
+            core_api.read_namespaced_pod_log,
+            name=pod_name,
+            container="main",
+            namespace=namespace,
+            tail_lines=tail_lines,
+        )
+        if tail_lines is None:
+            for output in log_stream:
+                logger.info(f"[{prefix}] {output}")
+        else:
+            result = []
+            for output in log_stream:
+                result.append(f"[{prefix}] {output}")
+                if len(result) == tail_lines:
+                    logger.info("\n".join(result))
+                    result = []
+            logger.info("\n".join(result))
+    except ApiException as exc:
+        if exc.status == 404:
+            logger.info(f"Pod `{pod_name}` was deleted.")
+            stream_pod_logs(
+                cluster_info,
+                dep_selector=dep_selector,
+                pod_name=None,
+                namespace=namespace,
+                prefix=prefix,
+                tail_lines=tail_lines,
+            )
+        else:
+            logger.info(f"{exc.status}: {exc}")
+            # resets credential config after timeout
+            stream_pod_logs(
+                cluster_info,
+                dep_selector=dep_selector,
+                pod_name=pod_name,
+                namespace=namespace,
+                prefix=prefix,
+                tail_lines=tail_lines,
+            )
+
+
+def watch_for_oom_kills(run_id: str, namespace="default"):
+    config.load_kube_config()
+    v1 = k8s_client.CoreV1Api()
+    w = watch.Watch()
+    pods = set()
+    try:
+        for event in w.stream(v1.list_namespaced_pod, namespace=namespace):
+            pod = event["object"]
+            pod_name = pod.metadata.name
+            if pod_name in pods or run_id not in pod_name:
+                continue
+            if pod.status.container_statuses:
+                for cs in pod.status.container_statuses:
+                    state = cs.state
+                    if state and state.terminated and state.terminated.reason == "OOMKilled":
+                        logger.warning(f"⚠️ [OOMKilled] {pod_name}.")
+                        pods.add(pod_name)
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        logger.warning(err)
+    finally:
+        w.stop()

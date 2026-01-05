@@ -10,6 +10,13 @@ from zetta_utils.geometry import BBox3D, Vec3D
 from zetta_utils.geometry.bbox import Slices3D
 
 
+def _convert_to_vec3d(value):
+    """Convert sequence to Vec3D if needed."""
+    if isinstance(value, Vec3D):
+        return value
+    return Vec3D(*value)
+
+
 @typechecked
 @attrs.mutable
 # pylint: disable=too-many-public-methods # fundamental class
@@ -33,7 +40,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             with non-integer slice start/end at the given resolution.
     """
 
-    resolution: Vec3D
+    resolution: Vec3D = attrs.field(converter=_convert_to_vec3d)
     bbox: BBox3D
     chunk_id: int = 0
     allow_slice_rounding: bool = False
@@ -331,4 +338,5 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         return self.bbox.line_intersects(pointA, pointB, self.resolution)
 
 
+builder.register("VolumetricIndex")(VolumetricIndex)
 builder.register("VolumetricIndex.from_coords")(VolumetricIndex.from_coords)

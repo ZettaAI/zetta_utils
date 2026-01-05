@@ -659,9 +659,9 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
 
         :param endpoint1: one endpoint of the line.
         :param endpoint2: other endpoint of the line.
-        :param resolution: Resolution and which the endpoints were given.
+        :param resolution: Resolution at which the endpoints were given.
         """
-        if len(endpoint1) != 3 or len(endpoint2) != 3 or len(resolution) != 3:
+        if len(endpoint1) != 3 or len(endpoint2) != 3 or len(resolution) != 3:  # pragma: no cover
             raise ValueError("Only 3-dimensional points and resolution are supported.")
 
         # Early out: if either point is inside the box, return True

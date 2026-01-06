@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import math
+import multiprocessing
+import os
 import sys
 import time
 import traceback
 from typing import Any, Callable, Optional
 
-import tenacity
-
-from zetta_utils import builder, log
-from zetta_utils.common import RepeatTimer, monitor_resources
+from zetta_utils import builder, log, try_load_train_inference
+from zetta_utils.common import RepeatTimer, monitor_resources, reset_signal_handlers
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -18,9 +18,65 @@ from zetta_utils.mazepa.transient_errors import (
     MAX_TRANSIENT_RETRIES,
     TRANSIENT_ERROR_CONDITIONS,
 )
+from zetta_utils.mazepa.upkeep_handlers import (
+    SQSUpkeepHandlerManager,
+    extract_sqs_metadata,
+    perform_direct_upkeep,
+)
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
 from . import Task
+
+
+class DummyBuffer:
+    def read(self, data):
+        pass
+
+    def write(self, data):
+        pass
+
+    def flush(self):
+        pass
+
+
+def redirect_buffers() -> None:
+    sys.stdin = DummyBuffer()  # type: ignore
+    sys.stdout = DummyBuffer()  # type: ignore
+    sys.stderr = DummyBuffer()  # type: ignore
+
+
+def worker_init(
+    log_level: str,
+    suppress_logs: bool = False,
+    set_start_method: bool = False,
+    multiprocessing_start_method: str = "spawn",
+    load_train_inference: bool = False,
+) -> None:
+    """
+    Initialize a worker process with proper logging and signal handling.
+
+    Args:
+        log_level: Log level string (e.g., "INFO", "DEBUG")
+        suppress_logs: If True, redirect stdout/stderr to dummy buffers
+        set_start_method: If True, set multiprocessing start method (for worker pools)
+        multiprocessing_start_method: The start method to use if set_start_method is True
+        load_train_inference: If True, try to load train/inference modules (for worker pools)
+    """
+    # Reset signal handlers inherited from parent to default behavior
+    reset_signal_handlers()
+    # For Kubernetes compatibility, ensure unbuffered output
+    os.environ["PYTHONUNBUFFERED"] = "1"
+
+    if suppress_logs:
+        redirect_buffers()
+    else:
+        log.configure_logger(level=log_level, force=True)
+
+    if set_start_method:
+        multiprocessing.set_start_method(multiprocessing_start_method, force=True)
+
+    if load_train_inference:
+        try_load_train_inference()
 
 
 class AcceptAllTasks:
@@ -90,6 +146,7 @@ def _process_task_batch(
     outcome_queue: MessageQueue[OutcomeReport],
     activity_tracker: PoolActivityTracker | None,
     debug: bool,
+    upkeep_handler: SQSUpkeepHandlerManager | None = None,
 ) -> None:
     logger.info("STARTING: task batch execution.")
 
@@ -104,15 +161,15 @@ def _process_task_batch(
         with log.logging_tag_ctx("task_id", task.id_):
             with log.logging_tag_ctx("execution_id", task.execution_id):
                 if task_filter_fn(task):
-                    ack_task, outcome = process_task_message(msg=msg, debug=debug)
+                    ack_task, outcome = process_task_message(
+                        msg=msg, debug=debug, upkeep_handler=upkeep_handler
+                    )
                 else:
                     ack_task = True
                     outcome = TaskOutcome(exception=MazepaCancel())
 
                 if ack_task:
-                    outcome_report = OutcomeReport(
-                        task_id=msg.payload.id_, outcome=outcome
-                    )
+                    outcome_report = OutcomeReport(task_id=msg.payload.id_, outcome=outcome)
                     outcome_queue.push([outcome_report])
                     msg.acknowledge_fn()
 
@@ -154,38 +211,57 @@ def run_worker(
     idle_timeout: float | None = None,
     pool_name: str | None = None,
 ) -> str:
-    with monitor_resources(resource_monitor_interval):
-        start_time = time.time()
-        activity_tracker = PoolActivityTracker(pool_name) if pool_name else None
+    # Start SQS upkeep handler process for handling visibility extensions
+    upkeep_handler = SQSUpkeepHandlerManager()
+    upkeep_handler.start()
 
-        while True:
-            task_msgs = _pull_tasks_with_error_handling(
-                task_queue, outcome_queue, max_pull_num
-            )
+    try:
+        with monitor_resources(resource_monitor_interval):
+            start_time = time.time()
+            activity_tracker = PoolActivityTracker(pool_name) if pool_name else None
 
-            if len(task_msgs) == 0:
-                _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
-            else:
-                _process_task_batch(
-                    task_msgs, task_filter_fn, outcome_queue, activity_tracker, debug
+            while True:
+                task_msgs = _pull_tasks_with_error_handling(
+                    task_queue, outcome_queue, max_pull_num
                 )
 
-            should_exit, reason = _check_exit_conditions(
-                start_time, max_runtime, idle_timeout, activity_tracker
-            )
-            if should_exit:
-                assert reason is not None
-                logger.info(f"Worker exiting: {reason}")
-                return reason
+                if len(task_msgs) == 0:
+                    _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
+                else:
+                    _process_task_batch(
+                        task_msgs,
+                        task_filter_fn,
+                        outcome_queue,
+                        activity_tracker,
+                        debug,
+                        upkeep_handler,
+                    )
+
+                should_exit, reason = _check_exit_conditions(
+                    start_time, max_runtime, idle_timeout, activity_tracker
+                )
+                if should_exit:
+                    assert reason is not None
+                    logger.info(f"Worker exiting: {reason}")
+                    return reason
+    finally:
+        upkeep_handler.shutdown()
 
 
 def process_task_message(
-    msg: ReceivedMessage[Task], debug: bool, handle_exceptions: bool = True
+    msg: ReceivedMessage[Task],
+    debug: bool,
+    handle_exceptions: bool = True,
+    upkeep_handler: SQSUpkeepHandlerManager | None = None,
 ) -> tuple[bool, TaskOutcome]:
     task = msg.payload
     if task.upkeep_settings.perform_upkeep:
         outcome = _run_task_with_upkeep(
-            task, msg.extend_lease_fn, debug=debug, handle_exceptions=handle_exceptions
+            task,
+            msg.extend_lease_fn,
+            debug=debug,
+            handle_exceptions=handle_exceptions,
+            upkeep_handler=upkeep_handler,
         )
     else:
         outcome = task(debug=debug, handle_exceptions=handle_exceptions)
@@ -209,23 +285,70 @@ def process_task_message(
 
 
 def _run_task_with_upkeep(
-    task: Task, extend_lease_fn: Callable, debug: bool, handle_exceptions: bool
+    task: Task,
+    extend_lease_fn: Callable,
+    debug: bool,
+    handle_exceptions: bool,
+    upkeep_handler: SQSUpkeepHandlerManager | None = None,
 ) -> TaskOutcome:
-    def _perform_upkeep_callbacks():
-        assert task.upkeep_settings.interval_sec is not None
-        try:
-            extend_lease_fn(math.ceil(task.upkeep_settings.interval_sec * 5))
-        except tenacity.RetryError as e:  # pragma: no cover
-            logger.info(f"Couldn't perform upkeep: {e}")
-
+    task_start_time = time.time()
     assert task.upkeep_settings.interval_sec is not None
-    upkeep = RepeatTimer(task.upkeep_settings.interval_sec, _perform_upkeep_callbacks)
-    upkeep.start()
-    try:
-        result = task(debug=debug, handle_exceptions=handle_exceptions)
-    except Exception as e:  # pragma: no cover # pylint: disable=broad-except
-        raise e
-    finally:
-        upkeep.cancel()
+    extend_duration = math.ceil(task.upkeep_settings.interval_sec * 10)
+
+    # Try to extract SQS metadata and use process-based handler
+    sqs_metadata = extract_sqs_metadata(extend_lease_fn)
+    use_process_handler = sqs_metadata is not None and upkeep_handler is not None
+
+    if use_process_handler:
+        # Handler process manages its own timer - completely isolated from main process GIL
+        logger.debug(
+            f"UPKEEP: Starting upkeep via handler process: "
+            f"interval={task.upkeep_settings.interval_sec}s, extend_by={extend_duration}s"
+        )
+        assert sqs_metadata is not None
+        assert upkeep_handler is not None
+        upkeep_handler.start_upkeep(
+            task_id=task.id_,
+            receipt_handle=sqs_metadata["receipt_handle"],
+            visibility_timeout=extend_duration,
+            interval_sec=task.upkeep_settings.interval_sec,
+            queue_name=sqs_metadata["queue_name"],
+            region_name=sqs_metadata["region_name"],
+            endpoint_url=sqs_metadata["endpoint_url"],
+        )
+        try:
+            logger.info("Task execution starting")
+            result = task(debug=debug, handle_exceptions=handle_exceptions)
+            elapsed = time.time() - task_start_time
+            logger.info(f"Task execution completed successfully after {elapsed:.2f}s")
+        except Exception as e:  # pragma: no cover # pylint: disable=broad-except
+            elapsed = time.time() - task_start_time
+            logger.error(
+                f"Task execution failed with {type(e).__name__}: {e} after {elapsed:.2f}s"
+            )
+            raise e
+        finally:
+            logger.debug("UPKEEP: Stopping upkeep via handler process")
+            upkeep_handler.stop_upkeep(task.id_)
+    else:
+        # Fallback: use RepeatTimer in main process for non-SQS queues
+        def upkeep_callback():
+            perform_direct_upkeep(extend_lease_fn, extend_duration, task_start_time)
+
+        upkeep = RepeatTimer(task.upkeep_settings.interval_sec, upkeep_callback)
+        upkeep.start()
+        try:
+            logger.info("Task execution starting")
+            result = task(debug=debug, handle_exceptions=handle_exceptions)
+            elapsed = time.time() - task_start_time
+            logger.info(f"Task execution completed successfully after {elapsed:.2f}s")
+        except Exception as e:  # pragma: no cover # pylint: disable=broad-except
+            elapsed = time.time() - task_start_time
+            logger.error(
+                f"Task execution failed with {type(e).__name__}: {e} after {elapsed:.2f}s"
+            )
+            raise e
+        finally:
+            upkeep.cancel()
 
     return result

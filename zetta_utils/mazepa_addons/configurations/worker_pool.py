@@ -3,57 +3,20 @@ from __future__ import annotations
 import contextlib
 import logging
 import multiprocessing
-import os
-import sys
 import time
 from contextlib import ExitStack
 
 import pebble
 
-from zetta_utils import builder, log, try_load_train_inference
-from zetta_utils.common import monitor_resources, reset_signal_handlers
+from zetta_utils import builder, log
+from zetta_utils.common import monitor_resources
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
+from zetta_utils.mazepa.worker import worker_init
 from zetta_utils.message_queues import FileQueue, SQSQueue
 
 logger = log.get_logger("mazepa")
-
-
-class DummyBuffer:
-    def read(self, data):
-        pass
-
-    def write(self, data):
-        pass
-
-    def flush(self):
-        pass
-
-
-def redirect_buffers() -> None:  # Do not need to implement 14 passes for typing.FileIO
-    sys.stdin = DummyBuffer()  # type: ignore
-    sys.stdout = DummyBuffer()  # type: ignore
-    sys.stderr = DummyBuffer()  # type: ignore
-
-
-def worker_init(
-    suppress_worker_logs: bool, multiprocessing_start_method: str, log_level: str
-) -> None:
-    # Reset signal handlers inherited from parent to default behavior
-    # This prevents parent's signal handlers from interfering with worker cleanup
-    reset_signal_handlers()
-    # For Kubernetes compatibility, ensure unbuffered output
-    os.environ["PYTHONUNBUFFERED"] = "1"
-    if suppress_worker_logs:
-        redirect_buffers()
-    else:
-        # Reconfigure logging in worker process with parent's log level
-        log.configure_logger(level=log_level, force=True)
-
-    # Inherit the start method from the calling process
-    multiprocessing.set_start_method(multiprocessing_start_method, force=True)
-    try_load_train_inference()
 
 
 def run_local_worker(
@@ -115,9 +78,11 @@ def setup_local_worker_pool(
                 ),  # 'fork' has issues with CV sharded reads
                 initializer=worker_init,
                 initargs=[
-                    suppress_worker_logs,
-                    multiprocessing.get_start_method(),
-                    current_log_level,
+                    current_log_level,  # log_level
+                    suppress_worker_logs,  # suppress_logs
+                    True,  # set_start_method
+                    multiprocessing.get_start_method(),  # multiprocessing_start_method
+                    True,  # load_train_inference
                 ],
             )
             try:

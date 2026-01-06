@@ -48,6 +48,10 @@ def receive_msgs(
     msg_batch_size: int = 10,
     visibility_timeout: int = 60,
 ) -> list[SQSReceivedMsg]:
+    logger.debug(
+        f"RECEIVE: Attempting to receive messages from queue '{queue_name}' "
+        f"with visibility_timeout={visibility_timeout}s"
+    )
     result = []  # type: list[SQSReceivedMsg]
     start_ts = time.time()
     while True:
@@ -73,6 +77,12 @@ def receive_msgs(
             )
             for message in resp["Messages"]
         ]
+        for msg in message_batch:
+            logger.debug(
+                f"RECEIVE: Message from queue '{queue_name}' with handle "
+                f"{msg.receipt_handle[:30]}... has initial visibility timeout of "
+                f"{visibility_timeout}s (expires at relative T+{visibility_timeout}s)"
+            )
         result += message_batch
 
         if len(result) >= max_msg_num:
@@ -91,14 +101,22 @@ def delete_msg_by_receipt_handle(
     region_name: str,
     endpoint_url: Optional[str] = None,
 ):
+    queue_url = get_queue_url(queue_name, region_name, endpoint_url=endpoint_url)
     logger.debug(
-        f"Deleting message with handle '{receipt_handle}' from queue '{queue_name}'"
-        f"in region '{region_name}'"
+        f"DELETE: Deleting message from queue '{queue_name}' (URL: {queue_url}), "
+        f"handle: {receipt_handle[:30]}..."
     )
-    get_sqs_client(region_name, endpoint_url=endpoint_url).delete_message(
-        QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
-        ReceiptHandle=receipt_handle,
-    )
+    try:
+        get_sqs_client(region_name, endpoint_url=endpoint_url).delete_message(
+            QueueUrl=queue_url,
+            ReceiptHandle=receipt_handle,
+        )
+        logger.debug(f"DELETE: Successfully deleted message from queue '{queue_name}'")
+    except Exception as e:
+        logger.error(
+            f"DELETE: Failed to delete message from queue '{queue_name}': {type(e).__name__}: {e}"
+        )
+        raise
 
 
 @retry(stop=stop_after_attempt(10), wait=wait_random(min=0.1, max=5))
@@ -109,15 +127,27 @@ def change_message_visibility(
     region_name: str,
     endpoint_url: Optional[str] = None,
 ):
+    queue_url = get_queue_url(queue_name, region_name, endpoint_url=endpoint_url)
     logger.debug(
-        f"Changing visibility of the message with handle '{receipt_handle}' "
-        f"from queue '{queue_name}' in region '{region_name}' to {visibility_timeout}."
+        f"VISIBILITY: Changing visibility to {visibility_timeout}s for queue '{queue_name}' "
+        f"(URL: {queue_url}), handle: {receipt_handle[:30]}..."
     )
-    get_sqs_client(region_name, endpoint_url=endpoint_url).change_message_visibility(
-        QueueUrl=get_queue_url(queue_name, region_name, endpoint_url=endpoint_url),
-        ReceiptHandle=receipt_handle,
-        VisibilityTimeout=visibility_timeout,
-    )
+    try:
+        get_sqs_client(region_name, endpoint_url=endpoint_url).change_message_visibility(
+            QueueUrl=queue_url,
+            ReceiptHandle=receipt_handle,
+            VisibilityTimeout=visibility_timeout,
+        )
+        logger.debug(
+            f"VISIBILITY: Successfully changed visibility to {visibility_timeout}s "
+            f"for queue '{queue_name}'"
+        )
+    except Exception as e:
+        logger.error(
+            f"VISIBILITY: Failed to change visibility for queue '{queue_name}' "
+            f"to {visibility_timeout}s: {type(e).__name__}: {e}"
+        )
+        raise
 
 
 # To be revived if we need batch deletes:

@@ -48,13 +48,13 @@ def test_seg_contact_with_optional_fields():
         seg_b=200,
         com=Vec3D(100.0, 100.0, 100.0),
         contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
-        local_pointclouds={"r1000_n2048": {100: np.zeros((10, 3)), 200: np.ones((10, 3))}},
+        local_pointclouds={(1000, 2048): {100: np.zeros((10, 3)), 200: np.ones((10, 3))}},
         merge_decisions={"ground_truth": True, "model_v1": False},
         partner_metadata={100: {"type": "axon"}, 200: {"type": "dendrite"}},
     )
 
     assert contact.local_pointclouds is not None
-    assert "r1000_n2048" in contact.local_pointclouds
+    assert (1000, 2048) in contact.local_pointclouds
     assert contact.merge_decisions == {"ground_truth": True, "model_v1": False}
     assert contact.partner_metadata == {100: {"type": "axon"}, 200: {"type": "dendrite"}}
 

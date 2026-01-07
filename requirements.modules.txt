@@ -102,7 +102,9 @@ cloud-volume==12.8.0
     #   meshparty
     #   pcg-skel
 colorama==0.4.6
-    # via awscli
+    # via
+    #   awscli
+    #   taichi
 colorlog==6.10.1
     # via trimesh
 comm==0.2.3
@@ -150,6 +152,7 @@ dill==0.4.0
     #   zetta-utils (pyproject.toml)
     #   multiprocess
     #   pathos
+    #   taichi
 docutils==0.19
     # via awscli
 dracopy==1.7.0
@@ -163,7 +166,9 @@ edt==3.1.0
     #   fastmorph
     #   kimimaro
 einops==0.8.1
-    # via zetta-utils (pyproject.toml)
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   pointnet
 embreex==2.17.7.post7
     # via trimesh
 executing==2.2.1
@@ -574,6 +579,7 @@ numpy==2.2.6
     #   shapely
     #   simplejpeg
     #   tables
+    #   taichi
     #   task-queue
     #   tensorstore
     #   tifffile
@@ -721,6 +727,8 @@ platformdirs==4.5.1
     #   wandb
 pluggy==1.6.0
     # via pytest
+pointnet==0.1.1
+    # via zetta-utils (pyproject.toml)
 posix-ipc==1.3.2
     # via cloud-volume
 pox==0.3.6
@@ -881,7 +889,9 @@ requests-oauthlib==1.3.1
 rfc3339==6.2
     # via python-logging-loki
 rich==14.2.0
-    # via zetta-utils (pyproject.toml)
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   taichi
 rpds-py==0.30.0
     # via
     #   jsonschema
@@ -972,6 +982,8 @@ tables==3.10.2
     # via meshparty
 tabulate==0.9.0
     # via zetta-utils (pyproject.toml)
+taichi==1.7.4
+    # via pointnet
 task-queue==2.14.3
     # via zetta-utils (pyproject.toml)
 tenacity==9.1.2
@@ -994,6 +1006,7 @@ torch==2.9.1
     #   kornia
     #   lightning
     #   onnx2torch
+    #   pointnet
     #   pytorch-lightning
     #   torchfields
     #   torchmetrics

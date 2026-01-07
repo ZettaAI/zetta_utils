@@ -8,4 +8,5 @@ from .chain_indexer import ChainIndexer
 from .random_indexer import RandomIndexer
 from .volumetric_strided_indexer import VolumetricStridedIndexer
 from .loop_indexer import LoopIndexer
+from .seg_contact_indexer import SegContactIndexer
 from .volumetric_ngl_indexer import VolumetricNGLIndexer

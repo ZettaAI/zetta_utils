@@ -1,0 +1,327 @@
+"""
+Segment Statistics Update Worker
+
+Background worker that processes segment statistics updates from the queue.
+Calls Cave API to get updated skeleton lengths and synapse counts after PCG edits.
+Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
+"""
+
+import time
+
+import click
+
+from zetta_utils import log
+from zetta_utils.task_management.db.models import ProjectModel
+from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.segment import update_segment_info
+from zetta_utils.task_management.segment_queue import (
+    cleanup_completed_updates,
+    get_next_pending_update,
+    get_next_pending_update_any,
+    get_queue_stats,
+    mark_update_completed,
+    mark_update_failed,
+    mark_update_processing,
+)
+
+logger = log.get_logger()
+
+
+def process_segment_update(
+    project_name: str,
+    seed_id: int,
+    server_address: str = "https://proofreading.zetta.ai",
+) -> bool:
+    """
+    Process a single segment statistics update by calling Cave API.
+    
+    Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
+    
+    Args:
+        project_name: Project name
+        seed_id: Seed ID to update
+        server_address: Cave server address
+        
+    Returns:
+        True if successful, False if failed
+    """
+    try:
+        print(f"[DEBUG] Processing segment update for seed {seed_id}")
+        logger.info(f"Processing segment update for seed {seed_id}")
+
+        print(
+            f"[DEBUG] Calling update_segment_info with project={project_name}, "  # pylint: disable=line-too-long
+            f"seed={seed_id}, server={server_address}"  # pylint: disable=line-too-long
+        )  # pylint: disable=line-too-long
+        # Update segment statistics including skeleton length
+        # This function gets the current segment ID and calls Cave API
+        result = update_segment_info(
+            project_name=project_name,
+            seed_id=seed_id,
+            server_address=server_address
+        )
+
+        print(f"[DEBUG] update_segment_info result: {result}")
+
+        if "error" in result:
+            print(f"[DEBUG] Error in result for seed {seed_id}: {result['error']}")
+            logger.error(
+                f"Failed to update segment statistics for seed {seed_id}: {result['error']}"
+            )
+            return False
+
+        # Log all updated statistics
+        updates = []
+        if "skeleton_path_length_mm" in result:
+            updates.append(f"skeleton: {result['skeleton_path_length_mm']:.2f} mm")
+        if "pre_synapse_count" in result:
+            updates.append(f"pre-syn: {result['pre_synapse_count']}")
+        if "post_synapse_count" in result:
+            updates.append(f"post-syn: {result['post_synapse_count']}")
+        if updates:
+            update_str = ", ".join(updates)
+            print(f"[DEBUG] Successfully updated statistics for seed {seed_id}: {update_str}")
+            logger.info(f"Updated statistics for seed {seed_id}: {update_str}")
+        else:
+            print(f"[DEBUG] No statistics returned for seed {seed_id}")
+            logger.info(f"Completed update for seed {seed_id} (no statistics returned)")
+
+        print(f"[DEBUG] Successfully processed seed {seed_id}")
+        return True
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print(f"[DEBUG] Exception processing segment update for seed {seed_id}: {e}")
+        logger.error(f"Error processing segment update for seed {seed_id}: {e}")
+        return False
+
+
+def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    project_name: str | None,
+    user_id: str = "segment_update_worker",
+    polling_period: float = 10.0,
+    server_address: str = "https://proofreading.zetta.ai",
+    max_retries: int = 0,
+    cleanup_interval_hours: int = 24,
+    completed_cleanup_days: int = 7,
+) -> None:
+    """
+    Run the segment update background worker.
+    
+    Args:
+        project_name: Project name to process updates for
+            If None, process updates across all projects
+        user_id: User ID for the worker
+        polling_period: How often to poll for new updates (seconds)
+        server_address: Cave server address
+        max_retries: Maximum retries before marking as permanently failed
+            (0 or less = unlimited retries)
+        cleanup_interval_hours: How often to run cleanup (hours)
+        completed_cleanup_days: Remove completed updates older than this many days
+    """
+    print("[DEBUG] Starting segment update worker")
+    print(
+        f"[DEBUG] Worker config: project={project_name if project_name else 'ALL'}, user={user_id}, "  # pylint: disable=line-too-long
+        f"polling={polling_period}s"  # pylint: disable=line-too-long
+    )  # pylint: disable=line-too-long
+    print(f"[DEBUG] Server: {server_address}, max_retries={max_retries}")  # pylint: disable=line-too-long
+    print(
+        f"[DEBUG] Cleanup: interval={cleanup_interval_hours}h, "  # pylint: disable=line-too-long
+        f"cleanup_days={completed_cleanup_days}"  # pylint: disable=line-too-long
+    )  # pylint: disable=line-too-long
+
+    logger.info(
+        f"Starting segment update worker for project '{project_name}' "
+        f"with user '{user_id}' (polling every {polling_period}s)"
+    )
+
+    processed_count = 0
+    last_cleanup = time.time()
+    cleanup_interval_sec = cleanup_interval_hours * 3600
+    loop_count = 0
+
+    print("[DEBUG] Starting main worker loop")
+    try: # pylint: disable=too-many-nested-blocks
+        while True:
+            loop_count += 1
+            try:
+                print(f"[DEBUG] Worker loop #{loop_count} - checking for pending updates")
+                # Get next pending update (single project or across all)
+                if project_name:
+                    update_entry = get_next_pending_update(project_name=project_name)
+                else:
+                    update_entry = get_next_pending_update_any()
+                print(f"[DEBUG] get_next_pending_update returned: {update_entry}")
+
+                if update_entry:
+                    seed_id = update_entry["seed_id"]
+                    proj_for_entry = update_entry["project_name"]
+                    processed_count += 1
+
+                    print(
+                        f"[DEBUG] Found pending update for seed {seed_id} (project {proj_for_entry}), "  # pylint: disable=line-too-long
+                        f"retry count: {update_entry['retry_count']}"  # pylint: disable=line-too-long
+                    )  # pylint: disable=line-too-long
+                    logger.info(
+                        f"Processing update #{processed_count}: seed {seed_id} (project {proj_for_entry}) "  # pylint: disable=line-too-long
+                        f"(retry {update_entry['retry_count']})"
+                    )
+
+                    # Mark as processing
+                    print(f"[DEBUG] Marking seed {seed_id} as processing")
+                    if not mark_update_processing(project_name=proj_for_entry, seed_id=seed_id):
+                        print(f"[DEBUG] Failed to mark seed {seed_id} as processing")
+                        logger.warning(f"Could not mark seed {seed_id} as processing")
+                        continue
+
+                    print(
+                        f"[DEBUG] Successfully marked seed {seed_id} as processing, "  # pylint: disable=line-too-long
+                        "starting update"  # pylint: disable=line-too-long
+                    )  # pylint: disable=line-too-long
+                    # Process the update
+                    success = process_segment_update(
+                        project_name=proj_for_entry,
+                        seed_id=seed_id,
+                        server_address=server_address
+                    )
+
+                    if success:
+                        print(
+                            f"[DEBUG] Processing succeeded for seed {seed_id}, marking as completed"  # pylint: disable=line-too-long
+                        )  # pylint: disable=line-too-long
+                        # Mark as completed
+                        mark_update_completed(project_name=proj_for_entry, seed_id=seed_id)
+                        logger.info(f"Successfully completed segment update for seed {seed_id} (project {proj_for_entry})")  # pylint: disable=line-too-long
+                    else:
+                        print(f"[DEBUG] Processing failed for seed {seed_id}, marking as failed")
+                        # Mark as failed (will retry or permanently fail based on retry count)
+                        error_msg = f"Cave API call failed for seed {seed_id}"
+                        mark_update_failed(
+                            project_name=proj_for_entry,
+                            seed_id=seed_id,
+                            error_message=error_msg,
+                            max_retries=max_retries
+                        )
+
+                        # Add exponential backoff delay for retries
+                        retry_count = update_entry["retry_count"]
+                        if retry_count < max_retries:
+                            # Exponential backoff: 2^retry_count seconds (capped at 300s)
+                            backoff_delay = min(2 ** retry_count, 300)
+                            print(f"[DEBUG] Waiting {backoff_delay}s for exponential backoff")
+                            logger.info(f"Waiting {backoff_delay}s before next attempt")
+                            time.sleep(backoff_delay)
+
+                else:
+                    print(f"[DEBUG] No pending updates found, sleeping for {polling_period}s")
+                    # No pending updates, wait before checking again
+                    time.sleep(polling_period)
+
+                # Periodic cleanup of completed entries
+                current_time = time.time()
+                if current_time - last_cleanup > cleanup_interval_sec:
+                    try:
+                        if project_name:
+                            cleaned_count = cleanup_completed_updates(
+                                project_name=project_name,
+                                days_old=completed_cleanup_days
+                            )
+                            if cleaned_count > 0:
+                                logger.info(f"Cleaned up {cleaned_count} old completed entries for project {project_name}")  # pylint: disable=line-too-long
+                        else:
+                            # Cleanup across all projects
+                            with get_session_context(None) as session:
+                                projects = [
+                                    row.project_name for row in session.query(ProjectModel.project_name).all()  # pylint: disable=line-too-long
+                                ]
+                            total_cleaned = 0
+                            for pn in projects:
+                                total_cleaned += cleanup_completed_updates(
+                                    project_name=pn,
+                                    days_old=completed_cleanup_days
+                                )
+                            if total_cleaned > 0:
+                                logger.info(f"Cleaned up {total_cleaned} old completed entries across all projects")  # pylint: disable=line-too-long
+                        last_cleanup = current_time
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        logger.error(f"Error during cleanup: {e}")
+
+                # Log queue stats periodically
+                if project_name and processed_count % 10 == 0 and processed_count > 0:
+                    try:
+                        stats = get_queue_stats(project_name=project_name)
+                        logger.info(f"Queue stats: {stats}")
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        logger.error(f"Error getting queue stats: {e}")
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error(f"Error in worker loop: {e}", exc_info=True)
+                time.sleep(60)  # Wait 1 minute before retrying
+
+    except KeyboardInterrupt:
+        logger.info(f"Worker stopped by user after processing {processed_count} updates")
+
+
+@click.command()
+@click.option(
+    "--project_name", "-p",
+    required=False,
+    default=None,
+    help="Project name to process. If omitted, process all projects."
+)
+@click.option(
+    "--user_id", "-u",
+    default="segment_update_worker",
+    help="User ID for the worker (default: segment_update_worker)"
+)
+@click.option(
+    "--polling_period", "-t",
+    type=float,
+    default=10.0,
+    help="Polling period in seconds (default: 10.0)"
+)
+@click.option(
+    "--server_address", "-s",
+    default="https://proofreading.zetta.ai",
+    help="Cave server address (default: https://proofreading.zetta.ai)"
+)
+@click.option(
+    "--max_retries", "-r",
+    type=int,
+    default=0,
+    help="Maximum retries before permanent failure (0 = unlimited)"
+)
+@click.option(
+    "--cleanup_interval_hours",
+    type=int,
+    default=24,
+    help="Hours between cleanup runs (default: 24)"
+)
+@click.option(
+    "--completed_cleanup_days",
+    type=int,
+    default=7,
+    help="Remove completed entries older than this many days (default: 7)"
+)
+def main(
+    project_name: str,
+    user_id: str,
+    polling_period: float,
+    server_address: str,
+    max_retries: int,
+    cleanup_interval_hours: int,
+    completed_cleanup_days: int,
+) -> None:
+    """Run the segment update background worker."""
+    run_segment_update_worker(
+        project_name=project_name,
+        user_id=user_id,
+        polling_period=polling_period,
+        server_address=server_address,
+        max_retries=max_retries,
+        cleanup_interval_hours=cleanup_interval_hours,
+        completed_cleanup_days=completed_cleanup_days,
+    )
+
+
+if __name__ == "__main__":
+    main()  # pylint: disable=no-value-for-parameter

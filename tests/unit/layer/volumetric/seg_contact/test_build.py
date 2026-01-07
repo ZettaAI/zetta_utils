@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 
@@ -415,3 +416,120 @@ def test_build_seg_contact_info_spec_from_info_path_only():
         # Verify make_info works
         info = spec.make_info()
         assert info["type"] == "seg_contact"
+
+
+def test_build_seg_contact_layer_read_with_local_point_clouds():
+    """Test read mode with local_point_clouds filter."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        make_backend(temp_dir)
+
+        layer = build_seg_contact_layer(path=temp_dir, mode="read", local_point_clouds=[(500, 64)])
+
+        assert layer.backend.local_point_clouds == [(500, 64)]
+
+
+def test_build_seg_contact_layer_write_with_local_point_clouds():
+    """Test write mode with local_point_clouds filter."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        bbox = BBox3D.from_coords([0, 0, 0], [32000, 32000, 40000], [16, 16, 40])
+        info_spec = SegContactInfoSpec(
+            info_spec_params=SegContactInfoSpecParams(
+                resolution=Vec3D(16, 16, 40),
+                chunk_size=Vec3D(256, 256, 128),
+                max_contact_span=512,
+                bbox=bbox,
+            )
+        )
+
+        layer = build_seg_contact_layer(
+            path=temp_dir,
+            mode="write",
+            info_spec=info_spec,
+            local_point_clouds=[(500, 64)],
+        )
+
+        assert layer.backend.local_point_clouds == [(500, 64)]
+
+
+def test_build_seg_contact_layer_update_with_info_spec():
+    """Test update mode with info_spec to update info file."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create initial layer
+        make_backend(temp_dir)
+
+        # Update with new info_spec
+        bbox = BBox3D.from_coords([0, 0, 0], [64000, 64000, 80000], [16, 16, 40])
+        info_spec = SegContactInfoSpec(
+            info_spec_params=SegContactInfoSpecParams(
+                resolution=Vec3D(16, 16, 40),
+                chunk_size=Vec3D(256, 256, 128),
+                max_contact_span=512,
+                bbox=bbox,
+                local_point_clouds=[{"radius_nm": 1000, "n_points": 128}],
+            )
+        )
+
+        layer = build_seg_contact_layer(
+            path=temp_dir,
+            mode="update",
+            info_spec=info_spec,
+            info_overwrite=True,
+        )
+
+        assert layer is not None
+        # Verify info was updated
+        with open(f"{temp_dir}/info", encoding="utf-8") as f:
+            info = json.load(f)
+        assert info["local_point_clouds"] == [{"radius_nm": 1000, "n_points": 128}]
+
+
+def test_build_seg_contact_layer_update_with_local_point_clouds():
+    """Test update mode with local_point_clouds filter."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        make_backend(temp_dir)
+
+        layer = build_seg_contact_layer(
+            path=temp_dir, mode="update", local_point_clouds=[(500, 64)]
+        )
+
+        assert layer.backend.local_point_clouds == [(500, 64)]
+
+
+def test_update_info_removing_pointcloud_config_fails_without_overwrite():
+    """Test that removing pointcloud configs fails without info_overwrite=True."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create initial layer with pointcloud config
+        bbox = BBox3D.from_coords([0, 0, 0], [64000, 64000, 80000], [16, 16, 40])
+        info_spec = SegContactInfoSpec(
+            info_spec_params=SegContactInfoSpecParams(
+                resolution=Vec3D(16, 16, 40),
+                chunk_size=Vec3D(256, 256, 128),
+                max_contact_span=512,
+                bbox=bbox,
+                local_point_clouds=[
+                    {"radius_nm": 500, "n_points": 64},
+                    {"radius_nm": 1000, "n_points": 128},
+                ],
+            )
+        )
+        build_seg_contact_layer(path=temp_dir, mode="write", info_spec=info_spec)
+
+        # Try to update with fewer pointcloud configs (removing one) without overwrite
+        new_info_spec = SegContactInfoSpec(
+            info_spec_params=SegContactInfoSpecParams(
+                resolution=Vec3D(16, 16, 40),
+                chunk_size=Vec3D(256, 256, 128),
+                max_contact_span=512,
+                bbox=bbox,
+                local_point_clouds=[{"radius_nm": 500, "n_points": 64}],  # Missing (1000, 128)
+            )
+        )
+
+        with pytest.raises(RuntimeError, match="Some pointcloud configs"):
+            build_seg_contact_layer(
+                path=temp_dir,
+                mode="update",
+                info_spec=new_info_spec,
+                info_overwrite=False,  # Should fail because we're removing a config
+                info_keep_existing_pointcloud_configs=False,  # Don't merge, so removal is detected
+            )

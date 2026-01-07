@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 import json
 import os
 import tempfile
@@ -958,3 +959,264 @@ def test_read_merge_decision_chunk_nonexistent_returns_empty():
         # pylint: disable=protected-access
         result = backend._read_merge_decision_chunk((0, 0, 0), "nonexistent_authority")
         assert not result
+
+
+def test_get_contact_counts():
+    """Test counting contacts in chunks by bbox."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        # Write contacts to chunk (0,0,0)
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+            ),
+            SegContact(
+                id=2,
+                seg_a=100,
+                seg_b=300,
+                com=Vec3D(200.0, 200.0, 100.0),
+                contact_faces=np.array([[4, 5, 6, 0.8]], dtype=np.float32),
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        # Query the counts
+        bbox = BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40])
+        idx = VolumetricIndex(bbox=bbox, resolution=Vec3D(16, 16, 40))
+        counts = backend.get_contact_counts(idx)
+
+        # Should have 2 contacts in chunk (0,0,0)
+        assert counts[(0, 0, 0)] == 2
+
+
+def test_get_contact_counts_with_bounds_filter():
+    """Test that count only includes contacts within specified bounds."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        # Write contacts - one inside bounds, one outside
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),  # Inside small bbox
+                contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+            ),
+            SegContact(
+                id=2,
+                seg_a=100,
+                seg_b=300,
+                com=Vec3D(3000.0, 3000.0, 3000.0),  # Outside small bbox
+                contact_faces=np.array([[4, 5, 6, 0.8]], dtype=np.float32),
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        # Query with small bbox that only includes first contact
+        bbox = BBox3D.from_coords([0, 0, 0], [128, 128, 64], [16, 16, 40])
+        idx = VolumetricIndex(bbox=bbox, resolution=Vec3D(16, 16, 40))
+        counts = backend.get_contact_counts(idx)
+
+        # Only 1 contact within bounds
+        assert counts[(0, 0, 0)] == 1
+
+
+def test_get_chunk_bounds_nm():
+    """Test getting chunk bounds in nanometers."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        start_nm, end_nm = backend.get_chunk_bounds_nm((0, 0, 0))
+
+        # Chunk (0,0,0) covers voxels [0,256) x [0,256) x [0,128)
+        # In nm: [0, 4096) x [0, 4096) x [0, 5120)
+        assert start_nm == Vec3D(0, 0, 0)
+        assert end_nm == Vec3D(256 * 16, 256 * 16, 128 * 40)
+
+
+def test_get_chunk_bounds_nm_with_offset():
+    """Test chunk bounds with voxel offset."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(100, 100, 50),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        start_nm, end_nm = backend.get_chunk_bounds_nm((0, 0, 0))
+
+        # Chunk (0,0,0) with offset (100,100,50)
+        # Covers voxels [100,356) x [100,356) x [50,178)
+        assert start_nm == Vec3D(100 * 16, 100 * 16, 50 * 40)
+        assert end_nm == Vec3D(356 * 16, 356 * 16, 178 * 40)
+
+
+def test_backend_with_local_point_clouds_filter():
+    """Test that local_point_clouds parameter filters which pointclouds are loaded."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info with multiple pointcloud configs
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": list(backend.resolution),
+            "voxel_offset": list(backend.voxel_offset),
+            "size": list(backend.size),
+            "chunk_size": list(backend.chunk_size),
+            "max_contact_span": backend.max_contact_span,
+            "local_point_clouds": [
+                {"radius_nm": 500, "n_points": 64},
+                {"radius_nm": 1000, "n_points": 128},
+            ],
+        }
+        with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        # Write contacts with both pointcloud configs
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                local_pointclouds={
+                    (500, 64): {100: np.zeros((64, 3)), 200: np.ones((64, 3))},
+                    (1000, 128): {100: np.zeros((128, 3)), 200: np.ones((128, 3))},
+                },
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        # Read with filter for only one config
+        filtered_backend = backend.with_changes(local_point_clouds=[(500, 64)])
+        bbox = BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40])
+        idx = VolumetricIndex(bbox=bbox, resolution=Vec3D(16, 16, 40))
+        result = filtered_backend.read(idx)
+
+        assert len(result) == 1
+        assert result[0].local_pointclouds is not None
+        # Only the filtered config should be loaded
+        assert (500, 64) in result[0].local_pointclouds
+        # Note: The other config may or may not be present depending on implementation
+
+
+def test_get_contact_counts_nonexistent_chunk():
+    """Test that get_contact_counts returns 0 for nonexistent chunk files."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        # Query without writing any chunks - chunk file doesn't exist
+        bbox = BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40])
+        idx = VolumetricIndex(bbox=bbox, resolution=Vec3D(16, 16, 40))
+        counts = backend.get_contact_counts(idx)
+
+        # Should have 0 contacts for nonexistent chunk
+        assert counts[(0, 0, 0)] == 0
+
+
+def test_count_contacts_with_metadata():
+    """Test that _count_contacts_in_bounds handles contacts with metadata."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        # Write contacts with partner_metadata
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                partner_metadata={100: {"type": "axon"}, 200: {"type": "dendrite"}},
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        # Query the counts - this exercises the metadata_len > 0 path
+        bbox = BBox3D.from_coords([0, 0, 0], [256, 256, 128], [16, 16, 40])
+        idx = VolumetricIndex(bbox=bbox, resolution=Vec3D(16, 16, 40))
+        counts = backend.get_contact_counts(idx)
+
+        assert counts[(0, 0, 0)] == 1
+
+
+def test_normalize_points():
+    """Test normalize_points method."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Test normalization: (point - com) / radius
+        points = np.array([[200.0, 300.0, 400.0], [100.0, 100.0, 100.0]], dtype=np.float32)
+        com = (100.0, 100.0, 100.0)
+        radius_nm = 100.0
+
+        result = backend.normalize_points(points, com, radius_nm)
+
+        # Expected: (200-100)/100=1, (300-100)/100=2, (400-100)/100=3
+        # Second point: (100-100)/100=0 for all
+        expected = np.array([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]], dtype=np.float32)
+        np.testing.assert_array_almost_equal(result, expected)

@@ -42,7 +42,7 @@ class SQSQueue(MessageQueue[T]):
     insertion_threads: int = 5
     _queue: Any = attrs.field(init=False, default=None)
     pull_wait_sec: int = 0
-    pull_lease_sec: int = 10  # TODO: get a better value
+    pull_lease_sec: int = 30
 
     def _get_tq_queue(self) -> Any:
         if self._queue is None:

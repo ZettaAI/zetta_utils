@@ -53,8 +53,10 @@ async def check_authorized_user(request: Request, call_next):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             return Response(content=str(exc), status_code=401)
 
-        if not idinfo["email"].endswith("@zetta.ai"):
-            return Response(content="User not authorized.", status_code=401)
+        # TODO: re-enable user authorization checks
+        # if not idinfo["email"].endswith("@zetta.ai"):
+        #     return Response(content="User not authorized.", status_code=401)
+
         #  user = f"user:{idinfo['email']}"
         # client = iap_v1.IdentityAwareProxyAdminServiceClient()
 

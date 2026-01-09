@@ -1319,7 +1319,7 @@ webencodings==0.5.1
     # via html5lib
 websocket-client==1.9.0
     # via kubernetes
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   zetta-utils (pyproject.toml)
     #   flask

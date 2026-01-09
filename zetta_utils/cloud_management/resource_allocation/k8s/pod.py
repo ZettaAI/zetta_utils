@@ -14,7 +14,7 @@ from kubernetes import config, watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
 
-from .common import DEFAULT_POD_PRIORITY, ClusterInfo, get_cluster_data
+from .common import ClusterInfo, get_cluster_data
 from .secret import get_worker_env_vars
 
 logger = log.get_logger("zetta_utils")
@@ -39,7 +39,6 @@ def get_pod_spec(
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
-    priority: Optional[int] = DEFAULT_POD_PRIORITY,
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
@@ -112,7 +111,6 @@ def get_pod_spec(
         host_network=host_network,
         host_aliases=host_aliases,
         node_selector=node_selector,
-        priority=priority,
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},

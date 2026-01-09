@@ -23,7 +23,6 @@ logger = log.get_logger("zetta_utils")
 DEFAULT_CLUSTER_NAME: Final = "zutils-x3"
 DEFAULT_CLUSTER_REGION: Final = "us-east1"
 DEFAULT_CLUSTER_PROJECT: Final = "zetta-research"
-DEFAULT_POD_PRIORITY: Final = 1000000000
 
 
 @builder.register("mazepa.k8s.ClusterInfo")

@@ -265,17 +265,23 @@ class TestPCGListenerStress:  # pylint: disable=attribute-defined-outside-init
                     payload=payload,
                     acknowledge_fn=Mock()))
 
-        # Mock API responses
+        # Mock API responses - patch where the functions are imported/used
         with patch("zetta_utils.task_management.automated_workers."
                    "pcg_edit_listener.get_old_roots_from_lineage_graph") as mock_lineage, \
              patch("zetta_utils.task_management.automated_workers."
                    "pcg_edit_listener.get_supervoxel_ids_from_segment") as mock_supervoxels, \
-             patch("zetta_utils.task_management.supervoxel.update_supervoxels_for_merge"
-                   ) as mock_merge, \
-             patch("zetta_utils.task_management.supervoxel.update_supervoxels_for_split"
-                   ) as mock_split, \
-             patch("zetta_utils.task_management.supervoxel.get_supervoxels_by_segment"
-                   ) as mock_get_sv:
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.update_supervoxels_for_merge") as mock_merge, \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.update_supervoxels_for_split") as mock_split, \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.get_supervoxels_by_segment") as mock_get_sv, \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener.queue_segment_updates_for_segments") as _mq, \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener._find_moved_seed_ids") as _mock_find_seeds, \
+             patch("zetta_utils.task_management.automated_workers."
+                   "pcg_edit_listener._apply_merge_updates") as _mock_apply_merge:
 
             mock_lineage.return_value = {100000: [50000, 50001]}
             mock_supervoxels.return_value = [1, 2, 3, 4, 5]

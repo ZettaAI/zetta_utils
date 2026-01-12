@@ -21,5 +21,7 @@ class Timer:  # pragma: no cover
 
 class RepeatTimer(threading.Timer):
     def run(self):
-        while not self.finished.wait(self.interval):
+        while True:
             self.function(*self.args, **self.kwargs)
+            if self.finished.wait(self.interval):
+                break

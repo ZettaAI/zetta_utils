@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import ctypes
 import math
 import sys
+import threading
 import time
 import traceback
 from typing import Any, Callable, Optional
-
-import tenacity
 
 from zetta_utils import builder, log
 from zetta_utils.common import RepeatTimer, monitor_resources
@@ -17,6 +17,7 @@ from zetta_utils.mazepa.task_outcome import OutcomeReport, TaskOutcome
 from zetta_utils.mazepa.transient_errors import (
     MAX_TRANSIENT_RETRIES,
     TRANSIENT_ERROR_CONDITIONS,
+    ExplicitTransientError,
 )
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
 
@@ -110,9 +111,7 @@ def _process_task_batch(
                     outcome = TaskOutcome(exception=MazepaCancel())
 
                 if ack_task:
-                    outcome_report = OutcomeReport(
-                        task_id=msg.payload.id_, outcome=outcome
-                    )
+                    outcome_report = OutcomeReport(task_id=msg.payload.id_, outcome=outcome)
                     outcome_queue.push([outcome_report])
                     msg.acknowledge_fn()
 
@@ -159,9 +158,7 @@ def run_worker(
         activity_tracker = PoolActivityTracker(pool_name) if pool_name else None
 
         while True:
-            task_msgs = _pull_tasks_with_error_handling(
-                task_queue, outcome_queue, max_pull_num
-            )
+            task_msgs = _pull_tasks_with_error_handling(task_queue, outcome_queue, max_pull_num)
 
             if len(task_msgs) == 0:
                 _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
@@ -208,15 +205,34 @@ def process_task_message(
     return finished_processing, outcome
 
 
+def _raise_exception_in_thread(thread_id: int, exception_type: type[BaseException]):
+    """Raise an exception in another thread using ctypes."""
+    ret = ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_ulong(thread_id), ctypes.py_object(exception_type)
+    )
+    if ret == 0:
+        raise ValueError(f"Invalid thread id: {thread_id}")
+    if ret > 1:  # pragma: no cover
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(thread_id), None)
+        raise SystemError("Exception raise affected multiple threads")
+
+
 def _run_task_with_upkeep(
     task: Task, extend_lease_fn: Callable, debug: bool, handle_exceptions: bool
 ) -> TaskOutcome:
+    main_thread_id = threading.current_thread().ident
+    assert main_thread_id is not None
+
     def _perform_upkeep_callbacks():
         assert task.upkeep_settings.interval_sec is not None
         try:
-            extend_lease_fn(math.ceil(task.upkeep_settings.interval_sec * 5))
-        except tenacity.RetryError as e:  # pragma: no cover
-            logger.info(f"Couldn't perform upkeep: {e}")
+            extend_lease_fn(math.ceil(task.upkeep_settings.interval_sec * 10))
+            print("Upkeep successful.")
+            logger.info("Upkeep successful.")
+        except Exception as e:  # pragma: no cover # pylint: disable=broad-except
+            tb_str = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            logger.error(f"Couldn't perform upkeep: {e}\n{tb_str}")
+            _raise_exception_in_thread(main_thread_id, ExplicitTransientError)
 
     assert task.upkeep_settings.interval_sec is not None
     upkeep = RepeatTimer(task.upkeep_settings.interval_sec, _perform_upkeep_callbacks)

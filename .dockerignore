@@ -4,7 +4,6 @@ notebooks/
 layer/
 tests/
 *.tif
-*.txt
 *.json
 *.csv
 *.log

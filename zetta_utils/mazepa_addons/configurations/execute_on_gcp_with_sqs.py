@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import os
 import threading
+import time
 from contextlib import AbstractContextManager, ExitStack
 from typing import Any, Final, Iterable, Literal, Optional, TypedDict, Union
 
@@ -348,3 +349,5 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
                 write_progress_summary=write_progress_summary,
                 require_interrupt_confirm=require_interrupt_confirm,
             )
+        logger.info("Waiting 10s for worker logs to propagate to count class A/B requests.")
+        time.sleep(1800)  # wait for logs from worker to propagate

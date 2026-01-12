@@ -72,6 +72,7 @@ def _get_sqs_trigger_auth_manifest(run_id: str, name: str) -> dict:
 
 def _get_scaled_object_manifest(
     run_id: str,
+    group_name: str,
     triggers: list[dict],
     target_name: str,
     target_kind: str | None = "Deployment",
@@ -83,11 +84,11 @@ def _get_scaled_object_manifest(
     """
     Create manifest for Keda ScaledObject.
     """
-    name = f"run-{run_id}-scaledobject"
+    name = f"run-{run_id}-{group_name}-so"
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_SCALED_OBJECT.value,
-        "metadata": {"name": name, "annotations": {}, "labels": {"run_id": run_id}},
+        "metadata": {"name": name, "annotations": {}},
         "spec": {
             "scaleTargetRef": {
                 "kind": target_kind,
@@ -106,6 +107,7 @@ def _get_scaled_object_manifest(
 
 def _get_scaled_job_manifest(
     run_id: str,
+    group_name: str,
     triggers: list[dict],
     job_spec: k8s_client.V1JobSpec,
     min_replicas: int = 0,
@@ -117,13 +119,19 @@ def _get_scaled_job_manifest(
     Create manifest for Keda ScaledObject.
     """
     api = ApiClient()
-    name = f"run-{run_id}-sj"
+    job_spec_serialized = api.sanitize_for_serialization(job_spec)
+    try:
+        job_spec_serialized["template"]["metadata"]["labels"] = {"app": run_id}
+    except KeyError:
+        job_spec_serialized["template"]["metadata"] = {"labels": {"app": run_id}}
+
+    name = f"run-{run_id}-{group_name}-sj"
     manifest = {
         "apiVersion": KEDA_API_VERSION,
         "kind": ResourceTypes.K8S_SCALED_JOB.value,
-        "metadata": {"name": name, "annotations": {}, "labels": {"run_id": run_id}},
+        "metadata": {"name": name, "annotations": {}, "labels": {"app": run_id}},
         "spec": {
-            "jobTargetRef": api.sanitize_for_serialization(job_spec),
+            "jobTargetRef": job_spec_serialized,
             "pollingInterval": polling_interval,
             "minReplicaCount": min_replicas,
             "maxReplicaCount": max_replicas,
@@ -183,6 +191,7 @@ def sqs_trigger_ctx_mngr(
 @contextmanager
 def scaled_deployment_ctx_mngr(
     run_id: str,
+    group_name: str,
     cluster_info: ClusterInfo,
     deployment: k8s_client.V1Deployment,
     secrets: list[k8s_client.V1Secret],
@@ -196,6 +205,7 @@ def scaled_deployment_ctx_mngr(
     with deployment_ctx_mngr(run_id, cluster_info, deployment, secrets, namespace=namespace):
         manifest = _get_scaled_object_manifest(
             run_id,
+            group_name,
             [_get_sqs_trigger(sqs_trigger_name, queue)],
             target_name=deployment.metadata.name,
             max_replicas=max_replicas,
@@ -234,7 +244,8 @@ def scaled_job_ctx_mngr(
     configuration, _ = get_cluster_data(cluster_info)
     with secrets_ctx_mngr(run_id, secrets, cluster_info, namespace=namespace):
         manifest = _get_scaled_job_manifest(
-            f"{run_id}-{group_name}",
+            run_id,
+            group_name,
             [_get_sqs_trigger(sqs_trigger_name, queue)],
             job_spec=job_spec,
             max_replicas=max_replicas,

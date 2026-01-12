@@ -462,7 +462,7 @@ def _lightning_train_remote(
         pod_spec=train_pod_spec,
         backoff_limit=retry_count,
         pod_failure_policy=train_job_failure_policy,
-        labels={"run_id": run.RUN_ID},
+        labels={"app": run.RUN_ID},
     )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         run_id=run.RUN_ID,
@@ -510,7 +510,7 @@ def _lightning_train_remote(
                 name=f"{run.RUN_ID}-workers",
                 pod_spec=worker_pod_spec,
                 replicas=num_nodes - 1,
-                labels={"run_id": run.RUN_ID},
+                labels={"app": run.RUN_ID},
             )
 
             workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(

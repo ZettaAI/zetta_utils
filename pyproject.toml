@@ -137,6 +137,7 @@ mazepa-addons = [
   "google-api-python-client",
   "google-cloud-compute",
   "google-cloud-billing",
+  "google-cloud-monitoring",
 ]
 meshing = [
   "zetta_utils[cloudvol, databackends, mazepa]",

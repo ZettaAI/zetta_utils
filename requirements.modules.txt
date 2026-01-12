@@ -28,7 +28,7 @@ attrs==25.4.0
     #   caveclient
     #   jsonschema
     #   referencing
-awscli==1.43.14
+awscli==1.43.15
     # via zetta-utils (pyproject.toml)
 blinker==1.9.0
     # via flask
@@ -39,13 +39,13 @@ blosc==1.11.3
     #   meshparty
 blosc2==3.12.2
     # via tables
-boto3==1.42.8
+boto3==1.42.9
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
     #   cloud-volume
     #   task-queue
-botocore==1.42.8
+botocore==1.42.9
     # via
     #   awscli
     #   boto3
@@ -55,7 +55,7 @@ brotli==1.2.0
     #   cloud-files
     #   mapbuffer
     #   urllib3
-cachetools==6.2.2
+cachetools==6.2.3
     # via
     #   zetta-utils (pyproject.toml)
     #   caveclient
@@ -128,7 +128,7 @@ crc32c==2.8
     #   mapbuffer
 cycler==0.12.1
     # via matplotlib
-cython==3.2.2
+cython==3.2.3
     # via
     #   abiss
     #   lsds
@@ -195,9 +195,9 @@ flask==3.1.2
     #   zetta-utils (pyproject.toml)
     #   flask-cors
     #   middle-auth-client
-flask-cors==6.0.1
+flask-cors==6.0.2
     # via zetta-utils (pyproject.toml)
-fonttools==4.61.0
+fonttools==4.61.1
     # via matplotlib
 fpzip==1.2.5
     # via cloud-volume
@@ -235,6 +235,7 @@ google-api-core==2.28.1
     #   google-cloud-core
     #   google-cloud-datastore
     #   google-cloud-firestore
+    #   google-cloud-monitoring
     #   google-cloud-pubsub
     #   google-cloud-storage
     #   google-cloud-storage-control
@@ -259,6 +260,7 @@ google-auth==2.43.0
     #   google-cloud-core
     #   google-cloud-datastore
     #   google-cloud-firestore
+    #   google-cloud-monitoring
     #   google-cloud-pubsub
     #   google-cloud-storage
     #   google-cloud-storage-control
@@ -291,6 +293,8 @@ google-cloud-datastore==2.21.0
     #   zetta-utils (pyproject.toml)
     #   datastoreflex
 google-cloud-firestore==2.21.0
+    # via zetta-utils (pyproject.toml)
+google-cloud-monitoring==2.28.0
     # via zetta-utils (pyproject.toml)
 google-cloud-pubsub==2.33.0
     # via messagingclient
@@ -332,6 +336,7 @@ grpcio==1.76.0
     #   google-cloud-billing
     #   google-cloud-compute
     #   google-cloud-container
+    #   google-cloud-monitoring
     #   google-cloud-pubsub
     #   google-cloud-storage-control
     #   googleapis-common-protos
@@ -403,7 +408,7 @@ jmespath==1.0.1
     # via
     #   boto3
     #   botocore
-joblib==1.5.2
+joblib==1.5.3
     # via
     #   intern
     #   scikit-learn
@@ -742,6 +747,7 @@ proto-plus==1.26.1
     #   google-cloud-container
     #   google-cloud-datastore
     #   google-cloud-firestore
+    #   google-cloud-monitoring
     #   google-cloud-pubsub
     #   google-cloud-storage-control
 protobuf==6.33.2
@@ -756,6 +762,7 @@ protobuf==6.33.2
     #   google-cloud-container
     #   google-cloud-datastore
     #   google-cloud-firestore
+    #   google-cloud-monitoring
     #   google-cloud-pubsub
     #   google-cloud-storage-control
     #   googleapis-common-protos
@@ -980,11 +987,11 @@ tenacity==9.1.2
     #   cloud-files
     #   cloud-volume
     #   task-queue
-tensorstore==0.1.79
+tensorstore==0.1.80
     # via zetta-utils (pyproject.toml)
 threadpoolctl==3.6.0
     # via scikit-learn
-tifffile==2025.10.16
+tifffile==2025.12.12
     # via scikit-image
 tinybrain==1.7.0
     # via zetta-utils (pyproject.toml)
@@ -1063,7 +1070,7 @@ typing-extensions==4.15.0
     #   wandb
 typing-inspection==0.4.2
     # via pydantic
-tzdata==2025.2
+tzdata==2025.3
     # via pandas
 uritemplate==4.2.0
     # via google-api-python-client

@@ -18,7 +18,7 @@ def get_engine(engine_url: str | None = None) -> Engine:
     """
     if engine_url is None:
         user = "postgres"
-        host = "35.237.17.67"
+        host = os.getenv("DB_HOST")
         port = "5432"
         database = "postgres"
         password = os.getenv("DB_PASSWORD")

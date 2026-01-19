@@ -371,6 +371,7 @@ def test_seg_contact_info_spec_make_info_with_optional_paths():
             image_path="gs://bucket/img",
             local_point_clouds=[{"radius_nm": 500, "n_points": 64}],
             merge_decisions=["human"],
+            merge_probabilities=["model_v1"],
             filter_settings={"min_affinity": 0.5},
         )
     )
@@ -383,6 +384,7 @@ def test_seg_contact_info_spec_make_info_with_optional_paths():
     assert info["image_path"] == "gs://bucket/img"
     assert info["local_point_clouds"] == [{"radius_nm": 500, "n_points": 64}]
     assert info["merge_decisions"] == ["human"]
+    assert info["merge_probabilities"] == ["model_v1"]
     assert info["filter_settings"] == {"min_affinity": 0.5}
 
 

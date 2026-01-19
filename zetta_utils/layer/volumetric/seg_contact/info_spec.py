@@ -40,6 +40,7 @@ class SegContactInfoSpecParams:
     image_path: str | None = None
     local_point_clouds: list[dict] | None = None
     merge_decisions: list[str] | None = None
+    merge_probabilities: list[str] | None = None
     filter_settings: dict | None = None
 
     @classmethod
@@ -56,6 +57,7 @@ class SegContactInfoSpecParams:
         image_path: str | None = None,
         local_point_clouds: list[dict] | None = None,
         merge_decisions: list[str] | None = None,
+        merge_probabilities: list[str] | None = None,
         filter_settings: dict | None = None,
     ) -> SegContactInfoSpecParams:
         """Create params from a source seg_contact layer path."""
@@ -87,6 +89,8 @@ class SegContactInfoSpecParams:
             local_point_clouds = ref_info.get("local_point_clouds")
         if merge_decisions is None:
             merge_decisions = ref_info.get("merge_decisions")
+        if merge_probabilities is None:
+            merge_probabilities = ref_info.get("merge_probabilities")
         if filter_settings is None:
             filter_settings = ref_info.get("filter_settings")
 
@@ -101,6 +105,7 @@ class SegContactInfoSpecParams:
             image_path=image_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
+            merge_probabilities=merge_probabilities,
             filter_settings=filter_settings,
         )
 
@@ -149,6 +154,8 @@ class SegContactInfoSpec:
                 info["local_point_clouds"] = params.local_point_clouds
             if params.merge_decisions:
                 info["merge_decisions"] = params.merge_decisions
+            if params.merge_probabilities:
+                info["merge_probabilities"] = params.merge_probabilities
             if params.filter_settings:
                 info["filter_settings"] = params.filter_settings
             return info
@@ -220,6 +227,7 @@ def build_seg_contact_info_spec(
     image_path: str | None = None,
     local_point_clouds: list[dict] | None = None,
     merge_decisions: list[str] | None = None,
+    merge_probabilities: list[str] | None = None,
     filter_settings: dict | None = None,
 ) -> SegContactInfoSpec:
     """Build a SegContactInfoSpec for use in specs.
@@ -236,6 +244,7 @@ def build_seg_contact_info_spec(
     :param image_path: Path to image layer for visualization.
     :param local_point_clouds: List of pointcloud configs [{radius_nm, n_points}].
     :param merge_decisions: List of merge decision authority names.
+    :param merge_probabilities: List of merge probability authority names.
     :param filter_settings: Filter parameters used during generation.
     :return: SegContactInfoSpec instance.
     """
@@ -257,6 +266,7 @@ def build_seg_contact_info_spec(
             image_path=image_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
+            merge_probabilities=merge_probabilities,
             filter_settings=filter_settings,
         )
     else:
@@ -276,6 +286,7 @@ def build_seg_contact_info_spec(
             image_path=image_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
+            merge_probabilities=merge_probabilities,
             filter_settings=filter_settings,
         )
 

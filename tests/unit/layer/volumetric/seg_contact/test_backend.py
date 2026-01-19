@@ -232,6 +232,10 @@ def make_seg_contact(
         seg_b=seg_b,
         com=Vec3D(*com),
         contact_faces=contact_faces,
+        representative_points={
+            seg_a: Vec3D(com[0] - 10.0, com[1] - 10.0, com[2] - 10.0),
+            seg_b: Vec3D(com[0] + 10.0, com[1] + 10.0, com[2] + 10.0),
+        },
     )
 
 
@@ -372,6 +376,7 @@ def test_write_read_chunk_with_partner_metadata():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             partner_metadata={100: {"type": "axon"}, 200: {"type": "dendrite"}},
         )
         backend.write_chunk((0, 0, 0), [contact])
@@ -403,6 +408,7 @@ def test_write_read_chunk_with_no_partner_metadata():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             partner_metadata=None,
         )
         backend.write_chunk((0, 0, 0), [contact])
@@ -433,6 +439,7 @@ def test_write_read_chunk_large_contact_faces():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=contact_faces,
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
         )
         backend.write_chunk((0, 0, 0), [contact])
 
@@ -654,6 +661,7 @@ def test_pointclouds_written_to_separate_directory():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             local_pointclouds={
                 (200, 100): {100: pointcloud_a, 200: pointcloud_b},
             },
@@ -686,6 +694,7 @@ def test_merge_decisions_written_to_separate_directory():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             merge_decisions={"ground_truth": True, "model_v1": False},
         )
         backend.write_chunk((0, 0, 0), [contact])
@@ -720,6 +729,7 @@ def test_contacts_directory_has_no_pointclouds():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             local_pointclouds={
                 (200, 1000): {100: pointcloud_a, 200: pointcloud_b},
             },
@@ -727,7 +737,8 @@ def test_contacts_directory_has_no_pointclouds():
         backend.write_chunk((0, 0, 0), [contact])
 
         # The contacts chunk file should be small (no embedded pointclouds)
-        # Core: 4 (header) + 24 (ids) + 12 (com) + 4 (n_faces) + 16 (1 face) + 4 (meta) = ~64B
+        # Core: 4 (header) + 24 (ids) + 12 (com) + 4 (n_faces) + 16 (1 face)
+        #       + 4 (meta) + 24 (rep_pts) = ~88B
         # With pointclouds: 64 + 2 * 1000 * 3 * 4 = ~24064 bytes
         chunk_path = backend.get_chunk_path((0, 0, 0))
         file_size = os.path.getsize(chunk_path)
@@ -775,6 +786,7 @@ def test_round_trip_with_pointclouds_and_decisions():
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             local_pointclouds={
                 (200, 100): {100: pointcloud_a, 200: pointcloud_b},
             },
@@ -982,6 +994,10 @@ def test_get_contact_counts():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
             ),
             SegContact(
                 id=2,
@@ -989,6 +1005,10 @@ def test_get_contact_counts():
                 seg_b=300,
                 com=Vec3D(200.0, 200.0, 100.0),
                 contact_faces=np.array([[4, 5, 6, 0.8]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(190.0, 190.0, 90.0),
+                    300: Vec3D(210.0, 210.0, 110.0),
+                },
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
@@ -1023,6 +1043,10 @@ def test_get_contact_counts_with_bounds_filter():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),  # Inside small bbox
                 contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
             ),
             SegContact(
                 id=2,
@@ -1030,6 +1054,10 @@ def test_get_contact_counts_with_bounds_filter():
                 seg_b=300,
                 com=Vec3D(3000.0, 3000.0, 3000.0),  # Outside small bbox
                 contact_faces=np.array([[4, 5, 6, 0.8]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(2990.0, 2990.0, 2990.0),
+                    300: Vec3D(3010.0, 3010.0, 3010.0),
+                },
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
@@ -1120,6 +1148,10 @@ def test_backend_with_local_point_clouds_filter():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {100: np.zeros((64, 3)), 200: np.ones((64, 3))},
                     (1000, 128): {100: np.zeros((128, 3)), 200: np.ones((128, 3))},
@@ -1184,6 +1216,10 @@ def test_count_contacts_with_metadata():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 partner_metadata={100: {"type": "axon"}, 200: {"type": "dendrite"}},
             ),
         ]
@@ -1220,3 +1256,243 @@ def test_normalize_points():
         # Second point: (100-100)/100=0 for all
         expected = np.array([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0]], dtype=np.float32)
         np.testing.assert_array_almost_equal(result, expected)
+
+
+# --- Merge probabilities tests ---
+
+
+def test_merge_probabilities_written_to_separate_directory():
+    """Test that merge_probabilities are written to merge_probabilities/{authority}/ directory."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            merge_probabilities={"model_v1": 0.85, "model_v2": 0.32},
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Verify directory structure for each authority
+        for authority in ["model_v1", "model_v2"]:
+            authority_dir = os.path.join(temp_dir, "merge_probabilities", authority)
+            assert os.path.exists(authority_dir), f"Expected {authority_dir} to exist"
+
+            chunk_file = os.path.join(authority_dir, "0-256_0-256_0-128")
+            assert os.path.exists(chunk_file), f"Expected {chunk_file} to exist"
+
+
+def test_round_trip_with_merge_probabilities():
+    """Test round-trip with merge_probabilities."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with merge_probabilities config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "merge_probabilities": ["model_v1", "model_v2"],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            merge_probabilities={"model_v1": 0.85, "model_v2": 0.32},
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Read back
+        contacts_read = backend.read_chunk((0, 0, 0))
+
+        assert len(contacts_read) == 1
+        c = contacts_read[0]
+        assert c.merge_probabilities is not None
+        assert abs(c.merge_probabilities["model_v1"] - 0.85) < 0.001
+        assert abs(c.merge_probabilities["model_v2"] - 0.32) < 0.001
+
+
+def test_read_merge_probability_chunk_nonexistent_returns_empty():
+    """Test _read_merge_probability_chunk returns empty list when file doesn't exist."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # pylint: disable=protected-access
+        result = backend._read_merge_probability_chunk((0, 0, 0), "nonexistent_authority")
+        assert not result
+
+
+# --- Representative points tests ---
+
+
+def test_representative_points_stored_in_contacts_file():
+    """Test that representative_points are stored in the contacts file, not separately."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={
+                100: Vec3D(90.0, 95.0, 98.0),
+                200: Vec3D(110.0, 105.0, 102.0),
+            },
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Verify contacts file exists (representative_points should be inside)
+        contacts_dir = os.path.join(temp_dir, "contacts")
+        assert os.path.exists(contacts_dir), f"Expected {contacts_dir} to exist"
+
+        chunk_file = os.path.join(contacts_dir, "0-256_0-256_0-128")
+        assert os.path.exists(chunk_file), f"Expected {chunk_file} to exist"
+
+        # Verify no separate representative_points directory
+        rep_points_dir = os.path.join(temp_dir, "representative_points")
+        assert not os.path.exists(
+            rep_points_dir
+        ), "Should not have separate representative_points dir"
+
+
+def test_round_trip_with_representative_points():
+    """Test round-trip with representative_points."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={
+                100: Vec3D(90.0, 95.0, 98.0),
+                200: Vec3D(110.0, 105.0, 102.0),
+            },
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Read back
+        contacts_read = backend.read_chunk((0, 0, 0))
+
+        assert len(contacts_read) == 1
+        c = contacts_read[0]
+        assert c.representative_points is not None
+        assert c.representative_points[100] == Vec3D(90.0, 95.0, 98.0)
+        assert c.representative_points[200] == Vec3D(110.0, 105.0, 102.0)
+
+
+def test_round_trip_with_all_new_fields():
+    """Test round-trip with both merge_probabilities and representative_points."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with merge_probabilities config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "merge_probabilities": ["model_v1"],
+            "merge_decisions": ["ground_truth"],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            merge_decisions={"ground_truth": True},
+            merge_probabilities={"model_v1": 0.92},
+            representative_points={
+                100: Vec3D(90.0, 95.0, 98.0),
+                200: Vec3D(110.0, 105.0, 102.0),
+            },
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Read back
+        contacts_read = backend.read_chunk((0, 0, 0))
+
+        assert len(contacts_read) == 1
+        c = contacts_read[0]
+
+        # Verify merge_decisions
+        assert c.merge_decisions == {"ground_truth": True}
+
+        # Verify merge_probabilities
+        assert c.merge_probabilities is not None
+        assert abs(c.merge_probabilities["model_v1"] - 0.92) < 0.001
+
+        # Verify representative_points
+        assert c.representative_points is not None
+        assert c.representative_points[100] == Vec3D(90.0, 95.0, 98.0)
+        assert c.representative_points[200] == Vec3D(110.0, 105.0, 102.0)

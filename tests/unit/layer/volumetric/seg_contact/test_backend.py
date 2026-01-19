@@ -1496,3 +1496,453 @@ def test_round_trip_with_all_new_fields():
         assert c.representative_points is not None
         assert c.representative_points[100] == Vec3D(90.0, 95.0, 98.0)
         assert c.representative_points[200] == Vec3D(110.0, 105.0, 102.0)
+
+
+# --- Representative supervoxels tests ---
+
+
+def test_round_trip_with_representative_supervoxels():
+    """Test round-trip with representative_supervoxels."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            representative_supervoxels={100: 1000001, 200: 2000002},
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Read back
+        contacts_read = backend.read_chunk((0, 0, 0))
+
+        assert len(contacts_read) == 1
+        c = contacts_read[0]
+        assert c.representative_supervoxels is not None
+        assert c.representative_supervoxels[100] == 1000001
+        assert c.representative_supervoxels[200] == 2000002
+
+
+def test_representative_supervoxels_written_to_separate_directory():
+    """Test representative_supervoxels are written to representative_supervoxels/ dir."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            representative_supervoxels={100: 1000001, 200: 2000002},
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Verify directory structure
+        supervoxels_dir = os.path.join(temp_dir, "representative_supervoxels")
+        assert os.path.exists(supervoxels_dir), f"Expected {supervoxels_dir} to exist"
+
+        chunk_file = os.path.join(supervoxels_dir, "0-256_0-256_0-128")
+        assert os.path.exists(chunk_file), f"Expected {chunk_file} to exist"
+
+
+def test_read_representative_supervoxels_chunk_nonexistent_returns_empty():
+    """Test _read_representative_supervoxels_chunk returns empty list when file doesn't exist."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # pylint: disable=protected-access
+        result = backend._read_representative_supervoxels_chunk((0, 0, 0))
+        assert not result
+
+
+def test_contact_without_representative_supervoxels():
+    """Test that contacts without representative_supervoxels don't write to supervoxels dir."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            representative_supervoxels=None,
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Verify no supervoxels directory created
+        supervoxels_dir = os.path.join(temp_dir, "representative_supervoxels")
+        assert not os.path.exists(supervoxels_dir)
+
+
+# --- Edge case tests for coverage ---
+
+
+def test_pointclouds_skip_when_one_segment_missing():
+    """Test that pointclouds are skipped when one segment's points are None."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with pointcloud config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "local_point_clouds": [{"radius_nm": 200, "n_points": 100}],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        pointcloud_a = np.random.rand(100, 3).astype(np.float32)
+
+        # Contact with only one segment having pointcloud
+        contact = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            local_pointclouds={
+                (200, 100): {100: pointcloud_a},  # Missing 200's points
+            },
+        )
+        backend.write_chunk((0, 0, 0), [contact])
+
+        # Verify no pointcloud file written (since seg_b has no points)
+        pointcloud_dir = os.path.join(temp_dir, "local_point_clouds", "200nm_100pts")
+        assert not os.path.exists(pointcloud_dir)
+
+
+def test_attach_pointclouds_skips_unknown_contact_ids():
+    """Test that _attach_pointclouds skips unknown contact_ids."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with pointcloud config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "local_point_clouds": [{"radius_nm": 200, "n_points": 100}],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        pointcloud_a = np.random.rand(100, 3).astype(np.float32)
+        pointcloud_b = np.random.rand(100, 3).astype(np.float32)
+
+        contact1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            local_pointclouds={(200, 100): {100: pointcloud_a, 200: pointcloud_b}},
+        )
+        contact2 = SegContact(
+            id=2,
+            seg_a=300,
+            seg_b=400,
+            com=Vec3D(200.0, 200.0, 200.0),
+            contact_faces=np.array([[200, 200, 200, 0.6]], dtype=np.float32),
+            representative_points={
+                300: Vec3D(190.0, 190.0, 190.0),
+                400: Vec3D(210.0, 210.0, 210.0),
+            },
+            local_pointclouds={(200, 100): {300: pointcloud_a, 400: pointcloud_b}},
+        )
+        backend.write_chunk((0, 0, 0), [contact1, contact2])
+
+        # Now manually call _attach_pointclouds with only contact1 in lookup
+        # This simulates a case where pointcloud file has more contacts than the lookup
+        contact_only_1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+        )
+        contact_lookup = {1: contact_only_1}  # Only contact 1, not 2
+
+        # pylint: disable=protected-access
+        backend._attach_pointclouds((0, 0, 0), contact_lookup, info)
+
+        # Should not crash, and contact 1 should have pointclouds attached
+        assert contact_only_1.local_pointclouds is not None
+        assert (200, 100) in contact_only_1.local_pointclouds
+
+
+def test_attach_merge_decisions_skips_unknown_contact_ids():
+    """Test that _attach_merge_decisions skips unknown contact_ids."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with merge_decisions config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "merge_decisions": ["human"],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contact1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            merge_decisions={"human": True},
+        )
+        contact2 = SegContact(
+            id=2,
+            seg_a=300,
+            seg_b=400,
+            com=Vec3D(200.0, 200.0, 200.0),
+            contact_faces=np.array([[200, 200, 200, 0.6]], dtype=np.float32),
+            representative_points={
+                300: Vec3D(190.0, 190.0, 190.0),
+                400: Vec3D(210.0, 210.0, 210.0),
+            },
+            merge_decisions={"human": False},
+        )
+        backend.write_chunk((0, 0, 0), [contact1, contact2])
+
+        # Create contact lookup with only contact 1
+        contact_only_1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+        )
+        contact_lookup = {1: contact_only_1}
+
+        # pylint: disable=protected-access
+        backend._attach_merge_decisions((0, 0, 0), contact_lookup, info)
+
+        # Should not crash, and contact 1 should have merge_decisions attached
+        assert contact_only_1.merge_decisions == {"human": True}
+
+
+def test_attach_merge_probabilities_skips_unknown_contact_ids():
+    """Test that _attach_merge_probabilities skips unknown contact_ids."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # Write info file with merge_probabilities config
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": [16, 16, 40],
+            "voxel_offset": [0, 0, 0],
+            "size": [1000, 1000, 500],
+            "chunk_size": [256, 256, 128],
+            "max_contact_span": 512,
+            "merge_probabilities": ["model"],
+        }
+        info_path = os.path.join(temp_dir, "info")
+        with open(info_path, "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contact1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            merge_probabilities={"model": 0.85},
+        )
+        contact2 = SegContact(
+            id=2,
+            seg_a=300,
+            seg_b=400,
+            com=Vec3D(200.0, 200.0, 200.0),
+            contact_faces=np.array([[200, 200, 200, 0.6]], dtype=np.float32),
+            representative_points={
+                300: Vec3D(190.0, 190.0, 190.0),
+                400: Vec3D(210.0, 210.0, 210.0),
+            },
+            merge_probabilities={"model": 0.32},
+        )
+        backend.write_chunk((0, 0, 0), [contact1, contact2])
+
+        # Create contact lookup with only contact 1
+        contact_only_1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+        )
+        contact_lookup = {1: contact_only_1}
+
+        # pylint: disable=protected-access
+        backend._attach_merge_probabilities((0, 0, 0), contact_lookup, info)
+
+        # Should not crash, and contact 1 should have merge_probabilities attached
+        assert contact_only_1.merge_probabilities is not None
+        assert abs(contact_only_1.merge_probabilities["model"] - 0.85) < 0.001
+
+
+def test_write_representative_supervoxels_chunk_empty_does_nothing():
+    """Test that _write_representative_supervoxels_chunk does nothing with empty entries."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        # pylint: disable=protected-access
+        backend._write_representative_supervoxels_chunk((0, 0, 0), [])
+
+        # Verify no supervoxels directory created
+        supervoxels_dir = os.path.join(temp_dir, "representative_supervoxels")
+        assert not os.path.exists(supervoxels_dir)
+
+
+def test_attach_representative_supervoxels_skips_unknown_contact_ids():
+    """Test that _attach_representative_supervoxels skips unknown contact_ids."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(1000, 1000, 500),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+        backend.write_info()
+
+        contact1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+            representative_supervoxels={100: 1000001, 200: 2000002},
+        )
+        contact2 = SegContact(
+            id=2,
+            seg_a=300,
+            seg_b=400,
+            com=Vec3D(200.0, 200.0, 200.0),
+            contact_faces=np.array([[200, 200, 200, 0.6]], dtype=np.float32),
+            representative_points={
+                300: Vec3D(190.0, 190.0, 190.0),
+                400: Vec3D(210.0, 210.0, 210.0),
+            },
+            representative_supervoxels={300: 3000003, 400: 4000004},
+        )
+        backend.write_chunk((0, 0, 0), [contact1, contact2])
+
+        # Create contact lookup with only contact 1
+        contact_only_1 = SegContact(
+            id=1,
+            seg_a=100,
+            seg_b=200,
+            com=Vec3D(100.0, 100.0, 100.0),
+            contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+        )
+        contact_lookup = {1: contact_only_1}
+
+        # pylint: disable=protected-access
+        backend._attach_representative_supervoxels((0, 0, 0), contact_lookup)
+
+        # Should not crash, and contact 1 should have supervoxels attached
+        assert contact_only_1.representative_supervoxels is not None
+        assert contact_only_1.representative_supervoxels[100] == 1000001
+        assert contact_only_1.representative_supervoxels[200] == 2000002

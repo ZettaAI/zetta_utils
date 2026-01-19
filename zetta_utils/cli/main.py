@@ -3,12 +3,11 @@ import pprint
 import subprocess
 import sys
 from tempfile import NamedTemporaryFile
-from typing import Optional
+from typing import Optional, cast
 
 import click
 
-import zetta_utils
-from zetta_utils import log
+from zetta_utils import LoadMode, log, setup_environment
 from zetta_utils.cli.run.cli import run_info_cli
 from zetta_utils.cli.run.cli_update import run_update_cli
 from zetta_utils.cli.task_mgmt import task_mgmt
@@ -102,18 +101,9 @@ def run(
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     ctx = click.get_current_context()
-    load_mode = ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all"
+    load_mode = cast(LoadMode, ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all")
 
-    # Load modules first
-    if load_mode == "all":
-        zetta_utils.load_all_modules()
-    elif load_mode == "inference":  # pragma: no cover
-        zetta_utils.load_inference_modules()
-    elif load_mode == "try":  # pragma: no cover
-        zetta_utils.try_load_train_inference()
-    else:  # pragma: no cover
-        assert load_mode == "training"
-        zetta_utils.load_training_modules()
+    setup_environment(load_mode)
 
     from zetta_utils import builder, parsing  # pylint: disable=import-outside-toplevel
     from zetta_utils.run import (  # pylint: disable=import-outside-toplevel

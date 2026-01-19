@@ -23,6 +23,10 @@ def make_seg_contact(
         seg_b=seg_b,
         com=Vec3D(*com),
         contact_faces=contact_faces,
+        representative_points={
+            seg_a: Vec3D(com[0] - 10.0, com[1] - 10.0, com[2] - 10.0),
+            seg_b: Vec3D(com[0] + 10.0, com[1] + 10.0, com[2] + 10.0),
+        },
     )
 
 
@@ -48,6 +52,7 @@ def test_seg_contact_with_optional_fields():
         seg_b=200,
         com=Vec3D(100.0, 100.0, 100.0),
         contact_faces=np.array([[100, 100, 100, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
         local_pointclouds={(1000, 2048): {100: np.zeros((10, 3)), 200: np.ones((10, 3))}},
         merge_decisions={"ground_truth": True, "model_v1": False},
         partner_metadata={100: {"type": "axon"}, 200: {"type": "dendrite"}},

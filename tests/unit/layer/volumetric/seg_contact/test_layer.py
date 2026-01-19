@@ -44,6 +44,10 @@ def make_seg_contact(
         seg_b=seg_b,
         com=Vec3D(*com),
         contact_faces=contact_faces,
+        representative_points={
+            seg_a: Vec3D(com[0] - 10.0, com[1] - 10.0, com[2] - 10.0),
+            seg_b: Vec3D(com[0] + 10.0, com[1] + 10.0, com[2] + 10.0),
+        },
     )
 
 

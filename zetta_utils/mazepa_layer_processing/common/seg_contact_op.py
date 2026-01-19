@@ -455,6 +455,84 @@ def _make_contact_faces_array(
     return np.stack([x, y, z, aff], axis=1).astype(np.float32)
 
 
+def _compute_representative_points(
+    contact_faces: np.ndarray,
+    mesh_a: trimesh.Trimesh,
+    mesh_b: trimesh.Trimesh,
+    seg_a_id: int,
+    seg_b_id: int,
+) -> dict[int, Vec3D[float]] | None:
+    """Compute representative points for both segments.
+
+    Algorithm:
+    1. Compute simple centroid of contact_faces (not affinity-weighted)
+    2. Compute PCA of contact face coordinates to get surface normal
+    3. For each segment, ray cast from centroid along normal to find boundary
+    4. Representative point = midpoint between centroid and boundary
+
+    Args:
+        contact_faces: (N, 4) array with x, y, z, affinity in nm
+        mesh_a: Trimesh for segment A
+        mesh_b: Trimesh for segment B
+        seg_a_id: Segment A ID
+        seg_b_id: Segment B ID
+
+    Returns:
+        dict mapping segment_id -> representative point, or None if computation fails
+    """
+    if contact_faces.shape[0] < 3:
+        return None
+
+    # 1. Compute simple (unweighted) centroid
+    xyz = contact_faces[:, :3]
+    centroid = xyz.mean(axis=0)
+
+    # 2. Compute PCA to get surface normal
+    centered = xyz - centroid
+    _, _, vh = np.linalg.svd(centered, full_matrices=False)
+    normal = vh[-1]  # Last component = smallest variance = normal direction
+
+    # Ensure normal is a unit vector
+    norm_length = np.linalg.norm(normal)
+    if norm_length < 1e-10:
+        return None
+    normal = normal / norm_length
+
+    # 3. For each segment, ray cast along normal to find boundary
+    result = {}
+
+    for seg_id, mesh, direction in [
+        (seg_a_id, mesh_a, normal),
+        (seg_b_id, mesh_b, -normal),  # Opposite direction for seg_b
+    ]:
+        # Ray cast from centroid in the given direction
+        locations, _, _ = mesh.ray.intersects_location(
+            ray_origins=[centroid],
+            ray_directions=[direction],
+        )
+
+        if len(locations) == 0:
+            # Fallback: try opposite direction
+            locations, _, _ = mesh.ray.intersects_location(
+                ray_origins=[centroid],
+                ray_directions=[-direction],
+            )
+
+        if len(locations) == 0:
+            return None  # Could not find intersection
+
+        # Find closest intersection point
+        distances = np.linalg.norm(locations - centroid, axis=1)
+        closest_idx = np.argmin(distances)
+        boundary_point = locations[closest_idx]
+
+        # 4. Representative point is midpoint between centroid and boundary
+        rep_point = (centroid + boundary_point) / 2
+        result[seg_id] = Vec3D(float(rep_point[0]), float(rep_point[1]), float(rep_point[2]))
+
+    return result
+
+
 def _generate_seg_contact(
     contact_id: int,
     seg_a_id: int,
@@ -471,30 +549,14 @@ def _generate_seg_contact(
     if mesh_a is None or mesh_b is None:
         return None
 
-    contacts = contact_data[(seg_a_id, seg_b_id)]
-    com = _compute_affinity_weighted_com(contacts, resolution)
-    contact_faces = _make_contact_faces_array(contacts, resolution)
+    com = _compute_affinity_weighted_com(contact_data[(seg_a_id, seg_b_id)], resolution)
+    contact_faces = _make_contact_faces_array(contact_data[(seg_a_id, seg_b_id)], resolution)
 
-    # Generate pointclouds for all configs
-    local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] = {}
-    contact_points_xyz = contact_faces[:, :3]  # (N, 3) xyz in nm
-    for radius_nm, n_points in pointcloud_configs:
-        mesh_a_cropped = _crop_mesh_to_sphere(mesh_a, com, radius_nm, contact_points_xyz)
-        mesh_b_cropped = _crop_mesh_to_sphere(mesh_b, com, radius_nm, contact_points_xyz)
-        if mesh_a_cropped is None or mesh_b_cropped is None:
-            continue
-
-        pointcloud_a = _sample_mesh_points(mesh_a_cropped, n_points)
-        pointcloud_b = _sample_mesh_points(mesh_b_cropped, n_points)
-        config_tuple = (int(radius_nm), n_points)
-        local_pointclouds[config_tuple] = {seg_a_id: pointcloud_a, seg_b_id: pointcloud_b}
-
+    local_pointclouds = _generate_pointclouds(
+        mesh_a, mesh_b, seg_a_id, seg_b_id, com, contact_faces[:, :3], pointcloud_configs
+    )
     if not local_pointclouds:
         return None
-
-    # Compute merge decision: should merge if both segments overlap same reference CC
-    should_merge = bool(seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set()))
-    merge_decisions = {merge_authority: should_merge}
 
     return SegContact(
         id=contact_id,
@@ -503,8 +565,38 @@ def _generate_seg_contact(
         com=Vec3D(float(com[0]), float(com[1]), float(com[2])),
         contact_faces=contact_faces,
         local_pointclouds=local_pointclouds,
-        merge_decisions=merge_decisions,
+        merge_decisions={
+            merge_authority: bool(
+                seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set())
+            )
+        },
+        representative_points=_compute_representative_points(
+            contact_faces, mesh_a, mesh_b, seg_a_id, seg_b_id
+        ),
     )
+
+
+def _generate_pointclouds(
+    mesh_a: trimesh.Trimesh,
+    mesh_b: trimesh.Trimesh,
+    seg_a_id: int,
+    seg_b_id: int,
+    com: np.ndarray,
+    contact_points_xyz: np.ndarray,
+    pointcloud_configs: list[tuple[float, int]],
+) -> dict[tuple[int, int], dict[int, np.ndarray]]:
+    """Generate pointclouds for all configs."""
+    result: dict[tuple[int, int], dict[int, np.ndarray]] = {}
+    for radius_nm, n_points in pointcloud_configs:
+        mesh_a_cropped = _crop_mesh_to_sphere(mesh_a, com, radius_nm, contact_points_xyz)
+        mesh_b_cropped = _crop_mesh_to_sphere(mesh_b, com, radius_nm, contact_points_xyz)
+        if mesh_a_cropped is None or mesh_b_cropped is None:
+            continue
+        result[(int(radius_nm), n_points)] = {
+            seg_a_id: _sample_mesh_points(mesh_a_cropped, n_points),
+            seg_b_id: _sample_mesh_points(mesh_b_cropped, n_points),
+        }
+    return result
 
 
 @builder.register("SegContactOp")

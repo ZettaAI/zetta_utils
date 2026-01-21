@@ -1,14 +1,16 @@
 # pylint: disable=singleton-comparison,too-many-lines
 import time
 from datetime import datetime, timezone
+from typing import Any, TypedDict, cast
+
 from sqlalchemy import BigInteger, and_, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 from typeguard import typechecked
-from typing import Any, TypedDict, cast
-from zetta_utils.task_management.utils import generate_id_nonunique
 
 from zetta_utils import log
+from zetta_utils.task_management.utils import generate_id_nonunique
+
 from .db.models import (
     DependencyModel,
     SegmentModel,

@@ -6,11 +6,8 @@ Calls Cave API to get updated skeleton lengths and synapse counts after PCG edit
 Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
 """
 
-import time
-
 import click
-
-from zetta_utils import log
+import time
 from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment import update_segment_info
@@ -23,6 +20,8 @@ from zetta_utils.task_management.segment_queue import (
     mark_update_failed,
     mark_update_processing,
 )
+
+from zetta_utils import log
 
 logger = log.get_logger()
 
@@ -303,7 +302,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
     help="Remove completed entries older than this many days (default: 7)"
 )
 def main(
-    project_name: str,
+        project_name: str | None,
     user_id: str,
     polling_period: float,
     server_address: str,

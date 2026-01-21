@@ -30,7 +30,7 @@ class SegContact:
     seg_b: int
     com: Vec3D[float]  # center of mass in nm
     contact_faces: np.ndarray  # (N, 4) float32: x, y, z, affinity in nm
-    representative_points: dict[int, Vec3D[float]]  # segment_id -> point in nm (required)
+    representative_points: dict[int, Vec3D[float]] | None = None  # segment_id -> point in nm
     representative_supervoxels: dict[int, int] | None = (
         None  # segment_id -> supervoxel_id (uint64)
     )

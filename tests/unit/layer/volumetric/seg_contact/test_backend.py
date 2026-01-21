@@ -171,7 +171,7 @@ def test_write_info_all_fields():
         with open(os.path.join(temp_dir, "info"), "r", encoding="utf-8") as f:
             info = json.load(f)
 
-        assert info["format_version"] == "1.0"
+        assert info["format_version"] == "1.1"
         assert info["type"] == "seg_contact"
         assert info["resolution"] == [16, 16, 40]
         assert info["voxel_offset"] == [100, 200, 50]

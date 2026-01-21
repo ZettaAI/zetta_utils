@@ -647,10 +647,12 @@ def randomize_segment_identity(contacts: Sequence[SegContact]) -> Sequence[SegCo
                 }
 
             # Swap representative_points keys to match new seg_a/seg_b
-            new_representative_points = {
-                contact.seg_b: contact.representative_points.get(contact.seg_a),
-                contact.seg_a: contact.representative_points.get(contact.seg_b),
-            }
+            new_representative_points = None
+            if contact.representative_points is not None:
+                new_representative_points = {
+                    contact.seg_b: contact.representative_points.get(contact.seg_a),
+                    contact.seg_a: contact.representative_points.get(contact.seg_b),
+                }
 
             result.append(
                 SegContact(

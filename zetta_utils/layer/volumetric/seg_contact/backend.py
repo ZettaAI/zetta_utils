@@ -9,6 +9,7 @@ from collections.abc import Sequence
 import attrs
 import fsspec
 import numpy as np
+from packaging.version import Version
 
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.backend_base import Backend
@@ -29,6 +30,7 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
     max_contact_span: int  # in voxels
     enforce_chunk_aligned_writes: bool = True
     local_point_clouds: list[tuple[int, int]] | None = None  # [(radius_nm, n_points), ...]
+    format_version: str = "1.1"  # "1.0" = no representative_points, "1.1" = with representative_points
 
     @property
     def name(self) -> str:
@@ -48,12 +50,13 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
             size=Vec3D(*info["size"]),
             chunk_size=Vec3D(*info["chunk_size"]),
             max_contact_span=info["max_contact_span"],
+            format_version=info.get("format_version", "1.0"),
         )
 
     def write_info(self) -> None:
         """Write info file to disk."""
         info = {
-            "format_version": "1.0",
+            "format_version": self.format_version,
             "type": "seg_contact",
             "resolution": list(self.resolution),
             "voxel_offset": list(self.voxel_offset),
@@ -157,8 +160,9 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 if metadata_len > 0:
                     f.read(metadata_len)
 
-                # Skip representative_points (6 floats)
-                f.read(24)
+                # Skip representative_points (6 floats) - only in format_version >= 1.1
+                if Version(self.format_version) >= Version("1.1"):
+                    f.read(24)
 
                 # Check if COM is in bounds
                 if (
@@ -401,6 +405,10 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 buf.write(struct.pack("<I", 0))
 
             # representative_points: 6 floats (point_a xyz, point_b xyz)
+            if contact.representative_points is None:
+                raise ValueError(
+                    f"representative_points required for format_version >= 1.1 (contact id={contact.id})"
+                )
             pt_a = contact.representative_points[contact.seg_a]
             pt_b = contact.representative_points[contact.seg_b]
             buf.write(struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2]))
@@ -667,11 +675,21 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                     partner_metadata = None
 
                 # Read representative_points (6 floats: point_a xyz, point_b xyz)
-                pts = struct.unpack("<ffffff", f.read(24))
-                representative_points: dict[int, Vec3D] = {
-                    seg_a: Vec3D(pts[0], pts[1], pts[2]),
-                    seg_b: Vec3D(pts[3], pts[4], pts[5]),
-                }
+                # Only present in format_version >= 1.1
+                if Version(self.format_version) >= Version("1.1"):
+                    pts_bytes = f.read(24)
+                    if len(pts_bytes) < 24:
+                        raise ValueError(
+                            f"representative_points missing for format_version >= 1.1 (contact id={id_})"
+                        )
+                    pts = struct.unpack("<ffffff", pts_bytes)
+                    representative_points: dict[int, Vec3D] | None = {
+                        seg_a: Vec3D(pts[0], pts[1], pts[2]),
+                        seg_b: Vec3D(pts[3], pts[4], pts[5]),
+                    }
+                else:
+                    # Not available in old format
+                    representative_points = None
 
                 contacts.append(
                     {

@@ -6,8 +6,11 @@ Calls Cave API to get updated skeleton lengths and synapse counts after PCG edit
 Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
 """
 
-import click
 import time
+
+import click
+
+from zetta_utils import log
 from zetta_utils.task_management.db.models import ProjectModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.segment import update_segment_info
@@ -20,8 +23,6 @@ from zetta_utils.task_management.segment_queue import (
     mark_update_failed,
     mark_update_processing,
 )
-
-from zetta_utils import log
 
 logger = log.get_logger()
 

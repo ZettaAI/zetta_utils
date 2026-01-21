@@ -1041,3 +1041,71 @@ class SegmentEditEventModel(Base):
             ),
             operation_type=data.get("operation_type", "merge"),
         )
+
+
+class SegmentUpdateQueueModel(Base):
+    """
+    SQLAlchemy model for the segment_update_queue table.
+    
+    Tracks segments that need skeleton length and synapse count updates after PCG edits.
+    Updates skeleton_path_length_mm, pre_synapse_count, and post_synapse_count.
+    Keyed by seed_id to ensure deduplication - multiple edits to the same
+    segment are collapsed into a single update request.
+    """
+
+    __tablename__ = "segment_update_queue"
+
+    project_name: Mapped[str] = mapped_column(String, primary_key=True)
+    seed_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+
+    current_segment_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    status: Mapped[str] = mapped_column(
+        Enum("pending", "processing", "completed", "failed", name="segment_update_status"),
+        nullable=False,
+        default="pending"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_attempt: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("idx_segment_queue_status", "status"),
+        Index("idx_segment_queue_created", "created_at"),
+        Index("idx_segment_queue_last_attempt", "last_attempt"),
+        Index(
+            "idx_segment_queue_pending", "project_name", "status", "created_at"
+        ),
+    )
+
+    def to_dict(self) -> dict:
+        """Convert the model to a dictionary"""
+        return {
+            "project_name": self.project_name,
+            "seed_id": self.seed_id,
+            "current_segment_id": self.current_segment_id,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "last_attempt": self.last_attempt.isoformat() if self.last_attempt else None,
+            "retry_count": self.retry_count,
+            "error_message": self.error_message,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SegmentUpdateQueueModel":
+        """Create a model instance from a dictionary"""
+        return cls(
+            project_name=data["project_name"],
+            seed_id=data["seed_id"],
+            current_segment_id=data.get("current_segment_id"),
+            status=data.get("status", "pending"),
+            created_at=_parse_datetime(data.get("created_at", datetime.now())),
+            last_attempt=(
+                _parse_datetime(data["last_attempt"])
+                if data.get("last_attempt") else None
+            ),
+            retry_count=data.get("retry_count", 0),
+            error_message=data.get("error_message"),
+        )

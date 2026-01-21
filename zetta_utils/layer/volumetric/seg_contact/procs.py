@@ -143,6 +143,7 @@ def resample_pointclouds(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -328,6 +329,7 @@ def resample_combined_pointcloud(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -373,6 +375,7 @@ def deduplicate_pointclouds(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -445,6 +448,7 @@ def normalize_pointclouds(
                 seg_b=contact.seg_b,
                 com=Vec3D(*center),
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -486,6 +490,7 @@ def _add_gaussian_noise_impl(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds if new_local_pointclouds else contact.local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -554,6 +559,7 @@ def apply_random_rotation(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -601,6 +607,7 @@ def apply_random_flip(
                 seg_b=contact.seg_b,
                 com=contact.com,
                 contact_faces=new_contact_faces,
+                representative_points=contact.representative_points,
                 local_pointclouds=new_local_pointclouds,
                 merge_decisions=contact.merge_decisions,
                 partner_metadata=contact.partner_metadata,
@@ -639,6 +646,12 @@ def randomize_segment_identity(contacts: Sequence[SegContact]) -> Sequence[SegCo
                     contact.seg_a: contact.partner_metadata.get(contact.seg_b),
                 }
 
+            # Swap representative_points keys to match new seg_a/seg_b
+            new_representative_points = {
+                contact.seg_b: contact.representative_points.get(contact.seg_a),
+                contact.seg_a: contact.representative_points.get(contact.seg_b),
+            }
+
             result.append(
                 SegContact(
                     id=contact.id,
@@ -646,6 +659,7 @@ def randomize_segment_identity(contacts: Sequence[SegContact]) -> Sequence[SegCo
                     seg_b=contact.seg_a,
                     com=contact.com,
                     contact_faces=contact.contact_faces,
+                    representative_points=new_representative_points,
                     local_pointclouds=new_local_pointclouds,
                     merge_decisions=contact.merge_decisions,
                     partner_metadata=new_partner_metadata,

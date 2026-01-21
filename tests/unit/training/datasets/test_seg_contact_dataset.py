@@ -47,6 +47,7 @@ def make_layer_with_contacts(temp_dir: str) -> VolumetricSegContactLayer:
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[1.0, 2.0, 3.0, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
             local_pointclouds={
                 (500, 64): {
                     100: np.random.randn(64, 3).astype(np.float32),
@@ -61,6 +62,10 @@ def make_layer_with_contacts(temp_dir: str) -> VolumetricSegContactLayer:
             seg_b=300,
             com=Vec3D(200.0, 200.0, 200.0),
             contact_faces=np.array([[4.0, 5.0, 6.0, 0.8]], dtype=np.float32),
+            representative_points={
+                100: Vec3D(190.0, 190.0, 190.0),
+                300: Vec3D(210.0, 210.0, 210.0),
+            },
             local_pointclouds={
                 (500, 64): {
                     100: np.random.randn(64, 3).astype(np.float32),
@@ -245,6 +250,10 @@ def test_seg_contact_dataset_truncates_large_contact_faces():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=large_faces,
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {
                         100: np.random.randn(64, 3).astype(np.float32),
@@ -299,6 +308,10 @@ def test_seg_contact_dataset_contact_faces_exact_size():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=exact_faces,
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {
                         100: np.random.randn(64, 3).astype(np.float32),
@@ -353,6 +366,10 @@ def test_seg_contact_dataset_skips_contacts_missing_pointcloud():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=np.array([[1.0, 2.0, 3.0, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {
                         100: np.random.randn(64, 3).astype(np.float32),
@@ -367,6 +384,10 @@ def test_seg_contact_dataset_skips_contacts_missing_pointcloud():
                 seg_b=400,
                 com=Vec3D(120.0, 120.0, 100.0),
                 contact_faces=np.array([[4.0, 5.0, 6.0, 0.8]], dtype=np.float32),
+                representative_points={
+                    300: Vec3D(110.0, 110.0, 90.0),
+                    400: Vec3D(130.0, 130.0, 110.0),
+                },
                 local_pointclouds=None,
             ),
         ]
@@ -416,6 +437,10 @@ def test_seg_contact_dataset_skips_contacts_missing_segment_pointcloud():
                 seg_b=200,
                 com=Vec3D(100.0, 100.0, 100.0),
                 contact_faces=np.array([[1.0, 2.0, 3.0, 0.5]], dtype=np.float32),
+                representative_points={
+                    100: Vec3D(90.0, 90.0, 90.0),
+                    200: Vec3D(110.0, 110.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {
                         100: np.random.randn(64, 3).astype(np.float32),
@@ -430,6 +455,10 @@ def test_seg_contact_dataset_skips_contacts_missing_segment_pointcloud():
                 seg_b=400,
                 com=Vec3D(120.0, 120.0, 100.0),
                 contact_faces=np.array([[4.0, 5.0, 6.0, 0.8]], dtype=np.float32),
+                representative_points={
+                    300: Vec3D(110.0, 110.0, 90.0),
+                    400: Vec3D(130.0, 130.0, 110.0),
+                },
                 local_pointclouds={
                     (500, 64): {
                         300: np.random.randn(64, 3).astype(np.float32),

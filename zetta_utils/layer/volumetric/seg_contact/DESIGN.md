@@ -27,9 +27,11 @@ class SegContact:
     seg_b: int
     com: Vec3D[float]  # center of mass in nm
     contact_faces: np.ndarray  # (N, 4) float32: x, y, z, affinity in nm
+    representative_points: dict[int, Vec3D[float]]  # segment_id -> point in nm (required)
     # (radius_nm, n_points) -> {segment_id -> (n_points, 3) in nm}
     local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] | None
     merge_decisions: dict[str, bool] | None  # authority -> yes/no
+    merge_probabilities: dict[str, float] | None  # authority -> probability [0.0, 1.0]
     partner_metadata: dict[int, Any] | None  # segment_id -> metadata
 
     def in_bounds(self, idx: VolumetricIndex) -> bool:
@@ -63,6 +65,7 @@ The `info` JSON file at the dataset root:
   ],
 
   "merge_decisions": ["ground_truth", "model_v1"],
+  "merge_probabilities": ["model_v1", "model_v2"],
 
   "filter_settings": {
     "min_seg_size_vx": 2000,
@@ -90,6 +93,7 @@ The `info` JSON file at the dataset root:
 | `image_path` | string? | Optional path to image layer for visualization |
 | `local_point_clouds` | array | Configurations for local point cloud sampling |
 | `merge_decisions` | array | List of merge decision authority names |
+| `merge_probabilities` | array | List of merge probability authority names |
 | `filter_settings` | object | Filter parameters used during generation |
 
 ## Directory Structure
@@ -108,11 +112,17 @@ seg_contact_dataset/
 │   └── 2000nm_4096pts/
 │       ├── 0-256_0-256_0-128
 │       └── ...
-└── merge_decisions/
-    ├── ground_truth/
+├── merge_decisions/
+│   ├── ground_truth/
+│   │   ├── 0-256_0-256_0-128
+│   │   └── ...
+│   └── model_v1/
+│       └── ...
+└── merge_probabilities/
+    ├── model_v1/
     │   ├── 0-256_0-256_0-128
     │   └── ...
-    └── model_v1/
+    └── model_v2/
         └── ...
 ```
 
@@ -153,6 +163,7 @@ Per contact:
   - contact_faces: float32[n_faces, 4] (x, y, z, affinity per face)
   - partner_metadata_len: uint32
   - partner_metadata: uint8[partner_metadata_len] (JSON-encoded dict)
+  - representative_points: float32[6] (point_a x,y,z, point_b x,y,z in nm)
 ```
 
 ### local_point_clouds/{radius}nm_{n_points}pts/
@@ -184,6 +195,27 @@ Per decision:
   - contact_id: int64
   - should_merge: uint8 (0 or 1)
 ```
+
+### merge_probabilities/{authority}/
+
+Each chunk contains probability values for contacts in that chunk.
+
+```
+Header:
+  - n_entries: uint32
+
+Per entry:
+  - contact_id: int64
+  - probability: float32
+```
+
+## Representative Points Computation
+
+Representative points are computed as follows:
+1. Compute simple (unweighted) centroid of contact_faces
+2. Compute PCA on contact face coordinates; the smallest eigenvector is the surface normal
+3. For each segment, ray cast from centroid along normal to find mesh boundary
+4. Representative point = midpoint between centroid and boundary intersection
 
 ## Reading Contacts
 

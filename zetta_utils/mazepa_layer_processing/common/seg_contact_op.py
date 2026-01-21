@@ -455,6 +455,158 @@ def _make_contact_faces_array(
     return np.stack([x, y, z, aff], axis=1).astype(np.float32)
 
 
+def _build_voxel_spatial_hash(
+    voxels: np.ndarray,
+) -> dict[tuple[int, int, int], list[int]]:
+    """Build spatial hash mapping voxel coordinates to point indices."""
+    coord_to_indices: dict[tuple[int, int, int], list[int]] = {}
+    for i in range(len(voxels)):
+        key = (int(voxels[i, 0]), int(voxels[i, 1]), int(voxels[i, 2]))
+        if key not in coord_to_indices:
+            coord_to_indices[key] = []
+        coord_to_indices[key].append(i)
+    return coord_to_indices
+
+
+def _get_unvisited_neighbors(
+    voxel_coord: tuple[int, int, int],
+    coord_to_indices: dict[tuple[int, int, int], list[int]],
+    visited: np.ndarray,
+) -> list[int]:
+    """Get unvisited neighbor indices for a voxel using 6-connectivity."""
+    offsets = [(0, 0, 0), (1, 0, 0), (-1, 0, 0), (0, 1, 0), (0, -1, 0), (0, 0, 1), (0, 0, -1)]
+    neighbors = []
+    cx, cy, cz = voxel_coord
+    for dx, dy, dz in offsets:
+        neighbor_key = (cx + dx, cy + dy, cz + dz)
+        for idx in coord_to_indices.get(neighbor_key, []):
+            if not visited[idx]:
+                neighbors.append(idx)
+    return neighbors
+
+
+def _compute_contact_connected_components(
+    contact_faces: np.ndarray,
+    resolution: np.ndarray,
+) -> list[np.ndarray]:
+    """Compute connected components of contact faces using 6-connectivity."""
+    if len(contact_faces) == 0:
+        return []
+
+    voxels = np.round(contact_faces[:, :3] / resolution).astype(np.int64)
+    coord_to_indices = _build_voxel_spatial_hash(voxels)
+
+    visited = np.zeros(len(voxels), dtype=bool)
+    components = []
+
+    for start in range(len(voxels)):
+        if visited[start]:
+            continue
+
+        component = [start]
+        visited[start] = True
+        queue = [start]
+
+        while queue:
+            current = queue.pop(0)
+            voxel_coord = (
+                int(voxels[current, 0]),
+                int(voxels[current, 1]),
+                int(voxels[current, 2]),
+            )
+            for neighbor_idx in _get_unvisited_neighbors(voxel_coord, coord_to_indices, visited):
+                visited[neighbor_idx] = True
+                component.append(neighbor_idx)
+                queue.append(neighbor_idx)
+
+        components.append(np.array(component))
+
+    return components
+
+
+def _find_contact_center(contact_faces: np.ndarray, resolution: np.ndarray) -> np.ndarray:
+    """Find contact center as the point closest to mean of largest component."""
+    xyz = contact_faces[:, :3]
+    components = _compute_contact_connected_components(contact_faces, resolution)
+    if components:
+        xyz = xyz[max(components, key=len)]
+    mean_pos = xyz.mean(axis=0)
+    return xyz[np.argmin(np.linalg.norm(xyz - mean_pos, axis=1))]
+
+
+def _sample_sphere_voxels(
+    center_nm: np.ndarray,
+    radius: float,
+    seg_volume: np.ndarray,
+    seg_start_nm: np.ndarray,
+    resolution: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Sample voxels within sphere, return local indices and nm coordinates."""
+    center_vx = np.round(center_nm / resolution).astype(np.int32)
+    seg_start_vx = (seg_start_nm / resolution).astype(np.int32)
+    pad_vx = (radius / resolution + 1).astype(np.int32)
+
+    ranges = [
+        np.arange(
+            max(0, center_vx[i] - pad_vx[i] - seg_start_vx[i]),
+            min(seg_volume.shape[i], center_vx[i] + pad_vx[i] + 1 - seg_start_vx[i]),
+            dtype=np.int32,
+        )
+        for i in range(3)
+    ]
+    if any(len(r) == 0 for r in ranges):
+        return np.array([]), np.array([]), np.array([]), np.array([])
+
+    grids = np.meshgrid(*ranges, indexing="ij")
+    local_vx = np.column_stack([g.ravel() for g in grids])
+    global_vx = local_vx + seg_start_vx
+    voxel_nm = global_vx.astype(np.float32) * resolution
+
+    dist_sq = np.sum((voxel_nm - center_nm) ** 2, axis=1)
+    in_sphere = dist_sq <= radius * radius
+
+    return (
+        local_vx[in_sphere],
+        voxel_nm[in_sphere],
+        seg_volume[local_vx[in_sphere, 0], local_vx[in_sphere, 1], local_vx[in_sphere, 2]],
+        in_sphere,
+    )
+
+
+def _voxel_closest_to_mean(voxel_nm: np.ndarray, mask: np.ndarray) -> Vec3D[float] | None:
+    """Find voxel closest to mean of masked voxels, return as Vec3D."""
+    if not mask.any():
+        return None
+    pts = voxel_nm[mask]
+    mean = pts.mean(axis=0)
+    idx = np.argmin(np.sum((pts - mean) ** 2, axis=1))
+    return Vec3D(float(pts[idx, 0]), float(pts[idx, 1]), float(pts[idx, 2]))
+
+
+def _compute_representative_points(
+    contact_faces: np.ndarray,
+    seg_a_id: int,
+    seg_b_id: int,
+    seg_volume: np.ndarray,
+    seg_start_nm: np.ndarray,
+    resolution: np.ndarray,
+) -> dict[int, Vec3D[float]]:
+    """Compute representative points as voxels closest to segment centers within sphere."""
+    contact_center = _find_contact_center(contact_faces, resolution)
+    fallback = Vec3D(float(contact_center[0]), float(contact_center[1]), float(contact_center[2]))
+
+    local_vx, voxel_nm, seg_ids, _ = _sample_sphere_voxels(
+        contact_center, 200.0, seg_volume, seg_start_nm, resolution
+    )
+    if len(local_vx) == 0:
+        return {seg_a_id: fallback, seg_b_id: fallback}
+
+    pt_a = _voxel_closest_to_mean(voxel_nm, seg_ids == seg_a_id)
+    pt_b = _voxel_closest_to_mean(voxel_nm, seg_ids == seg_b_id)
+
+    return {seg_a_id: pt_a or fallback, seg_b_id: pt_b or fallback}
+
+
 def _generate_seg_contact(
     contact_id: int,
     seg_a_id: int,
@@ -465,36 +617,22 @@ def _generate_seg_contact(
     resolution: np.ndarray,
     pointcloud_configs: list[tuple[float, int]],
     merge_authority: str,
+    seg_volume: np.ndarray,
+    seg_start_nm: np.ndarray,
 ) -> SegContact | None:
     """Generate a single SegContact for a contact pair."""
     mesh_a, mesh_b = meshes.get(seg_a_id), meshes.get(seg_b_id)
     if mesh_a is None or mesh_b is None:
         return None
 
-    contacts = contact_data[(seg_a_id, seg_b_id)]
-    com = _compute_affinity_weighted_com(contacts, resolution)
-    contact_faces = _make_contact_faces_array(contacts, resolution)
+    com = _compute_affinity_weighted_com(contact_data[(seg_a_id, seg_b_id)], resolution)
+    contact_faces = _make_contact_faces_array(contact_data[(seg_a_id, seg_b_id)], resolution)
 
-    # Generate pointclouds for all configs
-    local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] = {}
-    contact_points_xyz = contact_faces[:, :3]  # (N, 3) xyz in nm
-    for radius_nm, n_points in pointcloud_configs:
-        mesh_a_cropped = _crop_mesh_to_sphere(mesh_a, com, radius_nm, contact_points_xyz)
-        mesh_b_cropped = _crop_mesh_to_sphere(mesh_b, com, radius_nm, contact_points_xyz)
-        if mesh_a_cropped is None or mesh_b_cropped is None:
-            continue
-
-        pointcloud_a = _sample_mesh_points(mesh_a_cropped, n_points)
-        pointcloud_b = _sample_mesh_points(mesh_b_cropped, n_points)
-        config_tuple = (int(radius_nm), n_points)
-        local_pointclouds[config_tuple] = {seg_a_id: pointcloud_a, seg_b_id: pointcloud_b}
-
+    local_pointclouds = _generate_pointclouds(
+        mesh_a, mesh_b, seg_a_id, seg_b_id, com, contact_faces[:, :3], pointcloud_configs
+    )
     if not local_pointclouds:
         return None
-
-    # Compute merge decision: should merge if both segments overlap same reference CC
-    should_merge = bool(seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set()))
-    merge_decisions = {merge_authority: should_merge}
 
     return SegContact(
         id=contact_id,
@@ -503,8 +641,38 @@ def _generate_seg_contact(
         com=Vec3D(float(com[0]), float(com[1]), float(com[2])),
         contact_faces=contact_faces,
         local_pointclouds=local_pointclouds,
-        merge_decisions=merge_decisions,
+        merge_decisions={
+            merge_authority: bool(
+                seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set())
+            )
+        },
+        representative_points=_compute_representative_points(
+            contact_faces, seg_a_id, seg_b_id, seg_volume, seg_start_nm, resolution
+        ),
     )
+
+
+def _generate_pointclouds(
+    mesh_a: trimesh.Trimesh,
+    mesh_b: trimesh.Trimesh,
+    seg_a_id: int,
+    seg_b_id: int,
+    com: np.ndarray,
+    contact_points_xyz: np.ndarray,
+    pointcloud_configs: list[tuple[float, int]],
+) -> dict[tuple[int, int], dict[int, np.ndarray]]:
+    """Generate pointclouds for all configs."""
+    result: dict[tuple[int, int], dict[int, np.ndarray]] = {}
+    for radius_nm, n_points in pointcloud_configs:
+        mesh_a_cropped = _crop_mesh_to_sphere(mesh_a, com, radius_nm, contact_points_xyz)
+        mesh_b_cropped = _crop_mesh_to_sphere(mesh_b, com, radius_nm, contact_points_xyz)
+        if mesh_a_cropped is None or mesh_b_cropped is None:
+            continue
+        result[(int(radius_nm), n_points)] = {
+            seg_a_id: _sample_mesh_points(mesh_a_cropped, n_points),
+            seg_b_id: _sample_mesh_points(mesh_b_cropped, n_points),
+        }
+    return result
 
 
 @builder.register("SegContactOp")
@@ -658,6 +826,13 @@ class SegContactOp:
         # Generate SegContact objects
         t0 = time.time()
         id_offset = idx.chunk_id * self.ids_per_chunk
+        seg_start_nm = np.array(
+            [
+                idx_padded.start[0] * resolution[0],
+                idx_padded.start[1] * resolution[1],
+                idx_padded.start[2] * resolution[2],
+            ]
+        )
         contacts: list[SegContact] = []
         for local_id, (seg_a_id, seg_b_id) in enumerate(valid_pairs):
             contact = _generate_seg_contact(
@@ -670,6 +845,8 @@ class SegContactOp:
                 resolution=resolution,
                 pointcloud_configs=pointcloud_configs,
                 merge_authority=self.merge_authority,
+                seg_volume=seg,
+                seg_start_nm=seg_start_nm,
             )
             if contact is not None:
                 contacts.append(contact)

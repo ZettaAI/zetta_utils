@@ -18,7 +18,9 @@ from .contact import SegContact, read_info
 
 
 @attrs.define
-class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]):
+class SegContactLayerBackend(
+    Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]
+):  # pylint: disable=too-many-public-methods
     """Backend for reading/writing seg_contact data in chunked format."""
 
     path: str

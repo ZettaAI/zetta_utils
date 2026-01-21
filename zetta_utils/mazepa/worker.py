@@ -39,7 +39,7 @@ class DummyBuffer:
         pass
 
 
-def redirect_buffers() -> None:
+def redirect_buffers() -> None:  # pragma: no cover
     sys.stdin = DummyBuffer()  # type: ignore
     sys.stdout = DummyBuffer()  # type: ignore
     sys.stderr = DummyBuffer()  # type: ignore

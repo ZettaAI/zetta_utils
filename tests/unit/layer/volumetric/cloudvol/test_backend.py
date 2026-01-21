@@ -594,3 +594,40 @@ def test_cv_lru_resize(clear_caches_reset_mocks):
     assert cvb.dtype == np.dtype("uint8")
     cvc = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, cache_bytes_limit=0)
     assert cvc.dtype == np.dtype("uint8")
+
+
+def test_cv_with_changes_overwrite_partial_chunks(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            chunk_size=[1024, 1024, 1],
+            inherit_all_params=True,
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
+        assert not cvb.overwrite_partial_chunks
+        with tempfile.TemporaryDirectory() as tmp_dir2:
+            cvb_new = cvb.with_changes(
+                name=tmp_dir2,
+                overwrite_partial_chunks=True,
+            )
+            assert cvb_new.overwrite_partial_chunks
+
+
+def test_cv_delete(clear_caches_reset_mocks, mocker):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
+        # Verify info file exists
+        assert os.path.exists(os.path.join(tmp_dir, "info"))
+        # Delete and verify files are removed
+        cvb.delete()
+        assert not os.path.exists(os.path.join(tmp_dir, "info"))

@@ -28,7 +28,7 @@ attrs==25.4.0
     #   caveclient
     #   jsonschema
     #   referencing
-awscli==1.44.20
+awscli==1.44.21
     # via zetta-utils (pyproject.toml)
 blinker==1.9.0
     # via flask
@@ -39,13 +39,13 @@ blosc==1.11.4
     #   meshparty
 blosc2==3.12.2
     # via tables
-boto3==1.42.30
+boto3==1.42.31
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
     #   cloud-volume
     #   task-queue
-botocore==1.42.30
+botocore==1.42.31
     # via
     #   awscli
     #   boto3
@@ -437,7 +437,7 @@ lightning-utilities==0.15.2
     #   lightning
     #   pytorch-lightning
     #   torchmetrics
-llvmlite==0.36.0
+llvmlite==0.46.0
     # via numba
 lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976133efb991ebc40171eeed7a22c57ba50a
     # via zetta-utils (pyproject.toml)
@@ -511,13 +511,15 @@ neuroglancer==2.41.2
     # via zetta-utils (pyproject.toml)
 nose2==0.15.1
     # via intern
-numba==0.53.1
-    # via imagecorruptions-imaug
+numba==0.63.1
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   imagecorruptions-imaug
 numexpr==2.14.1
     # via
     #   blosc2
     #   tables
-numpy==2.4.1
+numpy==2.3.5
     # via
     #   zetta-utils (pyproject.toml)
     #   abiss
@@ -919,13 +921,12 @@ scipy==1.17.0
     #   scikit-image
     #   scikit-learn
     #   trimesh
-sentry-sdk==2.49.0
+sentry-sdk==2.50.0
     # via wandb
 setuptools==80.9.0
     # via
     #   imagecorruptions-imaug
     #   lightning-utilities
-    #   numba
     #   pbr
     #   torch
     #   torchfields

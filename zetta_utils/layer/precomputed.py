@@ -45,6 +45,7 @@ NON_INHERITABLE_SCALE_KEYS = [
     "chunk_sizes",
     "resolution",
     "key",
+    "locked",
 ]
 
 

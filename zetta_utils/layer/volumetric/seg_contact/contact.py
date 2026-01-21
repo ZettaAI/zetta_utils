@@ -34,6 +34,8 @@ class SegContact:
     local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] | None = None
     merge_decisions: dict[str, bool] | None = None  # authority -> yes/no
     partner_metadata: dict[int, Any] | None = None  # segment_id -> metadata
+    # Original contact_faces coordinates in nm (preserved before normalization)
+    contact_faces_original_nm: np.ndarray | None = None
 
     def in_bounds(self, idx: VolumetricIndex) -> bool:
         """Check if COM falls within the given volumetric index."""

@@ -30,9 +30,14 @@ class SegContact:
     seg_b: int
     com: Vec3D[float]  # center of mass in nm
     contact_faces: np.ndarray  # (N, 4) float32: x, y, z, affinity in nm
+    representative_points: dict[int, Vec3D[float]]  # segment_id -> point in nm (required)
+    representative_supervoxels: dict[int, int] | None = (
+        None  # segment_id -> supervoxel_id (uint64)
+    )
     # (radius_nm, n_points) -> {segment_id -> (n_points, 3) in nm}
     local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] | None = None
     merge_decisions: dict[str, bool] | None = None  # authority -> yes/no
+    merge_probabilities: dict[str, float] | None = None  # authority -> probability [0.0, 1.0]
     partner_metadata: dict[int, Any] | None = None  # segment_id -> metadata
 
     def in_bounds(self, idx: VolumetricIndex) -> bool:

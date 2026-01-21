@@ -157,6 +157,9 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 if metadata_len > 0:
                     f.read(metadata_len)
 
+                # Skip representative_points (6 floats)
+                f.read(24)
+
                 # Check if COM is in bounds
                 if (
                     start_nm[0] <= com[0] < end_nm[0]
@@ -200,6 +203,20 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
         """Get file path for a merge decision chunk given grid indices and authority."""
         return os.path.join(
             self.path, "merge_decisions", authority, self.get_chunk_name(chunk_idx)
+        )
+
+    def get_merge_probability_chunk_path(
+        self, chunk_idx: tuple[int, int, int], authority: str
+    ) -> str:
+        """Get file path for a merge probability chunk given grid indices and authority."""
+        return os.path.join(
+            self.path, "merge_probabilities", authority, self.get_chunk_name(chunk_idx)
+        )
+
+    def get_representative_supervoxels_chunk_path(self, chunk_idx: tuple[int, int, int]) -> str:
+        """Get file path for representative supervoxels chunk."""
+        return os.path.join(
+            self.path, "representative_supervoxels", self.get_chunk_name(chunk_idx)
         )
 
     def get_chunk_name(self, chunk_idx: tuple[int, int, int]) -> str:
@@ -271,39 +288,88 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
 
     def write_chunk(self, chunk_idx: tuple[int, int, int], contacts: Sequence[SegContact]) -> None:
         """Write contacts to chunk files (contacts, pointclouds, merge_decisions)."""
-        # Write core contact data
         self._write_contacts_chunk(chunk_idx, contacts)
 
-        # Collect and write pointclouds by config
-        pointclouds_by_config: dict[
-            tuple[int, int], list[tuple[int, int, int, np.ndarray, np.ndarray]]
-        ] = {}
-        for contact in contacts:
-            if contact.local_pointclouds is not None:
-                for config_tuple, seg_points in contact.local_pointclouds.items():
-                    if config_tuple not in pointclouds_by_config:
-                        pointclouds_by_config[config_tuple] = []
-                    seg_a_pts = seg_points.get(contact.seg_a)
-                    seg_b_pts = seg_points.get(contact.seg_b)
-                    if seg_a_pts is not None and seg_b_pts is not None:
-                        pointclouds_by_config[config_tuple].append(
-                            (contact.id, contact.seg_a, contact.seg_b, seg_a_pts, seg_b_pts)
-                        )
-
+        pointclouds_by_config = self._collect_pointclouds(contacts)
         for config_tuple, entries in pointclouds_by_config.items():
             self._write_pointcloud_chunk(chunk_idx, config_tuple, entries)
 
-        # Collect and write merge decisions by authority
-        decisions_by_authority: dict[str, list[tuple[int, bool]]] = {}
-        for contact in contacts:
-            if contact.merge_decisions is not None:
-                for authority, should_merge in contact.merge_decisions.items():
-                    if authority not in decisions_by_authority:
-                        decisions_by_authority[authority] = []
-                    decisions_by_authority[authority].append((contact.id, should_merge))
-
+        decisions_by_authority = self._collect_merge_decisions(contacts)
         for authority, decisions in decisions_by_authority.items():
             self._write_merge_decision_chunk(chunk_idx, authority, decisions)
+
+        probabilities_by_authority = self._collect_merge_probabilities(contacts)
+        for authority, probabilities in probabilities_by_authority.items():
+            self._write_merge_probability_chunk(chunk_idx, authority, probabilities)
+
+        supervoxels = self._collect_representative_supervoxels(contacts)
+        if supervoxels:
+            self._write_representative_supervoxels_chunk(chunk_idx, supervoxels)
+
+    def _collect_pointclouds(
+        self, contacts: Sequence[SegContact]
+    ) -> dict[tuple[int, int], list[tuple[int, int, int, np.ndarray, np.ndarray]]]:
+        """Collect pointclouds from contacts grouped by config."""
+        result: dict[tuple[int, int], list[tuple[int, int, int, np.ndarray, np.ndarray]]] = {}
+        for contact in contacts:
+            if contact.local_pointclouds is None:
+                continue
+            for config_tuple, seg_points in contact.local_pointclouds.items():
+                seg_a_pts = seg_points.get(contact.seg_a)
+                seg_b_pts = seg_points.get(contact.seg_b)
+                if seg_a_pts is None or seg_b_pts is None:
+                    continue
+                if config_tuple not in result:
+                    result[config_tuple] = []
+                result[config_tuple].append(
+                    (contact.id, contact.seg_a, contact.seg_b, seg_a_pts, seg_b_pts)
+                )
+        return result
+
+    def _collect_merge_decisions(
+        self, contacts: Sequence[SegContact]
+    ) -> dict[str, list[tuple[int, bool]]]:
+        """Collect merge decisions from contacts grouped by authority."""
+        result: dict[str, list[tuple[int, bool]]] = {}
+        for contact in contacts:
+            if contact.merge_decisions is None:
+                continue
+            for authority, should_merge in contact.merge_decisions.items():
+                if authority not in result:
+                    result[authority] = []
+                result[authority].append((contact.id, should_merge))
+        return result
+
+    def _collect_merge_probabilities(
+        self, contacts: Sequence[SegContact]
+    ) -> dict[str, list[tuple[int, float]]]:
+        """Collect merge probabilities from contacts grouped by authority."""
+        result: dict[str, list[tuple[int, float]]] = {}
+        for contact in contacts:
+            if contact.merge_probabilities is None:
+                continue
+            for authority, probability in contact.merge_probabilities.items():
+                if authority not in result:
+                    result[authority] = []
+                result[authority].append((contact.id, probability))
+        return result
+
+    def _collect_representative_supervoxels(
+        self, contacts: Sequence[SegContact]
+    ) -> list[tuple[int, int, int, int, int]]:
+        """Collect representative supervoxels from contacts.
+
+        Returns list of (contact_id, seg_a, seg_b, supervoxel_a, supervoxel_b).
+        """
+        result: list[tuple[int, int, int, int, int]] = []
+        for contact in contacts:
+            if contact.representative_supervoxels is None:
+                continue
+            sv_a = contact.representative_supervoxels.get(contact.seg_a)
+            sv_b = contact.representative_supervoxels.get(contact.seg_b)
+            if sv_a is not None and sv_b is not None:
+                result.append((contact.id, contact.seg_a, contact.seg_b, sv_a, sv_b))
+        return result
 
     def _write_contacts_chunk(
         self, chunk_idx: tuple[int, int, int], contacts: Sequence[SegContact]
@@ -333,6 +399,11 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 buf.write(metadata_bytes)
             else:
                 buf.write(struct.pack("<I", 0))
+
+            # representative_points: 6 floats (point_a xyz, point_b xyz)
+            pt_a = contact.representative_points[contact.seg_a]
+            pt_b = contact.representative_points[contact.seg_b]
+            buf.write(struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2]))
 
         fs, fs_path = fsspec.core.url_to_fs(chunk_path)
         fs.makedirs(os.path.dirname(fs_path), exist_ok=True)
@@ -399,11 +470,72 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
         with fs.open(fs_path, "wb") as f:
             f.write(buf.getvalue())
 
-    def read_chunk(  # pylint: disable=too-many-locals
-        self, chunk_idx: tuple[int, int, int]
-    ) -> Sequence[SegContact]:
+    def _write_merge_probability_chunk(
+        self,
+        chunk_idx: tuple[int, int, int],
+        authority: str,
+        probabilities: list[tuple[int, float]],
+    ) -> None:
+        """Write merge probabilities to merge_probabilities/{authority}/ directory.
+
+        Format:
+        - n_entries: uint32
+        - Per entry:
+          - contact_id: int64
+          - probability: float32
+        """
+        chunk_path = self.get_merge_probability_chunk_path(chunk_idx, authority)
+
+        buf = io.BytesIO()
+        buf.write(struct.pack("<I", len(probabilities)))
+
+        for contact_id, probability in probabilities:
+            buf.write(struct.pack("<q", contact_id))
+            buf.write(struct.pack("<f", probability))
+
+        fs, fs_path = fsspec.core.url_to_fs(chunk_path)
+        fs.makedirs(os.path.dirname(fs_path), exist_ok=True)
+        with fs.open(fs_path, "wb") as f:
+            f.write(buf.getvalue())
+
+    def _write_representative_supervoxels_chunk(
+        self,
+        chunk_idx: tuple[int, int, int],
+        entries: list[tuple[int, int, int, int, int]],
+    ) -> None:
+        """Write representative supervoxels to representative_supervoxels/ directory.
+
+        Format:
+        - n_entries: uint32
+        - Per entry:
+          - contact_id: int64
+          - seg_a: int64
+          - seg_b: int64
+          - supervoxel_a: uint64
+          - supervoxel_b: uint64
+        """
+        if not entries:
+            return
+
+        chunk_path = self.get_representative_supervoxels_chunk_path(chunk_idx)
+
+        buf = io.BytesIO()
+        buf.write(struct.pack("<I", len(entries)))
+
+        for contact_id, seg_a, seg_b, sv_a, sv_b in entries:
+            buf.write(struct.pack("<q", contact_id))
+            buf.write(struct.pack("<q", seg_a))
+            buf.write(struct.pack("<q", seg_b))
+            buf.write(struct.pack("<Q", sv_a))  # uint64
+            buf.write(struct.pack("<Q", sv_b))  # uint64
+
+        fs, fs_path = fsspec.core.url_to_fs(chunk_path)
+        fs.makedirs(os.path.dirname(fs_path), exist_ok=True)
+        with fs.open(fs_path, "wb") as f:
+            f.write(buf.getvalue())
+
+    def read_chunk(self, chunk_idx: tuple[int, int, int]) -> Sequence[SegContact]:
         """Read contacts from chunk files (contacts, pointclouds, merge_decisions)."""
-        # Read core contact data and create SegContact objects
         contacts_data = self._read_contacts_chunk(chunk_idx)
         if not contacts_data:
             return []
@@ -418,54 +550,92 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 local_pointclouds=None,
                 merge_decisions=None,
                 partner_metadata=c["partner_metadata"],
+                representative_points=c["representative_points"],
             )
             for c in contacts_data
         ]
         contact_lookup = {c.id: c for c in contacts}
 
-        # Try to read info for pointcloud configs and merge_decision authorities
-        # If no info file exists, just return contacts without pointclouds/decisions
-        info_path = f"{self.path}/info"
-        fs, fs_path = fsspec.core.url_to_fs(info_path)
-        if fs.exists(fs_path):
-            with fs.open(fs_path, "rb") as f:
-                info = json.loads(f.read().decode("utf-8"))
+        info = self._read_info_if_exists()
+        if info is not None:
+            self._attach_pointclouds(chunk_idx, contact_lookup, info)
+            self._attach_merge_decisions(chunk_idx, contact_lookup, info)
+            self._attach_merge_probabilities(chunk_idx, contact_lookup, info)
 
-            # Use self.local_point_clouds if provided, otherwise read all from info
-            if self.local_point_clouds is not None:
-                pointcloud_configs_to_load = [
-                    {"radius_nm": r, "n_points": n} for r, n in self.local_point_clouds
-                ]
-            else:
-                pointcloud_configs_to_load = info.get("local_point_clouds", [])
-
-            for cfg in pointcloud_configs_to_load:
-                radius_nm = int(cfg["radius_nm"])
-                n_points = int(cfg["n_points"])
-                pc_data = self._read_pointcloud_chunk(chunk_idx, radius_nm, n_points)
-                config_tuple = (radius_nm, n_points)
-                for contact_id, seg_a_pts, seg_b_pts in pc_data:
-                    if contact_id in contact_lookup:
-                        c = contact_lookup[contact_id]
-                        if c.local_pointclouds is None:
-                            c.local_pointclouds = {}
-                        c.local_pointclouds[config_tuple] = {
-                            c.seg_a: seg_a_pts,
-                            c.seg_b: seg_b_pts,
-                        }
-
-            # Read merge decision authorities from info and load any that exist
-            authorities = info.get("merge_decisions", [])
-            for authority in authorities:
-                decisions = self._read_merge_decision_chunk(chunk_idx, authority)
-                for contact_id, should_merge in decisions:
-                    if contact_id in contact_lookup:
-                        c = contact_lookup[contact_id]
-                        if c.merge_decisions is None:
-                            c.merge_decisions = {}
-                        c.merge_decisions[authority] = should_merge
+        # Attach supervoxels unconditionally (file existence check is in the method)
+        self._attach_representative_supervoxels(chunk_idx, contact_lookup)
 
         return contacts
+
+    def _read_info_if_exists(self) -> dict | None:
+        """Read info file if it exists."""
+        info_path = f"{self.path}/info"
+        fs, fs_path = fsspec.core.url_to_fs(info_path)
+        if not fs.exists(fs_path):
+            return None
+        with fs.open(fs_path, "rb") as f:
+            return json.loads(f.read().decode("utf-8"))
+
+    def _attach_pointclouds(
+        self, chunk_idx: tuple[int, int, int], contact_lookup: dict[int, SegContact], info: dict
+    ) -> None:
+        """Attach pointcloud data to contacts."""
+        if self.local_point_clouds is not None:
+            configs = [{"radius_nm": r, "n_points": n} for r, n in self.local_point_clouds]
+        else:
+            configs = info.get("local_point_clouds", [])
+
+        for cfg in configs:
+            radius_nm = int(cfg["radius_nm"])
+            n_points = int(cfg["n_points"])
+            pc_data = self._read_pointcloud_chunk(chunk_idx, radius_nm, n_points)
+            config_tuple = (radius_nm, n_points)
+            for contact_id, seg_a_pts, seg_b_pts in pc_data:
+                if contact_id not in contact_lookup:
+                    continue
+                c = contact_lookup[contact_id]
+                if c.local_pointclouds is None:
+                    c.local_pointclouds = {}
+                c.local_pointclouds[config_tuple] = {c.seg_a: seg_a_pts, c.seg_b: seg_b_pts}
+
+    def _attach_merge_decisions(
+        self, chunk_idx: tuple[int, int, int], contact_lookup: dict[int, SegContact], info: dict
+    ) -> None:
+        """Attach merge decision data to contacts."""
+        for authority in info.get("merge_decisions", []):
+            decisions = self._read_merge_decision_chunk(chunk_idx, authority)
+            for contact_id, should_merge in decisions:
+                if contact_id not in contact_lookup:
+                    continue
+                c = contact_lookup[contact_id]
+                if c.merge_decisions is None:
+                    c.merge_decisions = {}
+                c.merge_decisions[authority] = should_merge
+
+    def _attach_merge_probabilities(
+        self, chunk_idx: tuple[int, int, int], contact_lookup: dict[int, SegContact], info: dict
+    ) -> None:
+        """Attach merge probability data to contacts."""
+        for authority in info.get("merge_probabilities", []):
+            probabilities = self._read_merge_probability_chunk(chunk_idx, authority)
+            for contact_id, probability in probabilities:
+                if contact_id not in contact_lookup:
+                    continue
+                c = contact_lookup[contact_id]
+                if c.merge_probabilities is None:
+                    c.merge_probabilities = {}
+                c.merge_probabilities[authority] = probability
+
+    def _attach_representative_supervoxels(
+        self, chunk_idx: tuple[int, int, int], contact_lookup: dict[int, SegContact]
+    ) -> None:
+        """Attach representative supervoxel data to contacts."""
+        supervoxels = self._read_representative_supervoxels_chunk(chunk_idx)
+        for contact_id, seg_a, seg_b, sv_a, sv_b in supervoxels:
+            if contact_id not in contact_lookup:
+                continue
+            c = contact_lookup[contact_id]
+            c.representative_supervoxels = {seg_a: sv_a, seg_b: sv_b}
 
     def _read_contacts_chunk(self, chunk_idx: tuple[int, int, int]) -> list[dict]:
         """Read core contact data from contacts/ directory."""
@@ -496,6 +666,13 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 else:
                     partner_metadata = None
 
+                # Read representative_points (6 floats: point_a xyz, point_b xyz)
+                pts = struct.unpack("<ffffff", f.read(24))
+                representative_points: dict[int, Vec3D] = {
+                    seg_a: Vec3D(pts[0], pts[1], pts[2]),
+                    seg_b: Vec3D(pts[3], pts[4], pts[5]),
+                }
+
                 contacts.append(
                     {
                         "id": id_,
@@ -506,6 +683,7 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                         "local_pointclouds": None,
                         "merge_decisions": None,
                         "partner_metadata": partner_metadata,
+                        "representative_points": representative_points,
                     }
                 )
 
@@ -563,3 +741,53 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
                 decisions.append((contact_id, should_merge))
 
         return decisions
+
+    def _read_merge_probability_chunk(
+        self, chunk_idx: tuple[int, int, int], authority: str
+    ) -> list[tuple[int, float]]:
+        """Read merge probabilities from merge_probabilities/{authority}/ directory."""
+        chunk_path = self.get_merge_probability_chunk_path(chunk_idx, authority)
+        fs, fs_path = fsspec.core.url_to_fs(chunk_path)
+        if not fs.exists(fs_path):
+            return []
+
+        entries = []
+        with fs.open(fs_path, "rb") as f_in:
+            data = f_in.read()
+        with io.BytesIO(data) as f:
+            n_entries = struct.unpack("<I", f.read(4))[0]
+
+            for _ in range(n_entries):
+                contact_id = struct.unpack("<q", f.read(8))[0]
+                probability = struct.unpack("<f", f.read(4))[0]
+                entries.append((contact_id, probability))
+
+        return entries
+
+    def _read_representative_supervoxels_chunk(
+        self, chunk_idx: tuple[int, int, int]
+    ) -> list[tuple[int, int, int, int, int]]:
+        """Read representative supervoxels from representative_supervoxels/ directory.
+
+        Returns list of (contact_id, seg_a, seg_b, supervoxel_a, supervoxel_b).
+        """
+        chunk_path = self.get_representative_supervoxels_chunk_path(chunk_idx)
+        fs, fs_path = fsspec.core.url_to_fs(chunk_path)
+        if not fs.exists(fs_path):
+            return []
+
+        entries = []
+        with fs.open(fs_path, "rb") as f_in:
+            data = f_in.read()
+        with io.BytesIO(data) as f:
+            n_entries = struct.unpack("<I", f.read(4))[0]
+
+            for _ in range(n_entries):
+                contact_id = struct.unpack("<q", f.read(8))[0]
+                seg_a = struct.unpack("<q", f.read(8))[0]
+                seg_b = struct.unpack("<q", f.read(8))[0]
+                sv_a = struct.unpack("<Q", f.read(8))[0]  # uint64
+                sv_b = struct.unpack("<Q", f.read(8))[0]  # uint64
+                entries.append((contact_id, seg_a, seg_b, sv_a, sv_b))
+
+        return entries

@@ -29,6 +29,7 @@ def make_test_layer(temp_dir: str) -> None:
             seg_b=200,
             com=Vec3D(100.0, 100.0, 100.0),
             contact_faces=np.array([[1.0, 2.0, 3.0, 0.5]], dtype=np.float32),
+            representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
         ),
     ]
     backend.write_chunk((0, 0, 0), contacts)

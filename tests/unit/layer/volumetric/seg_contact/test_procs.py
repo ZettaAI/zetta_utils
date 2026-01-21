@@ -24,6 +24,7 @@ def test_normalize_pointclouds_basic():
         seg_b=200,
         com=com,
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(90.0, 190.0, 290.0), 200: Vec3D(110.0, 210.0, 310.0)},
         local_pointclouds={config: {100: seg_a_pts, 200: seg_b_pts}},
     )
 
@@ -54,6 +55,7 @@ def test_normalize_pointclouds_no_pointclouds():
         seg_b=200,
         com=com,
         contact_faces=np.array([[100, 200, 300, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
         local_pointclouds=None,
     )
 
@@ -84,6 +86,7 @@ def test_normalize_pointclouds_multiple_configs():
         seg_b=200,
         com=com,
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds={
             config1: {100: pts.copy(), 200: pts.copy()},
             config2: {100: pts.copy(), 200: pts.copy()},
@@ -110,6 +113,7 @@ def test_normalize_pointclouds_preserves_other_fields():
         seg_b=200,
         com=com,
         contact_faces=np.array([[100, 200, 300, 0.5], [8100, 200, 300, 0.8]], dtype=np.float32),
+        representative_points={100: Vec3D(90.0, 190.0, 290.0), 200: Vec3D(110.0, 210.0, 310.0)},
         local_pointclouds={config: {100: np.zeros((10, 3)), 200: np.ones((10, 3))}},
         merge_decisions={"human": True},
         partner_metadata={100: "axon", 200: "dendrite"},
@@ -142,6 +146,7 @@ def test_gaussian_noise_adds_noise():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds={config: {100: pts.copy(), 200: pts.copy()}},
     )
 
@@ -166,6 +171,7 @@ def test_gaussian_noise_no_pointclouds():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds=None,
     )
 
@@ -187,6 +193,7 @@ def test_gaussian_noise_partial_with_std():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds={config: {100: pts.copy(), 200: pts.copy()}},
     )
 
@@ -211,6 +218,7 @@ def test_gaussian_noise_direct_call_with_contacts():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds={config: {100: pts.copy(), 200: pts.copy()}},
     )
 
@@ -236,6 +244,7 @@ def test_random_rotation_rotates_pointclouds_and_faces():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=faces.copy(),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds={config: {100: pts_a.copy(), 200: pts_b.copy()}},
     )
 
@@ -277,6 +286,7 @@ def test_random_rotation_no_pointclouds():
         seg_b=200,
         com=Vec3D(0.0, 0.0, 0.0),
         contact_faces=faces.copy(),
+        representative_points={100: Vec3D(-10.0, -10.0, -10.0), 200: Vec3D(10.0, 10.0, 10.0)},
         local_pointclouds=None,
     )
 
@@ -300,6 +310,7 @@ def test_random_rotation_preserves_other_fields():
         seg_b=200,
         com=Vec3D(100.0, 200.0, 300.0),
         contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+        representative_points={100: Vec3D(90.0, 190.0, 290.0), 200: Vec3D(110.0, 210.0, 310.0)},
         local_pointclouds={config: {100: np.zeros((10, 3)), 200: np.ones((10, 3))}},
         merge_decisions={"human": True},
         partner_metadata={100: "axon", 200: "dendrite"},

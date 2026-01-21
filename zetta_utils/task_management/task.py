@@ -3,7 +3,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any, TypedDict, cast
 
-from sqlalchemy import BigInteger, func, select
+from sqlalchemy import BigInteger, and_, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import Session
 from typeguard import typechecked
@@ -514,9 +514,6 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
         return None
 
     qualified_segment_types = user.qualified_segment_types or []
-    if not qualified_segment_types:
-        logger.info(f"User {user_id} has no qualified segment types")
-        return None
 
     logger.info(f"User {user_id} is qualified for: {qualified_types}")
     logger.info(f"User {user_id} is qualified for segment types: {qualified_segment_types}")
@@ -525,26 +522,35 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info(f"Looking for assigned tasks for user {user_id}")
     query = (
         select(TaskModel)
-        .join(
+        .outerjoin(
             SegmentModel,
-            func.cast(
-                TaskModel.extra_data.op("->>")("seed_id"),
-                BigInteger,
-            )
-            == SegmentModel.seed_id,
+            and_(
+                func.cast(
+                    TaskModel.extra_data.op("->>")("seed_id"),
+                    BigInteger,
+                )
+                == SegmentModel.seed_id,
+                SegmentModel.project_name == project_name,
+            ),
         )
         .where(TaskModel.project_name == project_name)
-        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.assigned_user_id == user_id)
         .where(TaskModel.active_user_id == "")  # Not currently active
-        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+        .where(
+            or_(
+                # Alignment tasks (no seed_id) - skip segment filtering
+                TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                # Segment tasks - require segment type match
+                SegmentModel.expected_segment_type.in_(qualified_segment_types),
+            )
+        )
         .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
         .limit(1)
-        .with_for_update(skip_locked=True)
+        .with_for_update(skip_locked=True, of=TaskModel)
     )
     result = db_session.execute(query).scalar_one_or_none()
     if result:
@@ -555,25 +561,34 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info("Looking for available tasks")
     query = (
         select(TaskModel)
-        .join(
+        .outerjoin(
             SegmentModel,
-            func.cast(
-                TaskModel.extra_data.op("->>")("seed_id"),
-                BigInteger,
-            )
-            == SegmentModel.seed_id,
+            and_(
+                func.cast(
+                    TaskModel.extra_data.op("->>")("seed_id"),
+                    BigInteger,
+                )
+                == SegmentModel.seed_id,
+                SegmentModel.project_name == project_name,
+            ),
         )
         .where(TaskModel.project_name == project_name)
-        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.active_user_id == "")  # Not currently active
-        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+        .where(
+            or_(
+                # Alignment tasks (no seed_id) - skip segment filtering
+                TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                # Segment tasks - require segment type match
+                SegmentModel.expected_segment_type.in_(qualified_segment_types),
+            )
+        )
         .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
         .limit(1)
-        .with_for_update(skip_locked=True)
+        .with_for_update(skip_locked=True, of=TaskModel)
     )
     result = db_session.execute(query).scalar_one_or_none()
     if result:
@@ -585,25 +600,34 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
     logger.info("Looking for idle tasks")
     query = (
         select(TaskModel)
-        .join(
+        .outerjoin(
             SegmentModel,
-            func.cast(
-                TaskModel.extra_data.op("->>")("seed_id"),
-                BigInteger,
-            )
-            == SegmentModel.seed_id,
+            and_(
+                func.cast(
+                    TaskModel.extra_data.op("->>")("seed_id"),
+                    BigInteger,
+                )
+                == SegmentModel.seed_id,
+                SegmentModel.project_name == project_name,
+            ),
         )
         .where(TaskModel.project_name == project_name)
-        .where(SegmentModel.project_name == project_name)
         .where(TaskModel.is_active == True)
         .where(TaskModel.is_paused == False)  # Exclude paused tasks
         .where(TaskModel.completion_status == "")
         .where(TaskModel.task_type.in_(qualified_types))
         .where(TaskModel.last_leased_ts < oldest_allowed_ts)
-        .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+        .where(
+            or_(
+                # Alignment tasks (no seed_id) - skip segment filtering
+                TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                # Segment tasks - require segment type match
+                SegmentModel.expected_segment_type.in_(qualified_segment_types),
+            )
+        )
         .order_by(TaskModel.priority.desc(), TaskModel.last_leased_ts.desc())
         .limit(1)
-        .with_for_update(skip_locked=True)  # Skip if another transaction has it locked
+        .with_for_update(skip_locked=True, of=TaskModel)  # Skip if locked
     )
     result = db_session.execute(query).scalar_one_or_none()
     if result:
@@ -627,27 +651,36 @@ def _select_assigned_task_across_projects(
     for project_name, qualifications in user_qualifications.items():
         qualified_types = qualifications.get("task_types", [])
         qualified_segment_types = qualifications.get("segment_types", [])
-        if not qualified_types or not qualified_segment_types:
+        if not qualified_types:
             continue
         query = (
             select(TaskModel)
-            .join(
+            .outerjoin(
                 SegmentModel,
-                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
-                == SegmentModel.seed_id,
+                and_(
+                    func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                    == SegmentModel.seed_id,
+                    SegmentModel.project_name == project_name,
+                ),
             )
             .where(TaskModel.project_name == project_name)
-            .where(SegmentModel.project_name == project_name)
             .where(TaskModel.is_active.is_(True))
             .where(TaskModel.is_paused == False)
             .where(TaskModel.completion_status == "")
             .where(TaskModel.task_type.in_(qualified_types))
             .where(TaskModel.assigned_user_id == qualifications["user_id"])
             .where(TaskModel.active_user_id == "")
-            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .where(
+                or_(
+                    # Alignment tasks (no seed_id) - skip segment filtering
+                    TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                    # Segment tasks - require segment type match
+                    SegmentModel.expected_segment_type.in_(qualified_segment_types),
+                )
+            )
             .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
             .limit(1)
-            .with_for_update(skip_locked=True)
+            .with_for_update(skip_locked=True, of=TaskModel)
         )
         result = db_session.execute(query).scalar_one_or_none()
         if result:
@@ -668,24 +701,33 @@ def _select_available_task_across_projects(
     for project_name, qualifications in user_qualifications.items():
         qualified_types = qualifications.get("task_types", [])
         qualified_segment_types = qualifications.get("segment_types", [])
-        if not qualified_types or not qualified_segment_types:
+        if not qualified_types:
             continue
         project_query = (
             select(TaskModel)
-            .join(
+            .outerjoin(
                 SegmentModel,
-                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
-                == SegmentModel.seed_id,
+                and_(
+                    func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                    == SegmentModel.seed_id,
+                    SegmentModel.project_name == project_name,
+                ),
             )
             .where(TaskModel.project_name == project_name)
-            .where(SegmentModel.project_name == project_name)
             .where(TaskModel.is_active.is_(True))
             .where(TaskModel.is_paused == False)
             .where(TaskModel.completion_status == "")
             .where(TaskModel.assigned_user_id == "")
             .where(TaskModel.task_type.in_(qualified_types))
             .where(TaskModel.active_user_id == "")
-            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .where(
+                or_(
+                    # Alignment tasks (no seed_id) - skip segment filtering
+                    TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                    # Segment tasks - require segment type match
+                    SegmentModel.expected_segment_type.in_(qualified_segment_types),
+                )
+            )
             .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
             .limit(1)
         )
@@ -736,24 +778,33 @@ def _select_idle_task_across_projects(
     for project_name, qualifications in user_qualifications.items():
         qualified_types = qualifications.get("task_types", [])
         qualified_segment_types = qualifications.get("segment_types", [])
-        if not qualified_types or not qualified_segment_types:
+        if not qualified_types:
             continue
         project_query = (
             select(TaskModel)
-            .join(
+            .outerjoin(
                 SegmentModel,
-                func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
-                == SegmentModel.seed_id,
+                and_(
+                    func.cast(TaskModel.extra_data.op("->>")("seed_id"), BigInteger)
+                    == SegmentModel.seed_id,
+                    SegmentModel.project_name == project_name,
+                ),
             )
             .where(TaskModel.project_name == project_name)
-            .where(SegmentModel.project_name == project_name)
             .where(TaskModel.is_active.is_(True))
             .where(TaskModel.is_paused == False)
             .where(TaskModel.completion_status == "")
             .where(TaskModel.assigned_user_id == "")
             .where(TaskModel.task_type.in_(qualified_types))
             .where(TaskModel.last_leased_ts < oldest_allowed_ts)
-            .where(SegmentModel.expected_segment_type.in_(qualified_segment_types))
+            .where(
+                or_(
+                    # Alignment tasks (no seed_id) - skip segment filtering
+                    TaskModel.extra_data.op("->>")("seed_id").is_(None),
+                    # Segment tasks - require segment type match
+                    SegmentModel.expected_segment_type.in_(qualified_segment_types),
+                )
+            )
             .order_by(TaskModel.priority.desc(), TaskModel.last_leased_ts.desc())
             .limit(1)
         )

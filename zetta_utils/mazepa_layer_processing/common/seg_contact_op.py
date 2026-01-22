@@ -14,7 +14,7 @@ from cloudvolume import CloudVolume
 from cloudvolume.exceptions import MeshDecodeError
 from scipy.spatial.distance import cdist
 
-from zetta_utils import builder
+from zetta_utils import builder, log
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.seg_contact import (
@@ -23,6 +23,8 @@ from zetta_utils.layer.volumetric.seg_contact import (
 )
 from zetta_utils.mazepa import taskable_operation_cls
 from zetta_utils.mazepa.semaphores import semaphore
+
+logger = log.get_logger("zetta_utils")
 
 
 def _read_layers_parallel(
@@ -984,3 +986,122 @@ class AddPointcloudsOp:
         )
 
         print(f"[{coord_str}] Total: {time.time() - t_start:.1f}s", flush=True)
+
+
+@builder.register("ContactMergeOp")
+@taskable_operation_cls
+@attrs.frozen
+class ContactMergeOp:
+    """Operation to run contact merge inference and write merge_probabilities.
+
+    Reads contacts from src layer, runs PointNet model inference,
+    and writes updated contacts with merge_probabilities to dst layer.
+
+    The conversion parameters must match the validation dataset configuration
+    used during training to ensure consistent data representation.
+    """
+
+    model_path: str
+    authority_name: str
+    apply_sigmoid: bool = True
+    include_contact_faces: bool = False
+    contact_label: float | None = 0.0
+    affinity_channel_mode: str | None = None
+    config_key: tuple[int, int] | None = None
+
+    def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> "ContactMergeOp":
+        return self  # No crop pad needed for this op
+
+    def __call__(
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricSegContactLayer,
+        src: VolumetricSegContactLayer,
+    ) -> None:
+        import torch
+
+        from zetta_utils import convnet
+        from zetta_utils.layer.volumetric.seg_contact.tensor_utils import contacts_to_tensor
+
+        t_start = time.time()
+        coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
+
+        # Read contacts from source layer
+        t0 = time.time()
+        with semaphore("read"):
+            contacts = src[idx]
+        if not contacts:
+            logger.info(f"[{coord_str}] No contacts in chunk, skipping")
+            return
+        logger.info(
+            f"[{coord_str}] Read contacts: {time.time() - t0:.1f}s ({len(contacts)} contacts)"
+        )
+
+        # Convert to tensor for model input
+        t0 = time.time()
+        tensor, valid_indices = contacts_to_tensor(
+            contacts,
+            config_key=self.config_key,
+            include_contact_faces=self.include_contact_faces,
+            contact_label=self.contact_label,
+            affinity_channel_mode=self.affinity_channel_mode,
+        )
+        logger.info(
+            f"[{coord_str}] Convert to tensor: {time.time() - t0:.1f}s "
+            f"({len(valid_indices)} valid contacts)"
+        )
+
+        if tensor.shape[0] == 0:
+            logger.info(f"[{coord_str}] No valid contacts with pointclouds, skipping")
+            return
+
+        # Run model inference
+        t0 = time.time()
+        with torch.no_grad():
+            output = convnet.utils.load_and_run_model(path=self.model_path, data_in=tensor)
+
+        if self.apply_sigmoid:
+            output = torch.sigmoid(output)
+
+        probs = output.squeeze().cpu()
+        if probs.dim() == 0:
+            probs = probs.unsqueeze(0)
+        logger.info(f"[{coord_str}] Model inference: {time.time() - t0:.1f}s")
+
+        # Update contacts with merge_probabilities
+        t0 = time.time()
+        result = list(contacts)
+        for i, contact_idx in enumerate(valid_indices):
+            contact = result[contact_idx]
+            prob = float(probs[i].item())
+
+            if contact.merge_probabilities is None:
+                new_probs = {self.authority_name: prob}
+            else:
+                new_probs = dict(contact.merge_probabilities)
+                new_probs[self.authority_name] = prob
+
+            result[contact_idx] = SegContact(
+                id=contact.id,
+                seg_a=contact.seg_a,
+                seg_b=contact.seg_b,
+                com=contact.com,
+                contact_faces=contact.contact_faces,
+                representative_points=contact.representative_points,
+                local_pointclouds=contact.local_pointclouds,
+                merge_decisions=contact.merge_decisions,
+                merge_probabilities=new_probs,
+                partner_metadata=contact.partner_metadata,
+            )
+        logger.info(f"[{coord_str}] Update contacts: {time.time() - t0:.1f}s")
+
+        # Write updated contacts
+        t0 = time.time()
+        with semaphore("write"):
+            dst[idx] = result
+        logger.info(f"[{coord_str}] Write contacts: {time.time() - t0:.1f}s")
+
+        logger.info(f"[{coord_str}] Total ContactMergeOp: {time.time() - t_start:.1f}s")

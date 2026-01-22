@@ -404,14 +404,15 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
             else:
                 buf.write(struct.pack("<I", 0))
 
-            # representative_points: 6 floats (point_a xyz, point_b xyz)
-            if contact.representative_points is None:
-                raise ValueError(
-                    f"representative_points required for format_version >= 1.1 (contact id={contact.id})"
-                )
-            pt_a = contact.representative_points[contact.seg_a]
-            pt_b = contact.representative_points[contact.seg_b]
-            buf.write(struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2]))
+            # representative_points: 6 floats (point_a xyz, point_b xyz) - only for format >= 1.1
+            if Version(self.format_version) >= Version("1.1"):
+                if contact.representative_points is None:
+                    raise ValueError(
+                        f"representative_points required for format_version >= 1.1 (contact id={contact.id})"
+                    )
+                pt_a = contact.representative_points[contact.seg_a]
+                pt_b = contact.representative_points[contact.seg_b]
+                buf.write(struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2]))
 
         fs, fs_path = fsspec.core.url_to_fs(chunk_path)
         fs.makedirs(os.path.dirname(fs_path), exist_ok=True)

@@ -42,6 +42,7 @@ class SegContactInfoSpecParams:
     merge_decisions: list[str] | None = None
     merge_probabilities: list[str] | None = None
     filter_settings: dict | None = None
+    format_version: str = "1.1"
 
     @classmethod
     def from_reference(
@@ -59,6 +60,7 @@ class SegContactInfoSpecParams:
         merge_decisions: list[str] | None = None,
         merge_probabilities: list[str] | None = None,
         filter_settings: dict | None = None,
+        format_version: str | None = None,
     ) -> SegContactInfoSpecParams:
         """Create params from a source seg_contact layer path."""
         ref_info = read_info(source_path)
@@ -93,6 +95,8 @@ class SegContactInfoSpecParams:
             merge_probabilities = ref_info.get("merge_probabilities")
         if filter_settings is None:
             filter_settings = ref_info.get("filter_settings")
+        if format_version is None:
+            format_version = ref_info.get("format_version", "1.0")
 
         return cls(
             resolution=Vec3D(*resolution),
@@ -107,6 +111,7 @@ class SegContactInfoSpecParams:
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,
             filter_settings=filter_settings,
+            format_version=format_version,
         )
 
 
@@ -134,7 +139,7 @@ class SegContactInfoSpec:
             voxel_offset = [int(params.bbox.start[i] / params.resolution[i]) for i in range(3)]
             size = [int(params.bbox.shape[i] / params.resolution[i]) for i in range(3)]
             info: dict = {
-                "format_version": "1.0",
+                "format_version": params.format_version,
                 "type": "seg_contact",
                 "resolution": list(params.resolution),
                 "voxel_offset": voxel_offset,

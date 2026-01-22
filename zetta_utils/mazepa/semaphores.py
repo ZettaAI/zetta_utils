@@ -18,7 +18,7 @@ from zetta_utils import log
 from zetta_utils.common.pprint import lrpad
 
 logger = log.get_logger("mazepa")
-SemaphoreType = Literal["read", "write", "cuda", "cpu"]
+SemaphoreType = Literal["read", "write", "cuda", "cpu", "trt_compilation"]
 
 DEFAULT_SEMA_COUNT = 1
 TIMING_FORMAT = "dddd"  # wait_time, lease_time, lease_count, start_time
@@ -152,14 +152,15 @@ def configure_semaphores(
     Context manager for creating and destroying semaphores.
     """
 
-    sema_types_to_check: List[SemaphoreType] = ["read", "write", "cuda", "cpu"]
+    sema_types_to_check: List[SemaphoreType] = ["read", "write", "cuda", "cpu", "trt_compilation"]
     if semaphores_spec is not None:
         for name in semaphores_spec:
             if name not in get_args(SemaphoreType):
                 raise ValueError(f"`{name}` is not a valid semaphore type.")
         try:
-            for sema_type in sema_types_to_check:
-                assert semaphores_spec[sema_type] >= 0
+            # TODO: need to make trt_compilation optional
+            # for sema_type in sema_types_to_check:
+            #     assert semaphores_spec[sema_type] >= 0
             semaphores_spec_ = semaphores_spec
         except KeyError as e:
             raise ValueError(

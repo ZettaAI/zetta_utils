@@ -3,6 +3,7 @@
 
 Reads written merge_probabilities and compares to ground truth merge_decisions.
 Computes AUC-PR, AUC-ROC, precision, recall for ALL and AMBIGUOUS (MA 0.15-0.35) samples.
+Optionally saves PR and ROC curves as PDF.
 
 Usage:
     python compute_merge_metrics.py \
@@ -10,13 +11,16 @@ Usage:
         --authority model_v6.0_r2k_p2k_pn4k_cf_aff_bs64_minbs16_lr1e-3_test \
         --gt-authority ground_truth \
         --bbox 29664,9364,1240,34808,12460,1304 \
-        --chunk-size 256,256,64
+        --chunk-size 256,256,64 \
+        --output-dir ./curves
 """
 
 import argparse
 import struct
 import io
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 from google.cloud import storage
 from sklearn.metrics import auc, precision_recall_curve, roc_curve
@@ -129,11 +133,71 @@ def read_merge_probabilities_chunk(bucket, path: str) -> dict[int, float]:
     return probs
 
 
+def plot_curves(
+    targets: np.ndarray,
+    probs: np.ndarray,
+    mean_affinities: np.ndarray,
+    subset_name: str,
+    output_dir: Path,
+    authority: str,
+) -> None:
+    """Plot and save PR and ROC curves as PDF."""
+    # Compute curves for classifier
+    pr_precision, pr_recall, _ = precision_recall_curve(targets, probs)
+    auc_pr_classifier = auc(pr_recall, pr_precision)
+    fpr, tpr, _ = roc_curve(targets, probs)
+    auc_roc_classifier = auc(fpr, tpr)
+
+    # Compute curves for mean affinity baseline
+    pr_ma_precision, pr_ma_recall, _ = precision_recall_curve(targets, mean_affinities)
+    auc_pr_ma = auc(pr_ma_recall, pr_ma_precision)
+    fpr_ma, tpr_ma, _ = roc_curve(targets, mean_affinities)
+    auc_roc_ma = auc(fpr_ma, tpr_ma)
+
+    # Sanitize subset name for filename
+    safe_subset = subset_name.replace(" ", "_").replace("(", "").replace(")", "").replace(",", "")
+
+    # PR Curve
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot(pr_recall, pr_precision, label=f"Classifier (AUC={auc_pr_classifier:.3f})", linewidth=2)
+    ax.plot(pr_ma_recall, pr_ma_precision, label=f"Mean Affinity (AUC={auc_pr_ma:.3f})", linewidth=2, linestyle="--")
+    ax.set_xlabel("Recall", fontsize=12)
+    ax.set_ylabel("Precision", fontsize=12)
+    ax.set_title(f"PR Curve - {subset_name}", fontsize=14)
+    ax.legend(loc="lower left", fontsize=10)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    ax.grid(True, alpha=0.3)
+    pr_path = output_dir / f"pr_curve_{safe_subset}_{authority}.pdf"
+    fig.savefig(pr_path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {pr_path}")
+
+    # ROC Curve
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot(fpr, tpr, label=f"Classifier (AUC={auc_roc_classifier:.3f})", linewidth=2)
+    ax.plot(fpr_ma, tpr_ma, label=f"Mean Affinity (AUC={auc_roc_ma:.3f})", linewidth=2, linestyle="--")
+    ax.plot([0, 1], [0, 1], "k--", alpha=0.5, linewidth=1)  # Random baseline
+    ax.set_xlabel("False Positive Rate", fontsize=12)
+    ax.set_ylabel("True Positive Rate", fontsize=12)
+    ax.set_title(f"ROC Curve - {subset_name}", fontsize=14)
+    ax.legend(loc="lower right", fontsize=10)
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    ax.grid(True, alpha=0.3)
+    roc_path = output_dir / f"roc_curve_{safe_subset}_{authority}.pdf"
+    fig.savefig(roc_path, format="pdf", bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {roc_path}")
+
+
 def compute_metrics(
     targets: np.ndarray,
     probs: np.ndarray,
     mean_affinities: np.ndarray,
     subset_name: str,
+    output_dir: Path | None = None,
+    authority: str = "",
 ) -> dict:
     """Compute and print metrics for a subset."""
     n_samples = len(targets)
@@ -177,6 +241,10 @@ def compute_metrics(
     print(f"  AUC-PR  Classifier: {auc_pr_classifier:.4f}  MeanAffinity: {auc_pr_ma:.4f}")
     print(f"  AUC-ROC Classifier: {auc_roc_classifier:.4f}  MeanAffinity: {auc_roc_ma:.4f}")
 
+    # Save curves if output_dir provided
+    if output_dir is not None:
+        plot_curves(targets, probs, mean_affinities, subset_name, output_dir, authority)
+
     return {
         "n_samples": n_samples,
         "n_positive": n_positive,
@@ -199,7 +267,15 @@ def main():
     parser.add_argument("--resolution", default="16,16,40", help="Resolution: x,y,z")
     parser.add_argument("--chunk-size", default="256,256,64", help="Chunk size: x,y,z")
     parser.add_argument("--min-mean-affinity", type=float, default=0.1, help="Min mean affinity filter")
+    parser.add_argument("--output-dir", type=str, default=None, help="Directory to save PR/ROC curve PDFs")
     args = parser.parse_args()
+
+    # Setup output directory if specified
+    output_dir = None
+    if args.output_dir:
+        output_dir = Path(args.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Output directory: {output_dir}")
 
     start, end = parse_bbox(args.bbox)
     chunk_size = parse_vec(args.chunk_size)
@@ -287,7 +363,7 @@ def main():
     mean_affinities = np.array(all_mean_affinities)
 
     # Compute metrics for ALL samples
-    compute_metrics(targets, probs, mean_affinities, "ALL")
+    compute_metrics(targets, probs, mean_affinities, "ALL", output_dir, args.authority)
 
     # Compute metrics for AMBIGUOUS samples (MA 0.15-0.35)
     ambig_mask = (mean_affinities >= 0.15) & (mean_affinities <= 0.35)
@@ -298,6 +374,8 @@ def main():
             probs[ambig_mask],
             mean_affinities[ambig_mask],
             f"AMBIGUOUS (MA 0.15-0.35, n={n_ambig})",
+            output_dir,
+            args.authority,
         )
     else:
         print(f"\nAMBIGUOUS: Not enough samples ({n_ambig} < 10)")

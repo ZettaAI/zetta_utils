@@ -38,10 +38,12 @@ attrs==25.4.0
     #   referencing
 autodocsumm==0.2.14
     # via sphinx-toolbox
-awscli==1.44.21
+awscli==1.44.23
     # via zetta-utils (pyproject.toml)
 babel==2.17.0
     # via sphinx
+backports-zstd==1.3.0
+    # via zetta-utils (pyproject.toml)
 beautifulsoup4==4.14.3
     # via sphinx-toolbox
 black==21.9b0
@@ -53,14 +55,14 @@ blosc==1.11.4
     #   meshparty
 blosc2==3.12.2
     # via tables
-boto3==1.42.31
+boto3==1.42.33
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
     #   cloud-volume
     #   moto
     #   task-queue
-botocore==1.42.31
+botocore==1.42.33
     # via
     #   awscli
     #   boto3
@@ -155,6 +157,10 @@ cryptography==46.0.3
     # via moto
 cssutils==2.11.1
     # via dict2css
+cuda-bindings==12.9.4
+    # via torch
+cuda-pathfinder==1.3.3
+    # via cuda-bindings
 cycler==0.12.1
     # via matplotlib
 cython==3.2.4
@@ -468,7 +474,7 @@ jinja2==3.1.6
     #   sphinx-jinja2-compat
     #   sphinx-prompt
     #   torch
-jmespath==1.0.1
+jmespath==1.1.0
     # via
     #   boto3
     #   botocore
@@ -521,7 +527,7 @@ mapbox-earcut==2.0.0
     # via trimesh
 mapbuffer==1.1.0
     # via zetta-utils (pyproject.toml)
-markdown==3.10
+markdown==3.10.1
     # via python-jsonschema-objects
 markdown-it-py==4.0.0
     # via rich
@@ -702,7 +708,7 @@ nvidia-cusparse-cu12==12.5.8.93
     #   torch
 nvidia-cusparselt-cu12==0.7.1
     # via torch
-nvidia-ml-py==13.590.44
+nvidia-ml-py==13.590.48
     # via zetta-utils (pyproject.toml)
 nvidia-nccl-cu12==2.27.5
     # via torch
@@ -712,7 +718,7 @@ nvidia-nvjitlink-cu12==12.8.93
     #   nvidia-cusolver-cu12
     #   nvidia-cusparse-cu12
     #   torch
-nvidia-nvshmem-cu12==3.3.20
+nvidia-nvshmem-cu12==3.4.5
     # via torch
 nvidia-nvtx-cu12==12.8.90
     # via torch
@@ -755,7 +761,7 @@ osteoid==0.6.0
     # via
     #   cloud-volume
     #   kimimaro
-packaging==25.0
+packaging==26.0
     # via
     #   zetta-utils (pyproject.toml)
     #   caveclient
@@ -899,7 +905,7 @@ pybind11==3.0.1
     #   osteoid
 pycollada==0.9.2
     # via trimesh
-pycparser==2.23
+pycparser==3.0
     # via cffi
 pydantic==2.12.5
     # via wandb
@@ -921,7 +927,7 @@ pygments==2.19.2
     #   sphinx-tabs
 pylint==4.0.4
     # via zetta-utils (pyproject.toml)
-pyparsing==3.3.1
+pyparsing==3.3.2
     # via
     #   httplib2
     #   matplotlib
@@ -1063,7 +1069,7 @@ scipy==1.17.0
     #   trimesh
 sentry-sdk==2.50.0
     # via wandb
-setuptools==80.9.0
+setuptools==80.10.1
     # via
     #   imagecorruptions-imaug
     #   lightning-utilities
@@ -1157,7 +1163,7 @@ sphinxcontrib-serializinghtml==2.0.0
     # via
     #   zetta-utils (pyproject.toml)
     #   sphinx
-sqlalchemy==2.0.45
+sqlalchemy==2.0.46
     # via zetta-utils (pyproject.toml)
 sqlitedict==2.1.0
     # via pcg-skel
@@ -1199,7 +1205,7 @@ tomli==1.2.3
     # via black
 tomlkit==0.14.0
     # via pylint
-torch==2.9.1
+torch==2.10.0
     # via
     #   zetta-utils (pyproject.toml)
     #   kornia
@@ -1216,7 +1222,7 @@ torchmetrics==1.8.2
     #   zetta-utils (pyproject.toml)
     #   lightning
     #   pytorch-lightning
-torchvision==0.24.1
+torchvision==0.25.0
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
@@ -1243,7 +1249,7 @@ trimesh==4.11.1
     #   zetta-utils (pyproject.toml)
     #   meshparty
     #   pcg-skel
-triton==3.5.1
+triton==3.6.0
     # via torch
 typeguard==4.4.4
     # via
@@ -1314,7 +1320,7 @@ wandb==0.24.0
     # via zetta-utils (pyproject.toml)
 waterz @ git+https://github.com/ZettaAI/waterz.git@0bac4be4c864b293fa49f11cf0abf52bd1ec81df
     # via zetta-utils (pyproject.toml)
-wcwidth==0.2.14
+wcwidth==0.3.1
     # via prompt-toolkit
 webencodings==0.5.1
     # via html5lib
@@ -1354,7 +1360,6 @@ zope-interface==8.2
     # via gevent
 zstandard==0.25.0
     # via
-    #   zetta-utils (pyproject.toml)
     #   cloud-files
     #   cloud-volume
     #   mapbuffer

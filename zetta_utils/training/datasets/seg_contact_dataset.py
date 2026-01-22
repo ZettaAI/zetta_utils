@@ -12,6 +12,10 @@ from zetta_utils.layer.volumetric.seg_contact import (
     SegContact,
     VolumetricSegContactLayer,
 )
+from zetta_utils.layer.volumetric.seg_contact.tensor_utils import (
+    contact_faces_to_tensor,
+    pointcloud_to_labeled_tensor,
+)
 
 from .sample_indexers import SampleIndexer
 
@@ -225,24 +229,10 @@ class SegContactDataset(torch.utils.data.Dataset):
                     skip_contact = True
                     break
 
-                # Add segment labels: -1 for seg_a, +1 for seg_b
-                seg_a_tensor = torch.tensor(seg_a_pts, dtype=torch.float32)
-                seg_b_tensor = torch.tensor(seg_b_pts, dtype=torch.float32)
-
-                n_a, n_b = seg_a_tensor.shape[0], seg_b_tensor.shape[0]
-
-                labels_a = torch.full((n_a, 1), -1.0, dtype=torch.float32)
-                labels_b = torch.full((n_b, 1), 1.0, dtype=torch.float32)
-
-                seg_a_with_label = torch.cat([seg_a_tensor, labels_a], dim=-1)
-                seg_b_with_label = torch.cat([seg_b_tensor, labels_b], dim=-1)
-
-                # Add 5th channel (affinity) if requested - 0 for segment points
-                if self.affinity_channel_mode is not None:
-                    zeros_a = torch.zeros((n_a, 1), dtype=torch.float32)
-                    zeros_b = torch.zeros((n_b, 1), dtype=torch.float32)
-                    seg_a_with_label = torch.cat([seg_a_with_label, zeros_a], dim=-1)
-                    seg_b_with_label = torch.cat([seg_b_with_label, zeros_b], dim=-1)
+                # Use shared conversion function for consistency with inference
+                seg_a_with_label, seg_b_with_label = pointcloud_to_labeled_tensor(
+                    seg_a_pts, seg_b_pts, affinity_channel=self.affinity_channel_mode is not None
+                )
 
                 contact_pointcloud_parts.append(seg_a_with_label)
                 contact_pointcloud_parts.append(seg_b_with_label)
@@ -280,42 +270,14 @@ class SegContactDataset(torch.utils.data.Dataset):
                 contact_faces_original_nm_tensor = contact_faces_tensor
             contact_faces_original_nm_list.append(contact_faces_original_nm_tensor)
 
-            # Optionally include contact faces as additional points
+            # Optionally include contact faces as additional points (shared with inference)
             if self.include_contact_faces_in_pointcloud:
-                # Filter out zero-padded contact faces
-                cf_tensor = torch.tensor(contact.contact_faces, dtype=torch.float32)
-                valid_mask = torch.any(cf_tensor[:, :3] != 0, dim=1)
-                valid_cf = cf_tensor[valid_mask]
-
-                if valid_cf.shape[0] > 0:
-                    # Get per-point affinities before potentially overwriting
-                    per_point_affinities = valid_cf[:, 3].clone()
-
-                    if self.contact_label is not None:
-                        # Replace affinity with contact_label
-                        cf_with_label = valid_cf.clone()
-                        cf_with_label[:, 3] = self.contact_label
-                    else:
-                        # Keep affinity as 4th channel
-                        cf_with_label = valid_cf.clone()
-
-                    # Add 5th channel (affinity) if requested
-                    if self.affinity_channel_mode is not None:
-                        n_cf = cf_with_label.shape[0]
-                        if self.affinity_channel_mode == "per_point":
-                            # Per-point affinity values
-                            aff_channel = per_point_affinities.unsqueeze(-1)
-                        elif self.affinity_channel_mode == "mean":
-                            # Mean affinity broadcast to all CF points
-                            mean_aff = per_point_affinities.mean()
-                            aff_channel = torch.full((n_cf, 1), mean_aff, dtype=torch.float32)
-                        else:
-                            raise ValueError(
-                                f"Unknown affinity_channel_mode: {self.affinity_channel_mode}. "
-                                "Must be 'per_point', 'mean', or None."
-                            )
-                        cf_with_label = torch.cat([cf_with_label, aff_channel], dim=-1)
-
+                cf_with_label = contact_faces_to_tensor(
+                    contact.contact_faces,
+                    contact_label=self.contact_label,
+                    affinity_channel_mode=self.affinity_channel_mode,
+                )
+                if cf_with_label is not None:
                     contact_pointcloud_parts.append(cf_with_label)
 
             if contact_pointcloud_parts:

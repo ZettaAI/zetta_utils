@@ -303,7 +303,7 @@ def run_segment_update_worker(  # pylint: disable=too-many-branches, too-many-st
     help="Remove completed entries older than this many days (default: 7)"
 )
 def main(
-    project_name: str,
+    project_name: str | None,
     user_id: str,
     polling_period: float,
     server_address: str,

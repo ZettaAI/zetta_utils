@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from zetta_utils import log
 from zetta_utils.task_management.db.models import TaskFeedbackModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
+from zetta_utils.task_management.exceptions import UserValidationError
 from zetta_utils.task_management.merge_edit import (
     create_merge_edit,
     get_merge_edit_by_id,
@@ -140,14 +141,20 @@ async def start_task_api(
 async def set_task_ng_state_api(
     project_name: str,
     task_id: str,
+    user_id: str,
     request: NgStateRequest,
 ):
     """
     Update the neuroglancer state for a task.
     :param project_name: The name of the project
     :param task_id: The ID of the task to update
+    :param user_id: The ID of the user updating the task
     :param request: Request body containing the neuroglancer state
     """
+    # Verify user is the active user for this task
+    task_data = get_task(project_name=project_name, task_id=task_id)
+    if task_data["active_user_id"] != user_id:
+        raise UserValidationError("Task not assigned to this user")
 
     update_data = TaskUpdate(ng_state=json.loads(request.ng_state))
     update_task(project_name=project_name, task_id=task_id, data=update_data)

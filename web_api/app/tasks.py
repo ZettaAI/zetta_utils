@@ -1,8 +1,11 @@
 # pylint: disable=all # type: ignore
 import json
+from typing import Literal
+
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from typing import Literal
+
+from zetta_utils import log
 from zetta_utils.task_management.db.models import TaskFeedbackModel, TaskModel
 from zetta_utils.task_management.db.session import get_session_context
 from zetta_utils.task_management.exceptions import UserValidationError
@@ -42,7 +45,6 @@ from zetta_utils.task_management.task_types import handle_task_completion, verif
 from zetta_utils.task_management.timesheet import submit_timesheet
 from zetta_utils.task_management.types import TaskUpdate
 
-from zetta_utils import log
 from .utils import generic_exception_handler
 
 logger = log.get_logger()
@@ -139,7 +141,7 @@ async def start_task_api(
 async def set_task_ng_state_api(
     project_name: str,
     task_id: str,
-        user_id: str,
+    user_id: str,
     request: NgStateRequest,
 ):
     """

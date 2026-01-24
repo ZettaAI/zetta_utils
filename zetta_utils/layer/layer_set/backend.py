@@ -31,3 +31,7 @@ class LayerSetBackend(
 
     def with_changes(self, **kwargs) -> LayerSetBackend[IndexT, DataT, DataWriteT]:
         return attrs.evolve(self, **kwargs)  # pragma: no cover
+
+    def delete(self):  # pragma: no cover
+        for layer in self.layers.values():
+            layer.delete()

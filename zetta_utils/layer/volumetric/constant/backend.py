@@ -65,6 +65,16 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
         )
 
     @property
+    def overwrite_partial_chunks(self) -> bool:  # pragma: no cover
+        return False
+
+    @overwrite_partial_chunks.setter
+    def overwrite_partial_chunks(self, value: bool) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set `overwrite_partial_chunks` for ConstantVolumetricBackend directly;"
+        )
+
+    @property
     def use_compression(self) -> bool:  # pragma: no cover
         return False
 
@@ -126,3 +136,7 @@ class ConstantVolumetricBackend(VolumetricBackend):  # pylint: disable=too-few-p
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name
+
+    def delete(self):  # pragma: no cover
+        # No-op for constant backend (no data to delete)
+        pass

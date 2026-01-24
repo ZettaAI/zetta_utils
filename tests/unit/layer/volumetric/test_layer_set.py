@@ -27,3 +27,14 @@ def test_write(mocker):
     layer_set[idx] = {"a": 1, "b": 2}
     layer_a.write_with_procs.assert_called_with(idx, 1)
     layer_b.write_with_procs.assert_called_with(idx, 2)
+
+
+def test_delete(mocker):
+    layer_a = mocker.MagicMock()
+    layer_a.delete = mocker.MagicMock()
+    layer_b = mocker.MagicMock()
+    layer_b.delete = mocker.MagicMock()
+    layer_set = build_volumetric_layer_set(layers={"a": layer_a, "b": layer_b})
+    layer_set.delete()
+    layer_a.delete.assert_called_once()
+    layer_b.delete.assert_called_once()

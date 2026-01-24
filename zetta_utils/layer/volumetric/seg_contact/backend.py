@@ -18,7 +18,9 @@ from .contact import SegContact, read_info
 
 
 @attrs.define
-class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]):
+class SegContactLayerBackend(
+    Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]
+):  # pylint: disable=too-many-public-methods
     """Backend for reading/writing seg_contact data in chunked format."""
 
     path: str
@@ -36,6 +38,9 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
 
     def with_changes(self, **kwargs) -> SegContactLayerBackend:
         return attrs.evolve(self, **kwargs)
+
+    def delete(self):  # pragma: no cover
+        raise NotImplementedError("delete() not implemented for SegContactLayerBackend")
 
     @classmethod
     def from_path(cls, path: str) -> SegContactLayerBackend:

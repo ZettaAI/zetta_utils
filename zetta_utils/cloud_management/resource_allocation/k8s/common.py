@@ -75,11 +75,14 @@ def get_mazepa_worker_command(
         num_procs_line = ""
         semaphores_line = ""
         suppress_worker_logs_line = ""
+        pool_name = f"{task_queue_spec['name']}_{outcome_queue_spec['name']}"
+        pool_name_line = f"pool_name: {json.dumps(pool_name)}\n"
     else:
         command = "mazepa.run_worker_manager"
         num_procs_line = f"num_procs: {num_procs}\n"
         semaphores_line = f"semaphores_spec: {json.dumps(semaphores_spec)}\n"
         suppress_worker_logs_line = f"suppress_worker_logs: {json.dumps(suppress_worker_logs)}\n"
+        pool_name_line = ""
 
     idle_timeout_line = ""
     if idle_timeout:
@@ -101,6 +104,7 @@ def get_mazepa_worker_command(
         + idle_timeout_line
         + suppress_worker_logs_line
         + resource_monitor_interval_line
+        + pool_name_line
         + """
         sleep_sec: 5
     }'

@@ -348,3 +348,21 @@ def test_change_scale_on_extend_shows_missing_scales(clear_caches_reset_mocks, m
     )
     with pytest.raises(RuntimeError, match=r"Missing scales:"):
         info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=False)
+
+
+def test_update_info_keyerror_includes_path(clear_caches_reset_mocks, mocker):
+    test_path = "gs://test/path"
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+        )
+    )
+    mocker.patch.object(
+        precomputed,
+        "get_info",
+        return_value={"data_type": "uint8", "num_channels": 1},  # missing "scales"
+    )
+    with pytest.raises(KeyError, match=test_path):
+        info_spec.update_info(test_path, overwrite=False, keep_existing_scales=True)

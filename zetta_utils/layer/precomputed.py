@@ -348,46 +348,49 @@ class PrecomputedInfoSpec:
 
         if new_info is not None:
             if existing_info is not None:
-                if keep_existing_scales:
-                    if (new_info["data_type"] != existing_info["data_type"]) or (
-                        new_info["num_channels"] != existing_info["num_channels"]
-                    ):
-                        raise RuntimeError(
-                            "Attempting to keep existing scales while 'data_type' or "
-                            "'num_channels' have changed in the info file. "
-                            "Consider setting `keep_existing_scales` to False."
+                try:
+                    if keep_existing_scales:
+                        if (new_info["data_type"] != existing_info["data_type"]) or (
+                            new_info["num_channels"] != existing_info["num_channels"]
+                        ):
+                            raise RuntimeError(
+                                "Attempting to keep existing scales while 'data_type' or "
+                                "'num_channels' have changed in the info file. "
+                                "Consider setting `keep_existing_scales` to False."
+                            )
+                        new_info["scales"] = _merge_and_sort_scales(
+                            existing_info["scales"], new_info["scales"]
                         )
-                    new_info["scales"] = _merge_and_sort_scales(
-                        existing_info["scales"], new_info["scales"]
-                    )
 
-                if not overwrite:
-                    existing_scales_changed = any(
-                        not (e in new_info["scales"]) for e in existing_info["scales"]
-                    )
-                    if existing_scales_changed:
-                        missing_scales = [
-                            e for e in existing_info["scales"] if e not in new_info["scales"]
-                        ]
-                        raise RuntimeError(
-                            f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `info_overwrite` is set to False. Some scales present "
-                            f"in `{path}` would be overwritten.\n"
-                            f"Missing scales: {missing_scales}"
+                    if not overwrite:
+                        existing_scales_changed = any(
+                            not (e in new_info["scales"]) for e in existing_info["scales"]
                         )
-                    existing_info_no_scales = copy.deepcopy(existing_info)
-                    del existing_info_no_scales["scales"]
-                    new_info_no_scales = copy.deepcopy(new_info)
-                    del new_info_no_scales["scales"]
-                    non_scales_changed = existing_info_no_scales != new_info_no_scales
-                    if non_scales_changed:
-                        diff = _get_info_diff(existing_info_no_scales, new_info_no_scales)
-                        raise RuntimeError(
-                            f"New info is not a pure extension of the info existing at '{path}' "
-                            "while `info_overwrite` is set to False. Some non-scale keys "
-                            f"in `{path}` would be overwritten.\n"
-                            f"Differences:\n{diff}"
-                        )
+                        if existing_scales_changed:
+                            missing_scales = [
+                                e for e in existing_info["scales"] if e not in new_info["scales"]
+                            ]
+                            raise RuntimeError(
+                                f"New info is not a pure extension of the info existing "
+                                f"at '{path}' while `info_overwrite` is set to False. "
+                                f"Some scales in `{path}` would be overwritten.\n"
+                                f"Missing scales: {missing_scales}"
+                            )
+                        existing_info_no_scales = copy.deepcopy(existing_info)
+                        del existing_info_no_scales["scales"]
+                        new_info_no_scales = copy.deepcopy(new_info)
+                        del new_info_no_scales["scales"]
+                        non_scales_changed = existing_info_no_scales != new_info_no_scales
+                        if non_scales_changed:
+                            diff = _get_info_diff(existing_info_no_scales, new_info_no_scales)
+                            raise RuntimeError(
+                                f"New info is not a pure extension of the info existing "
+                                f"at '{path}' while `info_overwrite` is set to False. "
+                                f"Some non-scale keys in `{path}` would be overwritten.\n"
+                                f"Differences:\n{diff}"
+                            )
+                except KeyError as exc:
+                    raise KeyError(f"{exc} while validating info at path '{path}'") from exc
 
             if existing_info != new_info:
                 _write_info(new_info, path)

@@ -21,6 +21,20 @@ _info_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=500)
 _info_hash_key = hashkey
 
 
+def _get_info_diff(existing: dict, new: dict) -> str:
+    """Return a string describing differences between two info dicts."""
+    diffs = []
+    all_keys = set(existing.keys()) | set(new.keys())
+    for key in sorted(all_keys):
+        if key not in existing:
+            diffs.append(f"  + {key}: {new[key]}")
+        elif key not in new:
+            diffs.append(f"  - {key}: {existing[key]}")
+        elif existing[key] != new[key]:
+            diffs.append(f"  {key}: {existing[key]} -> {new[key]}")
+    return "\n".join(diffs)
+
+
 # wrapper to cache using absolute paths with '/info'.
 # invalidates the cached infofile if the infofile is local and has since been deleted.
 def get_info(path: str) -> dict[str, Any]:
@@ -352,10 +366,14 @@ class PrecomputedInfoSpec:
                         not (e in new_info["scales"]) for e in existing_info["scales"]
                     )
                     if existing_scales_changed:
+                        missing_scales = [
+                            e for e in existing_info["scales"] if e not in new_info["scales"]
+                        ]
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
                             "while `info_overwrite` is set to False. Some scales present "
-                            f"in `{path}` would be overwritten."
+                            f"in `{path}` would be overwritten.\n"
+                            f"Missing scales: {missing_scales}"
                         )
                     existing_info_no_scales = copy.deepcopy(existing_info)
                     del existing_info_no_scales["scales"]
@@ -363,10 +381,12 @@ class PrecomputedInfoSpec:
                     del new_info_no_scales["scales"]
                     non_scales_changed = existing_info_no_scales != new_info_no_scales
                     if non_scales_changed:
+                        diff = _get_info_diff(existing_info_no_scales, new_info_no_scales)
                         raise RuntimeError(
                             f"New info is not a pure extension of the info existing at '{path}' "
                             "while `info_overwrite` is set to False. Some non-scale keys "
-                            f"in `{path}` would be overwritten."
+                            f"in `{path}` would be overwritten.\n"
+                            f"Differences:\n{diff}"
                         )
 
             if existing_info != new_info:

@@ -55,7 +55,13 @@ def _get_cv_cached(
     if cache_bytes_limit is None:
         cache_bytes_limit = IN_MEM_CACHE_NUM_BYTES_PER_CV
 
-    info = get_info(path_) if not path_.startswith("graphene://") else None
+    try:
+        info = get_info(path_) if not path_.startswith("graphene://") else None
+    except KeyError as e:
+        raise KeyError(
+            f"Failed to read layer info for '{path_}'. "
+            f"The layer may not exist or may have an invalid info file. Original error: {e}"
+        ) from e
 
     if resolution is not None:
         try:

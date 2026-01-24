@@ -26,6 +26,11 @@ for k in dir(torch.optim):
     if k[0].isupper():
         builder.register(f"torch.optim.{k}")(getattr(torch.optim, k))
 
+for k in dir(torch.optim.lr_scheduler):
+    attr = getattr(torch.optim.lr_scheduler, k)
+    if isinstance(attr, type) and issubclass(attr, torch.optim.lr_scheduler.LRScheduler):
+        builder.register(f"torch.optim.lr_scheduler.{k}")(attr)
+
 for module in [torch, torch.nn.functional, torch.linalg, torch.fft]:
     for k in dir(module):
         attr = getattr(module, k)

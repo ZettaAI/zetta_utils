@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import gc
 import importlib.metadata
 import os
 import time
@@ -58,6 +59,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         *args,
         checkpointing_kwargs: Optional[dict] = None,
         progress_bar_kwargs: Optional[dict] = None,
+        gc_interval: Optional[int] = None,
         **kwargs,
     ):
         assert "callbacks" not in kwargs
@@ -85,6 +87,9 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         if kwargs.setdefault("enable_progress_bar", True):
             kwargs["callbacks"].extend(get_progress_bar_callbacks(**progress_bar_kwargs))
 
+        if gc_interval is not None:
+            kwargs["callbacks"].append(GcCallback(interval=gc_interval))
+
         super().__init__(*args, **kwargs)
 
         self.trace_configuration: Dict = {}
@@ -108,7 +113,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
             filepath = f"{self.default_root_dir}/{filepath[2:]}"
 
         # Lightning requires save_checkpoint to be called on all ranks!
-        super().save_checkpoint(filepath, weights_only, storage_options)
+        super().save_checkpoint(filepath, weights_only or False, storage_options)
 
         if not self.is_global_zero:
             return
@@ -293,3 +298,21 @@ class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
         end_time = time.perf_counter()
         elapsed_time = end_time - self.start_time
         pl_module.log("elapsed/train", elapsed_time, on_step=True, on_epoch=True)
+
+
+@typeguard.typechecked
+class GcCallback(pl.callbacks.Callback):  # pragma: no cover
+    def __init__(self, interval: int) -> None:
+        super().__init__()
+        self.interval = interval
+
+    def on_train_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
+        if trainer.global_step > 0 and trainer.global_step % self.interval == 0:
+            gc.collect()
+            torch.cuda.empty_cache()

@@ -12,7 +12,11 @@ from zetta_utils.geometry import BBox3D, IntVec3D, Vec3D
 from zetta_utils.layer import precomputed
 from zetta_utils.layer.precomputed import InfoSpecParams, PrecomputedInfoSpec
 from zetta_utils.layer.volumetric import VolumetricIndex
-from zetta_utils.layer.volumetric.cloudvol.backend import CVBackend, _clear_cv_cache
+from zetta_utils.layer.volumetric.cloudvol.backend import (
+    CVBackend,
+    _clear_cv_cache,
+    _get_cv_cached,
+)
 
 from ....helpers import assert_array_equal
 
@@ -244,8 +248,8 @@ def test_cv_backend_write_scalar(clear_caches_reset_mocks, mocker):
 
 
 def test_cv_backend_read_uint63(clear_caches_reset_mocks, mocker):
-    data_read = np.array([[[[2 ** 63 - 1]]]], dtype=np.uint64)
-    expected = np.array([[[[2 ** 63 - 1]]]], dtype=np.int64)
+    data_read = np.array([[[[2**63 - 1]]]], dtype=np.uint64)
+    expected = np.array([[[[2**63 - 1]]]], dtype=np.int64)
     cvb = CVBackend(
         path=LAYER_UINT63_0_PATH,
         info_spec=PrecomputedInfoSpec(
@@ -291,8 +295,8 @@ def test_cv_backend_write_scalar_uint63(clear_caches_reset_mocks, mocker):
             info_overwrite=True,
             info_keep_existing_scales=False,
         )
-        value = np.array([2 ** 63 - 1], dtype=np.int64)
-        expected_written = np.uint64(2 ** 63 - 1)
+        value = np.array([2**63 - 1], dtype=np.int64)
+        expected_written = np.uint64(2**63 - 1)
 
         index = VolumetricIndex(
             bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
@@ -594,3 +598,13 @@ def test_cv_lru_resize(clear_caches_reset_mocks):
     assert cvb.dtype == np.dtype("uint8")
     cvc = CVBackend(path=LAYER_X0_PATH, info_spec=info_spec, cache_bytes_limit=0)
     assert cvc.dtype == np.dtype("uint8")
+
+
+def test_cv_get_cv_cached_keyerror_includes_path(clear_caches_reset_mocks, mocker):
+    test_path = "gs://nonexistent/path"
+    mocker.patch(
+        "zetta_utils.layer.volumetric.cloudvol.backend.get_info",
+        side_effect=KeyError("scales"),
+    )
+    with pytest.raises(KeyError, match=test_path):
+        _get_cv_cached(test_path)

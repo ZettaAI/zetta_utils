@@ -215,10 +215,23 @@ def run_worker(
     upkeep_handler = SQSUpkeepHandlerManager()
     upkeep_handler.start()
 
+    # For single worker case (k8s), create shared memory for activity tracking
+    # For multi-worker case, parent already created it - we'll get FileExistsError which is fine
+    owns_activity_tracker = False
+    if pool_name and idle_timeout is not None:
+        activity_tracker = PoolActivityTracker(pool_name)
+        try:
+            activity_tracker.create_shared_memory().close()
+            owns_activity_tracker = True
+            logger.info(f"Created activity tracker for pool: {pool_name}")
+        except FileExistsError:
+            logger.debug(f"Activity tracker already exists for pool: {pool_name}")
+    else:
+        activity_tracker = None
+
     try:
         with monitor_resources(resource_monitor_interval):
             start_time = time.time()
-            activity_tracker = PoolActivityTracker(pool_name) if pool_name else None
 
             while True:
                 task_msgs = _pull_tasks_with_error_handling(
@@ -246,6 +259,8 @@ def run_worker(
                     return reason
     finally:
         upkeep_handler.shutdown()
+        if owns_activity_tracker and activity_tracker:
+            activity_tracker.unlink()
 
 
 def process_task_message(

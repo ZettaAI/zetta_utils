@@ -38,7 +38,7 @@ def get_queue_url(queue_name: str, region_name, endpoint_url: Optional[str] = No
     return result
 
 
-# @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def receive_msgs(
     queue_name: str,
     region_name: str,

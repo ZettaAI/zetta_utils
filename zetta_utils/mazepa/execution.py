@@ -162,6 +162,7 @@ def _execute_from_state(
     write_progress_summary: bool,
     require_interrupt_confirm: bool,
     num_procs: int = 8,
+    max_outcome_pull_num: int = 100,
 ):
     if do_dryrun_estimation:
         expected_operation_counts = dryrun.get_expected_operation_counts(state.get_ongoing_flows())
@@ -196,14 +197,21 @@ def _execute_from_state(
                     logger.debug("No ongoing flows left.")
                     break
 
-                submit_ready_tasks(
-                    task_queue, outcome_queue, state, execution_id, max_batch_len, pool=pool
+                num_outcomes_pulled = submit_ready_tasks(
+                    task_queue,
+                    outcome_queue,
+                    state,
+                    execution_id,
+                    max_batch_len,
+                    pool=pool,
+                    max_outcome_pull_num=max_outcome_pull_num,
                 )
 
                 if not isinstance(task_queue, AutoexecuteTaskQueue):
-                    logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
-                    time.sleep(batch_gap_sleep_sec)
-                    logger.debug("Awake.")
+                    if num_outcomes_pulled < max_outcome_pull_num:
+                        logger.debug(f"Sleeping for {batch_gap_sleep_sec} between batches...")
+                        time.sleep(batch_gap_sleep_sec)
+                        logger.debug("Awake.")
 
                 if (
                     checkpoint_interval_sec is not None
@@ -231,9 +239,10 @@ def submit_ready_tasks(
     execution_id: str,
     max_batch_len: int,
     pool: ThreadPoolExecutor,
-):
+    max_outcome_pull_num: int,
+) -> int:
     logger.debug("Pulling task outcomes...")
-    task_outcomes = outcome_queue.pull(max_num=100)
+    task_outcomes = outcome_queue.pull(max_num=max_outcome_pull_num)
 
     if len(task_outcomes) > 0:
         logger.debug(f"Received {len(task_outcomes)} completed task outcomes.")
@@ -265,3 +274,4 @@ def submit_ready_tasks(
     task_queue.push(task_batch)
     for task in task_batch:
         task.status = TaskStatus.SUBMITTED
+    return len(task_outcomes)

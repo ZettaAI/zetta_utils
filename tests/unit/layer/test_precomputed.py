@@ -289,3 +289,62 @@ def test_no_reference_inherit_exc(clear_caches_reset_mocks):
             encoding="raw",
             inherit_all_params=True,
         )
+
+
+def test_get_info_diff_added_key():
+    result = precomputed._get_info_diff({"a": 1}, {"a": 1, "b": 2})
+    assert "+ b: 2" in result
+
+
+def test_get_info_diff_removed_key():
+    result = precomputed._get_info_diff({"a": 1, "b": 2}, {"a": 1})
+    assert "- b: 2" in result
+
+
+def test_get_info_diff_changed_key():
+    result = precomputed._get_info_diff({"a": 1}, {"a": 2})
+    assert "a: 1 -> 2" in result
+
+
+def test_get_info_diff_no_diff():
+    result = precomputed._get_info_diff({"a": 1}, {"a": 1})
+    assert result == ""
+
+
+def test_no_overwrite_dtype_change_shows_diff(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    existing_info = precomputed.get_info(LAYER_X0_PATH)
+    existing_scale = existing_info["scales"][0]
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            chunk_size=existing_scale["chunk_sizes"][0],
+            scales=[existing_scale["resolution"]],
+            bbox=BBox3D.from_coords(
+                existing_scale["voxel_offset"],
+                [existing_scale["voxel_offset"][i] + existing_scale["size"][i] for i in range(3)],
+                existing_scale["resolution"],
+            ),
+            inherit_all_params=True,
+            data_type="int32",
+        )
+    )
+
+    with pytest.raises(RuntimeError, match=r"(?s)Differences:.*data_type.*uint8.*int32"):
+        info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=False)
+
+
+def test_change_scale_on_extend_shows_missing_scales(clear_caches_reset_mocks, mocker):
+    _write_info = mocker.MagicMock()
+    precomputed._write_info = _write_info
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            chunk_size=[7, 7, 7],
+            scales=[[2, 2, 1]],
+            inherit_all_params=True,
+        )
+    )
+    with pytest.raises(RuntimeError, match=r"Missing scales:"):
+        info_spec.update_info(LAYER_X0_PATH, overwrite=False, keep_existing_scales=False)

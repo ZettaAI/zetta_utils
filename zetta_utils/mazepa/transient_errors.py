@@ -15,7 +15,7 @@ class TransientErrorCondition:
 
 
 class ExplicitTransientError(Exception):
-    ...
+    pass
 
 
 TRANSIENT_ERROR_CONDITIONS: Final = (
@@ -42,5 +42,20 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         # Transient GCS error
         exception_type=Exception,
         text_signature="We encountered an internal error. Please try again",
+    ),
+    TransientErrorCondition(
+        # I/O error, often from GKE Image Streaming
+        exception_type=OSError,
+        text_signature="Input/output error",
+    ),
+    TransientErrorCondition(
+        # GCE metadata service unavailable
+        exception_type=Exception,
+        text_signature="Failed to retrieve",
+    ),
+    TransientErrorCondition(
+        # Transient CUDA errors
+        exception_type=RuntimeError,
+        text_signature="CUDA error:",
     ),
 )

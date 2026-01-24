@@ -315,9 +315,12 @@ class PrecomputedInfoSpec:
                         "while `on_info_exists` is set to 'expect_same'"
                     )
                 if on_info_exists == "extend":
-                    scales_unchanged = all(
-                        e in new_info["scales"] for e in existing_info["scales"]
-                    )
+                    try:
+                        scales_unchanged = all(
+                            e in new_info["scales"] for e in existing_info["scales"]
+                        )
+                    except KeyError as exc:
+                        raise KeyError(f"{exc} while validating info at path '{path}'") from exc
                     if not scales_unchanged:
                         raise RuntimeError(
                             f"Info created by the info_spec {self} is not a pure extension "

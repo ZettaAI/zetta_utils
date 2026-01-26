@@ -1,11 +1,13 @@
 # pylint: disable=import-error
 import base64
+import traceback
+
 import numpy as np
 import torch
-import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
+
 from zetta_utils.internal.alignment.manual_correspondence import (
     apply_correspondences_to_image,
 )

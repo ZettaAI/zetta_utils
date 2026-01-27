@@ -35,7 +35,9 @@ def main():
         .replace("{REPO}", args.repo)
     )
     print(f"Running: \n{build_command}")
-    subprocess.call(build_command, shell=True)
+    if subprocess.call(build_command, shell=True) != 0:
+        print("Build failed, exiting.")
+        return
 
     push_command = (
         PUSH_COMMAND_TMPL.replace("{TAG}", args.tag)
@@ -44,13 +46,17 @@ def main():
         .replace("{REPO}", args.repo)
     )
     print(f"Running: \n{push_command}")
-    subprocess.call(push_command, shell=True)
+    if subprocess.call(push_command, shell=True) != 0:
+        print("Push failed, exiting.")
+        return
 
     print(f"\nAdding git tag segment_update_worker_{args.tag}.")
-    subprocess.call(
+    if subprocess.call(
         f"git tag segment_update_worker_{args.tag} && git push origin segment_update_worker_{args.tag}",
         shell=True,
-    )
+    ) != 0:
+        print("Git tagging failed, exiting.")
+        return
 
 
 if __name__ == "__main__":

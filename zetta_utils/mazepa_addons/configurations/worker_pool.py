@@ -10,7 +10,7 @@ from contextlib import ExitStack
 
 import pebble
 
-from zetta_utils import builder, log, try_load_train_inference
+from zetta_utils import builder, get_mp_context, log, setup_environment
 from zetta_utils.common import monitor_resources, reset_signal_handlers
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -53,7 +53,7 @@ def worker_init(
 
     # Inherit the start method from the calling process
     multiprocessing.set_start_method(multiprocessing_start_method, force=True)
-    try_load_train_inference()
+    setup_environment("try")
 
 
 def run_local_worker(
@@ -110,9 +110,7 @@ def setup_local_worker_pool(
             )
             pool = pebble.ProcessPool(
                 max_workers=num_procs,
-                context=multiprocessing.get_context(
-                    "spawn"
-                ),  # 'fork' has issues with CV sharded reads
+                context=get_mp_context(),
                 initializer=worker_init,
                 initargs=[
                     suppress_worker_logs,

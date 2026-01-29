@@ -313,4 +313,7 @@ warn_unused_ignores = true
 known_third_party = "wandb"
 profile = "black"
 skip = ["specs"]
-skip_glob = ["**/__init__.py"]
+skip_glob = [
+  "**/__init__.py",
+  "zetta_utils/builder/preload/*.py"
+]

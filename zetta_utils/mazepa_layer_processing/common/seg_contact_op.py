@@ -1029,7 +1029,7 @@ class ContactMergeOp:
         t_start = time.time()
         coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
 
-        # Read contacts from source layer
+        # Read contacts from source layer (with read procs for inference)
         t0 = time.time()
         with semaphore("read"):
             contacts = src[idx]
@@ -1039,6 +1039,8 @@ class ContactMergeOp:
         logger.info(
             f"[{coord_str}] Read contacts: {time.time() - t0:.1f}s ({len(contacts)} contacts)"
         )
+
+        n_contacts = len(contacts)
 
         # Convert to tensor for model input
         t0 = time.time()
@@ -1060,13 +1062,14 @@ class ContactMergeOp:
 
         # Run model inference
         t0 = time.time()
-        with torch.no_grad():
+        with semaphore("cuda"), torch.no_grad():
             output = convnet.utils.load_and_run_model(path=self.model_path, data_in=tensor)
 
-        if self.apply_sigmoid:
-            output = torch.sigmoid(output)
+            if self.apply_sigmoid:
+                output = torch.sigmoid(output)
 
-        probs = output.squeeze().cpu()
+            probs = output.squeeze().cpu()
+            torch.cuda.empty_cache()
         if probs.dim() == 0:
             probs = probs.unsqueeze(0)
         logger.info(f"[{coord_str}] Model inference: {time.time() - t0:.1f}s")
@@ -1091,11 +1094,28 @@ class ContactMergeOp:
                 com=contact.com,
                 contact_faces=contact.contact_faces,
                 representative_points=contact.representative_points,
-                local_pointclouds=contact.local_pointclouds,
+                local_pointclouds=None,
                 merge_decisions=contact.merge_decisions,
                 merge_probabilities=new_probs,
                 partner_metadata=contact.partner_metadata,
             )
+        # Strip resampled pointclouds from non-updated contacts to avoid
+        # writing modified pointclouds that corrupt the binary format
+        for i in range(len(result)):
+            if result[i].local_pointclouds is not None:
+                c = result[i]
+                result[i] = SegContact(
+                    id=c.id,
+                    seg_a=c.seg_a,
+                    seg_b=c.seg_b,
+                    com=c.com,
+                    contact_faces=c.contact_faces,
+                    representative_points=c.representative_points,
+                    local_pointclouds=None,
+                    merge_decisions=c.merge_decisions,
+                    merge_probabilities=c.merge_probabilities,
+                    partner_metadata=c.partner_metadata,
+                )
         logger.info(f"[{coord_str}] Update contacts: {time.time() - t0:.1f}s")
 
         # Write updated contacts
@@ -1105,3 +1125,66 @@ class ContactMergeOp:
         logger.info(f"[{coord_str}] Write contacts: {time.time() - t0:.1f}s")
 
         logger.info(f"[{coord_str}] Total ContactMergeOp: {time.time() - t_start:.1f}s")
+
+
+
+@builder.register("ContactEdgeFilterOp")
+@taskable_operation_cls
+@attrs.frozen
+class ContactEdgeFilterOp:
+    """Operation to filter seg contacts into .edges files by affinity and merge probability.
+
+    Reads contacts from a VolumetricSegContactLayer and writes two pickled edge
+    sets: one filtered by mean affinity threshold and one by merge probability
+    threshold. Each edge is a (seg_a, seg_b, score) tuple.
+    """
+
+    affinity_thresholds: list[float]
+    score_thresholds: list[float]
+    authority_name: str
+
+    def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
+        return dst_resolution
+
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> "ContactEdgeFilterOp":
+        return self
+
+    def __call__(
+        self,
+        idx: VolumetricIndex,
+        dst: VolumetricSegContactLayer,
+    ) -> None:
+        import os
+        import pickle
+
+        from cloudfiles import CloudFile
+
+        idx_str = idx.pformat()
+
+        with semaphore("read"):
+            contacts = dst[idx]
+
+        if not contacts:
+            logger.info(f"[{idx_str}] No contacts, skipping")
+            return
+
+        for aff_thr in self.affinity_thresholds:
+            aff_edges: set[tuple] = set()
+            for c in contacts:
+                mean_aff = float(np.mean(c.contact_faces[:, 3])) if c.contact_faces is not None and len(c.contact_faces) > 0 else 0.0
+                if mean_aff >= aff_thr:
+                    aff_edges.add((np.uint64(c.seg_a), np.uint64(c.seg_b), mean_aff))
+            aff_dir = os.path.join(dst.backend.name, "filtered_edges", f"aff_{aff_thr}")
+            CloudFile(os.path.join(aff_dir, f"{idx_str}.edges")).put(pickle.dumps(aff_edges))
+            logger.info(f"[{idx_str}] Wrote {len(aff_edges)} edges to aff_{aff_thr}/")
+
+        for score_thr in self.score_thresholds:
+            score_edges: set[tuple] = set()
+            for c in contacts:
+                if c.merge_probabilities and self.authority_name in c.merge_probabilities:
+                    prob = c.merge_probabilities[self.authority_name]
+                    if prob >= score_thr:
+                        score_edges.add((np.uint64(c.seg_a), np.uint64(c.seg_b), prob))
+            score_dir = os.path.join(dst.backend.name, "filtered_edges", f"score_{score_thr}")
+            CloudFile(os.path.join(score_dir, f"{idx_str}.edges")).put(pickle.dumps(score_edges))
+            logger.info(f"[{idx_str}] Wrote {len(score_edges)} edges to score_{score_thr}/")

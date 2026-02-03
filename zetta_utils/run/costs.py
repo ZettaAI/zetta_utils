@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from copy import copy
 from typing import Final
 
@@ -17,6 +18,9 @@ logger = get_logger("zetta_utils")
 
 PRICING_LAYERS: dict[str, DBLayer] = {}
 PROVISIONING_MAP: Final[dict[str, str]] = {"PREEMPTIBLE": "preemptible", "STANDARD": "ondemand"}
+EGRESS_COST_PER_GIB_MIN: Final[float] = 0.02
+EGRESS_COST_PER_GIB_MAX: Final[float] = 0.18
+BYTES_PER_GIB: Final[int] = 1024**3
 
 
 def compute_costs(run_id: str):
@@ -71,6 +75,89 @@ def compute_costs(run_id: str):
         total_cost += hourly_multiple * node_cost_hourly
 
     RUN_DB[run_id] = {"compute_cost": total_cost}
+
+
+def aggregate_gcs_stats(run_id: str) -> dict | None:
+    """
+    Aggregate GCS stats from all pods for a run.
+
+    Aggregates per-bucket stats from gcs_stats_proxy (per-pod stats),
+    merges operation counts per bucket, writes result to gcs_stats field.
+    Only counts egress bytes from buckets where region_match is False (cross-region).
+    """
+    full_doc = RUN_DB[run_id]
+    stats_map = full_doc.get("gcs_stats_proxy")
+    if not isinstance(stats_map, dict):
+        return None
+
+    # Per-bucket aggregation
+    bucket_stats: dict = defaultdict(
+        lambda: {
+            "class_a_count": 0,
+            "class_b_count": 0,
+            "egress_bytes": 0,
+            "operations": defaultdict(int),
+            "region_match": None,
+        }
+    )
+    pod_count = 0
+
+    for pod_stats in stats_map.values():
+        if not isinstance(pod_stats, dict):
+            continue
+        buckets_data = pod_stats.get("buckets", {})
+        for bucket, stats in buckets_data.items():
+            if not isinstance(stats, dict):
+                continue
+            agg_bucket = bucket_stats[bucket]
+            agg_bucket["class_a_count"] += stats.get("class_a_count", 0)
+            agg_bucket["class_b_count"] += stats.get("class_b_count", 0)
+            agg_bucket["egress_bytes"] += stats.get("egress_bytes", 0)
+            for op, count in stats.get("operations", {}).items():
+                agg_bucket["operations"][op] += count
+            # Preserve region_match from first pod that reports it
+            if agg_bucket["region_match"] is None:
+                agg_bucket["region_match"] = stats.get("region_match")
+        pod_count += 1
+
+    if pod_count == 0:
+        return None
+
+    # Convert to regular dicts
+    aggregated: dict = {
+        "buckets": {
+            bucket: {**data, "operations": dict(data["operations"])}
+            for bucket, data in bucket_stats.items()
+        },
+        "pod_count": pod_count,
+    }
+
+    # Add totals for convenience
+    aggregated["total_class_a"] = sum(b["class_a_count"] for b in aggregated["buckets"].values())
+    aggregated["total_class_b"] = sum(b["class_b_count"] for b in aggregated["buckets"].values())
+    # Only count egress from buckets where region_match is False (cross-region = billable)
+    aggregated["total_egress_bytes"] = sum(
+        b["egress_bytes"] for b in aggregated["buckets"].values() if b.get("region_match") is False
+    )
+
+    # Calculate egress cost range (GCP egress pricing varies by destination)
+    egress_gib = aggregated["total_egress_bytes"] / BYTES_PER_GIB
+    aggregated["egress_cost_min"] = egress_gib * EGRESS_COST_PER_GIB_MIN
+    aggregated["egress_cost_max"] = egress_gib * EGRESS_COST_PER_GIB_MAX
+
+    RUN_DB[run_id] = {"gcs_stats": aggregated}
+    if (
+        aggregated["total_class_a"]
+        or aggregated["total_class_b"]
+        or aggregated["total_egress_bytes"]
+    ):
+        logger.info(
+            f"GCS stats: A={aggregated['total_class_a']} "
+            f"B={aggregated['total_class_b']} egress={aggregated['total_egress_bytes']} bytes "
+            f"(${aggregated['egress_cost_min']:.2f}-${aggregated['egress_cost_max']:.2f}) "
+            f"from {pod_count} pods, {len(aggregated['buckets'])} buckets"
+        )
+    return aggregated
 
 
 def update_compute_pricing_db(groups: dict):

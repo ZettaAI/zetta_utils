@@ -5,7 +5,7 @@ from datetime import datetime
 from cachetools import TTLCache, cached
 from googleapiclient import discovery
 
-CACHE: TTLCache = TTLCache(maxsize=256, ttl=600)
+CACHE: TTLCache = TTLCache(maxsize=256, ttl=3600)
 
 
 @cached(CACHE)

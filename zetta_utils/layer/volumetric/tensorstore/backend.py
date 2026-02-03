@@ -274,7 +274,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "allow_cache" = value: Union[bool, str] - must be False for TensorStoreBackend, ignored
         "use_compression" = Value: bool - must be False for TensorStoreBackend, ignored
         "enforce_chunk_aligned_writes" = value: bool
-        "overwrite_partial_chunks" = value: bool - must be False for TensorStoreBackend, raises NotImplementedError if True
+        "overwrite_partial_chunks" = value: bool - must be False for TensorStoreBackend,
+            raises NotImplementedError if True
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
@@ -303,8 +304,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         keys_to_kwargs = {
             "name": "path",
-            "enforce_chunk_aligned_writes": "_enforce_chunk_aligned_writes",
-            "overwrite_partial_chunks": "_overwrite_partial_chunks",
+            "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
+            "overwrite_partial_chunks": "overwrite_partial_chunks",
         }
 
         evolve_kwargs = {}

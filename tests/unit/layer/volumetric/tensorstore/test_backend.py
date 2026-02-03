@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring,redefined-outer-name,unused-argument,pointless-statement,line-too-long,protected-access,too-few-public-methods
 import os
 import pathlib
+import tempfile
 from copy import deepcopy
 
 import numpy as np
@@ -506,3 +507,47 @@ def test_ts_assert_idx_is_chunk_crop_aligned_exc(clear_caches_reset_mocks):
 
     with pytest.raises(ValueError):
         tsb.assert_idx_is_chunk_aligned(index)
+
+
+def test_ts_overwrite_partial_chunks_exc(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_path=LAYER_X0_PATH,
+    )
+    with pytest.raises(NotImplementedError):
+        TSBackend(
+            path=LAYER_SCRATCH0_PATH,
+            info_spec=info_spec,
+            info_overwrite=True,
+            overwrite_partial_chunks=True,
+        )
+
+
+def test_ts_with_changes_overwrite_partial_chunks_exc(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            chunk_size=[1024, 1024, 1],
+            inherit_all_params=True,
+        )
+    )
+    tsb = TSBackend(path=LAYER_SCRATCH0_PATH, info_spec=info_spec, info_overwrite=True)
+    with pytest.raises(NotImplementedError):
+        tsb.with_changes(overwrite_partial_chunks=True)
+
+
+def test_ts_delete(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tsb = TSBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
+        # Verify info file exists
+        assert os.path.exists(os.path.join(tmp_dir, "info"))
+        # Delete and verify files are removed
+        tsb.delete()
+        assert not os.path.exists(os.path.join(tmp_dir, "info"))

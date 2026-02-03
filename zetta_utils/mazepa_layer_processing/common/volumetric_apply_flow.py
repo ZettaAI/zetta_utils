@@ -172,7 +172,8 @@ class ReduceByWeightedSum(ReduceOperation):
                         if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[tuple(subidx_channels)] = (
-                                res[tuple(subidx_channels)] + layer[intscn].astype(float) * weight.numpy()
+                                res[tuple(subidx_channels)]
+                                + layer[intscn].astype(float) * weight.numpy()
                             )
                         else:
                             res[tuple(subidx_channels)] = (
@@ -420,7 +421,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 raise TypeError(
                     f"`task_stack_size` was provided ({self.task_stack_size}), but the operation "
                     f"{type(self.op).__name__} does not implement StackableVolumetricOpProtocol. "
-                    f"Operations must have `read`, `write`, and `processing_fn` methods to support stacking."
+                    "Operations must have `read`, `write`, and `processing_fn` methods "
+                    "to support stacking."
                 )
 
         if self.roi_crop_pad is None:

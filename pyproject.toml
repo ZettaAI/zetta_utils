@@ -52,6 +52,7 @@ augmentations = [
   "zetta_utils[tensor_ops]",
   "imaug",
   "imagecorruptions-imaug",
+  "numba >= 0.59",  # Override old numba from imagecorruptions-imaug for Python 3.12+
   "torchvision",
 ]
 cli = ["click >= 8.0.1"]

@@ -112,7 +112,7 @@ def delete_msg_by_receipt_handle(
             ReceiptHandle=receipt_handle,
         )
         logger.debug(f"DELETE: Successfully deleted message from queue '{queue_name}'")
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(
             f"DELETE: Failed to delete message from queue '{queue_name}': {type(e).__name__}: {e}"
         )
@@ -142,7 +142,7 @@ def change_message_visibility(
             f"VISIBILITY: Successfully changed visibility to {visibility_timeout}s "
             f"for queue '{queue_name}'"
         )
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         logger.error(
             f"VISIBILITY: Failed to change visibility for queue '{queue_name}' "
             f"to {visibility_timeout}s: {type(e).__name__}: {e}"

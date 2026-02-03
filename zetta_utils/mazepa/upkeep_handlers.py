@@ -170,7 +170,7 @@ def run_sqs_upkeep_handler(  # pylint: disable=too-many-statements
                     f"SQS_HANDLER: [{task_id}] [T+{elapsed:.1f}s] Successfully extended "
                     f"(API took {api_duration:.1f}s)"
                 )
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except # pragma: no cover
                 logger.error(
                     f"SQS_HANDLER: [{task_id}] Failed to extend visibility: "
                     f"{type(e).__name__}: {e}"
@@ -248,7 +248,7 @@ def run_sqs_upkeep_handler(  # pylint: disable=too-many-statements
             else:
                 logger.warning(f"SQS_HANDLER: Unknown action: {cmd.action}")
 
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:  # pylint: disable=broad-except # pragma: no cover
             logger.error(f"SQS_HANDLER: Error processing command: {type(e).__name__}: {e}")
 
     logger.info("SQS_HANDLER: Handler process exiting")

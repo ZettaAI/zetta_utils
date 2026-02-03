@@ -23,4 +23,5 @@ def gke_cluster_data(name: str, region: str, project: str) -> Tuple[Cluster, str
     # creds, _ = google_auth.default()
     creds, _ = google_auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
     creds.refresh(google_auth.transport.requests.Request())
+    assert creds.token is not None
     return cluster_data, cert_name, creds.token

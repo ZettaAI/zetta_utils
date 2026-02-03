@@ -118,9 +118,8 @@ from zetta_utils.internal.alignment.aced_relaxation import (
     get_aced_match_offsets_naive,
     perform_aced_relaxation,
 )
-from zetta_utils.internal.alignment.base_coarsener import BaseCoarsener
-from zetta_utils.internal.alignment.base_encoder import BaseEncoder
-from zetta_utils.internal.alignment.encoding_coarsener import EncodingCoarsener
+from zetta_utils.internal.alignment.deprecated.base_encoder import BaseEncoder
+from zetta_utils.internal.alignment.deprecated.encoding_coarsener import EncodingCoarsener
 from zetta_utils.internal.alignment.field import (
     gen_biased_perlin_noise_field,
     get_rigidity_map,
@@ -130,6 +129,7 @@ from zetta_utils.internal.alignment.field import (
     percentile,
     profile_field2d_percentile,
 )
+from zetta_utils.internal.alignment.image_encoder import ImageEncoder as BaseCoarsener
 from zetta_utils.internal.alignment.misalignment_detector import (
     MisalignmentDetector,
     naive_misd,

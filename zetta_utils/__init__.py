@@ -1,11 +1,39 @@
 # pylint: disable=unused-import, import-outside-toplevel, broad-exception-caught, import-error
 """Zetta AI Computational Connectomics Toolkit."""
+
 import os
 import sys
 import warnings
 import multiprocessing
 
 from .log import get_logger
+
+
+def _patch_gcsfs_for_proxy():
+    """Patch gcsfs to respect HTTP_PROXY/HTTPS_PROXY environment variables.
+
+    By default, aiohttp (used by gcsfs) ignores proxy env vars.
+    This patch injects `session_kwargs={'trust_env': True}` into all
+    GCSFileSystem instances so they automatically use HTTP_PROXY/HTTPS_PROXY.
+    """
+    try:
+        import gcsfs
+
+        _original_init = gcsfs.GCSFileSystem.__init__
+
+        def _patched_init(self, *args, **kwargs):
+            session_kwargs = kwargs.get("session_kwargs", {})
+            session_kwargs.setdefault("trust_env", True)
+            kwargs["session_kwargs"] = session_kwargs
+            return _original_init(self, *args, **kwargs)
+
+        gcsfs.GCSFileSystem.__init__ = _patched_init
+    except ImportError:
+        pass
+
+
+_patch_gcsfs_for_proxy()
+
 
 # Set global multiprocessing threshold
 MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128

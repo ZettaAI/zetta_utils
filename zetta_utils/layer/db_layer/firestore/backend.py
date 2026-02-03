@@ -107,6 +107,27 @@ class FirestoreBackend(DBBackend):
             results.append(results_map.get(rkey, {}))
         return results
 
+    @staticmethod
+    def _expand_dotted_keys(data: DBRowDataT) -> DBRowDataT:
+        """Expand dotted keys into nested dict structure.
+
+        Firestore's set() doesn't interpret dots as paths (unlike update()),
+        so we need to manually expand "a.b.c": value into {"a": {"b": {"c": value}}}.
+        """
+        result: dict = {}
+        for key, value in data.items():
+            if "." in key:
+                parts = key.split(".")
+                current = result
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = value
+            else:
+                result[key] = value
+        return result
+
     @retry(
         retry=retry_if_not_exception_type(TENACITY_IGNORE_EXC),
         stop=stop_after_attempt(3),
@@ -126,6 +147,8 @@ class FirestoreBackend(DBBackend):
                     row_data[k[1:]] = ArrayRemove(v)
                 else:
                     row_data[k] = v
+            # Expand dotted keys into nested structure for proper merging
+            row_data = self._expand_dotted_keys(row_data)
             bulk_writer.set(ref, row_data, merge=True)
         bulk_writer.flush()
 

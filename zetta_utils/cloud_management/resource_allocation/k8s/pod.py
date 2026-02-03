@@ -20,7 +20,7 @@ from .secret import get_worker_env_vars
 logger = log.get_logger("zetta_utils")
 
 
-def get_pod_spec(
+def get_pod_spec(  # pylint: disable=too-many-locals
     name: str,
     image: str,
     command: str,
@@ -49,20 +49,86 @@ def get_pod_spec(
     except KeyError:
         ...
 
-    envs.append(
-        k8s_client.V1EnvVar(
-            name="POD_NAME",
-            value_from=k8s_client.V1EnvVarSource(
-                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+    envs.extend(
+        [
+            k8s_client.V1EnvVar(
+                name="POD_NAME",
+                value_from=k8s_client.V1EnvVarSource(
+                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+                ),
             ),
-        )
+            k8s_client.V1EnvVar(
+                name="NODE_NAME",
+                value_from=k8s_client.V1EnvVarSource(
+                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="spec.nodeName")
+                ),
+            ),
+        ]
     )
     envs.extend(get_worker_env_vars(env_secret_mapping))
 
+    # Base envs for sidecars (without proxy)
+    sidecar_envs = list(envs)
+
+    # Configure proxy for GCS traffic tracking via sidecar (main container only)
+    # The gcs-traffic sidecar runs mitmproxy on port 8080
+    # Set both uppercase (standard) and lowercase (tensorstore/libcurl) proxy vars
+    main_envs = list(envs)
+    main_envs.extend(
+        [
+            k8s_client.V1EnvVar(name="HTTPS_PROXY", value="http://localhost:8080"),
+            k8s_client.V1EnvVar(name="HTTP_PROXY", value="http://localhost:8080"),
+            k8s_client.V1EnvVar(name="https_proxy", value="http://localhost:8080"),
+            k8s_client.V1EnvVar(name="http_proxy", value="http://localhost:8080"),
+            # Ensure GCS traffic goes through proxy (don't bypass for localhost)
+            k8s_client.V1EnvVar(name="NO_PROXY", value="127.0.0.1,metadata.google.internal"),
+            k8s_client.V1EnvVar(name="no_proxy", value="127.0.0.1,metadata.google.internal"),
+        ]
+    )
+
     host_aliases = host_aliases or []
     tolerations = tolerations or []
-    volumes = volumes or []
-    volume_mounts = volume_mounts or []
+    volumes = list(volumes or [])
+    volume_mounts = list(volume_mounts or [])
+
+    # Add shared volume for mitmproxy CA certificate
+    mitmproxy_ca_volume = k8s_client.V1Volume(
+        name="mitmproxy-ca",
+        empty_dir=k8s_client.V1EmptyDirVolumeSource(),
+    )
+    volumes.append(mitmproxy_ca_volume)
+
+    mitmproxy_ca_mount = k8s_client.V1VolumeMount(
+        name="mitmproxy-ca",
+        mount_path="/tmp/mitmproxy-ca",
+    )
+
+    # Main container mounts
+    main_volume_mounts = list(volume_mounts)
+    main_volume_mounts.append(mitmproxy_ca_mount)
+
+    # Sidecar mounts (gcs-traffic needs the CA dir to write to)
+    sidecar_volume_mounts = list(volume_mounts)
+    sidecar_volume_mounts.append(mitmproxy_ca_mount)
+
+    # Add CA bundle env vars for main container to trust mitmproxy CA
+    # Different libraries use different env vars for CA certificates:
+    # - REQUESTS_CA_BUNDLE: Python requests library
+    # - SSL_CERT_FILE: aiohttp (used by gcsfs), general OpenSSL
+    # - CURL_CA_BUNDLE: curl and libraries using libcurl
+    # - HTTPLIB2_CA_CERTS: httplib2 (used by some google-cloud libs)
+    # - TENSORSTORE_CA_BUNDLE: tensorstore (uses libcurl internally)
+    # The combined bundle is created in wait_for_ca script (system CAs + mitmproxy CA)
+    ca_cert_path = "/tmp/mitmproxy-ca/combined-ca-bundle.pem"
+    ca_env_vars = [
+        "REQUESTS_CA_BUNDLE",
+        "SSL_CERT_FILE",
+        "CURL_CA_BUNDLE",
+        "HTTPLIB2_CA_CERTS",
+        "TENSORSTORE_CA_BUNDLE",
+    ]
+    for ca_env_var in ca_env_vars:
+        main_envs.append(k8s_client.V1EnvVar(name=ca_env_var, value=ca_cert_path))
 
     module = "zetta_utils.cloud_management.resource_allocation.k8s.log_pod_runtime"
     cmd = f"python -m {module}"
@@ -72,11 +138,35 @@ def get_pod_spec(
         )
     )
 
+    # Wait for mitmproxy CA cert before running main command
+    # If tracking is disabled (mitmproxy not installed), unset proxy vars
+    # If enabled, create combined CA bundle (system CAs + mitmproxy CA)
+    wait_for_ca = (
+        "echo 'Waiting for GCS tracker ready signal...' && "
+        "while [ ! -f /tmp/mitmproxy-ca/ready ]; do sleep 0.5; done && "
+        "if grep -q 'disabled' /tmp/mitmproxy-ca/ready 2>/dev/null; then "
+        "echo 'GCS tracking disabled, unsetting proxy vars' && "
+        "unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy NO_PROXY no_proxy "
+        "REQUESTS_CA_BUNDLE SSL_CERT_FILE CURL_CA_BUNDLE HTTPLIB2_CA_CERTS TENSORSTORE_CA_BUNDLE; "
+        "else "
+        "echo 'GCS tracking enabled, creating combined CA bundle' && "
+        "cat /etc/ssl/certs/ca-certificates.crt "
+        "/tmp/mitmproxy-ca/mitmproxy-ca-cert.pem "
+        "> /tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export REQUESTS_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export SSL_CERT_FILE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export CURL_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export HTTPLIB2_CA_CERTS=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export TENSORSTORE_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem; "
+        "fi"
+    )
+    wrapped_command = f"{wait_for_ca} && {command}"
+
     ports = [k8s_client.V1ContainerPort(container_port=29400)]
     container = k8s_client.V1Container(
         command=["/bin/bash", "-c"],
-        args=[command],
-        env=envs,
+        args=[wrapped_command],
+        env=main_envs,
         name="main",
         image=image,
         image_pull_policy=image_pull_policy,
@@ -88,24 +178,44 @@ def get_pod_spec(
         ),
         termination_message_path="/dev/termination-log",
         termination_message_policy="File",
-        volume_mounts=volume_mounts,
+        volume_mounts=main_volume_mounts,
     )
 
     module = "zetta_utils.cloud_management.resource_allocation.k8s.oom_tracker"
-    sidecar_container = k8s_client.V1Container(
+    oom_sidecar = k8s_client.V1Container(
         command=["/bin/bash", "-c"],
         args=[f"python -m {module}"],
-        env=envs,
+        env=sidecar_envs,
         name="runtime",
         image=image,
         termination_message_path="/dev/termination-log",
         termination_message_policy="File",
         volume_mounts=volume_mounts,
+        resources=k8s_client.V1ResourceRequirements(
+            requests={"ephemeral-storage": "100Mi"},
+        ),
+    )
+
+    # GCS tracker sidecar using mitmproxy for request classification
+    gcs_tracker_module = "zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker"
+    gcs_traffic_sidecar = k8s_client.V1Container(
+        command=["/bin/bash", "-c"],
+        args=[f"python -m {gcs_tracker_module}"],
+        env=sidecar_envs,
+        name="mproxy",
+        image=image,
+        termination_message_path="/dev/termination-log",
+        termination_message_policy="File",
+        volume_mounts=sidecar_volume_mounts,
+        ports=[k8s_client.V1ContainerPort(container_port=8080, name="proxy")],
+        resources=k8s_client.V1ResourceRequirements(
+            requests={"ephemeral-storage": "100Mi"},
+        ),
     )
 
     return k8s_client.V1PodSpec(
         affinity=affinity,
-        containers=[container, sidecar_container],
+        containers=[container, oom_sidecar, gcs_traffic_sidecar],
         dns_policy=dns_policy,
         hostname=hostname,
         host_network=host_network,

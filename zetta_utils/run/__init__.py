@@ -5,6 +5,7 @@ import sys
 import time
 from contextlib import contextmanager
 from enum import Enum
+from functools import partial
 from operator import itemgetter
 
 import attrs
@@ -15,9 +16,8 @@ from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.parsing import json
-from zetta_utils.run.costs import compute_costs
+from zetta_utils.run.costs import aggregate_gcs_stats, compute_costs
 from zetta_utils.run.db import RUN_DB
-
 
 logger = log.get_logger("zetta_utils")
 
@@ -34,6 +34,7 @@ class RunInfo(Enum):
     PARAMS = "params"
     RESULTS = "results"
     WORKER_STATE = "worker_state"
+    REGION_MISMATCH = "region_mismatch"
 
 
 class RunState(Enum):
@@ -109,6 +110,37 @@ def _check_run_id_conflict():
         raise ValueError(f"RUN_ID {RUN_ID} already exists in database.")
 
 
+def _send_heartbeat(run_id: str, bucket_egress_warned: set) -> None:
+    """Send heartbeat and check for region mismatch warnings."""
+    info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
+    update_run_info(run_id, info)
+
+    error = RUN_DB[(run_id, (RunInfo.REGION_MISMATCH.value,))]
+    if error:
+        bucket = error[RunInfo.REGION_MISMATCH.value]["bucket"]
+        message = error[RunInfo.REGION_MISMATCH.value]["message"]
+        if bucket not in bucket_egress_warned:
+            logger.warning(f"Region mismatch: {message}.")
+            bucket_egress_warned.add(bucket)
+
+
+def _update_costs(run_id: str | None) -> None:
+    """Update costs for the run."""
+    if run_id is None:
+        return
+    compute_costs(run_id)
+
+
+def _aggregate_gcs_stats_safe(run_id: str | None) -> None:
+    """Aggregate GCS stats with error handling."""
+    if run_id is None:
+        return
+    try:
+        aggregate_gcs_stats(run_id)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to aggregate GCS stats: {e}")
+
+
 @contextmanager
 def run_ctx_manager(
     main_run_process: bool,
@@ -116,16 +148,9 @@ def run_ctx_manager(
     spec: dict | list | None = None,
     heartbeat_interval: int = 5,
     update_costs_interval: int = 60,
+    gcs_stats_interval: int = 60,
 ):
-    def _send_heartbeat():
-        assert RUN_ID is not None
-        info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
-        update_run_info(RUN_ID, info)
-
-    def _udpate_costs():
-        if RUN_ID is None:
-            return
-        compute_costs(RUN_ID)
+    bucket_egress_warned: set[str] = set()
 
     if run_id is None:
         run_id = get_unique_id(slug_len=4, add_uuid=False, max_len=50)
@@ -138,6 +163,7 @@ def run_ctx_manager(
 
     heartbeat_sender = None
     update_costs_repeater = None
+    gcs_stats_repeater = None
     if main_run_process:
         _check_run_id_conflict()
 
@@ -154,11 +180,18 @@ def run_ctx_manager(
         update_run_info(RUN_ID, info)
 
         assert heartbeat_interval > 0
-        heartbeat_sender = RepeatTimer(heartbeat_interval, _send_heartbeat)
+        heartbeat_sender = RepeatTimer(
+            heartbeat_interval, partial(_send_heartbeat, run_id, bucket_egress_warned)
+        )
         heartbeat_sender.start()
 
-        update_costs_repeater = RepeatTimer(update_costs_interval, _udpate_costs)
+        update_costs_repeater = RepeatTimer(update_costs_interval, partial(_update_costs, run_id))
         update_costs_repeater.start()
+
+        gcs_stats_repeater = RepeatTimer(
+            gcs_stats_interval, partial(_aggregate_gcs_stats_safe, run_id)
+        )
+        gcs_stats_repeater.start()
 
     try:
         yield
@@ -178,10 +211,17 @@ def run_ctx_manager(
 
             assert heartbeat_sender is not None
             assert update_costs_repeater is not None
+            assert gcs_stats_repeater is not None
             heartbeat_sender.cancel()
             update_costs_repeater.cancel()
+            gcs_stats_repeater.cancel()
 
             heartbeat_sender.join()
             update_costs_repeater.join()
+            gcs_stats_repeater.join()
+
+            # Final aggregation after repeaters stop
+            _update_costs(run_id)
+            _aggregate_gcs_stats_safe(run_id)
 
         RUN_ID = None

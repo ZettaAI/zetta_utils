@@ -9,6 +9,7 @@ from zetta_utils import log
 from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.run import RunInfo, update_run_info
 
+from .container import get_main_container_status
 from .log_pod_runtime import log_pod_runtime
 
 POD_NAME = os.environ.get("POD_NAME")
@@ -16,7 +17,7 @@ NAMESPACE = "default"
 CHECK_INTERVAL = 1
 WINDOW_SIZE = 60
 GROWTH_THRESHOLD_PERCENT = 10
-PERCENTAGE_THRESHOLD = 0.85
+PERCENTAGE_THRESHOLD = 0.95
 
 logger = log.get_logger("zetta_utils")
 
@@ -25,17 +26,17 @@ def get_memory_limit_bytes() -> int:
     def _parse_quantity_to_bytes(quantity) -> int:
         units = {
             "Ki": 1024,
-            "Mi": 1024 ** 2,
-            "Gi": 1024 ** 3,
-            "Ti": 1024 ** 4,
-            "Pi": 1024 ** 5,
-            "Ei": 1024 ** 6,
+            "Mi": 1024**2,
+            "Gi": 1024**3,
+            "Ti": 1024**4,
+            "Pi": 1024**5,
+            "Ei": 1024**6,
             "K": 1000,
-            "M": 1000 ** 2,
-            "G": 1000 ** 3,
-            "T": 1000 ** 4,
-            "P": 1000 ** 5,
-            "E": 1000 ** 6,
+            "M": 1000**2,
+            "G": 1000**3,
+            "T": 1000**4,
+            "P": 1000**5,
+            "E": 1000**6,
         }
 
         match = re.match(r"^([0-9.]+)([a-zA-Z]+)?$", quantity)
@@ -74,7 +75,7 @@ def get_node_memory_total_bytes():
 
 
 def parse_quantity(mem_str):
-    units = {"Ki": 1024, "Mi": 1024 ** 2, "Gi": 1024 ** 3}
+    units = {"Ki": 1024, "Mi": 1024**2, "Gi": 1024**3}
     for suffix, factor in units.items():
         if mem_str.endswith(suffix):
             return int(float(mem_str[: -len(suffix)]) * factor)
@@ -94,18 +95,6 @@ def get_pod_memory_usage():
     return sum(parse_quantity(c["usage"]["memory"]) for c in metrics["containers"])
 
 
-def _get_main_container_status() -> int:
-    config.load_incluster_config()
-    v1 = client.CoreV1Api()
-    pod = v1.read_namespaced_pod(name=POD_NAME, namespace=NAMESPACE)
-    for container_status in pod.status.container_statuses:
-        if container_status.name == "main":
-            state = container_status.state
-            if state.terminated:
-                return int(state.terminated.exit_code)
-    return -1
-
-
 def monitor_loop():
     log_pod_runtime()
     pod_name = os.getenv("POD_NAME")
@@ -114,7 +103,7 @@ def monitor_loop():
     if total_bytes < 0:
         total_bytes = get_node_memory_total_bytes()
 
-    while _get_main_container_status() == -1:
+    while get_main_container_status() == -1:
         log_pod_runtime()
         try:
             usage_bytes = get_pod_memory_usage()

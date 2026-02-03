@@ -16,6 +16,14 @@ from zetta_utils.mazepa.exceptions import MazepaTimeoutError
 from ..helpers import DummyException
 
 
+def _slow_task_fn():
+    time.sleep(0.3)
+
+
+def _raising_task_fn():
+    raise DummyException()
+
+
 def test_make_taskable_operation_cls() -> None:
     @taskable_operation_cls(operation_name="OpDummyClass1")
     @attrs.mutable
@@ -56,24 +64,20 @@ def test_make_taskable_operation() -> None:
 
 
 def test_task_runtime_limit() -> None:
-    @taskable_operation(runtime_limit_sec=0.1)
-    def dummy_task_fn():
-        time.sleep(0.3)
-
-    assert isinstance(dummy_task_fn, TaskableOperation)
-    task = dummy_task_fn.make_task()
+    # pebble with forkserver/spawn context does not support nested functions
+    slow_task_op = taskable_operation(runtime_limit_sec=0.1)(_slow_task_fn)
+    assert isinstance(slow_task_op, TaskableOperation)
+    task = slow_task_op.make_task()
     assert isinstance(task, Task)
     outcome = task(debug=False)
     assert isinstance(outcome.exception, MazepaTimeoutError)
 
 
 def test_task_no_handle_exc() -> None:
-    @taskable_operation(runtime_limit_sec=0.1)
-    def dummy_task_fn():
-        raise DummyException()
-
-    assert isinstance(dummy_task_fn, TaskableOperation)
-    task = dummy_task_fn.make_task()
+    # pebble with forkserver/spawn context does not support nested functions
+    raising_task_op = taskable_operation(runtime_limit_sec=0.1)(_raising_task_fn)
+    assert isinstance(raising_task_op, TaskableOperation)
+    task = raising_task_op.make_task()
     assert isinstance(task, Task)
-    with pytest.raises(Exception):
+    with pytest.raises(DummyException):
         task(debug=False, handle_exceptions=False)

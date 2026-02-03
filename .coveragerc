@@ -2,6 +2,7 @@
 omit =
   *_tmp.py
   zetta_utils/log.py
+  zetta_utils/builder/preload/try_load.py
   zetta_utils/cli/task_mgmt.py
   zetta_utils/task_management/subtask_structure.py
   zetta_utils/task_management/segment.py

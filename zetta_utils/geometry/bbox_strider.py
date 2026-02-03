@@ -1,14 +1,18 @@
 # pylint: disable=missing-docstring, no-else-raise
 from __future__ import annotations
 
-import multiprocessing
 from math import ceil, floor
 from typing import List, Literal, Optional, Tuple
 
 import attrs
 from typeguard import typechecked
 
-from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, builder, log
+from zetta_utils import (
+    MULTIPROCESSING_NUM_TASKS_THRESHOLD,
+    builder,
+    get_mp_context,
+    log,
+)
 from zetta_utils.common import reset_signal_handlers
 from zetta_utils.geometry.vec import VEC3D_PRECISION
 
@@ -239,9 +243,7 @@ class BBoxStrider:
     def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
         if self.num_chunks > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-            with multiprocessing.get_context("fork").Pool(
-                initializer=reset_signal_handlers
-            ) as pool_obj:
+            with get_mp_context().Pool(initializer=reset_signal_handlers) as pool_obj:
                 result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
         else:
             result = [

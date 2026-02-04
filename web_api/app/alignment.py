@@ -53,25 +53,20 @@ class ApplyCorrespondencesRequest(BaseModel):
     optimizer_type: str = Field(
         "adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)"
     )
-    tissue_src_mask: list[list[list[list[float]]]] | None = Field(
+    src_mask: list[list[list[list[float]]]] | None = Field(
         None,
-        description="Binary tissue mask (1=tissue, 0=non-tissue), shape (1, H, W, 1). "
-        "Zeros break rigidity constraints between regions.",
+        description="Binary mask for source, shape (1, H, W, 1). "
+        "Interpretation depends on mask_type.",
     )
-    tissue_tgt_mask: list[list[list[list[float]]]] | None = Field(
+    tgt_mask: list[list[list[list[float]]]] | None = Field(
         None,
-        description="Binary tissue mask (1=tissue, 0=non-tissue), shape (1, H, W, 1). "
-        "Zeros break rigidity constraints between regions.",
+        description="Binary mask for target, shape (1, H, W, 1). "
+        "Interpretation depends on mask_type.",
     )
-    defect_src_mask: list[list[list[list[float]]]] | None = Field(
+    mask_type: str | None = Field(
         None,
-        description="Binary defect mask (1=defect, 0=non-defect), shape (1, H, W, 1). "
-        "Inverted tissue mask. Cannot be used together with tissue masks.",
-    )
-    defect_tgt_mask: list[list[list[list[float]]]] | None = Field(
-        None,
-        description="Binary defect mask (1=defect, 0=non-defect), shape (1, H, W, 1). "
-        "Inverted tissue mask. Cannot be used together with tissue masks.",
+        description="Mask interpretation: 'tissue' (1=tissue, 0=non-tissue) or "
+        "'defect' (1=defect, 0=non-defect). Defect masks are inverted internally.",
     )
 
 
@@ -108,25 +103,18 @@ def _parse_json_request(body: dict, device: torch.device):
 
     image_tensor = torch.tensor(req.image, dtype=torch.float32, device=device)
 
-    has_tissue = req.tissue_src_mask is not None or req.tissue_tgt_mask is not None
-    has_defect = req.defect_src_mask is not None or req.defect_tgt_mask is not None
-    if has_tissue and has_defect:
-        raise ValueError("Cannot use both tissue and defect masks simultaneously")
-
     src_mask_tensor = None
     tgt_mask_tensor = None
 
-    if req.tissue_src_mask is not None:
-        src_mask_tensor = torch.tensor(req.tissue_src_mask, dtype=torch.float32, device=device)
-    elif req.defect_src_mask is not None:
-        defect_mask = torch.tensor(req.defect_src_mask, dtype=torch.float32, device=device)
-        src_mask_tensor = 1.0 - defect_mask
+    if req.src_mask is not None:
+        src_mask_tensor = torch.tensor(req.src_mask, dtype=torch.float32, device=device)
+        if req.mask_type == "defect":
+            src_mask_tensor = 1.0 - src_mask_tensor
 
-    if req.tissue_tgt_mask is not None:
-        tgt_mask_tensor = torch.tensor(req.tissue_tgt_mask, dtype=torch.float32, device=device)
-    elif req.defect_tgt_mask is not None:
-        defect_mask = torch.tensor(req.defect_tgt_mask, dtype=torch.float32, device=device)
-        tgt_mask_tensor = 1.0 - defect_mask
+    if req.tgt_mask is not None:
+        tgt_mask_tensor = torch.tensor(req.tgt_mask, dtype=torch.float32, device=device)
+        if req.mask_type == "defect":
+            tgt_mask_tensor = 1.0 - tgt_mask_tensor
 
     return correspondences_dict, image_tensor, src_mask_tensor, tgt_mask_tensor, {
         "num_iter": req.num_iter,

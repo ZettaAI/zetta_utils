@@ -310,6 +310,10 @@ warn_unreachable = true
 warn_unused_configs = true
 warn_unused_ignores = true
 
+[[tool.mypy.overrides]]
+module = "zetta_utils.cloud_management.resource_allocation.gcloud.gcs"
+warn_unused_ignores = false
+
 [tool.isort]
 known_third_party = "wandb"
 profile = "black"

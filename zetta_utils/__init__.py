@@ -28,7 +28,7 @@ def _patch_gcsfs_for_proxy():
             return _original_init(self, *args, **kwargs)
 
         gcsfs.GCSFileSystem.__init__ = _patched_init
-    except ImportError:
+    except ImportError:  # pragma: no cover
         pass
 
 

@@ -84,7 +84,9 @@ jobs:
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libboost-dev
       - name: Free up disk space
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: |
@@ -183,7 +185,9 @@ jobs:
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libboost-dev
       - name: Free up disk space
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: |
@@ -278,7 +282,9 @@ jobs:
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
-        run: sudo apt install libboost-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libboost-dev
       - name: Free up disk space
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true' }}
         run: |
@@ -367,7 +373,9 @@ jobs:
           conda-remove-defaults: "true"
       - name: Install libboost
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
-        run: sudo apt install libboost-dev
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends libboost-dev
       - name: Free up disk space
         if: ${{ steps.changed-py-files.outputs.any_changed == 'true'  || steps.changed-docs-files.outputs.any_changed == 'true'}}
         run: |

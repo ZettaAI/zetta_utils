@@ -193,3 +193,19 @@ def test_pickle(firestore_emulator) -> None:
     assert layer_backend2.project == layer_backend.project
     assert layer_backend2.collection == layer_backend.collection
     assert layer_backend2.name == layer_backend.name
+
+
+@pytest.mark.parametrize(
+    "input_data,expected",
+    [
+        ({}, {}),
+        ({"a": 1, "b": 2}, {"a": 1, "b": 2}),
+        ({"a.b": 1}, {"a": {"b": 1}}),
+        ({"a.b.c.d": 1}, {"a": {"b": {"c": {"d": 1}}}}),
+        ({"a.b": 1, "c": 2}, {"a": {"b": 1}, "c": 2}),
+        ({"a.b": 1, "a.c": 2}, {"a": {"b": 1, "c": 2}}),
+    ],
+)
+def test_expand_dotted_keys(input_data, expected):
+    result = FirestoreBackend._expand_dotted_keys(input_data)  # pylint: disable=protected-access
+    assert result == expected

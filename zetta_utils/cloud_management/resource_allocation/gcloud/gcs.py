@@ -10,7 +10,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Iterable
 
-from google.cloud import storage
+from google.cloud import storage  # type: ignore[attr-defined]
 
 from zetta_utils import log
 

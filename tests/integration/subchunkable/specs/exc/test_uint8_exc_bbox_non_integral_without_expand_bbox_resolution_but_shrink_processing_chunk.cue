@@ -1,3 +1,4 @@
+"@version": "0.4"
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
 #DST_PATH: "assets/outputs/test_uint8_exc_bbox_non_integral_without_expand_bbox_resolution_but_shrink_processing_chunk"
 #BBOX: {
@@ -32,6 +33,8 @@
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
+		info_scales: [[128, 128, 40]]
+		info_inherit_all_params: true
 	}
 }
 

@@ -1,3 +1,4 @@
+"@version": "0.4"
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
 #DST_PATH: "assets/outputs/test_uint8_exc_both_bbox_and_coords"
 #BBOX: {
@@ -29,6 +30,8 @@
 		"@type":             "build_cv_layer"
 		path:                #DST_PATH
 		info_reference_path: #SRC_PATH
+		info_scales: [[128, 128, 40]]
+		info_inherit_all_params: true
 	}
 	start_coord: [64 * 1024, 64 * 1024, 2000]
 	end_coord: [96 * 1024, 96 * 1024, 2005]

@@ -11,11 +11,14 @@ T = TypeVar("T")
 
 
 def _is_compatible_task(task: Task, queue_name: str) -> bool:
-    return (
-        task.worker_type is None
-        or queue_name.startswith("local_")
-        or f"_{task.worker_type}" in queue_name
-    )
+    if task.worker_type is None:
+        return True
+    if queue_name.startswith("local_"):
+        return True
+    # Normalize worker_type to match queue naming convention (underscores -> dashes)
+    normalized_type = task.worker_type.replace("_", "-")
+    # Check if worker type appears as a complete segment in the queue name
+    return f"_{normalized_type}_" in queue_name
 
 
 @typechecked

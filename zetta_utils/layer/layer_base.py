@@ -127,3 +127,6 @@ class Layer(Generic[BackendIndexT, BackendDataT, BackendDataWriteT]):
             proc_mods["write_procs"] = tuple(write_procs)
 
         return attrs.evolve(self, **proc_mods)
+
+    def delete(self):
+        self.backend.delete()

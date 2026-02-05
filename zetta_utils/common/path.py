@@ -21,5 +21,5 @@ def strip_prefix(path: str) -> str:  # pragma: no cover
 
 
 def is_local(path: str) -> bool:  # pragma: no cover
-    local_prefixes = ["file://", "fq://"]
+    local_prefixes = ["file://", "fq://", "mem://"]
     return any(abspath(path).startswith(local_prefix) for local_prefix in local_prefixes)

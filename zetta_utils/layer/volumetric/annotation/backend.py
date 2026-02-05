@@ -938,6 +938,10 @@ class AnnotationLayerBackend(
         return False  # pragma: no cover
 
     @property
+    def overwrite_partial_chunks(self) -> bool:
+        return False  # pragma: no cover
+
+    @property
     def use_compression(self) -> bool:
         return False  # pragma: no cover
 

@@ -349,3 +349,16 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name
+
+    @property
+    def overwrite_partial_chunks(self) -> bool:  # pragma: no cover
+        return False
+
+    @overwrite_partial_chunks.setter
+    def overwrite_partial_chunks(self, value: bool) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set `overwrite_partial_chunks` for deprecated CVBackend directly"
+        )
+
+    def delete(self):  # pragma: no cover
+        raise NotImplementedError("delete() not implemented for deprecated CVBackend")

@@ -47,6 +47,11 @@ class VolumetricBackend(
 
     @property
     @abstractmethod
+    def overwrite_partial_chunks(self) -> bool:
+        ...
+
+    @property
+    @abstractmethod
     def use_compression(self) -> bool:
         ...
 
@@ -77,6 +82,7 @@ class VolumetricBackend(
     "allow_cache" = value: Union[bool, str]
     "use_compression" = value: str
     "enforce_chunk_aligned_writes" = value: bool
+    "overwrite_partial_chunks" = value: bool
     "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
     "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
     "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]

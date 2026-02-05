@@ -62,3 +62,6 @@ class VolumetricLayer(Layer[VolumetricIndex, npt.NDArray, npt.NDArray | torch.Te
         **kwargs,
     ):
         return attrs.evolve(self, **kwargs)  # pragma: no cover
+
+    def delete(self):
+        self.backend.delete()

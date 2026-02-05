@@ -313,6 +313,9 @@ class DatastoreBackend(DBBackend):
             deepcopy(self), namespace=kwargs["namespace"], project=kwargs.get("project")
         )
 
+    def delete(self):  # pragma: no cover
+        raise NotImplementedError("delete() not implemented for DatastoreBackend")
+
 
 def _get_data_from_entities(row_keys: list[str], entities: list[Entity]) -> DBDataT:
     row_entities = defaultdict(list)

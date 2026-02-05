@@ -18,6 +18,7 @@ from .volumetric_callable_operation import (
     VolumetricCallableOperation,
     build_chunked_volumetric_callable_flow_schema,
 )
+from .stacked_volumetric_operations import StackedVolumetricOperations
 from .. import ChunkableOpProtocol, VolumetricOpProtocol
 from .interpolate_flow import build_interpolate_flow
 from .seg_contact_op import SegContactOp

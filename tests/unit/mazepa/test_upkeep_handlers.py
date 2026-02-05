@@ -4,6 +4,8 @@ import threading
 import time
 from typing import Any
 
+import pytest
+
 from zetta_utils.common.partial import ComparablePartial
 from zetta_utils.mazepa.upkeep_handlers import (
     SQSUpkeepHandlerManager,
@@ -29,22 +31,22 @@ class TestPerformDirectUpkeep:
 
 
 class TestExtractSqsMetadata:
-    def test_non_comparable_partial_returns_none(self):
+    def test_non_comparable_partial_raises_typeerror(self):
         def regular_fn():
             pass
 
-        result = extract_sqs_metadata(regular_fn)
-        assert result is None
+        with pytest.raises(TypeError, match="should be a ComparablePartial"):
+            extract_sqs_metadata(regular_fn)
 
-    def test_comparable_partial_without_msg_returns_none(self):
+    def test_comparable_partial_without_msg_raises_valueerror(self):
         def some_fn():
             pass
 
         partial = ComparablePartial(some_fn, other_kwarg="value")
-        result = extract_sqs_metadata(partial)
-        assert result is None
+        with pytest.raises(ValueError, match="has no kwarg `msg`"):
+            extract_sqs_metadata(partial)
 
-    def test_msg_missing_required_attributes_returns_none(self):
+    def test_msg_missing_required_attributes_raises_valueerror(self):
         def some_fn():
             pass
 
@@ -53,8 +55,8 @@ class TestExtractSqsMetadata:
             # Missing queue_name and region_name
 
         partial = ComparablePartial(some_fn, msg=IncompleteMsg())
-        result = extract_sqs_metadata(partial)
-        assert result is None
+        with pytest.raises(ValueError, match="does not have all of the following"):
+            extract_sqs_metadata(partial)
 
     def test_valid_sqs_metadata_extracted(self):
         def some_fn():

@@ -46,24 +46,27 @@ def perform_direct_upkeep(
         logger.error(f"UPKEEP: Unexpected error: {type(e).__name__}: {e}")
 
 
-def extract_sqs_metadata(extend_lease_fn: Callable) -> dict | None:
+def extract_sqs_metadata(extend_lease_fn: Callable) -> dict:
     """
     Extract SQS metadata from extend_lease_fn if it's a ComparablePartial wrapping
     an SQS queue's _extend_msg_lease method.
 
     Returns a dict with queue_name, region_name, endpoint_url, receipt_handle if found,
-    or None if this is not an SQS-based extend function.
+    or raises Exceptions if this is not an SQS-based extend function.
     """
     if not isinstance(extend_lease_fn, ComparablePartial):
-        return None
+        raise TypeError("`extend_lease_fn` for SQS queues should be a ComparablePartial.")
 
     msg = extend_lease_fn.kwargs.get("msg")
     if msg is None:
-        return None
+        raise ValueError("`extend_lease_fn` has no kwarg `msg`.")
 
     # Check if msg has the SQS-specific attributes
     if not all(hasattr(msg, attr) for attr in ("receipt_handle", "queue_name", "region_name")):
-        return None
+        raise ValueError(
+            "`extend_lease_fn.kwargs.msg` does not have all of the following:"
+            "`receipt_handle`, `queue_name`, `region_name`."
+        )
 
     return {
         "receipt_handle": msg.receipt_handle,

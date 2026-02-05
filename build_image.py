@@ -48,7 +48,9 @@ def main():
     build_command = build_command.replace("{REGION}", args.region)
     build_command = build_command.replace("{REPO}", args.repo)
     print(f"Running: \n{build_command}")
-    subprocess.call(build_command, shell=True)
+    if subprocess.call(build_command, shell=True) != 0:
+        print("Build failed, exiting.")
+        return
 
     push_command = PUSH_COMMAND_TMPL
     push_command = push_command.replace("{TAG_SUFFIX}", args.tag_suffix)
@@ -57,7 +59,9 @@ def main():
     push_command = push_command.replace("{REGION}", args.region)
     push_command = push_command.replace("{REPO}", args.repo)
     print(f"Running: \n{push_command}")
-    subprocess.call(push_command, shell=True)
+    if subprocess.call(push_command, shell=True) != 0:
+        print("Push failed, exiting.")
+        return
 
 
 if __name__ == "__main__":

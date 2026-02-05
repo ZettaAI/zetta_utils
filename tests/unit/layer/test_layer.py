@@ -14,3 +14,11 @@ def test_with_procs(mocker):
     assert layer2.read_procs == (read_proc,)
     assert layer2.write_procs == (write_proc,)
     assert layer2.index_procs == (index_proc,)
+
+
+def test_delete(mocker):
+    backend = mocker.MagicMock()
+    backend.delete = mocker.MagicMock()
+    layer = Layer(backend=backend)
+    layer.delete()
+    backend.delete.assert_called_once()

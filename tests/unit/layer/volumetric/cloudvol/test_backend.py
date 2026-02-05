@@ -248,8 +248,8 @@ def test_cv_backend_write_scalar(clear_caches_reset_mocks, mocker):
 
 
 def test_cv_backend_read_uint63(clear_caches_reset_mocks, mocker):
-    data_read = np.array([[[[2**63 - 1]]]], dtype=np.uint64)
-    expected = np.array([[[[2**63 - 1]]]], dtype=np.int64)
+    data_read = np.array([[[[2 ** 63 - 1]]]], dtype=np.uint64)
+    expected = np.array([[[[2 ** 63 - 1]]]], dtype=np.int64)
     cvb = CVBackend(
         path=LAYER_UINT63_0_PATH,
         info_spec=PrecomputedInfoSpec(
@@ -295,8 +295,8 @@ def test_cv_backend_write_scalar_uint63(clear_caches_reset_mocks, mocker):
             info_overwrite=True,
             info_keep_existing_scales=False,
         )
-        value = np.array([2**63 - 1], dtype=np.int64)
-        expected_written = np.uint64(2**63 - 1)
+        value = np.array([2 ** 63 - 1], dtype=np.int64)
+        expected_written = np.uint64(2 ** 63 - 1)
 
         index = VolumetricIndex(
             bbox=BBox3D.from_slices((slice(0, 1), slice(0, 1), slice(0, 1))),
@@ -608,3 +608,40 @@ def test_cv_get_cv_cached_keyerror_includes_path(clear_caches_reset_mocks, mocke
     )
     with pytest.raises(KeyError, match=test_path):
         _get_cv_cached(test_path)
+
+
+def test_cv_with_changes_overwrite_partial_chunks(clear_caches_reset_mocks):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            chunk_size=[1024, 1024, 1],
+            inherit_all_params=True,
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
+        assert not cvb.overwrite_partial_chunks
+        with tempfile.TemporaryDirectory() as tmp_dir2:
+            cvb_new = cvb.with_changes(
+                name=tmp_dir2,
+                overwrite_partial_chunks=True,
+            )
+            assert cvb_new.overwrite_partial_chunks
+
+
+def test_cv_delete(clear_caches_reset_mocks, mocker):
+    info_spec = PrecomputedInfoSpec(
+        info_spec_params=InfoSpecParams.from_optional_reference(
+            reference_path=LAYER_X0_PATH,
+            scales=[[1, 1, 1]],
+            inherit_all_params=True,
+        )
+    )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb = CVBackend(path=tmp_dir, info_spec=info_spec, info_overwrite=True)
+        # Verify info file exists
+        assert os.path.exists(os.path.join(tmp_dir, "info"))
+        # Delete and verify files are removed
+        cvb.delete()
+        assert not os.path.exists(os.path.join(tmp_dir, "info"))

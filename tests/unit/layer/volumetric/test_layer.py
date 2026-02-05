@@ -147,3 +147,17 @@ def test_write_readonly_exc(mocker):
 
     with pytest.raises(IOError):
         layer[0:1, 0:1, 0:1] = 1
+
+
+def test_delete(mocker):
+    backend = mocker.MagicMock()
+    backend.delete = mocker.MagicMock()
+
+    layer = build_volumetric_layer(
+        backend,
+        index_resolution=Vec3D(1, 1, 1),
+        default_desired_resolution=Vec3D(1, 1, 1),
+    )
+
+    layer.delete()
+    backend.delete.assert_called_once()

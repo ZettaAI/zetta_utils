@@ -33,3 +33,7 @@ class Backend(ABC, Generic[IndexT, DataT, DataWriteT]):  # pylint: disable=too-f
         `P.kwargs`."""
         # return attrs.evolve(self, **kwargs) # has to be implemented by the
         # child class, as it's not necesserily an `attrs` class
+
+    @abstractmethod
+    def delete(self):
+        """Deletes all data associated with this backend"""

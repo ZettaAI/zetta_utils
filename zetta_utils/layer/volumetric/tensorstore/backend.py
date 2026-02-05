@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Union, overload
 
 import attrs
 import cachetools
+import cloudfiles
 import numpy as np
 import tensorstore
 import torch
@@ -76,6 +77,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     :param on_info_exists: Behavior mode for when both `info_spec` is given and
         the layer info already exists.
     :param enforce_chunk_aligned_writes: Whether to allow non-chunk-aligned writes.
+    :param overwrite_partial_chunks: Whether to overwrite partial chunks. Not supported
+        for TSBackend - must be False or NotImplementedError will be raised.
 
     """
 
@@ -85,8 +88,13 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     info_keep_existing_scales: bool = True
     cache_bytes_limit: Optional[int] = None
     _enforce_chunk_aligned_writes: bool = True
+    _overwrite_partial_chunks: bool = False
 
     def __attrs_post_init__(self):
+        if self._overwrite_partial_chunks:
+            raise NotImplementedError(
+                "overwrite_partial_chunks=True is not supported for TSBackend."
+            )
         if self.info_spec is None:
             self.info_spec = PrecomputedInfoSpec(info_path=self.path)
         overwritten = self.info_spec.update_info(
@@ -194,6 +202,17 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "cannot set `use_compression` for TSBackend; can only be set to `False`"
         )
 
+    @property
+    def overwrite_partial_chunks(self) -> bool:  # pragma: no cover
+        return self._overwrite_partial_chunks
+
+    @overwrite_partial_chunks.setter
+    def overwrite_partial_chunks(self, value: bool) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set `overwrite_partial_chunks` for TSBackend directly;"
+            " use `backend.with_changes(overwrite_partial_chunks=value:bool)` instead."
+        )
+
     def clear_cache(self) -> None:  # pragma: no cover
         _clear_ts_cache(self.path)
 
@@ -255,6 +274,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "allow_cache" = value: Union[bool, str] - must be False for TensorStoreBackend, ignored
         "use_compression" = Value: bool - must be False for TensorStoreBackend, ignored
         "enforce_chunk_aligned_writes" = value: bool
+        "overwrite_partial_chunks" = value: bool - must be False for TensorStoreBackend, raises NotImplementedError if True
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
@@ -268,6 +288,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "name",
             "allow_cache",
             "enforce_chunk_aligned_writes",
+            "overwrite_partial_chunks",
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
@@ -282,7 +303,8 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
         keys_to_kwargs = {
             "name": "path",
-            "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
+            "enforce_chunk_aligned_writes": "_enforce_chunk_aligned_writes",
+            "overwrite_partial_chunks": "_overwrite_partial_chunks",
         }
 
         evolve_kwargs = {}
@@ -326,3 +348,15 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def pformat(self) -> str:  # pragma: no cover
         return self.name
+
+    def delete(self):
+        # Clear cache to allow TS objects to go out of scope
+        self.clear_cache()
+
+        path = abspath(self.path)
+
+        # Use cloudfiles to delete all files
+        cf = cloudfiles.CloudFiles(path)
+        files_to_delete = list(cf.list())
+        if files_to_delete:
+            cf.delete(files_to_delete)

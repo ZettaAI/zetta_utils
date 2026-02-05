@@ -80,6 +80,25 @@ class VolumetricSetBackend(
         )
 
     @property
+    def overwrite_partial_chunks(self) -> bool:  # pragma: no cover
+        overwrite_partial_chunks = {
+            k: v.backend.overwrite_partial_chunks for k, v in self.layers.items()
+        }
+        if not len(set(overwrite_partial_chunks.values())) == 1:
+            raise ValueError(
+                "Cannot determine consistent `overwrite_partial_chunks` for the "
+                f"volumetric layer set backend. Got: {overwrite_partial_chunks}"
+            )
+        return list(overwrite_partial_chunks.values())[0]
+
+    @overwrite_partial_chunks.setter
+    def overwrite_partial_chunks(self, value: bool) -> None:  # pragma: no cover
+        raise NotImplementedError(
+            "cannot set `overwrite_partial_chunks` for VolumetricSetBackend directly;"
+            " use `backend.with_changes(overwrite_partial_chunks=value:bool)` instead."
+        )
+
+    @property
     def allow_cache(self) -> bool:  # pragma: no cover
         allow_caches = {k: v.backend.allow_cache for k, v in self.layers.items()}
         if not len(set(allow_caches.values())) == 1:
@@ -197,3 +216,7 @@ class VolumetricSetBackend(
 
     def pformat(self) -> str:  # pragma: no cover
         return "\n".join([f"{k}: {v.pformat()}" for (k, v) in self.layers.items()])
+
+    def delete(self):
+        for layer in self.layers.values():
+            layer.delete()

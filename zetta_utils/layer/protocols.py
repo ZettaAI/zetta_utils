@@ -20,6 +20,9 @@ class LayerWithIndexT(Protocol[IndexT_contra]):
     def __setitem__(self, idx: IndexT_contra, data: Any):
         ...
 
+    def delete(self):
+        ...
+
 
 @runtime_checkable
 class LayerWithIndexDataT(Protocol[IndexT_contra, DataT]):
@@ -33,4 +36,7 @@ class LayerWithIndexDataT(Protocol[IndexT_contra, DataT]):
         ...
 
     def __setitem__(self, idx: IndexT_contra, data: DataT):
+        ...
+
+    def delete(self):
         ...

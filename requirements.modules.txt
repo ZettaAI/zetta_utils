@@ -114,7 +114,7 @@ cloud-files==5.8.2
     #   zetta-utils (pyproject.toml)
     #   cloud-volume
     #   datastoreflex
-cloud-volume==12.8.0
+cloud-volume==12.9.2
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty

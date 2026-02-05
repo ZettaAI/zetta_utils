@@ -5,6 +5,7 @@ from .operation_protocols import (
     ComputeFieldOpProtocol,
     ChunkableOpProtocol,
     VolumetricOpProtocol,
+    StackableVolumetricOpProtocol,
 )
 
 from .common import (

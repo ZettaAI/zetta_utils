@@ -311,17 +311,20 @@ def _run_task_with_upkeep(
     extend_duration = math.ceil(task.upkeep_settings.interval_sec * 10)
 
     # Try to extract SQS metadata and use process-based handler
-    sqs_metadata = extract_sqs_metadata(extend_lease_fn)
+    try:
+        sqs_metadata = extract_sqs_metadata(extend_lease_fn)
+    except:  # pylint: disable=bare-except
+        sqs_metadata = None
     use_process_handler = sqs_metadata is not None and upkeep_handler is not None
 
     if use_process_handler:
+        assert sqs_metadata is not None
+        assert upkeep_handler is not None
         # Handler process manages its own timer - completely isolated from main process GIL
         logger.debug(
             f"UPKEEP: Starting upkeep via handler process: "
             f"interval={task.upkeep_settings.interval_sec}s, extend_by={extend_duration}s"
         )
-        assert sqs_metadata is not None
-        assert upkeep_handler is not None
         upkeep_handler.start_upkeep(
             task_id=task.id_,
             receipt_handle=sqs_metadata["receipt_handle"],

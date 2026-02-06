@@ -1166,7 +1166,7 @@ wcwidth==0.2.14
     #   urwid
 websocket-client==1.9.0
     # via kubernetes
-werkzeug==3.1.4
+werkzeug==3.1.5
     # via
     #   zetta-utils (pyproject.toml)
     #   flask

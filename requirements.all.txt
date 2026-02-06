@@ -234,7 +234,7 @@ fastremap==1.17.7
     #   kimimaro
     #   osteoid
     #   pcg-skel
-filelock==3.20.0
+filelock==3.20.3
     # via
     #   cachecontrol
     #   sphinx-toolbox

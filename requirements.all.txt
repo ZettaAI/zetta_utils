@@ -846,7 +846,7 @@ proto-plus==1.26.1
     #   google-cloud-firestore
     #   google-cloud-pubsub
     #   google-cloud-storage-control
-protobuf==6.33.2
+protobuf==6.33.5
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files

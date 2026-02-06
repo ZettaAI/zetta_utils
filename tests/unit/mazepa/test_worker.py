@@ -5,7 +5,7 @@ import pytest
 
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.tasks import _TaskableOperation
-from zetta_utils.mazepa.worker import run_worker
+from zetta_utils.mazepa.worker import run_worker, worker_init
 from zetta_utils.message_queues.base import ReceivedMessage
 
 
@@ -98,6 +98,7 @@ def test_worker_with_activity_tracker_updates_on_task_processing(
         sleep_sec=0.1,
         max_runtime=0.5,
         debug=True,
+        idle_timeout=10.0,
         pool_name=pool_name,
     )
 
@@ -195,6 +196,7 @@ def test_worker_activity_tracker_active_count_increments_decrements(
         sleep_sec=0.1,
         max_runtime=0.5,
         debug=True,
+        idle_timeout=10.0,
         pool_name=pool_name,
     )
 
@@ -235,3 +237,120 @@ def test_worker_without_pool_name_no_activity_tracking(
 
     assert result == "max_runtime_exceeded"
     assert len(outcome_queue.pushed_messages) == 1
+
+
+def test_worker_creates_own_activity_tracker(
+    mock_queues,  # pylint: disable=redefined-outer-name
+):
+    """Test that worker creates and cleans up its own activity tracker when none exists."""
+    task_queue, outcome_queue = mock_queues
+    pool_name = "test_worker_own_tracker_pool"
+
+    def simple_task():
+        return "done"
+
+    task = _TaskableOperation(simple_task).make_task()
+    msg = ReceivedMessage(
+        payload=task,
+        acknowledge_fn=MagicMock(),
+        extend_lease_fn=MagicMock(),
+        approx_receive_count=1,
+    )
+    task_queue.messages = [msg]
+
+    # Don't pre-create shared memory - let worker create it
+    result = run_worker(
+        task_queue=task_queue,
+        outcome_queue=outcome_queue,
+        sleep_sec=0.1,
+        max_runtime=0.5,
+        debug=True,
+        idle_timeout=10.0,
+        pool_name=pool_name,
+    )
+
+    assert result == "max_runtime_exceeded"
+    assert len(outcome_queue.pushed_messages) == 1
+
+
+def test_worker_init_basic(mocker):
+    mock_reset_signals = mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mock_configure_logger = mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
+
+    worker_init(log_level="INFO")
+
+    mock_reset_signals.assert_called_once()
+    mock_configure_logger.assert_called_once_with(level="INFO", force=True)
+
+
+def test_worker_init_suppress_logs(mocker):
+    mock_reset_signals = mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mock_redirect_buffers = mocker.patch("zetta_utils.mazepa.worker.redirect_buffers")
+    mock_configure_logger = mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
+
+    worker_init(log_level="INFO", suppress_logs=True)
+
+    mock_reset_signals.assert_called_once()
+    mock_redirect_buffers.assert_called_once()
+    mock_configure_logger.assert_not_called()
+
+
+def test_worker_init_set_start_method(mocker):
+    mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
+    mock_set_start_method = mocker.patch(
+        "zetta_utils.mazepa.worker.multiprocessing.set_start_method"
+    )
+
+    worker_init(log_level="DEBUG", set_start_method=True, multiprocessing_start_method="spawn")
+
+    mock_set_start_method.assert_called_once_with("spawn", force=True)
+
+
+def test_worker_init_load_train_inference(mocker):
+    mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
+    mock_load = mocker.patch("zetta_utils.mazepa.worker.try_load_train_inference")
+
+    worker_init(log_level="INFO", load_train_inference=True)
+
+    mock_load.assert_called_once()
+
+
+def test_worker_upkeep_fallback_for_non_sqs_queue(
+    mock_queues, mocker
+):  # pylint: disable=redefined-outer-name
+    """Test that non-SQS queues use the RepeatTimer fallback for upkeep."""
+    task_queue, outcome_queue = mock_queues
+
+    # Track if perform_direct_upkeep was called
+    mock_perform_upkeep = mocker.patch(
+        "zetta_utils.mazepa.worker.perform_direct_upkeep", wraps=lambda *args: None
+    )
+
+    def slow_task():
+        time.sleep(0.2)
+        return "done"
+
+    # Create task with short upkeep interval so timer fires during execution
+    task = _TaskableOperation(slow_task, upkeep_interval_sec=0.05).make_task()
+    msg = ReceivedMessage(
+        payload=task,
+        acknowledge_fn=MagicMock(),
+        extend_lease_fn=MagicMock(),  # Not ComparablePartial, so uses fallback
+        approx_receive_count=1,
+    )
+    task_queue.messages = [msg]
+
+    result = run_worker(
+        task_queue=task_queue,
+        outcome_queue=outcome_queue,
+        sleep_sec=0.1,
+        max_runtime=1.0,
+        debug=True,
+    )
+
+    assert result == "max_runtime_exceeded"
+    assert len(outcome_queue.pushed_messages) == 1
+    # Verify the fallback upkeep path was used (timer should have fired at least once)
+    assert mock_perform_upkeep.call_count >= 1

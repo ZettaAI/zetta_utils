@@ -20,10 +20,10 @@ from zetta_utils.mazepa.transient_errors import (
 )
 from zetta_utils.mazepa.upkeep_handlers import (
     SQSUpkeepHandlerManager,
-    extract_sqs_metadata,
     perform_direct_upkeep,
 )
 from zetta_utils.message_queues.base import MessageQueue, ReceivedMessage
+from zetta_utils.message_queues.sqs.utils import SQSReceivedMsg
 
 from . import Task
 
@@ -263,6 +263,14 @@ def run_worker(
             activity_tracker.unlink()
 
 
+def _try_get_sqs_msg(extend_lease_fn: Callable) -> SQSReceivedMsg | None:
+    """Try to extract SQSReceivedMsg from extend_lease_fn if available."""
+    msg = getattr(extend_lease_fn, "kwargs", {}).get("msg")
+    if isinstance(msg, SQSReceivedMsg):
+        return msg
+    return None
+
+
 def process_task_message(
     msg: ReceivedMessage[Task],
     debug: bool,
@@ -271,9 +279,11 @@ def process_task_message(
 ) -> tuple[bool, TaskOutcome]:
     task = msg.payload
     if task.upkeep_settings.perform_upkeep:
+        sqs_msg = _try_get_sqs_msg(msg.extend_lease_fn)
         outcome = _run_task_with_upkeep(
             task,
             msg.extend_lease_fn,
+            sqs_msg=sqs_msg,
             debug=debug,
             handle_exceptions=handle_exceptions,
             upkeep_handler=upkeep_handler,
@@ -302,6 +312,7 @@ def process_task_message(
 def _run_task_with_upkeep(
     task: Task,
     extend_lease_fn: Callable,
+    sqs_msg: SQSReceivedMsg | None,
     debug: bool,
     handle_exceptions: bool,
     upkeep_handler: SQSUpkeepHandlerManager | None = None,
@@ -310,15 +321,10 @@ def _run_task_with_upkeep(
     assert task.upkeep_settings.interval_sec is not None
     extend_duration = math.ceil(task.upkeep_settings.interval_sec * 10)
 
-    # Try to extract SQS metadata and use process-based handler
-    try:
-        sqs_metadata = extract_sqs_metadata(extend_lease_fn)
-    except:  # pylint: disable=bare-except
-        sqs_metadata = None
-    use_process_handler = sqs_metadata is not None and upkeep_handler is not None
+    use_process_handler = sqs_msg is not None and upkeep_handler is not None
 
     if use_process_handler:
-        assert sqs_metadata is not None
+        assert sqs_msg is not None
         assert upkeep_handler is not None
         # Handler process manages its own timer - completely isolated from main process GIL
         logger.debug(
@@ -327,12 +333,12 @@ def _run_task_with_upkeep(
         )
         upkeep_handler.start_upkeep(
             task_id=task.id_,
-            receipt_handle=sqs_metadata["receipt_handle"],
+            receipt_handle=sqs_msg.receipt_handle,
             visibility_timeout=extend_duration,
             interval_sec=task.upkeep_settings.interval_sec,
-            queue_name=sqs_metadata["queue_name"],
-            region_name=sqs_metadata["region_name"],
-            endpoint_url=sqs_metadata["endpoint_url"],
+            queue_name=sqs_msg.queue_name,
+            region_name=sqs_msg.region_name,
+            endpoint_url=sqs_msg.endpoint_url,
         )
         try:
             logger.info("Task execution starting")

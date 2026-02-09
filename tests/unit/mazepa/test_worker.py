@@ -337,7 +337,7 @@ def test_worker_upkeep_fallback_for_non_sqs_queue(
     msg = ReceivedMessage(
         payload=task,
         acknowledge_fn=MagicMock(),
-        extend_lease_fn=MagicMock(),  # Not ComparablePartial, so uses fallback
+        extend_lease_fn=MagicMock(),  # Not SQS, so uses fallback
         approx_receive_count=1,
     )
     task_queue.messages = [msg]

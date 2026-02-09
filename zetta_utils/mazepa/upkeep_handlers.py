@@ -11,7 +11,6 @@ from typing import Callable
 import tenacity
 
 from zetta_utils import log
-from zetta_utils.common.partial import ComparablePartial
 
 logger = log.get_logger("mazepa")
 
@@ -44,36 +43,6 @@ def perform_direct_upkeep(
         logger.error(f"UPKEEP: Failed to extend lease after retries: {e}")
     except Exception as e:  # pragma: no cover  # pylint: disable=broad-except
         logger.error(f"UPKEEP: Unexpected error: {type(e).__name__}: {e}")
-
-
-def extract_sqs_metadata(extend_lease_fn: Callable) -> dict:
-    """
-    Extract SQS metadata from extend_lease_fn if it's a ComparablePartial wrapping
-    an SQS queue's _extend_msg_lease method.
-
-    Returns a dict with queue_name, region_name, endpoint_url, receipt_handle if found,
-    or raises Exceptions if this is not an SQS-based extend function.
-    """
-    if not isinstance(extend_lease_fn, ComparablePartial):
-        raise TypeError("`extend_lease_fn` for SQS queues should be a ComparablePartial.")
-
-    msg = extend_lease_fn.kwargs.get("msg")
-    if msg is None:
-        raise ValueError("`extend_lease_fn` has no kwarg `msg`.")
-
-    # Check if msg has the SQS-specific attributes
-    if not all(hasattr(msg, attr) for attr in ("receipt_handle", "queue_name", "region_name")):
-        raise ValueError(
-            "`extend_lease_fn.kwargs.msg` does not have all of the following:"
-            "`receipt_handle`, `queue_name`, `region_name`."
-        )
-
-    return {
-        "receipt_handle": msg.receipt_handle,
-        "queue_name": msg.queue_name,
-        "region_name": msg.region_name,
-        "endpoint_url": getattr(msg, "endpoint_url", None),
-    }
 
 
 @dataclass

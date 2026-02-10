@@ -45,7 +45,7 @@ jobs:
       - name: Install CUE
         run: go install cuelang.org/go/cmd/cue@v0.6.0
       - name: Install libboost
-        run: sudo apt install libboost-dev
+        run: sudo apt-get update -y && sudo apt-get install -y libboost-dev
       - name: Free up disk space
         run: |
           df -h

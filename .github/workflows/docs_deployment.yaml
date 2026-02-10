@@ -42,7 +42,7 @@ jobs:
           architecture: x64
           cache: 'pip'
       - name: Install libboost
-        run: sudo apt install libboost-dev
+        run: sudo apt-get update -y && sudo apt-get install -y libboost-dev
       - name: Free up disk space
         run: |
           df -h

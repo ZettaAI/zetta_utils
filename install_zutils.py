@@ -760,7 +760,7 @@ def main():
             )
 
         run_command(
-            f"pip install -r {requirements_file} && pip install --no-deps -e .",
+            f"pip install --no-cache-dir --no-deps -r {requirements_file} && pip install --no-cache-dir --no-deps -e .",
             "Installing pinned dependencies and zetta_utils package",
         )
 

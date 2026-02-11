@@ -109,12 +109,12 @@ click==8.3.1
     #   rq
     #   task-queue
     #   wandb
-cloud-files==5.8.2
+cloud-files==6.1.1
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-volume
     #   datastoreflex
-cloud-volume==12.9.2
+cloud-volume==12.10.0
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty

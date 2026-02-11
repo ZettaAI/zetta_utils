@@ -57,7 +57,7 @@ augmentations = [
 ]
 cli = ["click >= 8.0.1"]
 cloudvol = [
-    "cloud-volume[all_codecs] == 12.9.2",
+    "cloud-volume[all_codecs] == 12.10.0",
     "zetta_utils[tensor_ops]"
 ]
 tensorstore = [

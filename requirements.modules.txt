@@ -6,7 +6,7 @@ affine==2.4.0
     # via zetta-utils (pyproject.toml)
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.2
+aiohttp==3.13.3
     # via
     #   zetta-utils (pyproject.toml)
     #   fsspec

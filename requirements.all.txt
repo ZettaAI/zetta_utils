@@ -1307,7 +1307,7 @@ urllib3==2.3.0
     #   types-requests
 vhacdx==0.0.10
     # via trimesh
-virtualenv==20.35.4
+virtualenv==20.36.1
     # via pre-commit
 wandb==0.23.1
     # via zetta-utils (pyproject.toml)

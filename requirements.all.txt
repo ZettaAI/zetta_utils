@@ -798,7 +798,7 @@ pexpect==4.9.0
     # via ipython
 piccolo-theme==0.24.0
     # via zetta-utils (pyproject.toml)
-pillow==12.0.0
+pillow==12.1.1
     # via
     #   imagecorruptions-imaug
     #   imageio

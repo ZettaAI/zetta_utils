@@ -752,7 +752,7 @@ pebble==5.1.3
     # via zetta-utils (pyproject.toml)
 pexpect==4.9.0
     # via ipython
-pillow==12.0.0
+pillow==12.1.1
     # via
     #   imagecorruptions-imaug
     #   imageio

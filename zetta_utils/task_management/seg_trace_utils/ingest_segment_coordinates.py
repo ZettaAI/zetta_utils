@@ -302,7 +302,7 @@ def ingest_validated_coordinates(
                     db_session=db_session,
                 )
                 logger.info(f"Queued {queued_count} segment updates for ingested segments")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to queue segment updates for ingested segments: {e}")
 
     return results

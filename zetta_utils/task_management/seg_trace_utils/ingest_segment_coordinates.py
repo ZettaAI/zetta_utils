@@ -22,6 +22,7 @@ from zetta_utils.task_management.segment import (
     create_segment_from_coordinate,
     get_segment_id,
 )
+from zetta_utils.task_management.segment_queue import queue_segment_updates_for_segments
 
 logger = log.get_logger()
 
@@ -286,6 +287,24 @@ def ingest_validated_coordinates(
             logger.info(f"Created {results['created_segments']}/{len(valid_coordinates)} segments")
 
     logger.info(f"Ingestion complete: created {results['created_segments']} segments")
+
+    if results["created_seed_ids"]:
+        try:
+            created_segment_ids = [
+                coord_data["segment_id"]
+                for coord_data in valid_coordinates
+                if coord_data.get("segment_id")
+            ]
+            if created_segment_ids:
+                queued_count = queue_segment_updates_for_segments(
+                    project_name=project_name,
+                    segment_ids=created_segment_ids,
+                    db_session=db_session,
+                )
+                logger.info(f"Queued {queued_count} segment updates for ingested segments")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(f"Failed to queue segment updates for ingested segments: {e}")
+
     return results
 
 

@@ -372,11 +372,26 @@ def test_update_segment_statistics_no_synapse_table(clean_db, db_session, projec
     # Mock environment variables to prevent CAVEclient from writing config files
     mocker.patch.dict(os.environ, {"CAVE_AUTH_TOKEN": "test_token"})
 
-    # Mock CAVEclient to prevent config file creation (though it shouldn't be called)
+    # Mock get_segment_id to return the current segment ID
+    mocker.patch("zetta_utils.task_management.segment.get_segment_id", return_value=67890)
+
+    # Mock skeleton
+    mock_skeleton = mocker.Mock()
+    mock_skeleton.path_length.return_value = 1000000  # 1.0 mm
+    mocker.patch(
+        "zetta_utils.task_management.segment.pcg_skel.pcg_skeleton", return_value=mock_skeleton
+    )
+
+    # Mock CAVEclient
     mocker.patch("zetta_utils.task_management.segment.CAVEclient")
 
-    with pytest.raises(ValueError, match="does not have a synapse_table configured"):
-        update_segment_statistics(project_name, 12345, db_session=db_session)
+    # Should succeed but skip synapse counts (no ValueError raised)
+    result = update_segment_statistics(project_name, 12345, db_session=db_session)
+
+    assert result["skeleton_path_length_mm"] == 1.0
+    assert result["synapse_skipped"] == "no synapse_table configured"
+    assert "pre_synapse_count" not in result
+    assert "post_synapse_count" not in result
 
 
 def test_create_segment_from_coordinate_success(

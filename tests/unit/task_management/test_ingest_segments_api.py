@@ -150,6 +150,52 @@ def test_ingest_segments_with_different_neuron_types(
     assert results_dendrite["created_seed_ids"] == [54321]
 
 
+def test_ingest_segments_queue_failure_handled_gracefully(
+    existing_project, db_session, project_name, mocker
+):
+    """Test that failure in queue_segment_updates_for_segments is caught gracefully"""
+    mock_segment = {
+        "seed_id": 12345,
+        "seed_x": 100.0,
+        "seed_y": 200.0,
+        "seed_z": 300.0,
+        "current_segment_id": 67890,
+        "batch": "test_batch",
+        "expected_segment_type": "axon",
+        "status": "",
+        "is_exported": False,
+        "task_ids": [],
+    }
+
+    mocker.patch(
+        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates."
+        "create_segment_from_coordinate",
+        return_value=mock_segment,
+    )
+
+    mocker.patch(
+        "zetta_utils.task_management.seg_trace_utils.ingest_segment_coordinates."
+        "queue_segment_updates_for_segments",
+        side_effect=RuntimeError("Queue service unavailable"),
+    )
+
+    valid_coordinates = [
+        {"coordinate": [100.0, 200.0, 300.0], "segment_id": 67890},
+    ]
+
+    results = ingest_validated_coordinates(
+        project_name=project_name,
+        valid_coordinates=valid_coordinates,
+        expected_neuron_type="axon",
+        batch_name="test_batch",
+        db_session=db_session,
+    )
+
+    assert results["created_segments"] == 1
+    assert results["creation_errors"] == 0
+    assert len(results["created_seed_ids"]) == 1
+
+
 def test_ingest_segments_progress_logging(existing_project, db_session, project_name, mocker):
     """Test that progress logging works for large batches"""
     # Mock the segment creation

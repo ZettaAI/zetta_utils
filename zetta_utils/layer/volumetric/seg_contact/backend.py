@@ -292,7 +292,8 @@ class SegContactLayerBackend(Backend[VolumetricIndex, Sequence[SegContact], Sequ
 
     def write_chunk(self, chunk_idx: tuple[int, int, int], contacts: Sequence[SegContact]) -> None:
         """Write contacts to chunk files (contacts, pointclouds, merge_decisions)."""
-        self._write_contacts_chunk(chunk_idx, contacts)
+        if any(c.contact_faces is not None for c in contacts):
+            self._write_contacts_chunk(chunk_idx, contacts)
 
         pointclouds_by_config = self._collect_pointclouds(contacts)
         for config_tuple, entries in pointclouds_by_config.items():

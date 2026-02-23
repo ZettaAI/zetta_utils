@@ -1074,55 +1074,25 @@ class ContactMergeOp:
             probs = probs.unsqueeze(0)
         logger.info(f"[{coord_str}] Model inference: {time.time() - t0:.1f}s")
 
-        # Update contacts with merge_probabilities
+        # Build result with only IDs, COMs, and merge probabilities
         t0 = time.time()
-        result = list(contacts)
+        result = []
         for i, contact_idx in enumerate(valid_indices):
-            contact = result[contact_idx]
-            prob = float(probs[i].item())
-
-            if contact.merge_probabilities is None:
-                new_probs = {self.authority_name: prob}
-            else:
-                new_probs = dict(contact.merge_probabilities)
-                new_probs[self.authority_name] = prob
-
-            result[contact_idx] = SegContact(
+            contact = contacts[contact_idx]
+            result.append(SegContact(
                 id=contact.id,
                 seg_a=contact.seg_a,
                 seg_b=contact.seg_b,
                 com=contact.com,
-                contact_faces=contact.contact_faces,
-                representative_points=contact.representative_points,
-                local_pointclouds=None,
-                merge_decisions=contact.merge_decisions,
-                merge_probabilities=new_probs,
-                partner_metadata=contact.partner_metadata,
-            )
-        # Strip resampled pointclouds from non-updated contacts to avoid
-        # writing modified pointclouds that corrupt the binary format
-        for i in range(len(result)):
-            if result[i].local_pointclouds is not None:
-                c = result[i]
-                result[i] = SegContact(
-                    id=c.id,
-                    seg_a=c.seg_a,
-                    seg_b=c.seg_b,
-                    com=c.com,
-                    contact_faces=c.contact_faces,
-                    representative_points=c.representative_points,
-                    local_pointclouds=None,
-                    merge_decisions=c.merge_decisions,
-                    merge_probabilities=c.merge_probabilities,
-                    partner_metadata=c.partner_metadata,
-                )
-        logger.info(f"[{coord_str}] Update contacts: {time.time() - t0:.1f}s")
+                merge_probabilities={self.authority_name: float(probs[i].item())},
+            ))
+        logger.info(f"[{coord_str}] Build results: {time.time() - t0:.1f}s")
 
-        # Write updated contacts
+        # Write only merge probabilities to destination
         t0 = time.time()
         with semaphore("write"):
             dst[idx] = result
-        logger.info(f"[{coord_str}] Write contacts: {time.time() - t0:.1f}s")
+        logger.info(f"[{coord_str}] Write merge probabilities: {time.time() - t0:.1f}s")
 
         logger.info(f"[{coord_str}] Total ContactMergeOp: {time.time() - t_start:.1f}s")
 

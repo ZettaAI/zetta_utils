@@ -12,13 +12,16 @@ from zetta_utils.mazepa_layer_processing.common.seg_contact_op import (
     _compute_overlaps,
     _compute_representative_points,
     _filter_pairs_by_com,
+    _filter_pairs_by_interface_gt,
     _filter_pairs_touching_boundary,
     _find_axis_contacts,
     _find_contact_center,
     _find_contacts,
     _find_merger_segment_ids,
+    _find_offtarget_segment_ids,
     _find_small_segment_ids,
     _find_unclaimed_segment_ids,
+    _find_unclaimed_vx_segment_ids,
     _get_unvisited_neighbors,
     _sample_sphere_voxels,
     _voxel_closest_to_mean,
@@ -517,3 +520,261 @@ def test_seg_contact_op_get_input_resolution():
     res = Vec3D(16.0, 16.0, 40.0)
 
     assert op.get_input_resolution(res) == res
+
+
+# --- Off-target and unclaimed voxel filter tests ---
+
+
+def test_find_offtarget_segment_ids_by_vx():
+    """Test off-target filter by voxel count."""
+    # Seg 1: 100 vx total, 80 overlap with best CC, 10 with another CC
+    # Seg 2: 100 vx total, 50 overlap with best CC, 40 with another CC
+    seg_ids = np.array([1, 1, 2, 2], dtype=np.int64)
+    ref_ids = np.array([10, 20, 30, 40], dtype=np.int64)
+    counts = np.array([80, 10, 50, 40], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 100}
+
+    # off-target for seg 1: 10 (without unclaimed) or 20 (with unclaimed, 100-80)
+    # off-target for seg 2: 40 (without unclaimed) or 50 (with unclaimed, 100-50)
+    result = _find_offtarget_segment_ids(
+        seg_ids, ref_ids, counts, seg_total_vx,
+        max_offtarget_vx=30, max_offtarget_fraction=None,
+        includes_unclaimed=False,
+    )
+    assert 1 not in result  # 10 <= 30
+    assert 2 in result  # 40 > 30
+
+
+def test_find_offtarget_segment_ids_by_fraction():
+    """Test off-target filter by fraction."""
+    seg_ids = np.array([1, 1, 2], dtype=np.int64)
+    ref_ids = np.array([10, 20, 30], dtype=np.int64)
+    counts = np.array([80, 10, 90], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 100}
+
+    result = _find_offtarget_segment_ids(
+        seg_ids, ref_ids, counts, seg_total_vx,
+        max_offtarget_vx=None, max_offtarget_fraction=0.05,
+        includes_unclaimed=False,
+    )
+    assert 1 in result  # 10/100 = 0.1 > 0.05
+    assert 2 not in result  # 0/100 = 0.0 <= 0.05
+
+
+def test_find_offtarget_segment_ids_includes_unclaimed():
+    """Test off-target filter with includes_unclaimed=True."""
+    # Seg 1: 200 vx total, 80 overlap with best CC, 10 with another CC, 110 unclaimed
+    seg_ids = np.array([1, 1], dtype=np.int64)
+    ref_ids = np.array([10, 20], dtype=np.int64)
+    counts = np.array([80, 10], dtype=np.int32)
+    seg_total_vx = {1: 200}
+
+    # Without unclaimed: offtarget = 10
+    result_without = _find_offtarget_segment_ids(
+        seg_ids, ref_ids, counts, seg_total_vx,
+        max_offtarget_vx=50, max_offtarget_fraction=None,
+        includes_unclaimed=False,
+    )
+    assert 1 not in result_without  # 10 <= 50
+
+    # With unclaimed: offtarget = 200 - 80 = 120
+    result_with = _find_offtarget_segment_ids(
+        seg_ids, ref_ids, counts, seg_total_vx,
+        max_offtarget_vx=50, max_offtarget_fraction=None,
+        includes_unclaimed=True,
+    )
+    assert 1 in result_with  # 120 > 50
+
+
+def test_find_offtarget_segment_ids_no_overlap():
+    """Test off-target filter for segment with no overlap at all."""
+    seg_ids = np.array([1], dtype=np.int64)
+    ref_ids = np.array([10], dtype=np.int64)
+    counts = np.array([100], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 50}  # seg 2 has no overlap entries
+
+    result = _find_offtarget_segment_ids(
+        seg_ids, ref_ids, counts, seg_total_vx,
+        max_offtarget_vx=10, max_offtarget_fraction=None,
+        includes_unclaimed=True,
+    )
+    assert 2 in result  # 50 - 0 = 50 > 10
+
+
+def test_find_unclaimed_vx_segment_ids_by_vx():
+    """Test unclaimed voxel filter by count."""
+    # Seg 1: 100 vx total, 90 covered -> 10 unclaimed
+    # Seg 2: 100 vx total, 40 covered -> 60 unclaimed
+    seg_ids = np.array([1, 1, 2], dtype=np.int64)
+    counts = np.array([80, 10, 40], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 100}
+
+    result = _find_unclaimed_vx_segment_ids(
+        seg_ids, counts, seg_total_vx,
+        max_unclaimed_vx=50, max_unclaimed_fraction=None,
+    )
+    assert 1 not in result  # 10 <= 50
+    assert 2 in result  # 60 > 50
+
+
+def test_find_unclaimed_vx_segment_ids_by_fraction():
+    """Test unclaimed voxel filter by fraction."""
+    seg_ids = np.array([1, 2], dtype=np.int64)
+    counts = np.array([90, 40], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 100}
+
+    result = _find_unclaimed_vx_segment_ids(
+        seg_ids, counts, seg_total_vx,
+        max_unclaimed_vx=None, max_unclaimed_fraction=0.5,
+    )
+    assert 1 not in result  # 10/100 = 0.1 <= 0.5
+    assert 2 in result  # 60/100 = 0.6 > 0.5
+
+
+def test_find_unclaimed_vx_segment_ids_no_overlap():
+    """Test unclaimed voxel filter for segment with zero overlap."""
+    seg_ids = np.array([1], dtype=np.int64)
+    counts = np.array([100], dtype=np.int32)
+    seg_total_vx = {1: 100, 2: 80}
+
+    result = _find_unclaimed_vx_segment_ids(
+        seg_ids, counts, seg_total_vx,
+        max_unclaimed_vx=50, max_unclaimed_fraction=None,
+    )
+    assert 1 not in result  # 0 unclaimed
+    assert 2 in result  # 80 unclaimed > 50
+
+
+def test_find_unclaimed_vx_segment_ids_both_thresholds():
+    """Test that vx threshold triggers before fraction threshold (OR semantics)."""
+    seg_ids = np.array([1], dtype=np.int64)
+    counts = np.array([80], dtype=np.int32)
+    seg_total_vx = {1: 100}
+
+    # 20 unclaimed, 20/100 = 0.2
+    # vx threshold triggers (20 > 15), fraction would not (0.2 <= 0.5)
+    result = _find_unclaimed_vx_segment_ids(
+        seg_ids, counts, seg_total_vx,
+        max_unclaimed_vx=15, max_unclaimed_fraction=0.5,
+    )
+    assert 1 in result
+
+
+# --- Interface GT filter tests ---
+
+
+def test_filter_pairs_by_interface_gt_all_gt():
+    """Test interface GT filter when all faces have GT on both sides."""
+    # Seg 1 | Seg 2 contact along x axis at x=5.5
+    seg_a = np.array([1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2], dtype=np.int64)
+    aff = np.array([0.5, 0.5], dtype=np.float32)
+    x = np.array([5.5, 5.5], dtype=np.float32)
+    y = np.array([3.0, 4.0], dtype=np.float32)
+    z = np.array([3.0, 3.0], dtype=np.float32)
+
+    reference = np.zeros((10, 10, 10), dtype=np.int64)
+    reference[5, 3, 3] = 100
+    reference[6, 3, 3] = 200
+    reference[5, 4, 3] = 100
+    reference[6, 4, 3] = 200
+
+    start = Vec3D(0, 0, 0)
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+    )
+    assert len(result[0]) == 2  # both faces pass
+
+
+def test_filter_pairs_by_interface_gt_no_gt():
+    """Test interface GT filter when no faces have GT."""
+    seg_a = np.array([1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2], dtype=np.int64)
+    aff = np.array([0.5, 0.5], dtype=np.float32)
+    x = np.array([5.5, 5.5], dtype=np.float32)
+    y = np.array([3.0, 4.0], dtype=np.float32)
+    z = np.array([3.0, 3.0], dtype=np.float32)
+
+    reference = np.zeros((10, 10, 10), dtype=np.int64)  # no GT anywhere
+    start = Vec3D(0, 0, 0)
+
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+    )
+    assert len(result[0]) == 0  # pair excluded
+
+
+def test_filter_pairs_by_interface_gt_partial():
+    """Test interface GT filter with partial GT coverage."""
+    # 4 contact faces for pair (1,2), only 1 has GT on both sides -> fraction = 0.25
+    seg_a = np.array([1, 1, 1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2, 2, 2], dtype=np.int64)
+    aff = np.array([0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+    x = np.array([5.5, 5.5, 5.5, 5.5], dtype=np.float32)
+    y = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32)
+    z = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float32)
+
+    reference = np.zeros((10, 10, 10), dtype=np.int64)
+    reference[5, 1, 1] = 100
+    reference[6, 1, 1] = 200  # only this face has GT on both sides
+
+    start = Vec3D(0, 0, 0)
+
+    # Threshold 0.2 -> 0.25 >= 0.2, pair kept
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.2,
+    )
+    assert len(result[0]) == 4
+
+    # Threshold 0.5 -> 0.25 < 0.5, pair excluded
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+    )
+    assert len(result[0]) == 0
+
+
+def test_filter_pairs_by_interface_gt_mixed_pairs():
+    """Test interface GT filter keeps good pairs and removes bad ones."""
+    # Pair (1,2): GT on both sides. Pair (3,4): no GT.
+    seg_a = np.array([1, 3], dtype=np.int64)
+    seg_b = np.array([2, 4], dtype=np.int64)
+    aff = np.array([0.5, 0.5], dtype=np.float32)
+    x = np.array([5.5, 5.5], dtype=np.float32)
+    y = np.array([3.0, 7.0], dtype=np.float32)
+    z = np.array([3.0, 3.0], dtype=np.float32)
+
+    reference = np.zeros((10, 10, 10), dtype=np.int64)
+    reference[5, 3, 3] = 100
+    reference[6, 3, 3] = 200
+    # No GT at y=7
+
+    start = Vec3D(0, 0, 0)
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+    )
+    seg_a_f, seg_b_f = result[0], result[1]
+    assert len(seg_a_f) == 1
+    assert seg_a_f[0] == 1
+    assert seg_b_f[0] == 2
+
+
+def test_filter_pairs_by_interface_gt_with_offset_start():
+    """Test interface GT filter with non-zero start offset."""
+    seg_a = np.array([1], dtype=np.int64)
+    seg_b = np.array([2], dtype=np.int64)
+    aff = np.array([0.5], dtype=np.float32)
+    # Face at global (100.5, 50, 20), start=(100, 50, 20)
+    # Local: (0.5, 0, 0) -> lo=(0,0,0), hi=(1,0,0)
+    x = np.array([100.5], dtype=np.float32)
+    y = np.array([50.0], dtype=np.float32)
+    z = np.array([20.0], dtype=np.float32)
+
+    reference = np.zeros((5, 5, 5), dtype=np.int64)
+    reference[0, 0, 0] = 100
+    reference[1, 0, 0] = 200
+
+    start = Vec3D(100, 50, 20)
+    result = _filter_pairs_by_interface_gt(
+        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+    )
+    assert len(result[0]) == 1  # GT on both sides

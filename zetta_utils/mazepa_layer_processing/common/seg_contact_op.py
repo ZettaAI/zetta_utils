@@ -104,6 +104,64 @@ def _find_unclaimed_segment_ids(
     return insufficient_overlap | zero_overlap
 
 
+def _find_offtarget_segment_ids(
+    seg_ids: np.ndarray,
+    ref_ids: np.ndarray,
+    counts: np.ndarray,
+    seg_total_vx: dict[int, int],
+    max_offtarget_vx: int | None,
+    max_offtarget_fraction: float | None,
+    includes_unclaimed: bool,
+) -> set[int]:
+    """Find segments with too many off-target voxels.
+
+    Off-target voxels are those overlapping non-best reference CCs.
+    When includes_unclaimed is True, also counts voxels with no GT (reference == 0).
+    """
+    seg_best: dict[int, tuple[int, int]] = {}
+    for seg, ref, cnt in zip(seg_ids, ref_ids, counts):
+        s, c = int(seg), int(cnt)
+        if s not in seg_best or c > seg_best[s][1]:
+            seg_best[s] = (int(ref), c)
+
+    seg_total_overlap: dict[int, int] = defaultdict(int)
+    for seg, cnt in zip(seg_ids, counts):
+        seg_total_overlap[int(seg)] += int(cnt)
+
+    result: set[int] = set()
+    for s, total in seg_total_vx.items():
+        best_count = seg_best[s][1] if s in seg_best else 0
+        covered = seg_total_overlap.get(s, 0)
+        offtarget = (total - best_count) if includes_unclaimed else (covered - best_count)
+        if max_offtarget_vx is not None and offtarget > max_offtarget_vx:
+            result.add(s)
+        elif max_offtarget_fraction is not None and total > 0 and offtarget / total > max_offtarget_fraction:
+            result.add(s)
+    return result
+
+
+def _find_unclaimed_vx_segment_ids(
+    seg_ids: np.ndarray,
+    counts: np.ndarray,
+    seg_total_vx: dict[int, int],
+    max_unclaimed_vx: int | None,
+    max_unclaimed_fraction: float | None,
+) -> set[int]:
+    """Find segments with too many unclaimed voxels (reference == 0)."""
+    seg_total_overlap: dict[int, int] = defaultdict(int)
+    for seg, cnt in zip(seg_ids, counts):
+        seg_total_overlap[int(seg)] += int(cnt)
+
+    result: set[int] = set()
+    for s, total in seg_total_vx.items():
+        unclaimed = total - seg_total_overlap.get(s, 0)
+        if max_unclaimed_vx is not None and unclaimed > max_unclaimed_vx:
+            result.add(s)
+        elif max_unclaimed_fraction is not None and total > 0 and unclaimed / total > max_unclaimed_fraction:
+            result.add(s)
+    return result
+
+
 def _build_seg_to_ref(
     seg_ids: np.ndarray, ref_ids: np.ndarray, counts: np.ndarray, min_overlap_vx: int
 ) -> dict[int, set[int]]:
@@ -289,6 +347,41 @@ def _filter_pairs_by_com(
     # Build set of pairs inside kernel
     pairs_inside = set(grouped.index[inside].tolist())
     keep = np.array([(int(a), int(b)) in pairs_inside for a, b in zip(seg_a, seg_b)])
+    return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
+
+
+def _filter_pairs_by_interface_gt(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    aff: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    reference: np.ndarray,
+    start: Vec3D,
+    min_interface_gt_fraction: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Exclude pairs where GT coverage at the contact interface is below threshold.
+
+    For each contact face, checks whether reference is non-zero on both adjacent voxels.
+    Pairs where the fraction of faces with GT on both sides < threshold are excluded.
+    """
+    sx, sy, sz = float(start[0]), float(start[1]), float(start[2])
+    lo_x = np.floor(x - sx).astype(np.intp)
+    lo_y = np.floor(y - sy).astype(np.intp)
+    lo_z = np.floor(z - sz).astype(np.intp)
+    hi_x = np.ceil(x - sx).astype(np.intp)
+    hi_y = np.ceil(y - sy).astype(np.intp)
+    hi_z = np.ceil(z - sz).astype(np.intp)
+
+    ref_lo = reference[lo_x, lo_y, lo_z]
+    ref_hi = reference[hi_x, hi_y, hi_z]
+    both_have_gt = (ref_lo != 0) & (ref_hi != 0)
+
+    df = pd.DataFrame({"a": seg_a, "b": seg_b, "gt": both_have_gt})
+    grouped = df.groupby(["a", "b"])["gt"].mean()
+    pairs_ok = set(grouped.index[grouped.values >= min_interface_gt_fraction].tolist())
+    keep = np.array([(int(a), int(b)) in pairs_ok for a, b in zip(seg_a, seg_b)])
     return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
 
 
@@ -691,6 +784,12 @@ class SegContactOp:
     min_affinity: float = 0.0
     merge_authority: str = "reference_overlap"
     ids_per_chunk: int = 10000
+    max_offtarget_vx: int | None = None
+    max_offtarget_fraction: float | None = None
+    offtarget_includes_unclaimed: bool = False
+    max_unclaimed_vx: int | None = None
+    max_unclaimed_fraction: float | None = None
+    min_interface_gt_fraction: float | None = None
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -733,11 +832,32 @@ class SegContactOp:
         unclaimed_ids = _find_unclaimed_segment_ids(
             overlap_seg, overlap_count, self.min_overlap_vx, all_seg_ids
         )
-        exclude_ids = small_ids | merger_ids | unclaimed_ids
+
+        # New per-segment GT coverage filters
+        unique_segs, seg_counts = np.unique(seg, return_counts=True)
+        seg_total_vx = {int(s): int(c) for s, c in zip(unique_segs, seg_counts) if s != 0}
+
+        offtarget_ids: set[int] = set()
+        if self.max_offtarget_vx is not None or self.max_offtarget_fraction is not None:
+            offtarget_ids = _find_offtarget_segment_ids(
+                overlap_seg, overlap_ref, overlap_count, seg_total_vx,
+                self.max_offtarget_vx, self.max_offtarget_fraction,
+                self.offtarget_includes_unclaimed,
+            )
+
+        unclaimed_vx_ids: set[int] = set()
+        if self.max_unclaimed_vx is not None or self.max_unclaimed_fraction is not None:
+            unclaimed_vx_ids = _find_unclaimed_vx_segment_ids(
+                overlap_seg, overlap_count, seg_total_vx,
+                self.max_unclaimed_vx, self.max_unclaimed_fraction,
+            )
+
+        exclude_ids = small_ids | merger_ids | unclaimed_ids | offtarget_ids | unclaimed_vx_ids
         print(
             f"[{coord_str}] Overlaps/filtering: {time.time() - t0:.1f}s "
             f"(excl {len(small_ids)} small, {len(merger_ids)} merger, "
-            f"{len(unclaimed_ids)} unclaimed)",
+            f"{len(unclaimed_ids)} unclaimed, {len(offtarget_ids)} offtarget, "
+            f"{len(unclaimed_vx_ids)} unclaimed_vx, total {len(exclude_ids)} excluded)",
             flush=True,
         )
 
@@ -774,6 +894,19 @@ class SegContactOp:
         if len(seg_a) == 0:
             print(f"[{coord_str}] All pairs outside kernel, skipping", flush=True)
             return
+
+        # Filter out pairs with insufficient GT at the contact interface
+        if self.min_interface_gt_fraction is not None:
+            seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_interface_gt(
+                seg_a, seg_b, aff_vals, x, y, z,
+                reference, idx_padded.start, self.min_interface_gt_fraction,
+            )
+            if len(seg_a) == 0:
+                print(
+                    f"[{coord_str}] All pairs below interface GT threshold, skipping",
+                    flush=True,
+                )
+                return
 
         # Filter pairs by contact count
         contact_counts = _compute_contact_counts(seg_a, seg_b)

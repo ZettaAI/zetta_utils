@@ -32,6 +32,24 @@ def test_push_tasks(mocker):
     queue_b.push.assert_called_with([task_b, task_bb])
 
 
+def test_push_task_no_worker_type(mocker):
+    queue_a = mocker.MagicMock()
+    queue_a.name = "_type_a"
+    meq = TaskRouter([queue_a])
+    task = make_test_task(lambda: None, id_="dummy")
+    meq.push([task])
+    queue_a.push.assert_called_with([task])
+
+
+def test_push_task_local_queue(mocker):
+    queue_local = mocker.MagicMock()
+    queue_local.name = "local_queue"
+    meq = TaskRouter([queue_local])
+    task = make_test_task(lambda: None, id_="dummy").with_worker_type("type_a")
+    meq.push([task])
+    queue_local.push.assert_called_with([task])
+
+
 def test_push_tasks_exc(mocker):
     queue_a = mocker.MagicMock()
     queue_b = mocker.MagicMock()

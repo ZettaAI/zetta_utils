@@ -168,6 +168,7 @@ modules = [
   "zetta_utils[task_management]",
   "zetta_utils[montaging]",
   "zetta_utils[segmentation]",
+  "zetta_utils[ucg]",
   "zetta_utils[meshing]",
   "zetta_utils[skeletonization]",
   "zetta_utils[chunkedgraph]",
@@ -190,6 +191,12 @@ segmentation = [
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
   "waterz @ git+https://github.com/ZettaAI/waterz.git@0bac4be",
+]
+ucg = [
+  "zetta_utils[segmentation]",
+  "clickhouse-connect >= 0.7.0",
+  "clickhouse-driver >= 0.2.0",
+  "cloud-sql-python-connector[pg8000] >= 1.0.0",
 ]
 gpu = []
 skeletonization = [

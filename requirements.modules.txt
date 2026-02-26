@@ -144,7 +144,7 @@ crc32c==2.8
     # via
     #   cloud-files
     #   mapbuffer
-cryptography==46.0.3
+cryptography==46.0.5
     # via
     #   aioquic
     #   mitmproxy

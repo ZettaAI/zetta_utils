@@ -1291,7 +1291,7 @@ tzdata==2025.3
     # via pandas
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.3.0
+urllib3==2.6.3
     # via
     #   botocore
     #   caveclient

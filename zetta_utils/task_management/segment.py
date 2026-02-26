@@ -203,9 +203,6 @@ def update_segment_statistics(  # pylint: disable=too-many-statements
                 f"Project '{project_name}' does not have a datastack_name configured!"
             )
 
-        if not project.synapse_table:
-            raise ValueError(f"Project '{project_name}' does not have a synapse_table configured!")
-
         results: dict[str, Any] = {}
 
         # First, update current segment ID from seed location to get latest valid ID
@@ -251,35 +248,42 @@ def update_segment_statistics(  # pylint: disable=too-many-statements
             results["skeleton_error"] = str(e)
 
         # Get synapse counts using live query
-        try:
-            logger.info(f"Computing synapse counts for segment {segment_id}")
-            current_time = datetime.now(timezone.utc)
-
-            # Get pre-synaptic count (live query)
-            pre_df = client.materialize.live_query(
-                project.synapse_table,
-                current_time,
-                filter_equal_dict={"pre_pt_root_id": segment_id},
+        if not project.synapse_table:
+            logger.warning(
+                f"Project '{project_name}' does not have a synapse_table configured, "
+                "skipping synapse counts"
             )
-            pre_count = int(len(pre_df))  # Ensure Python int
-            segment.pre_synapse_count = pre_count
-            results["pre_synapse_count"] = pre_count
+            results["synapse_skipped"] = "no synapse_table configured"
+        else:
+            try:
+                logger.info(f"Computing synapse counts for segment {segment_id}")
+                current_time = datetime.now(timezone.utc)
 
-            # Get post-synaptic count (live query)
-            post_df = client.materialize.live_query(
-                project.synapse_table,
-                current_time,
-                filter_equal_dict={"post_pt_root_id": segment_id},
-            )
-            post_count = int(len(post_df))  # Ensure Python int
-            segment.post_synapse_count = post_count
-            results["post_synapse_count"] = post_count
+                # Get pre-synaptic count (live query)
+                pre_df = client.materialize.live_query(
+                    project.synapse_table,
+                    current_time,
+                    filter_equal_dict={"pre_pt_root_id": segment_id},
+                )
+                pre_count = int(len(pre_df))  # Ensure Python int
+                segment.pre_synapse_count = pre_count
+                results["pre_synapse_count"] = pre_count
 
-            logger.info(f"Synapse counts - Pre: {pre_count}, Post: {post_count}")
+                # Get post-synaptic count (live query)
+                post_df = client.materialize.live_query(
+                    project.synapse_table,
+                    current_time,
+                    filter_equal_dict={"post_pt_root_id": segment_id},
+                )
+                post_count = int(len(post_df))  # Ensure Python int
+                segment.post_synapse_count = post_count
+                results["post_synapse_count"] = post_count
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Failed to get synapse counts: {e}")
-            results["synapse_error"] = str(e)
+                logger.info(f"Synapse counts - Pre: {pre_count}, Post: {post_count}")
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error(f"Failed to get synapse counts: {e}")
+                results["synapse_error"] = str(e)
 
         # Update the segment in database
         session.commit()

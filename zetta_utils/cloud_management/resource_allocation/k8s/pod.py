@@ -126,6 +126,7 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         "CURL_CA_BUNDLE",
         "HTTPLIB2_CA_CERTS",
         "TENSORSTORE_CA_BUNDLE",
+        "GRPC_DEFAULT_SSL_ROOTS_FILE_PATH",
     ]
     for ca_env_var in ca_env_vars:
         main_envs.append(k8s_client.V1EnvVar(name=ca_env_var, value=ca_cert_path))
@@ -147,7 +148,8 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         "if grep -q 'disabled' /tmp/mitmproxy-ca/ready 2>/dev/null; then "
         "echo 'GCS tracking disabled, unsetting proxy vars' && "
         "unset HTTPS_PROXY HTTP_PROXY https_proxy http_proxy NO_PROXY no_proxy "
-        "REQUESTS_CA_BUNDLE SSL_CERT_FILE CURL_CA_BUNDLE HTTPLIB2_CA_CERTS TENSORSTORE_CA_BUNDLE; "
+        "REQUESTS_CA_BUNDLE SSL_CERT_FILE CURL_CA_BUNDLE HTTPLIB2_CA_CERTS TENSORSTORE_CA_BUNDLE "
+        "GRPC_DEFAULT_SSL_ROOTS_FILE_PATH; "
         "else "
         "echo 'GCS tracking enabled, creating combined CA bundle' && "
         "cat /etc/ssl/certs/ca-certificates.crt "
@@ -157,7 +159,8 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         "export SSL_CERT_FILE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
         "export CURL_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
         "export HTTPLIB2_CA_CERTS=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
-        "export TENSORSTORE_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem; "
+        "export TENSORSTORE_CA_BUNDLE=/tmp/mitmproxy-ca/combined-ca-bundle.pem && "
+        "export GRPC_DEFAULT_SSL_ROOTS_FILE_PATH=/tmp/mitmproxy-ca/combined-ca-bundle.pem; "
         "fi"
     )
     wrapped_command = f"{wait_for_ca} && {command}"

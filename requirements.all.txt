@@ -38,7 +38,7 @@ attrs==25.4.0
     #   referencing
 autodocsumm==0.2.14
     # via sphinx-toolbox
-awscli==1.43.15
+awscli==1.44.38
     # via zetta-utils (pyproject.toml)
 babel==2.17.0
     # via sphinx

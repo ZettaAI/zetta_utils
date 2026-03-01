@@ -37,7 +37,7 @@ attrs==25.4.0
     #   jsonschema
     #   referencing
     #   service-identity
-awscli==1.43.15
+awscli==1.44.38
     # via zetta-utils (pyproject.toml)
 bcrypt==5.0.0
     # via mitmproxy

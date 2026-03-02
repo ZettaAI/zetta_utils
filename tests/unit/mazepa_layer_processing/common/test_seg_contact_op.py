@@ -9,8 +9,10 @@ from zetta_utils.mazepa_layer_processing.common.seg_contact_op import (
     _compute_affinity_weighted_com,
     _compute_contact_connected_components,
     _compute_contact_counts,
+    _compute_contact_filter_stats,
     _compute_overlaps,
     _compute_representative_points,
+    _compute_segment_metrics,
     _filter_pairs_by_com,
     _filter_pairs_by_interface_gt,
     _filter_pairs_touching_boundary,
@@ -778,3 +780,110 @@ def test_filter_pairs_by_interface_gt_with_offset_start():
         seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
     )
     assert len(result[0]) == 1  # GT on both sides
+
+
+# --- Tests for filter stats helpers ---
+
+
+def test_compute_segment_metrics_basic():
+    """Test per-segment metric computation."""
+    # Segment 1: 100 total vx, overlaps ref CC 10 (60 vx) and ref CC 20 (20 vx)
+    # Segment 2: 50 total vx, overlaps ref CC 10 (40 vx)
+    seg_ids = np.array([1, 1, 2])
+    ref_ids = np.array([10, 20, 10])
+    counts = np.array([60, 20, 40])
+    seg_total_vx = {1: 100, 2: 50}
+    min_overlap_vx = 10
+
+    result = _compute_segment_metrics(seg_ids, ref_ids, counts, seg_total_vx, min_overlap_vx)
+
+    assert result[1]["size_vx"] == 100
+    assert result[1]["best_overlap_vx"] == 60
+    assert result[1]["total_overlap_vx"] == 80
+    assert result[1]["offtarget_vx"] == 40  # 100 - 60
+    assert abs(result[1]["offtarget_fraction"] - 0.4) < 1e-6
+    assert result[1]["unclaimed_vx"] == 20  # 100 - 80
+    assert abs(result[1]["unclaimed_fraction"] - 0.2) < 1e-6
+
+    assert result[2]["size_vx"] == 50
+    assert result[2]["best_overlap_vx"] == 40
+    assert result[2]["total_overlap_vx"] == 40
+    assert result[2]["offtarget_vx"] == 10  # 50 - 40
+    assert result[2]["unclaimed_vx"] == 10  # 50 - 40
+
+
+def test_compute_segment_metrics_no_overlap():
+    """Test segment metrics for segment with no overlap."""
+    seg_ids = np.array([1])
+    ref_ids = np.array([10])
+    counts = np.array([50])
+    seg_total_vx = {1: 100, 2: 80}  # seg 2 has no overlap
+    min_overlap_vx = 10
+
+    result = _compute_segment_metrics(seg_ids, ref_ids, counts, seg_total_vx, min_overlap_vx)
+
+    assert result[2]["best_overlap_vx"] == 0
+    assert result[2]["total_overlap_vx"] == 0
+    assert result[2]["unclaimed_vx"] == 80
+    assert abs(result[2]["unclaimed_fraction"] - 1.0) < 1e-6
+    assert result[2]["offtarget_vx"] == 80
+
+
+def test_compute_contact_filter_stats_basic():
+    """Test per-contact metric computation."""
+    # Two pairs: (1,2) with 3 faces, (1,3) with 2 faces
+    seg_a = np.array([1, 1, 1, 1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2, 2, 3, 3], dtype=np.int64)
+    aff = np.array([0.8, 0.6, 0.4, 0.9, 0.1], dtype=np.float32)
+    # Faces along x-axis at start=(0,0,0)
+    x = np.array([0.5, 0.5, 0.5, 0.5, 0.5], dtype=np.float32)
+    y = np.array([0.0, 1.0, 2.0, 0.0, 1.0], dtype=np.float32)
+    z = np.array([0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+
+    reference = np.zeros((5, 5, 5), dtype=np.int64)
+    reference[0, :, :] = 100  # GT on lo side
+    reference[1, :, :] = 200  # GT on hi side
+
+    start = Vec3D(0, 0, 0)
+    resolution = np.array([16.0, 16.0, 40.0])
+
+    result = _compute_contact_filter_stats(
+        seg_a, seg_b, aff, x, y, z, reference, start, resolution
+    )
+
+    assert len(result) == 2
+    pair_12 = result[result["seg_b"] == 2].iloc[0]
+    pair_13 = result[result["seg_b"] == 3].iloc[0]
+
+    assert pair_12["contact_count"] == 3
+    assert pair_13["contact_count"] == 2
+    assert abs(pair_12["mean_affinity"] - 0.6) < 1e-6
+    assert abs(pair_13["mean_affinity"] - 0.5) < 1e-6
+    assert pair_12["interface_gt_fraction"] == 1.0  # all faces have GT on both sides
+    assert pair_13["interface_gt_fraction"] == 1.0
+
+
+def test_compute_contact_filter_stats_partial_gt():
+    """Test interface GT fraction with mixed GT coverage."""
+    seg_a = np.array([1, 1], dtype=np.int64)
+    seg_b = np.array([2, 2], dtype=np.int64)
+    aff = np.array([0.5, 0.5], dtype=np.float32)
+    x = np.array([0.5, 0.5], dtype=np.float32)
+    y = np.array([0.0, 1.0], dtype=np.float32)
+    z = np.array([0.0, 0.0], dtype=np.float32)
+
+    reference = np.zeros((5, 5, 5), dtype=np.int64)
+    reference[0, 0, 0] = 100  # GT on lo side for first face
+    reference[1, 0, 0] = 200  # GT on hi side for first face
+    # Second face: reference[0,1,0]=0 (no GT on lo side)
+    reference[1, 1, 0] = 200  # GT on hi side only
+
+    start = Vec3D(0, 0, 0)
+    resolution = np.array([16.0, 16.0, 40.0])
+
+    result = _compute_contact_filter_stats(
+        seg_a, seg_b, aff, x, y, z, reference, start, resolution
+    )
+
+    assert len(result) == 1
+    assert abs(result.iloc[0]["interface_gt_fraction"] - 0.5) < 1e-6

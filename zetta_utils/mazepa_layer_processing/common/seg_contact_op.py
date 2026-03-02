@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from collections import defaultdict
 from collections.abc import Sequence
@@ -159,6 +160,106 @@ def _find_unclaimed_vx_segment_ids(
             result.add(s)
         elif max_unclaimed_fraction is not None and total > 0 and unclaimed / total > max_unclaimed_fraction:
             result.add(s)
+    return result
+
+
+def _compute_segment_metrics(
+    seg_ids, ref_ids, counts, seg_total_vx, min_overlap_vx
+):
+    """Compute raw per-segment filter metric values.
+
+    Returns dict mapping segment_id -> dict of metric values.
+    """
+    seg_best: dict[int, int] = defaultdict(int)
+    seg_total_overlap: dict[int, int] = defaultdict(int)
+    for seg, ref, cnt in zip(seg_ids, ref_ids, counts):
+        s, c = int(seg), int(cnt)
+        seg_best[s] = max(seg_best[s], c)
+        seg_total_overlap[s] += c
+
+    result = {}
+    for s, total in seg_total_vx.items():
+        best = seg_best.get(s, 0)
+        covered = seg_total_overlap.get(s, 0)
+        unclaimed = total - covered
+        offtarget = total - best
+        result[s] = {
+            "size_vx": total,
+            "best_overlap_vx": best,
+            "total_overlap_vx": covered,
+            "offtarget_vx": offtarget,
+            "offtarget_fraction": offtarget / total if total > 0 else 0.0,
+            "unclaimed_vx": unclaimed,
+            "unclaimed_fraction": unclaimed / total if total > 0 else 0.0,
+        }
+    return result
+
+
+def _compute_contact_filter_stats(
+    seg_a, seg_b, aff, x, y, z, reference, start, resolution, max_faces_per_contact=100
+):
+    """Compute per-contact filter metrics for stats collection.
+
+    Returns DataFrame with one row per unique (seg_a, seg_b) pair.
+    """
+    sx, sy, sz = float(start[0]), float(start[1]), float(start[2])
+
+    # Interface GT fraction (same logic as _filter_pairs_by_interface_gt)
+    lo_x = np.floor(x - sx).astype(np.intp)
+    lo_y = np.floor(y - sy).astype(np.intp)
+    lo_z = np.floor(z - sz).astype(np.intp)
+    hi_x = np.ceil(x - sx).astype(np.intp)
+    hi_y = np.ceil(y - sy).astype(np.intp)
+    hi_z = np.ceil(z - sz).astype(np.intp)
+    ref_lo = reference[lo_x, lo_y, lo_z]
+    ref_hi = reference[hi_x, hi_y, hi_z]
+    both_have_gt = (ref_lo != 0) & (ref_hi != 0)
+
+    df = pd.DataFrame({
+        "a": seg_a, "b": seg_b, "aff": aff,
+        "x": x, "y": y, "z": z, "gt": both_have_gt,
+    })
+
+    grouped = df.groupby(["a", "b"]).agg(
+        contact_count=("a", "size"),
+        mean_affinity=("aff", "mean"),
+        interface_gt_fraction=("gt", "mean"),
+        wx=("x", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+        wy=("y", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+        wz=("z", lambda v: (v * df.loc[v.index, "aff"]).sum()),
+        aff_sum=("aff", "sum"),
+        mean_x=("x", "mean"),
+        mean_y=("y", "mean"),
+        mean_z=("z", "mean"),
+    )
+
+    # COM: weighted if aff_sum > 0, else unweighted mean
+    has_aff = grouped["aff_sum"].values > 0
+    grouped["com_x"] = np.where(has_aff, grouped["wx"].values / grouped["aff_sum"].values, grouped["mean_x"].values)
+    grouped["com_y"] = np.where(has_aff, grouped["wy"].values / grouped["aff_sum"].values, grouped["mean_y"].values)
+    grouped["com_z"] = np.where(has_aff, grouped["wz"].values / grouped["aff_sum"].values, grouped["mean_z"].values)
+
+    # Convert COM from voxel coords to nm
+    grouped["com_x"] = grouped["com_x"] * resolution[0]
+    grouped["com_y"] = grouped["com_y"] * resolution[1]
+    grouped["com_z"] = grouped["com_z"] * resolution[2]
+
+    # Collect per-pair contact faces as JSON (x_nm, y_nm, z_nm, aff), capped
+    rx, ry, rz = float(resolution[0]), float(resolution[1]), float(resolution[2])
+    faces_json = {}
+    for (a, b), group in df.groupby(["a", "b"]):
+        g = group if len(group) <= max_faces_per_contact else group.sample(
+            max_faces_per_contact, random_state=42
+        )
+        faces = [
+            [round(r["x"] * rx, 1), round(r["y"] * ry, 1), round(r["z"] * rz, 1), round(float(r["aff"]), 4)]
+            for _, r in g.iterrows()
+        ]
+        faces_json[(a, b)] = json.dumps(faces)
+    grouped["contact_faces_nm"] = [faces_json[(a, b)] for a, b in grouped.index]
+
+    result = grouped[["contact_count", "mean_affinity", "interface_gt_fraction", "com_x", "com_y", "com_z", "contact_faces_nm"]].reset_index()
+    result.columns = ["seg_a", "seg_b", "contact_count", "mean_affinity", "interface_gt_fraction", "com_x", "com_y", "com_z", "contact_faces_nm"]
     return result
 
 
@@ -790,6 +891,7 @@ class SegContactOp:
     max_unclaimed_vx: int | None = None
     max_unclaimed_fraction: float | None = None
     min_interface_gt_fraction: float | None = None
+    collect_filter_stats_only: bool = False
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -833,10 +935,124 @@ class SegContactOp:
             overlap_seg, overlap_count, self.min_overlap_vx, all_seg_ids
         )
 
-        # New per-segment GT coverage filters
         unique_segs, seg_counts = np.unique(seg, return_counts=True)
         seg_total_vx = {int(s): int(c) for s, c in zip(unique_segs, seg_counts) if s != 0}
 
+        if self.collect_filter_stats_only:
+            seg_metrics = _compute_segment_metrics(
+                overlap_seg, overlap_ref, overlap_count, seg_total_vx, self.min_overlap_vx
+            )
+            print(
+                f"[{coord_str}] Computed segment metrics for {len(seg_metrics)} segments",
+                flush=True,
+            )
+
+            # Find contacts WITHOUT blackout
+            t0 = time.time()
+            seg_a, seg_b, aff_vals, x, y, z = _find_contacts(seg, aff, idx_padded.start)
+            if len(seg_a) == 0:
+                print(f"[{coord_str}] No contacts found, skipping", flush=True)
+                return
+            print(
+                f"[{coord_str}] Find contacts (unfiltered): {time.time() - t0:.1f}s "
+                f"({len(seg_a)} face voxels)",
+                flush=True,
+            )
+
+            # Apply only structural filters (boundary + COM)
+            seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_touching_boundary(
+                seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape
+            )
+            if len(seg_a) == 0:
+                print(f"[{coord_str}] All pairs on boundary, skipping", flush=True)
+                return
+
+            seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_com(
+                seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape, self.crop_pad
+            )
+            if len(seg_a) == 0:
+                print(f"[{coord_str}] All pairs outside kernel, skipping", flush=True)
+                return
+
+            # Compute per-contact metrics
+            contact_stats = _compute_contact_filter_stats(
+                seg_a, seg_b, aff_vals, x, y, z, reference, idx_padded.start, resolution
+            )
+
+            # GT merge label: unknown if either segment lacks GT overlap
+            seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
+            def _gt_label(row):
+                refs_a = seg_to_ref.get(int(row["seg_a"]))
+                refs_b = seg_to_ref.get(int(row["seg_b"]))
+                if refs_a is None or refs_b is None:
+                    return "unknown"
+                return "merge" if refs_a & refs_b else "no_merge"
+            contact_stats["gt_merge_label"] = contact_stats.apply(_gt_label, axis=1)
+            contact_stats["gt_refs_a"] = contact_stats["seg_a"].map(
+                lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+            )
+            contact_stats["gt_refs_b"] = contact_stats["seg_b"].map(
+                lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+            )
+
+            # Join per-segment metrics for both seg_a and seg_b
+            for prefix, col in [("seg_a_", "seg_a"), ("seg_b_", "seg_b")]:
+                for metric in ["size_vx", "best_overlap_vx", "total_overlap_vx",
+                               "offtarget_vx", "offtarget_fraction",
+                               "unclaimed_vx", "unclaimed_fraction"]:
+                    contact_stats[prefix + metric] = contact_stats[col].map(
+                        lambda s, m=metric: seg_metrics.get(int(s), {}).get(m, 0)
+                    )
+
+            # Derived worst-case columns
+            contact_stats["min_size_vx"] = contact_stats[["seg_a_size_vx", "seg_b_size_vx"]].min(axis=1)
+            contact_stats["max_offtarget_vx"] = contact_stats[["seg_a_offtarget_vx", "seg_b_offtarget_vx"]].max(axis=1)
+            contact_stats["max_offtarget_fraction"] = contact_stats[["seg_a_offtarget_fraction", "seg_b_offtarget_fraction"]].max(axis=1)
+            contact_stats["max_unclaimed_vx"] = contact_stats[["seg_a_unclaimed_vx", "seg_b_unclaimed_vx"]].max(axis=1)
+            contact_stats["max_unclaimed_fraction"] = contact_stats[["seg_a_unclaimed_fraction", "seg_b_unclaimed_fraction"]].max(axis=1)
+            contact_stats["min_best_overlap_vx"] = contact_stats[["seg_a_best_overlap_vx", "seg_b_best_overlap_vx"]].min(axis=1)
+
+            # Check mesh availability
+            seg_ids_list = list(set(
+                contact_stats["seg_a"].astype(int).tolist()
+                + contact_stats["seg_b"].astype(int).tolist()
+            ))
+            t_mesh = time.time()
+            mesh_cv = CloudVolume(
+                segmentation_layer.backend.name, use_https=True, progress=False
+            )
+            mesh_exists_results = mesh_cv.mesh.exists(seg_ids_list)
+            has_mesh = {
+                seg_id
+                for seg_id, result in zip(seg_ids_list, mesh_exists_results)
+                if result is not None
+            }
+            contact_stats["has_mesh_a"] = contact_stats["seg_a"].astype(int).isin(has_mesh)
+            contact_stats["has_mesh_b"] = contact_stats["seg_b"].astype(int).isin(has_mesh)
+            contact_stats["both_meshes"] = (
+                contact_stats["has_mesh_a"] & contact_stats["has_mesh_b"]
+            )
+            n_both = contact_stats["both_meshes"].sum()
+            print(
+                f"[{coord_str}] Mesh check: {len(has_mesh)}/{len(seg_ids_list)} "
+                f"segments have meshes, {n_both}/{len(contact_stats)} pairs have both "
+                f"({time.time() - t_mesh:.1f}s)",
+                flush=True,
+            )
+
+            contact_stats["chunk_coord"] = coord_str
+
+            # Write parquet
+            stats_path = f"{dst.backend.path}/filter_stats/{coord_str}.parquet"
+            contact_stats.to_parquet(stats_path, index=False)
+            print(
+                f"[{coord_str}] Wrote {len(contact_stats)} contact stats to {stats_path} "
+                f"({time.time() - t_start:.1f}s total)",
+                flush=True,
+            )
+            return
+
+        # Per-segment GT coverage filters
         offtarget_ids: set[int] = set()
         if self.max_offtarget_vx is not None or self.max_offtarget_fraction is not None:
             offtarget_ids = _find_offtarget_segment_ids(

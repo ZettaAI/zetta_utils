@@ -95,6 +95,7 @@ def get_latest_checkpoint(run_id: str, zetta_user: str | None = None) -> str:
     fs = GCSFileSystem(project=constants.DEFAULT_PROJECT)
     checkpoints_path = os.path.join(info_path_user, run_id)
     files = fs.ls(checkpoints_path, detail=True)
+    files = [f for f in files if f["name"].endswith(".zstd")]
     files = sorted(files, key=itemgetter("ctime"), reverse=True)
     return files[0]["name"]
 

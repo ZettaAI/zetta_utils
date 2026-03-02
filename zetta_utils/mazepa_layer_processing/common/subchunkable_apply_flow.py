@@ -236,6 +236,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     coord_resolution: Sequence | None = None,
     auto_bbox: bool = False,
     dst_tighten_bounds: bool = False,
+    max_random_chunks: int | None = None,
 ) -> mazepa.Flow:
     """
     The helper constructor for a flow that applies any function or operation with a `Tensor`
@@ -578,6 +579,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
         op_kwargs=op_kwargs_,
+        max_random_chunks=max_random_chunks,
     )
 
 
@@ -1075,6 +1077,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op_args: P.args,
     op_kwargs: P.kwargs,
     processing_gap: Vec3D[int],
+    max_random_chunks: int | None = None,
 ) -> mazepa.Flow:
     num_levels = len(processing_chunk_sizes)
 
@@ -1278,6 +1281,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         l0_chunks_per_task=num_chunks_below[-1],
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
+        max_random_chunks=max_random_chunks,
     )
     """
     Iteratively build the hierarchy of schemas
@@ -1306,5 +1310,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             l0_chunks_per_task=num_chunks_below[-level - 1],
             op_worker_type=op_worker_type,
             reduction_worker_type=reduction_worker_type,
+            max_random_chunks=max_random_chunks if level == num_levels - 1 else None,
         )
     return flow_schema(idx, dst, op_args, op_kwargs)

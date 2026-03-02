@@ -354,6 +354,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     l0_chunks_per_task: int = 0
     op_worker_type: str | None = None
     reduction_worker_type: str | None = None
+    max_random_chunks: int | None = None
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -519,6 +520,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             mode="expand" if have_processing_gap else "exact",
             chunk_id_increment=self.l0_chunks_per_task,
         )
+        if self.max_random_chunks is not None and len(idx_chunks) > self.max_random_chunks:
+            import random
+
+            rng = random.Random(42)
+            idx_chunks = rng.sample(idx_chunks, self.max_random_chunks)
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst_temp, op_kwargs)
         return tasks, dst_temp
 
@@ -699,6 +705,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             idx_chunks = self.processing_chunker(
                 idx, mode="exact", chunk_id_increment=self.l0_chunks_per_task
             )
+            if self.max_random_chunks is not None and len(idx_chunks) > self.max_random_chunks:
+                import random
+
+                rng = random.Random(42)
+                idx_chunks = rng.sample(idx_chunks, self.max_random_chunks)
             tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, op_kwargs)
             logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
             yield tasks

@@ -191,9 +191,12 @@ def main():
             entry["ra"] = [str(x) for x in json.loads(row["gt_refs_a"])]
         if "gt_refs_b" in df.columns and pd.notna(row.get("gt_refs_b")):
             entry["rb"] = [str(x) for x in json.loads(row["gt_refs_b"])]
+        if "has_nucleus" in df.columns:
+            entry["n"] = 1 if row.get("has_nucleus") else 0
         contacts_js.append(entry)
 
     has_mesh_data = "both_meshes" in df.columns
+    has_nucleus_data = "has_nucleus" in df.columns
     metrics_js = []
     for cfg in METRIC_CONFIGS:
         if cfg is None:
@@ -230,7 +233,7 @@ def main():
         "resolution": resolution,
         "base_url": "https://zetta-portal.vercel.app/?ng=Spelunker",
     }
-    for key in ["image_path", "affinity_path", "segmentation_path", "ground_truth_path"]:
+    for key in ["image_path", "affinity_path", "segmentation_path", "ground_truth_path", "nucleus_path"]:
         val = info.get(key)
         if val:
             ng_info[key] = val
@@ -462,6 +465,9 @@ var gtMode = "unfiltered";
 var yScale = "log";
 var meshFilter = false;
 var hasMeshData = false;
+var nucleusFilter = false;
+var hasNucleusData = false;
+var chunkHasNucleus = {}; // chunkId -> true
 var currentMask = null;
 var highlightedBin = {};
 var chunkSortOrder, chunkRankMap, chunkUnfiltGt, chunkUnfiltTotals, chunkUnfiltBases1, chunkUnfiltBases2;
@@ -561,6 +567,10 @@ function buildNgUrl(c) {
         if (gtSegs.length > 0) gtLayer.segments = gtSegs;
         layers.push(gtLayer);
     }
+    if (ngInfo.nucleus_path) {
+        var src = ngInfo.nucleus_path.startsWith("precomputed://") ? ngInfo.nucleus_path : "precomputed://"+ngInfo.nucleus_path;
+        layers.push({"type":"segmentation","source":src,"tab":"source","name":"Nuclei","visible":false});
+    }
     if (c.f && c.f.length > 0) {
         var anns = [];
         for (var i = 0; i < c.f.length; i++) {
@@ -612,6 +622,11 @@ function computeFilterMask() {
     if (meshFilter && hasMeshData) {
         for (var i = 0; i < nContacts; i++) {
             if (mask[i] && !contacts[i].m) mask[i] = 0;
+        }
+    }
+    if (nucleusFilter && hasNucleusData) {
+        for (var i = 0; i < nContacts; i++) {
+            if (mask[i] && chunkHasNucleus[contacts[i].k]) mask[i] = 0;
         }
     }
     if (Object.keys(excludedChunkRanks).length > 0) {
@@ -874,7 +889,11 @@ function updateAll() {
     if (typeof chunkSortOrder !== "undefined") {
         var nChk = chunkSortOrder.length;
         var chunkOpacity = new Array(nChk);
-        for (var r = 0; r < nChk; r++) chunkOpacity[r] = excludedChunkRanks[r] ? 0.15 : 1;
+        var dimExcluded = (gtMode === "filtered");
+        for (var r = 0; r < nChk; r++) {
+            var chId = chunkSortOrder[r];
+            chunkOpacity[r] = (dimExcluded && (excludedChunkRanks[r] || (nucleusFilter && chunkHasNucleus[chId]))) ? 0.15 : 1;
+        }
         Plotly.restyle("chart_chunks", {'marker.opacity': [chunkOpacity, chunkOpacity, chunkOpacity, chunkOpacity]}, [0, 1, 2, 3]);
     }
 
@@ -1403,6 +1422,12 @@ document.addEventListener("DOMContentLoaded", async function() {
     DATA = null; // free the wrapper object
 
     hasMeshData = nContacts > 0 && contacts[0].m !== undefined;
+    hasNucleusData = nContacts > 0 && contacts[0].n !== undefined;
+    if (hasNucleusData) {
+        for (var i = 0; i < nContacts; i++) {
+            if (contacts[i].n) chunkHasNucleus[contacts[i].k] = true;
+        }
+    }
     initContactOrder();
 
     // Initialize thresholds
@@ -1835,6 +1860,22 @@ document.addEventListener("DOMContentLoaded", async function() {
         '<button id="chunk_exclude_clear" style="padding:2px 8px;border:1px solid #aab;border-radius:3px;background:#f0f4f8;cursor:pointer;font-size:16px">Clear</button>';
     chunkCell.appendChild(chunkExclCtrl);
 
+    if (hasNucleusData) {
+        var nucleusCtrl = document.createElement("div");
+        nucleusCtrl.className = "ctrl-row";
+        nucleusCtrl.innerHTML =
+            '<span class="dir-label">nucleus</span>' +
+            '<label style="font-size:18px;cursor:pointer"><input type="checkbox" id="nucleus_filter_cb"> Exclude chunks with nuclei</label>';
+        chunkCell.appendChild(nucleusCtrl);
+        nucleusCtrl.querySelector("input").addEventListener("change", function() {
+            nucleusFilter = this.checked;
+            updateAll();
+            document.querySelectorAll('.link-panel').forEach(function(p) {
+                if (p.style.display !== "none" && p._refresh) p._refresh();
+            });
+        });
+    }
+
     var chunkPanel = document.createElement("div");
     chunkPanel.id = "panel_chunks";
     chunkPanel.className = "link-panel";
@@ -1879,6 +1920,10 @@ document.addEventListener("DOMContentLoaded", async function() {
         margin: {t:32, b:36, l:50, r:8},
         height: 280,
         showlegend: false,
+        shapes: [{ type:"rect", x0:0, x1:0, y0:0, y1:1, yref:"paper",
+                   fillcolor:"rgba(255,200,0,0.15)",
+                   line:{color:"rgba(255,160,0,0.6)", width:2},
+                   visible:false }],
     }, {responsive:true});
     allChartIds.push("chart_chunks");
 
@@ -1897,6 +1942,10 @@ document.addEventListener("DOMContentLoaded", async function() {
             });
             return;
         }
+        Plotly.relayout("chart_chunks", {
+            "shapes[0].x0": rank - 0.5, "shapes[0].x1": rank + 0.5,
+            "shapes[0].visible": true
+        });
         var chunkId = chunkSortOrder[rank];
         chunkPanel._refresh = function() {
             var groups = stratifiedSample(function(i) { return contacts[i].k === chunkId; });

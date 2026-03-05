@@ -17,6 +17,7 @@ from scipy.spatial.distance import cdist
 
 from zetta_utils import builder, log
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.precomputed import get_info
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
 from zetta_utils.layer.volumetric.seg_contact import (
     SegContact,
@@ -892,6 +893,7 @@ class SegContactOp:
     max_unclaimed_fraction: float | None = None
     min_interface_gt_fraction: float | None = None
     collect_filter_stats_only: bool = False
+    min_nucleus_vx: int = 1
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -906,6 +908,7 @@ class SegContactOp:
         segmentation_layer: VolumetricLayer,
         reference_layer: VolumetricLayer,
         affinity_layer: VolumetricLayer,
+        nucleus_layer: VolumetricLayer | None = None,
     ) -> None:
         t_start = time.time()
         coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
@@ -914,6 +917,24 @@ class SegContactOp:
 
         # Read pointcloud configs from destination layer info file
         pointcloud_configs = dst.backend.get_pointcloud_configs()
+
+        # Check for nucleus in chunk bbox (only for filter stats collection)
+        chunk_has_nucleus = False
+        if nucleus_layer is not None and self.collect_filter_stats_only:
+            nuc_info = get_info(nucleus_layer.backend.path)
+            nuc_res = min(nuc_info["scales"], key=lambda s: np.prod(s["resolution"]))["resolution"]
+            nucleus_idx = VolumetricIndex(
+                bbox=idx.bbox,
+                resolution=Vec3D(*nuc_res),
+            )
+            nucleus_data = np.asarray(nucleus_layer[nucleus_idx]).squeeze()
+            n_nucleus_vx = int(np.count_nonzero(nucleus_data))
+            chunk_has_nucleus = n_nucleus_vx >= self.min_nucleus_vx
+            print(
+                f"[{coord_str}] Nucleus check: {n_nucleus_vx} non-zero vx "
+                f"-> {'HAS NUCLEUS' if chunk_has_nucleus else 'no nucleus'}",
+                flush=True,
+            )
 
         # Read all layers
         t0 = time.time()
@@ -1041,6 +1062,7 @@ class SegContactOp:
             )
 
             contact_stats["chunk_coord"] = coord_str
+            contact_stats["has_nucleus"] = chunk_has_nucleus
 
             # Write parquet
             stats_path = f"{dst.backend.path}/filter_stats/{coord_str}.parquet"

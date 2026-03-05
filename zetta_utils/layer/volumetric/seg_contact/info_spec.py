@@ -38,6 +38,7 @@ class SegContactInfoSpecParams:
     ground_truth_path: str | None = None
     affinity_path: str | None = None
     image_path: str | None = None
+    nucleus_path: str | None = None
     local_point_clouds: list[dict] | None = None
     merge_decisions: list[str] | None = None
     merge_probabilities: list[str] | None = None
@@ -56,6 +57,7 @@ class SegContactInfoSpecParams:
         ground_truth_path: str | None = None,
         affinity_path: str | None = None,
         image_path: str | None = None,
+        nucleus_path: str | None = None,
         local_point_clouds: list[dict] | None = None,
         merge_decisions: list[str] | None = None,
         merge_probabilities: list[str] | None = None,
@@ -87,6 +89,8 @@ class SegContactInfoSpecParams:
             affinity_path = ref_info.get("affinity_path")
         if image_path is None:
             image_path = ref_info.get("image_path")
+        if nucleus_path is None:
+            nucleus_path = ref_info.get("nucleus_path")
         if local_point_clouds is None:
             local_point_clouds = ref_info.get("local_point_clouds")
         if merge_decisions is None:
@@ -107,6 +111,7 @@ class SegContactInfoSpecParams:
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,
@@ -155,6 +160,8 @@ class SegContactInfoSpec:
                 info["affinity_path"] = params.affinity_path
             if params.image_path:
                 info["image_path"] = params.image_path
+            if params.nucleus_path:
+                info["nucleus_path"] = params.nucleus_path
             if params.local_point_clouds:
                 info["local_point_clouds"] = params.local_point_clouds
             if params.merge_decisions:
@@ -230,6 +237,7 @@ def build_seg_contact_info_spec(
     ground_truth_path: str | None = None,
     affinity_path: str | None = None,
     image_path: str | None = None,
+    nucleus_path: str | None = None,
     local_point_clouds: list[dict] | None = None,
     merge_decisions: list[str] | None = None,
     merge_probabilities: list[str] | None = None,
@@ -269,6 +277,7 @@ def build_seg_contact_info_spec(
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,
@@ -289,6 +298,7 @@ def build_seg_contact_info_spec(
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,

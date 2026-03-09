@@ -24,8 +24,8 @@ try:
     import torch_tensorrt
 
     TENSORRT_AVAILABLE = True
-except ImportError as e:
-    print(f"torch_tensorrt is not available: {e}")
+except Exception as e:
+    logger.info(f"torch_tensorrt is not available: {e}")
 
 
 @builder.register("load_model")
@@ -73,42 +73,37 @@ def _load_model(
         if not TENSORRT_AVAILABLE:
             raise RuntimeError("torch_tensorrt is not installed!")
 
-        with semaphore("trt_compilation"):
+        with semaphore("tensorrt"):
             # TensorRT should not be compiled concurrently by many threads or will run out of memory
             # Ideally, only by one thread and the others then load the cached model
 
             trt_fname = (
                 str(xxhash.xxh128(str((path, tuple(input_shape))).encode("utf-8")).hexdigest())
-                + ".trt.ts"
+                + ".trt.ep"
             )
             cache_path = os.path.join(tensorrt_cache_dir, trt_fname)
 
             # Try to load the optimized model from cache
             try:
-                with fsspec.open(cache_path, "rb") as f:
-                    return torch_tensorrt.load(f)
-            except FileNotFoundError:
-                print(f"Cache not found. Compiling TensorRT model: {cache_path}")
+                result = torch_tensorrt.load(cache_path).module()
+                logger.info(f"Loaded cached TensorRT model: {cache_path}")
+                return result
             except Exception as e:
-                print(f"Error loading TensorRT model from cache: {e}")
+                logger.info(f"Cache not found or invalid, compiling TensorRT model: {e}")
 
             example_in = torch.rand(input_shape).to(device=device)
 
-            with torch.inference_mode():
-                trace = torch.jit.trace(result, example_in)
-
-            result = torch_tensorrt.ts.compile(
-                trace,
-                inputs=[example_in],
-                truncate_long_and_double=True,
-                enabled_precisions={torch.float, torch.half},
-                debug=False,
-            )
-
-            # save optimized model
-            with fsspec.open(cache_path, "wb") as f:
-                torch_tensorrt.save(result, f, output_format="torchscript", inputs=[example_in])
-                print(f"Compiled TensorRT model saved to cache: {cache_path}")
+            try:
+                compiled = torch_tensorrt.compile(
+                    result,
+                    inputs=[example_in],
+                    enabled_precisions={torch.float, torch.half},
+                )
+                torch_tensorrt.save(compiled, cache_path)
+                logger.info(f"Compiled TensorRT model saved to cache: {cache_path}")
+                result = compiled
+            except Exception as e:
+                logger.warning(f"TensorRT compilation failed, falling back to eager mode: {e}")
 
     return result
 
@@ -204,7 +199,10 @@ def load_and_run_model(
     autocast_device = device.type if isinstance(device, torch.device) else str(device)
     with torch.inference_mode():  # uses less memory when used with JITs
         with torch.autocast(device_type=autocast_device):
-            output = model(tensor_ops.convert.to_torch(data_in, device=device))
+            gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
+            output = model(gpu_input)
+            del gpu_input
             output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
+    torch.cuda.empty_cache()
 
     return output

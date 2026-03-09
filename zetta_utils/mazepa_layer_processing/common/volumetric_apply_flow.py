@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from contextlib import nullcontext
+
 import itertools
 import multiprocessing
 from abc import ABC
@@ -56,9 +59,11 @@ class Copy:
         dst: VolumetricBasedLayerProtocol,
         idx: VolumetricIndex,
     ) -> None:
-        with semaphore("read"):
+        read_ctx = nullcontext() if src.backend.is_local else semaphore("read")
+        with read_ctx:
             data = src[idx]
-        with semaphore("write"):
+        write_ctx = nullcontext() if dst.backend.is_local else semaphore("write")
+        with write_ctx:
             dst[idx] = data
 
 
@@ -96,6 +101,7 @@ class ReduceNaive(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
+            reduce_start = time.time()
             res = np.zeros(
                 (dst.backend.num_channels, *red_idx.shape),
                 dtype=dst.backend.dtype,
@@ -105,17 +111,29 @@ class ReduceNaive(ReduceOperation):
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = (slice(0, res.shape[0]), *subidx)
-                    with semaphore("read"):
+                    read_ctx = nullcontext() if layer.backend.is_local else semaphore("read")
+                    with read_ctx:
                         res[subidx_channels] = np.maximum(res[subidx_channels], layer[intscn])
             else:
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = (slice(0, res.shape[0]), *subidx)
-                    with semaphore("read"):
+                    read_ctx = nullcontext() if layer.backend.is_local else semaphore("read")
+                    with read_ctx:
                         res[subidx_channels] = layer[intscn]
+            reduce_time = time.time() - reduce_start
             if np.any(res):
-                with semaphore("write"):
+                write_start = time.time()
+                write_ctx = nullcontext() if dst.backend.is_local else semaphore("write")
+                with write_ctx:
                     dst[red_idx] = res
+                write_time = time.time() - write_start
+            else:
+                write_time = 0.0
+            logger.info(
+                f"ReduceNaive: {len(src_layers)} sources, "
+                f"reduce: {reduce_time:.3f}s, write: {write_time:.3f}s"
+            )
 
 
 def is_floating_point_dtype(dtype: np.dtype) -> bool:
@@ -145,6 +163,7 @@ class ReduceByWeightedSum(ReduceOperation):
         with suppress_type_checks():
             if len(src_layers) == 0:
                 return
+            reduce_start = time.time()
             if not is_floating_point_dtype(dst.backend.dtype) and processing_blend_pad != Vec3D[
                 int
             ](0, 0, 0):
@@ -168,7 +187,8 @@ class ReduceByWeightedSum(ReduceOperation):
                     )
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    with semaphore("read"):
+                    read_ctx = nullcontext() if layer.backend.is_local else semaphore("read")
+                    with read_ctx:
                         if not is_floating_point_dtype(dst.backend.dtype):
                             # Temporarily convert integer cutout to float for rounding
                             res[tuple(subidx_channels)] = (
@@ -186,11 +206,22 @@ class ReduceByWeightedSum(ReduceOperation):
                 for src_idx, layer in zip(src_idxs, src_layers):
                     intscn, subidx = src_idx.get_intersection_and_subindex(red_idx)
                     subidx_channels = [slice(0, res.shape[0])] + list(subidx)
-                    with semaphore("read"):
+                    read_ctx = nullcontext() if layer.backend.is_local else semaphore("read")
+                    with read_ctx:
                         res.numpy()[tuple(subidx_channels)] = layer[intscn]
+            reduce_time = time.time() - reduce_start
             if res.any():
-                with semaphore("write"):
+                write_start = time.time()
+                write_ctx = nullcontext() if dst.backend.is_local else semaphore("write")
+                with write_ctx:
                     dst[red_idx] = res
+                write_time = time.time() - write_start
+            else:
+                write_time = 0.0
+            logger.info(
+                f"ReduceByWeightedSum: {len(src_layers)} sources, "
+                f"reduce: {reduce_time:.3f}s, write: {write_time:.3f}s"
+            )
 
 
 @cachetools.cached(_weights_cache)
@@ -490,6 +521,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 self.dst_resolution,
             ),
             enforce_chunk_aligned_writes=False,
+            overwrite_partial_chunks=True,
             allow_cache=allow_cache,
             use_compression=False,
         )
@@ -889,30 +921,46 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
                 )
                 e.args = (error_str + e.args[0],)
                 raise e
-        if not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
-            self.dst_resolution
-        ):
-            raise ValueError(
-                "`max_reduction_chunk_size` (which defaults to `processing_chunk_size` when"
-                " not specified)` must be at least as large as the `dst` layer's"
-                f" chunk size; received {self.max_reduction_chunk_size_final}, which is"
-                f" smaller than {dst.backend.get_chunk_size(self.dst_resolution)}"
+        reduce_whole_roi = (
+            not dst.backend.enforce_chunk_aligned_writes
+            and dst.backend.overwrite_partial_chunks
+            and idx.shape <= self.max_reduction_chunk_size_final
+        )
+        if reduce_whole_roi:
+            red_chunks = [idx]
+            red_shape = Vec3D[int](1, 1, 1)
+            logger.debug(
+                f"Reducing entire ROI {idx} as a single chunk. Processing chunks will"
+                f" use the padded index {idx.padded(self.roi_crop_pad)} and be chunked"
+                f" with {self.processing_chunker}."
             )
-        reduction_chunker = VolumetricIndexChunker(
-            chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
-            resolution=self.dst_resolution,
-            max_superchunk_size=self.max_reduction_chunk_size_final,
-        )
-        logger.debug(
-            f"Breaking {idx} into reduction chunks with checkerboarding"
-            f" with {reduction_chunker}. Processing chunks will use the padded index"
-            f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."
-        )
-        stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-        red_chunks = reduction_chunker(idx, mode="exact", stride_start_offset=stride_start_offset)
-        red_shape = reduction_chunker.get_shape(
-            idx, mode="exact", stride_start_offset=stride_start_offset
-        )
+        else:
+            if not self.max_reduction_chunk_size_final >= dst.backend.get_chunk_size(
+                self.dst_resolution
+            ):
+                raise ValueError(
+                    "`max_reduction_chunk_size` (which defaults to `processing_chunk_size` when"
+                    " not specified)` must be at least as large as the `dst` layer's"
+                    f" chunk size; received {self.max_reduction_chunk_size_final}, which is"
+                    f" smaller than {dst.backend.get_chunk_size(self.dst_resolution)}"
+                )
+            reduction_chunker = VolumetricIndexChunker(
+                chunk_size=dst.backend.get_chunk_size(self.dst_resolution),
+                resolution=self.dst_resolution,
+                max_superchunk_size=self.max_reduction_chunk_size_final,
+            )
+            logger.debug(
+                f"Breaking {idx} into reduction chunks with checkerboarding"
+                f" with {reduction_chunker}. Processing chunks will use the padded index"
+                f" {idx.padded(self.roi_crop_pad)} and be chunked with {self.processing_chunker}."
+            )
+            stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
+            red_chunks = reduction_chunker(
+                idx, mode="exact", stride_start_offset=stride_start_offset
+            )
+            red_shape = reduction_chunker.get_shape(
+                idx, mode="exact", stride_start_offset=stride_start_offset
+            )
         (
             tasks,
             red_chunks_task_idxs,

@@ -80,6 +80,7 @@ class VolumetricCallableOperation(Generic[P]):
         self,
         idx: VolumetricIndex,
         *args: P.args,
+        use_semaphore: bool = True,
         **kwargs: P.kwargs,
     ) -> dict[str, Any]:
         """Read all source data for this operation."""
@@ -88,10 +89,11 @@ class VolumetricCallableOperation(Generic[P]):
         idx_input.resolution = self.get_input_resolution(idx.resolution)
         idx_input_padded = idx_input.padded(Vec3D[int](*self.input_crop_pad))
 
-        with semaphore("read"):
-            task_kwargs = _process_callable_kwargs(idx_input_padded, kwargs)
+        if use_semaphore:
+            with semaphore("read"):
+                return _process_callable_kwargs(idx_input_padded, kwargs)
+        return _process_callable_kwargs(idx_input_padded, kwargs)
 
-        return task_kwargs
 
     def write(  # pylint: disable=keyword-arg-before-vararg,unused-argument
         self,
@@ -99,6 +101,7 @@ class VolumetricCallableOperation(Generic[P]):
         dst: VolumetricLayer,
         tensor: Any,
         *args: P.args,
+        use_semaphore: bool = True,
         **kwargs: P.kwargs,
     ) -> None:
         """Write tensor data to destination."""
@@ -114,7 +117,10 @@ class VolumetricCallableOperation(Generic[P]):
         else:
             dst_with_crop = dst
 
-        with semaphore("write"):
+        if use_semaphore:
+            with semaphore("write"):
+                dst_with_crop[idx] = tensor
+        else:
             dst_with_crop[idx] = tensor
 
     def processing_fn(self, **kwargs: Any) -> Any:

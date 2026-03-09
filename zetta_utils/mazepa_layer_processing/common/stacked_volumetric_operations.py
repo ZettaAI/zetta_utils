@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import time
 from typing import Any, Generic, Sequence, cast
 
@@ -10,7 +11,9 @@ from typing_extensions import ParamSpec
 
 from zetta_utils import builder, log, mazepa
 from zetta_utils.geometry import Vec3D
+from zetta_utils.layer.layer_base import Layer
 from zetta_utils.layer.volumetric import VolumetricIndex, VolumetricLayer
+from zetta_utils.mazepa import semaphore
 
 from ..operation_protocols import StackableVolumetricOpProtocol
 
@@ -55,6 +58,31 @@ class StackedVolumetricOperations(Generic[P]):
     def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> StackedVolumetricOperations[P]:
         return attrs.evolve(self, base_op=self.base_op.with_added_crop_pad(crop_pad))
 
+    def _prefetch_region(
+        self,
+        indices: Sequence[VolumetricIndex],
+        **kwargs: Any,
+    ) -> None:
+        """
+        Prefetch the supremum bounding box of all indices from source layers.
+
+        Issues a single large read per source layer to warm the CloudVolume cache,
+        so that subsequent per-chunk reads are cache hits instead of remote fetches.
+        """
+        sup_idx = indices[0]
+        for idx in indices[1:]:
+            sup_idx = sup_idx.supremum(idx)
+
+        sup_idx_input = copy.deepcopy(sup_idx)
+        sup_idx_input.resolution = self.base_op.get_input_resolution(sup_idx.resolution)
+        input_crop_pad = getattr(self.base_op, "input_crop_pad", (0, 0, 0))
+        sup_idx_input = sup_idx_input.padded(input_crop_pad)
+
+        with semaphore("read"):
+            for v in kwargs.values():
+                if isinstance(v, Layer):
+                    v.read_with_procs(sup_idx_input)
+
     def __call__(  # pylint: disable=keyword-arg-before-vararg,too-many-branches
         self,
         indices: Sequence[VolumetricIndex],
@@ -85,9 +113,16 @@ class StackedVolumetricOperations(Generic[P]):
                     f"length of indices ({len(indices)})"
                 )
 
-        # Read all data
+        # Prefetch the entire region to warm CloudVolume cache
+        prefetch_start = time.time()
+        self._prefetch_region(indices, **kwargs)
+        prefetch_time = time.time() - prefetch_start
+
+        # Read all data (should be cache hits after prefetch)
         read_start = time.time()
-        data_list = [self.base_op.read(idx, *args, **kwargs) for idx in indices]
+        data_list = [
+            self.base_op.read(idx, *args, use_semaphore=False, **kwargs) for idx in indices
+        ]
         read_time = time.time() - read_start
 
         # Stack tensors by key
@@ -119,23 +154,25 @@ class StackedVolumetricOperations(Generic[P]):
 
         # Unstack and write results
         write_start = time.time()
-        for i, (idx, dst) in enumerate(zip(indices, dsts_list)):
-            result: Any
-            if isinstance(batched_result, torch.Tensor):
-                result = batched_result[i]
-            elif isinstance(batched_result, np.ndarray):
-                result = batched_result[i]
-            else:
-                raise TypeError(
-                    f"Function returned unsupported type: {type(batched_result)}. "
-                    f"Only torch.Tensor and np.ndarray are supported."
-                )
+        with semaphore("write"):
+            for i, (idx, dst) in enumerate(zip(indices, dsts_list)):
+                result: Any
+                if isinstance(batched_result, torch.Tensor):
+                    result = batched_result[i]
+                elif isinstance(batched_result, np.ndarray):
+                    result = batched_result[i]
+                else:
+                    raise TypeError(
+                        f"Function returned unsupported type: {type(batched_result)}. "
+                        f"Only torch.Tensor and np.ndarray are supported."
+                    )
 
-            self.base_op.write(idx, dst, result, *args, **kwargs)
+                self.base_op.write(idx, dst, result, *args, use_semaphore=False, **kwargs)
         write_time = time.time() - write_start
 
-        total_time = read_time + process_time + write_time
+        total_time = prefetch_time + read_time + process_time + write_time
         logger.info(
             f"StackedVolumetricOperations: Total time for {len(indices)} chunks: {total_time:.2f}s"
-            f" (read: {read_time:.2f}s, process: {process_time:.2f}s, write: {write_time:.2f}s)"
+            f" (prefetch: {prefetch_time:.2f}s, read: {read_time:.2f}s,"
+            f" process: {process_time:.2f}s, write: {write_time:.2f}s)"
         )

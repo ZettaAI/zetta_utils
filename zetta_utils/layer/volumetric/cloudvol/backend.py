@@ -24,7 +24,7 @@ from .. import VolumetricBackend, VolumetricIndex
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
 _cv_cached: Dict[str, set] = {}
 
-IN_MEM_CACHE_NUM_BYTES_PER_CV = 128 * 1024 ** 2
+IN_MEM_CACHE_NUM_BYTES_PER_CV = 1 * 1024 ** 3
 
 
 def _serialize_kwargs(kwargs: Dict[str, Any]) -> str:

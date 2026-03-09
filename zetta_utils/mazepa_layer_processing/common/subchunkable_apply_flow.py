@@ -1302,6 +1302,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     Iteratively build the hierarchy of schemas
     """
     for level in range(1, num_levels):
+        is_top_level = level == num_levels - 1
         flow_schema = VolumetricApplyFlowSchema(
             op=DelegatedSubchunkedOperation(  # type:ignore #readability over typing here
                 flow_schema,
@@ -1314,7 +1315,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             roi_crop_pad=roi_crop_pads[-level - 1],
             processing_blend_pad=processing_blend_pads[-level - 1],
             processing_blend_mode=processing_blend_modes[-level - 1],
-            processing_gap=processing_gap if level == num_levels - 1 else None,
+            processing_gap=processing_gap if is_top_level else None,
             intermediaries_dir=_path_join_if_not_none(
                 level_intermediaries_dirs[-level - 1], f"chunks_level_{level}"
             ),

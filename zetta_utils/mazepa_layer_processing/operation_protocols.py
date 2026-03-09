@@ -147,6 +147,7 @@ class StackableVolumetricOpProtocol(VolumetricOpProtocol[P, R_co, DstLayerT_cont
         self,
         idx: VolumetricIndex,
         *args: P.args,
+        use_semaphore: bool = True,
         **kwargs: P.kwargs,
     ) -> dict[str, Tensor]:
         """Read all source data for this operation and return as named tensors."""
@@ -157,6 +158,7 @@ class StackableVolumetricOpProtocol(VolumetricOpProtocol[P, R_co, DstLayerT_cont
         dst: DstLayerT_contra,
         tensor: Tensor,
         *args: P.args,
+        use_semaphore: bool = True,
         **kwargs: P.kwargs,
     ) -> None:
         """Write tensor data to destination."""

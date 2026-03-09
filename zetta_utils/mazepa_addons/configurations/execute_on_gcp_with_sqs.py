@@ -33,6 +33,11 @@ REQUIRED_ENV_VARS: Final = [
     "AWS_DEFAULT_REGION",
 ]
 
+# Env vars that will be propagated to worker pods only if they are set on the master.
+OPTIONAL_ENV_VARS: Final = [
+    "CLICKHOUSE_PASSWORD",
+]
+
 
 DEFAULT_GCP_CLUSTER_NAME: Final = "zutils-x3"
 DEFAULT_GCP_CLUSTER_REGION: Final = "us-east1"
@@ -190,12 +195,13 @@ def get_gcp_with_sqs_config(
     resource_monitor_interval: float | None,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     task_queues = []
+    share_envs = list(REQUIRED_ENV_VARS) + [e for e in OPTIONAL_ENV_VARS if e in os.environ]
     (
         secrets,
         env_secret_mapping,
         adc_available,
         cave_secret_available,
-    ) = k8s.get_secrets_and_mapping(execution_id, REQUIRED_ENV_VARS)
+    ) = k8s.get_secrets_and_mapping(execution_id, share_envs)
 
     outcome_queue_name = f"run-{execution_id}-outcome"
     outcome_queue_spec = {"@type": "SQSQueue", "name": outcome_queue_name, "pull_wait_sec": 2.5}

@@ -18,7 +18,7 @@ from zetta_utils import log
 from zetta_utils.common.pprint import lrpad
 
 logger = log.get_logger("mazepa")
-SemaphoreType = Literal["read", "write", "cuda", "cpu", "trt_compilation"]
+SemaphoreType = Literal["read", "write", "cuda", "cpu", "tensorrt"]
 
 DEFAULT_SEMA_COUNT = 1
 TIMING_FORMAT = "dddd"  # wait_time, lease_time, lease_count, start_time
@@ -153,16 +153,14 @@ def configure_semaphores(
     Context manager for creating and destroying semaphores.
     """
 
-    sema_types_to_check: List[SemaphoreType] = ["read", "write", "cuda", "cpu", "trt_compilation"]
+    sema_types_to_check: List[SemaphoreType] = ["read", "write", "cuda", "cpu", "tensorrt"]
     if semaphores_spec is not None:
         for name in semaphores_spec:
             if name not in get_args(SemaphoreType):
                 raise ValueError(f"`{name}` is not a valid semaphore type.")
         try:
-            # TODO: need to make trt_compilation optional
-            # for sema_type in sema_types_to_check:
-            #     assert semaphores_spec[sema_type] >= 0
-            semaphores_spec_ = semaphores_spec
+            for sema_type in ("read", "write", "cuda", "cpu"):
+                assert semaphores_spec[sema_type] >= 0
         except KeyError as e:
             raise ValueError(
                 "`semaphores_spec` given to `execute_with_pool` must contain "
@@ -170,7 +168,7 @@ def configure_semaphores(
             ) from e
         except AssertionError as e:
             raise ValueError("Number of semaphores must be nonnegative.") from e
-        semaphores_spec_ = semaphores_spec
+        semaphores_spec_ = {"tensorrt": DEFAULT_SEMA_COUNT, **semaphores_spec}
     else:
         semaphores_spec_ = {name: DEFAULT_SEMA_COUNT for name in sema_types_to_check}
 

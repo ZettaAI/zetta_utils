@@ -20,6 +20,7 @@ from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config  # type: ignore[attr-defined]
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
+from zetta_utils.training.data_loader import RebatchingDataLoader
 from zetta_utils.parsing import json
 
 logger = log.get_logger("zetta_utils")
@@ -44,8 +45,8 @@ def distributed_available() -> bool:
 def lightning_train(  # pylint: disable=too-many-locals
     regime: pl.LightningModule | dict[str, Any],
     trainer: pl.Trainer | dict[str, Any],
-    train_dataloader: torch.utils.data.DataLoader | dict[str, Any],
-    val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
+    train_dataloader: torch.utils.data.DataLoader | RebatchingDataLoader | dict[str, Any],
+    val_dataloader: Optional[torch.utils.data.DataLoader | RebatchingDataLoader | dict[str, Any]] = None,
     full_state_ckpt_path: str = "last",
     num_nodes: int = 1,
     min_nodes: int | None = None,
@@ -236,8 +237,8 @@ def _multinode_train_launch(
 def _lightning_train_local(
     regime: pl.LightningModule,
     trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
+    train_dataloader: torch.utils.data.DataLoader | RebatchingDataLoader,
+    val_dataloader: torch.utils.data.DataLoader | RebatchingDataLoader | None = None,
     full_state_ckpt_path: str = "last",
 ):
     logger.info("Starting training...")

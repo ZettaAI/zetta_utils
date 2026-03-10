@@ -27,6 +27,7 @@ import numpy as np
 import torch
 from google.cloud import storage
 from sklearn.metrics import auc, precision_recall_curve, roc_curve
+from packaging.version import Version
 from tqdm import tqdm
 
 
@@ -77,7 +78,7 @@ def get_chunk_keys_from_info(
     return keys
 
 
-def read_contacts_chunk(bucket, path: str) -> dict[int, dict]:
+def read_contacts_chunk(bucket, path: str, format_version: str = "1.0") -> dict[int, dict]:
     """Read contacts from a chunk, return dict keyed by contact_id."""
     blob = bucket.blob(path)
     if not blob.exists():
@@ -104,6 +105,10 @@ def read_contacts_chunk(bucket, path: str) -> dict[int, dict]:
             metadata_len = struct.unpack("<I", f.read(4))[0]
             if metadata_len > 0:
                 f.read(metadata_len)
+
+            # Skip representative_points (6 floats) for format_version >= 1.1
+            if Version(format_version) >= Version("1.1"):
+                f.read(24)
 
             # Compute mean affinity using pytorch to match training pipeline
             if faces:
@@ -372,7 +377,8 @@ def main():
     for chunk_key in tqdm(chunk_keys, desc="Reading chunks"):
         # Read contacts and GT from SOURCE (original, unmodified contact_faces)
         contacts = read_contacts_chunk(
-            src_bucket, os.path.join(src_base_path, "contacts", chunk_key)
+            src_bucket, os.path.join(src_base_path, "contacts", chunk_key),
+            format_version=info.get("format_version", "1.0"),
         )
 
         gt_decisions = read_merge_decisions_chunk(

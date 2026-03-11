@@ -2,6 +2,7 @@
 Helpers for k8s job.
 """
 
+
 import time
 from contextlib import contextmanager
 from typing import Dict, List, Optional
@@ -104,16 +105,17 @@ def _wait_for_job_start(
     namespace: str,
     batch_v1_api: k8s_client.BatchV1Api,
 ) -> None:
+    job_name = job.metadata.name
+    logger.info(f"Waiting for `{job.metadata.name}` to start.")
     while True:
         job = batch_v1_api.read_namespaced_job_status(
-            name=job.metadata.name,
+            name=job_name,
             namespace=namespace,
         )
-        logger.info(f"Waiting for `{job.metadata.name}` to start.")
         if job.status.ready == 1:
             break
-        time.sleep(15)
-    logger.info(f"`{job.metadata.name}` job started.")
+        time.sleep(1)
+    logger.info(f"`{job_name}` job started.")
 
 
 def follow_job_logs(
@@ -173,9 +175,9 @@ def wait_for_job_completion(
         name=job.metadata.name,
         namespace=namespace,
     )
+    logger.info(f"Waiting for `{job.metadata.name}` to complete.")
 
     while True:
-        logger.info(f"Waiting for `{job.metadata.name}` to complete.")
         time.sleep(15)
         try:
             job = batch_v1_api.read_namespaced_job_status(

@@ -256,7 +256,7 @@ async def _parse_multipart_request(request: Request, device: torch.device):
         "rig": metadata.get("rig", 1000),
         "lr": metadata.get("lr", 1e-3),
         "optimizer_type": metadata.get("optimizer_type", "adam"),
-        "mse_weight": metadata.get("mse_weight", 0.0),
+        "mse_weight": metadata.get("mse_weight", 1.0),
     }
     return (
         correspondences_dict, image_tensor, src_mask_tensor,

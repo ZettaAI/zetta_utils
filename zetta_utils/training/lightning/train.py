@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import os
+import signal
 import threading
+import time
 from contextlib import ExitStack
 from typing import Any, Dict, Final, List, Literal, Optional
 
@@ -10,9 +12,12 @@ import torch
 import typeguard
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.pytorch.strategies import ddp
+from torch.distributed import DistStoreError
+from torch.distributed.elastic.rendezvous.api import RendezvousError
 from torch.distributed.launcher import api as torch_launcher_api
 
 from kubernetes import client as k8s_client
+from kubernetes import config as k8s_config  # type: ignore[attr-defined]
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json
@@ -43,11 +48,12 @@ def lightning_train(  # pylint: disable=too-many-locals
     val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
     full_state_ckpt_path: str = "last",
     num_nodes: int = 1,
+    min_nodes: int | None = None,
     retry_count: int = 0,
-    max_restarts: int = 1,
+    max_restarts: int = 10,
     local_run: bool = True,
-    follow_logs: bool = False,
-    follow_logs_tail_lines: int | None = None,
+    follow_logs: bool = False,  # pylint: disable=unused-argument
+    capture_logs: bool = False,
     image: Optional[str] = None,
     cluster_name: Optional[str] = None,
     cluster_region: Optional[str] = None,
@@ -59,6 +65,8 @@ def lightning_train(  # pylint: disable=too-many-locals
     gpu_accelerator_type: str | None = None,
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
+    rdzv_configs: dict | None = None,
+    verbosity: int = 0,
 ) -> None:
     """
     Perform neural net trainig with Zetta's PytorchLightning integration.
@@ -75,16 +83,19 @@ def lightning_train(  # pylint: disable=too-many-locals
         Must be a full training state checkpoint created by PytorchLightning rather
         than a model checkpoint. If ``full_state_ckpt_path=="last"``, the latest
         checkpoint for the given experiment will be identified and loaded.
-    :param num_nodes: Number of GPU nodes for distributed training.
+    :param num_nodes: Maximum number of GPU nodes for distributed training.
+    :param min_nodes: Minimum number of nodes required to start/continue training.
+        Enables elastic training when set to less than ``num_nodes``. Training
+        starts when ``min_nodes`` are available and can survive node departures
+        as long as at least ``min_nodes`` remain. Defaults to ``num_nodes``
+        (static, non-elastic behavior).
     :param retry_count: Max retry count for the master train job;
         excludes failures due to pod distruptions.
     :param max_restarts: Torch Elastic: The maximum amount of restarts that elastic agent\
         will conduct on workers before failure.
     :param local_run: If True run the training locally.
-    :param follow_logs: If True, eagerly print logs from the pod.
-        If False, will wait until job completes successfully.
-    :param follow_logs_tail_lines: Applicable when follow_logs=True.
-        Logs multiple lines from train job together instead of individually.
+    :param follow_logs: Unused, will be removed.
+    :param capture_logs: Stream and save all pod logs locally for post-mortem analysis.
     :param image: Container image to use.
     :param cluster_name: Cluster configuration.
     :param cluster_region: Cluster configuration.
@@ -98,13 +109,6 @@ def lightning_train(  # pylint: disable=too-many-locals
     :param required_zones: K8S will schedule workers in these zones.
     :param preferred_zones: K8S will try to schedule workers in these zones.
     """
-    args_mapping = {
-        "regime": regime,
-        "trainer": trainer,
-        "train_dataloader": train_dataloader,
-        "val_dataloader": val_dataloader,
-    }
-
     if local_run:
         train_dataloader_ = (
             train_dataloader
@@ -172,12 +176,10 @@ def lightning_train(  # pylint: disable=too-many-locals
         cluster_info=cluster_info,
         image=image,
         num_nodes=num_nodes,
+        min_nodes=min_nodes if min_nodes is not None else num_nodes,
         retry_count=retry_count,
         train_args=train_args,
         env_vars=env_vars,
-        follow_logs=follow_logs,
-        follow_logs_tail_lines=follow_logs_tail_lines,
-        host_network=num_nodes > 1,
         resource_limits=resource_limits,
         resource_requests=resource_requests,
         provisioning_model=provisioning_model,
@@ -185,6 +187,9 @@ def lightning_train(  # pylint: disable=too-many-locals
         max_restarts=max_restarts,
         required_zones=required_zones,
         preferred_zones=preferred_zones,
+        rdzv_configs=rdzv_configs,
+        verbosity=verbosity,
+        capture_logs=capture_logs,
     )
 
 
@@ -194,22 +199,36 @@ def _multinode_train_launch(
     run_id: str,
     num_nodes: int,
     nproc_per_node: int,
+    min_nodes: int | None = None,
     rdzv_backend: str = "c10d",
     max_restarts: int = 1,
+    rdzv_configs: dict | None = None,
     **kwargs,  # pylint: disable=unused-argument
 ):
     # worker pods have MY_ROLE env set to `worker`
     is_worker = os.environ.get("MY_ROLE") == "worker"
+    effective_min_nodes = min_nodes if min_nodes is not None else num_nodes
+    rdzv_configs = rdzv_configs or {"last_call_timeout": 60, "read_timeout": 600}
     config = torch_launcher_api.LaunchConfig(
         run_id=run_id,
-        min_nodes=num_nodes,
+        min_nodes=effective_min_nodes,
         max_nodes=num_nodes,
         max_restarts=max_restarts,
         nproc_per_node=nproc_per_node,
         rdzv_backend=rdzv_backend,
-        rdzv_endpoint="master:29400" if is_worker else "localhost:29400",
+        rdzv_endpoint=f"master.run-{run_id}:29400" if is_worker else "localhost:29400",
+        rdzv_configs=rdzv_configs,
     )
-    torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+    OUTER_RETRY_LIMIT = 3
+    for attempt in range(OUTER_RETRY_LIMIT):
+        try:
+            torch_launcher_api.elastic_launch(config, _parse_spec_and_train)()
+            break
+        except (DistStoreError, RendezvousError) as e:
+            logger.warning(f"Rendezvous error (attempt {attempt + 1}/{OUTER_RETRY_LIMIT}): {e}")
+            if attempt == OUTER_RETRY_LIMIT - 1:
+                raise
+            time.sleep(5)
 
 
 @builder.register("_lightning_train_local")
@@ -230,14 +249,19 @@ def _lightning_train_local(
     else:
         logger.warning("Invoked without builder: Unable to save configuration.")
 
+    _ckpt = getattr(trainer, "_ckpt_path", None)
     if (
         full_state_ckpt_path == "last"
-        and trainer.ckpt_path is not None
-        and get_filesystem(trainer.ckpt_path).exists(trainer.ckpt_path)
+        and _ckpt is not None
+        and get_filesystem(_ckpt).exists(_ckpt)
     ):
-        ckpt_path = trainer.ckpt_path
+        ckpt_path = _ckpt
+        logger.info(f"Resuming from checkpoint: {ckpt_path}")
     else:
         ckpt_path = None
+        logger.info(
+            f"No checkpoint found at {getattr(trainer, '_ckpt_path', None)}, starting fresh"
+        )
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,
@@ -250,22 +274,52 @@ def _load_modules(worker_id: int):  # pylint: disable=unused-argument
     load_all_modules()
 
 
+def _label_pod_rank():
+    try:
+        proxy_vars = {}
+        for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"):
+            if var in os.environ:
+                proxy_vars[var] = os.environ.pop(var)
+        try:
+            k8s_config.load_incluster_config()
+            v1 = k8s_client.CoreV1Api()
+            pod_name = os.environ.get("POD_NAME")
+            namespace = os.environ.get("MY_POD_NAMESPACE", "default")
+            rank = os.environ.get("RANK")
+            if not pod_name or rank is None:
+                logger.warning(f"Cannot label pod rank: POD_NAME={pod_name}, RANK={rank}")
+                return
+            v1.patch_namespaced_pod(
+                pod_name, namespace, {"metadata": {"labels": {"training-rank": rank}}}
+            )
+            if rank == "0":
+                logger.info(f"Labeled pod {pod_name} as rank 0")
+        finally:
+            os.environ.update(proxy_vars)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to label pod rank: {e}", exc_info=True)
+
+
 def _parse_spec_and_train():
     load_all_modules()
+    log.configure_logger(level="INFO", force=True)
 
     train_args = None
     with open(os.environ["ZETTA_RUN_SPEC_PATH"], "r", encoding="utf-8") as f:
         train_args = json.load(f)
-    logger.info(train_args)
+    logger.debug(train_args)
+
+    _label_pod_rank()
 
     regime = builder.build(spec=train_args["regime"])
     trainer = builder.build(spec=train_args["trainer"])
     train_dataloader = builder.build(spec=train_args["train_dataloader"])
     train_dataloader.worker_init_fn = _load_modules
-    try:
-        val_dataloader = builder.build(spec=train_args["val_dataloader"])
+    val_dataloader_spec = train_args.get("val_dataloader")
+    if val_dataloader_spec is not None:
+        val_dataloader = builder.build(spec=val_dataloader_spec)
         val_dataloader.worker_init_fn = _load_modules
-    except KeyError:
+    else:
         val_dataloader = None
     try:
         full_state_ckpt_path = train_args["full_state_ckpt_path"]
@@ -322,12 +376,10 @@ def _lightning_train_remote(
     cluster_info: resource_allocation.k8s.ClusterInfo,
     image: str,
     num_nodes: int,
+    min_nodes: int,
     retry_count: int,
     train_args: dict,
     env_vars: Optional[Dict[str, str]] = None,
-    follow_logs: Optional[bool] = False,
-    follow_logs_tail_lines: int | None = None,
-    host_network: Optional[bool] = False,
     resource_limits: Optional[dict[str, int | float | str]] = None,
     resource_requests: Optional[dict[str, int | float | str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
@@ -335,6 +387,9 @@ def _lightning_train_remote(
     max_restarts: int = 1,
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
+    rdzv_configs: dict | None = None,
+    verbosity: int = 0,
+    capture_logs: bool = False,
 ):  # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     """
     Parse spec and launch single/multinode training accordingly.
@@ -342,6 +397,7 @@ def _lightning_train_remote(
     Runs the command `zetta run specs/train.cue` on one or more worker pods.
     """
     assert run.RUN_ID is not None
+    verbose_flag = f"-{'v' * verbosity}" if verbosity > 0 else ""
 
     if train_args["trainer"]["accelerator"] in ("gpu", "cuda", "auto"):
         num_devices = int(resource_limits["nvidia.com/gpu"])  # type: ignore
@@ -358,15 +414,14 @@ def _lightning_train_remote(
     else:
         raise NotImplementedError()
 
-    # with multinode ddp we need a node on standard pool for an IP
-    # that remains the same for the duration of training
     node_selector = {"cloud.google.com/gke-provisioning": "standard"}
     if num_nodes > 1:
         train_args["run_id"] = run.RUN_ID
         train_args["num_nodes"] = num_nodes
+        train_args["min_nodes"] = min_nodes
         train_args["nproc_per_node"] = num_devices
         train_args["max_restarts"] = max_restarts
-        train_args["trainer"]["num_nodes"] = num_nodes
+        train_args["rdzv_configs"] = rdzv_configs
         train_spec = {"@type": "_multinode_train_launch", **train_args}
     else:
         train_spec = {"@type": "_lightning_train_local", **train_args}
@@ -427,15 +482,16 @@ def _lightning_train_remote(
         )
     )
 
+    svc_name = f"run-{run.RUN_ID}" if num_nodes > 1 else None
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
         name=run.RUN_ID,
         image=image,
-        command=f"zetta run {flags} specs/train.cue",
+        command=f"zetta {verbose_flag} run {flags} specs/train.cue".strip(),
         affinity=affinity,
         envs=envs + [ip_env],
         env_secret_mapping=env_secret_mapping,
         hostname="master",
-        host_network=host_network,
+        dns_policy="ClusterFirst" if num_nodes > 1 else "Default",
         resources=resource_limits,
         restart_policy="Never",
         node_selector=node_selector,
@@ -443,6 +499,7 @@ def _lightning_train_remote(
         volumes=volumes,
         volume_mounts=mounts,
         resource_requests=resource_requests,
+        subdomain=svc_name,
     )
 
     train_job_failure_policy = k8s_client.V1PodFailurePolicy(
@@ -457,11 +514,13 @@ def _lightning_train_remote(
             )
         ]
     )
+    run_labels = {"run-id": run.RUN_ID}
     train_job = resource_allocation.k8s.get_job(
         name=run.RUN_ID,
         pod_spec=train_pod_spec,
         backoff_limit=retry_count,
         pod_failure_policy=train_job_failure_policy,
+        labels=run_labels,
     )
     train_job_ctx = resource_allocation.k8s.job_ctx_manager(
         run_id=run.RUN_ID,
@@ -472,11 +531,19 @@ def _lightning_train_remote(
 
     with ExitStack() as stack:
         stack.enter_context(spec_ctx)
+
+        if num_nodes > 1:
+            headless_svc = resource_allocation.k8s.get_headless_service(run.RUN_ID, run_labels)
+            svc_ctx = resource_allocation.k8s.service_ctx_manager(
+                run_id=run.RUN_ID,
+                cluster_info=cluster_info,
+                service=headless_svc,
+            )
+            stack.enter_context(svc_ctx)
+
         stack.enter_context(train_job_ctx)
 
         if num_nodes > 1:
-            train_pod = resource_allocation.k8s.get_job_pod(train_job, cluster_info)
-            aliases = [k8s_client.V1HostAlias(hostnames=["master"], ip=train_pod.status.host_ip)]
             worker_env = [
                 k8s_client.V1EnvVar(name="MY_ROLE", value="worker"),
                 k8s_client.V1EnvVar(name="MASTER_ADDR", value="master"),
@@ -491,44 +558,73 @@ def _lightning_train_remote(
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
                 name="workers",
                 image=image,
-                command=f"zetta run -r {run.RUN_ID} {flags} specs/train.cue",
+                command=(
+                    f"zetta {verbose_flag} run -r {run.RUN_ID} {flags} specs/train.cue".strip()
+                ),
                 affinity=affinity,
                 envs=envs + worker_env,
                 env_secret_mapping=env_secret_mapping,
-                host_network=True,
-                host_aliases=aliases,
+                dns_policy="ClusterFirst",
                 resources=resource_limits,
                 node_selector=node_selector,
                 tolerations=_get_tolerations(),
                 volumes=volumes,
                 volume_mounts=mounts,
                 resource_requests=resource_requests,
+                subdomain=svc_name,
             )
 
-            worker_deployment = resource_allocation.k8s.get_deployment(
-                name=f"{run.RUN_ID}-workers",
+            assert svc_name is not None
+            worker_statefulset = resource_allocation.k8s.get_statefulset(
+                name=run.RUN_ID,
                 pod_spec=worker_pod_spec,
                 replicas=num_nodes - 1,
+                service_name=svc_name,
+                labels=run_labels,
             )
 
-            workers_ctx = resource_allocation.k8s.deployment_ctx_mngr(
+            workers_ctx = resource_allocation.k8s.statefulset_ctx_manager(
                 run_id=run.RUN_ID,
                 cluster_info=cluster_info,
-                deployment=worker_deployment,
+                statefulset=worker_statefulset,
                 secrets=[],
-                stream_logs=True,
-                tail_lines=follow_logs_tail_lines,
             )
             stack.enter_context(workers_ctx)
 
-        thread = threading.Thread(
-            target=resource_allocation.k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
-        )
-        thread.start()
+        log_dir = "logs" if capture_logs else None
+        watcher_stop = threading.Event()
+        threading.Thread(
+            target=resource_allocation.k8s.pod.watch_for_pod_disruptions,
+            args=(run.RUN_ID,),
+            kwargs={"log_dir": log_dir, "stop_event": watcher_stop},
+            daemon=True,
+        ).start()
+        threading.Thread(
+            target=resource_allocation.k8s.pod.watch_for_run_events,
+            args=(run.RUN_ID,),
+            kwargs={"log_dir": log_dir, "stop_event": watcher_stop},
+            daemon=True,
+        ).start()
+        if capture_logs:
+            threading.Thread(
+                target=resource_allocation.k8s.capture_pod_logs,
+                args=(run.RUN_ID, cluster_info, "logs"),
+                kwargs={"stop_event": watcher_stop},
+                daemon=True,
+            ).start()
 
-        if follow_logs:
-            resource_allocation.k8s.follow_job_logs(
-                train_job, cluster_info, tail_lines=follow_logs_tail_lines
+        def _sigint_handler(signum, frame):  # pylint: disable=unused-argument
+            logger.info("Ctrl+C received, stopping watchers and cleaning up...")
+            watcher_stop.set()
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGINT, _sigint_handler)
+
+        job_status = resource_allocation.k8s.follow_rank0_logs(run.RUN_ID, cluster_info)
+        watcher_stop.set()
+        if job_status and job_status != "succeeded":
+            resource_allocation.k8s.pod.get_pod_postmortem(
+                run_id=run.RUN_ID,
+                cluster_info=cluster_info,
+                log_dir="logs",
             )
-        else:
-            resource_allocation.k8s.wait_for_job_completion(train_job, cluster_info)

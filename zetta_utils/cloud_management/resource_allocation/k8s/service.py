@@ -19,6 +19,20 @@ from .common import ClusterInfo, get_cluster_data
 logger = log.get_logger("zetta_utils")
 
 
+def get_headless_service(
+    name: str,
+    selector_labels: Dict[str, str],
+):
+    name = f"run-{name}"
+    meta = k8s_client.V1ObjectMeta(name=name, labels=selector_labels)
+    service_spec = k8s_client.V1ServiceSpec(
+        cluster_ip="None",
+        selector=selector_labels,
+        publish_not_ready_addresses=True,
+    )
+    return k8s_client.V1Service(metadata=meta, spec=service_spec)
+
+
 def get_service(
     name: str,
     annotations: Optional[Dict] = None,

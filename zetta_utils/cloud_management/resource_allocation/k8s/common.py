@@ -8,6 +8,7 @@ import json
 from typing import Any, Final, Optional, Tuple
 
 import attrs
+from kubernetes.client.exceptions import ApiException
 from kubernetes.dynamic import DynamicClient
 
 from kubernetes import client as k8s_client
@@ -184,6 +185,28 @@ def create_dynamic_resource(
     dynamic_api = client.resources.get(api_version=api_version, kind=kind)
     logger.info(f"Creating dynamic k8s resource `{name}`")
     dynamic_api.create(body=manifest, namespace=namespace)
+
+
+def is_job_completed(
+    job_name: str,
+    cluster_info: ClusterInfo,
+    namespace: str = "default",
+) -> str | None:
+    """Check if a K8s Job is done. Returns None if running, or a status string."""
+    try:
+        configuration, _ = get_cluster_data(cluster_info)
+        k8s_client.Configuration.set_default(configuration)
+        batch_api = k8s_client.BatchV1Api()
+        job = batch_api.read_namespaced_job_status(name=job_name, namespace=namespace)
+        if job.status.succeeded and job.status.succeeded >= 1:
+            return "succeeded"
+        if job.status.failed and job.status.failed > job.spec.backoff_limit:
+            return "failed"
+        return None
+    except ApiException as exc:
+        if exc.status == 404:
+            return "deleted"
+        raise
 
 
 def delete_dynamic_resource(

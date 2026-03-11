@@ -4,7 +4,10 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Dict, List, Literal, Mapping, Optional
 
 from kubernetes.client.exceptions import ApiException
@@ -14,10 +17,15 @@ from kubernetes import config, watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
 
-from .common import ClusterInfo, get_cluster_data
+from .common import ClusterInfo, get_cluster_data, is_job_completed
 from .secret import get_worker_env_vars
 
 logger = log.get_logger("zetta_utils")
+simple_logger = log.get_simple_logger("zetta_utils.fwd")
+
+
+class PodTerminatedError(Exception):
+    pass
 
 
 def get_pod_spec(  # pylint: disable=too-many-locals
@@ -39,6 +47,7 @@ def get_pod_spec(  # pylint: disable=too-many-locals
     volumes: Optional[List[k8s_client.V1Volume]] = None,
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
+    subdomain: Optional[str] = None,
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
@@ -81,8 +90,12 @@ def get_pod_spec(  # pylint: disable=too-many-locals
             k8s_client.V1EnvVar(name="https_proxy", value="http://localhost:8080"),
             k8s_client.V1EnvVar(name="http_proxy", value="http://localhost:8080"),
             # Ensure GCS traffic goes through proxy (don't bypass for localhost)
-            k8s_client.V1EnvVar(name="NO_PROXY", value="127.0.0.1,metadata.google.internal"),
-            k8s_client.V1EnvVar(name="no_proxy", value="127.0.0.1,metadata.google.internal"),
+            k8s_client.V1EnvVar(
+                name="NO_PROXY", value="127.0.0.1,metadata.google.internal,kubernetes.default.svc"
+            ),
+            k8s_client.V1EnvVar(
+                name="no_proxy", value="127.0.0.1,metadata.google.internal,kubernetes.default.svc"
+            ),
         ]
     )
 
@@ -227,6 +240,7 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
+        subdomain=subdomain,
         termination_grace_period_seconds=60,
         tolerations=tolerations,
         volumes=volumes,
@@ -346,19 +360,21 @@ def _wait_for_pod_start(
             pod = core_api.read_namespaced_pod(name=pod_name, namespace=namespace)
         except k8s_client.exceptions.ApiException as e:
             if e.status == 404:
-                logger.info(f"Pod `{pod_name}` not found yet. Retrying...")
+                logger.debug(f"Pod `{pod_name}` not found yet. Retrying...")
                 time.sleep(poll_interval)
                 continue
             raise
 
         phase = pod.status.phase
+        if phase in ("Succeeded", "Failed"):
+            raise PodTerminatedError(f"Pod `{pod_name}` in terminal phase: {phase}")
         container_statuses = pod.status.container_statuses or []
 
         if container_statuses and all(cs.ready for cs in container_statuses):
-            logger.info(f"Pod `{pod_name}` is running and all containers are ready.")
+            logger.debug(f"Pod `{pod_name}` is running and all containers are ready.")
             return
 
-        logger.info(
+        logger.debug(
             f"Waiting for `{pod_name}` to start. "
             f"Phase: {phase}. Ready states: {[cs.ready for cs in container_statuses]}"
         )
@@ -399,15 +415,15 @@ def stream_pod_logs(
         )
         if tail_lines is None:
             for output in log_stream:
-                logger.info(f"[{prefix}] {output}")
+                simple_logger.info(f"[{prefix}] {output}")
         else:
             result = []
             for output in log_stream:
                 result.append(f"[{prefix}] {output}")
                 if len(result) == tail_lines:
-                    logger.info("\n".join(result))
+                    simple_logger.info("\n".join(result))
                     result = []
-            logger.info("\n".join(result))
+            simple_logger.info("\n".join(result))
     except ApiException as exc:
         if exc.status == 404:
             logger.info(f"Pod `{pod_name}` was deleted.")
@@ -432,24 +448,306 @@ def stream_pod_logs(
             )
 
 
-def watch_for_oom_kills(run_id: str, namespace="default"):
+def follow_rank0_logs(
+    run_id: str,
+    cluster_info: ClusterInfo,
+    namespace: str = "default",
+    tail_lines: int | None = None,
+) -> str | None:
+    selector = f"run-id={run_id},training-rank=0"
+    logger.info(f"Waiting for rank 0 pod (selector: {selector})...")
+    while True:
+        core_api = _reset_core_api(cluster_info)
+        pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
+        if pods:
+            pod_name = pods[0].metadata.name
+            logger.info(f"Streaming logs from pod: {pod_name}")
+            try:
+                stream_pod_logs(
+                    cluster_info,
+                    pod_name=pod_name,
+                    namespace=namespace,
+                    prefix=f"rank0:{pod_name[-7:]}",
+                    tail_lines=tail_lines,
+                )
+                logger.info("Log stream ended, polling for rank 0...")
+            except PodTerminatedError:
+                logger.info("Rank 0 pod terminated, checking job status...")
+        job_status = is_job_completed(f"run-{run_id}", cluster_info, namespace)
+        if job_status is not None:
+            if job_status == "succeeded":
+                logger.info(f"Master job for run `{run_id}` succeeded. Stopping log follow.")
+            else:
+                logger.error(f"Master job for run `{run_id}` {job_status}. Stopping log follow.")
+            return job_status
+
+        time.sleep(5)
+
+
+def _capture_single_pod_logs(
+    cluster_info: ClusterInfo,
+    pod_name: str,
+    log_file: Path,
+    container: str = "main",
+    namespace: str = "default",
+    stop_event: threading.Event | None = None,
+):
+    core_api = _reset_core_api(cluster_info)
+    try:
+        _wait_for_pod_start(pod_name, namespace, core_api)
+    except PodTerminatedError:
+        logger.debug(f"Pod `{pod_name}` terminated before log capture started.")
+        return
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed waiting for pod `{pod_name}` to start: {exc}")
+        return
+    try:
+        resp = core_api.read_namespaced_pod_log(
+            name=pod_name,
+            container=container,
+            namespace=namespace,
+            follow=True,
+            _preload_content=False,
+        )
+        with open(log_file, "a", encoding="utf-8") as f:
+            for line in resp.stream(decode_content=True):
+                if stop_event and stop_event.is_set():
+                    break
+                f.write(line.decode("utf-8", errors="replace"))
+        resp.release_conn()
+    except ApiException as exc:
+        if exc.status in (404, 410):
+            logger.debug(f"Pod `{pod_name}` gone ({exc.status}), stopping log capture.")
+        else:
+            logger.debug(f"Log stream ended for `{pod_name}`: {exc.reason}")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Error capturing logs for `{pod_name}`: {exc}")
+
+
+def capture_pod_logs(
+    run_id: str,
+    cluster_info: ClusterInfo,
+    log_dir: str,
+    namespace: str = "default",
+    stop_event: threading.Event | None = None,
+):
+    out_dir = Path(log_dir) / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Capturing pod logs to {out_dir}")
+    seen: set[str] = set()
+    selector = f"run-id={run_id}"
+    executor = ThreadPoolExecutor(max_workers=32)
+    while True:
+        if stop_event and stop_event.is_set():
+            logger.info(f"Stop requested, cancelling log capture for {out_dir}")
+            executor.shutdown(wait=False, cancel_futures=True)
+            return
+        try:
+            core_api = _reset_core_api(cluster_info)
+            pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
+            for pod in pods:
+                pod_name = pod.metadata.name
+                if pod_name in seen:
+                    continue
+                seen.add(pod_name)
+                log_file = out_dir / f"{pod_name}.log"
+                executor.submit(
+                    _capture_single_pod_logs,
+                    cluster_info,
+                    pod_name,
+                    log_file,
+                    "main",
+                    namespace,
+                    stop_event,
+                )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Error listing pods for log capture: {exc}")
+        job_status = is_job_completed(f"run-{run_id}", cluster_info, namespace)
+        if job_status is not None:
+            logger.info(f"Job {job_status}, flushing captured logs in {out_dir}")
+            executor.shutdown(wait=True, cancel_futures=True)
+            return
+        time.sleep(10)
+
+
+def get_pod_postmortem(
+    run_id: str,
+    cluster_info: ClusterInfo,
+    log_dir: str = "logs",
+    namespace: str = "default",
+):
+    """Query K8s for master pod crash info and write postmortem.log."""
+    try:
+        core_api = _reset_core_api(cluster_info)
+        job_name = f"run-{run_id}"
+        pods = core_api.list_namespaced_pod(
+            namespace=namespace, label_selector=f"job-name={job_name}"
+        ).items
+        if not pods:
+            logger.error(f"No master pod found for job `{job_name}` — already deleted?")
+            return
+
+        out_dir = Path(log_dir) / run_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        postmortem_path = out_dir / "postmortem.log"
+
+        lines: list[str] = []
+        for pod in pods:
+            pod_name = pod.metadata.name
+            node_name = pod.spec.node_name or "unknown"
+            phase = pod.status.phase or "unknown"
+
+            lines.append(f"=== Pod: {pod_name} ===")
+            lines.append(f"Node: {node_name}")
+            lines.append(f"Phase: {phase}")
+
+            for cs in pod.status.container_statuses or []:
+                terminated = cs.state.terminated if cs.state else None
+                if terminated:
+                    lines.append(
+                        f"Container `{cs.name}`: reason={terminated.reason}, "
+                        f"exit_code={terminated.exit_code}, "
+                        f"message={terminated.message}"
+                    )
+                elif cs.state and cs.state.waiting:
+                    lines.append(
+                        f"Container `{cs.name}`: waiting, reason={cs.state.waiting.reason}"
+                    )
+
+            try:
+                events = core_api.list_namespaced_event(
+                    namespace=namespace,
+                    field_selector=f"involvedObject.name={pod_name}",
+                ).items
+                if events:
+                    lines.append("Events:")
+                    for evt in sorted(
+                        events, key=lambda e: e.last_timestamp or e.event_time or ""
+                    ):
+                        ts = evt.last_timestamp or evt.event_time or "?"
+                        lines.append(f"  {ts} [{evt.reason}] {evt.message}")
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                lines.append(f"Failed to fetch events: {exc}")
+
+            lines.append("")
+
+        postmortem_text = "\n".join(lines)
+        with open(postmortem_path, "w", encoding="utf-8") as f:
+            f.write(postmortem_text)
+
+        logger.error(f"Post-mortem for run `{run_id}`:\n{postmortem_text}")
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.error(f"Failed to collect post-mortem for run `{run_id}`: {exc}")
+
+
+def _check_pod_disruption(pod, run_id, reported):  # pylint: disable=too-many-return-statements
+    """Check a pod event for disruptions. Returns a message string or None."""
+    pod_name = pod.metadata.name
+    if pod_name in reported or run_id not in pod_name:
+        return None
+    node_name = pod.spec.node_name or "unknown"
+    if pod.status.reason == "Evicted":
+        reported.add(pod_name)
+        return f"[Evicted] {pod_name} on node {node_name}."
+    if not pod.status.container_statuses:
+        return None
+    for cs in pod.status.container_statuses:
+        state = cs.state
+        if not (state and state.terminated):
+            continue
+        msg = None
+        if state.terminated.reason == "OOMKilled":
+            msg = f"[OOMKilled] {pod_name} on node {node_name}."
+        elif state.terminated.exit_code == 137:
+            msg = f"[SIGKILL] {pod_name} on node {node_name}."
+        elif state.terminated.exit_code == 143:
+            msg = f"[SIGTERM] {pod_name} on node {node_name}."
+        if msg:
+            reported.add(pod_name)
+        return msg
+    return None
+
+
+def watch_for_pod_disruptions(
+    run_id: str,
+    namespace="default",
+    log_dir: str | None = None,
+    stop_event: threading.Event | None = None,
+):
+    log_path = None
+    if log_dir:
+        out_dir = Path(log_dir) / run_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        log_path = out_dir / "disruptions.log"
     config.load_kube_config()
     v1 = k8s_client.CoreV1Api()
     w = watch.Watch()
-    pods = set()
+    reported: set[str] = set()
     try:
-        for event in w.stream(v1.list_namespaced_pod, namespace=namespace):
-            pod = event["object"]
-            pod_name = pod.metadata.name
-            if pod_name in pods or run_id not in pod_name:
-                continue
-            if pod.status.container_statuses:
-                for cs in pod.status.container_statuses:
-                    state = cs.state
-                    if state and state.terminated and state.terminated.reason == "OOMKilled":
-                        logger.warning(f"⚠️ [OOMKilled] {pod_name}.")
-                        pods.add(pod_name)
+        while not (stop_event and stop_event.is_set()):
+            for event in w.stream(v1.list_namespaced_pod, namespace=namespace, timeout_seconds=30):
+                if stop_event and stop_event.is_set():
+                    break
+                msg = _check_pod_disruption(event["object"], run_id, reported)
+                if msg:
+                    logger.warning(msg)
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
     except Exception as err:  # pylint: disable=broad-exception-caught
         logger.warning(err)
+    finally:
+        w.stop()
+
+
+_RUN_EVENT_REASONS = {
+    "Killing",
+    "TaintManagerEviction",
+    "ExceededGracePeriod",
+    "Preempting",
+    "Evicted",
+}
+
+
+def watch_for_run_events(
+    run_id: str,
+    namespace="default",
+    log_dir: str | None = None,
+    stop_event: threading.Event | None = None,
+):
+    log_path = None
+    if log_dir:
+        out_dir = Path(log_dir) / run_id
+        out_dir.mkdir(parents=True, exist_ok=True)
+        log_path = out_dir / "events.log"
+    config.load_kube_config()
+    v1 = k8s_client.CoreV1Api()
+    w = watch.Watch()
+    try:
+        while not (stop_event and stop_event.is_set()):
+            pending: list[str] = []
+            for event in w.stream(
+                v1.list_namespaced_event, namespace=namespace, timeout_seconds=30
+            ):
+                if stop_event and stop_event.is_set():
+                    break
+                obj = event["object"]
+                pod_name = obj.involved_object.name if obj.involved_object else ""
+                if run_id not in pod_name:
+                    continue
+                if obj.reason in _RUN_EVENT_REASONS:
+                    if "container " in (obj.message or "") and "container main" not in (
+                        obj.message or ""
+                    ):
+                        continue
+                    msg = f"[K8s:{obj.reason}] {pod_name}: {obj.message}"
+                    pending.append(msg)
+                    if log_path:
+                        with open(log_path, "a", encoding="utf-8") as f:
+                            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+            if pending:
+                logger.warning("\n".join(pending))
+    except Exception as err:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Event watcher error: {err}")
     finally:
         w.stop()

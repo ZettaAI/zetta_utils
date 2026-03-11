@@ -20,7 +20,8 @@ PRICING_LAYERS: dict[str, DBLayer] = {}
 PROVISIONING_MAP: Final[dict[str, str]] = {"PREEMPTIBLE": "preemptible", "STANDARD": "ondemand"}
 EGRESS_COST_PER_GIB_MIN: Final[float] = 0.02
 EGRESS_COST_PER_GIB_MAX: Final[float] = 0.18
-BYTES_PER_GIB: Final[int] = 1024**3
+BYTES_PER_GIB: Final[int] = 1024 ** 3
+_last_gcs_stats: dict[str, tuple] = {}
 
 
 def compute_costs(run_id: str):
@@ -145,13 +146,22 @@ def aggregate_gcs_stats(run_id: str) -> dict | None:
     aggregated["egress_cost_max"] = egress_gib * EGRESS_COST_PER_GIB_MAX
 
     RUN_DB[run_id] = {"gcs_stats": aggregated}
-    if (
-        aggregated["total_class_a"]
-        or aggregated["total_class_b"]
-        or aggregated["total_egress_bytes"]
-    ):
+    try:
+        compute_cost = RUN_DB[(run_id, "compute_cost")]
+    except Exception:  # pylint: disable=broad-exception-caught
+        compute_cost = None
+    _current = (
+        aggregated["total_class_a"],
+        aggregated["total_class_b"],
+        aggregated["total_egress_bytes"],
+        compute_cost,
+    )
+    if any(_current) and _current != _last_gcs_stats.get(run_id):
+        _last_gcs_stats[run_id] = _current
+        cost_str = f"estimated compute=${compute_cost:.2f}, " if compute_cost is not None else ""
         logger.info(
-            f"GCS stats: A={aggregated['total_class_a']} "
+            f"{cost_str}"
+            f"gcs stats: A={aggregated['total_class_a']} "
             f"B={aggregated['total_class_b']} egress={aggregated['total_egress_bytes']} bytes "
             f"(${aggregated['egress_cost_min']:.2f}-${aggregated['egress_cost_max']:.2f}) "
             f"from {pod_count} pods, {len(aggregated['buckets'])} buckets"

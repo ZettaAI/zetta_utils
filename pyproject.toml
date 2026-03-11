@@ -23,7 +23,7 @@ dependencies = [
   "pyyaml ~= 6.0.1",
   "requests >= 2.31.0",
   "requests-oauthlib ~= 1.3",
-  "cloud-files >= 5.3.2",
+  "cloud-files == 6.1.1",
   "packaging >= 23.2",
   "pdbp >= 1.5.3",
   "psutil >= 7.1.0",
@@ -57,7 +57,7 @@ augmentations = [
 ]
 cli = ["click >= 8.0.1"]
 cloudvol = [
-    "cloud-volume[all_codecs] == 12.9.2",
+    "cloud-volume[all_codecs] == 12.10.0",
     "zetta_utils[tensor_ops]"
 ]
 tensorstore = [
@@ -83,7 +83,7 @@ chunkedgraph = [
   "pyyaml",
   "cachetools",
   "werkzeug",
-  "cloud-files>=5.8.1",
+  "cloud-files==6.1.1",
   "zetta_utils[cloudvol]",
   "multiwrapper",
   "middle-auth-client>=3.11.0",
@@ -168,6 +168,7 @@ modules = [
   "zetta_utils[task_management]",
   "zetta_utils[montaging]",
   "zetta_utils[segmentation]",
+  "zetta_utils[calcada]",
   "zetta_utils[meshing]",
   "zetta_utils[skeletonization]",
   "zetta_utils[chunkedgraph]",
@@ -190,6 +191,12 @@ segmentation = [
   "lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976",
   "abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27",
   "waterz @ git+https://github.com/ZettaAI/waterz.git@0bac4be",
+]
+calcada = [
+  "zetta_utils[segmentation]",
+  "clickhouse-connect >= 0.7.0",
+  "clickhouse-driver >= 0.2.0",
+  "cloud-sql-python-connector[pg8000] >= 1.0.0",
 ]
 gpu = []
 skeletonization = [

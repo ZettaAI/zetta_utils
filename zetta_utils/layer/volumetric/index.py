@@ -101,7 +101,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
         """
         return self.bbox.to_slices(self.resolution, self.allow_slice_rounding)
 
-    def padded(self, pad: Sequence[int]) -> VolumetricIndex:
+    def padded(self, pad: Sequence[int | tuple[int, int]]) -> VolumetricIndex:
         """
         Return a new VolumetricIndex that is padded (expanded) relative
         to this one by the given amount in X, Y, and Z.
@@ -115,7 +115,7 @@ class VolumetricIndex:  # pragma: no cover # pure delegation, no logic
             allow_slice_rounding=self.allow_slice_rounding,
         )
 
-    def cropped(self, crop: Sequence[int]) -> VolumetricIndex:
+    def cropped(self, crop: Sequence[int | tuple[int, int]]) -> VolumetricIndex:
         """
         Return a new VolumetricIndex that is cropped (inset) relative
         to this one by the given amount in X, Y, and Z.

@@ -17,7 +17,7 @@ from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.parsing import json
 from zetta_utils.run.costs import aggregate_gcs_stats, compute_costs
-from zetta_utils.run.db import RUN_DB
+from zetta_utils.run.db import GCS_STATS_DB, RUN_DB
 
 logger = log.get_logger("zetta_utils")
 
@@ -95,6 +95,7 @@ def get_latest_checkpoint(run_id: str, zetta_user: str | None = None) -> str:
     fs = GCSFileSystem(project=constants.DEFAULT_PROJECT)
     checkpoints_path = os.path.join(info_path_user, run_id)
     files = fs.ls(checkpoints_path, detail=True)
+    files = [f for f in files if f["name"].endswith(".zstd")]
     files = sorted(files, key=itemgetter("ctime"), reverse=True)
     return files[0]["name"]
 
@@ -139,6 +140,16 @@ def _aggregate_gcs_stats_safe(run_id: str | None) -> None:
         aggregate_gcs_stats(run_id)
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to aggregate GCS stats: {e}")
+
+
+def _cleanup_gcs_stats(run_id: str) -> None:
+    """Delete per-pod GCS stats documents after final aggregation."""
+    try:
+        docs = GCS_STATS_DB.query(column_filter={"run_id": [run_id]})
+        for doc_key in docs:
+            del GCS_STATS_DB[doc_key]
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to cleanup GCS stats: {e}")
 
 
 @contextmanager
@@ -223,5 +234,6 @@ def run_ctx_manager(
             # Final aggregation after repeaters stop
             _update_costs(run_id)
             _aggregate_gcs_stats_safe(run_id)
+            _cleanup_gcs_stats(run_id)
 
         RUN_ID = None

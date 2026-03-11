@@ -674,7 +674,7 @@ def main():
     parser.add_argument(
         "--pcg", action="store_true", default=False, help="Whether or not to install PCG"
     )
-    parser.add_argument("--pcgtag", default="v3_stitch_test_x3", help="PCG repo tag to use")
+    parser.add_argument("--pcgtag", default="v3_stitch_x1", help="PCG repo tag to use")
 
     args = parser.parse_args()
 
@@ -760,7 +760,7 @@ def main():
             )
 
         run_command(
-            f"pip install -r {requirements_file} && pip install --no-deps -e .",
+            f"pip install --no-cache-dir --no-deps -r {requirements_file} && pip install --no-cache-dir --no-deps -e .",
             "Installing pinned dependencies and zetta_utils package",
         )
 

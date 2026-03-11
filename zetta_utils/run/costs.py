@@ -9,7 +9,7 @@ from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.layer.db_layer.layer import DBLayer
 from zetta_utils.log import get_logger
 
-from .db import NODE_DB, RUN_DB
+from .db import GCS_STATS_DB, NODE_DB, RUN_DB
 
 PROJECT = "zetta-research"
 DATABASE_NAME = "pricing-db"
@@ -81,13 +81,12 @@ def aggregate_gcs_stats(run_id: str) -> dict | None:
     """
     Aggregate GCS stats from all pods for a run.
 
-    Aggregates per-bucket stats from gcs_stats_proxy (per-pod stats),
+    Queries per-pod stats documents from gcs-stats-proxy collection,
     merges operation counts per bucket, writes result to gcs_stats field.
     Only counts egress bytes from buckets where region_match is False (cross-region).
     """
-    full_doc = RUN_DB[run_id]
-    stats_map = full_doc.get("gcs_stats_proxy")
-    if not isinstance(stats_map, dict):
+    pod_stats_docs = GCS_STATS_DB.query(column_filter={"run_id": [run_id]})
+    if not pod_stats_docs:
         return None
 
     # Per-bucket aggregation
@@ -102,7 +101,7 @@ def aggregate_gcs_stats(run_id: str) -> dict | None:
     )
     pod_count = 0
 
-    for pod_stats in stats_map.values():
+    for pod_stats in pod_stats_docs.values():
         if not isinstance(pod_stats, dict):
             continue
         buckets_data = pod_stats.get("buckets", {})

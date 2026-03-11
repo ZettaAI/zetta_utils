@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from zetta_utils.internal.alignment.manual_correspondence import (
     apply_correspondences_to_image,
 )
+from zetta_utils.internal.alignment.sift import compute_sift_correspondences
 
 from .utils import generic_exception_handler
 
@@ -68,6 +69,16 @@ class ApplyCorrespondencesRequest(BaseModel):
         description="Mask interpretation: 'tissue' (1=tissue, 0=non-tissue) or "
         "'defect' (1=defect, 0=non-defect). Defect masks are inverted internally.",
     )
+    tgt_image: list[list[list[list[float]]]] | None = Field(
+        None,
+        description="Target section image tensor (C, H, W, 1). When provided with "
+        "mse_weight > 0, enables image-based MSE optimization.",
+    )
+    mse_weight: float = Field(
+        0.0,
+        description="Weight for MSE loss between warped source and target images. "
+        "Only used when tgt_image is provided.",
+    )
 
 
 class ApplyCorrespondencesResponse(BaseModel):
@@ -105,6 +116,7 @@ def _parse_json_request(body: dict, device: torch.device):
 
     src_mask_tensor = None
     tgt_mask_tensor = None
+    tgt_image_tensor = None
 
     if req.src_mask is not None:
         src_mask_tensor = torch.tensor(req.src_mask, dtype=torch.float32, device=device)
@@ -116,12 +128,20 @@ def _parse_json_request(body: dict, device: torch.device):
         if req.mask_type == "defect":
             tgt_mask_tensor = 1.0 - tgt_mask_tensor
 
-    return correspondences_dict, image_tensor, src_mask_tensor, tgt_mask_tensor, {
+    if req.tgt_image is not None:
+        tgt_image_tensor = torch.tensor(req.tgt_image, dtype=torch.float32, device=device)
+
+    params = {
         "num_iter": req.num_iter,
         "rig": req.rig,
         "lr": req.lr,
         "optimizer_type": req.optimizer_type,
+        "mse_weight": req.mse_weight,
     }
+    return (
+        correspondences_dict, image_tensor, src_mask_tensor,
+        tgt_mask_tensor, tgt_image_tensor, params,
+    )
 
 
 async def _read_form_field_bytes(form, field_name: str) -> bytes:
@@ -219,12 +239,30 @@ async def _parse_multipart_request(request: Request, device: torch.device):
         if mask_type == "defect":
             tgt_mask_tensor = 1.0 - tgt_mask_tensor
 
-    return correspondences_dict, image_tensor, src_mask_tensor, tgt_mask_tensor, {
+    tgt_image_tensor = None
+    if "tgt-image-data" in form:
+        if "tgt_image_shape" not in metadata:
+            raise HTTPException(
+                status_code=400,
+                detail="'tgt_image_shape' required in metadata when 'tgt-image-data' is provided",
+            )
+        tgt_img_bytes = await _read_form_field_bytes(form, "tgt-image-data")
+        tgt_img_np = _read_tensor_from_bytes(
+            tgt_img_bytes, metadata["tgt_image_shape"], "tgt-image-data"
+        )
+        tgt_image_tensor = torch.tensor(tgt_img_np, dtype=torch.float32, device=device)
+
+    params = {
         "num_iter": metadata.get("num_iter", 200),
         "rig": metadata.get("rig", 1000),
         "lr": metadata.get("lr", 1e-3),
         "optimizer_type": metadata.get("optimizer_type", "adam"),
+        "mse_weight": metadata.get("mse_weight", 1.0),
     }
+    return (
+        correspondences_dict, image_tensor, src_mask_tensor,
+        tgt_mask_tensor, tgt_image_tensor, params,
+    )
 
 
 def _build_json_response(relaxed_field_np: np.ndarray, warped_image_np: np.ndarray):
@@ -306,20 +344,36 @@ async def apply_correspondences(request: Request):
 
     content_type = request.headers.get("content-type", "")
     if "multipart/form-data" in content_type:
-        correspondences_dict, image_tensor, src_mask_tensor, tgt_mask_tensor, params = (
-            await _parse_multipart_request(request, device)
-        )
+        (
+            correspondences_dict, image_tensor, src_mask_tensor,
+            tgt_mask_tensor, tgt_image_tensor, params,
+        ) = await _parse_multipart_request(request, device)
     else:
         body = await request.json()
-        correspondences_dict, image_tensor, src_mask_tensor, tgt_mask_tensor, params = (
-            _parse_json_request(body, device)
-        )
+        (
+            correspondences_dict, image_tensor, src_mask_tensor,
+            tgt_mask_tensor, tgt_image_tensor, params,
+        ) = _parse_json_request(body, device)
+
+    print(f"[apply_correspondences] tgt_image_tensor is None: "
+          f"{tgt_image_tensor is None}")
+    if tgt_image_tensor is not None:
+        print(f"[apply_correspondences] tgt_image_tensor "
+              f"shape: {tgt_image_tensor.shape}, "
+              f"min: {tgt_image_tensor.min().item():.4f}, "
+              f"max: {tgt_image_tensor.max().item():.4f}")
+    print(f"[apply_correspondences] image_tensor "
+          f"shape: {image_tensor.shape}, "
+          f"min: {image_tensor.min().item():.4f}, "
+          f"max: {image_tensor.max().item():.4f}")
+    print(f"[apply_correspondences] params: {params}")
 
     relaxed_field, warped_image = apply_correspondences_to_image(
         correspondences_dict=correspondences_dict,
         image=image_tensor,
         src_mask=src_mask_tensor,
         tgt_mask=tgt_mask_tensor,
+        tgt_image=tgt_image_tensor,
         **params,
     )
 
@@ -331,3 +385,124 @@ async def apply_correspondences(request: Request):
         return _build_binary_response(relaxed_field_np, warped_image_np, compress)
 
     return _build_json_response(relaxed_field_np, warped_image_np)
+
+
+class ComputeSiftCorrespondencesRequest(BaseModel):
+    src_image: str = Field(..., description="Base64-encoded uint8 image bytes")
+    tgt_image: str = Field(..., description="Base64-encoded uint8 image bytes")
+    src_image_shape: list[int] = Field(..., description="Image shape [H, W]")
+    tgt_image_shape: list[int] = Field(..., description="Image shape [H, W]")
+    num_correspondences: int = Field(200, description="Number of output correspondences")
+    num_octaves: int = Field(3, description="Number of octaves for SIFT")
+    contrast_threshold: float = Field(0.04, description="Contrast threshold for SIFT")
+    edge_threshold: float = Field(10, description="Edge threshold for SIFT")
+    sigma: float = Field(1.6, description="Sigma for SIFT")
+    ratio_test_fraction: float = Field(0.7, description="Lowe's ratio test fraction")
+    ransac_threshold: float = Field(3.0, description="RANSAC reprojection threshold")
+    spatial_weight: float = Field(
+        0.7,
+        description="Weight for spatial diversity vs match quality",
+    )
+    swap_xy: bool = Field(
+        True,
+        description="If true, output [y, x] (Portal convention). If false, output [x, y].",
+    )
+
+
+class ComputeSiftCorrespondencesResponse(BaseModel):
+    lines: list[CorrespondenceLine] = Field(..., description="Correspondence lines")
+    num_inliers: int = Field(..., description="Number of RANSAC inliers")
+    num_matches: int = Field(..., description="Number of good matches before RANSAC")
+
+
+@api.post("/compute_sift_correspondences")
+async def compute_sift_correspondences_endpoint(request: Request):
+    """Compute SIFT correspondences between two images.
+
+    Supports two request formats:
+    - application/json: JSON body with base64-encoded image bytes
+    - multipart/form-data: Binary image data with JSON metadata
+
+    For multipart, send:
+    - "src-image-data": binary file upload (uint8 image bytes)
+    - "tgt-image-data": binary file upload (uint8 image bytes)
+    - "metadata": JSON string with src_image_shape, tgt_image_shape, and SIFT params
+    """
+    content_type = request.headers.get("content-type", "")
+
+    sift_param_keys = [
+        "num_correspondences", "num_octaves", "contrast_threshold",
+        "edge_threshold", "sigma", "ratio_test_fraction",
+        "ransac_threshold", "spatial_weight", "swap_xy",
+    ]
+    sift_param_defaults = {
+        "num_correspondences": 200, "num_octaves": 3, "contrast_threshold": 0.04,
+        "edge_threshold": 10, "sigma": 1.6, "ratio_test_fraction": 0.7,
+        "ransac_threshold": 3.0, "spatial_weight": 0.7, "swap_xy": True,
+    }
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+
+        if "metadata" not in form:
+            raise HTTPException(status_code=400, detail="Missing required field: 'metadata'")
+        if "src-image-data" not in form:
+            raise HTTPException(
+                status_code=400, detail="Missing required field: 'src-image-data'"
+            )
+        if "tgt-image-data" not in form:
+            raise HTTPException(
+                status_code=400, detail="Missing required field: 'tgt-image-data'"
+            )
+
+        metadata_str = await _read_form_field_str(form, "metadata")
+        try:
+            metadata = json.loads(metadata_str)
+        except json.JSONDecodeError as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid JSON in 'metadata': {e}"
+            ) from e
+
+        missing = [
+            k for k in ("src_image_shape", "tgt_image_shape") if k not in metadata
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required metadata fields: {missing}",
+            )
+
+        src_bytes = await _read_form_field_bytes(form, "src-image-data")
+        tgt_bytes = await _read_form_field_bytes(form, "tgt-image-data")
+
+        src_shape = metadata["src_image_shape"]
+        tgt_shape = metadata["tgt_image_shape"]
+
+        src_image = np.frombuffer(src_bytes, dtype=np.uint8).reshape(src_shape)
+        tgt_image = np.frombuffer(tgt_bytes, dtype=np.uint8).reshape(tgt_shape)
+
+        sift_params = {
+            k: metadata.get(k, sift_param_defaults[k]) for k in sift_param_keys
+        }
+    else:
+        body = await request.json()
+        req = ComputeSiftCorrespondencesRequest(**body)
+
+        src_image = np.frombuffer(
+            base64.b64decode(req.src_image), dtype=np.uint8
+        ).reshape(req.src_image_shape)
+        tgt_image = np.frombuffer(
+            base64.b64decode(req.tgt_image), dtype=np.uint8
+        ).reshape(req.tgt_image_shape)
+
+        sift_params = {k: getattr(req, k) for k in sift_param_keys}
+
+    result = compute_sift_correspondences(
+        src=src_image, tgt=tgt_image, **sift_params
+    )
+
+    return ComputeSiftCorrespondencesResponse(
+        lines=[CorrespondenceLine(**line) for line in result["lines"]],
+        num_inliers=result["num_inliers"],
+        num_matches=result["num_matches"],
+    )

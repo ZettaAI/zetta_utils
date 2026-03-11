@@ -129,7 +129,7 @@ def _update_firestore_loop(run_id: str, compute_region: str | None, stop_event: 
                             bucket_name
                         ]
 
-            write_stats(run_id, pod_name, "gcs_stats_proxy", stats)
+            write_stats(run_id, pod_name, stats)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to update GCS stats in Firestore: {e}", exc_info=True)
 
@@ -217,7 +217,7 @@ def _wait_for_main_container_exit():
 
 def _initialize_stats_file(run_id: str, pod_name: str):
     """Initialize stats file, loading existing stats if pod restarted."""
-    existing = read_existing_stats(run_id, pod_name, "gcs_stats_proxy")
+    existing = read_existing_stats(run_id, pod_name)
     if existing and existing.get("buckets"):
         bucket_count = len(existing.get("buckets", {}))
         logger.info(f"Resumed GCS stats: {bucket_count} bucket(s)")
@@ -245,7 +245,7 @@ def _write_final_stats(run_id: str, pod_name: str) -> None:
     """Write final GCS stats on shutdown."""
     try:
         stats = _read_stats_from_file()
-        write_stats(run_id, pod_name, "gcs_stats_proxy", stats)
+        write_stats(run_id, pod_name, stats)
         bucket_count = len(stats.get("buckets", {}))
         logger.info(f"Final GCS stats: {bucket_count} bucket(s)")
     except Exception as e:  # pylint: disable=broad-exception-caught

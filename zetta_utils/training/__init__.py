@@ -1,1 +1,1 @@
-from . import data_loader, datasets, lightning, sampler
+from . import data_loader, datasets, example_regimes, lightning, sampler

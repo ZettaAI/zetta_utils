@@ -147,12 +147,17 @@ def secrets_ctx_mngr(
     cluster_info: ClusterInfo,
     namespace: Optional[str] = "default",
 ):
+    if len(secrets) == 0:
+        yield
+        return
+
     configuration, _ = get_cluster_data(cluster_info)
     k8s_client.Configuration.set_default(configuration)
     k8s_core_v1_api = k8s_client.CoreV1Api()
     secrets_resource_ids = []
+    logger.info("Creating k8s secrets, use debug to list all.")
     for secret in secrets:
-        logger.info(f"Creating k8s secret `{secret.metadata.name}`")
+        logger.debug(f"Creating k8s secret `{secret.metadata.name}`")
         k8s_core_v1_api.create_namespaced_secret(namespace=namespace, body=secret)
         _id = register_resource(
             Resource(
@@ -172,8 +177,9 @@ def secrets_ctx_mngr(
 
         # need to create a new client for the above to take effect
         k8s_core_v1_api = k8s_client.CoreV1Api()
+        logger.info("Deleting k8s secrets, use debug to list all.")
         for secret, _id in zip(secrets, secrets_resource_ids):
-            logger.info(f"Deleting k8s secret `{secret.metadata.name}`")
+            logger.debug(f"Deleting k8s secret `{secret.metadata.name}`")
             k8s_core_v1_api.delete_namespaced_secret(
                 name=secret.metadata.name, namespace=namespace
             )

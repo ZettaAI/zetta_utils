@@ -331,7 +331,7 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         )
 
         thread = threading.Thread(
-            target=k8s.pod.watch_for_oom_kills, args=(run.RUN_ID,), daemon=True
+            target=k8s.pod.watch_for_pod_disruptions, args=(run.RUN_ID,), daemon=True
         )
         thread.start()
 

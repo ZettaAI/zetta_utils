@@ -59,7 +59,7 @@ def get_time_str(log_time):
 SAVED_LEVEL = "ERROR"
 
 
-def configure_logger(level=None, third_party_level="ERROR", force=False):
+def configure_logger(level=None, third_party_level="ERROR", force=False, root_level=None):
     """
     Configures the logging system with customizable settings.
 
@@ -136,7 +136,7 @@ def configure_logger(level=None, third_party_level="ERROR", force=False):
     # if LOKI_HANDLER is not None:
     #    handlers.append(LOKI_HANDLER)
     logging.basicConfig(
-        level=level,
+        level=root_level if root_level is not None else level,
         format="[PID %(process)d] %(name)s %(pathname)20s:%(lineno)4d \n%(message)s",
         handlers=handlers,
         force=force,
@@ -166,6 +166,23 @@ def get_logger(name="zetta_utils"):
     return logging.getLogger(name)
 
 
+SIMPLE_LOGGERS: list[str] = []
+
+
+def get_simple_logger(name="zetta_utils.fwd"):
+    configure_logger()
+    simple_logger = logging.getLogger(name)
+    if not simple_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        simple_logger.addHandler(handler)
+        simple_logger.propagate = False
+        simple_logger.setLevel(SAVED_LEVEL)
+    if name not in SIMPLE_LOGGERS:
+        SIMPLE_LOGGERS.append(name)
+    return simple_logger
+
+
 def set_verbosity(verbosity_level):
     """
     Set the log level of the zetta_utils and mazepa loggers, as well as the default
@@ -182,6 +199,8 @@ def set_verbosity(verbosity_level):
     SAVED_LEVEL = verbosity_level
     logging.getLogger("zetta_utils").setLevel(verbosity_level)
     logging.getLogger("mazepa").setLevel(verbosity_level)
+    for name in SIMPLE_LOGGERS:
+        logging.getLogger(name).setLevel(verbosity_level)
 
 
 ENV_CTX_VARS = [

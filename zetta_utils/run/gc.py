@@ -147,6 +147,12 @@ def _delete_k8s_resource(resource_id: str, resource: Resource) -> bool:
                 namespace="default",
                 propagation_policy="Foreground",
             )
+        elif resource.type == ResourceTypes.K8S_STATEFULSET.value:
+            logger.info(f"Deleting k8s statefulset `{resource.name}`")
+            k8s_apps_v1_api.delete_namespaced_stateful_set(name=resource.name, namespace="default")
+        elif resource.type == ResourceTypes.K8S_SERVICE.value:
+            logger.info(f"Deleting k8s service `{resource.name}`")
+            k8s_core_v1_api.delete_namespaced_service(name=resource.name, namespace="default")
         deregister_resource(resource_id)
     except k8s_client.ApiException as exc:
         if exc.status == 404:

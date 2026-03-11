@@ -21,6 +21,7 @@ class ResourceTypes(Enum):
     K8S_JOB = "k8s_job"
     K8S_SECRET = "k8s_secret"
     K8S_SERVICE = "k8s_service"
+    K8S_STATEFULSET = "k8s_statefulset"
     SQS_QUEUE = "sqs_queue"
 
 

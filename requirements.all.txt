@@ -1219,7 +1219,7 @@ torchvision==0.24.1
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
-tornado==6.5.3
+tornado==6.5.5
     # via neuroglancer
 tqdm==4.67.1
     # via

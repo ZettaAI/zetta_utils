@@ -744,7 +744,7 @@ opentelemetry-semantic-conventions==0.60b1
     # via opentelemetry-sdk
 orderedmultidict==1.0.2
     # via furl
-orjson==3.11.5
+orjson==3.11.6
     # via
     #   cloud-files
     #   meshparty

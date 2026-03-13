@@ -1379,6 +1379,7 @@ class ContactMergeOp:
     contact_label: float | None = 0.0
     affinity_channel_mode: str | None = None
     config_key: tuple[int, int] | None = None
+    max_batch_size: int | None = None
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -1434,13 +1435,23 @@ class ContactMergeOp:
         # Run model inference
         t0 = time.time()
         with semaphore("cuda"), torch.no_grad():
-            output = convnet.utils.load_and_run_model(path=self.model_path, data_in=tensor)
+            if self.max_batch_size is None:
+                output = convnet.utils.load_and_run_model(path=self.model_path, data_in=tensor)
+                if self.apply_sigmoid:
+                    output = torch.sigmoid(output)
+                probs = output.squeeze().cpu()
+                torch.cuda.empty_cache()
+            else:
+                prob_chunks = []
+                for i in range(0, tensor.shape[0], self.max_batch_size):
+                    batch = tensor[i : i + self.max_batch_size]
+                    out = convnet.utils.load_and_run_model(path=self.model_path, data_in=batch)
+                    if self.apply_sigmoid:
+                        out = torch.sigmoid(out)
+                    prob_chunks.append(out.squeeze(-1).cpu())
+                    torch.cuda.empty_cache()
+                probs = torch.cat(prob_chunks, dim=0).squeeze()
 
-            if self.apply_sigmoid:
-                output = torch.sigmoid(output)
-
-            probs = output.squeeze().cpu()
-            torch.cuda.empty_cache()
         if probs.dim() == 0:
             probs = probs.unsqueeze(0)
         logger.info(f"[{coord_str}] Model inference: {time.time() - t0:.1f}s")

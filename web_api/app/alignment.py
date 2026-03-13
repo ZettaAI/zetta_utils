@@ -33,9 +33,7 @@ class CorrespondenceLine(BaseModel):
 
 
 class CorrespondencesDict(BaseModel):
-    lines: list[CorrespondenceLine] = Field(
-        ..., description="List of correspondence lines"
-    )
+    lines: list[CorrespondenceLine] = Field(..., description="List of correspondence lines")
 
 
 class ApplyCorrespondencesRequest(BaseModel):
@@ -46,14 +44,9 @@ class ApplyCorrespondencesRequest(BaseModel):
         ..., description="Image tensor as nested list (C, H, W, 1)"
     )
     num_iter: int = Field(200, description="Number of optimization iterations")
-    rig: float = Field(
-        1000,
-        description="Rigidity penalty weight controlling smoothness"
-    )
+    rig: float = Field(1000, description="Rigidity penalty weight controlling smoothness")
     lr: float = Field(1e-3, description="Learning rate for optimization")
-    optimizer_type: str = Field(
-        "adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)"
-    )
+    optimizer_type: str = Field("adam", description="Optimizer to use (adam, lbfgs, sgd, adamw)")
     src_mask: list[list[list[list[float]]]] | None = Field(
         None,
         description="Binary mask for source, shape (1, H, W, 1). "
@@ -82,15 +75,11 @@ class ApplyCorrespondencesRequest(BaseModel):
 
 
 class ApplyCorrespondencesResponse(BaseModel):
-    relaxed_field: str = Field(
-        ..., description="Base64-encoded relaxed field (float32 binary)"
-    )
+    relaxed_field: str = Field(..., description="Base64-encoded relaxed field (float32 binary)")
     relaxed_field_shape: list[int] = Field(
         ..., description="Shape of relaxed_field array [C, H, W, 1]"
     )
-    warped_image: str = Field(
-        ..., description="Base64-encoded warped image (float32 binary)"
-    )
+    warped_image: str = Field(..., description="Base64-encoded warped image (float32 binary)")
     warped_image_shape: list[int] = Field(
         ..., description="Shape of warped_image array [C, H, W, 1]"
     )
@@ -139,8 +128,12 @@ def _parse_json_request(body: dict, device: torch.device):
         "mse_weight": req.mse_weight,
     }
     return (
-        correspondences_dict, image_tensor, src_mask_tensor,
-        tgt_mask_tensor, tgt_image_tensor, params,
+        correspondences_dict,
+        image_tensor,
+        src_mask_tensor,
+        tgt_mask_tensor,
+        tgt_image_tensor,
+        params,
     )
 
 
@@ -170,9 +163,7 @@ async def _read_form_field_str(form, field_name: str) -> str:
     return str(value)
 
 
-def _read_tensor_from_bytes(
-    data: bytes, shape: list[int], field_name: str
-) -> np.ndarray:
+def _read_tensor_from_bytes(data: bytes, shape: list[int], field_name: str) -> np.ndarray:
     data = _decompress_if_gzipped(data)
     expected_size = int(np.prod(shape)) * 4
     if len(data) != expected_size:
@@ -260,8 +251,12 @@ async def _parse_multipart_request(request: Request, device: torch.device):
         "mse_weight": metadata.get("mse_weight", 1.0),
     }
     return (
-        correspondences_dict, image_tensor, src_mask_tensor,
-        tgt_mask_tensor, tgt_image_tensor, params,
+        correspondences_dict,
+        image_tensor,
+        src_mask_tensor,
+        tgt_mask_tensor,
+        tgt_image_tensor,
+        params,
     )
 
 
@@ -279,10 +274,12 @@ def _build_json_response(relaxed_field_np: np.ndarray, warped_image_np: np.ndarr
 def _build_binary_response(
     relaxed_field_np: np.ndarray, warped_image_np: np.ndarray, compress: bool
 ):
-    header_json = json.dumps({
-        "relaxed_field_shape": list(relaxed_field_np.shape),
-        "warped_image_shape": list(warped_image_np.shape),
-    }).encode()
+    header_json = json.dumps(
+        {
+            "relaxed_field_shape": list(relaxed_field_np.shape),
+            "warped_image_shape": list(warped_image_np.shape),
+        }
+    ).encode()
 
     buf = io.BytesIO()
     buf.write(struct.pack("<I", len(header_json)))
@@ -345,27 +342,38 @@ async def apply_correspondences(request: Request):
     content_type = request.headers.get("content-type", "")
     if "multipart/form-data" in content_type:
         (
-            correspondences_dict, image_tensor, src_mask_tensor,
-            tgt_mask_tensor, tgt_image_tensor, params,
+            correspondences_dict,
+            image_tensor,
+            src_mask_tensor,
+            tgt_mask_tensor,
+            tgt_image_tensor,
+            params,
         ) = await _parse_multipart_request(request, device)
     else:
         body = await request.json()
         (
-            correspondences_dict, image_tensor, src_mask_tensor,
-            tgt_mask_tensor, tgt_image_tensor, params,
+            correspondences_dict,
+            image_tensor,
+            src_mask_tensor,
+            tgt_mask_tensor,
+            tgt_image_tensor,
+            params,
         ) = _parse_json_request(body, device)
 
-    print(f"[apply_correspondences] tgt_image_tensor is None: "
-          f"{tgt_image_tensor is None}")
+    print(f"[apply_correspondences] tgt_image_tensor is None: " f"{tgt_image_tensor is None}")
     if tgt_image_tensor is not None:
-        print(f"[apply_correspondences] tgt_image_tensor "
-              f"shape: {tgt_image_tensor.shape}, "
-              f"min: {tgt_image_tensor.min().item():.4f}, "
-              f"max: {tgt_image_tensor.max().item():.4f}")
-    print(f"[apply_correspondences] image_tensor "
-          f"shape: {image_tensor.shape}, "
-          f"min: {image_tensor.min().item():.4f}, "
-          f"max: {image_tensor.max().item():.4f}")
+        print(
+            f"[apply_correspondences] tgt_image_tensor "
+            f"shape: {tgt_image_tensor.shape}, "
+            f"min: {tgt_image_tensor.min().item():.4f}, "
+            f"max: {tgt_image_tensor.max().item():.4f}"
+        )
+    print(
+        f"[apply_correspondences] image_tensor "
+        f"shape: {image_tensor.shape}, "
+        f"min: {image_tensor.min().item():.4f}, "
+        f"max: {image_tensor.max().item():.4f}"
+    )
     print(f"[apply_correspondences] params: {params}")
 
     relaxed_field, warped_image = apply_correspondences_to_image(
@@ -399,6 +407,7 @@ class ComputeSiftCorrespondencesRequest(BaseModel):
     sigma: float = Field(1.6, description="Sigma for SIFT")
     ratio_test_fraction: float = Field(0.7, description="Lowe's ratio test fraction")
     ransac_threshold: float = Field(3.0, description="RANSAC reprojection threshold")
+    use_ransac: bool = Field(False, description="If true, apply RANSAC outlier filtering")
     spatial_weight: float = Field(
         0.7,
         description="Weight for spatial diversity vs match quality",
@@ -415,31 +424,38 @@ class ComputeSiftCorrespondencesResponse(BaseModel):
     num_matches: int = Field(..., description="Number of good matches before RANSAC")
 
 
-@api.post("/compute_sift_correspondences")
-async def compute_sift_correspondences_endpoint(request: Request):
-    """Compute SIFT correspondences between two images.
+_SIFT_PARAM_KEYS = [
+    "num_correspondences",
+    "num_octaves",
+    "contrast_threshold",
+    "edge_threshold",
+    "sigma",
+    "ratio_test_fraction",
+    "ransac_threshold",
+    "use_ransac",
+    "spatial_weight",
+    "swap_xy",
+]
 
-    Supports two request formats:
-    - application/json: JSON body with base64-encoded image bytes
-    - multipart/form-data: Binary image data with JSON metadata
+_SIFT_PARAM_DEFAULTS = {
+    "num_correspondences": 200,
+    "num_octaves": 3,
+    "contrast_threshold": 0.04,
+    "edge_threshold": 10,
+    "sigma": 1.6,
+    "ratio_test_fraction": 0.7,
+    "ransac_threshold": 3.0,
+    "use_ransac": False,
+    "spatial_weight": 0.7,
+    "swap_xy": True,
+}
 
-    For multipart, send:
-    - "src-image-data": binary file upload (uint8 image bytes)
-    - "tgt-image-data": binary file upload (uint8 image bytes)
-    - "metadata": JSON string with src_image_shape, tgt_image_shape, and SIFT params
-    """
+
+async def _parse_sift_request(
+    request: Request, use_ransac_default: bool
+) -> tuple[np.ndarray, np.ndarray, dict]:
     content_type = request.headers.get("content-type", "")
-
-    sift_param_keys = [
-        "num_correspondences", "num_octaves", "contrast_threshold",
-        "edge_threshold", "sigma", "ratio_test_fraction",
-        "ransac_threshold", "spatial_weight", "swap_xy",
-    ]
-    sift_param_defaults = {
-        "num_correspondences": 200, "num_octaves": 3, "contrast_threshold": 0.04,
-        "edge_threshold": 10, "sigma": 1.6, "ratio_test_fraction": 0.7,
-        "ransac_threshold": 3.0, "spatial_weight": 0.7, "swap_xy": True,
-    }
+    defaults = {**_SIFT_PARAM_DEFAULTS, "use_ransac": use_ransac_default}
 
     if "multipart/form-data" in content_type:
         form = await request.form()
@@ -447,25 +463,17 @@ async def compute_sift_correspondences_endpoint(request: Request):
         if "metadata" not in form:
             raise HTTPException(status_code=400, detail="Missing required field: 'metadata'")
         if "src-image-data" not in form:
-            raise HTTPException(
-                status_code=400, detail="Missing required field: 'src-image-data'"
-            )
+            raise HTTPException(status_code=400, detail="Missing required field: 'src-image-data'")
         if "tgt-image-data" not in form:
-            raise HTTPException(
-                status_code=400, detail="Missing required field: 'tgt-image-data'"
-            )
+            raise HTTPException(status_code=400, detail="Missing required field: 'tgt-image-data'")
 
         metadata_str = await _read_form_field_str(form, "metadata")
         try:
             metadata = json.loads(metadata_str)
         except json.JSONDecodeError as e:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid JSON in 'metadata': {e}"
-            ) from e
+            raise HTTPException(status_code=400, detail=f"Invalid JSON in 'metadata': {e}") from e
 
-        missing = [
-            k for k in ("src_image_shape", "tgt_image_shape") if k not in metadata
-        ]
+        missing = [k for k in ("src_image_shape", "tgt_image_shape") if k not in metadata]
         if missing:
             raise HTTPException(
                 status_code=400,
@@ -475,34 +483,49 @@ async def compute_sift_correspondences_endpoint(request: Request):
         src_bytes = await _read_form_field_bytes(form, "src-image-data")
         tgt_bytes = await _read_form_field_bytes(form, "tgt-image-data")
 
-        src_shape = metadata["src_image_shape"]
-        tgt_shape = metadata["tgt_image_shape"]
+        src_image = np.frombuffer(src_bytes, dtype=np.uint8).reshape(metadata["src_image_shape"])
+        tgt_image = np.frombuffer(tgt_bytes, dtype=np.uint8).reshape(metadata["tgt_image_shape"])
 
-        src_image = np.frombuffer(src_bytes, dtype=np.uint8).reshape(src_shape)
-        tgt_image = np.frombuffer(tgt_bytes, dtype=np.uint8).reshape(tgt_shape)
-
-        sift_params = {
-            k: metadata.get(k, sift_param_defaults[k]) for k in sift_param_keys
-        }
+        sift_params = {k: metadata.get(k, defaults[k]) for k in _SIFT_PARAM_KEYS}
     else:
         body = await request.json()
-        req = ComputeSiftCorrespondencesRequest(**body)
+        req = ComputeSiftCorrespondencesRequest(
+            **{**body, "use_ransac": body.get("use_ransac", use_ransac_default)}
+        )
 
-        src_image = np.frombuffer(
-            base64.b64decode(req.src_image), dtype=np.uint8
-        ).reshape(req.src_image_shape)
-        tgt_image = np.frombuffer(
-            base64.b64decode(req.tgt_image), dtype=np.uint8
-        ).reshape(req.tgt_image_shape)
+        src_image = np.frombuffer(base64.b64decode(req.src_image), dtype=np.uint8).reshape(
+            req.src_image_shape
+        )
+        tgt_image = np.frombuffer(base64.b64decode(req.tgt_image), dtype=np.uint8).reshape(
+            req.tgt_image_shape
+        )
 
-        sift_params = {k: getattr(req, k) for k in sift_param_keys}
+        sift_params = {k: getattr(req, k) for k in _SIFT_PARAM_KEYS}
 
-    result = compute_sift_correspondences(
-        src=src_image, tgt=tgt_image, **sift_params
-    )
+    return src_image, tgt_image, sift_params
+
+
+async def _run_sift_correspondences(
+    request: Request, use_ransac_default: bool
+) -> ComputeSiftCorrespondencesResponse:
+    src_image, tgt_image, sift_params = await _parse_sift_request(request, use_ransac_default)
+
+    result = compute_sift_correspondences(src=src_image, tgt=tgt_image, **sift_params)
 
     return ComputeSiftCorrespondencesResponse(
         lines=[CorrespondenceLine(**line) for line in result["lines"]],
         num_inliers=result["num_inliers"],
         num_matches=result["num_matches"],
     )
+
+
+@api.post("/compute_sift_correspondences")
+async def compute_sift_correspondences_endpoint(request: Request):
+    """Compute SIFT correspondences between two images (with RANSAC filtering by default)."""
+    return await _run_sift_correspondences(request, use_ransac_default=False)
+
+
+@api.post("/compute_automatic_correspondences")
+async def compute_automatic_correspondences_endpoint(request: Request):
+    """Compute automatic correspondences between two images (no RANSAC filtering by default)."""
+    return await _run_sift_correspondences(request, use_ransac_default=False)

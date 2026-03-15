@@ -4,6 +4,8 @@ scripts/
 notebooks/
 layer/
 tests/
+local_*_outcome_queue/
+local_*_task_queue/
 *.tif
 *.txt
 *.json

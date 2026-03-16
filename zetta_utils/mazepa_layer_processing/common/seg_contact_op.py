@@ -1436,7 +1436,9 @@ class ContactMergeOp:
         t0 = time.time()
         with semaphore("cuda"), torch.no_grad():
             if self.max_batch_size is None:
-                output = convnet.utils.load_and_run_model(path=self.model_path, data_in=tensor)
+                output = convnet.utils.load_and_run_model(
+                    path=self.model_path, data_in=tensor, autocast=False
+                )
                 if self.apply_sigmoid:
                     output = torch.sigmoid(output)
                 probs = output.squeeze().cpu()
@@ -1445,7 +1447,9 @@ class ContactMergeOp:
                 prob_chunks = []
                 for i in range(0, tensor.shape[0], self.max_batch_size):
                     batch = tensor[i : i + self.max_batch_size]
-                    out = convnet.utils.load_and_run_model(path=self.model_path, data_in=batch)
+                    out = convnet.utils.load_and_run_model(
+                        path=self.model_path, data_in=batch, autocast=False
+                    )
                     if self.apply_sigmoid:
                         out = torch.sigmoid(out)
                     prob_chunks.append(out.squeeze(-1).cpu())

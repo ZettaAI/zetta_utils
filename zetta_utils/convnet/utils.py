@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import os
+from contextlib import nullcontext
 from typing import Literal, Optional, Sequence, Union, overload
 
 import cachetools
@@ -169,6 +170,7 @@ def load_and_run_model(
     use_cache: bool = ...,
     tensorrt_enabled: bool = ...,
     tensorrt_cache_dir: str = ...,
+    autocast: bool = ...,
 ) -> torch.Tensor:
     ...
 
@@ -181,6 +183,7 @@ def load_and_run_model(
     use_cache: bool = ...,
     tensorrt_enabled: bool = ...,
     tensorrt_cache_dir: str = ...,
+    autocast: bool = ...,
 ) -> npt.NDArray:
     ...
 
@@ -193,6 +196,7 @@ def load_and_run_model(
     use_cache=True,
     tensorrt_enabled: bool = False,
     tensorrt_cache_dir: str = ".",
+    autocast: bool = True,
 ):  # pragma: no cover
 
     if device is None:
@@ -209,7 +213,8 @@ def load_and_run_model(
 
     autocast_device = device.type if isinstance(device, torch.device) else str(device)
     with torch.inference_mode():  # uses less memory when used with JITs
-        with torch.autocast(device_type=autocast_device):
+        ctx = torch.autocast(device_type=autocast_device) if autocast else nullcontext()
+        with ctx:
             gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
             output = model(gpu_input)
             del gpu_input

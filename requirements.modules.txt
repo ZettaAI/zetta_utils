@@ -866,7 +866,7 @@ pygments==2.19.2
     #   rich
 pylsqpack==0.3.23
     # via aioquic
-pyopenssl==25.3.0
+pyopenssl==26.0.0
     # via
     #   aioquic
     #   mitmproxy

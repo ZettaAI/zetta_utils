@@ -3,7 +3,7 @@
 
 Interactive dashboard: scatter plot (mean affinity vs shape score),
 PR/ROC curves, confusion matrix, sample tables with neuroglancer links,
-dataset filtering, and annotation support.
+dataset filtering, model authority selection, and annotation support.
 
 Usage:
     python scripts/visualize_validation_results.py \
@@ -11,9 +11,17 @@ Usage:
         --authority model_v7.0_... \
         --gt-authority ground_truth \
         --output validation_results.html
+
+    # Auto-discover all authorities:
+    python scripts/visualize_validation_results.py \
+        --paths gs://martin_exp/.../contacts_x1 \
+        --gt-authority ground_truth \
+        --output validation_results.html
 """
 
 import argparse
+import base64
+import gzip
 import io
 import json
 import struct
@@ -150,8 +158,25 @@ def read_merge_probabilities_chunk(fs, path):
 # Data collection
 # ---------------------------------------------------------------------------
 
-def collect_dataset(path, authority, gt_authority, bbox_start, bbox_end, resolution):
-    """Collect contacts with GT and predictions for one dataset."""
+def discover_authorities(path, gt_authority):
+    """Discover available merge probability authorities for a dataset."""
+    fs, base_path = fsspec.core.url_to_fs(path)
+    probs_dir = f"{base_path}/merge_probabilities"
+    try:
+        entries = fs.ls(probs_dir)
+    except FileNotFoundError:
+        return []
+    authorities = []
+    for entry in entries:
+        name = entry.rstrip("/").split("/")[-1]
+        if name != gt_authority:
+            authorities.append(name)
+    authorities.sort()
+    return authorities
+
+
+def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resolution):
+    """Collect contacts with GT and predictions for one dataset, multiple authorities."""
     fs, base_path = fsspec.core.url_to_fs(path)
     info = read_info(path)
     format_version = info.get("format_version", "1.0")
@@ -173,9 +198,12 @@ def collect_dataset(path, authority, gt_authority, bbox_start, bbox_end, resolut
         gt_decisions = read_merge_decisions_chunk(
             fs, f"{base_path}/merge_decisions/{gt_authority}/{chunk_key}"
         )
-        predictions = read_merge_probabilities_chunk(
-            fs, f"{base_path}/merge_probabilities/{authority}/{chunk_key}"
-        )
+        # Read predictions for all authorities
+        all_predictions = {}
+        for auth in authorities:
+            all_predictions[auth] = read_merge_probabilities_chunk(
+                fs, f"{base_path}/merge_probabilities/{auth}/{chunk_key}"
+            )
 
         if not contacts:
             continue
@@ -192,13 +220,21 @@ def collect_dataset(path, authority, gt_authority, bbox_start, bbox_end, resolut
             if contact_id not in gt_decisions:
                 n_no_gt += 1
                 continue
-            if contact_id not in predictions:
+
+            # Collect scores from all authorities that have this contact
+            scores = {}
+            for auth in authorities:
+                if contact_id in all_predictions[auth]:
+                    score = all_predictions[auth][contact_id]
+                    if np.isfinite(score):
+                        scores[auth] = score
+
+            if not scores:
                 n_no_pred += 1
                 continue
 
-            shape_score = predictions[contact_id]
             mean_aff = contact["mean_affinity"]
-            if not (np.isfinite(shape_score) and np.isfinite(mean_aff)):
+            if not np.isfinite(mean_aff):
                 continue
 
             contacts_out.append({
@@ -208,7 +244,7 @@ def collect_dataset(path, authority, gt_authority, bbox_start, bbox_end, resolut
                 "mean_affinity": mean_aff,
                 "n_faces": contact["n_faces"],
                 "gt_merge": gt_decisions[contact_id],
-                "shape_score": shape_score,
+                "scores": scores,
             })
 
     print(
@@ -227,7 +263,10 @@ def main():
     parser.add_argument(
         "--paths", nargs="+", required=True, help="Seg_contact layer paths"
     )
-    parser.add_argument("--authority", required=True, help="Merge probability authority")
+    parser.add_argument(
+        "--authority", default=None,
+        help="Merge probability authority (omit to auto-discover all)",
+    )
     parser.add_argument(
         "--gt-authority", default="ground_truth", help="GT authority name"
     )
@@ -235,6 +274,23 @@ def main():
         "--output", default="validation_results.html", help="Output HTML file"
     )
     args = parser.parse_args()
+
+    # Discover authorities if not specified
+    if args.authority:
+        all_authorities = [args.authority]
+    else:
+        print("Discovering authorities...")
+        auth_sets = []
+        for path in args.paths:
+            auths = discover_authorities(path, args.gt_authority)
+            print(f"  {path.split('/')[-1]}: {auths}")
+            auth_sets.append(set(auths))
+        # Use union of all authorities across datasets
+        all_authorities = sorted(set().union(*auth_sets)) if auth_sets else []
+        if not all_authorities:
+            print("ERROR: No authorities found!")
+            return
+        print(f"Using {len(all_authorities)} authorities: {all_authorities}")
 
     all_contacts_js = []
     dataset_names = []
@@ -250,7 +306,7 @@ def main():
         bbox_end = [voxel_offset[i] + size[i] for i in range(3)]
 
         contacts, _ = collect_dataset(
-            path, args.authority, args.gt_authority, bbox_start, bbox_end, resolution
+            path, all_authorities, args.gt_authority, bbox_start, bbox_end, resolution
         )
 
         ng_info = {
@@ -268,14 +324,20 @@ def main():
             if val:
                 ng_info[key] = val
 
+        # Map authority names to compact indices for smaller JSON
+        auth_to_idx = {a: i for i, a in enumerate(all_authorities)}
         contacts_js = []
         for c in contacts:
+            # Store scores as {authority_index: score} for compactness
+            ss = {}
+            for auth, score in c["scores"].items():
+                ss[str(auth_to_idx[auth])] = round(score, 4)
             contacts_js.append({
                 "a": str(c["seg_a"]),
                 "b": str(c["seg_b"]),
                 "c": [round(c["com"][0], 1), round(c["com"][1], 1), round(c["com"][2], 1)],
                 "ma": round(c["mean_affinity"], 4),
-                "ss": round(c["shape_score"], 4),
+                "ss": ss,
                 "gt": 1 if c["gt_merge"] else 0,
                 "nf": c["n_faces"],
                 "d": dset_name,
@@ -295,31 +357,60 @@ def main():
     dataset_names.sort(key=lambda n: path_order.get(n, 0))
 
     print(f"\nTotal: {len(all_contacts_js)} contacts across {len(dataset_names)} datasets")
+    print(f"Authorities: {all_authorities}")
+
+    # Compute AUC_PR using sklearn for each authority
+    from sklearn.metrics import auc, precision_recall_curve
+
+    gt = np.array([c["gt"] for c in all_contacts_js])
+    ma = np.array([c["ma"] for c in all_contacts_js])
+    precision_ma, recall_ma, _ = precision_recall_curve(gt, ma)
+    auc_pr_ma = auc(recall_ma, precision_ma)
+    print(f"sklearn AUC_PR mean_affinity: {auc_pr_ma:.4f}")
+
+    for auth_idx, auth in enumerate(all_authorities):
+        # Get contacts that have this authority
+        mask = [str(auth_idx) in c["ss"] for c in all_contacts_js]
+        gt_a = gt[mask]
+        ss_a = np.array([c["ss"][str(auth_idx)] for c, m in zip(all_contacts_js, mask) if m])
+        if len(gt_a) > 0 and gt_a.sum() > 0:
+            p, r, _ = precision_recall_curve(gt_a, ss_a)
+            auc_pr = auc(r, p)
+            print(f"sklearn AUC_PR {auth}: {auc_pr:.4f} ({len(gt_a)} contacts)")
 
     # Serialize
     data_json = json.dumps(
         {
             "contacts": all_contacts_js,
             "datasets": dataset_names,
+            "authorities": all_authorities,
             "ngInfos": ng_infos,
-            "authority": args.authority,
         },
         separators=(",", ":"),
     )
-    print(f"Data: {len(data_json) / 1e6:.1f}MB JSON")
 
-    html = _build_html(data_json, len(all_contacts_js), args.authority)
+    # Compress: JSON -> gzip -> base64
+    json_bytes = data_json.encode("utf-8")
+    print(f"Compressing {len(json_bytes) / 1e6:.1f}MB JSON...")
+    compressed = gzip.compress(json_bytes, compresslevel=6)
+    data_b64 = base64.b64encode(compressed).decode("ascii")
+    ratio = len(json_bytes) / len(data_b64)
+    print(
+        f"Data: {len(json_bytes)/1e6:.1f}MB JSON -> {len(compressed)/1e6:.1f}MB gzip "
+        f"-> {len(data_b64)/1e6:.1f}MB base64 ({ratio:.1f}x)"
+    )
+
+    html = _build_html(data_b64, len(all_contacts_js))
     print(f"Writing {len(html) / 1e6:.1f}MB to {args.output}...")
     with open(args.output, "w") as f:
         f.write(html)
     print(f"Wrote {args.output}")
 
 
-def _build_html(data_json, n_contacts, authority):
+def _build_html(data_b64, n_contacts):
     return _HTML_TEMPLATE.substitute(
-        data_json=data_json,
+        data_b64=data_b64,
         n_contacts=n_contacts,
-        authority=authority,
     )
 
 
@@ -444,15 +535,22 @@ h1 { margin: 0 0 4px 0; font-size: 28px; }
     border-radius: 3px; font-size: 12px; font-family: monospace; }
 .range-num { width: 48px; padding: 1px 3px; border: 1px solid #ccc; border-radius: 3px;
     font-size: 11px; font-family: monospace; text-align: center; }
+.filter-lists { display: flex; gap: 16px; flex-wrap: wrap; }
+.filter-list-col { flex: 0 0 auto; min-width: 200px; }
+.filter-list-col h4 { margin: 0 0 4px 0; font-size: 14px; color: #555; }
 .dset-filter-list { display: flex; flex-direction: column; gap: 1px; font-size: 14px; max-height: 300px; overflow-y: auto; }
 .dset-filter-list label { cursor: pointer; white-space: nowrap; padding: 1px 4px; }
 .dset-filter-list label:hover { background: #e8ecf0; }
+.model-filter-list { display: flex; flex-direction: column; gap: 1px; font-size: 14px; max-height: 300px; overflow-y: auto; }
+.model-filter-list label { cursor: pointer; white-space: nowrap; padding: 1px 4px; }
+.model-filter-list label:hover { background: #e8ecf0; }
+.model-filter-list .model-coverage { font-size: 11px; color: #999; margin-left: 4px; }
 </style>
 </head>
 <body>
 <div class="info-bar">
-    <b>Authority:</b> <span class="info-path">$authority</span>
-    &nbsp; <b>Total contacts:</b> $n_contacts
+    <b>Total contacts:</b> $n_contacts
+    &nbsp; <b>Authority:</b> <span class="info-path" id="authority-display">-</span>
 </div>
 <div class="header">
     <h1>Validation Results Dashboard</h1>
@@ -479,9 +577,18 @@ h1 { margin: 0 0 4px 0; font-size: 28px; }
 
 <div id="main-content" style="display:none">
 
-<!-- Dataset filter -->
+<!-- Dataset + Model filter -->
 <div class="cell full-width" id="filter-panel">
-    <div id="dataset-filters"></div>
+    <div class="filter-lists">
+        <div class="filter-list-col" id="dataset-filters-col">
+            <h4>Datasets</h4>
+            <div id="dataset-filters"></div>
+        </div>
+        <div class="filter-list-col" id="model-filters-col">
+            <h4>Models (authorities)</h4>
+            <div id="model-filters"></div>
+        </div>
+    </div>
 </div>
 
 <div class="main-layout">
@@ -592,9 +699,22 @@ h1 { margin: 0 0 4px 0; font-size: 28px; }
 </div>
 
 <script>
+// --- Decompress gzipped base64 data ---
+async function decompressData(b64) {
+    var raw = atob(b64);
+    var bytes = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    var blob = new Blob([bytes]);
+    var stream = blob.stream().pipeThrough(new DecompressionStream("gzip"));
+    var text = await new Response(stream).text();
+    return JSON.parse(text);
+}
+
 // --- Globals ---
-var contacts, datasets, ngInfos, authority;
+var contacts, datasets, authorities, ngInfos;
 var nContacts;
+var selectedAuthIdx = 0;  // index into authorities array
+var hoverAuthIdx = null;  // for hover preview
 var currentMask = null;
 var activeCmCat = null;
 var activeMaCmCat = null;
@@ -610,6 +730,13 @@ var hoverDataset = null;
 
 var GT_NAMES = ["no_merge", "merge"];
 var GT_COLORS_SCATTER = ["rgb(229,57,53)", "rgb(76,175,80)"];
+
+// Get shape score for a contact using current (or hover) authority
+function getScore(c) {
+    var idx = hoverAuthIdx !== null ? hoverAuthIdx : selectedAuthIdx;
+    var v = c.ss["" + idx];
+    return v !== undefined ? v : null;
+}
 
 function contactKey(c) { return c.d + "|" + c.a + "|" + c.b; }
 
@@ -685,6 +812,8 @@ function computeFilterMask() {
     var mask = new Uint8Array(nContacts);
     for (var i = 0; i < nContacts; i++) {
         var c = contacts[i];
+        var ss = getScore(c);
+        if (ss === null) continue;
         if (hoverDataset !== null) {
             if (hoverDataset === "__all__") { /* pass all datasets */ }
             else if (c.d !== hoverDataset) continue;
@@ -692,7 +821,7 @@ function computeFilterMask() {
             if (!datasetFilters[c.d]) continue;
         }
         if (c.ma < maLo || c.ma > maHi) continue;
-        if (c.ss < ssLo || c.ss > ssHi) continue;
+        if (ss < ssLo || ss > ssHi) continue;
         mask[i] = 1;
     }
     return mask;
@@ -729,7 +858,7 @@ function computePrCurve(gt, scores, mask) {
     if (totalPos === 0) return {precision: [1], recall: [0], thresholds: [1], auc: 0, bestF1: null};
 
     var precisions = [1], recalls = [0], thresholds = [pairs[0][0] + 0.001];
-    var prevRecall = 0, aucSum = 0;
+    var prevRecall = 0, prevPrec = 1, aucSum = 0;
     var bestF1 = 0, bestF1Idx = -1;
     for (var i = 0; i < pairs.length; i++) {
         if (pairs[i][1]) tp++; else fp++;
@@ -740,8 +869,9 @@ function computePrCurve(gt, scores, mask) {
         thresholds.push(pairs[i][0]);
         var f1 = 2 * prec * rec / (prec + rec + 1e-8);
         if (f1 > bestF1) { bestF1 = f1; bestF1Idx = precisions.length - 1; }
-        aucSum += prec * (rec - prevRecall);
+        aucSum += (prec + prevPrec) * (rec - prevRecall) / 2;
         prevRecall = rec;
+        prevPrec = prec;
     }
     return {
         precision: precisions, recall: recalls, thresholds: thresholds, auc: aucSum,
@@ -775,7 +905,7 @@ function computeRocCurve(gt, scores, mask) {
 
     var tp = 0, fp = 0;
     var fprs = [0], tprs = [0], thresholds = [pairs[0][0] + 0.001];
-    var prevFpr = 0, aucSum = 0;
+    var prevFpr = 0, prevTpr = 0, aucSum = 0;
     for (var i = 0; i < pairs.length; i++) {
         if (pairs[i][1]) tp++; else fp++;
         var fpr = fp / totalNeg;
@@ -783,8 +913,9 @@ function computeRocCurve(gt, scores, mask) {
         fprs.push(fpr);
         tprs.push(tpr);
         thresholds.push(pairs[i][0]);
-        aucSum += tpr * (fpr - prevFpr);
+        aucSum += (tpr + prevTpr) * (fpr - prevFpr) / 2;
         prevFpr = fpr;
+        prevTpr = tpr;
     }
     return {fpr: fprs, tpr: tprs, thresholds: thresholds, auc: aucSum};
 }
@@ -804,7 +935,9 @@ function computeConfusionMatrix(mask, threshold) {
     var tp = 0, fp = 0, fn = 0, tn = 0;
     for (var i = 0; i < nContacts; i++) {
         if (!mask[i]) continue;
-        var pred = contacts[i].ss >= threshold ? 1 : 0;
+        var ss = getScore(contacts[i]);
+        if (ss === null) continue;
+        var pred = ss >= threshold ? 1 : 0;
         var gt = contacts[i].gt;
         if (pred && gt) tp++;
         else if (pred && !gt) fp++;
@@ -819,11 +952,13 @@ function renderContactRow(c, ann) {
     var key = contactKey(c);
     var url = buildNgUrl(c);
     var gtLabel = c.gt ? "merge" : "no_merge";
+    var ss = getScore(c);
+    var ssStr = ss !== null ? ss.toFixed(3) : "N/A";
     var html = '<tr data-key="' + key.replace(/"/g, '&quot;') + '">';
     html += '<td><a href="' + url + '" target="_blank" class="ngl-link">ngl</a></td>';
     html += '<td>' + c.a + '</td><td>' + c.b + '</td>';
     html += '<td>' + c.ma.toFixed(3) + '</td>';
-    html += '<td>' + c.ss.toFixed(3) + '</td>';
+    html += '<td>' + ssStr + '</td>';
     html += '<td class="lbl-' + (c.gt ? 'merge' : 'nomerge') + '">' + gtLabel + '</td>';
     html += '<td>' + c.nf + '</td>';
     html += '<td>' + c.d + '</td>';
@@ -1043,10 +1178,12 @@ function buildScatter() {
     for (var i = 0; i < nContacts; i++) {
         if (!curveMask[i]) continue;
         var c = contacts[i];
+        var ss = getScore(c);
+        if (ss === null) continue;
         if (c.gt) {
-            mergeX.push(c.ma); mergeY.push(c.ss); mergeIdx.push(i);
+            mergeX.push(c.ma); mergeY.push(ss); mergeIdx.push(i);
         } else {
-            noMergeX.push(c.ma); noMergeY.push(c.ss); noMergeIdx.push(i);
+            noMergeX.push(c.ma); noMergeY.push(ss); noMergeIdx.push(i);
         }
     }
 
@@ -1107,10 +1244,12 @@ function updateScatter() {
     for (var i = 0; i < nContacts; i++) {
         if (!curveMask[i]) continue;
         var c = contacts[i];
+        var ss = getScore(c);
+        if (ss === null) continue;
         if (c.gt) {
-            mergeX.push(c.ma); mergeY.push(c.ss); mergeIdx.push(i);
+            mergeX.push(c.ma); mergeY.push(ss); mergeIdx.push(i);
         } else {
-            noMergeX.push(c.ma); noMergeY.push(c.ss); noMergeIdx.push(i);
+            noMergeX.push(c.ma); noMergeY.push(ss); noMergeIdx.push(i);
         }
     }
     Plotly.restyle('scatter-plot', {
@@ -1127,7 +1266,8 @@ function updateCurves() {
     var gt = [], ssScores = [], maScores = [];
     for (var i = 0; i < nContacts; i++) {
         gt.push(contacts[i].gt);
-        ssScores.push(contacts[i].ss);
+        var ss = getScore(contacts[i]);
+        ssScores.push(ss !== null ? ss : 0);
         maScores.push(contacts[i].ma);
     }
 
@@ -1301,7 +1441,9 @@ function showCmSamples(cat) {
     var indices = [];
     for (var i = 0; i < nContacts; i++) {
         if (!curveMask[i]) continue;
-        var pred = contacts[i].ss >= cmThreshold ? 1 : 0;
+        var ss = getScore(contacts[i]);
+        if (ss === null) continue;
+        var pred = ss >= cmThreshold ? 1 : 0;
         var gt = contacts[i].gt;
         var match = false;
         if (cat === 'tp' && pred && gt) match = true;
@@ -1359,6 +1501,11 @@ var HIST_NBINS = 50;
 var histHighlightedSS = -1;
 var histHighlightedMA = -1;
 
+function getFieldValue(c, field) {
+    if (field === 'ss') return getScore(c);
+    return c[field];
+}
+
 function computeHistogram(field, mask, nBins) {
     var edges = [];
     for (var i = 0; i <= nBins; i++) edges.push(i / nBins);
@@ -1369,7 +1516,8 @@ function computeHistogram(field, mask, nBins) {
 
     for (var i = 0; i < nContacts; i++) {
         if (!mask[i]) continue;
-        var val = contacts[i][field];
+        var val = getFieldValue(contacts[i], field);
+        if (val === null) continue;
         var bin = Math.floor(val * nBins);
         if (bin >= nBins) bin = nBins - 1;
         if (bin < 0) bin = 0;
@@ -1471,6 +1619,72 @@ function computeAllMask() {
     return mask;
 }
 
+// --- Model stats (predicted count + AUC_PR per authority, respects dataset filter/hover) ---
+function updateModelStats() {
+    // Build dataset mask (which contacts pass the current dataset filter/hover)
+    var dsetMask = new Uint8Array(nContacts);
+    for (var i = 0; i < nContacts; i++) {
+        var c = contacts[i];
+        if (hoverDataset !== null) {
+            if (hoverDataset === "__all__") dsetMask[i] = 1;
+            else if (c.d === hoverDataset) dsetMask[i] = 1;
+        } else {
+            if (datasetFilters[c.d]) dsetMask[i] = 1;
+        }
+    }
+    var totalFiltered = 0;
+    for (var i = 0; i < nContacts; i++) totalFiltered += dsetMask[i];
+
+    var authAucs = [];
+    for (var ai = 0; ai < authorities.length; ai++) {
+        var key = "" + ai;
+        var nPred = 0;
+        var gt = [], scores = [], mask = [];
+        for (var i = 0; i < nContacts; i++) {
+            if (!dsetMask[i]) continue;
+            var s = contacts[i].ss[key];
+            if (s !== undefined) {
+                nPred++;
+                gt.push(contacts[i].gt);
+                scores.push(s);
+                mask.push(1);
+            }
+        }
+        var aucVal = 0;
+        var aucStr = "";
+        if (gt.length > 0) {
+            var pr = computePrCurve(gt, scores, mask);
+            aucVal = pr.auc;
+            aucStr = " AUC_PR=" + (pr.auc * 100).toFixed(1);
+        }
+        authAucs.push({idx: ai, auc: aucVal});
+        var el = document.getElementById("model-stats-" + ai);
+        if (el) el.textContent = "(" + nPred + " predicted / " + totalFiltered + " filtered)" + aucStr;
+    }
+
+    // Sort model labels by AUC_PR descending (skip during hover to avoid breaking clicks)
+    if (hoverDataset === null && hoverAuthIdx === null) {
+        authAucs.sort(function(a, b) { return b.auc - a.auc; });
+        var listEl = document.querySelector('.model-filter-list');
+        if (listEl) {
+            for (var k = 0; k < authAucs.length; k++) {
+                var label = listEl.querySelector('.model-rb[data-idx="' + authAucs[k].idx + '"]');
+                if (label) listEl.appendChild(label.closest('label'));
+            }
+        }
+    }
+}
+
+// --- Full rebuild (when switching model) ---
+function rebuildAll() {
+    currentMask = computeFilterMask();
+    curveMask = (filterMode === "unfiltered") ? computeAllMask() : currentMask;
+    buildScatter();
+    buildHistogram('hist-ss', 'hist-ss-panel', 'ss', 'Shape Score');
+    buildHistogram('hist-ma', 'hist-ma-panel', 'ma', 'Mean Affinity');
+    updateAll();
+}
+
 // --- Main update ---
 function updateAll() {
     currentMask = computeFilterMask();
@@ -1483,6 +1697,7 @@ function updateAll() {
     }
     document.getElementById('summary').textContent = summaryText;
 
+    updateModelStats();
     updateScatter();
     updateHistograms();
     updateCurves();
@@ -1490,19 +1705,12 @@ function updateAll() {
 }
 
 // --- Initialization ---
-function init() {
-    document.getElementById('progress-text').textContent = 'Initializing...';
-    var data = DATA_JSON;
-
+function initFromData(data) {
     contacts = data.contacts;
     datasets = data.datasets;
+    authorities = data.authorities;
     ngInfos = data.ngInfos;
-    authority = data.authority;
     nContacts = contacts.length;
-
-    loadAnnotations();
-    STORAGE_KEY = "validation_results_annotations_" + authority;
-    loadAnnotations();
 
     initContactOrder();
 
@@ -1577,6 +1785,87 @@ function init() {
     });
     allLabel.addEventListener('mouseleave', function() {
         hoverDataset = null;
+        updateAll();
+    });
+
+    // Build model (authority) filter with radio buttons
+    // Common prefix/suffix for authority names
+    var authCommonPrefix = authorities[0] || '';
+    for (var i = 1; i < authorities.length; i++) {
+        while (authCommonPrefix && authorities[i].indexOf(authCommonPrefix) !== 0) {
+            authCommonPrefix = authCommonPrefix.slice(0, -1);
+        }
+    }
+    var authCommonSuffix = rev(authorities[0] || '');
+    for (var i = 1; i < authorities.length; i++) {
+        var r = rev(authorities[i]);
+        while (authCommonSuffix && r.indexOf(authCommonSuffix) !== 0) {
+            authCommonSuffix = authCommonSuffix.slice(0, -1);
+        }
+    }
+    authCommonSuffix = rev(authCommonSuffix);
+    var authPrefLen = authCommonPrefix.length;
+    var authSufLen = authCommonSuffix.length;
+
+    // Compute initial AUC_PR per authority to find the best one
+    var bestAuthIdx = 0, bestAuc = -1;
+    for (var ai = 0; ai < authorities.length; ai++) {
+        var key = "" + ai;
+        var gt = [], scores = [], mask = [];
+        for (var i = 0; i < nContacts; i++) {
+            var s = contacts[i].ss[key];
+            if (s !== undefined) {
+                gt.push(contacts[i].gt);
+                scores.push(s);
+                mask.push(1);
+            }
+        }
+        if (gt.length > 0) {
+            var pr = computePrCurve(gt, scores, mask);
+            if (pr.auc > bestAuc) { bestAuc = pr.auc; bestAuthIdx = ai; }
+        }
+    }
+    selectedAuthIdx = bestAuthIdx;
+    STORAGE_KEY = "validation_results_annotations_" + authorities[selectedAuthIdx];
+    loadAnnotations();
+    document.getElementById('authority-display').textContent = authorities[selectedAuthIdx];
+
+    var modelHtml = '<div class="model-filter-list">';
+    for (var i = 0; i < authorities.length; i++) {
+        var aName = authorities[i];
+        var aVarying = aName.slice(authPrefLen, authSufLen ? aName.length - authSufLen : aName.length);
+        var aDisplay = '<span style="color:#999">' + authCommonPrefix + '</span><b>' + aVarying + '</b><span style="color:#999">' + authCommonSuffix + '</span>';
+        modelHtml += '<label><input type="radio" name="model-radio" class="model-rb" data-idx="' + i + '"' +
+            (i === selectedAuthIdx ? ' checked' : '') + '> ' + aDisplay +
+            ' <span class="model-coverage" id="model-stats-' + i + '"></span></label>';
+    }
+    modelHtml += '</div>';
+    document.getElementById('model-filters').innerHTML = modelHtml;
+
+    // Wire model radio buttons via event delegation (survives DOM reordering)
+    var modelList = document.querySelector('.model-filter-list');
+    modelList.addEventListener('change', function(e) {
+        var rb = e.target.closest('.model-rb');
+        if (!rb) return;
+        selectedAuthIdx = parseInt(rb.dataset.idx);
+        STORAGE_KEY = "validation_results_annotations_" + authorities[selectedAuthIdx];
+        loadAnnotations();
+        document.getElementById('authority-display').textContent = authorities[selectedAuthIdx];
+        rebuildAll();
+    });
+    modelList.addEventListener('mouseover', function(e) {
+        var label = e.target.closest('label');
+        if (!label) return;
+        var rb = label.querySelector('.model-rb');
+        if (!rb) return;
+        var idx = parseInt(rb.dataset.idx);
+        if (hoverAuthIdx !== idx) {
+            hoverAuthIdx = idx;
+            updateAll();
+        }
+    });
+    modelList.addEventListener('mouseleave', function() {
+        hoverAuthIdx = null;
         updateAll();
     });
 
@@ -1720,8 +2009,14 @@ document.addEventListener("click", function(e) {
     }
 });
 
-var DATA_JSON = $data_json;
-init();
+var DATA_B64 = "$data_b64";
+
+(async function() {
+    document.getElementById('progress-text').textContent = 'Decompressing data...';
+    var data = await decompressData(DATA_B64);
+    document.getElementById('progress-text').textContent = 'Initializing...';
+    initFromData(data);
+})();
 </script>
 </body>
 </html>

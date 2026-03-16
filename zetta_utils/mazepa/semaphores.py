@@ -32,9 +32,10 @@ class TimingTracker:
     """
 
     name: str
+    pid: int
 
     def _get_shared_memory_name(self) -> str:
-        return f"zetta_semaphore_timing_{self.name}"
+        return f"zetta_semaphore_timing_{self.pid}_{self.name}"
 
     def _get_shared_memory(self) -> shared_memory.SharedMemory:
         """Get existing shared memory (assumes it was already created by head node)."""
@@ -195,13 +196,13 @@ def configure_semaphores(
 
             for sema_type in semaphores_spec_:
                 try:
-                    tracker = TimingTracker(name=sema_type)
+                    tracker = TimingTracker(name=sema_type, pid=os.getpid())
                     tracker.create_shared_memory().close()
                 except FileExistsError as e:
                     logger.debug(
                         f"Shared memory already exists for tracking `{sema_type}`: {e}, resetting."
                     )
-                    tracker = TimingTracker(name=sema_type)
+                    tracker = TimingTracker(name=sema_type, pid=os.getpid())
                     tracker.reset_timing_data()
             yield
     finally:
@@ -213,7 +214,7 @@ def configure_semaphores(
                 sema.unlink()
             finally:
                 try:
-                    tracker = TimingTracker(name=name)
+                    tracker = TimingTracker(name=name, pid=os.getpid())
                     tracker.unlink()
                 except Exception as e:  # pylint: disable=broad-except
                     raise RuntimeError(
@@ -273,6 +274,7 @@ class TimedSemaphore:
 
     semaphore: Semaphore | DummySemaphore
     name: str
+    tracker_pid: int = 0
     timing_tracker: TimingTracker | DummyTimingTracker = attrs.field(init=False)
     _lease_start_time: float = attrs.field(init=False)
 
@@ -280,7 +282,9 @@ class TimedSemaphore:
         if isinstance(self.semaphore, DummySemaphore):
             object.__setattr__(self, "timing_tracker", DummyTimingTracker(name=self.name))
         else:
-            object.__setattr__(self, "timing_tracker", TimingTracker(name=self.name))
+            object.__setattr__(
+                self, "timing_tracker", TimingTracker(name=self.name, pid=self.tracker_pid)
+            )
         object.__setattr__(self, "_lease_start_time", 0.0)
 
     def __enter__(self):
@@ -312,12 +316,14 @@ def semaphore(name: SemaphoreType) -> TimedSemaphore:
     if not name in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")
     try:
-        sema = Semaphore(name_to_posix_name(name, os.getpid()))
-        return TimedSemaphore(semaphore=sema, name=name)
+        pid = os.getpid()
+        sema = Semaphore(name_to_posix_name(name, pid))
+        return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
     except ExistentialError:
         try:
-            sema = Semaphore(name_to_posix_name(name, os.getppid()))
-            return TimedSemaphore(semaphore=sema, name=name)
+            pid = os.getppid()
+            sema = Semaphore(name_to_posix_name(name, pid))
+            return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
         except ExistentialError:
             dummy = DummySemaphore()
             return TimedSemaphore(semaphore=dummy, name=name)
@@ -328,7 +334,7 @@ def get_semaphore_stats(name: SemaphoreType) -> dict[str, float | int]:
     if name not in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")
 
-    tracker = TimingTracker(name=name)
+    tracker = TimingTracker(name=name, pid=os.getpid())
     total_wait_time, total_lease_time, lease_count, start_time = tracker.get_timing_data()
 
     return {
@@ -346,7 +352,7 @@ def reset_timing_data(name: SemaphoreType) -> None:
     if name not in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")
 
-    tracker = TimingTracker(name=name)
+    tracker = TimingTracker(name=name, pid=os.getpid())
     tracker.reset_timing_data()
 
 

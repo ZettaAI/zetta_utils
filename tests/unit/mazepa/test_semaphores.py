@@ -163,14 +163,14 @@ def test_missing_semaphore_type_exc(semaphore_spec):
 
 
 def test_timingtracker_reset():
-    tracker = TimingTracker("test")
+    tracker = TimingTracker("test", pid=os.getpid())
     tracker.create_shared_memory().close()
     tracker.reset_timing_data()
     tracker.unlink()
 
 
 def test_timingtracker_duplicate_shm_exc():
-    tracker = TimingTracker("test")
+    tracker = TimingTracker("test", pid=os.getpid())
     tracker.create_shared_memory().close()
     with pytest.raises(FileExistsError):
         tracker.create_shared_memory()
@@ -178,32 +178,32 @@ def test_timingtracker_duplicate_shm_exc():
 
 
 def test_timingtracker_duplicate_unlink():
-    tracker = TimingTracker("test")
+    tracker = TimingTracker("test", pid=os.getpid())
     tracker.create_shared_memory().close()
     tracker.unlink()
     tracker.unlink()
 
 
 def test_timingtracker_add_wait_time_noshm_exc():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     with pytest.raises(RuntimeError):
         tracker.add_wait_time(1.0)
 
 
 def test_timingtracker_add_lease_time_noshm_exc():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     with pytest.raises(RuntimeError):
         tracker.add_lease_time(1.0)
 
 
 def test_timingtracker_get_timing_data_noshm_exc():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     with pytest.raises(RuntimeError):
         tracker.get_timing_data()
 
 
 def test_timingtracker_reset_timing_data_noshm_exc():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     with pytest.raises(RuntimeError):
         tracker.reset_timing_data()
 
@@ -215,16 +215,16 @@ def test_get_semaphore_stats_exc():
 
 def test_reset_all_timing_data():
     for name in get_args(SemaphoreType):
-        tracker = TimingTracker(name)
+        tracker = TimingTracker(name, pid=os.getpid())
         tracker.create_shared_memory().close()
     reset_all_timing_data()
     for name in get_args(SemaphoreType):
-        tracker = TimingTracker(name)
+        tracker = TimingTracker(name, pid=os.getpid())
         tracker.unlink()
 
 
 def test_reset_timing_data():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     tracker.create_shared_memory().close()
     reset_timing_data("read")
     tracker.unlink()
@@ -254,7 +254,7 @@ def test_tracker_cleanup_exc(mocker):
 
     mocker.patch.object(shared_memory.SharedMemory, "unlink", failing_unlink)
 
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     tracker.create_shared_memory().close()
 
     with pytest.raises(RuntimeError):
@@ -282,11 +282,11 @@ def test_configure_tracker_cleanup_exc(mocker):
 
     for name in get_args(SemaphoreType):
         semaphore(name).unlink()
-        TimingTracker(name).unlink()
+        TimingTracker(name, pid=os.getpid()).unlink()
 
 
 def test_configure_semaphores_existing_shm():
-    tracker = TimingTracker("read")
+    tracker = TimingTracker("read", pid=os.getpid())
     tracker.create_shared_memory().close()
     tracker.add_wait_time(10.0)
     with configure_semaphores():

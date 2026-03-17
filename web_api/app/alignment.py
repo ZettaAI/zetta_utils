@@ -1,9 +1,11 @@
 # pylint: disable=import-error
+import asyncio
 import base64
 import gzip
 import io
 import json
 import struct
+import threading
 
 import numpy as np
 import torch
@@ -19,6 +21,9 @@ from zetta_utils.internal.alignment.sift import compute_sift_correspondences
 from .utils import generic_exception_handler
 
 api = FastAPI()
+
+# Limits concurrent GPU computations to 1; additional requests queue asynchronously.
+_gpu_semaphore = asyncio.Semaphore(1)
 
 
 @api.exception_handler(Exception)
@@ -376,14 +381,37 @@ async def apply_correspondences(request: Request):
     )
     print(f"[apply_correspondences] params: {params}")
 
-    relaxed_field, warped_image = apply_correspondences_to_image(
-        correspondences_dict=correspondences_dict,
-        image=image_tensor,
-        src_mask=src_mask_tensor,
-        tgt_mask=tgt_mask_tensor,
-        tgt_image=tgt_image_tensor,
-        **params,
-    )
+    cancel_event = threading.Event()
+
+    async with _gpu_semaphore:
+        if await request.is_disconnected():
+            print("[apply_correspondences] Client disconnected while waiting in queue")
+            return Response(status_code=499)
+
+        compute_task = asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: apply_correspondences_to_image(
+                correspondences_dict=correspondences_dict,
+                image=image_tensor,
+                src_mask=src_mask_tensor,
+                tgt_mask=tgt_mask_tensor,
+                tgt_image=tgt_image_tensor,
+                cancel_event=cancel_event,
+                **params,
+            ),
+        )
+
+        # Poll for client disconnect while computation runs in thread pool.
+        while not compute_task.done():
+            if await request.is_disconnected():
+                print("[apply_correspondences] Client disconnected, cancelling computation")
+                cancel_event.set()
+                # Wait for the thread to finish (it will exit early on next iteration check)
+                await compute_task
+                return Response(status_code=499)
+            await asyncio.sleep(0.5)
+
+        relaxed_field, warped_image = await compute_task
 
     relaxed_field_np = relaxed_field.cpu().numpy().astype(np.float32)
     warped_image_np = warped_image.cpu().numpy().astype(np.float32)

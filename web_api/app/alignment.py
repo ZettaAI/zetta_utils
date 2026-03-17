@@ -3,13 +3,15 @@ import base64
 import gzip
 import io
 import json
-import numpy as np
 import struct
 import time
+
+import numpy as np
 import torch
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
+
 from zetta_utils.internal.alignment.manual_correspondence import (
     apply_correspondences_to_image,
 )
@@ -282,9 +284,9 @@ async def _parse_multipart_request(request: Request, device: torch.device):
 
 
 def _build_json_response(
-        relaxed_field_np: np.ndarray,
-        warped_image_np: np.ndarray,
-        misd_image_np: np.ndarray | None = None,
+    relaxed_field_np: np.ndarray,
+    warped_image_np: np.ndarray,
+    misd_image_np: np.ndarray | None = None,
 ):
     relaxed_field_b64 = base64.b64encode(relaxed_field_np.tobytes()).decode()
     warped_image_b64 = base64.b64encode(warped_image_np.tobytes()).decode()
@@ -303,10 +305,10 @@ def _build_json_response(
 
 
 def _build_binary_response(
-        relaxed_field_np: np.ndarray,
-        warped_image_np: np.ndarray,
-        compress: bool,
-        misd_image_np: np.ndarray | None = None,
+    relaxed_field_np: np.ndarray,
+    warped_image_np: np.ndarray,
+    compress: bool,
+    misd_image_np: np.ndarray | None = None,
 ):
     header = {
         "relaxed_field_shape": list(relaxed_field_np.shape),

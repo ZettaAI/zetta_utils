@@ -22,7 +22,7 @@
             g++ \
             python3-dev \
         && rm -rf /var/lib/apt/lists/*
-    
+
     # ---- Copy metadata ---------------------------------------------------
     COPY pyproject.toml web_api/requirements.txt /opt/http/
     
@@ -44,6 +44,12 @@
     # ---- 6. Install project + modules ------------------------------------
     RUN pip install --no-cache-dir '.[modules]'
     
+    # ---- Install cue CLI (needed for builder.build with spec JSON files) --
+    RUN apt-get update && apt-get install -y --no-install-recommends curl \
+        && curl -fsSL https://github.com/cue-lang/cue/releases/download/v0.11.1/cue_v0.11.1_linux_amd64.tar.gz \
+           | tar xz -C /usr/local/bin cue \
+        && apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+
     # ---- 7. Copy full source ---------------------------------------------
     COPY . /opt/http
 

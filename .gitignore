@@ -1,5 +1,6 @@
 .vscode
 .devcontainer
+.idea
 
 # Traing data logging
 **/tmp.json

@@ -29,11 +29,13 @@ MISD_MODEL_PATH = (
 
 _misd_detector = None
 
+
 def _get_misd_detector():
-    global _misd_detector
+    global _misd_detector  # pylint: disable=global-statement
     if _misd_detector is None:
         _misd_detector = MisalignmentDetector(model_path=MISD_MODEL_PATH)
     return _misd_detector
+
 
 api = FastAPI()
 
@@ -103,8 +105,12 @@ class ApplyCorrespondencesResponse(BaseModel):
     warped_image_shape: list[int] = Field(
         ..., description="Shape of warped_image array [C, H, W, 1]"
     )
-    misd_image: str | None = Field(None, description="Base64-encoded misalignment mask (float32 binary)")
-    misd_image_shape: list[int] | None = Field(None, description="Shape of misd_image array [C, H, W, 1]")
+    misd_image: str | None = Field(
+        None, description="Base64-encoded misalignment mask (float32 binary)"
+    )
+    misd_image_shape: list[int] | None = Field(
+        None, description="Shape of misd_image array [C, H, W, 1]"
+    )
 
 
 def _decompress_if_gzipped(data: bytes) -> bytes:
@@ -282,10 +288,16 @@ async def _parse_multipart_request(request: Request, device: torch.device):
     )
 
 
-def _build_json_response(relaxed_field_np: np.ndarray, warped_image_np: np.ndarray, misd_image_np: np.ndarray | None = None):
+def _build_json_response(
+    relaxed_field_np: np.ndarray,
+    warped_image_np: np.ndarray,
+    misd_image_np: np.ndarray | None = None,
+):
     relaxed_field_b64 = base64.b64encode(relaxed_field_np.tobytes()).decode()
     warped_image_b64 = base64.b64encode(warped_image_np.tobytes()).decode()
-    misd_b64 = base64.b64encode(misd_image_np.tobytes()).decode() if misd_image_np is not None else None
+    misd_b64 = (
+        base64.b64encode(misd_image_np.tobytes()).decode() if misd_image_np is not None else None
+    )
     misd_shape = list(misd_image_np.shape) if misd_image_np is not None else None
     return ApplyCorrespondencesResponse(
         relaxed_field=relaxed_field_b64,
@@ -298,7 +310,10 @@ def _build_json_response(relaxed_field_np: np.ndarray, warped_image_np: np.ndarr
 
 
 def _build_binary_response(
-    relaxed_field_np: np.ndarray, warped_image_np: np.ndarray, compress: bool, misd_image_np: np.ndarray | None = None
+    relaxed_field_np: np.ndarray,
+    warped_image_np: np.ndarray,
+    compress: bool,
+    misd_image_np: np.ndarray | None = None,
 ):
     header = {
         "relaxed_field_shape": list(relaxed_field_np.shape),
@@ -339,6 +354,46 @@ def _wants_binary_response(request: Request) -> bool:
     accept = request.headers.get("accept", "")
     fmt = request.headers.get("x-alignment-response-format", "")
     return "application/octet-stream" in accept or fmt == "binary-v1"
+
+
+def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
+    t1 = time.time()
+    misd = _get_misd_detector()
+    t_model = time.time() - t1
+    print(f"[apply_correspondences] misd detector init: {t_model:.2f}s")
+
+    t2 = time.time()
+    warped_int8 = (warped_image * 127).clamp(-128, 127).round().to(torch.int8)
+    tgt_int8 = (tgt_image_tensor * 127).clamp(-128, 127).round().to(torch.int8)
+    misd_mask = misd(warped_int8, tgt_int8)
+    zero_mask = (warped_int8 == 0).all(dim=0, keepdim=True) | (tgt_int8 == 0).all(
+        dim=0, keepdim=True
+    )
+    misd_mask[zero_mask] = 0
+    print(
+        f"[apply_correspondences] misd uint8: "
+        f"min={misd_mask.min().item()} "
+        f"max={misd_mask.max().item()} "
+        f"mean={misd_mask.float().mean().item():.1f}"
+    )
+    t_misd = time.time() - t2
+    print(f"[apply_correspondences] misd inference: {t_misd:.2f}s")
+
+    misd_float = misd_mask.float() / 255.0
+    if input_dtype == torch.int8:
+        misd_as_input = (misd_float * 255 - 128).clamp(-128, 127).to(torch.int8)
+    elif input_dtype == torch.uint8:
+        misd_as_input = misd_mask
+    else:
+        misd_as_input = misd_float * 2.0 - 1.0
+    print(
+        f"[apply_correspondences] misd output "
+        f"(dtype={misd_as_input.dtype}): "
+        f"min={misd_as_input.min().item()} "
+        f"max={misd_as_input.max().item()} "
+        f"mean={misd_as_input.float().mean().item():.1f}"
+    )
+    return misd_as_input
 
 
 @api.post("/apply_correspondences")
@@ -422,35 +477,8 @@ async def apply_correspondences(request: Request):
         print(f"[apply_correspondences] correspondence relaxation: {t_corr:.2f}s")
 
         misd_as_input = None
-        # Run misalignment detection between warped source and target
         if tgt_image_tensor is not None:
-            t1 = time.time()
-            misd = _get_misd_detector()
-            t_model = time.time() - t1
-            print(f"[apply_correspondences] misd detector init: {t_model:.2f}s")
-
-            t2 = time.time()
-            # Input images are float [-1, 1] (int8 / 127). Convert to int8 for misd model.
-            warped_int8 = (warped_image * 127).clamp(-128, 127).round().to(torch.int8)
-            tgt_int8 = (tgt_image_tensor * 127).clamp(-128, 127).round().to(torch.int8)
-            misd_mask = misd(warped_int8, tgt_int8)  # (1, H, W, 1) uint8 [0, 255]
-            # Zero out where warped source or target is zero (no data)
-            zero_mask = (warped_int8 == 0).all(dim=0, keepdim=True) | (tgt_int8 == 0).all(dim=0, keepdim=True)
-            misd_mask[zero_mask] = 0
-            print(f"[apply_correspondences] misd uint8: min={misd_mask.min().item()} max={misd_mask.max().item()} mean={misd_mask.float().mean().item():.1f}")
-            t_misd = time.time() - t2
-            print(f"[apply_correspondences] misd inference: {t_misd:.2f}s")
-
-            # Remap misd [0, 255] uint8 to match input image range
-            misd_float = misd_mask.float() / 255.0  # [0, 1]
-            if image_tensor.dtype == torch.int8:
-                misd_as_input = (misd_float * 255 - 128).clamp(-128, 127).to(torch.int8)
-            elif image_tensor.dtype == torch.uint8:
-                misd_as_input = misd_mask
-            else:
-                # Input is float [-1, 1], remap [0, 1] -> [-1, 1]
-                misd_as_input = misd_float * 2.0 - 1.0
-            print(f"[apply_correspondences] misd output (dtype={misd_as_input.dtype}): min={misd_as_input.min().item()} max={misd_as_input.max().item()} mean={misd_as_input.float().mean().item():.1f}")
+            misd_as_input = _run_misd_detection(warped_image, tgt_image_tensor, image_tensor.dtype)
 
         print(f"[apply_correspondences] total: {time.time() - t0:.2f}s")
         return relaxed_field, warped_image, misd_as_input
@@ -476,7 +504,9 @@ async def apply_correspondences(request: Request):
 
     relaxed_field_np = relaxed_field.cpu().numpy().astype(np.float32)
     warped_image_np = warped_image.cpu().numpy().astype(np.float32)
-    misd_image_np = misd_as_input.cpu().numpy().astype(np.float32) if tgt_image_tensor is not None else None
+    misd_image_np = (
+        misd_as_input.cpu().numpy().astype(np.float32) if misd_as_input is not None else None
+    )
 
     if _wants_binary_response(request):
         compress = "gzip" in request.headers.get("accept-encoding", "")

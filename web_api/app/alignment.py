@@ -13,6 +13,8 @@ import torch
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
+from scipy.ndimage import binary_closing
+from scipy.ndimage import label as scipy_label
 
 from zetta_utils.internal.alignment.manual_correspondence import (
     apply_correspondences_to_image,
@@ -94,6 +96,11 @@ class ApplyCorrespondencesRequest(BaseModel):
         description="Weight for MSE loss between warped source and target images. "
         "Only used when tgt_image is provided.",
     )
+    downsample_factor: int = Field(
+        16,
+        description="Multi-scale downsampling factor for field propagation. "
+        "1 = no downsampling. 8 or 16 for faster initialization.",
+    )
 
 
 class ApplyCorrespondencesResponse(BaseModel):
@@ -154,6 +161,7 @@ def _parse_json_request(body: dict, device: torch.device):
         "lr": req.lr,
         "optimizer_type": req.optimizer_type,
         "mse_weight": req.mse_weight,
+        "downsample_factor": req.downsample_factor,
     }
     return (
         correspondences_dict,
@@ -277,6 +285,7 @@ async def _parse_multipart_request(request: Request, device: torch.device):
         "lr": metadata.get("lr", 1e-3),
         "optimizer_type": metadata.get("optimizer_type", "adam"),
         "mse_weight": metadata.get("mse_weight", 1.0),
+        "downsample_factor": metadata.get("downsample_factor", 16),
     }
     return (
         correspondences_dict,
@@ -370,6 +379,26 @@ def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
         dim=0, keepdim=True
     )
     misd_mask[zero_mask] = 0
+
+    structure = np.ones((3, 3), dtype=bool)
+    misd_np = misd_mask.cpu().numpy()  # (1, X, Y, Z)
+    out_np = np.zeros_like(misd_np)
+    for z in range(misd_np.shape[3]):
+        sl = misd_np[0, :, :, z] > 128
+        if not sl.any():
+            continue
+        sl = binary_closing(sl, structure=structure, iterations=1)
+        if not sl.any():
+            continue
+        labels, _ = scipy_label(sl)
+        ids, counts = np.unique(labels, return_counts=True)
+        keep_mask = np.zeros_like(sl)
+        for seg_id, count in zip(ids, counts):
+            if seg_id != 0 and count >= 100:
+                keep_mask |= labels == seg_id
+        out_np[0, :, :, z][keep_mask] = 255
+    misd_mask = torch.from_numpy(out_np).to(misd_mask.device)
+
     print(
         f"[apply_correspondences] misd uint8: "
         f"min={misd_mask.min().item()} "

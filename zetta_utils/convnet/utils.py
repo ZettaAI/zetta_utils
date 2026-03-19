@@ -58,6 +58,7 @@ def _load_model(
     logger.debug(f"Loading model from '{path}'")
     if path.endswith(".json"):
         result = builder.build(path=path).to(device)
+        result.eval()
     elif path.endswith(".jit"):
         with fsspec.open(path, "rb") as f:
             result = torch.jit.load(f, map_location=device)

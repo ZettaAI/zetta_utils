@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections import defaultdict
 from collections.abc import Sequence
@@ -12,7 +13,7 @@ import numpy as np
 import pandas as pd
 import trimesh
 from cloudvolume import CloudVolume
-from cloudvolume.exceptions import MeshDecodeError
+from cloudvolume.exceptions import MeshDecodeError, MeshMissingError
 from scipy.spatial.distance import cdist
 
 from zetta_utils import builder, log
@@ -137,7 +138,11 @@ def _find_offtarget_segment_ids(
         offtarget = (total - best_count) if includes_unclaimed else (covered - best_count)
         if max_offtarget_vx is not None and offtarget > max_offtarget_vx:
             result.add(s)
-        elif max_offtarget_fraction is not None and total > 0 and offtarget / total > max_offtarget_fraction:
+        elif (
+            max_offtarget_fraction is not None
+            and total > 0
+            and offtarget / total > max_offtarget_fraction
+        ):
             result.add(s)
     return result
 
@@ -159,14 +164,52 @@ def _find_unclaimed_vx_segment_ids(
         unclaimed = total - seg_total_overlap.get(s, 0)
         if max_unclaimed_vx is not None and unclaimed > max_unclaimed_vx:
             result.add(s)
-        elif max_unclaimed_fraction is not None and total > 0 and unclaimed / total > max_unclaimed_fraction:
+        elif (
+            max_unclaimed_fraction is not None
+            and total > 0
+            and unclaimed / total > max_unclaimed_fraction
+        ):
             result.add(s)
     return result
 
 
-def _compute_segment_metrics(
-    seg_ids, ref_ids, counts, seg_total_vx, min_overlap_vx
-):
+def _compute_dominant_labels(seg: np.ndarray, constraint: np.ndarray) -> dict[int, int]:
+    """For each segment, find the constraint label covering >50% of its voxels.
+
+    Returns dict mapping segment_id -> dominant label, only for segments
+    where a single non-zero constraint label covers more than half of all voxels.
+    """
+    flat_seg = seg.ravel()
+    flat_con = constraint.ravel()
+
+    seg_mask = flat_seg != 0
+    seg_ids_arr, seg_counts = np.unique(flat_seg[seg_mask], return_counts=True)
+    seg_totals = dict(zip(seg_ids_arr.astype(int), seg_counts.astype(int)))
+
+    valid_mask = seg_mask & (flat_con != 0)
+    if not valid_mask.any():
+        return {}
+
+    df = pd.DataFrame({"seg": flat_seg[valid_mask], "con": flat_con[valid_mask]})
+    pair_counts = df.groupby(["seg", "con"]).size().reset_index(name="count")
+
+    idx_max = pair_counts.groupby("seg")["count"].idxmax()
+    best = pair_counts.loc[idx_max]
+
+    result: dict[int, int] = {}
+    seg_arr = best["seg"].values
+    con_arr = best["con"].values
+    count_arr = best["count"].values
+    for i in range(len(best)):
+        seg_id = int(seg_arr[i])
+        count = int(count_arr[i])
+        total = seg_totals.get(seg_id, 0)
+        if total > 0 and count > total / 2:
+            result[seg_id] = int(con_arr[i])
+    return result
+
+
+def _compute_segment_metrics(seg_ids, ref_ids, counts, seg_total_vx, min_overlap_vx):
     """Compute raw per-segment filter metric values.
 
     Returns dict mapping segment_id -> dict of metric values.
@@ -216,10 +259,17 @@ def _compute_contact_filter_stats(
     ref_hi = reference[hi_x, hi_y, hi_z]
     both_have_gt = (ref_lo != 0) & (ref_hi != 0)
 
-    df = pd.DataFrame({
-        "a": seg_a, "b": seg_b, "aff": aff,
-        "x": x, "y": y, "z": z, "gt": both_have_gt,
-    })
+    df = pd.DataFrame(
+        {
+            "a": seg_a,
+            "b": seg_b,
+            "aff": aff,
+            "x": x,
+            "y": y,
+            "z": z,
+            "gt": both_have_gt,
+        }
+    )
 
     grouped = df.groupby(["a", "b"]).agg(
         contact_count=("a", "size"),
@@ -236,9 +286,15 @@ def _compute_contact_filter_stats(
 
     # COM: weighted if aff_sum > 0, else unweighted mean
     has_aff = grouped["aff_sum"].values > 0
-    grouped["com_x"] = np.where(has_aff, grouped["wx"].values / grouped["aff_sum"].values, grouped["mean_x"].values)
-    grouped["com_y"] = np.where(has_aff, grouped["wy"].values / grouped["aff_sum"].values, grouped["mean_y"].values)
-    grouped["com_z"] = np.where(has_aff, grouped["wz"].values / grouped["aff_sum"].values, grouped["mean_z"].values)
+    grouped["com_x"] = np.where(
+        has_aff, grouped["wx"].values / grouped["aff_sum"].values, grouped["mean_x"].values
+    )
+    grouped["com_y"] = np.where(
+        has_aff, grouped["wy"].values / grouped["aff_sum"].values, grouped["mean_y"].values
+    )
+    grouped["com_z"] = np.where(
+        has_aff, grouped["wz"].values / grouped["aff_sum"].values, grouped["mean_z"].values
+    )
 
     # Convert COM from voxel coords to nm
     grouped["com_x"] = grouped["com_x"] * resolution[0]
@@ -249,18 +305,45 @@ def _compute_contact_filter_stats(
     rx, ry, rz = float(resolution[0]), float(resolution[1]), float(resolution[2])
     faces_json = {}
     for (a, b), group in df.groupby(["a", "b"]):
-        g = group if len(group) <= max_faces_per_contact else group.sample(
-            max_faces_per_contact, random_state=42
+        g = (
+            group
+            if len(group) <= max_faces_per_contact
+            else group.sample(max_faces_per_contact, random_state=42)
         )
         faces = [
-            [round(r["x"] * rx, 1), round(r["y"] * ry, 1), round(r["z"] * rz, 1), round(float(r["aff"]), 4)]
+            [
+                round(r["x"] * rx, 1),
+                round(r["y"] * ry, 1),
+                round(r["z"] * rz, 1),
+                round(float(r["aff"]), 4),
+            ]
             for _, r in g.iterrows()
         ]
         faces_json[(a, b)] = json.dumps(faces)
     grouped["contact_faces_nm"] = [faces_json[(a, b)] for a, b in grouped.index]
 
-    result = grouped[["contact_count", "mean_affinity", "interface_gt_fraction", "com_x", "com_y", "com_z", "contact_faces_nm"]].reset_index()
-    result.columns = ["seg_a", "seg_b", "contact_count", "mean_affinity", "interface_gt_fraction", "com_x", "com_y", "com_z", "contact_faces_nm"]
+    result = grouped[
+        [
+            "contact_count",
+            "mean_affinity",
+            "interface_gt_fraction",
+            "com_x",
+            "com_y",
+            "com_z",
+            "contact_faces_nm",
+        ]
+    ].reset_index()
+    result.columns = [
+        "seg_a",
+        "seg_b",
+        "contact_count",
+        "mean_affinity",
+        "interface_gt_fraction",
+        "com_x",
+        "com_y",
+        "com_z",
+        "contact_faces_nm",
+    ]
     return result
 
 
@@ -307,7 +390,7 @@ def _blackout_segments(seg: np.ndarray, ids_to_remove: set[int]) -> np.ndarray:
     if not ids_to_remove:
         return seg
     seg = seg.copy()
-    mask = np.isin(seg, list(ids_to_remove))
+    mask = np.isin(seg, np.array(list(ids_to_remove), dtype=seg.dtype))
     seg[mask] = 0
     return seg
 
@@ -367,6 +450,18 @@ def _find_contacts(
     return seg_a, seg_b, aff_vals, x, y, z
 
 
+def _keep_mask_for_pairs(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    pair_keep: np.ndarray,
+    pair_index: pd.MultiIndex,
+) -> np.ndarray:
+    """Map per-pair boolean to per-face boolean mask via pandas index lookup."""
+    keep_series = pd.Series(pair_keep, index=pair_index)
+    face_pairs = pd.MultiIndex.from_arrays([seg_a, seg_b])
+    return keep_series.reindex(face_pairs, fill_value=False).values
+
+
 def _filter_pairs_touching_boundary(
     seg_a: np.ndarray,
     seg_b: np.ndarray,
@@ -388,11 +483,11 @@ def _filter_pairs_touching_boundary(
         | (z <= padded_start[2])
         | (z >= padded_end[2] - 1)
     )
-    pairs_on_boundary: set[tuple[int, int]] = set()
-    for a, b, on_b in zip(seg_a, seg_b, on_boundary):
-        if on_b:
-            pairs_on_boundary.add((int(a), int(b)))
-    keep = np.array([(int(a), int(b)) not in pairs_on_boundary for a, b in zip(seg_a, seg_b)])
+    # Find boundary pairs using pandas groupby (vectorized)
+    df = pd.DataFrame({"a": seg_a, "b": seg_b, "on_b": on_boundary})
+    pair_has_boundary = df.groupby(["a", "b"])["on_b"].any()
+    keep_pairs = ~pair_has_boundary.values
+    keep = _keep_mask_for_pairs(seg_a, seg_b, keep_pairs, pair_has_boundary.index)
     return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
 
 
@@ -446,9 +541,8 @@ def _filter_pairs_by_com(
         & (com_z < kernel_end[2])
     )
 
-    # Build set of pairs inside kernel
-    pairs_inside = set(grouped.index[inside].tolist())
-    keep = np.array([(int(a), int(b)) in pairs_inside for a, b in zip(seg_a, seg_b)])
+    # Vectorized: map pair-level inside boolean to per-face mask
+    keep = _keep_mask_for_pairs(seg_a, seg_b, inside, grouped.index)
     return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
 
 
@@ -482,8 +576,8 @@ def _filter_pairs_by_interface_gt(
 
     df = pd.DataFrame({"a": seg_a, "b": seg_b, "gt": both_have_gt})
     grouped = df.groupby(["a", "b"])["gt"].mean()
-    pairs_ok = set(grouped.index[grouped.values >= min_interface_gt_fraction].tolist())
-    keep = np.array([(int(a), int(b)) in pairs_ok for a, b in zip(seg_a, seg_b)])
+    keep_pairs = grouped.values >= min_interface_gt_fraction
+    keep = _keep_mask_for_pairs(seg_a, seg_b, keep_pairs, grouped.index)
     return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
 
 
@@ -509,6 +603,25 @@ def _build_contact_lookup(
     return data
 
 
+def _filter_faces_by_mean_affinity(
+    seg_a: np.ndarray,
+    seg_b: np.ndarray,
+    aff: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    min_affinity: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Early filter: drop all faces belonging to pairs with mean affinity below threshold."""
+    if min_affinity <= 0.0:
+        return seg_a, seg_b, aff, x, y, z
+    df = pd.DataFrame({"a": seg_a, "b": seg_b, "aff": aff})
+    pair_mean = df.groupby(["a", "b"])["aff"].mean()
+    keep_pairs = pair_mean.values >= min_affinity
+    keep = _keep_mask_for_pairs(seg_a, seg_b, keep_pairs, pair_mean.index)
+    return seg_a[keep], seg_b[keep], aff[keep], x[keep], y[keep], z[keep]
+
+
 def _filter_by_mean_affinity(
     contact_data: dict[tuple[int, int], list[tuple[float, float, float, float]]],
     min_affinity: float,
@@ -524,7 +637,99 @@ def _filter_by_mean_affinity(
     return result
 
 
-def _download_meshes(cv: CloudVolume, segment_ids: list[int]) -> dict[int, trimesh.Trimesh]:
+def _mesh_nbytes(mesh: trimesh.Trimesh) -> int:
+    """Estimate memory usage of a trimesh in bytes."""
+    return mesh.vertices.nbytes + mesh.faces.nbytes
+
+
+def _fetch_mesh(
+    cv: CloudVolume, seg_id: int, lod: int = 0
+) -> tuple[int, trimesh.Trimesh | None, float]:
+    """Returns (seg_id, mesh_or_none, elapsed_seconds)."""
+    t0 = time.time()
+    try:
+        meshes = cv.mesh.get([seg_id], lod=lod, progress=False)
+        mesh_obj = meshes.get(seg_id)
+        if mesh_obj is None or len(mesh_obj.vertices) == 0 or len(mesh_obj.faces) == 0:
+            return seg_id, None, time.time() - t0
+        return (
+            seg_id,
+            trimesh.Trimesh(vertices=mesh_obj.vertices, faces=mesh_obj.faces),
+            time.time() - t0,
+        )
+    except (MeshDecodeError, MeshMissingError):
+        return seg_id, None, time.time() - t0
+
+
+class MeshLRUCache:
+    """LRU cache for trimesh meshes with a memory budget."""
+
+    def __init__(self, cv: CloudVolume, max_bytes: int, num_procs: int = 1, lod: int = 0):
+        from cachetools import LRUCache
+
+        self.cv = cv
+        self.num_procs = num_procs
+        self.lod = lod
+        self._cache: LRUCache = LRUCache(maxsize=max_bytes, getsizeof=_mesh_nbytes)
+        self._failed: set[int] = set()
+        self._fetch_times: list[tuple[int, float, int]] = []  # (seg_id, seconds, nbytes)
+
+    def get(self, seg_id: int) -> trimesh.Trimesh | None:
+        if seg_id in self._failed:
+            return None
+        mesh = self._cache.get(seg_id)
+        if mesh is not None:
+            return mesh
+        _, mesh, elapsed = _fetch_mesh(self.cv, seg_id, self.lod)
+        if mesh is None:
+            self._failed.add(seg_id)
+            self._fetch_times.append((seg_id, elapsed, 0))
+            return None
+        self._fetch_times.append((seg_id, elapsed, _mesh_nbytes(mesh)))
+        self._cache[seg_id] = mesh
+        return mesh
+
+    def prefetch(self, seg_ids: list[int]) -> None:
+        to_fetch = [s for s in seg_ids if s not in self._cache and s not in self._failed]
+        if not to_fetch:
+            return
+        n_before = len(self._cache)
+        total_fetched_bytes = 0
+        batch_size = max(self.num_procs, 1)
+        for i in range(0, len(to_fetch), batch_size):
+            batch = to_fetch[i : i + batch_size]
+            if self.num_procs <= 1:
+                results = [_fetch_mesh(self.cv, s, self.lod) for s in batch]
+            else:
+                lod = self.lod
+                with ThreadPoolExecutor(max_workers=self.num_procs) as ex:
+                    results = list(ex.map(lambda s: _fetch_mesh(self.cv, s, lod), batch))
+            for seg_id, mesh, elapsed in results:
+                if mesh is None:
+                    self._failed.add(seg_id)
+                    self._fetch_times.append((seg_id, elapsed, 0))
+                else:
+                    nbytes = _mesh_nbytes(mesh)
+                    total_fetched_bytes += nbytes
+                    self._cache[seg_id] = mesh
+                    self._fetch_times.append((seg_id, elapsed, nbytes))
+        if total_fetched_bytes > 0 and total_fetched_bytes > self._cache.maxsize:
+            raise RuntimeError(
+                f"Mesh prefetch ({total_fetched_bytes / 1024**2:.0f}MB) exceeds "
+                f"cache limit ({self._cache.maxsize / 1024**2:.0f}MB). "
+                f"Increase mesh_cache_bytes."
+            )
+
+    def write_timing_log(self, path: str = "/tmp/mesh_download_times.csv") -> None:
+        with open(path, "w") as f:
+            f.write("seg_id,seconds,nbytes\n")
+            for seg_id, elapsed, nbytes in self._fetch_times:
+                f.write(f"{seg_id},{elapsed:.4f},{nbytes}\n")
+
+
+def _download_meshes(
+    cv: CloudVolume, segment_ids: list[int], num_procs: int = 1
+) -> dict[int, trimesh.Trimesh]:
     """Download meshes without clipping (clipping done per-contact to sphere)."""
     if not segment_ids:
         return {}
@@ -532,15 +737,30 @@ def _download_meshes(cv: CloudVolume, segment_ids: list[int]) -> dict[int, trime
     result: dict[int, trimesh.Trimesh] = {}
     failed_ids: list[int] = []
 
-    for seg_id in segment_ids:
+    def _fetch_one(seg_id: int) -> tuple[int, trimesh.Trimesh | None, str | None]:
         try:
             meshes = cv.mesh.get([seg_id], progress=False)
             mesh_obj = meshes.get(seg_id)
             if mesh_obj is None or len(mesh_obj.vertices) == 0 or len(mesh_obj.faces) == 0:
-                continue
-            result[seg_id] = trimesh.Trimesh(vertices=mesh_obj.vertices, faces=mesh_obj.faces)
-        except MeshDecodeError:
-            failed_ids.append(seg_id)
+                return seg_id, None, None
+            return seg_id, trimesh.Trimesh(vertices=mesh_obj.vertices, faces=mesh_obj.faces), None
+        except (MeshDecodeError, MeshMissingError):
+            return seg_id, None, "decode_error"
+
+    batch_size = max(num_procs, 1)
+    for batch_start in range(0, len(segment_ids), batch_size):
+        batch = segment_ids[batch_start : batch_start + batch_size]
+        if num_procs <= 1:
+            fetch_results = [_fetch_one(seg_id) for seg_id in batch]
+        else:
+            with ThreadPoolExecutor(max_workers=num_procs) as executor:
+                fetch_results = list(executor.map(_fetch_one, batch))
+
+        for seg_id, mesh, error in fetch_results:
+            if error == "decode_error":
+                failed_ids.append(seg_id)
+            elif mesh is not None:
+                result[seg_id] = mesh
 
     if failed_ids:
         print(
@@ -549,6 +769,21 @@ def _download_meshes(cv: CloudVolume, segment_ids: list[int]) -> dict[int, trime
         )
 
     return result
+
+
+def _sort_pairs_by_segment_frequency(
+    valid_pairs: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    """Sort pairs so segments appearing in the most contacts come first.
+
+    This maximizes mesh cache hits by processing high-frequency segments together.
+    """
+    seg_counts: dict[int, int] = defaultdict(int)
+    for a, b in valid_pairs:
+        seg_counts[a] += 1
+        seg_counts[b] += 1
+
+    return sorted(valid_pairs, key=lambda p: -(seg_counts[p[0]] + seg_counts[p[1]]))
 
 
 def _select_components_near_contacts(
@@ -612,7 +847,7 @@ def _sample_mesh_points(mesh: trimesh.Trimesh | None, n: int) -> np.ndarray:
     if mesh is None or len(mesh.faces) == 0:
         return np.zeros((n, 3), dtype=np.float32)
     # Use deterministic seed based on mesh geometry
-    seed = int(np.abs(mesh.vertices.sum() * 1000)) % (2**31)
+    seed = int(np.abs(mesh.vertices.sum() * 1000)) % (2 ** 31)
     rng = np.random.RandomState(seed)
     result = trimesh.sample.sample_surface(mesh, n, seed=rng)
     points = result[0]
@@ -831,6 +1066,14 @@ def _generate_seg_contact(
     if not local_pointclouds:
         return None
 
+    merge_decisions: dict[str, bool] = {}
+    if seg_to_ref:
+        merge_decisions = {
+            merge_authority: bool(
+                seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set())
+            )
+        }
+
     return SegContact(
         id=contact_id,
         seg_a=seg_a_id,
@@ -838,11 +1081,7 @@ def _generate_seg_contact(
         com=Vec3D(float(com[0]), float(com[1]), float(com[2])),
         contact_faces=contact_faces,
         local_pointclouds=local_pointclouds,
-        merge_decisions={
-            merge_authority: bool(
-                seg_to_ref.get(seg_a_id, set()) & seg_to_ref.get(seg_b_id, set())
-            )
-        },
+        merge_decisions=merge_decisions,
         representative_points=_compute_representative_points(
             contact_faces, seg_a_id, seg_b_id, seg_volume, seg_start_nm, resolution
         ),
@@ -894,6 +1133,9 @@ class SegContactOp:
     min_interface_gt_fraction: float | None = None
     collect_filter_stats_only: bool = False
     min_nucleus_vx: int = 1
+    num_procs: int = attrs.Factory(lambda: os.cpu_count() or 1)
+    mesh_cache_bytes: int = 2 * 1024 ** 3  # 2GB default
+    mesh_lod: int = 0
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -906,12 +1148,22 @@ class SegContactOp:
         idx: VolumetricIndex,
         dst: VolumetricSegContactLayer,
         segmentation_layer: VolumetricLayer,
-        reference_layer: VolumetricLayer,
         affinity_layer: VolumetricLayer,
+        reference_layer: VolumetricLayer | None = None,
         nucleus_layer: VolumetricLayer | None = None,
+        constraint_layers: dict[str, VolumetricLayer] | None = None,
     ) -> None:
         t_start = time.time()
         coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
+
+        # Skip if chunk already exists
+        chunk_idx = dst.backend.com_to_chunk_idx(idx.bbox.start)
+        chunk_path = dst.backend.get_chunk_path(chunk_idx)
+        fs, fs_path = __import__("fsspec").core.url_to_fs(chunk_path)
+        if fs.exists(fs_path):
+            print(f"[{coord_str}] Chunk already exists, skipping", flush=True)
+            return
+
         idx_padded = idx.padded(Vec3D[int](*self.crop_pad))
         resolution = np.array([idx.resolution[0], idx.resolution[1], idx.resolution[2]])
 
@@ -939,169 +1191,224 @@ class SegContactOp:
         # Read all layers
         t0 = time.time()
         with semaphore("read"):
-            seg, reference, aff = _read_layers_parallel(
-                segmentation_layer, reference_layer, affinity_layer, idx_padded
-            )
+            if reference_layer is not None:
+                seg, reference, aff = _read_layers_parallel(
+                    segmentation_layer, reference_layer, affinity_layer, idx_padded
+                )
+            else:
+                seg = np.asarray(segmentation_layer[idx_padded]).squeeze()
+                aff = np.asarray(affinity_layer[idx_padded])
+                reference = None
         print(f"[{coord_str}] Read layers: {time.time() - t0:.1f}s", flush=True)
+
+        # Read constraint layers and compute dominant labels per segment
+        dominant_labels: dict[str, dict[int, int]] = {}
+        if constraint_layers:
+            for name, layer in constraint_layers.items():
+                con_data = np.asarray(layer[idx_padded]).squeeze()
+                dominant_labels[name] = _compute_dominant_labels(seg, con_data)
+                print(
+                    f"[{coord_str}] Constraint '{name}': "
+                    f"{len(dominant_labels[name])} segments with dominant label",
+                    flush=True,
+                )
 
         # Compute overlaps and find segments to exclude
         t0 = time.time()
-        overlap_seg, overlap_ref, overlap_count = _compute_overlaps(seg, reference)
-        all_seg_ids = set(int(s) for s in np.unique(seg) if s != 0)
         small_ids = _find_small_segment_ids(seg, self.min_seg_size_vx)
-        merger_ids = _find_merger_segment_ids(
-            overlap_seg, overlap_ref, overlap_count, self.min_overlap_vx
-        )
-        unclaimed_ids = _find_unclaimed_segment_ids(
-            overlap_seg, overlap_count, self.min_overlap_vx, all_seg_ids
-        )
+        seg_to_ref: dict[int, set[int]] = {}
 
-        unique_segs, seg_counts = np.unique(seg, return_counts=True)
-        seg_total_vx = {int(s): int(c) for s, c in zip(unique_segs, seg_counts) if s != 0}
-
-        if self.collect_filter_stats_only:
-            seg_metrics = _compute_segment_metrics(
-                overlap_seg, overlap_ref, overlap_count, seg_total_vx, self.min_overlap_vx
+        if reference is not None:
+            overlap_seg, overlap_ref, overlap_count = _compute_overlaps(seg, reference)
+            all_seg_ids = set(int(s) for s in np.unique(seg) if s != 0)
+            merger_ids = _find_merger_segment_ids(
+                overlap_seg, overlap_ref, overlap_count, self.min_overlap_vx
             )
-            print(
-                f"[{coord_str}] Computed segment metrics for {len(seg_metrics)} segments",
-                flush=True,
+            unclaimed_ids = _find_unclaimed_segment_ids(
+                overlap_seg, overlap_count, self.min_overlap_vx, all_seg_ids
             )
 
-            # Find contacts WITHOUT blackout
-            t0 = time.time()
-            seg_a, seg_b, aff_vals, x, y, z = _find_contacts(seg, aff, idx_padded.start)
-            if len(seg_a) == 0:
-                print(f"[{coord_str}] No contacts found, skipping", flush=True)
-                return
-            print(
-                f"[{coord_str}] Find contacts (unfiltered): {time.time() - t0:.1f}s "
-                f"({len(seg_a)} face voxels)",
-                flush=True,
-            )
+            unique_segs, seg_counts = np.unique(seg, return_counts=True)
+            seg_total_vx = {int(s): int(c) for s, c in zip(unique_segs, seg_counts) if s != 0}
 
-            # Apply only structural filters (boundary + COM)
-            seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_touching_boundary(
-                seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape
-            )
-            if len(seg_a) == 0:
-                print(f"[{coord_str}] All pairs on boundary, skipping", flush=True)
-                return
+            if self.collect_filter_stats_only:
+                seg_metrics = _compute_segment_metrics(
+                    overlap_seg, overlap_ref, overlap_count, seg_total_vx, self.min_overlap_vx
+                )
+                print(
+                    f"[{coord_str}] Computed segment metrics for {len(seg_metrics)} segments",
+                    flush=True,
+                )
 
-            seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_com(
-                seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape, self.crop_pad
-            )
-            if len(seg_a) == 0:
-                print(f"[{coord_str}] All pairs outside kernel, skipping", flush=True)
-                return
+                # Find contacts WITHOUT blackout
+                t0 = time.time()
+                seg_a, seg_b, aff_vals, x, y, z = _find_contacts(seg, aff, idx_padded.start)
+                if len(seg_a) == 0:
+                    print(f"[{coord_str}] No contacts found, skipping", flush=True)
+                    return
+                print(
+                    f"[{coord_str}] Find contacts (unfiltered): {time.time() - t0:.1f}s "
+                    f"({len(seg_a)} face voxels)",
+                    flush=True,
+                )
 
-            # Compute per-contact metrics
-            contact_stats = _compute_contact_filter_stats(
-                seg_a, seg_b, aff_vals, x, y, z, reference, idx_padded.start, resolution
-            )
+                # Apply only structural filters (boundary + COM)
+                seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_touching_boundary(
+                    seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape
+                )
+                if len(seg_a) == 0:
+                    print(f"[{coord_str}] All pairs on boundary, skipping", flush=True)
+                    return
 
-            # GT merge label: unknown if either segment lacks GT overlap
-            seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
-            def _gt_label(row):
-                refs_a = seg_to_ref.get(int(row["seg_a"]))
-                refs_b = seg_to_ref.get(int(row["seg_b"]))
-                if refs_a is None or refs_b is None:
-                    return "unknown"
-                return "merge" if refs_a & refs_b else "no_merge"
-            contact_stats["gt_merge_label"] = contact_stats.apply(_gt_label, axis=1)
-            contact_stats["gt_refs_a"] = contact_stats["seg_a"].map(
-                lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
-            )
-            contact_stats["gt_refs_b"] = contact_stats["seg_b"].map(
-                lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
-            )
+                seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_com(
+                    seg_a, seg_b, aff_vals, x, y, z, idx_padded.start, seg.shape, self.crop_pad
+                )
+                if len(seg_a) == 0:
+                    print(f"[{coord_str}] All pairs outside kernel, skipping", flush=True)
+                    return
 
-            # Join per-segment metrics for both seg_a and seg_b
-            for prefix, col in [("seg_a_", "seg_a"), ("seg_b_", "seg_b")]:
-                for metric in ["size_vx", "best_overlap_vx", "total_overlap_vx",
-                               "offtarget_vx", "offtarget_fraction",
-                               "unclaimed_vx", "unclaimed_fraction"]:
-                    contact_stats[prefix + metric] = contact_stats[col].map(
-                        lambda s, m=metric: seg_metrics.get(int(s), {}).get(m, 0)
+                # Compute per-contact metrics
+                contact_stats = _compute_contact_filter_stats(
+                    seg_a, seg_b, aff_vals, x, y, z, reference, idx_padded.start, resolution
+                )
+
+                # GT merge label: unknown if either segment lacks GT overlap
+                seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
+
+                def _gt_label(row):
+                    refs_a = seg_to_ref.get(int(row["seg_a"]))
+                    refs_b = seg_to_ref.get(int(row["seg_b"]))
+                    if refs_a is None or refs_b is None:
+                        return "unknown"
+                    return "merge" if refs_a & refs_b else "no_merge"
+
+                contact_stats["gt_merge_label"] = contact_stats.apply(_gt_label, axis=1)
+                contact_stats["gt_refs_a"] = contact_stats["seg_a"].map(
+                    lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+                )
+                contact_stats["gt_refs_b"] = contact_stats["seg_b"].map(
+                    lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+                )
+
+                # Join per-segment metrics for both seg_a and seg_b
+                for prefix, col in [("seg_a_", "seg_a"), ("seg_b_", "seg_b")]:
+                    for metric in [
+                        "size_vx",
+                        "best_overlap_vx",
+                        "total_overlap_vx",
+                        "offtarget_vx",
+                        "offtarget_fraction",
+                        "unclaimed_vx",
+                        "unclaimed_fraction",
+                    ]:
+                        contact_stats[prefix + metric] = contact_stats[col].map(
+                            lambda s, m=metric: seg_metrics.get(int(s), {}).get(m, 0)
+                        )
+
+                # Derived worst-case columns
+                contact_stats["min_size_vx"] = contact_stats[
+                    ["seg_a_size_vx", "seg_b_size_vx"]
+                ].min(axis=1)
+                contact_stats["max_offtarget_vx"] = contact_stats[
+                    ["seg_a_offtarget_vx", "seg_b_offtarget_vx"]
+                ].max(axis=1)
+                contact_stats["max_offtarget_fraction"] = contact_stats[
+                    ["seg_a_offtarget_fraction", "seg_b_offtarget_fraction"]
+                ].max(axis=1)
+                contact_stats["max_unclaimed_vx"] = contact_stats[
+                    ["seg_a_unclaimed_vx", "seg_b_unclaimed_vx"]
+                ].max(axis=1)
+                contact_stats["max_unclaimed_fraction"] = contact_stats[
+                    ["seg_a_unclaimed_fraction", "seg_b_unclaimed_fraction"]
+                ].max(axis=1)
+                contact_stats["min_best_overlap_vx"] = contact_stats[
+                    ["seg_a_best_overlap_vx", "seg_b_best_overlap_vx"]
+                ].min(axis=1)
+
+                # Check mesh availability
+                seg_ids_list = list(
+                    set(
+                        contact_stats["seg_a"].astype(int).tolist()
+                        + contact_stats["seg_b"].astype(int).tolist()
                     )
+                )
+                t_mesh = time.time()
+                mesh_cv = CloudVolume(
+                    segmentation_layer.backend.name, use_https=True, progress=False
+                )
+                mesh_exists_results = mesh_cv.mesh.exists(seg_ids_list)
+                has_mesh = {
+                    seg_id
+                    for seg_id, result in zip(seg_ids_list, mesh_exists_results)
+                    if result is not None
+                }
+                contact_stats["has_mesh_a"] = contact_stats["seg_a"].astype(int).isin(has_mesh)
+                contact_stats["has_mesh_b"] = contact_stats["seg_b"].astype(int).isin(has_mesh)
+                contact_stats["both_meshes"] = (
+                    contact_stats["has_mesh_a"] & contact_stats["has_mesh_b"]
+                )
+                n_both = contact_stats["both_meshes"].sum()
+                print(
+                    f"[{coord_str}] Mesh check: {len(has_mesh)}/{len(seg_ids_list)} "
+                    f"segments have meshes, {n_both}/{len(contact_stats)} pairs have both "
+                    f"({time.time() - t_mesh:.1f}s)",
+                    flush=True,
+                )
 
-            # Derived worst-case columns
-            contact_stats["min_size_vx"] = contact_stats[["seg_a_size_vx", "seg_b_size_vx"]].min(axis=1)
-            contact_stats["max_offtarget_vx"] = contact_stats[["seg_a_offtarget_vx", "seg_b_offtarget_vx"]].max(axis=1)
-            contact_stats["max_offtarget_fraction"] = contact_stats[["seg_a_offtarget_fraction", "seg_b_offtarget_fraction"]].max(axis=1)
-            contact_stats["max_unclaimed_vx"] = contact_stats[["seg_a_unclaimed_vx", "seg_b_unclaimed_vx"]].max(axis=1)
-            contact_stats["max_unclaimed_fraction"] = contact_stats[["seg_a_unclaimed_fraction", "seg_b_unclaimed_fraction"]].max(axis=1)
-            contact_stats["min_best_overlap_vx"] = contact_stats[["seg_a_best_overlap_vx", "seg_b_best_overlap_vx"]].min(axis=1)
+                contact_stats["chunk_coord"] = coord_str
+                contact_stats["has_nucleus"] = chunk_has_nucleus
 
-            # Check mesh availability
-            seg_ids_list = list(set(
-                contact_stats["seg_a"].astype(int).tolist()
-                + contact_stats["seg_b"].astype(int).tolist()
-            ))
-            t_mesh = time.time()
-            mesh_cv = CloudVolume(
-                segmentation_layer.backend.name, use_https=True, progress=False
-            )
-            mesh_exists_results = mesh_cv.mesh.exists(seg_ids_list)
-            has_mesh = {
-                seg_id
-                for seg_id, result in zip(seg_ids_list, mesh_exists_results)
-                if result is not None
-            }
-            contact_stats["has_mesh_a"] = contact_stats["seg_a"].astype(int).isin(has_mesh)
-            contact_stats["has_mesh_b"] = contact_stats["seg_b"].astype(int).isin(has_mesh)
-            contact_stats["both_meshes"] = (
-                contact_stats["has_mesh_a"] & contact_stats["has_mesh_b"]
-            )
-            n_both = contact_stats["both_meshes"].sum()
+                # Write parquet
+                stats_path = f"{dst.backend.path}/filter_stats/{coord_str}.parquet"
+                contact_stats.to_parquet(stats_path, index=False)
+                print(
+                    f"[{coord_str}] Wrote {len(contact_stats)} contact stats to {stats_path} "
+                    f"({time.time() - t_start:.1f}s total)",
+                    flush=True,
+                )
+                return
+
+            # Per-segment GT coverage filters
+            offtarget_ids: set[int] = set()
+            if self.max_offtarget_vx is not None or self.max_offtarget_fraction is not None:
+                offtarget_ids = _find_offtarget_segment_ids(
+                    overlap_seg,
+                    overlap_ref,
+                    overlap_count,
+                    seg_total_vx,
+                    self.max_offtarget_vx,
+                    self.max_offtarget_fraction,
+                    self.offtarget_includes_unclaimed,
+                )
+
+            unclaimed_vx_ids: set[int] = set()
+            if self.max_unclaimed_vx is not None or self.max_unclaimed_fraction is not None:
+                unclaimed_vx_ids = _find_unclaimed_vx_segment_ids(
+                    overlap_seg,
+                    overlap_count,
+                    seg_total_vx,
+                    self.max_unclaimed_vx,
+                    self.max_unclaimed_fraction,
+                )
+
+            exclude_ids = small_ids | merger_ids | unclaimed_ids | offtarget_ids | unclaimed_vx_ids
             print(
-                f"[{coord_str}] Mesh check: {len(has_mesh)}/{len(seg_ids_list)} "
-                f"segments have meshes, {n_both}/{len(contact_stats)} pairs have both "
-                f"({time.time() - t_mesh:.1f}s)",
+                f"[{coord_str}] Overlaps/filtering: {time.time() - t0:.1f}s "
+                f"(excl {len(small_ids)} small, {len(merger_ids)} merger, "
+                f"{len(unclaimed_ids)} unclaimed, {len(offtarget_ids)} offtarget, "
+                f"{len(unclaimed_vx_ids)} unclaimed_vx, total {len(exclude_ids)} excluded)",
                 flush=True,
             )
 
-            contact_stats["chunk_coord"] = coord_str
-            contact_stats["has_nucleus"] = chunk_has_nucleus
-
-            # Write parquet
-            stats_path = f"{dst.backend.path}/filter_stats/{coord_str}.parquet"
-            contact_stats.to_parquet(stats_path, index=False)
+            # Build seg_to_ref mapping for merge decisions
+            seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
+        else:
+            exclude_ids = small_ids
             print(
-                f"[{coord_str}] Wrote {len(contact_stats)} contact stats to {stats_path} "
-                f"({time.time() - t_start:.1f}s total)",
+                f"[{coord_str}] Filtering (no reference): {time.time() - t0:.1f}s "
+                f"(excl {len(small_ids)} small)",
                 flush=True,
             )
-            return
-
-        # Per-segment GT coverage filters
-        offtarget_ids: set[int] = set()
-        if self.max_offtarget_vx is not None or self.max_offtarget_fraction is not None:
-            offtarget_ids = _find_offtarget_segment_ids(
-                overlap_seg, overlap_ref, overlap_count, seg_total_vx,
-                self.max_offtarget_vx, self.max_offtarget_fraction,
-                self.offtarget_includes_unclaimed,
-            )
-
-        unclaimed_vx_ids: set[int] = set()
-        if self.max_unclaimed_vx is not None or self.max_unclaimed_fraction is not None:
-            unclaimed_vx_ids = _find_unclaimed_vx_segment_ids(
-                overlap_seg, overlap_count, seg_total_vx,
-                self.max_unclaimed_vx, self.max_unclaimed_fraction,
-            )
-
-        exclude_ids = small_ids | merger_ids | unclaimed_ids | offtarget_ids | unclaimed_vx_ids
-        print(
-            f"[{coord_str}] Overlaps/filtering: {time.time() - t0:.1f}s "
-            f"(excl {len(small_ids)} small, {len(merger_ids)} merger, "
-            f"{len(unclaimed_ids)} unclaimed, {len(offtarget_ids)} offtarget, "
-            f"{len(unclaimed_vx_ids)} unclaimed_vx, total {len(exclude_ids)} excluded)",
-            flush=True,
-        )
-
-        # Build seg_to_ref mapping for merge decisions using raw reference segment IDs
-        # (not connected components, so non-contiguous reference segments are handled correctly)
-        seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
 
         # Blackout excluded segments
         seg = _blackout_segments(seg, exclude_ids)
@@ -1116,6 +1423,21 @@ class SegContactOp:
             f"[{coord_str}] Find contacts: {time.time() - t0:.1f}s ({len(seg_a)} voxels)",
             flush=True,
         )
+
+        # Early affinity filter to reduce face count before expensive operations
+        if self.min_affinity > 0.0:
+            n_before = len(seg_a)
+            seg_a, seg_b, aff_vals, x, y, z = _filter_faces_by_mean_affinity(
+                seg_a, seg_b, aff_vals, x, y, z, self.min_affinity
+            )
+            if len(seg_a) == 0:
+                print(f"[{coord_str}] No faces after early affinity filter, skipping", flush=True)
+                return
+            if len(seg_a) < n_before:
+                print(
+                    f"[{coord_str}] Early affinity filter: {n_before} -> {len(seg_a)} faces",
+                    flush=True,
+                )
 
         # Filter out pairs touching padded boundary (may have incomplete contacts)
         seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_touching_boundary(
@@ -1134,10 +1456,17 @@ class SegContactOp:
             return
 
         # Filter out pairs with insufficient GT at the contact interface
-        if self.min_interface_gt_fraction is not None:
+        if self.min_interface_gt_fraction is not None and reference is not None:
             seg_a, seg_b, aff_vals, x, y, z = _filter_pairs_by_interface_gt(
-                seg_a, seg_b, aff_vals, x, y, z,
-                reference, idx_padded.start, self.min_interface_gt_fraction,
+                seg_a,
+                seg_b,
+                aff_vals,
+                x,
+                y,
+                z,
+                reference,
+                idx_padded.start,
+                self.min_interface_gt_fraction,
             )
             if len(seg_a) == 0:
                 print(
@@ -1187,17 +1516,36 @@ class SegContactOp:
             for a, b in valid_pairs:
                 segs_needing_mesh.update([a, b])
 
-        # Download meshes (no bbox clipping - sphere cropping done per-contact)
-        t0 = time.time()
-        mesh_cv = CloudVolume(segmentation_layer.backend.name, use_https=True, progress=False)
-        meshes = _download_meshes(mesh_cv, list(segs_needing_mesh))
-        print(
-            f"[{coord_str}] Download meshes: {time.time() - t0:.1f}s ({len(meshes)} meshes)",
-            flush=True,
-        )
+        # Filter by constraint layers (remove pairs where both have dominant labels that differ)
+        if dominant_labels:
+            for name, dom in dominant_labels.items():
+                n_before = len(valid_pairs)
+                valid_pairs = [
+                    (a, b)
+                    for a, b in valid_pairs
+                    if not (a in dom and b in dom and dom[a] != dom[b])
+                ]
+                n_after = len(valid_pairs)
+                if n_after < n_before:
+                    print(
+                        f"[{coord_str}] Constraint '{name}' filter: "
+                        f"{n_before} -> {n_after} pairs",
+                        flush=True,
+                    )
+            if not valid_pairs:
+                print(
+                    f"[{coord_str}] No pairs after constraint filters, skipping",
+                    flush=True,
+                )
+                return
+            segs_needing_mesh = set()
+            for a, b in valid_pairs:
+                segs_needing_mesh.update([a, b])
 
-        # Generate SegContact objects
-        t0 = time.time()
+        # Sort pairs by segment frequency to maximize cache hits
+        valid_pairs = _sort_pairs_by_segment_frequency(valid_pairs)
+
+        # Download meshes and generate contacts using LRU cache
         id_offset = idx.chunk_id * self.ids_per_chunk
         seg_start_nm = np.array(
             [
@@ -1206,41 +1554,93 @@ class SegContactOp:
                 idx_padded.start[2] * resolution[2],
             ]
         )
+        mesh_cv = CloudVolume(segmentation_layer.backend.name, use_https=True, progress=False)
+        mesh_cache = MeshLRUCache(
+            cv=mesh_cv,
+            max_bytes=self.mesh_cache_bytes,
+            num_procs=self.num_procs,
+            lod=self.mesh_lod,
+        )
         contacts: list[SegContact] = []
-        for local_id, (seg_a_id, seg_b_id) in enumerate(valid_pairs):
-            contact = _generate_seg_contact(
-                contact_id=id_offset + local_id,
-                seg_a_id=seg_a_id,
-                seg_b_id=seg_b_id,
-                meshes=meshes,
-                contact_data=contact_data,
-                seg_to_ref=seg_to_ref,
-                resolution=resolution,
-                pointcloud_configs=pointcloud_configs,
-                merge_authority=self.merge_authority,
-                seg_volume=seg,
-                seg_start_nm=seg_start_nm,
-            )
-            if contact is not None:
-                contacts.append(contact)
+        t_mesh_total, t_gen_total = 0.0, 0.0
+
+        batch_size = max(self.num_procs, 1)
+        for batch_start in range(0, len(valid_pairs), batch_size):
+            batch_pairs = valid_pairs[batch_start : batch_start + batch_size]
+
+            # Prefetch meshes for this batch in parallel
+            batch_segs = []
+            for a, b in batch_pairs:
+                batch_segs.extend([a, b])
+            t0 = time.time()
+            mesh_cache.prefetch(list(set(batch_segs)))
+            t_mesh_total += time.time() - t0
+
+            # Generate contacts for this batch
+            t0 = time.time()
+            for local_id_offset, (seg_a_id, seg_b_id) in enumerate(batch_pairs):
+                local_id = batch_start + local_id_offset
+                mesh_a = mesh_cache.get(seg_a_id)
+                mesh_b = mesh_cache.get(seg_b_id)
+                if mesh_a is None or mesh_b is None:
+                    continue
+                meshes = {seg_a_id: mesh_a, seg_b_id: mesh_b}
+                contact = _generate_seg_contact(
+                    contact_id=id_offset + local_id,
+                    seg_a_id=seg_a_id,
+                    seg_b_id=seg_b_id,
+                    meshes=meshes,
+                    contact_data=contact_data,
+                    seg_to_ref=seg_to_ref,
+                    resolution=resolution,
+                    pointcloud_configs=pointcloud_configs,
+                    merge_authority=self.merge_authority,
+                    seg_volume=seg,
+                    seg_start_nm=seg_start_nm,
+                )
+                if contact is not None:
+                    if dominant_labels:
+                        meta = contact.partner_metadata or {}
+                        for seg_id in (seg_a_id, seg_b_id):
+                            seg_meta = meta.get(seg_id, {})
+                            constraints = seg_meta.get("constraints", {})
+                            for name, dom in dominant_labels.items():
+                                if seg_id in dom:
+                                    constraints[name] = dom[seg_id]
+                            if constraints:
+                                seg_meta["constraints"] = constraints
+                            meta[seg_id] = seg_meta
+                        contact.partner_metadata = meta
+                    contacts.append(contact)
+            t_gen_total += time.time() - t0
+
+        mesh_cache.write_timing_log(f"/tmp/mesh_download_times_{coord_str}.csv")
         print(
-            f"[{coord_str}] Generate contacts: {time.time() - t0:.1f}s ({len(contacts)} contacts)",
+            f"[{coord_str}] Download meshes: {t_mesh_total:.1f}s "
+            f"(cached={len(mesh_cache._cache)}, "
+            f"{mesh_cache._cache.currsize / 1024**2:.0f}MB, "
+            f"failed={len(mesh_cache._failed)})",
+            flush=True,
+        )
+        print(
+            f"[{coord_str}] Generate contacts: {t_gen_total:.1f}s ({len(contacts)} contacts)",
             flush=True,
         )
 
         if contacts:
-            # Count merge decisions
-            n_merge = sum(
-                1
-                for c in contacts
-                if c.merge_decisions and c.merge_decisions.get(self.merge_authority, False)
-            )
-            n_no_merge = len(contacts) - n_merge
-            print(
-                f"[{coord_str}] Merge decisions: {n_merge} MERGE, {n_no_merge} NO-MERGE "
-                f"(total {len(contacts)})",
-                flush=True,
-            )
+            if reference is not None:
+                # Count merge decisions
+                n_merge = sum(
+                    1
+                    for c in contacts
+                    if c.merge_decisions and c.merge_decisions.get(self.merge_authority, False)
+                )
+                n_no_merge = len(contacts) - n_merge
+                print(
+                    f"[{coord_str}] Merge decisions: {n_merge} MERGE, {n_no_merge} NO-MERGE "
+                    f"(total {len(contacts)})",
+                    flush=True,
+                )
 
             t0 = time.time()
             with semaphore("write"):
@@ -1380,6 +1780,8 @@ class ContactMergeOp:
     affinity_channel_mode: str | None = None
     config_key: tuple[int, int] | None = None
     max_batch_size: int | None = None
+    use_constraints: bool = True
+    csv_output_path: str | None = None
 
     def get_input_resolution(self, dst_resolution: Vec3D[float]) -> Vec3D[float]:
         return dst_resolution
@@ -1396,7 +1798,9 @@ class ContactMergeOp:
         import torch
 
         from zetta_utils import convnet
-        from zetta_utils.layer.volumetric.seg_contact.tensor_utils import contacts_to_tensor
+        from zetta_utils.layer.volumetric.seg_contact.tensor_utils import (
+            contacts_to_tensor,
+        )
 
         t_start = time.time()
         coord_str = f"{int(idx.start[0])}_{int(idx.start[1])}_{int(idx.start[2])}"
@@ -1411,6 +1815,32 @@ class ContactMergeOp:
         logger.info(
             f"[{coord_str}] Read contacts: {time.time() - t0:.1f}s ({len(contacts)} contacts)"
         )
+
+        # Filter by constraints: skip contacts where both segments have a
+        # non-zero dominant label for the same constraint key but they differ.
+        # A value of 0 (no dominant label) is permissive — never causes filtering.
+        if self.use_constraints:
+            n_before = len(contacts)
+            filtered = []
+            for c in contacts:
+                if c.partner_metadata:
+                    con_a = c.partner_metadata.get(c.seg_a, {}).get("constraints", {})
+                    con_b = c.partner_metadata.get(c.seg_b, {}).get("constraints", {})
+                    shared_keys = set(con_a.keys()) & set(con_b.keys())
+                    if any(
+                        con_a[k] != 0 and con_b[k] != 0 and con_a[k] != con_b[k]
+                        for k in shared_keys
+                    ):
+                        continue
+                filtered.append(c)
+            contacts = filtered
+            if len(contacts) < n_before:
+                logger.info(
+                    f"[{coord_str}] Constraint filter: {n_before} -> {len(contacts)} contacts"
+                )
+            if not contacts:
+                logger.info(f"[{coord_str}] No contacts after constraint filter, skipping")
+                return
 
         n_contacts = len(contacts)
 
@@ -1465,14 +1895,70 @@ class ContactMergeOp:
         result = []
         for i, contact_idx in enumerate(valid_indices):
             contact = contacts[contact_idx]
-            result.append(SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=contact.com,
-                merge_probabilities={self.authority_name: float(probs[i].item())},
-            ))
+            result.append(
+                SegContact(
+                    id=contact.id,
+                    seg_a=contact.seg_a,
+                    seg_b=contact.seg_b,
+                    com=contact.com,
+                    merge_probabilities={
+                        self.authority_name: float(np.nan_to_num(probs[i].item(), nan=0.0))
+                    },
+                )
+            )
         logger.info(f"[{coord_str}] Build results: {time.time() - t0:.1f}s")
+
+        # Write CSV if configured
+        if self.csv_output_path is not None:
+            import csv as csv_module
+
+            from cloudfiles import CloudFile
+
+            rows = []
+            for i, contact_idx in enumerate(valid_indices):
+                contact = contacts[contact_idx]
+                r = result[i]
+                score = r.merge_probabilities.get(self.authority_name, "")
+                mean_aff = ""
+                if contact.contact_faces is not None and len(contact.contact_faces) > 0:
+                    mean_aff = round(float(np.mean(contact.contact_faces[:, 3])), 3)
+                n_faces = (
+                    contact.contact_faces.shape[0] if contact.contact_faces is not None else 0
+                )
+                rows.append(
+                    (
+                        r.seg_a,
+                        r.seg_b,
+                        round(score, 3) if score != "" else "",
+                        mean_aff,
+                        n_faces,
+                        int(r.com[0]),
+                        int(r.com[1]),
+                        int(r.com[2]),
+                    )
+                )
+            rows.sort(key=lambda row: -float(row[2]) if row[2] != "" else 0)
+
+            import io
+
+            buf = io.StringIO()
+            w = csv_module.writer(buf)
+            w.writerow(
+                [
+                    "seg_a",
+                    "seg_b",
+                    "score",
+                    "mean_affinity",
+                    "n_faces",
+                    "com_x_nm",
+                    "com_y_nm",
+                    "com_z_nm",
+                ]
+            )
+            w.writerows(rows)
+            csv_path = f"{self.csv_output_path}/{coord_str}.csv"
+            CloudFile(csv_path).put(buf.getvalue().encode("utf-8"))
+            logger.info(f"[{coord_str}] Wrote CSV: {csv_path} ({len(rows)} rows)")
 
         # Write only merge probabilities to destination
         t0 = time.time()
@@ -1481,7 +1967,6 @@ class ContactMergeOp:
         logger.info(f"[{coord_str}] Write merge probabilities: {time.time() - t0:.1f}s")
 
         logger.info(f"[{coord_str}] Total ContactMergeOp: {time.time() - t_start:.1f}s")
-
 
 
 @builder.register("ContactEdgeFilterOp")
@@ -1527,7 +2012,11 @@ class ContactEdgeFilterOp:
         for aff_thr in self.affinity_thresholds:
             aff_edges: set[tuple] = set()
             for c in contacts:
-                mean_aff = float(np.mean(c.contact_faces[:, 3])) if c.contact_faces is not None and len(c.contact_faces) > 0 else 0.0
+                mean_aff = (
+                    float(np.mean(c.contact_faces[:, 3]))
+                    if c.contact_faces is not None and len(c.contact_faces) > 0
+                    else 0.0
+                )
                 if mean_aff >= aff_thr:
                     aff_edges.add((np.uint64(c.seg_a), np.uint64(c.seg_b), mean_aff))
             aff_dir = os.path.join(dst.backend.name, "filtered_edges", f"aff_{aff_thr}")

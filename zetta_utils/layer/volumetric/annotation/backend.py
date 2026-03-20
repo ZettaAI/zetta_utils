@@ -75,13 +75,21 @@ def read_bytes(file_or_gs_path: str):
     return cf.get()
 
 
-def format_info(dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships):
+def format_info(
+    dimensions,
+    lower_bound,
+    upper_bound,
+    spatial_data,
+    property_specs,
+    relationships,
+    annotation_type="LINE",
+):
     spatial_json = "    " + ",\n        ".join([se.to_json() for se in spatial_data])
     property_json = "    " + ",\n        ".join([ps.to_json() for ps in property_specs])
     relationship_json = "    " + ",\n        ".join([r.to_json() for r in relationships])
     return f"""{{
     "@type" : "neuroglancer_annotations_v1",
-    "annotation_type" : "LINE",
+    "annotation_type" : "{annotation_type}",
     "by_id" : {{ "key" : "by_id" }},
     "dimensions" : {str(dimensions).replace("'", '"')},
     "lower_bound" : {list(lower_bound)},
@@ -100,7 +108,14 @@ def format_info(dimensions, lower_bound, upper_bound, spatial_data, property_spe
 
 
 def write_info(
-    dir_path, dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships
+    dir_path,
+    dimensions,
+    lower_bound,
+    upper_bound,
+    spatial_data,
+    property_specs,
+    relationships,
+    annotation_type="LINE",
 ):
     """
     Write out the info (JSON) file describing a precomputed annotation file
@@ -111,10 +126,17 @@ def write_info(
     :lower_bound: start of the data volume (in voxels)
     :upper_bound: end of the data volume (in voxels)
     :spatial_data: list of SpatialEntry objects
+    :include_by_id: whether to include the by_id index in the info file
     """
     file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
     info_content = format_info(
-        dimensions, lower_bound, upper_bound, spatial_data, property_specs, relationships
+        dimensions,
+        lower_bound,
+        upper_bound,
+        spatial_data,
+        property_specs,
+        relationships,
+        annotation_type=annotation_type,
     )
     write_bytes(file_path, info_content.encode("utf-8"))
 
@@ -207,7 +229,7 @@ class AnnotationLayerBackend(
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
-    suppress_by_id_index: bool = attrs.field(default=False)
+    suppress_by_id_index: bool = attrs.field(default=True)
     info_overwrite: bool = attrs.field(default=False)
 
     name: str = attrs.field(init=False)
@@ -412,6 +434,7 @@ class AnnotationLayerBackend(
             spatial_data=spatial_data,
             property_specs=self.property_specs,
             relationships=self.relationships,
+            annotation_type=self.annotation_type,
         )
 
     def write_multi_annotation_file(

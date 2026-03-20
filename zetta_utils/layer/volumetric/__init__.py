@@ -29,6 +29,7 @@ from .constant import ConstantVolumetricBackend, build_constant_volumetric_layer
 from .layer_set import VolumetricLayerSet, build_volumetric_layer_set
 from .annotation import VolumetricAnnotationLayer, LineAnnotation
 from .protocols import VolumetricBasedLayerProtocol
+from .tabular import TabularBackend, VolumetricTabularLayer, build_volumetric_tabular_layer
 
 VolumetricLayerDType = torch.Tensor
 to_vol_layer_dtype = convert.to_torch

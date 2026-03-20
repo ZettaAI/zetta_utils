@@ -13,7 +13,6 @@ from zetta_utils.layer.volumetric.annotation.backend import (
     AnnotationLayerBackend,
     LineAnnotation,
 )
-from zetta_utils.layer.volumetric.index import VolumetricIndex
 
 
 # pylint: disable=too-many-statements
@@ -34,17 +33,26 @@ def test_round_trip():
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
 
-    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
+    bbox = BBox3D.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
+    resolution = Vec3D(10, 10, 40)
 
     chunk_sizes = [(2000, 2000, 600)]
     sf = AnnotationLayerBackend(
-        path=file_dir, index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+        path=file_dir,
+        bbox=bbox,
+        resolution=resolution,
+        annotation_type="LINE",
+        chunk_sizes=chunk_sizes,
     )
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
     chunk_sizes = [(2000, 2000, 600), (1000, 1000, 600), (500, 500, 300)]
     sf = AnnotationLayerBackend(
-        path=file_dir, index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+        path=file_dir,
+        bbox=bbox,
+        resolution=resolution,
+        annotation_type="LINE",
+        chunk_sizes=chunk_sizes,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
@@ -54,9 +62,14 @@ def test_round_trip():
 
     # Now create a *new* AnnotationLayer, given just the directory.
     sf = AnnotationLayerBackend(
-        path=file_dir, index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+        path=file_dir,
+        bbox=bbox,
+        resolution=resolution,
+        annotation_type="LINE",
+        chunk_sizes=chunk_sizes,
     )
-    assert sf.index == index
+    assert sf.bbox == bbox
+    assert sf.resolution == resolution
     assert sf.chunk_sizes == chunk_sizes
 
     lines_read = sf.read_all()
@@ -118,7 +131,8 @@ def test_round_trip():
     shutil.rmtree(suppress_dir, ignore_errors=True)
     sf_suppress = AnnotationLayerBackend(
         path=suppress_dir,
-        index=index,
+        bbox=bbox,
+        resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
         suppress_by_id_index=True,
@@ -150,11 +164,10 @@ def test_resolution_changes():
 
     # file resolution: 20, 20, 40
     resolution = Vec3D(20, 20, 40)
-    voxel_offset = [0, 0, 0]
-    dataset_size = [2000, 2000, 600]
-    end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
-    index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
-    sf = AnnotationLayerBackend(path=file_dir, index=index, annotation_type="LINE")
+    bbox = BBox3D.from_coords([0, 0, 0], [2000, 2000, 600], resolution)
+    sf = AnnotationLayerBackend(
+        path=file_dir, bbox=bbox, resolution=resolution, annotation_type="LINE"
+    )
     sf.clear()
 
     # writing with voxel size 10, 10, 80
@@ -190,14 +203,21 @@ def test_single_level():
     # Note: line 2 above, with the chunk_sizes below, will span 2 chunks, and so will
     # be written out to both of them.
 
-    index = VolumetricIndex.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
+    bbox = BBox3D.from_coords([0, 0, 0], [2000, 2000, 600], Vec3D(10, 10, 40))
+    resolution = Vec3D(10, 10, 40)
 
-    sf = AnnotationLayerBackend(path=file_dir, index=index, annotation_type="LINE")
+    sf = AnnotationLayerBackend(
+        path=file_dir, bbox=bbox, resolution=resolution, annotation_type="LINE"
+    )
     assert sf.chunk_sizes == [(2000, 2000, 600)]
 
     chunk_sizes = [[500, 500, 300]]
     sf = AnnotationLayerBackend(
-        path=file_dir, index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+        path=file_dir,
+        bbox=bbox,
+        resolution=resolution,
+        annotation_type="LINE",
+        chunk_sizes=chunk_sizes,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
@@ -217,9 +237,11 @@ def test_edge_cases():
 
     assert backend.path_join("gs://foo/", "bar") == "gs://foo/bar"
 
-    index = VolumetricIndex.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
+    bbox = BBox3D.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
     for path in ["/dev/null", "/dev/null/subdir"]:
-        assert not AnnotationLayerBackend(path=path, index=index, annotation_type="LINE").exists()
+        assert not AnnotationLayerBackend(
+            path=path, bbox=bbox, resolution=Vec3D(1, 1, 1), annotation_type="LINE"
+        ).exists()
 
 
 def test_relationships_and_related_index():
@@ -264,12 +286,14 @@ def test_relationships_and_related_index():
         ),
     ]
 
-    index = VolumetricIndex.from_coords([0, 0, 0], [1000, 1000, 1000], Vec3D(1, 1, 1))
+    bbox = BBox3D.from_coords([0, 0, 0], [1000, 1000, 1000], Vec3D(1, 1, 1))
+    resolution = Vec3D(1, 1, 1)
 
     # Test with relationships enabled
     sf = AnnotationLayerBackend(
         path=file_dir,
-        index=index,
+        bbox=bbox,
+        resolution=resolution,
         annotation_type="LINE",
         property_specs=property_specs,
         relationships=relationships,
@@ -319,7 +343,8 @@ def test_relationships_and_related_index():
 
     sf_suppress = AnnotationLayerBackend(
         path=suppress_dir,
-        index=index,
+        bbox=bbox,
+        resolution=resolution,
         annotation_type="LINE",
         property_specs=property_specs,
         relationships=relationships,
@@ -340,11 +365,16 @@ def test_relationships_and_related_index():
 
 
 def test_getter_methods():
-    # Create a test backend with a known index
-    index = VolumetricIndex.from_coords([100, 200, 300], [500, 600, 700], Vec3D(10, 20, 40))
+    # Create a test backend with known bbox and resolution
+    bbox = BBox3D.from_coords([100, 200, 300], [500, 600, 700], Vec3D(10, 20, 40))
+    resolution = Vec3D(10, 20, 40)
     chunk_sizes = [(200, 200, 200), (100, 100, 100)]
     backend_instance = AnnotationLayerBackend(
-        path="/tmp/test", index=index, annotation_type="LINE", chunk_sizes=chunk_sizes
+        path="/tmp/test",
+        bbox=bbox,
+        resolution=resolution,
+        annotation_type="LINE",
+        chunk_sizes=chunk_sizes,
     )
 
     # Test get_voxel_offset with different resolutions
@@ -369,6 +399,7 @@ def test_getter_methods():
     assert dataset_size_quarter == Vec3D(100, 100, 100)
 
     # Test get_bounds with different resolutions
+    index = backend_instance.index
     bounds_native = backend_instance.get_bounds(Vec3D(10, 20, 40))
     expected_bounds = index * Vec3D(10, 20, 40) / Vec3D(10, 20, 40)
     assert bounds_native == expected_bounds

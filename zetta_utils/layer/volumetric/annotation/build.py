@@ -38,6 +38,7 @@ Usage Examples
       # ... other parameters
   )
 """
+
 from __future__ import annotations
 
 from typing import Iterable, Literal, Sequence
@@ -163,37 +164,17 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     """
     if "/|neuroglancer-precomputed:" in path:
         path = path.split("/|neuroglancer-precomputed:")[0]
-    (
-        dims,
-        lower_bound,
-        upper_bound,
-        anno_type,
-        spatial_entries,
-        existing_props,
-        existing_rels,
-    ) = read_info(path)
-    file_exists = spatial_entries is not None
-    file_resolution: list[float] = []
-    file_index = None
-    file_chunk_sizes = []
-    if file_exists:
-        for i in [0, 1, 2]:
-            numAndUnit = dims["xyz"[i]]
-            assert numAndUnit[1] == "nm", "Only dimensions in 'nm' are supported for reading"
-            file_resolution.append(numAndUnit[0])
 
-        file_index = VolumetricIndex.from_coords(
-            lower_bound,
-            upper_bound,
-            Vec3D(file_resolution[0], file_resolution[1], file_resolution[2]),
-        )
-        file_chunk_sizes = [se.chunk_size for se in spatial_entries]
+    (_, _, _, anno_type, spatial_entries, existing_props, existing_rels) = read_info(path)
+    file_exists = spatial_entries is not None
+
+    if file_exists:
         if annotation_type and annotation_type != anno_type:
             raise IOError(
-                "Given annotation_type {annotation_type} "
+                f"Given annotation_type {annotation_type} "
                 f"does not match existing file type {anno_type}"
             )  # pragma: no cover
-        annotation_type = anno_type
+        annotation_type = annotation_type or anno_type
 
     if mode in ("read", "update") and not file_exists:
         raise IOError(
@@ -204,67 +185,55 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             f"AnnotationLayer built with mode {mode}, but file already exists (path: {path})"
         )
 
-    if index is None:
-        if mode in {"write", "replace"}:
-            # Check for bbox + resolution combination
-            if bbox is not None and resolution is not None:
-                if dataset_size is not None or voxel_offset is not None:
-                    raise ValueError(
-                        "when `bbox` and `resolution` are provided, `dataset_size` and "
-                        "`voxel_offset` should not be provided"
-                    )
-                if len(resolution) != 3:
-                    raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
-                index = VolumetricIndex(bbox=bbox, resolution=Vec3D(*resolution))
-            # Check for resolution + dataset_size + voxel_offset combination
-            elif bbox is None and (
-                resolution is not None or dataset_size is not None or voxel_offset is not None
-            ):
-                if resolution is None:
-                    raise ValueError(
-                        "when `index` is not provided, either (`bbox` and `resolution`) or "
-                        "(`resolution`, `dataset_size`, and `voxel_offset`) are required"
-                    )
-                if dataset_size is None:
-                    raise ValueError("when `index` is not provided, `dataset_size` is required")
-                if voxel_offset is None:
-                    raise ValueError("when `index` is not provided, `voxel_offset` is required")
-                if len(resolution) != 3:
-                    raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
-                if len(dataset_size) != 3:
-                    raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
-                if len(voxel_offset) != 3:
-                    raise ValueError(f"`voxel_offset` needs 3 elements, not {len(voxel_offset)}")
-                end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
-                index = VolumetricIndex.from_coords(voxel_offset, end_coord, resolution)
-            elif bbox is not None:
-                raise ValueError("when `bbox` is provided, `resolution` is also required")
-            # For replace mode with existing file and no new parameters, use file_index
-            elif mode == "replace" and file_exists:  # pragma: no cover
-                index = file_index
-            # For write mode or replace mode with no file, require parameters
-            elif mode == "write":  # pragma: no cover
-                raise ValueError(
-                    "when `index` is not provided for write mode, either (`bbox` and "
-                    "`resolution`) or (`resolution`, `dataset_size`, and `voxel_offset`) "
-                    "are required"
-                )
-            else:  # replace mode with no file
-                raise ValueError(
-                    "when `index` is not provided for replace mode with no existing "
-                    "file, either (`bbox` and `resolution`) or (`resolution`, "
-                    "`dataset_size`, and `voxel_offset`) are required"
-                )  # pragma: no cover
-        else:
-            index = file_index
-    assert index is not None
+    # Determine result_bbox and result_resolution from the various input combinations
+    result_bbox: BBox3D | None = None
+    result_resolution: Vec3D | None = None
 
-    if mode in ("read", "update"):
-        assert file_chunk_sizes
-        chunk_sizes = file_chunk_sizes
-    else:
-        if chunk_sizes is None:
-            chunk_sizes = []
+    if index is not None:
+        result_bbox = index.bbox
+        result_resolution = index.resolution
+    elif bbox is not None:
+        if resolution is None:
+            raise ValueError("when `bbox` is provided, `resolution` is also required")
+        if dataset_size is not None or voxel_offset is not None:
+            raise ValueError(
+                "when `bbox` and `resolution` are provided, `dataset_size` and "
+                "`voxel_offset` should not be provided"
+            )
+        if len(resolution) != 3:
+            raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
+        result_bbox = bbox
+        result_resolution = Vec3D(*resolution)
+    elif resolution is not None or dataset_size is not None or voxel_offset is not None:
+        if resolution is None:
+            raise ValueError(
+                "when `index` is not provided, either (`bbox` and `resolution`) or "
+                "(`resolution`, `dataset_size`, and `voxel_offset`) are required"
+            )
+        if dataset_size is None:
+            raise ValueError("when `index` is not provided, `dataset_size` is required")
+        if voxel_offset is None:
+            raise ValueError("when `index` is not provided, `voxel_offset` is required")
+        if len(resolution) != 3:
+            raise ValueError(f"`resolution` needs 3 elements, not {len(resolution)}")
+        if len(dataset_size) != 3:
+            raise ValueError(f"`dataset_size` needs 3 elements, not {len(dataset_size)}")
+        if len(voxel_offset) != 3:
+            raise ValueError(f"`voxel_offset` needs 3 elements, not {len(voxel_offset)}")
+        end_coord = tuple(a + b for a, b in zip(voxel_offset, dataset_size))
+        result_bbox = BBox3D.from_coords(voxel_offset, end_coord, resolution)
+        result_resolution = Vec3D(*resolution)
+
+    # Validate that write/replace modes have sufficient parameters
+    if mode in {"write", "replace"} and result_bbox is None:
+        if not (mode == "replace" and file_exists):  # pragma: no cover
+            raise ValueError(
+                f"for {mode} mode, either `index`, (`bbox` and `resolution`), or "
+                "(`resolution`, `dataset_size`, and `voxel_offset`) are required"
+            )
+
+    if mode not in ("read", "update") and chunk_sizes is None:
+        chunk_sizes = []
 
     # Use existing properties and relationships if file exists and none provided
     final_property_specs = list(property_specs) if property_specs else (existing_props or [])
@@ -272,9 +241,10 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
 
     backend = AnnotationLayerBackend(
         path=path,
-        index=index,
+        bbox=result_bbox,
+        resolution=result_resolution,
         annotation_type=annotation_type,
-        chunk_sizes=chunk_sizes,
+        chunk_sizes=chunk_sizes if chunk_sizes is not None else [],
         property_specs=final_property_specs,
         relationships=final_relationships,
     )
@@ -286,7 +256,6 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     if mode == "replace":
         backend.clear()
 
-    # Now create the VolumetricAnnotationLayer with the backend
     result = VolumetricAnnotationLayer(
         backend=backend,
         readonly=mode == "read",

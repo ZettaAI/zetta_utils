@@ -432,12 +432,10 @@ def test_build_annotation_layer_with_bbox_and_resolution(temp_dir):
     assert isinstance(layer, VolumetricAnnotationLayer)
     assert layer.readonly is False
 
-    # Verify the backend has the correct index
+    # Verify the backend has the correct bbox and resolution
     backend = layer.backend
-    assert backend.index is not None
-    expected_index = VolumetricIndex(bbox=bbox, resolution=Vec3D(4.0, 4.0, 40.0))
-    assert backend.index.bbox == expected_index.bbox
-    assert backend.index.resolution == expected_index.resolution
+    assert backend.bbox == bbox
+    assert backend.resolution == Vec3D(4.0, 4.0, 40.0)
 
 
 def test_build_annotation_layer_bbox_resolution_via_builder(temp_dir):
@@ -460,12 +458,10 @@ def test_build_annotation_layer_bbox_resolution_via_builder(temp_dir):
     assert isinstance(layer, VolumetricAnnotationLayer)
     assert layer.readonly is False
 
-    # Verify the backend has the correct index
+    # Verify the backend has the correct bbox and resolution
     backend = layer.backend
-    assert backend.index is not None
-    expected_index = VolumetricIndex(bbox=bbox, resolution=Vec3D(8.0, 8.0, 80.0))
-    assert backend.index.bbox == expected_index.bbox
-    assert backend.index.resolution == expected_index.resolution
+    assert backend.bbox == bbox
+    assert backend.resolution == Vec3D(8.0, 8.0, 80.0)
 
 
 def test_build_annotation_layer_bbox_without_resolution():
@@ -576,6 +572,5 @@ def test_build_annotation_layer_bbox_resolution_replace_mode(temp_dir):
 
     # Verify the backend has the new bbox
     backend = layer.backend
-    assert backend.index is not None
-    expected_index = VolumetricIndex(bbox=bbox, resolution=Vec3D(4.0, 4.0, 40.0))
-    assert backend.index.bbox == expected_index.bbox
+    assert backend.bbox == bbox
+    assert backend.resolution == Vec3D(4.0, 4.0, 40.0)

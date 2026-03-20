@@ -544,6 +544,11 @@ async def apply_correspondences(request: Request):
     return _build_json_response(relaxed_field_np, warped_image_np, misd_image_np)
 
 
+class ExistingCorrespondenceItem(BaseModel):
+    start: list[float] = Field(..., description="Start point [y, x]")
+    end: list[float] = Field(..., description="End point [y, x]")
+
+
 class ComputeSiftCorrespondencesRequest(BaseModel):
     src_image: str = Field(..., description="Base64-encoded uint8 image bytes")
     tgt_image: str = Field(..., description="Base64-encoded uint8 image bytes")
@@ -564,6 +569,11 @@ class ComputeSiftCorrespondencesRequest(BaseModel):
     swap_xy: bool = Field(
         True,
         description="If true, output [y, x] (Portal convention). If false, output [x, y].",
+    )
+    existing_correspondences: list[ExistingCorrespondenceItem] | None = Field(
+        None,
+        description="Existing correspondence arrows for deduplication/refiltering. "
+        "Each item has start [y, x] and end [y, x] in pixel coords.",
     )
 
 
@@ -593,8 +603,8 @@ _SIFT_PARAM_DEFAULTS = {
     "edge_threshold": 10,
     "sigma": 1.6,
     "ratio_test_fraction": 0.7,
-    "ransac_threshold": 3.0,
-    "use_ransac": False,
+    "ransac_threshold": 5.0,
+    "use_ransac": True,
     "spatial_weight": 0.7,
     "swap_xy": True,
 }
@@ -602,9 +612,10 @@ _SIFT_PARAM_DEFAULTS = {
 
 async def _parse_sift_request(
     request: Request, use_ransac_default: bool
-) -> tuple[np.ndarray, np.ndarray, dict]:
+) -> tuple[np.ndarray, np.ndarray, dict, list[dict] | None]:
     content_type = request.headers.get("content-type", "")
     defaults = {**_SIFT_PARAM_DEFAULTS, "use_ransac": use_ransac_default}
+    existing_correspondences = None
 
     if "multipart/form-data" in content_type:
         form = await request.form()
@@ -636,6 +647,7 @@ async def _parse_sift_request(
         tgt_image = np.frombuffer(tgt_bytes, dtype=np.uint8).reshape(metadata["tgt_image_shape"])
 
         sift_params = {k: metadata.get(k, defaults[k]) for k in _SIFT_PARAM_KEYS}
+        existing_correspondences = metadata.get("existing_correspondences")
     else:
         body = await request.json()
         req = ComputeSiftCorrespondencesRequest(
@@ -650,16 +662,27 @@ async def _parse_sift_request(
         )
 
         sift_params = {k: getattr(req, k) for k in _SIFT_PARAM_KEYS}
+        if req.existing_correspondences is not None:
+            existing_correspondences = [
+                {"start": ec.start, "end": ec.end} for ec in req.existing_correspondences
+            ]
 
-    return src_image, tgt_image, sift_params
+    return src_image, tgt_image, sift_params, existing_correspondences
 
 
 async def _run_sift_correspondences(
     request: Request, use_ransac_default: bool
 ) -> ComputeSiftCorrespondencesResponse:
-    src_image, tgt_image, sift_params = await _parse_sift_request(request, use_ransac_default)
+    src_image, tgt_image, sift_params, existing_correspondences = await _parse_sift_request(
+        request, use_ransac_default
+    )
 
-    result = compute_sift_correspondences(src=src_image, tgt=tgt_image, **sift_params)
+    result = compute_sift_correspondences(
+        src=src_image,
+        tgt=tgt_image,
+        existing_correspondences=existing_correspondences,
+        **sift_params,
+    )
 
     return ComputeSiftCorrespondencesResponse(
         lines=[CorrespondenceLine(**line) for line in result["lines"]],

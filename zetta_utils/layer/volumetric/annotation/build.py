@@ -239,19 +239,22 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     final_property_specs = list(property_specs) if property_specs else (existing_props or [])
     final_relationships = list(relationships) if relationships else (existing_rels or [])
 
-    backend = AnnotationLayerBackend(
-        path=path,
-        bbox=result_bbox,
-        resolution=result_resolution,
-        annotation_type=annotation_type,
-        chunk_sizes=chunk_sizes if chunk_sizes is not None else [],
-        property_specs=final_property_specs,
-        relationships=final_relationships,
-    )
-
-    # Only write info file for modes that create or modify the layer
-    if mode in ("write", "replace", "update"):
-        backend.write_info_file()
+    # Construct backend: with explicit params or path-only (loads from info file)
+    if result_bbox is not None:
+        backend = AnnotationLayerBackend(
+            path=path,
+            bbox=result_bbox,
+            resolution=result_resolution,
+            annotation_type=annotation_type,
+            chunk_sizes=chunk_sizes if chunk_sizes is not None else [],
+            property_specs=final_property_specs,
+            relationships=final_relationships,
+            info_overwrite=mode == "replace",
+        )
+    else:
+        backend = AnnotationLayerBackend(
+            path=path,
+        )
 
     if mode == "replace":
         backend.clear()

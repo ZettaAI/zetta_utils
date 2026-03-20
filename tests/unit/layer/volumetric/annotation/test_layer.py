@@ -178,8 +178,9 @@ def test_setitem_with_properties():
         layer[Vec3D(5, 5, 5), 0:500, 0:500, 0:500] = annotations
         layer.backend.post_process()
 
-        backend = create_backend(temp_dir)
-        assert backend.property_specs == properties
+        backend_path = os.path.join(temp_dir, "annotation_backend")
+        backend = AnnotationLayerBackend(path=backend_path)
+        assert tuple(backend.property_specs) == properties
         layer = VolumetricAnnotationLayer(
             backend=backend,
             index_resolution=Vec3D(1, 1, 1),
@@ -225,8 +226,9 @@ def test_setitem_with_properties_and_relations():
         layer[Vec3D(5, 5, 5), 0:500, 0:500, 0:500] = annotations
         layer.backend.post_process()
 
-        backend = create_backend(temp_dir)
-        assert backend.property_specs == properties
+        backend_path = os.path.join(temp_dir, "annotation_backend")
+        backend = AnnotationLayerBackend(path=backend_path)
+        assert tuple(backend.property_specs) == properties
         layer = VolumetricAnnotationLayer(
             backend=backend,
             index_resolution=Vec3D(1, 1, 1),

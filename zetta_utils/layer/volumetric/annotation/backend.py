@@ -208,6 +208,7 @@ class AnnotationLayerBackend(
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
     suppress_by_id_index: bool = attrs.field(default=False)
+    info_overwrite: bool = attrs.field(default=False)
 
     name: str = attrs.field(init=False)
 
@@ -237,42 +238,90 @@ class AnnotationLayerBackend(
 
     def __attrs_post_init__(self):
         self.path = os.path.expanduser(self.path)
-        dims, lower_bound, upper_bound, anno_type, spatial_data, props, rels = read_info(self.path)
-        if dims is not None:
-            if self.bbox is None:  # pragma: no cover
-                file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
-                self.bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
-                self.resolution = file_res
 
-            if spatial_data:
-                self.chunk_sizes = [tuple(entry.chunk_size) for entry in spatial_data]
+        dims, lower_bound, upper_bound, anno_type, spatial_data, file_props, file_rels = read_info(
+            self.path
+        )
+        file_exists = dims is not None
+        params_provided = self.bbox is not None
 
-            if props:
-                self.property_specs = props  # pragma: no cover
-            if rels:
-                self.relationships = rels  # pragma: no cover
-            self.annotation_type = anno_type
+        if params_provided:
+            if self.resolution is None or self.annotation_type is None:
+                raise ValueError(
+                    "bbox, resolution, and annotation_type must all be provided together"
+                )
+            if self.annotation_type not in ("POINT", "LINE"):
+                raise ValueError(
+                    f"annotation_type must be 'POINT' or 'LINE', got '{self.annotation_type}'"
+                )
+            if not self.chunk_sizes:
+                self.chunk_sizes = [tuple(self.shape)]
+                logger.info(f"Using default chunk size: {self.chunk_sizes}")
+            if not self.property_specs and file_props:
+                self.property_specs = file_props
+            if not self.relationships and file_rels:
+                self.relationships = file_rels
+            if file_exists:
+                self._check_info_consistency(
+                    dims, lower_bound, upper_bound, anno_type, spatial_data
+                )
+            else:
+                self.write_info_file()
+        else:
+            if not file_exists:
+                raise FileNotFoundError(
+                    f"No info file at '{self.path}' and no bbox/resolution/annotation_type "
+                    f"provided to create one"
+                )
+            self._load_from_info(
+                dims, lower_bound, upper_bound, anno_type, spatial_data, file_props, file_rels
+            )
 
-        if self.bbox is None:
-            raise ValueError(
-                "bbox must be provided or available in existing file"
-            )  # pragma: no cover
-        if self.resolution is None:
-            raise ValueError(
-                "resolution must be provided or available in existing file"
-            )  # pragma: no cover
-        if self.annotation_type is None:
-            raise ValueError(
-                "annotation_type must be provided or available in existing file"
-            )  # pragma: no cover
-        if self.annotation_type not in ["POINT", "LINE"]:
-            raise ValueError(
-                f"annotation_type must be 'POINT' or 'LINE', got '{self.annotation_type}'"
-            )  # pragma: no cover
-
+    def _load_from_info(
+        self, dims, lower_bound, upper_bound, anno_type, spatial_data, file_props, file_rels
+    ):
+        """Populate fields from existing info file."""
+        file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
+        file_bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
+        self.bbox = file_bbox
+        self.resolution = file_res
+        self.annotation_type = anno_type
         if not self.chunk_sizes:
-            self.chunk_sizes = [tuple(self.shape)]
-            logger.info(f"Using default chunk size: {self.chunk_sizes}")
+            self.chunk_sizes = [tuple(entry.chunk_size) for entry in spatial_data]
+        if not self.property_specs and file_props:
+            self.property_specs = file_props
+        if not self.relationships and file_rels:
+            self.relationships = file_rels
+
+    def _check_info_consistency(self, dims, lower_bound, upper_bound, anno_type, spatial_data):
+        """Compare constructor params against existing info file."""
+        file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
+        file_bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
+        file_chunk_sizes = (
+            [tuple(entry.chunk_size) for entry in spatial_data] if spatial_data else []
+        )
+
+        diffs = []
+        if self.resolution != file_res:
+            diffs.append(f"  resolution: {file_res} -> {self.resolution}")
+        if self.bbox != file_bbox:
+            diffs.append(f"  bbox: {file_bbox} -> {self.bbox}")
+        if self.annotation_type != anno_type:
+            diffs.append(f"  annotation_type: {anno_type} -> {self.annotation_type}")
+        ctor_cs = [tuple(cs) for cs in self.chunk_sizes]
+        if file_chunk_sizes and ctor_cs != file_chunk_sizes:
+            diffs.append(f"  chunk_sizes: {file_chunk_sizes} -> {ctor_cs}")
+
+        if diffs:
+            diff_str = "\n".join(diffs)
+            if self.info_overwrite:
+                logger.info(f"Overwriting info file at {self.path}:\n{diff_str}")
+                self.write_info_file()
+            else:
+                raise RuntimeError(
+                    f"Info file at '{self.path}' differs from provided params "
+                    f"and info_overwrite is False.\nDifferences:\n{diff_str}"
+                )
 
     def __repr__(self):
         return (

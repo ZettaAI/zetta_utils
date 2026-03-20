@@ -3,8 +3,8 @@
 Module to support writing of annotations in precomputed format.
 
 References:
-	https://github.com/google/neuroglancer/issues/227
-	https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/annotations.md
+        https://github.com/google/neuroglancer/issues/227
+        https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/annotations.md
 """
 
 import io
@@ -201,8 +201,8 @@ class AnnotationLayerBackend(
     """
 
     path: str = attrs.field()
-    # the following will never be None after initialization
-    index: Optional[VolumetricIndex] = attrs.field(default=None)
+    bbox: Optional[BBox3D] = attrs.field(default=None)
+    resolution: Optional[Vec3D] = attrs.field(default=None)
     annotation_type: Optional[str] = attrs.field(default=None)
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
@@ -215,45 +215,51 @@ class AnnotationLayerBackend(
     def _default_name(self) -> str:
         return f"AnnotationLayer[{self.path}]"
 
+    @property
+    def start(self) -> Vec3D[int]:
+        return Vec3D[int](*(s.start for s in self.bbox.to_slices(self.resolution)))
+
+    @property
+    def stop(self) -> Vec3D[int]:
+        return Vec3D[int](*(s.stop for s in self.bbox.to_slices(self.resolution)))
+
+    @property
+    def shape(self) -> Vec3D[int]:
+        return self.stop - self.start
+
+    @property
+    def index(self) -> VolumetricIndex:
+        return VolumetricIndex(bbox=self.bbox, resolution=self.resolution)
+
     @path.validator
     def _validate_path(self, _, value):
         assert value, "path parameter is required"
 
     def __attrs_post_init__(self):
-        # If info file exists, read it
         self.path = os.path.expanduser(self.path)
         dims, lower_bound, upper_bound, anno_type, spatial_data, props, rels = read_info(self.path)
         if dims is not None:
-            # Only use file data for index if no index was provided to constructor
-            if self.index is None:  # pragma: no cover
-                # Reconstruct VolumetricIndex from the info file data
-                resolution: Vec3D = Vec3D(
-                    x=dims["x"][0],
-                    y=dims["y"][0],
-                    z=dims["z"][0],
-                )
-                self.index = VolumetricIndex.from_coords(
-                    start_coord=lower_bound, end_coord=upper_bound, resolution=resolution
-                )
+            if self.bbox is None:  # pragma: no cover
+                file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
+                self.bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
+                self.resolution = file_res
 
-            # Reconstruct chunk_sizes from spatial_data
             if spatial_data:
-                self.chunk_sizes = [
-                    tuple(entry.chunk_size)  # Convert Vec3D back to tuple/sequence
-                    for entry in spatial_data
-                ]
+                self.chunk_sizes = [tuple(entry.chunk_size) for entry in spatial_data]
 
-            # Set property_specs and relationships from the file
             if props:
                 self.property_specs = props  # pragma: no cover
             if rels:
                 self.relationships = rels  # pragma: no cover
             self.annotation_type = anno_type
 
-        # Validate that required fields are now set (either from constructor or file)
-        if self.index is None:
+        if self.bbox is None:
             raise ValueError(
-                "index must be provided or available in existing file"
+                "bbox must be provided or available in existing file"
+            )  # pragma: no cover
+        if self.resolution is None:
+            raise ValueError(
+                "resolution must be provided or available in existing file"
             )  # pragma: no cover
         if self.annotation_type is None:
             raise ValueError(
@@ -265,27 +271,13 @@ class AnnotationLayerBackend(
             )  # pragma: no cover
 
         if not self.chunk_sizes:
-            self.chunk_sizes = [tuple(self.index.shape)]
+            self.chunk_sizes = [tuple(self.shape)]
             logger.info(f"Using default chunk size: {self.chunk_sizes}")
-
-    @property
-    def _index(self) -> VolumetricIndex:
-        """Type-safe access to index."""
-        assert self.index is not None, "index should be set after initialization"
-        return self.index
-
-    @property
-    def _annotation_type(self) -> str:  # pragma: no cover
-        """Type-safe access to annotation_type."""
-        assert (
-            self.annotation_type is not None
-        ), "annotation_type should be set after initialization"
-        return self.annotation_type
 
     def __repr__(self):
         return (
-            f"AnnotationLayer(path='{self.path}', index={self.index}, "
-            f"chunk_sizes={self.chunk_sizes})"
+            f"AnnotationLayer(path='{self.path}', bbox={self.bbox}, "
+            f"resolution={self.resolution}, chunk_sizes={self.chunk_sizes})"
         )
 
     def exists(self) -> bool:
@@ -334,11 +326,10 @@ class AnnotationLayerBackend(
         'limit' for each entry.  (1 is a good value since it results in no
         subsampling at any level in Neuroglancer.)
         """
-        assert self.index is not None
         if limit_value == 0:  # (a limit of > 0 is required for NG to load the file at all)
             limit_value = 1  # pragma: no cover
         result = []
-        bounds_size = self.index.shape
+        bounds_size = self.shape
         for level, chunk_size_seq in enumerate(self.chunk_sizes):
             chunk_size = Vec3D(*chunk_size_seq)
             grid_shape = ceil(bounds_size / chunk_size)
@@ -351,11 +342,10 @@ class AnnotationLayerBackend(
         """
         Write out just the info (JSON) file, with current parameters.
         """
-        assert self.index is not None
         if spatial_data is None:
             # Create spatial entries with the chunk sizes
             spatial_data = []
-            bounds_size = self.index.shape
+            bounds_size = self.shape
             for level, chunk_size_seq in enumerate(self.chunk_sizes):
                 chunk_size: Vec3D = Vec3D(*chunk_size_seq)
                 grid_shape = ceil(bounds_size / chunk_size)
@@ -364,12 +354,12 @@ class AnnotationLayerBackend(
         write_info(
             dir_path=self.path,
             dimensions={
-                "x": [self.index.resolution.x, "nm"],
-                "y": [self.index.resolution.y, "nm"],
-                "z": [self.index.resolution.z, "nm"],
+                "x": [self.resolution.x, "nm"],
+                "y": [self.resolution.y, "nm"],
+                "z": [self.resolution.z, "nm"],
             },
-            lower_bound=self.index.start,
-            upper_bound=self.index.stop,
+            lower_bound=self.start,
+            upper_bound=self.stop,
             spatial_data=spatial_data,
             property_specs=self.property_specs,
             relationships=self.relationships,
@@ -429,31 +419,29 @@ class AnnotationLayerBackend(
 
         :param annotations: sequence of Annotations to add.
         :param annotation_resolution: resolution of given Annotation coordinates;
-        if not specified, assumes native coordinates (i.e. self.index.resolution)
+        if not specified, assumes native coordinates (i.e. self.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).
         :param clearing_bbox: if given, clear any existing data within these bounds.
         """
-        assert self.index is not None
-        assert self.annotation_type is not None
         if not annotations:
             logger.info("write_annotations called with 0 annotations to write")
             return
-        if annotation_resolution and annotation_resolution != self.index.resolution:
+        if annotation_resolution and annotation_resolution != self.resolution:
             annotations = [
-                x.with_converted_coordinates(annotation_resolution, self.index.resolution)
+                x.with_converted_coordinates(annotation_resolution, self.resolution)
                 for x in annotations
             ]
         qty_levels = len(self.chunk_sizes)
         levels = range(0, qty_levels) if all_levels else [qty_levels - 1]
-        bounds_size = self.index.shape
+        bounds_size = self.shape
 
         clearing_idx: Optional[VolumetricIndex] = None
         if clearing_bbox:
             clearing_idx = VolumetricIndex.from_coords(
-                round(clearing_bbox.start / self.index.resolution),
-                round(clearing_bbox.end / self.index.resolution),
-                self.index.resolution,
+                round(clearing_bbox.start / self.resolution),
+                round(clearing_bbox.end / self.resolution),
+                self.resolution,
             )
 
         for level in levels:
@@ -475,20 +463,20 @@ class AnnotationLayerBackend(
                 logger.debug(f"x = {x} of {grid_shape[0]}")
                 split_by_x = VolumetricIndex.from_coords(
                     (
-                        self.index.start[0] + x * chunk_size[0],
-                        self.index.start[1],
-                        self.index.start[2],
+                        self.start[0] + x * chunk_size[0],
+                        self.start[1],
+                        self.start[2],
                     ),
                     (
-                        self.index.start[0] + (x + 1) * chunk_size[0],
-                        self.index.stop[1],
-                        self.index.stop[2],
+                        self.start[0] + (x + 1) * chunk_size[0],
+                        self.stop[1],
+                        self.stop[2],
                     ),
-                    self.index.resolution,
+                    self.resolution,
                 )
                 # pylint: disable=cell-var-from-loop
                 split_data_by_x: list[Annotation] = [
-                    d for d in annotations if d.in_bounds(split_by_x, self.index.resolution)
+                    d for d in annotations if d.in_bounds(split_by_x, self.resolution)
                 ]
                 logger.debug(f":  {len(split_data_by_x)} lines")
                 if not split_data_by_x:
@@ -497,22 +485,20 @@ class AnnotationLayerBackend(
                     logger.debug(f"    y = {y} of {grid_shape[1]}")
                     split_by_y = VolumetricIndex.from_coords(
                         (
-                            self.index.start[0] + x * chunk_size[0],
-                            self.index.start[1] + y * chunk_size[1],
-                            self.index.start[2],
+                            self.start[0] + x * chunk_size[0],
+                            self.start[1] + y * chunk_size[1],
+                            self.start[2],
                         ),
                         (
-                            self.index.start[0] + (x + 1) * chunk_size[0],
-                            self.index.start[1] + (y + 1) * chunk_size[1],
-                            self.index.stop[2],
+                            self.start[0] + (x + 1) * chunk_size[0],
+                            self.start[1] + (y + 1) * chunk_size[1],
+                            self.stop[2],
                         ),
-                        self.index.resolution,
+                        self.resolution,
                     )
                     # pylint: disable=cell-var-from-loop
                     split_data_by_y: list[Annotation] = [
-                        d
-                        for d in split_data_by_x
-                        if d.in_bounds(split_by_y, self.index.resolution)
+                        d for d in split_data_by_x if d.in_bounds(split_by_y, self.resolution)
                     ]
                     logger.debug(f":  {len(split_data_by_y)} lines")
                     if not split_data_by_y:
@@ -520,30 +506,30 @@ class AnnotationLayerBackend(
                     for z in range(grid_shape[2]):
                         split_by_z = VolumetricIndex.from_coords(
                             (
-                                self.index.start[0] + x * chunk_size[0],
-                                self.index.start[1] + y * chunk_size[1],
-                                self.index.start[2] + z * chunk_size[2],
+                                self.start[0] + x * chunk_size[0],
+                                self.start[1] + y * chunk_size[1],
+                                self.start[2] + z * chunk_size[2],
                             ),
                             (
-                                self.index.start[0] + (x + 1) * chunk_size[0],
-                                self.index.start[1] + (y + 1) * chunk_size[1],
-                                self.index.start[2] + (z + 1) * chunk_size[2],
+                                self.start[0] + (x + 1) * chunk_size[0],
+                                self.start[1] + (y + 1) * chunk_size[1],
+                                self.start[2] + (z + 1) * chunk_size[2],
                             ),
-                            self.index.resolution,
+                            self.resolution,
                         )
                         # Sanity check: manually compute the single-chunk bounds.
                         # It should be equal to split_by_z.
-                        chunk_start = self.index.start + Vec3D(x, y, z) * chunk_size
+                        chunk_start = self.start + Vec3D(x, y, z) * chunk_size
                         chunk_end = chunk_start + chunk_size
                         chunk_bounds = VolumetricIndex.from_coords(
-                            chunk_start, chunk_end, self.index.resolution
+                            chunk_start, chunk_end, self.resolution
                         )
                         assert chunk_bounds == split_by_z
                         # pylint: disable=cell-var-from-loop
                         chunk_data: list[Annotation] = [
                             d
                             for d in split_data_by_y
-                            if d.in_bounds(chunk_bounds, self.index.resolution)
+                            if d.in_bounds(chunk_bounds, self.resolution)
                         ]
                         if not chunk_data:
                             continue
@@ -553,7 +539,7 @@ class AnnotationLayerBackend(
                             old_data = [
                                 d
                                 for d in old_data
-                                if not d.in_bounds(clearing_idx, self.index.resolution)
+                                if not d.in_bounds(clearing_idx, self.resolution)
                             ]
                         chunk_data += list(old_data)
                         limit = max(limit, len(chunk_data))
@@ -562,10 +548,9 @@ class AnnotationLayerBackend(
     def _write_by_id_index(
         self, annotations: Sequence[Annotation], annotation_resolution: Optional[Vec3D] = None
     ):
-        assert self.index is not None
-        if annotation_resolution and annotation_resolution != self.index.resolution:
+        if annotation_resolution and annotation_resolution != self.resolution:
             annotations = [
-                x.with_converted_coordinates(annotation_resolution, self.index.resolution)
+                x.with_converted_coordinates(annotation_resolution, self.resolution)
                 for x in annotations
             ]
         by_id_path = path_join(self.path, "by_id")
@@ -589,7 +574,7 @@ class AnnotationLayerBackend(
 
         :param annotations: sequence of LineAnnotations to add.
         :param annotation_resolution: resolution of given LineAnnotation coordinates;
-        if not specified, assumes native coordinates (i.e. self.index.resolution)
+        if not specified, assumes native coordinates (i.e. self.resolution)
         :param all_levels: if true, write to all spatial levels (chunk sizes).
             If false, write only to the lowest level (smallest chunks).
         :param clearing_bbox: if given, clear any existing data within these bounds.
@@ -611,7 +596,6 @@ class AnnotationLayerBackend(
         Read a set of annotations from the given file, which should be in
         'multiple annotation encoding' format.
         """
-        assert self.annotation_type is not None
         data = read_bytes(file_or_gs_path)
         result: list[Annotation] = []
         if data is None or len(data) == 0:
@@ -650,10 +634,9 @@ class AnnotationLayerBackend(
         Note that the returned annotations do NOT include related segment
         IDs; those are only found in the by_id files.
         """
-        assert self.index is not None
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
         result = []
-        bounds_size = self.index.shape
+        bounds_size = self.shape
         chunk_size = Vec3D(*self.chunk_sizes[level])
         grid_shape = ceil(bounds_size / chunk_size)
         level_key = f"spatial{level}"
@@ -671,13 +654,12 @@ class AnnotationLayerBackend(
             result = list(result_dict.values())
         if annotation_resolution:
             for line in result:
-                line.convert_coordinates(self.index.resolution, annotation_resolution)
+                line.convert_coordinates(self.resolution, annotation_resolution)
         return result
 
     def all_by_id(self):
         """Generator that yields all annotations including related-ID data)
         by iterating over the by_id index."""
-        assert self.annotation_type is not None
         by_id_path = path_join(self.path, "by_id")
         cf = CloudFiles(by_id_path)
         for filename in cf.list():
@@ -695,9 +677,8 @@ class AnnotationLayerBackend(
         """
         Find the maximum number of entries in any chunk at the given level.
         """
-        assert self.index is not None
         level = spatial_level if spatial_level >= 0 else len(self.chunk_sizes) + spatial_level
-        bounds_size = self.index.shape
+        bounds_size = self.shape
         chunk_size = Vec3D(*self.chunk_sizes[level])
         grid_shape = ceil(bounds_size / chunk_size)
         level_key = f"spatial{level}"
@@ -723,43 +704,40 @@ class AnnotationLayerBackend(
 
         :param roi: region of interest
         :param annotation_resolution: resolution of returned LineAnnotation coordinates;
-        if not specified, uses native coordinates (i.e. self.index.resolution)
+        if not specified, uses native coordinates (i.e. self.resolution)
         :param strict: if True, return ONLY annotations entirely within the given bounds;
         if False, then you may also get some annotations that are partially or entirely
         outside the given bounds
         :return: list of LineAnnotation objects
         """
-        assert self.index is not None
         level = len(self.chunk_sizes) - 1
         result = []
-        bounds_size_vx = self.index.shape
+        bounds_size_vx = self.shape
         chunk_size_vx = Vec3D(*self.chunk_sizes[level])
         grid_shape = ceil(bounds_size_vx / chunk_size_vx)
 
         level_key = f"spatial{level}"
         level_dir = path_join(self.path, level_key)
 
-        roi_start_vx = round(roi.start / self.index.resolution)
-        roi_end_vx = round(roi.end / self.index.resolution)
-        roi_index = VolumetricIndex.from_coords(roi_start_vx, roi_end_vx, self.index.resolution)
+        roi_start_vx = round(roi.start / self.resolution)
+        roi_end_vx = round(roi.end / self.resolution)
+        roi_index = VolumetricIndex.from_coords(roi_start_vx, roi_end_vx, self.resolution)
 
         # Voxel chunk sizes may be floats, so we need to convert to ints explicitly
-        start_chunk = [int(i) for i in (roi_index.start - self.index.start) // chunk_size_vx]
-        end_chunk = [int(i) for i in (roi_index.stop - self.index.start) // chunk_size_vx]
+        start_chunk = [int(i) for i in (roi_index.start - self.start) // chunk_size_vx]
+        end_chunk = [int(i) for i in (roi_index.stop - self.start) // chunk_size_vx]
         for x in range(max(0, start_chunk[0]), min(grid_shape[0], end_chunk[0] + 1)):
             for y in range(max(0, start_chunk[1]), min(grid_shape[1], end_chunk[1] + 1)):
                 for z in range(max(0, start_chunk[2]), min(grid_shape[2], end_chunk[2] + 1)):
                     anno_file_path = path_join(level_dir, f"{x}_{y}_{z}")
                     result += self.read_annotations(anno_file_path)
         if strict:
-            result = [
-                x for x in result if x.in_bounds(roi_index, self.index.resolution, strict=True)
-            ]
+            result = [x for x in result if x.in_bounds(roi_index, self.resolution, strict=True)]
         result_dict = {line.id: line for line in result}
         result = list(result_dict.values())
         if annotation_resolution:
             for line in result:
-                line.convert_coordinates(self.index.resolution, annotation_resolution)
+                line.convert_coordinates(self.resolution, annotation_resolution)
         return result
 
     # pylint: disable=too-many-locals,too-many-nested-blocks,cell-var-from-loop
@@ -796,7 +774,7 @@ class AnnotationLayerBackend(
                     bounds.resolution,
                 )
                 data_within_x: list[Annotation] = [
-                    d for d in data if d.in_bounds(x_idx, self._index.resolution)
+                    d for d in data if d.in_bounds(x_idx, self.resolution)
                 ]
                 for y in range(grid_shape[1]):
                     y_start = bounds.start[1] + y * chunk_size[1]
@@ -807,7 +785,7 @@ class AnnotationLayerBackend(
                         bounds.resolution,
                     )
                     data_within_xy: list[Annotation] = [
-                        d for d in data_within_x if d.in_bounds(y_idx, self._index.resolution)
+                        d for d in data_within_x if d.in_bounds(y_idx, self.resolution)
                     ]
                     for z in range(grid_shape[2]):
                         qty_done += 1
@@ -818,9 +796,7 @@ class AnnotationLayerBackend(
                         )
                         # pylint: disable=cell-var-from-loop
                         chunk_data: Sequence[Annotation] = [
-                            d
-                            for d in data_within_xy
-                            if d.in_bounds(chunk_bounds, self._index.resolution)
+                            d for d in data_within_xy if d.in_bounds(chunk_bounds, self.resolution)
                         ]
                         limit = max(limit, len(chunk_data))
                         if write_to_dir is not None and level in levels_to_write:
@@ -871,7 +847,6 @@ class AnnotationLayerBackend(
         This is useful after writing out a bunch of data with
           write_annotations(data, False), which writes to only the lowest-level chunks.
         """
-        assert self.index is not None
         all_data: Optional[list] = None
         if len(self.chunk_sizes) == 1:
             # Special case: only one chunk size, no subdivision.
@@ -903,12 +878,10 @@ class AnnotationLayerBackend(
     # Required overrides for Backend interface
     def read(self, idx: VolumetricIndex) -> Sequence[Annotation]:  # pragma: no cover
         """Read annotations within the given bounds."""
-        assert self.index is not None
         return self.read_in_bounds(BBox3D.from_coords(idx.start, idx.stop, idx.resolution))
 
     def write(self, idx: VolumetricIndex, data: Sequence[Annotation]) -> None:  # pragma: no cover
         """Write annotations to the given bounds."""
-        assert self.index is not None
         self.write_annotations(data, annotation_resolution=idx.resolution)
 
     def with_changes(self, **kwargs) -> "AnnotationLayerBackend":  # pragma: no cover
@@ -949,23 +922,18 @@ class AnnotationLayerBackend(
         pass  # pragma: no cover
 
     def get_voxel_offset(self, resolution: Vec3D) -> Vec3D[int]:
-        assert self.index is not None
-        return round(self.index.start * resolution / self.index.resolution)
+        return round(self.start * resolution / self.resolution)
 
     def get_chunk_size(self, resolution: Vec3D) -> Vec3D[int]:
         # Note: it's not clear which chunk size is wanted here; since there
         # are no docs about it, let's just return the first one.
-        assert self.index is not None
-        return round(Vec3D(*self.chunk_sizes[0]) * resolution / self.index.resolution)
+        return round(Vec3D(*self.chunk_sizes[0]) * resolution / self.resolution)
 
     def get_dataset_size(self, resolution: Vec3D) -> Vec3D[int]:
-        assert self.index is not None
-        return round(self.index.shape * resolution / self.index.resolution)
+        return round(self.shape * resolution / self.resolution)
 
     def get_bounds(self, resolution: Vec3D) -> VolumetricIndex:
-        assert self.index is not None
-        return self.index * resolution / self.index.resolution
+        return self.index * resolution / self.resolution
 
     def pformat(self) -> str:
-        assert self.index is not None
         return self.index.pformat()

@@ -21,18 +21,14 @@ def create_backend(temp_dir, annotation_type="LINE", properties=None, relations=
     backend_path = os.path.join(temp_dir, "annotation_backend")
     os.makedirs(backend_path, exist_ok=True)
 
-    index = VolumetricIndex(
-        resolution=Vec3D(1, 1, 1),
-        bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
-    )
-
     backend = AnnotationLayerBackend(
-        path=backend_path, annotation_type=annotation_type, index=index
+        path=backend_path,
+        bbox=BBox3D.from_slices((slice(0, 1000), slice(0, 1000), slice(0, 1000))),
+        resolution=Vec3D(1, 1, 1),
+        annotation_type=annotation_type,
+        property_specs=list(properties) if properties else [],
+        relationships=list(relations) if relations else [],
     )
-    if properties:
-        backend.property_specs = properties
-    if relations:
-        backend.relationships = relations
     return backend
 
 

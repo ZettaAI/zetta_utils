@@ -56,10 +56,8 @@ class VolumetricAnnotationLayer(
 
         annotations = self.read_with_procs(idx=idx_backend)
 
-        backend_index = self.backend.index
-        assert backend_index is not None, "Backend index should be initialized"
         return self._convert_annotations(
-            annotations, from_res=backend_index.resolution, to_res=idx_backend.resolution
+            annotations, from_res=self.backend.resolution, to_res=idx_backend.resolution
         )
 
     def __setitem__(self, idx: UserVolumetricIndex, data: Sequence[Annotation]):

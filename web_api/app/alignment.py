@@ -394,7 +394,7 @@ def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
         ids, counts = np.unique(labels, return_counts=True)
         keep_mask = np.zeros_like(sl)
         for seg_id, count in zip(ids, counts):
-            if seg_id != 0 and count >= 300:
+            if seg_id != 0 and count >= 600:
                 keep_mask |= labels == seg_id
         out_np[0, :, :, z][keep_mask] = 255
     misd_mask = torch.from_numpy(out_np).to(misd_mask.device)

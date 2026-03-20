@@ -53,6 +53,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
+        info_overwrite=True,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
@@ -218,6 +219,7 @@ def test_single_level():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
+        info_overwrite=True,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
     sf.clear()
@@ -239,9 +241,14 @@ def test_edge_cases():
 
     bbox = BBox3D.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
     for path in ["/dev/null", "/dev/null/subdir"]:
-        assert not AnnotationLayerBackend(
-            path=path, bbox=bbox, resolution=Vec3D(1, 1, 1), annotation_type="LINE"
-        ).exists()
+        with pytest.raises((NotADirectoryError, FileNotFoundError)):
+            AnnotationLayerBackend(
+                path=path, bbox=bbox, resolution=Vec3D(1, 1, 1), annotation_type="LINE"
+            )
+
+    # Path-only construction without existing info file should raise
+    with pytest.raises(FileNotFoundError):
+        AnnotationLayerBackend(path="/nonexistent/path")
 
 
 def test_relationships_and_related_index():

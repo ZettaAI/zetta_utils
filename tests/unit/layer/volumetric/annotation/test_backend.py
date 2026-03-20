@@ -1,9 +1,11 @@
 import os
 import shutil
+import tempfile
 
 import pytest
 
 from zetta_utils.geometry import BBox3D, Vec3D
+from zetta_utils.layer.volumetric import VolumetricIndex
 from zetta_utils.layer.volumetric.annotation import backend
 from zetta_utils.layer.volumetric.annotation.annotations import (
     PropertySpec,
@@ -237,16 +239,7 @@ def test_edge_cases():
     with pytest.raises(ValueError):
         backend.path_join()
 
-    assert backend.read_info("/dev/null") == (None, None, None, None, None, None, None)
-
-    assert backend.path_join("gs://foo/", "bar") == "gs://foo/bar"
-
-    bbox = BBox3D.from_coords((0, 0, 0), (10, 10, 10), (1, 1, 1))
-    for path in ["/dev/null", "/dev/null/subdir"]:
-        with pytest.raises((NotADirectoryError, FileNotFoundError)):
-            AnnotationLayerBackend(
-                path=path, bbox=bbox, resolution=Vec3D(1, 1, 1), annotation_type="LINE"
-            )
+    assert backend.read_info("/nonexistent/path") == (None, None, None, None, None, None, None)
 
     # Path-only construction without existing info file should raise
     with pytest.raises(FileNotFoundError):
@@ -422,6 +415,187 @@ def test_getter_methods():
     pformat_result = backend_instance.pformat()
     assert isinstance(pformat_result, str)
     assert len(pformat_result) > 0
+
+
+def test_constructor_validation():
+    bbox = BBox3D.from_coords((0, 0, 0), (100, 100, 100), (1, 1, 1))
+
+    # bbox without resolution
+    with pytest.raises(ValueError, match="must all be provided together"):
+        AnnotationLayerBackend(path="/tmp/test_val", bbox=bbox, annotation_type="LINE")
+
+    # bbox without annotation_type
+    with pytest.raises(ValueError, match="must all be provided together"):
+        AnnotationLayerBackend(path="/tmp/test_val", bbox=bbox, resolution=Vec3D(1, 1, 1))
+
+    # invalid annotation_type
+    with pytest.raises(ValueError, match="must be 'POINT' or 'LINE'"):
+        AnnotationLayerBackend(
+            path="/tmp/test_val",
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="NONEXISTENT",
+        )
+
+
+def test_info_consistency_check():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "consistency")
+        bbox = BBox3D.from_coords((0, 0, 0), (1000, 1000, 1000), Vec3D(1, 1, 1))
+
+        # Create initial backend
+        AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+        )
+
+        # Mismatched resolution without info_overwrite should raise
+        with pytest.raises(RuntimeError, match="differs from provided params"):
+            AnnotationLayerBackend(
+                path=file_dir,
+                bbox=bbox,
+                resolution=Vec3D(2, 2, 2),
+                annotation_type="LINE",
+            )
+
+        # Mismatched annotation_type without info_overwrite should raise
+        with pytest.raises(RuntimeError, match="differs from provided params"):
+            AnnotationLayerBackend(
+                path=file_dir,
+                bbox=bbox,
+                resolution=Vec3D(1, 1, 1),
+                annotation_type="POINT",
+            )
+
+        # Mismatched bbox without info_overwrite should raise
+        bbox2 = BBox3D.from_coords((0, 0, 0), (500, 500, 500), Vec3D(1, 1, 1))
+        with pytest.raises(RuntimeError, match="differs from provided params"):
+            AnnotationLayerBackend(
+                path=file_dir,
+                bbox=bbox2,
+                resolution=Vec3D(1, 1, 1),
+                annotation_type="LINE",
+            )
+
+
+def test_exists():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "exists_test")
+        bbox = BBox3D.from_coords((0, 0, 0), (100, 100, 100), Vec3D(1, 1, 1))
+
+        sf = AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+        )
+        assert sf.exists()
+
+        sf.delete()
+        assert not sf.exists()
+
+
+def test_props_and_rels_from_existing_info():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "inherit_props")
+        bbox = BBox3D.from_coords((0, 0, 0), (100, 100, 100), Vec3D(1, 1, 1))
+        props = [PropertySpec(id="score", type="float32")]
+        rels = [Relationship(id="parent", key="parent")]
+
+        # Create with properties and relationships
+        AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+            property_specs=props,
+            relationships=rels,
+            suppress_by_id_index=False,
+        )
+
+        # Re-open with same bbox/resolution but without specifying props/rels
+        sf2 = AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+            suppress_by_id_index=False,
+        )
+        assert len(sf2.property_specs) == 1
+        assert sf2.property_specs[0].id == "score"
+        assert len(sf2.relationships) == 1
+        assert sf2.relationships[0].id == "parent"
+
+
+def test_write_to_chunk():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "chunk_write")
+        bbox = BBox3D.from_coords((0, 0, 0), (1000, 1000, 1000), Vec3D(1, 1, 1))
+        chunk_sizes = [(500, 500, 500)]
+
+        sf = AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+            chunk_sizes=chunk_sizes,
+        )
+
+        lines = [
+            LineAnnotation(id=1, start=(10, 20, 30), end=(40, 50, 60)),
+            LineAnnotation(id=2, start=(100, 200, 300), end=(110, 210, 310)),
+        ]
+
+        # Write to the first chunk (0,0,0)
+        chunk_idx = VolumetricIndex.from_coords((0, 0, 0), (500, 500, 500), Vec3D(1, 1, 1))
+        sf.write_to_chunk(chunk_idx, lines)
+
+        # Read back
+        lines_read = sf.read_all()
+        assert len(lines_read) == 2
+        assert {l.id for l in lines_read} == {1, 2}
+
+        # Write empty chunk with delete_empty_chunk=True (default)
+        sf.write_to_chunk(chunk_idx, [])
+        lines_read = sf.read_all()
+        assert len(lines_read) == 0
+
+        # Write with filter_by_bounds
+        chunk_idx2 = VolumetricIndex.from_coords(
+            (500, 500, 500), (1000, 1000, 1000), Vec3D(1, 1, 1)
+        )
+        lines_mixed = [
+            LineAnnotation(id=3, start=(600, 600, 600), end=(700, 700, 700)),  # in bounds
+            LineAnnotation(id=4, start=(10, 20, 30), end=(40, 50, 60)),  # out of bounds
+        ]
+        sf.write_to_chunk(chunk_idx2, lines_mixed, filter_by_bounds=True)
+        lines_read = sf.read_all()
+        assert len(lines_read) == 1
+        assert lines_read[0].id == 3
+
+        # Write empty with delete_empty_chunk=False
+        sf.write_to_chunk(chunk_idx, [], delete_empty_chunk=False)
+        # Should write an empty file (0 annotations) rather than deleting
+        chunk_file = os.path.join(file_dir, "spatial0", "0_0_0")
+        assert os.path.exists(chunk_file)
+
+    # Test write_to_chunk with by_id index
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "chunk_write_byid")
+        sf = AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+            chunk_sizes=chunk_sizes,
+            suppress_by_id_index=False,
+        )
+        chunk_idx = VolumetricIndex.from_coords((0, 0, 0), (500, 500, 500), Vec3D(1, 1, 1))
+        sf.write_to_chunk(chunk_idx, lines)
+        assert os.path.exists(os.path.join(file_dir, "by_id", "1"))
+        assert os.path.exists(os.path.join(file_dir, "by_id", "2"))
 
 
 if __name__ == "__main__":

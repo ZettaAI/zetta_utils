@@ -62,19 +62,6 @@ def count_lines_in_file(file_or_gs_path: str) -> int:
     return line_count_from_file_size(cf.size() or 0)
 
 
-def read_bytes(file_or_gs_path: str):
-    """
-    Read bytes from a local file or Google Cloud Storage.
-
-    :param file_or_gs_path: path to file to read (local or GCS path)
-    :return: bytes read from the file
-    """
-    if "//" not in file_or_gs_path:
-        file_or_gs_path = "file://" + file_or_gs_path
-    cf = CloudFile(file_or_gs_path)
-    return cf.get()
-
-
 def format_info(
     dimensions,
     lower_bound,
@@ -175,12 +162,9 @@ def read_info(dir_path):
 
     If the file is empty or does not exist, return a tuple of None.
     """
-    file_path = path_join(dir_path, "info")  # (note: not info.json as you would expect)
-    try:
-        data = read_bytes(file_path)
-    except NotADirectoryError:
-        data = None
-    if data is None or len(data) == 0:
+    file_path = path_join(dir_path, "info")
+    data = CloudFile(file_path).get()
+    if not data:
         return (None, None, None, None, None, None, None)
     return parse_info(data.decode("utf-8"))
 
@@ -223,9 +207,9 @@ class AnnotationLayerBackend(
     """
 
     path: str = attrs.field()
-    bbox: Optional[BBox3D] = attrs.field(default=None)
-    resolution: Optional[Vec3D] = attrs.field(default=None)
-    annotation_type: Optional[str] = attrs.field(default=None)
+    _bbox: Optional[BBox3D] = attrs.field(default=None, alias="bbox")
+    _resolution: Optional[Vec3D] = attrs.field(default=None, alias="resolution")
+    _annotation_type: Optional[str] = attrs.field(default=None, alias="annotation_type")
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
@@ -237,6 +221,33 @@ class AnnotationLayerBackend(
     @name.default
     def _default_name(self) -> str:
         return f"AnnotationLayer[{self.path}]"
+
+    @property
+    def bbox(self) -> BBox3D:
+        assert self._bbox is not None
+        return self._bbox
+
+    @bbox.setter
+    def bbox(self, value: BBox3D) -> None:
+        self._bbox = value
+
+    @property
+    def resolution(self) -> Vec3D:
+        assert self._resolution is not None
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value: Vec3D) -> None:
+        self._resolution = value
+
+    @property
+    def annotation_type(self) -> str:
+        assert self._annotation_type is not None
+        return self._annotation_type
+
+    @annotation_type.setter
+    def annotation_type(self, value: str) -> None:
+        self._annotation_type = value
 
     @property
     def start(self) -> Vec3D[int]:
@@ -265,16 +276,16 @@ class AnnotationLayerBackend(
             self.path
         )
         file_exists = dims is not None
-        params_provided = self.bbox is not None
+        params_provided = self._bbox is not None
 
         if params_provided:
-            if self.resolution is None or self.annotation_type is None:
+            if self._resolution is None or self._annotation_type is None:
                 raise ValueError(
                     "bbox, resolution, and annotation_type must all be provided together"
                 )
-            if self.annotation_type not in ("POINT", "LINE"):
+            if self._annotation_type not in ("POINT", "LINE"):
                 raise ValueError(
-                    f"annotation_type must be 'POINT' or 'LINE', got '{self.annotation_type}'"
+                    f"annotation_type must be 'POINT' or 'LINE', got '{self._annotation_type}'"
                 )
             if not self.chunk_sizes:
                 self.chunk_sizes = [tuple(self.shape)]
@@ -303,7 +314,7 @@ class AnnotationLayerBackend(
         self, dims, lower_bound, upper_bound, anno_type, spatial_data, file_props, file_rels
     ):
         """Populate fields from existing info file."""
-        file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
+        file_res: Vec3D = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
         file_bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
         self.bbox = file_bbox
         self.resolution = file_res
@@ -317,7 +328,7 @@ class AnnotationLayerBackend(
 
     def _check_info_consistency(self, dims, lower_bound, upper_bound, anno_type, spatial_data):
         """Compare constructor params against existing info file."""
-        file_res = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
+        file_res: Vec3D = Vec3D(x=dims["x"][0], y=dims["y"][0], z=dims["z"][0])
         file_bbox = BBox3D.from_coords(lower_bound, upper_bound, file_res)
         file_chunk_sizes = (
             [tuple(entry.chunk_size) for entry in spatial_data] if spatial_data else []
@@ -356,11 +367,8 @@ class AnnotationLayerBackend(
         Return whether this spatial file (more specifically, its info file) already exists.
         """
         path = path_join(self.path, "info")
-        try:
-            data = read_bytes(path)
-        except NotADirectoryError:
-            data = None
-        return data is not None and len(data) > 0
+        data = CloudFile(path).head()
+        return data is not None
 
     def delete(self):
         """
@@ -368,16 +376,15 @@ class AnnotationLayerBackend(
         """
         # Delete all files under our path
         path = self.path
-        if "//" not in path:
-            path = "file://" + path
         cf = CloudFiles(path)
         cf.delete(cf.list())
-        if path.startswith("file://"):
-            # also delete the empty directories (which sadly CloudFiles cannot do)
-            local_path = path[len("file://") :]
-            for root, dirs, _ in os.walk(local_path, topdown=False):
-                for directory in dirs:
-                    os.rmdir(os.path.join(root, directory))
+        if cf.protocol == "file":
+            # CloudFiles only deletes files, not empty directories
+            for dirpath, _, files in os.walk(path, topdown=False):
+                if files:  # pragma: no cover
+                    raise RuntimeError(f"Expected empty directory, but {dirpath} has files")
+                if dirpath != path:
+                    os.rmdir(dirpath)
 
     def clear(self):
         """
@@ -523,11 +530,8 @@ class AnnotationLayerBackend(
         if chunk_annos:
             self.write_multi_annotation_file(anno_file_path, chunk_annos)
         elif delete_empty_chunk:
-            cf_path = anno_file_path if "//" in anno_file_path else "file://" + anno_file_path
-            try:
-                CloudFile(cf_path).delete()
-            except Exception:
-                pass
+            cf_path = anno_file_path
+            CloudFile(cf_path).delete()
         else:
             self.write_multi_annotation_file(anno_file_path, [])
 
@@ -724,9 +728,9 @@ class AnnotationLayerBackend(
         Read a set of annotations from the given file, which should be in
         'multiple annotation encoding' format.
         """
-        data = read_bytes(file_or_gs_path)
+        data = CloudFile(file_or_gs_path).get()
         result: list[Annotation] = []
-        if data is None or len(data) == 0:
+        if not data:
             return result
         with io.BytesIO(data) as buffer:
             # first read the count
@@ -811,8 +815,6 @@ class AnnotationLayerBackend(
         grid_shape = ceil(bounds_size / chunk_size)
         level_key = f"spatial{level}"
         level_dir = path_join(self.path, level_key)
-        if "//" not in level_dir:
-            level_dir = "file://" + level_dir
         cf = CloudFiles(level_dir)
         file_paths = [
             f"{x}_{y}_{z}"

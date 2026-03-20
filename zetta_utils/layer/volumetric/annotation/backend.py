@@ -471,12 +471,68 @@ class AnnotationLayerBackend(
 
         # finally write the ids at the end of the buffer
         for anno in annotations:
-            logger.info(f"writing annotation {anno.id}")
             buffer.write(struct.pack("<Q", anno.id))
 
         # Rewind buffer to the beginning, and write to disk
         buffer.seek(0)
         write_bytes(file_or_gs_path, buffer.getvalue())
+        logger.info(f"Wrote {len(annotations)} annotations to {file_or_gs_path}.")
+
+    def write_to_chunk(
+        self,
+        idx: VolumetricIndex,
+        annotations: Sequence[Annotation],
+        level: Optional[int] = None,
+        delete_empty_chunk=True,
+        filter_by_bounds=False,
+    ) -> None:
+        """Write annotations to the single spatial chunk specified by idx.
+
+        :param idx: region identifying the target spatial chunk (coordinates at layer resolution)
+        :param annotations: annotations to write
+        :param level: spatial level (0-indexed). None = finest level (last in chunk_sizes).
+        :param delete_empty_chunk: Deletes chunk file if annotations is empty rather than
+                                   writing an empty chunk (avoids class A requests)
+        :param filter_by_bounds: If True, only annotations that geometrically intersect
+                                  the chunk bounds are written. If False (default), all
+                                  provided annotations are written regardless of bounds.
+        """
+        if level is None:
+            level = len(self.chunk_sizes) - 1
+
+        chunk_size = Vec3D(*self.chunk_sizes[level])
+        level_key = f"spatial{level}"
+        level_dir = path_join(self.path, level_key)
+        if is_local_filesystem(self.path):
+            os.makedirs(level_dir, exist_ok=True)
+
+        layer_start = self.start
+        cx = int((idx.start[0] - layer_start[0]) // chunk_size[0])
+        cy = int((idx.start[1] - layer_start[1]) // chunk_size[1])
+        cz = int((idx.start[2] - layer_start[2]) // chunk_size[2])
+
+        if filter_by_bounds:
+            chunk_start = layer_start + Vec3D(cx, cy, cz) * chunk_size
+            chunk_end = chunk_start + chunk_size
+            chunk_bounds = VolumetricIndex.from_coords(chunk_start, chunk_end, self.resolution)
+            chunk_annos = [a for a in annotations if a.in_bounds(chunk_bounds, self.resolution)]
+        else:
+            chunk_annos = list(annotations)
+
+        anno_file_path = path_join(level_dir, f"{cx}_{cy}_{cz}")
+        if chunk_annos:
+            self.write_multi_annotation_file(anno_file_path, chunk_annos)
+        elif delete_empty_chunk:
+            cf_path = anno_file_path if "//" in anno_file_path else "file://" + anno_file_path
+            try:
+                CloudFile(cf_path).delete()
+            except Exception:
+                pass
+        else:
+            self.write_multi_annotation_file(anno_file_path, [])
+
+        if not self.suppress_by_id_index:
+            self._write_by_id_index(annotations)
 
     # pylint: disable=too-many-locals
     def _write_spatial_index(
@@ -520,7 +576,7 @@ class AnnotationLayerBackend(
             limit = 0
             chunk_size = Vec3D(*self.chunk_sizes[level])
             grid_shape = ceil(bounds_size / chunk_size)
-            logger.info(f"subdividing {bounds_size} by {chunk_size}, for grid_shape {grid_shape}")
+            logger.debug(f"subdividing {bounds_size} by {chunk_size}, for grid_shape {grid_shape}")
             level_key = f"spatial{level}"
             level_dir = path_join(self.path, level_key)
             if is_local_filesystem(self.path):

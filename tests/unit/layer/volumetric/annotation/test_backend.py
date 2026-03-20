@@ -53,6 +53,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
+        suppress_by_id_index=False,
         info_overwrite=True,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
@@ -68,6 +69,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
+        suppress_by_id_index=False,
     )
     assert sf.bbox == bbox
     assert sf.resolution == resolution
@@ -304,6 +306,7 @@ def test_relationships_and_related_index():
         annotation_type="LINE",
         property_specs=property_specs,
         relationships=relationships,
+        suppress_by_id_index=False,
     )
     sf.clear()
     sf.write_annotations(lines)

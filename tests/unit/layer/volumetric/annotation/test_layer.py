@@ -28,6 +28,7 @@ def create_backend(temp_dir, annotation_type="LINE", properties=None, relations=
         annotation_type=annotation_type,
         property_specs=list(properties) if properties else [],
         relationships=list(relations) if relations else [],
+        suppress_by_id_index=not relations,
     )
     return backend
 

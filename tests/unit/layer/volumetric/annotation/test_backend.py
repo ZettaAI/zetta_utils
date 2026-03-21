@@ -55,7 +55,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
-        suppress_by_id_index=False,
+        write_by_id_index=True,
         info_overwrite=True,
     )
     os.makedirs(os.path.join(file_dir, "spatial0", "junkforcodecoverage"))
@@ -71,7 +71,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
-        suppress_by_id_index=False,
+        write_by_id_index=True,
     )
     assert sf.bbox == bbox
     assert sf.resolution == resolution
@@ -131,7 +131,7 @@ def test_round_trip():
     by_id_ids = {line.id for line in all_by_id_lines}
     assert by_id_ids == {1, 2, 3, 4, 5, 104, 105}
 
-    # Test suppress_by_id_index functionality
+    # Test write_by_id_index functionality
     suppress_dir = os.path.join(temp_dir, "suppress_by_id")
     shutil.rmtree(suppress_dir, ignore_errors=True)
     sf_suppress = AnnotationLayerBackend(
@@ -140,7 +140,7 @@ def test_round_trip():
         resolution=resolution,
         annotation_type="LINE",
         chunk_sizes=chunk_sizes,
-        suppress_by_id_index=True,
+        write_by_id_index=False,
     )
     sf_suppress.clear()
     sf_suppress.write_annotations(lines[:3])  # Write first 3 lines
@@ -299,7 +299,7 @@ def test_relationships_and_related_index():
         annotation_type="LINE",
         property_specs=property_specs,
         relationships=relationships,
-        suppress_by_id_index=False,
+        write_by_id_index=True,
     )
     sf.clear()
     sf.write_annotations(lines)
@@ -340,7 +340,7 @@ def test_relationships_and_related_index():
     assert line_1.relations["parent_neuron"] == [2001]  # Single int becomes list
     assert abs(line_1.properties["confidence"] - 0.95) < 1e-6  # Allow float32 precision
 
-    # Test suppress_by_id_index with relationships - should warn
+    # Test write_by_id_index=False with relationships - should warn
     suppress_dir = os.path.join(temp_dir, "suppress_with_relationships")
     shutil.rmtree(suppress_dir, ignore_errors=True)
 
@@ -351,7 +351,7 @@ def test_relationships_and_related_index():
         annotation_type="LINE",
         property_specs=property_specs,
         relationships=relationships,
-        suppress_by_id_index=True,
+        write_by_id_index=False,
     )
     sf_suppress.clear()
 
@@ -512,7 +512,7 @@ def test_props_and_rels_from_existing_info():
             annotation_type="LINE",
             property_specs=props,
             relationships=rels,
-            suppress_by_id_index=False,
+            write_by_id_index=True,
         )
 
         # Re-open with same bbox/resolution but without specifying props/rels
@@ -521,7 +521,7 @@ def test_props_and_rels_from_existing_info():
             bbox=bbox,
             resolution=Vec3D(1, 1, 1),
             annotation_type="LINE",
-            suppress_by_id_index=False,
+            write_by_id_index=True,
         )
         assert len(sf2.property_specs) == 1
         assert sf2.property_specs[0].id == "score"
@@ -590,7 +590,7 @@ def test_write_to_chunk():
             resolution=Vec3D(1, 1, 1),
             annotation_type="LINE",
             chunk_sizes=chunk_sizes,
-            suppress_by_id_index=False,
+            write_by_id_index=True,
         )
         chunk_idx = VolumetricIndex.from_coords((0, 0, 0), (500, 500, 500), Vec3D(1, 1, 1))
         sf.write_to_chunk(chunk_idx, lines)

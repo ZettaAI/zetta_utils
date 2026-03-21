@@ -213,7 +213,7 @@ class AnnotationLayerBackend(
     chunk_sizes: Sequence[Sequence[int]] = attrs.field(factory=list)
     property_specs: Sequence[PropertySpec] = attrs.field(factory=list)
     relationships: Sequence[Relationship] = attrs.field(factory=list)
-    suppress_by_id_index: bool = attrs.field(default=True)
+    write_by_id_index: bool = attrs.field(default=False)
     info_overwrite: bool = attrs.field(default=False)
 
     name: str = attrs.field(init=False)
@@ -535,7 +535,7 @@ class AnnotationLayerBackend(
         else:
             self.write_multi_annotation_file(anno_file_path, [])
 
-        if not self.suppress_by_id_index:
+        if self.write_by_id_index:
             self._write_by_id_index(annotations)
 
     # pylint: disable=too-many-locals
@@ -715,11 +715,11 @@ class AnnotationLayerBackend(
         self._write_spatial_index(annotations, annotation_resolution, all_levels, clearing_bbox)
 
         # Then write the by_id index (if desired and not suppressed)
-        if not self.suppress_by_id_index:
+        if self.write_by_id_index:
             self._write_by_id_index(annotations, annotation_resolution)
         elif self.relationships:  # pragma: no cover
             logger.warning(  # pragma: no cover
-                "AnnotationLayerBackend: suppress_by_id_index is True, but "
+                "AnnotationLayerBackend: write_by_id_index is False, but "
                 "file has related IDs, which can't work without a by_id index"
             )
 

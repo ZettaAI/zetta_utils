@@ -127,7 +127,7 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
     write_procs: Iterable[AnnotationDataWriteProcT] = (),
     property_specs: Iterable[PropertySpec] = (),
     relationships: Iterable[Relationship] = (),
-    suppress_by_id_index: bool = True,
+    write_by_id_index: bool = False,
 ) -> VolumetricAnnotationLayer:
     """Build an AnnotationLayer (spatially indexed annotations in precomputed file format).
 
@@ -250,13 +250,13 @@ def build_annotation_layer(  # pylint: disable=too-many-locals, too-many-branche
             chunk_sizes=chunk_sizes if chunk_sizes is not None else [],
             property_specs=final_property_specs,
             relationships=final_relationships,
-            suppress_by_id_index=suppress_by_id_index,
+            write_by_id_index=write_by_id_index,
             info_overwrite=mode == "replace",
         )
     else:
         backend = AnnotationLayerBackend(
             path=path,
-            suppress_by_id_index=suppress_by_id_index,
+            write_by_id_index=write_by_id_index,
         )
 
     if mode == "replace":

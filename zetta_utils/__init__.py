@@ -35,14 +35,18 @@ def _patch_gcsfs_for_proxy():
 _patch_gcsfs_for_proxy()
 
 
-# Set global multiprocessing threshold
-MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
+# Set global multiprocessing context
+MULTIPROCESSING_CONTEXT = "spawn"
 
-# Set start method to `forkserver` if not set elsewhere
-# If not set here, `get_start_method` will set the default
-# to `fork` w/o allow_none and cause issues with dependencies.
+# Set start method to `spawn` if not set elsewhere.
+# `fork` is unsafe after gRPC/CUDA initialization; `spawn` avoids this.
 if multiprocessing.get_start_method(allow_none=True) is None:
-    multiprocessing.set_start_method("forkserver")
+    multiprocessing.set_start_method(MULTIPROCESSING_CONTEXT)
+
+
+def get_mp_context() -> multiprocessing.context.BaseContext:
+    """Get the multiprocessing context for the configured start method."""
+    return multiprocessing.get_context(MULTIPROCESSING_CONTEXT)
 
 if "sphinx" not in sys.modules:  # pragma: no cover
     import pdbp  # noqa

@@ -8,7 +8,7 @@ from contextlib import ExitStack
 
 import pebble
 
-from zetta_utils import builder, log
+from zetta_utils import builder, get_mp_context, log
 from zetta_utils.common import monitor_resources
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -73,9 +73,7 @@ def setup_local_worker_pool(
             )
             pool = pebble.ProcessPool(
                 max_workers=num_procs,
-                context=multiprocessing.get_context(
-                    "spawn"
-                ),  # 'fork' has issues with CV sharded reads
+                context=get_mp_context(),
                 initializer=worker_init,
                 initargs=[
                     current_log_level,  # log_level

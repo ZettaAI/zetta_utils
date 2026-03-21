@@ -581,6 +581,20 @@ def test_write_to_chunk():
         chunk_file = os.path.join(file_dir, "spatial0", "0_0_0")
         assert os.path.exists(chunk_file)
 
+    # Test write_to_chunk with misaligned index
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_dir = os.path.join(temp_dir, "chunk_write_misaligned")
+        sf = AnnotationLayerBackend(
+            path=file_dir,
+            bbox=bbox,
+            resolution=Vec3D(1, 1, 1),
+            annotation_type="LINE",
+            chunk_sizes=chunk_sizes,
+        )
+        misaligned_idx = VolumetricIndex.from_coords((100, 0, 0), (600, 500, 500), Vec3D(1, 1, 1))
+        with pytest.raises(ValueError, match="not chunk-aligned"):
+            sf.write_to_chunk(misaligned_idx, lines)
+
     # Test write_to_chunk with by_id index
     with tempfile.TemporaryDirectory() as temp_dir:
         file_dir = os.path.join(temp_dir, "chunk_write_byid")

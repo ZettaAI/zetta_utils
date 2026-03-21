@@ -514,9 +514,16 @@ class AnnotationLayerBackend(
             os.makedirs(level_dir, exist_ok=True)
 
         layer_start = self.start
-        cx = int((idx.start[0] - layer_start[0]) // chunk_size[0])
-        cy = int((idx.start[1] - layer_start[1]) // chunk_size[1])
-        cz = int((idx.start[2] - layer_start[2]) // chunk_size[2])
+        offset = idx.start - layer_start
+        for i, axis in enumerate("xyz"):
+            if offset[i] % chunk_size[i] != 0:
+                raise ValueError(
+                    f"idx start is not chunk-aligned along {axis}: "
+                    f"offset {offset[i]} is not divisible by chunk_size {chunk_size[i]}"
+                )
+        cx = int(offset[0] // chunk_size[0])
+        cy = int(offset[1] // chunk_size[1])
+        cz = int(offset[2] // chunk_size[2])
 
         if filter_by_bounds:
             chunk_start = layer_start + Vec3D(cx, cy, cz) * chunk_size

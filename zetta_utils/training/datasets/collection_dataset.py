@@ -80,7 +80,7 @@ def build_collection_dataset(  # pylint: disable=too-many-locals
         this_resolution = [resolution[0], resolution[1], z_resolution]
         if isinstance(annotation.ng_annotation, AxisAlignedBoundingBoxAnnotation):
             bbox = BBox3D.from_ng_bbox(annotation.ng_annotation, (1, 1, 1)).snapped(
-                (0, 0, 0), this_resolution, "shrink"
+                (0, 0, 0), this_resolution, "floor"
             )
 
             this_dset = LayerDataset(

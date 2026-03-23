@@ -374,11 +374,16 @@ def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
     t2 = time.time()
     warped_int8 = (warped_image * 127).clamp(-128, 127).round().to(torch.int8)
     tgt_int8 = (tgt_image_tensor * 127).clamp(-128, 127).round().to(torch.int8)
+    t_prep = time.time()
     misd_mask = misd(warped_int8, tgt_int8)
-    zero_mask = (warped_int8 == 0).all(dim=0, keepdim=True) | (tgt_int8 == 0).all(
-        dim=0, keepdim=True
-    )
+    t_nn = time.time()
+    # Zero mask — crop to misd output size (model may reduce spatial dims)
+    mh, mw = misd_mask.shape[1], misd_mask.shape[2]
+    zero_mask = (warped_int8[:, :mh, :mw, :] == 0).all(dim=0, keepdim=True) | (
+        tgt_int8[:, :mh, :mw, :] == 0
+    ).all(dim=0, keepdim=True)
     misd_mask[zero_mask] = 0
+    t_zero = time.time()
 
     structure = np.ones((3, 3), dtype=bool)
     misd_np = misd_mask.cpu().numpy()  # (1, X, Y, Z)
@@ -398,6 +403,11 @@ def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
                 keep_mask |= labels == seg_id
         out_np[0, :, :, z][keep_mask] = 255
     misd_mask = torch.from_numpy(out_np).to(misd_mask.device)
+    t_post = time.time()
+    print(
+        f"[misd_timing] prep={t_prep - t2:.2f}s, nn={t_nn - t_prep:.2f}s, "
+        f"zero_mask={t_zero - t_nn:.2f}s, postprocess={t_post - t_zero:.2f}s"
+    )
 
     print(
         f"[apply_correspondences] misd uint8: "
@@ -507,7 +517,52 @@ async def apply_correspondences(request: Request):
 
         misd_as_input = None
         if tgt_image_tensor is not None:
-            misd_as_input = _run_misd_detection(warped_image, tgt_image_tensor, image_tensor.dtype)
+            # Crop to tissue region for faster misd inference
+            if src_mask_tensor is not None and tgt_mask_tensor is not None:
+                union = (src_mask_tensor[0, :, :, 0] > 0) | (tgt_mask_tensor[0, :, :, 0] > 0)
+                if union.any():
+                    ys, xs = torch.where(union)
+                    pad_misd = 32
+                    y0m = max(0, ys.min().item() - pad_misd)
+                    y1m = min(warped_image.shape[1], ys.max().item() + 1 + pad_misd)
+                    x0m = max(0, xs.min().item() - pad_misd)
+                    x1m = min(warped_image.shape[2], xs.max().item() + 1 + pad_misd)
+                    crop_h, crop_w = y1m - y0m, x1m - x0m
+                    print(
+                        f"[misd_crop] Cropping for misd: {warped_image.shape[1]}x{warped_image.shape[2]} -> {crop_h}x{crop_w}"
+                    )
+                    warped_crop = warped_image[:, y0m:y1m, x0m:x1m, :]
+                    tgt_crop = tgt_image_tensor[:, y0m:y1m, x0m:x1m, :]
+                    misd_crop = _run_misd_detection(warped_crop, tgt_crop, image_tensor.dtype)
+                    # Uncrop misd result (model may reduce spatial dims)
+                    # Fill outside crop with min value for dtype (not zero — zero means "no misalignment")
+                    if misd_crop.dtype == torch.int8:
+                        fill_val = -128
+                    elif misd_crop.dtype == torch.uint8:
+                        fill_val = 0
+                    else:
+                        fill_val = -1.0
+                    misd_as_input = torch.full(
+                        (
+                            misd_crop.shape[0],
+                            warped_image.shape[1],
+                            warped_image.shape[2],
+                            misd_crop.shape[3],
+                        ),
+                        fill_val,
+                        device=misd_crop.device,
+                        dtype=misd_crop.dtype,
+                    )
+                    mc_h, mc_w = misd_crop.shape[1], misd_crop.shape[2]
+                    misd_as_input[:, y0m : y0m + mc_h, x0m : x0m + mc_w, :] = misd_crop
+                else:
+                    misd_as_input = _run_misd_detection(
+                        warped_image, tgt_image_tensor, image_tensor.dtype
+                    )
+            else:
+                misd_as_input = _run_misd_detection(
+                    warped_image, tgt_image_tensor, image_tensor.dtype
+                )
 
         print(f"[apply_correspondences] total: {time.time() - t0:.2f}s")
         return relaxed_field, warped_image, misd_as_input
@@ -533,6 +588,14 @@ async def apply_correspondences(request: Request):
 
     relaxed_field_np = relaxed_field.cpu().numpy().astype(np.float32)
     warped_image_np = warped_image.cpu().numpy().astype(np.float32)
+
+    # Debug: check for zeros in final field
+    field_zeros = (relaxed_field_np == 0).all(axis=0).sum()
+    field_nonzeros = (relaxed_field_np != 0).any(axis=0).sum()
+    field_shape = relaxed_field_np.shape
+    print(
+        f"[response_debug] field shape={field_shape}, zeros={field_zeros}, nonzeros={field_nonzeros}, max={np.abs(relaxed_field_np).max():.2f}"
+    )
     misd_image_np = (
         misd_as_input.cpu().numpy().astype(np.float32) if misd_as_input is not None else None
     )
@@ -693,7 +756,7 @@ async def _run_sift_correspondences(
 
 @api.post("/compute_sift_correspondences")
 async def compute_sift_correspondences_endpoint(request: Request):
-    """Compute SIFT correspondences between two images (with RANSAC filtering by default)."""
+    """Compute SIFT correspondences between two images (without RANSAC filtering by default)."""
     return await _run_sift_correspondences(request, use_ransac_default=False)
 
 

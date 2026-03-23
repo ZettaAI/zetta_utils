@@ -515,7 +515,7 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
         self,
         grid_offset: Sequence[float],
         grid_size: Sequence[float],
-        mode: Literal["shrink", "expand"],
+        mode: Literal["shrink", "expand", "floor"],
     ) -> BBox3D:
         """Returns a BoundingBox snapped to a grid with the given offset and size.
 
@@ -536,14 +536,23 @@ class BBox3D:  # pylint: disable=too-many-public-methods # fundamental class
                 floor(round((b[1] - o) / s, VEC3D_PRECISION)) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
-        else:
-            assert mode == "expand", "Typechecking error"
+        elif mode == "expand":
             start_final = tuple(
                 floor(round((b[0] - o) / s, VEC3D_PRECISION)) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
             end_final = tuple(
                 floor(round((b[1] - o) / s + 1, VEC3D_PRECISION) - EPS) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+        else:
+            assert mode == "floor", "Typechecking error"
+            start_final = tuple(
+                floor(round((b[0] - o) / s, VEC3D_PRECISION)) * s + o
+                for b, o, s in zip(self.bounds, grid_offset, grid_size)
+            )
+            end_final = tuple(
+                floor(round((b[1] - o) / s, VEC3D_PRECISION)) * s + o
                 for b, o, s in zip(self.bounds, grid_offset, grid_size)
             )
         return BBox3D.from_coords(

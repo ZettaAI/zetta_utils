@@ -29,7 +29,7 @@ except Exception as e:
 
 
 @builder.register("load_model")
-# @typechecked
+@typechecked
 def load_model(
     path: str,
     device: Union[str, torch.device] = "cpu",
@@ -65,7 +65,7 @@ def _load_model(
             result = onnx2torch.convert(onnx.load(f)).to(device)
     elif path.endswith(".ts"):
         # load a cached TensorRT model
-        result = torch.export.load(path)
+        result = torch.export.load(path).module()
     else:
         raise ValueError(f"Unsupported file format: {path}")
 

@@ -24,12 +24,16 @@ from zetta_utils.mazepa.semaphores import (
 @pytest.fixture(autouse=True)
 def cleanup_semaphores():
     yield
-    sema_types: List[SemaphoreType] = ["read", "write", "cuda", "cpu"]
+    sema_types: List[SemaphoreType] = list(get_args(SemaphoreType))
     for name in sema_types:
         try:
             # two unlinks in case grandparent semaphore exists
             semaphore(name).unlink()
             semaphore(name).unlink()
+        except:
+            pass
+        try:
+            TimingTracker(name).unlink()
         except:
             pass
 

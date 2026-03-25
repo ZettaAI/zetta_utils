@@ -159,7 +159,8 @@ def configure_semaphores(
             if name not in get_args(SemaphoreType):
                 raise ValueError(f"`{name}` is not a valid semaphore type.")
         try:
-            for sema_type in ("read", "write", "cuda", "cpu"):
+            _required: tuple[SemaphoreType, ...] = ("read", "write", "cuda", "cpu")
+            for sema_type in _required:
                 assert semaphores_spec[sema_type] >= 0
         except KeyError as e:
             raise ValueError(

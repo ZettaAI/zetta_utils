@@ -21,10 +21,10 @@ logger = log.get_logger("zetta_utils")
 
 TENSORRT_AVAILABLE = False
 try:
-    import torch_tensorrt
+    import torch_tensorrt  # pylint: disable=import-error
 
     TENSORRT_AVAILABLE = True
-except Exception as e:
+except (ImportError, OSError) as e:
     logger.info(f"torch_tensorrt is not available: {e}")
 
 
@@ -74,8 +74,10 @@ def _load_model(
             raise RuntimeError("torch_tensorrt is not installed!")
 
         with semaphore("tensorrt"):
-            # TensorRT should not be compiled concurrently by many threads or will run out of memory
+            # TensorRT should not be compiled concurrently by many threads
+            # or will run out of memory
             # Ideally, only by one thread and the others then load the cached model
+            assert input_shape is not None  # mypy
 
             trt_fname = (
                 str(xxhash.xxh128(str((path, tuple(input_shape))).encode("utf-8")).hexdigest())
@@ -88,7 +90,7 @@ def _load_model(
                 result = torch_tensorrt.load(cache_path).module()
                 logger.info(f"Loaded cached TensorRT model: {cache_path}")
                 return result
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.info(f"Cache not found or invalid, compiling TensorRT model: {e}")
 
             example_in = torch.rand(input_shape).to(device=device)
@@ -102,7 +104,7 @@ def _load_model(
                 torch_tensorrt.save(compiled, cache_path)
                 logger.info(f"Compiled TensorRT model saved to cache: {cache_path}")
                 result = compiled
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(f"TensorRT compilation failed, falling back to eager mode: {e}")
 
     return result

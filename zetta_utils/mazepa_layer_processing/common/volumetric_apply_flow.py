@@ -124,6 +124,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     task_stack_size: int | None = None
     exact_bbox_output_bbox: Optional[VolumetricIndex] = None
     verbose: bool = True
+    exact_bbox_output_bbox: Optional[VolumetricIndex] = None
 
     @property
     def _intermediaries_are_local(self) -> bool:

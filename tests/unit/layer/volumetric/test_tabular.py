@@ -615,3 +615,40 @@ class TestBuildVolumetricTabularLayer:
         )
         assert layer.backend.voxel_offset == Vec3D(0, 0, 0)
         assert layer.backend.size == Vec3D(256, 256, 100)
+
+
+class TestChunkAlignmentValidation:
+    def test_read_non_chunk_aligned_raises(self, tmp_path):
+        backend = _make_backend(tmp_path)
+        idx = _make_idx(start=(10, 0, 0), end=(74, 64, 40))
+        with pytest.raises(ValueError, match="not chunk-aligned"):
+            backend.read(idx)
+
+    def test_write_non_chunk_aligned_raises(self, tmp_path):
+        backend = _make_backend(tmp_path)
+        idx = _make_idx(start=(10, 0, 0), end=(74, 64, 40))
+        with pytest.raises(ValueError, match="not chunk-aligned"):
+            backend.write(idx, _make_sample_df())
+
+    def test_read_multi_chunk_raises(self, tmp_path):
+        backend = _make_backend(tmp_path)
+        idx = _make_idx(start=(0, 0, 0), end=(128, 64, 40))
+        with pytest.raises(NotImplementedError, match="Multi-chunk"):
+            backend.read(idx)
+
+    def test_write_multi_chunk_raises(self, tmp_path):
+        backend = _make_backend(tmp_path)
+        idx = _make_idx(start=(0, 0, 0), end=(128, 64, 40))
+        with pytest.raises(NotImplementedError, match="Multi-chunk"):
+            backend.write(idx, _make_sample_df())
+
+    def test_different_resolution_idx(self, tmp_path):
+        """Idx at a different resolution should be converted to native and validated."""
+        backend = _make_backend(tmp_path)
+        idx = _make_idx()
+        backend.write(idx, _make_sample_df())
+
+        # Read with idx at 2x resolution (half the voxel coords)
+        idx_2x = _make_idx(start=(0, 0, 0), end=(32, 32, 20), resolution=(8, 8, 80))
+        result = backend.read(idx_2x)
+        pd.testing.assert_frame_equal(result, _make_sample_df())

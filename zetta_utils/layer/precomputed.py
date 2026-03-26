@@ -399,6 +399,39 @@ class PrecomputedInfoSpec:
 
         return False
 
+    def to_mutable(self) -> PrecomputedInfoSpec:
+        """Convert an info_path-only spec to an info_spec_params-based spec.
+
+        Reads the existing info from info_path and constructs InfoSpecParams,
+        allowing set_voxel_offset, set_chunk_size, set_dataset_size to work
+        on layers opened without info_scales.
+        """
+        if self.info_spec_params is not None:
+            return self
+        assert (
+            self.info_path is not None
+        ), "Cannot convert to mutable: neither info_path nor info_spec_params is set"
+        info = get_info(self.info_path)
+        reference_scale = info["scales"][0]
+        scales = [scale["resolution"] for scale in info["scales"]]
+        bbox = BBox3D.from_coords(
+            start_coord=reference_scale["voxel_offset"],
+            end_coord=Vec3D(*reference_scale["size"]) + Vec3D(*reference_scale["voxel_offset"]),
+            resolution=reference_scale["resolution"],
+        )
+        return PrecomputedInfoSpec(
+            info_spec_params=InfoSpecParams(
+                type=info["type"],
+                encoding=reference_scale["encoding"],
+                scales=scales,
+                chunk_size=reference_scale["chunk_sizes"][0],
+                data_type=info["data_type"],
+                num_channels=info["num_channels"],
+                bbox=bbox,
+                extra_scale_data=None,
+            )
+        )
+
     def set_voxel_offset(self, voxel_offset_and_res: tuple[Vec3D[int], Vec3D[float]]) -> None:
         voxel_offset, res = voxel_offset_and_res
         assert self.info_spec_params is not None

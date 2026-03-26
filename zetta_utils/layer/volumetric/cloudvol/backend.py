@@ -321,6 +321,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         assert self.info_spec is not None
 
         info_spec = deepcopy(self.info_spec)
+        if any(k in kwargs for k in ("voxel_offset_res", "chunk_size_res", "dataset_size_res")):
+            info_spec = info_spec.to_mutable()
         cv_kwargs = deepcopy(self.cv_kwargs)
 
         implemented_keys = [

@@ -33,7 +33,7 @@ def cleanup_semaphores():
         except:
             pass
         try:
-            TimingTracker(name).unlink()
+            TimingTracker(name, pid=os.getpid()).unlink()
         except:
             pass
 

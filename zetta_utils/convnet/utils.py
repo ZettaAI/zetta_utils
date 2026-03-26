@@ -24,7 +24,7 @@ try:
     import torch_tensorrt  # pylint: disable=import-error
 
     TENSORRT_AVAILABLE = True  # pragma: no cover
-except (ImportError, OSError) as e:
+except (ImportError, OSError, RuntimeError) as e:
     logger.info(f"torch_tensorrt is not available: {e}")
 
 

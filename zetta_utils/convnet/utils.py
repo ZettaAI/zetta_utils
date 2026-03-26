@@ -23,7 +23,7 @@ TENSORRT_AVAILABLE = False
 try:
     import torch_tensorrt  # pylint: disable=import-error
 
-    TENSORRT_AVAILABLE = True
+    TENSORRT_AVAILABLE = True  # pragma: no cover
 except (ImportError, OSError) as e:
     logger.info(f"torch_tensorrt is not available: {e}")
 
@@ -79,8 +79,13 @@ def _load_model(
             # Ideally, only by one thread and the others then load the cached model
             assert input_shape is not None  # mypy
 
+            gpu_capability = torch.cuda.get_device_capability(device)
             trt_fname = (
-                str(xxhash.xxh128(str((path, tuple(input_shape))).encode("utf-8")).hexdigest())
+                str(
+                    xxhash.xxh128(
+                        str((path, tuple(input_shape), gpu_capability)).encode("utf-8")
+                    ).hexdigest()
+                )
                 + ".trt.ep"
             )
             cache_path = os.path.join(tensorrt_cache_dir, trt_fname)

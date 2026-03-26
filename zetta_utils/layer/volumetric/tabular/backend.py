@@ -3,7 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
-from typing import Any
+from typing import Any, Literal
 
 import attrs
 import pandas as pd
@@ -61,6 +61,60 @@ class TabularBackend(Backend[VolumetricIndex, pd.DataFrame, pd.DataFrame]):
 
     def _get_cf(self) -> CloudFiles:
         return CloudFiles(abspath(self.path))
+
+    def get_voxel_offset(self) -> Vec3D[int]:  # pragma: no cover
+        return self.voxel_offset
+
+    def get_chunk_size(self) -> Vec3D[int]:  # pragma: no cover
+        return self.chunk_size
+
+    def get_dataset_size(self) -> Vec3D[int]:  # pragma: no cover
+        return self.size
+
+    def get_bounds(self) -> VolumetricIndex:  # pragma: no cover
+        return VolumetricIndex.from_coords(
+            self.voxel_offset, self.voxel_offset + self.size, self.resolution
+        )
+
+    def _to_native_resolution(self, idx: VolumetricIndex) -> VolumetricIndex:
+        return VolumetricIndex(bbox=idx.bbox, resolution=self.resolution)
+
+    def get_chunk_aligned_index(
+        self, idx: VolumetricIndex, mode: Literal["expand", "shrink"]
+    ) -> VolumetricIndex:
+        return idx.snapped(self.get_voxel_offset(), self.get_chunk_size(), mode)
+
+    def assert_idx_is_chunk_aligned(self, idx: VolumetricIndex) -> None:
+        idx_expanded_full = self.get_chunk_aligned_index(idx, mode="expand")
+        idx_shrunk_full = self.get_chunk_aligned_index(idx, mode="shrink")
+        bounds = self.get_bounds()
+        idx_expanded_cropped = idx_expanded_full.intersection(bounds)
+        idx_shrunk_cropped = idx_shrunk_full.intersection(bounds)
+
+        if idx not in (idx_expanded_full, idx_expanded_cropped):
+            raise ValueError(
+                "The BBox3D of the specified VolumetricIndex is not chunk-aligned with"
+                + f" the TabularBackend at `{self.name}`;\n"
+                + f"in {tuple(self.resolution)} voxels:"
+                + f" offset: {self.get_voxel_offset()},"
+                + f" chunk_size: {self.get_chunk_size()}\n"
+                + f" dataset bounds: {bounds}\n"
+                + f"Received BBox3D: {idx.pformat()}\n"
+                + "Nearest chunk-aligned BBox3Ds before cropping to bounds:\n"
+                + f" - expanded : {idx_expanded_full.pformat()}\n"
+                + f" - shrunk   : {idx_shrunk_full.pformat()}\n"
+                + "Nearest chunk-aligned BBox3Ds after cropping to bounds:\n"
+                + f" - expanded : {idx_expanded_cropped.pformat()}\n"
+                + f" - shrunk   : {idx_shrunk_cropped.pformat()}"
+            )
+
+        shape = idx.stop - idx.start
+        if shape != self.chunk_size:
+            raise NotImplementedError(
+                f"Multi-chunk read/write is not yet supported. "
+                f"Requested shape {shape} spans more than one chunk "
+                f"(chunk_size={self.chunk_size} at resolution {tuple(self.resolution)})"
+            )
 
     def _chunk_relative_path(self, idx: VolumetricIndex) -> str:
         start = idx.start
@@ -142,14 +196,18 @@ class TabularBackend(Backend[VolumetricIndex, pd.DataFrame, pd.DataFrame]):
         )
 
     def read(self, idx: VolumetricIndex) -> pd.DataFrame:
+        native_idx = self._to_native_resolution(idx)
+        self.assert_idx_is_chunk_aligned(native_idx)
         cf = self._get_cf()
-        rel_path = self._chunk_relative_path(idx)
+        rel_path = self._chunk_relative_path(native_idx)
         raw = cf.get(rel_path)
         if raw is None or len(raw) == 0:
             return pd.DataFrame()
         return self._deserialize(raw)
 
     def write(self, idx: VolumetricIndex, data: pd.DataFrame) -> None:
+        idx = self._to_native_resolution(idx)
+        self.assert_idx_is_chunk_aligned(idx)
         if len(data) == 0 and self.delete_empty_uploads:
             self.delete_chunk(idx)
             return

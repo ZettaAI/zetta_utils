@@ -101,7 +101,9 @@ def _create_task_in_project(db_session, project_name: str, data: Task):
     from zetta_utils.task_management.task import create_task
 
     # pylint: disable=line-too-long
-    seed_id_val = int(cast(dict, data["extra_data"])["seed_id"])  # mypy: data["extra_data"] is dict
+    seed_id_val = int(
+        cast(dict, data["extra_data"])["seed_id"]
+    )  # mypy: data["extra_data"] is dict
     _ensure_segment(db_session, project_name, seed_id_val)
     create_task(project_name=project_name, data=data, db_session=db_session)
 
@@ -160,6 +162,7 @@ def test_cross_project_idle_takeover(two_projects, db_session):
     # Mark prev user's active task to simulate real holding
     # (this will be cleared by takeover)
     from zetta_utils.task_management.user import update_user
+
     update_user(
         project_name=p1,
         user_id=prev_user_id,
@@ -206,7 +209,9 @@ def test_cross_project_specific_task_not_found(two_projects, db_session):
     from zetta_utils.task_management.exceptions import TaskValidationError
 
     # pylint: disable=line-too-long
-    with pytest.raises(TaskValidationError, match="Task nonexistent not found in any accessible project"):
+    with pytest.raises(
+        TaskValidationError, match="Task nonexistent not found in any accessible project"
+    ):
         start_task_cross_project(user_id=user_id, task_id="nonexistent", db_session=db_session)
 
 
@@ -236,7 +241,10 @@ def test_cross_project_user_has_active_task_different_from_requested(two_project
 
     # Try to start different task
     # pylint: disable=line-too-long
-    with pytest.raises(UserValidationError, match="User already has an active task A1 which is different from requested task B1"):
+    with pytest.raises(
+        UserValidationError,
+        match="User already has an active task A1 which is different from requested task B1",
+    ):
         start_task_cross_project(user_id=user_id, task_id="B1", db_session=db_session)
 
 
@@ -287,9 +295,13 @@ def test_cross_project_user_active_in_multiple_projects_error(clean_db, db_sessi
 
     # Manually set user as active in both projects (invalid state)
     # pylint: disable=line-too-long
-    update_user(project_name=p1, user_id=user_id, data={"active_task": "task_1"}, db_session=db_session)
+    update_user(
+        project_name=p1, user_id=user_id, data={"active_task": "task_1"}, db_session=db_session
+    )
     # pylint: disable=line-too-long
-    update_user(project_name=p2, user_id=user_id, data={"active_task": "task_2"}, db_session=db_session)
+    update_user(
+        project_name=p2, user_id=user_id, data={"active_task": "task_2"}, db_session=db_session
+    )
 
     with pytest.raises(UserValidationError, match="User has active tasks in multiple projects"):
         start_task_cross_project(user_id=user_id, task_id=None, db_session=db_session)
@@ -333,7 +345,9 @@ def test_get_task_cross_project_without_process_ng_state(two_projects, db_sessio
 
     # Retrieve without processing
     # pylint: disable=line-too-long
-    task, project = get_task_cross_project(task_id="A1", process_ng_state=False, db_session=db_session)
+    task, project = get_task_cross_project(
+        task_id="A1", process_ng_state=False, db_session=db_session
+    )
     assert task["task_id"] == "A1"
     assert project == p1
     assert task["ng_state"] == {"seed_id": 101}  # Should remain unprocessed
@@ -352,7 +366,9 @@ def test_build_user_qualifications_map_success(two_projects, db_session):
     create_user(project_name=p2, data=_mk_user(user_id), db_session=db_session)
 
     # pylint: disable=line-too-long
-    qualifications, active_project, active_task = _build_user_qualifications_map(db_session, user_id)
+    qualifications, active_project, active_task = _build_user_qualifications_map(
+        db_session, user_id
+    )
 
     assert len(qualifications) == 2
     assert p1 in qualifications
@@ -378,7 +394,9 @@ def test_build_user_qualifications_map_with_active_task(two_projects, db_session
 
     # Set active task in p1
     # pylint: disable=line-too-long
-    update_user(project_name=p1, user_id=user_id, data={"active_task": "task_123"}, db_session=db_session)
+    update_user(
+        project_name=p1, user_id=user_id, data={"active_task": "task_123"}, db_session=db_session
+    )
 
     _, active_project, active_task = _build_user_qualifications_map(db_session, user_id)
 
@@ -435,6 +453,7 @@ def test_validate_user_for_task_in_project_success(two_projects, db_session):
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -462,6 +481,7 @@ def test_validate_user_for_task_in_project_wrong_task_type(two_projects, db_sess
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -507,10 +527,12 @@ def test_validate_user_for_task_in_project_wrong_segment_type(two_projects, db_s
     # Create task directly (avoid duplicate segment creation)
     task_data_first_test = _mk_task("A1", priority=1, seed_id=1001)
     from zetta_utils.task_management.task import create_task
+
     create_task(project_name=p1, data=task_data_first_test, db_session=db_session)
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -537,9 +559,17 @@ def test_auto_select_task_cross_project_assigned_task(two_projects, db_session):
     # Create user qualifications map manually
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create assigned task (lower priority) and available task (higher priority)
@@ -564,9 +594,17 @@ def test_select_assigned_task_across_projects_found(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create assigned task
@@ -580,6 +618,44 @@ def test_select_assigned_task_across_projects_found(two_projects, db_session):
     assert result.task_id == "assigned"
 
 
+def test_select_assigned_task_across_projects_priority(two_projects, db_session):
+    """Test that assigned task selection picks the highest priority across projects."""
+    from zetta_utils.task_management.task import _select_assigned_task_across_projects
+
+    p1, p2 = two_projects
+    user_id = "u1"
+
+    qualifications = {
+        # pylint: disable=line-too-long
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+        # pylint: disable=line-too-long
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+    }
+
+    # Create assigned task in p1 with lower priority
+    low_pri = _mk_task("assigned_low", priority=1, seed_id=101)
+    low_pri["assigned_user_id"] = user_id
+    _create_task_in_project(db_session, p1, low_pri)
+
+    # Create assigned task in p2 with higher priority
+    high_pri = _mk_task("assigned_high", priority=10, seed_id=201)
+    high_pri["assigned_user_id"] = user_id
+    _create_task_in_project(db_session, p2, high_pri)
+
+    # pylint: disable=line-too-long
+    result = _select_assigned_task_across_projects(db_session, qualifications)  # type: ignore[arg-type]
+    assert result is not None
+    assert result.task_id == "assigned_high"
+
+
 def test_select_assigned_task_across_projects_none_found(two_projects, db_session):
     """Test when no assigned task is found."""
     from zetta_utils.task_management.task import _select_assigned_task_across_projects
@@ -589,9 +665,17 @@ def test_select_assigned_task_across_projects_none_found(two_projects, db_sessio
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create unassigned task
@@ -611,9 +695,17 @@ def test_select_available_task_across_projects_found(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create tasks with different priorities
@@ -635,7 +727,11 @@ def test_select_available_task_across_projects_none_found(two_projects, db_sessi
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        }
     }
 
     # Create completed tasks only
@@ -657,9 +753,17 @@ def test_select_idle_task_across_projects_found(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create idle task
@@ -683,7 +787,11 @@ def test_select_idle_task_across_projects_none_found(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        }
     }
 
     # Create recent (not idle) task
@@ -716,6 +824,7 @@ def test_validate_user_for_task_in_project_no_segment_types(two_projects, db_ses
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -739,10 +848,12 @@ def test_validate_user_for_task_in_project_no_seed_id(two_projects, db_session):
 
     # Need to create manually since _create_task_in_project expects seed_id
     from zetta_utils.task_management.task import create_task
+
     create_task(project_name=p1, data=task_data, db_session=db_session)
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -765,10 +876,12 @@ def test_validate_user_for_task_in_project_no_segment_found(two_projects, db_ses
 
     # Create task manually without creating segment
     from zetta_utils.task_management.task import create_task
+
     create_task(project_name=p1, data=task_data, db_session=db_session)
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -809,10 +922,12 @@ def test_validate_user_for_task_in_project_segment_no_expected_type(two_projects
     # Create task
     task_data_no_expected = _mk_task("A1", priority=1, seed_id=1003)  # Use different seed_id
     from zetta_utils.task_management.task import create_task
+
     create_task(project_name=p1, data=task_data_no_expected, db_session=db_session)
 
     # Get task model
     from sqlalchemy import select
+
     task_model = db_session.execute(
         select(TaskModel).where(TaskModel.task_id == "A1").where(TaskModel.project_name == p1)
     ).scalar_one()
@@ -831,8 +946,12 @@ def test_select_assigned_task_across_projects_user_no_qualifications(two_project
     # Qualifications with empty lists for p2
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
-        p2: {"user_id": user_id, "task_types": [], "segment_types": []}  # No qualifications
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+        p2: {"user_id": user_id, "task_types": [], "segment_types": []},  # No qualifications
     }
 
     # Create assigned tasks in both projects
@@ -859,9 +978,17 @@ def test_select_available_task_priority_tie_breaker(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # Create tasks with same priority - should select the one with lower id_nonunique
@@ -884,9 +1011,17 @@ def test_select_idle_task_priority_tie_breaker(two_projects, db_session):
 
     qualifications = {
         # pylint: disable=line-too-long
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
         # pylint: disable=line-too-long
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]}
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     old_time = time.time() - get_max_idle_seconds() - 10
@@ -917,8 +1052,16 @@ def test_select_available_task_returns_none_when_no_tasks(two_projects, db_sessi
 
     # pylint: disable=line-too-long
     qualifications = {
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # No tasks created in either project -> expect None
@@ -935,8 +1078,16 @@ def test_select_idle_task_returns_none_when_no_idle(two_projects, db_session):
 
     # pylint: disable=line-too-long
     qualifications = {
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
-        p2: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
     }
 
     # No tasks created -> nothing is idle
@@ -973,7 +1124,11 @@ def test_select_available_task_locked_returns_none(two_projects, db_session, db_
     user_id = "u_locked"
 
     qualifications = {
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},  # pylint: disable=line-too-long
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },  # pylint: disable=line-too-long
     }
 
     # Create a matching available task
@@ -1009,7 +1164,11 @@ def test_select_idle_task_locked_returns_none(two_projects, db_session, db_engin
     user_id = "u_locked_idle"
 
     qualifications = {
-        p1: {"user_id": user_id, "task_types": ["segmentation_proofread"], "segment_types": ["axon"]},  # pylint: disable=line-too-long
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },  # pylint: disable=line-too-long
     }
 
     # Create an idle task

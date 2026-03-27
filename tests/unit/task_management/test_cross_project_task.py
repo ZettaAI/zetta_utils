@@ -656,6 +656,61 @@ def test_select_assigned_task_across_projects_priority(two_projects, db_session)
     assert result.task_id == "assigned_high"
 
 
+def test_select_assigned_task_across_projects_lock_race(two_projects, db_session):
+    """Test assigned task returns None when task is taken between select and lock."""
+    from unittest.mock import patch
+
+    from zetta_utils.task_management.db.models import TaskModel
+    from zetta_utils.task_management.task import _select_assigned_task_across_projects
+
+    p1, p2 = two_projects
+    user_id = "u1"
+
+    qualifications = {
+        # pylint: disable=line-too-long
+        p1: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+        # pylint: disable=line-too-long
+        p2: {
+            "user_id": user_id,
+            "task_types": ["segmentation_proofread"],
+            "segment_types": ["axon"],
+        },
+    }
+
+    assigned_task = _mk_task("assigned_race", priority=1, seed_id=101)
+    assigned_task["assigned_user_id"] = user_id
+    _create_task_in_project(db_session, p1, assigned_task)
+
+    # Simulate race: after finding best task, someone else grabs it before FOR UPDATE lock
+    original_execute = db_session.execute
+    call_count = 0
+
+    def _mock_execute(stmt, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        result = original_execute(stmt, *args, **kwargs)
+        # After the search queries complete, mark the task as active
+        # so the lock re-check fails
+        if call_count == len(qualifications):
+            db_session.query(TaskModel).filter(
+                TaskModel.task_id == "assigned_race",
+                TaskModel.project_name == p1,
+            ).update({"active_user_id": "other_user"})
+            db_session.flush()
+        return result
+
+    with patch.object(db_session, "execute", side_effect=_mock_execute):
+        result = _select_assigned_task_across_projects(
+            db_session, qualifications  # type: ignore[arg-type]
+        )
+
+    assert result is None
+
+
 def test_select_assigned_task_across_projects_none_found(two_projects, db_session):
     """Test when no assigned task is found."""
     from zetta_utils.task_management.task import _select_assigned_task_across_projects

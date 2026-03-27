@@ -646,8 +646,10 @@ def _auto_select_task(db_session: Session, project_name: str, user_id: str) -> T
 def _select_assigned_task_across_projects(
     db_session: Session, user_qualifications: dict[str, _UserProjectQualifications]
 ) -> TaskModel | None:
-    """Find a task explicitly assigned to the user across accessible projects."""
+    """Find the highest-priority task assigned to the user across all projects."""
     logger.info("Looking for assigned tasks across all projects")
+    best_task: TaskModel | None = None
+    best_priority: int | None = None
     for project_name, qualifications in user_qualifications.items():
         qualified_types = qualifications.get("task_types", [])
         qualified_segment_types = qualifications.get("segment_types", [])
@@ -680,14 +682,37 @@ def _select_assigned_task_across_projects(
             )
             .order_by(TaskModel.priority.desc(), TaskModel.id_nonunique)
             .limit(1)
-            .with_for_update(skip_locked=True, of=TaskModel)
         )
         result = db_session.execute(query).scalar_one_or_none()
         if result:
-            logger.info(
-                f"Found assigned task {result.task_id} in project {project_name}"
-            )
-            return result
+            if (
+                best_task is None
+                or result.priority > cast(int, best_priority)
+                or (
+                    result.priority == best_priority
+                    and result.id_nonunique < best_task.id_nonunique
+                )
+            ):
+                best_task = result
+                best_priority = result.priority
+    if best_task is None:
+        return None
+    # Lock and re-check availability
+    lock_query = (
+        select(TaskModel)
+        .where(TaskModel.task_id == best_task.task_id)
+        .where(TaskModel.project_name == best_task.project_name)
+        .with_for_update(skip_locked=True)
+    )
+    locked = db_session.execute(lock_query).scalar_one_or_none()
+    if (
+        locked
+        and locked.active_user_id == ""
+        and locked.completion_status == ""
+        and locked.assigned_user_id != ""
+    ):
+        logger.info(f"Found assigned task {locked.task_id} in project {locked.project_name}")
+        return locked
     return None
 
 
@@ -839,9 +864,7 @@ def _select_idle_task_across_projects(
             and not locked.is_paused
             and locked.assigned_user_id == ""
         ):
-            logger.info(
-                f"Found idle task {locked.task_id} in project {locked.project_name}"
-            )
+            logger.info(f"Found idle task {locked.task_id} in project {locked.project_name}")
             return locked
     return None
 
@@ -1007,7 +1030,7 @@ def start_task_cross_project(
     """
     Start a task for a user across all projects they have access to.
     Tasks are selected by highest priority across all projects.
-    
+
     :param user_id: The user requesting a task
     :param task_id: Optional specific task ID to start
     :param db_session: Database session to use (optional)
@@ -1037,9 +1060,7 @@ def start_task_cross_project(
                 session, task_id, list(user_qualifications.keys())
             )
             if not selected_task:
-                raise TaskValidationError(
-                    f"Task {task_id} not found in any accessible project"
-                )
+                raise TaskValidationError(f"Task {task_id} not found in any accessible project")
         else:
             # Return to current active task
             task_query = (
@@ -1084,7 +1105,7 @@ def get_task_cross_project(
 ) -> tuple[Task, str]:
     """
     Retrieve a task record by ID across all projects.
-    
+
     :param task_id: The unique identifier of the task
     :param process_ng_state: Whether to process ng_state seed_id format (default: True)
     :param db_session: Database session to use (optional)
@@ -1094,10 +1115,7 @@ def get_task_cross_project(
     """
     with get_session_context(db_session) as session:
         # Find the task across all projects
-        cross_project_query = (
-            select(TaskModel)
-            .where(TaskModel.task_id == task_id)
-        )
+        cross_project_query = select(TaskModel).where(TaskModel.task_id == task_id)
         try:
             task_model = session.execute(cross_project_query).scalar_one()
             project_name = str(task_model.project_name)
@@ -1121,7 +1139,7 @@ def get_task_feedback_cross_project(
 ) -> list[dict]:
     """
     Get task feedback entries for a user across all projects they have access to.
-    
+
     :param user_id: The ID of the user to get feedback for
     :param limit: Maximum number of feedback entries to return (default: 20)
     :param db_session: Database session to use (optional)
@@ -1567,7 +1585,9 @@ def _process_ng_state_seed_id(session: Session, project_name: str, task: TaskMod
 
 
 @typechecked
-def add_segment_type_and_instructions(task_dict: dict, project_name: str, db_session: Session | None = None) -> dict: # pylint: disable=line-too-long
+def add_segment_type_and_instructions(
+    task_dict: dict, project_name: str, db_session: Session | None = None
+) -> dict:  # pylint: disable=line-too-long
     """
     Add segment type and instructions to task dictionary if task has a segment_seed_id.
 

@@ -263,18 +263,20 @@ from zetta_utils.mazepa_layer_processing.common.interpolate_flow import (
     build_interpolate_flow,
     make_interpolate_operation,
 )
+from zetta_utils.mazepa_layer_processing.common.reduce_operations import (
+    ReduceByWeightedSum,
+    get_blending_weights,
+    get_weight_template,
+)
 from zetta_utils.mazepa_layer_processing.common.subchunkable_apply_flow import (
     DelegatedSubchunkedOperation,
     build_subchunkable_apply_flow,
 )
 from zetta_utils.mazepa_layer_processing.common.volumetric_apply_flow import (
     Copy,
-    ReduceByWeightedSum,
     VolumetricApplyFlowSchema,
     clear_cache,
     delete_if_local,
-    get_blending_weights,
-    get_weight_template,
     set_allow_cache,
 )
 from zetta_utils.mazepa_layer_processing.common.volumetric_callable_operation import (

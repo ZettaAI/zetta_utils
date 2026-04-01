@@ -5,16 +5,7 @@ import multiprocessing
 from contextlib import nullcontext
 from copy import deepcopy
 from os import path
-from typing import (
-    Any,
-    Generic,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    TypeVar,
-    cast,
-)
+from typing import Any, Generic, List, Literal, Optional, Tuple, TypeVar, cast
 
 import attrs
 import numpy as np
@@ -32,11 +23,7 @@ from zetta_utils.layer.volumetric import (
 from zetta_utils.mazepa import semaphore
 
 from ..operation_protocols import StackableVolumetricOpProtocol, VolumetricOpProtocol
-from .reduce_operations import (
-    ReduceByWeightedSum,
-    ReduceNaive,
-    ReduceOperation,
-)
+from .reduce_operations import ReduceByWeightedSum, ReduceNaive, ReduceOperation
 from .stacked_volumetric_operations import StackedVolumetricOperations
 
 logger = log.get_logger("zetta_utils")

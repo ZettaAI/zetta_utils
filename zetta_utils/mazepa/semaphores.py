@@ -267,7 +267,7 @@ class DummyTimingTracker:  # pragma: no cover
 
 
 @attrs.frozen
-class TimedSemaphore:
+class TimedSemaphore(contextlib.AbstractContextManager):
     """
     Wrapper around a semaphore that tracks acquisition wait time and lease time globally.
     """

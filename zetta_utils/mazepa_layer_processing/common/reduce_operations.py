@@ -3,12 +3,7 @@ from __future__ import annotations
 import time
 from abc import ABC
 from contextlib import nullcontext
-from typing import (
-    List,
-    Literal,
-    Tuple,
-    assert_never,
-)
+from typing import List, Literal, Tuple, assert_never
 
 import attrs
 import cachetools
@@ -18,10 +13,7 @@ from typeguard import suppress_type_checks
 
 from zetta_utils import log, mazepa
 from zetta_utils.geometry import Vec3D
-from zetta_utils.layer.volumetric import (
-    VolumetricBasedLayerProtocol,
-    VolumetricIndex,
-)
+from zetta_utils.layer.volumetric import VolumetricBasedLayerProtocol, VolumetricIndex
 from zetta_utils.mazepa import semaphore
 from zetta_utils.tensor_ops import convert
 

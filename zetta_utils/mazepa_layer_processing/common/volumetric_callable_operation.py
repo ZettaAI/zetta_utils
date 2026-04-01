@@ -94,7 +94,6 @@ class VolumetricCallableOperation(Generic[P]):
                 return _process_callable_kwargs(idx_input_padded, kwargs)
         return _process_callable_kwargs(idx_input_padded, kwargs)
 
-
     def write(  # pylint: disable=keyword-arg-before-vararg,unused-argument
         self,
         idx: VolumetricIndex,
@@ -146,14 +145,14 @@ class VolumetricCallableOperation(Generic[P]):
         **kwargs: P.kwargs,
     ) -> Any:
         assert len(args) == 0
-        task_kwargs = self.read(idx, *args, **kwargs)
+        task_kwargs = self.read(idx, *args, **kwargs)  # type: ignore[arg-type]
 
         result_raw = self.processing_fn(**task_kwargs)
 
         # If no destination layer, we can bail out now.  Possibly we
         # could bail out a bit sooner.  ToDo: study this more.
         if dst is not None:
-            self.write(idx, dst, result_raw, *args, **kwargs)
+            self.write(idx, dst, result_raw, *args, **kwargs)  # type: ignore[arg-type]
             return None
         else:
             return result_raw

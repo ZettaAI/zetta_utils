@@ -180,7 +180,22 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
     fs, base_path = fsspec.core.url_to_fs(path)
     info = read_info(path)
     format_version = info.get("format_version", "1.0")
-    chunk_keys = get_chunk_keys_from_info(info, bbox_start, bbox_end)
+    chunk_keys = set(get_chunk_keys_from_info(info, bbox_start, bbox_end))
+
+    # List prediction directories to find chunks that could have predictions
+    chunks_with_preds = set()
+    for auth in authorities:
+        auth_dir = f"{base_path}/merge_probabilities/{auth}"
+        try:
+            entries = fs.ls(auth_dir)
+            for e in entries:
+                ck = e.rstrip("/").split("/")[-1]
+                if ck in chunk_keys:
+                    chunks_with_preds.add(ck)
+        except FileNotFoundError:
+            pass
+    # Only process chunks that have at least one prediction file
+    chunk_keys = sorted(chunks_with_preds)
 
     bbox_start_nm = [bbox_start[i] * resolution[i] for i in range(3)]
     bbox_end_nm = [bbox_end[i] * resolution[i] for i in range(3)]
@@ -190,23 +205,20 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
     n_no_pred = 0
 
     for chunk_key in tqdm(chunk_keys, desc=f"Reading {path.split('/')[-1]}", leave=False):
-        contacts = read_contacts_chunk(
-            fs,
-            f"{base_path}/contacts/{chunk_key}",
-            format_version=format_version,
-        )
-        gt_decisions = read_merge_decisions_chunk(
-            fs, f"{base_path}/merge_decisions/{gt_authority}/{chunk_key}"
-        )
-        # Read predictions for all authorities
         all_predictions = {}
         for auth in authorities:
             all_predictions[auth] = read_merge_probabilities_chunk(
                 fs, f"{base_path}/merge_probabilities/{auth}/{chunk_key}"
             )
 
+        contacts = read_contacts_chunk(
+            fs, f"{base_path}/contacts/{chunk_key}", format_version=format_version,
+        )
         if not contacts:
             continue
+        gt_decisions = read_merge_decisions_chunk(
+            fs, f"{base_path}/merge_decisions/{gt_authority}/{chunk_key}"
+        )
 
         for contact_id, contact in contacts.items():
             com = contact["com"]
@@ -221,7 +233,6 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
                 n_no_gt += 1
                 continue
 
-            # Collect scores from all authorities that have this contact
             scores = {}
             for auth in authorities:
                 if contact_id in all_predictions[auth]:
@@ -276,8 +287,11 @@ def main():
     args = parser.parse_args()
 
     # Discover authorities if not specified
+    per_dset_auths = {}
     if args.authority:
         all_authorities = [args.authority]
+        for path in args.paths:
+            per_dset_auths[path.rstrip("/").split("/")[-1]] = {args.authority}
     else:
         print("Discovering authorities...")
         auth_sets = []
@@ -285,6 +299,7 @@ def main():
             auths = discover_authorities(path, args.gt_authority)
             print(f"  {path.split('/')[-1]}: {auths}")
             auth_sets.append(set(auths))
+            per_dset_auths[path.rstrip("/").split("/")[-1]] = set(auths)
         # Use union of all authorities across datasets
         all_authorities = sorted(set().union(*auth_sets)) if auth_sets else []
         if not all_authorities:
@@ -305,8 +320,10 @@ def main():
         bbox_start = voxel_offset
         bbox_end = [voxel_offset[i] + size[i] for i in range(3)]
 
+        # Only read authorities that exist on this dataset
+        dset_auths = [a for a in all_authorities if a in per_dset_auths.get(dset_name, set())]
         contacts, _ = collect_dataset(
-            path, all_authorities, args.gt_authority, bbox_start, bbox_end, resolution
+            path, dset_auths, args.gt_authority, bbox_start, bbox_end, resolution
         )
 
         ng_info = {
@@ -538,9 +555,10 @@ h1 { margin: 0 0 4px 0; font-size: 28px; }
 .filter-lists { display: flex; gap: 16px; flex-wrap: wrap; }
 .filter-list-col { flex: 0 0 auto; min-width: 200px; }
 .filter-list-col h4 { margin: 0 0 4px 0; font-size: 14px; color: #555; }
-.dset-filter-list { display: flex; flex-direction: column; gap: 1px; font-size: 14px; max-height: 300px; overflow-y: auto; }
-.dset-filter-list label { cursor: pointer; white-space: nowrap; padding: 1px 4px; }
+.dset-filter-list { display: flex; flex-direction: column; gap: 1px; font-size: 14px; max-height: 400px; overflow-y: auto; }
+.dset-filter-list label { cursor: pointer; white-space: nowrap; padding: 1px 4px; display: block; }
 .dset-filter-list label:hover { background: #e8ecf0; }
+.dset-group { border-left: 2px solid #ddd; margin-top: 2px; }
 .model-filter-list { display: flex; flex-direction: column; gap: 1px; font-size: 14px; max-height: 300px; overflow-y: auto; }
 .model-filter-list label { cursor: pointer; white-space: nowrap; padding: 1px 4px; }
 .model-filter-list label:hover { background: #e8ecf0; }
@@ -684,14 +702,27 @@ h1 { margin: 0 0 4px 0; font-size: 28px; }
     <!-- PR curve -->
     <div class="cell">
         <h3>Precision-Recall Curve</h3>
-        <div id="pr-plot" style="width:100%;height:350px;"></div>
+        <div class="filter-row slider-with-input">
+            <b>Min:</b>
+            <input type="range" id="pr-min" min="0" max="0.99" step="0.01" value="0">
+            <input type="number" id="pr-min-val" value="0.00" min="0" max="0.99" step="0.01">
+            <label style="margin-left:12px"><input type="checkbox" id="show-thr-pr" checked> Thresholds</label>
+            <label style="margin-left:6px"><input type="checkbox" id="show-f1-pr" checked> F1</label>
+        </div>
+        <div id="pr-plot" style="width:100%;height:450px;"></div>
         <div class="auc-label" id="pr-auc"></div>
     </div>
 
     <!-- ROC curve -->
     <div class="cell">
         <h3>ROC Curve</h3>
-        <div id="roc-plot" style="width:100%;height:350px;"></div>
+        <div class="filter-row slider-with-input">
+            <b>Min:</b>
+            <input type="range" id="roc-min" min="0" max="0.99" step="0.01" value="0">
+            <input type="number" id="roc-min-val" value="0.00" min="0" max="0.99" step="0.01">
+            <label style="margin-left:12px"><input type="checkbox" id="show-thr-roc" checked> Thresholds</label>
+        </div>
+        <div id="roc-plot" style="width:100%;height:450px;"></div>
         <div class="auc-label" id="roc-auc"></div>
     </div>
 
@@ -718,6 +749,7 @@ var hoverAuthIdx = null;  // for hover preview
 var currentMask = null;
 var activeCmCat = null;
 var activeMaCmCat = null;
+var prMin = 0, rocMin = 0;
 var cmThreshold = 0.5;
 var maThreshold = 0.5;
 var datasetFilters = {};
@@ -727,6 +759,7 @@ var STORAGE_KEY = "validation_results_annotations";
 var filterMode = "filtered";
 var curveMask = null;
 var hoverDataset = null;
+var hoverGroupNames = null;
 
 var GT_NAMES = ["no_merge", "merge"];
 var GT_COLORS_SCATTER = ["rgb(229,57,53)", "rgb(76,175,80)"];
@@ -816,6 +849,9 @@ function computeFilterMask() {
         if (ss === null) continue;
         if (hoverDataset !== null) {
             if (hoverDataset === "__all__") { /* pass all datasets */ }
+            else if (hoverDataset === "__group__") {
+                if (!hoverGroupNames || hoverGroupNames.indexOf(c.d) === -1) continue;
+            }
             else if (c.d !== hoverDataset) continue;
         } else {
             if (!datasetFilters[c.d]) continue;
@@ -1281,41 +1317,45 @@ function updateCurves() {
     }
     var baseRate = nFiltered > 0 ? nPos / nFiltered : 0.5;
 
-    // F1 optimal points
+    var showThrPr = document.getElementById('show-thr-pr').checked;
+    var showF1Pr = document.getElementById('show-f1-pr').checked;
+
     var prTraces = [
         {x: prModel.recall, y: prModel.precision, mode: 'lines', name: 'Model (AUC=' + prModel.auc.toFixed(3) + ')',
-         line: {color: '#1a73e8', width: 2}},
+         line: {color: '#2e7d32', width: 2}},
         {x: prMA.recall, y: prMA.precision, mode: 'lines', name: 'Mean Aff (AUC=' + prMA.auc.toFixed(3) + ')',
-         line: {color: '#ff9800', width: 2, dash: 'dash'}},
+         line: {color: '#c62828', width: 2}},
         {x: [0, 1], y: [baseRate, baseRate], mode: 'lines', name: 'Random',
          line: {color: '#999', width: 1, dash: 'dot'}},
     ];
-    // F1 optimal markers
-    if (prModel.bestF1) {
-        prTraces.push({x: [prModel.bestF1.recall], y: [prModel.bestF1.precision], mode: 'markers+text',
-            name: 'Model F1*=' + prModel.bestF1.f1.toFixed(3) + ' @' + prModel.bestF1.threshold.toFixed(3),
-            marker: {color: '#1a73e8', size: 10, symbol: 'star'}, textposition: 'top right',
-            text: ['F1=' + prModel.bestF1.f1.toFixed(3)], textfont: {size: 11, color: '#1a73e8'}});
+    if (showF1Pr) {
+        if (prModel.bestF1) {
+            prTraces.push({x: [prModel.bestF1.recall], y: [prModel.bestF1.precision], mode: 'markers+text',
+                name: 'Model F1*=' + prModel.bestF1.f1.toFixed(3) + ' @' + prModel.bestF1.threshold.toFixed(3),
+                marker: {color: '#2e7d32', size: 10, symbol: 'star'}, textposition: 'top right',
+                text: ['F1=' + prModel.bestF1.f1.toFixed(3)], textfont: {size: 11, color: '#2e7d32'}});
+        }
+        if (prMA.bestF1) {
+            prTraces.push({x: [prMA.bestF1.recall], y: [prMA.bestF1.precision], mode: 'markers+text',
+                name: 'MA F1*=' + prMA.bestF1.f1.toFixed(3) + ' @' + prMA.bestF1.threshold.toFixed(3),
+                marker: {color: '#c62828', size: 10, symbol: 'star'}, textposition: 'top right',
+                text: ['F1=' + prMA.bestF1.f1.toFixed(3)], textfont: {size: 11, color: '#c62828'}});
+        }
     }
-    if (prMA.bestF1) {
-        prTraces.push({x: [prMA.bestF1.recall], y: [prMA.bestF1.precision], mode: 'markers+text',
-            name: 'MA F1*=' + prMA.bestF1.f1.toFixed(3) + ' @' + prMA.bestF1.threshold.toFixed(3),
-            marker: {color: '#ff9800', size: 10, symbol: 'star'}, textposition: 'top right',
-            text: ['F1=' + prMA.bestF1.f1.toFixed(3)], textfont: {size: 11, color: '#ff9800'}});
+    if (showThrPr) {
+        var ssOp = findOperatingPoint(prModel, cmThreshold);
+        prTraces.push({x: [ssOp.recall], y: [ssOp.precision], mode: 'markers',
+            name: 'Shape thr=' + cmThreshold.toFixed(2),
+            marker: {color: '#2e7d32', size: 12, symbol: 'diamond', line: {width: 2, color: '#1b5e20'}}});
+        var maOp = findOperatingPoint(prMA, maThreshold);
+        prTraces.push({x: [maOp.recall], y: [maOp.precision], mode: 'markers',
+            name: 'Aff thr=' + maThreshold.toFixed(2),
+            marker: {color: '#c62828', size: 12, symbol: 'diamond', line: {width: 2, color: '#b71c1c'}}});
     }
-    // Current threshold operating points
-    var ssOp = findOperatingPoint(prModel, cmThreshold);
-    prTraces.push({x: [ssOp.recall], y: [ssOp.precision], mode: 'markers',
-        name: 'Shape thr=' + cmThreshold.toFixed(2),
-        marker: {color: '#1a73e8', size: 12, symbol: 'diamond', line: {width: 2, color: '#0d47a1'}}});
-    var maOp = findOperatingPoint(prMA, maThreshold);
-    prTraces.push({x: [maOp.recall], y: [maOp.precision], mode: 'markers',
-        name: 'Aff thr=' + maThreshold.toFixed(2),
-        marker: {color: '#ff9800', size: 12, symbol: 'diamond', line: {width: 2, color: '#e65100'}}});
 
     Plotly.react('pr-plot', prTraces, {
-        xaxis: {title: 'Recall', range: [0, 1]},
-        yaxis: {title: 'Precision', range: [0, 1.05]},
+        xaxis: {title: 'Recall', range: [prMin, 1]},
+        yaxis: {title: 'Precision', range: [prMin, 1.02]},
         margin: {l: 50, r: 20, t: 10, b: 40},
         legend: {x: 0.01, y: 0.01, bgcolor: 'rgba(255,255,255,0.7)'},
     }, {responsive: true});
@@ -1331,24 +1371,30 @@ function updateCurves() {
     var ssRocOp = findRocOperatingPoint(rocModel, cmThreshold);
     var maRocOp = findRocOperatingPoint(rocMA, maThreshold);
 
-    Plotly.react('roc-plot', [
+    var showThrRoc = document.getElementById('show-thr-roc').checked;
+
+    var rocTraces = [
         {x: rocModel.fpr, y: rocModel.tpr, mode: 'lines', name: 'Model (AUC=' + rocModel.auc.toFixed(3) + ')',
-         line: {color: '#1a73e8', width: 2}},
+         line: {color: '#2e7d32', width: 2}},
         {x: rocMA.fpr, y: rocMA.tpr, mode: 'lines', name: 'Mean Aff (AUC=' + rocMA.auc.toFixed(3) + ')',
-         line: {color: '#ff9800', width: 2, dash: 'dash'}},
+         line: {color: '#c62828', width: 2}},
         {x: [0, 1], y: [0, 1], mode: 'lines', name: 'Random',
          line: {color: '#999', width: 1, dash: 'dot'}},
-        {x: [ssRocOp.fpr], y: [ssRocOp.tpr], mode: 'markers',
-         name: 'Shape thr=' + cmThreshold.toFixed(2),
-         marker: {color: '#1a73e8', size: 12, symbol: 'diamond', line: {width: 2, color: '#0d47a1'}}},
-        {x: [maRocOp.fpr], y: [maRocOp.tpr], mode: 'markers',
-         name: 'Aff thr=' + maThreshold.toFixed(2),
-         marker: {color: '#ff9800', size: 12, symbol: 'diamond', line: {width: 2, color: '#e65100'}}},
-    ], {
-        xaxis: {title: 'False Positive Rate', range: [0, 1]},
-        yaxis: {title: 'True Positive Rate', range: [0, 1.05]},
+    ];
+    if (showThrRoc) {
+        rocTraces.push({x: [ssRocOp.fpr], y: [ssRocOp.tpr], mode: 'markers',
+            name: 'Shape thr=' + cmThreshold.toFixed(2),
+            marker: {color: '#2e7d32', size: 12, symbol: 'diamond', line: {width: 2, color: '#1b5e20'}}});
+        rocTraces.push({x: [maRocOp.fpr], y: [maRocOp.tpr], mode: 'markers',
+            name: 'Aff thr=' + maThreshold.toFixed(2),
+            marker: {color: '#c62828', size: 12, symbol: 'diamond', line: {width: 2, color: '#b71c1c'}}});
+    }
+
+    Plotly.react('roc-plot', rocTraces, {
+        xaxis: {title: 'False Positive Rate', range: [rocMin, 1]},
+        yaxis: {title: 'True Positive Rate', range: [rocMin, 1.02]},
         margin: {l: 50, r: 20, t: 10, b: 40},
-        legend: {x: 0.6, y: 0.01, bgcolor: 'rgba(255,255,255,0.7)'},
+        legend: {x: 0.01, y: 0.01, bgcolor: 'rgba(255,255,255,0.7)'},
     }, {responsive: true});
     document.getElementById('roc-auc').innerHTML =
         '<b>AUC-ROC:</b> Model=' + rocModel.auc.toFixed(4) +
@@ -1627,6 +1673,9 @@ function updateModelStats() {
         var c = contacts[i];
         if (hoverDataset !== null) {
             if (hoverDataset === "__all__") dsetMask[i] = 1;
+            else if (hoverDataset === "__group__") {
+                if (hoverGroupNames && hoverGroupNames.indexOf(c.d) !== -1) dsetMask[i] = 1;
+            }
             else if (c.d === hoverDataset) dsetMask[i] = 1;
         } else {
             if (datasetFilters[c.d]) dsetMask[i] = 1;
@@ -1714,77 +1763,159 @@ function initFromData(data) {
 
     initContactOrder();
 
-    // Build dataset filter table with common prefix detection
-    var commonPrefix = datasets[0] || '';
-    for (var i = 1; i < datasets.length; i++) {
-        while (commonPrefix && datasets[i].indexOf(commonPrefix) !== 0) {
-            commonPrefix = commonPrefix.slice(0, -1);
-        }
-    }
-    // Also find common suffix
+    // Build hierarchical dataset filter
     var rev = function(s) { return s.split('').reverse().join(''); };
-    var commonSuffix = rev(datasets[0] || '');
-    for (var i = 1; i < datasets.length; i++) {
-        var r = rev(datasets[i]);
-        while (commonSuffix && r.indexOf(commonSuffix) !== 0) {
-            commonSuffix = commonSuffix.slice(0, -1);
-        }
-    }
-    commonSuffix = rev(commonSuffix);
-    var prefLen = commonPrefix.length;
-    var sufLen = commonSuffix.length;
 
+    function commonPrefixOf(arr) {
+        if (!arr.length) return '';
+        var p = arr[0];
+        for (var i = 1; i < arr.length; i++) {
+            while (arr[i].indexOf(p) !== 0) p = p.slice(0, -1);
+        }
+        return p;
+    }
+
+    function buildHierarchy(names, depth, maxDepth) {
+        if (names.length <= 1 || depth >= maxDepth) {
+            return {prefix: '', children: null, names: names};
+        }
+        var cp = commonPrefixOf(names);
+        var remainders = names.map(function(n) { return n.slice(cp.length); });
+        // Try splitting at separator boundaries
+        var seps = ['-', '_'];
+        var bestGroups = null;
+        for (var si = 0; si < seps.length; si++) {
+            var sep = seps[si];
+            var groups = {};
+            for (var i = 0; i < remainders.length; i++) {
+                var idx = remainders[i].indexOf(sep);
+                var key = idx === -1 ? remainders[i] : remainders[i].slice(0, idx + 1);
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(names[i]);
+            }
+            if (Object.keys(groups).length > 1) { bestGroups = groups; break; }
+        }
+        if (!bestGroups) return {prefix: cp, children: null, names: names};
+        var children = [];
+        var keys = Object.keys(bestGroups).sort();
+        for (var k = 0; k < keys.length; k++) {
+            var child = buildHierarchy(bestGroups[keys[k]], depth + 1, maxDepth);
+            child.prefix = cp + keys[k];
+            children.push(child);
+        }
+        return {prefix: cp, children: children, names: names};
+    }
+
+    var groupIdCounter = 0;
+    function renderHierarchy(node, depth) {
+        var html = '';
+        if (node.children) {
+            var gid = 'dset-group-' + (groupIdCounter++);
+            html += '<div class="dset-group" style="margin-left:' + (depth * 12) + 'px">';
+            html += '<label><input type="checkbox" class="dset-group-cb" id="' + gid + '" checked>';
+            html += ' <b>' + node.prefix + '</b> <span style="color:#999">(' + node.names.length + ')</span></label>';
+            for (var i = 0; i < node.children.length; i++) {
+                html += renderHierarchy(node.children[i], depth + 1);
+            }
+            html += '</div>';
+        } else {
+            for (var i = 0; i < node.names.length; i++) {
+                var name = node.names[i];
+                // Show only the part after the group prefix
+                var display = name.slice(node.prefix.length) || name;
+                html += '<label style="margin-left:' + (depth * 12) + 'px"><input type="checkbox" class="dset-cb" data-dset="' +
+                    name + '" checked> <span style="color:#999">' + node.prefix + '</span><b>' + display + '</b></label>';
+            }
+        }
+        return html;
+    }
+
+    for (var i = 0; i < datasets.length; i++) datasetFilters[datasets[i]] = true;
+    var tree = buildHierarchy(datasets.slice().sort(), 0, 3);
     var filterHtml = '<div class="dset-filter-list">';
     filterHtml += '<label><input type="checkbox" id="dset-all" checked> <b>All datasets</b></label>';
-    for (var i = 0; i < datasets.length; i++) {
-        datasetFilters[datasets[i]] = true;
-        var name = datasets[i];
-        var varying = name.slice(prefLen, sufLen ? name.length - sufLen : name.length);
-        var displayName = '<span style="color:#999">' + commonPrefix + '</span><b>' + varying + '</b><span style="color:#999">' + commonSuffix + '</span>';
-        filterHtml += '<label><input type="checkbox" class="dset-cb" data-dset="' +
-            name + '" checked> ' + displayName + '</label>';
-    }
+    filterHtml += renderHierarchy(tree, 0);
     filterHtml += '</div>';
     document.getElementById('dataset-filters').innerHTML = filterHtml;
 
-    // Wire dataset checkboxes
-    document.getElementById('dset-all').addEventListener('change', function() {
-        var checked = this.checked;
-        document.querySelectorAll('.dset-cb').forEach(function(cb) {
-            cb.checked = checked;
-            datasetFilters[cb.dataset.dset] = checked;
-        });
+    // Wire all dataset checkboxes via event delegation
+    var dsetList = document.querySelector('.dset-filter-list');
+
+    function syncGroupCheckboxes() {
+        // Update group checkboxes based on children
+        var groups = dsetList.querySelectorAll('.dset-group-cb');
+        for (var i = groups.length - 1; i >= 0; i--) {
+            var container = groups[i].closest('.dset-group');
+            var leafCbs = container.querySelectorAll('.dset-cb');
+            var allChecked = true;
+            leafCbs.forEach(function(c) { if (!c.checked) allChecked = false; });
+            groups[i].checked = allChecked;
+        }
+        // Update "All" checkbox
+        var allLeaves = dsetList.querySelectorAll('.dset-cb');
+        var allOn = true;
+        allLeaves.forEach(function(c) { if (!c.checked) allOn = false; });
+        document.getElementById('dset-all').checked = allOn;
+    }
+
+    dsetList.addEventListener('change', function(e) {
+        var target = e.target;
+        if (target.id === 'dset-all') {
+            var checked = target.checked;
+            dsetList.querySelectorAll('.dset-cb').forEach(function(cb) {
+                cb.checked = checked;
+                datasetFilters[cb.dataset.dset] = checked;
+            });
+            dsetList.querySelectorAll('.dset-group-cb').forEach(function(cb) {
+                cb.checked = checked;
+            });
+        } else if (target.classList.contains('dset-group-cb')) {
+            var checked = target.checked;
+            var container = target.closest('.dset-group');
+            container.querySelectorAll('.dset-cb').forEach(function(cb) {
+                cb.checked = checked;
+                datasetFilters[cb.dataset.dset] = checked;
+            });
+            container.querySelectorAll('.dset-group-cb').forEach(function(cb) {
+                cb.checked = checked;
+            });
+            syncGroupCheckboxes();
+        } else if (target.classList.contains('dset-cb')) {
+            datasetFilters[target.dataset.dset] = target.checked;
+            syncGroupCheckboxes();
+        }
         updateAll();
     });
-    document.querySelectorAll('.dset-cb').forEach(function(cb) {
-        cb.addEventListener('change', function() {
-            datasetFilters[this.dataset.dset] = this.checked;
-            var allChecked = true;
-            document.querySelectorAll('.dset-cb').forEach(function(c) {
-                if (!c.checked) allChecked = false;
-            });
-            document.getElementById('dset-all').checked = allChecked;
-            updateAll();
-        });
-        // Hover preview: use hoverDataset override (doesn't touch datasetFilters)
-        var label = cb.closest('label');
-        label.addEventListener('mouseenter', function() {
+
+    // Hover on leaf labels
+    dsetList.addEventListener('mouseover', function(e) {
+        var label = e.target.closest('label');
+        if (!label) return;
+        var cb = label.querySelector('.dset-cb');
+        if (cb) {
             hoverDataset = cb.dataset.dset;
             updateAll();
-        });
-        label.addEventListener('mouseleave', function() {
-            hoverDataset = null;
-            updateAll();
-        });
+        } else {
+            var gcb = label.querySelector('.dset-group-cb');
+            if (gcb) {
+                // Hover on group: show all datasets in group
+                hoverDataset = "__all__";
+                // Temporarily override: collect group dataset names
+                var container = gcb.closest('.dset-group');
+                var groupNames = [];
+                container.querySelectorAll('.dset-cb').forEach(function(c) { groupNames.push(c.dataset.dset); });
+                hoverDataset = "__group__";
+                hoverGroupNames = groupNames;
+                updateAll();
+            } else if (label.querySelector('#dset-all')) {
+                hoverDataset = "__all__";
+                updateAll();
+            }
+        }
     });
-    // Hover on "All datasets" label
-    var allLabel = document.getElementById('dset-all').closest('label');
-    allLabel.addEventListener('mouseenter', function() {
-        hoverDataset = "__all__";
-        updateAll();
-    });
-    allLabel.addEventListener('mouseleave', function() {
+    dsetList.addEventListener('mouseleave', function() {
         hoverDataset = null;
+        hoverGroupNames = null;
         updateAll();
     });
 
@@ -1906,6 +2037,13 @@ function initFromData(data) {
 
     // Wire affinity CM threshold (slider + number)
     wireSliderNum('ma-cm-threshold', 'ma-cm-thr-val', function(v) { maThreshold = v; });
+
+    // Wire PR/ROC zoom sliders and threshold checkboxes
+    wireSliderNum('pr-min', 'pr-min-val', function(v) { prMin = v; });
+    wireSliderNum('roc-min', 'roc-min-val', function(v) { rocMin = v; });
+    document.getElementById('show-thr-pr').addEventListener('change', function() { updateAll(); });
+    document.getElementById('show-thr-roc').addEventListener('change', function() { updateAll(); });
+    document.getElementById('show-f1-pr').addEventListener('change', function() { updateAll(); });
 
     // Wire affinity CM cell clicks
     document.querySelectorAll('#ma-cm-grid .cm-cell').forEach(function(el) {

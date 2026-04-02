@@ -1,5 +1,8 @@
 - never remove my breakpoints or uncomment code that i left commented out
 
+# Logging
+Use `from zetta_utils import log` and `logger = log.get_logger("zetta_utils")` for all logging. Do NOT use `print()`, `warnings.warn()`, or `import logging` directly. This logger works locally and on remote K8s pods via GCP Cloud Logging.
+
 # Rules
 - Do what's asked, nothing more/less. NEVER create files unless absolutely necessary. ALWAYS prefer editing existing files.
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested.

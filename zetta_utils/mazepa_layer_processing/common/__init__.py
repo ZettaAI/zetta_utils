@@ -22,3 +22,4 @@ from .stacked_volumetric_operations import StackedVolumetricOperations
 from .. import ChunkableOpProtocol, VolumetricOpProtocol
 from .interpolate_flow import build_interpolate_flow
 from .seg_contact_op import SegContactOp
+from .seg_contact_compare_op import SegContactCompareChunkOp, build_seg_contact_compare_flow

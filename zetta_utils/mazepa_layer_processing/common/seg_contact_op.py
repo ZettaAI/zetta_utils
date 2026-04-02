@@ -13,7 +13,12 @@ import numpy as np
 import pandas as pd
 import trimesh
 from cloudvolume import CloudVolume
-from cloudvolume.exceptions import MeshDecodeError, MeshMissingError
+from cloudvolume.exceptions import MeshDecodeError
+
+try:
+    from cloudvolume.exceptions import MeshMissingError
+except ImportError:
+    MeshMissingError = MeshDecodeError
 from scipy.spatial.distance import cdist
 
 from zetta_utils import builder, log
@@ -1133,6 +1138,7 @@ class SegContactOp:
     min_interface_gt_fraction: float | None = None
     collect_filter_stats_only: bool = False
     min_nucleus_vx: int = 1
+    skip_chunks_with_nucleus: bool = False
     num_procs: int = attrs.Factory(lambda: os.cpu_count() or 1)
     mesh_cache_bytes: int = 2 * 1024 ** 3  # 2GB default
     mesh_lod: int = 0
@@ -1170,9 +1176,9 @@ class SegContactOp:
         # Read pointcloud configs from destination layer info file
         pointcloud_configs = dst.backend.get_pointcloud_configs()
 
-        # Check for nucleus in chunk bbox (only for filter stats collection)
+        # Check for nucleus in chunk bbox
         chunk_has_nucleus = False
-        if nucleus_layer is not None and self.collect_filter_stats_only:
+        if nucleus_layer is not None and (self.collect_filter_stats_only or self.skip_chunks_with_nucleus):
             nuc_info = get_info(nucleus_layer.backend.path)
             nuc_res = min(nuc_info["scales"], key=lambda s: np.prod(s["resolution"]))["resolution"]
             nucleus_idx = VolumetricIndex(
@@ -1187,6 +1193,9 @@ class SegContactOp:
                 f"-> {'HAS NUCLEUS' if chunk_has_nucleus else 'no nucleus'}",
                 flush=True,
             )
+            if self.skip_chunks_with_nucleus and chunk_has_nucleus:
+                print(f"[{coord_str}] Skipping chunk with nucleus", flush=True)
+                return
 
         # Read all layers
         t0 = time.time()

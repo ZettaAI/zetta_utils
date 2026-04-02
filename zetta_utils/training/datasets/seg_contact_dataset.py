@@ -5,9 +5,12 @@ from collections.abc import Sequence
 from typing import Any
 
 import attrs
+import numpy as np
 import torch
 
-from zetta_utils import builder
+from zetta_utils import builder, log
+
+logger = log.get_logger("zetta_utils")
 from zetta_utils.layer.volumetric.seg_contact import (
     SegContact,
     VolumetricSegContactLayer,
@@ -18,6 +21,7 @@ from zetta_utils.layer.volumetric.seg_contact.tensor_utils import (
 )
 
 from .sample_indexers import SampleIndexer
+
 
 
 def _pad_or_truncate(tensor: torch.Tensor, target_size: int) -> torch.Tensor:
@@ -159,6 +163,8 @@ class SegContactDataset(torch.utils.data.Dataset):
     mask_value: float = 0.0
     affinity_noise_std: float | None = None
     affinity_noise_prob: float = 0.5
+    min_mean_affinity: float | None = None
+    max_mean_affinity: float | None = None
 
     def __attrs_pre_init__(self):
         super().__init__()
@@ -187,17 +193,9 @@ class SegContactDataset(torch.utils.data.Dataset):
                 "seg_b": torch.tensor([], dtype=torch.int64),
                 "com": torch.zeros((0, 3), dtype=torch.float32),
                 "contact_faces": torch.zeros((0, self.max_contact_faces, 4), dtype=torch.float32),
+                "n_contact_faces": torch.tensor([], dtype=torch.int32),
+                "mean_affinity": torch.tensor([], dtype=torch.float32),
             }
-
-        # Build batched tensors
-        contact_ids = []
-        seg_as = []
-        seg_bs = []
-        coms = []
-        contact_faces_list = []
-        contact_faces_original_nm_list = []
-        pointclouds_list = []  # List of [n_points, 4 or 5] tensors per contact
-        targets = []
 
         # Get sorted config keys from first contact that has pointclouds
         config_keys: list[tuple[int, int]] = []
@@ -206,13 +204,54 @@ class SegContactDataset(torch.utils.data.Dataset):
                 config_keys = sorted(contact.local_pointclouds.keys())
                 break
 
-        for contact in contacts:
-            # Build concatenated pointcloud for this contact
-            contact_pointcloud_parts = []
+        has_affinity = self.affinity_channel_mode is not None
+        n_channels = 5 if has_affinity else 4
+        n_contacts = len(contacts)
+        max_cf = self.max_contact_faces
 
+        # Pre-allocate numpy arrays (over-allocate for n_contacts, trim later)
+        contact_ids = np.empty(n_contacts, dtype=np.int64)
+        seg_as = np.empty(n_contacts, dtype=np.int64)
+        seg_bs = np.empty(n_contacts, dtype=np.int64)
+        coms = np.empty((n_contacts, 3), dtype=np.float32)
+        cf_all = np.zeros((n_contacts, max_cf, 4), dtype=np.float32)
+        cf_orig_all = np.zeros((n_contacts, max_cf, 4), dtype=np.float32)
+        n_contact_faces = np.zeros(n_contacts, dtype=np.int32)
+        mean_affinities = np.zeros(n_contacts, dtype=np.float32)
+        targets = np.empty(n_contacts, dtype=np.float32)
+        info_path_list: list[str] = []
+
+        # Pointcloud parts collected per contact in numpy, then assembled
+        pointclouds_np: list[np.ndarray] = []
+        n_valid = 0
+        n_targets = 0
+        has_cf_orig_warning = False
+        info_path = f"{self.layer.backend.path}/info"
+
+        for contact in contacts:
             skip_contact = False
+
+            # Compute mean affinity and filter early
+            cf_for_aff = contact.contact_faces_original_nm
+            if cf_for_aff is None:
+                cf_for_aff = contact.contact_faces
+            mean_aff = float(cf_for_aff[:, 3].mean()) if cf_for_aff.shape[0] > 0 else 0.0
+            if self.min_mean_affinity is not None and mean_aff < self.min_mean_affinity:
+                skip_contact = True
+            if self.max_mean_affinity is not None and mean_aff > self.max_mean_affinity:
+                skip_contact = True
+            if skip_contact:
+                continue
+
+            # Skip contacts without pointclouds (e.g. missing mesh data)
+            if contact.local_pointclouds is None or not config_keys:
+                logger.debug(
+                    f"Skipping contact {contact.id} (seg_a={contact.seg_a}, seg_b={contact.seg_b}): "
+                    f"no local_pointclouds (has {contact.contact_faces.shape[0]} contact faces)"
+                )
+                continue
+            pc_parts_np: list[np.ndarray] = []
             for config_key in config_keys:
-                # config_key is (radius_nm, n_points)
                 pc_data = None
                 if contact.local_pointclouds is not None:
                     pc_data = contact.local_pointclouds.get(config_key)
@@ -225,103 +264,145 @@ class SegContactDataset(torch.utils.data.Dataset):
                     seg_b_pts = None
 
                 if seg_a_pts is None or seg_b_pts is None:
-                    # Missing pointcloud config - skip this contact
                     skip_contact = True
                     break
 
-                # Use shared conversion function for consistency with inference
-                seg_a_with_label, seg_b_with_label = pointcloud_to_labeled_tensor(
-                    seg_a_pts, seg_b_pts, affinity_channel=self.affinity_channel_mode is not None
-                )
-
-                contact_pointcloud_parts.append(seg_a_with_label)
-                contact_pointcloud_parts.append(seg_b_with_label)
+                # Build labeled pointcloud in numpy: [N, 4 or 5]
+                n_a, n_b = seg_a_pts.shape[0], seg_b_pts.shape[0]
+                seg_a_labeled = np.empty((n_a, n_channels), dtype=np.float32)
+                seg_a_labeled[:, :3] = seg_a_pts
+                seg_a_labeled[:, 3] = -1.0
+                seg_b_labeled = np.empty((n_b, n_channels), dtype=np.float32)
+                seg_b_labeled[:, :3] = seg_b_pts
+                seg_b_labeled[:, 3] = 1.0
+                if has_affinity:
+                    seg_a_labeled[:, 4] = 0.0
+                    seg_b_labeled[:, 4] = 0.0
+                pc_parts_np.append(seg_a_labeled)
+                pc_parts_np.append(seg_b_labeled)
 
             if skip_contact:
                 continue
 
-            # Contact has all required pointclouds - add to batch
-            contact_ids.append(contact.id)
-            seg_as.append(contact.seg_a)
-            seg_bs.append(contact.seg_b)
-            coms.append(list(contact.com))
+            i = n_valid
 
-            # Contact faces
-            contact_faces_tensor = _pad_or_truncate(
-                torch.tensor(contact.contact_faces, dtype=torch.float32),
-                self.max_contact_faces,
-            )
-            contact_faces_list.append(contact_faces_tensor)
+            # Scalar fields
+            contact_ids[i] = contact.id
+            seg_as[i] = contact.seg_a
+            seg_bs[i] = contact.seg_b
+            coms[i] = contact.com
 
-            # Original contact faces in nm (for visualization)
+            # Contact faces - pad or truncate into pre-allocated array
+            cf = contact.contact_faces
+            cf_n = min(cf.shape[0], max_cf)
+            cf_all[i, :cf_n] = cf[:cf_n]
+            n_contact_faces[i] = cf_n
+            mean_affinities[i] = mean_aff
+
             if contact.contact_faces_original_nm is not None:
-                contact_faces_original_nm_tensor = _pad_or_truncate(
-                    torch.tensor(contact.contact_faces_original_nm, dtype=torch.float32),
-                    self.max_contact_faces,
-                )
-            else:
-                # Fallback to normalized if original not available
+                cf_orig = contact.contact_faces_original_nm
+                cf_orig_n = min(cf_orig.shape[0], max_cf)
+                cf_orig_all[i, :cf_orig_n] = cf_orig[:cf_orig_n]
+            elif not has_cf_orig_warning:
                 warnings.warn(
                     f"contact_faces_original_nm is None for contact {contact.id}. "
                     "NG links will show normalized coordinates (around origin). "
                     "Ensure normalize_pointclouds runs before other augmentations.",
                     stacklevel=2,
                 )
-                contact_faces_original_nm_tensor = contact_faces_tensor
-            contact_faces_original_nm_list.append(contact_faces_original_nm_tensor)
+                has_cf_orig_warning = True
+                cf_orig_all[i, :cf_n] = cf[:cf_n]
 
-            # Optionally include contact faces as additional points (shared with inference)
-            if self.include_contact_faces_in_pointcloud:
-                cf_with_label = contact_faces_to_tensor(
-                    contact.contact_faces,
-                    contact_label=self.contact_label,
-                    affinity_channel_mode=self.affinity_channel_mode,
-                )
-                if cf_with_label is not None:
-                    contact_pointcloud_parts.append(cf_with_label)
+            # Contact faces as points in pointcloud (cf is unpadded, all rows valid)
+            if self.include_contact_faces_in_pointcloud and cf.shape[0] > 0:
+                n_cf = cf.shape[0]
+                cf_labeled = np.empty((n_cf, n_channels), dtype=np.float32)
+                cf_labeled[:, :3] = cf[:, :3]
+                if self.contact_label is not None:
+                    cf_labeled[:, 3] = self.contact_label
+                else:
+                    cf_labeled[:, 3] = cf[:, 3]
+                if has_affinity:
+                    if self.affinity_channel_mode == "per_point":
+                        cf_labeled[:, 4] = cf[:, 3]
+                    elif self.affinity_channel_mode == "mean":
+                        cf_labeled[:, 4] = cf[:, 3].mean()
+                pc_parts_np.append(cf_labeled)
 
-            if contact_pointcloud_parts:
-                contact_pointcloud = torch.cat(contact_pointcloud_parts, dim=0)
+            if pc_parts_np:
+                contact_pc = np.concatenate(pc_parts_np, axis=0)
+                # Pointcloud n_points must be consistent across all contacts in a chunk
+                # (required by np.stack and downstream RebatchingDataLoader torch.cat)
+                if pointclouds_np:
+                    expected_n = pointclouds_np[0].shape[0]
+                    assert contact_pc.shape[0] == expected_n, (
+                        f"Pointcloud size mismatch: contact {contact.id} (seg_a={contact.seg_a}, "
+                        f"seg_b={contact.seg_b}) has {contact_pc.shape[0]} points, expected {expected_n}. "
+                        f"Parts: {[p.shape[0] for p in pc_parts_np]}. "
+                        f"Check that resample_combined_pointcloud is in read_procs."
+                    )
+                pointclouds_np.append(contact_pc)
 
-                # Add Gaussian noise to affinity channel (5th channel, index 4) if configured
-                if self.affinity_noise_std is not None and self.affinity_noise_std > 0:
-                    if contact_pointcloud.shape[1] > 4:  # Has 5th channel
+            # Target
+            if self.merge_decision_authority is not None and contact.merge_decisions is not None:
+                should_merge = contact.merge_decisions.get(self.merge_decision_authority)
+                if should_merge is not None:
+                    targets[n_targets] = 1.0 if should_merge else 0.0
+                    n_targets += 1
+
+            info_path_list.append(info_path)
+            n_valid += 1
+
+        # Trim to actual valid count and convert to torch once
+        result: dict[str, Any] = {
+            "contact_id": torch.from_numpy(contact_ids[:n_valid].copy()),
+            "seg_a": torch.from_numpy(seg_as[:n_valid].copy()),
+            "seg_b": torch.from_numpy(seg_bs[:n_valid].copy()),
+            "com": torch.from_numpy(coms[:n_valid].copy()),
+            "contact_faces": torch.from_numpy(cf_all[:n_valid].copy()),
+            "contact_faces_original_nm": torch.from_numpy(cf_orig_all[:n_valid].copy()),
+            "n_contact_faces": torch.from_numpy(n_contact_faces[:n_valid].copy()),
+            "mean_affinity": torch.from_numpy(mean_affinities[:n_valid].copy()),
+            "info_path": info_path_list,
+        }
+
+        if not pointclouds_np:
+            logger.debug(
+                f"Chunk has {n_valid} contacts but none with valid pointclouds — "
+                f"returning empty result so RebatchingDataLoader skips this chunk"
+            )
+            return {}
+
+        if pointclouds_np:
+            # Stack pointclouds — apply torch-level augmentations if needed
+            pointclouds_stacked = torch.from_numpy(np.stack(pointclouds_np))
+
+            if self.affinity_noise_std is not None and self.affinity_noise_std > 0:
+                if pointclouds_stacked.shape[2] > 4:
+                    for pi in range(pointclouds_stacked.shape[0]):
                         if torch.rand(1).item() < self.affinity_noise_prob:
-                            noise = torch.randn(contact_pointcloud.shape[0]) * self.affinity_noise_std
-                            contact_pointcloud[:, 4] = contact_pointcloud[:, 4] + noise
+                            noise = torch.randn(pointclouds_stacked.shape[1]) * self.affinity_noise_std
+                            pointclouds_stacked[pi, :, 4] += noise
 
-                # Apply channel masking if configured
-                if self.mask_channel_probs is not None:
-                    contact_pointcloud = _apply_channel_mask(
-                        contact_pointcloud,
+            if self.mask_channel_probs is not None:
+                for pi in range(pointclouds_stacked.shape[0]):
+                    pointclouds_stacked[pi] = _apply_channel_mask(
+                        pointclouds_stacked[pi],
                         self.mask_channel_probs,
                         self.mask_mode,
                         self.mask_mode_global_prob,
                         self.mask_value,
                     )
 
-                pointclouds_list.append(contact_pointcloud)
+            result["pointcloud"] = pointclouds_stacked
 
-            # Target
-            if self.merge_decision_authority is not None and contact.merge_decisions is not None:
-                should_merge = contact.merge_decisions.get(self.merge_decision_authority)
-                if should_merge is not None:
-                    targets.append(1.0 if should_merge else 0.0)
-
-        info_path = f"{self.layer.backend.path}/info"
-        result: dict[str, Any] = {
-            "contact_id": torch.tensor(contact_ids, dtype=torch.int64),
-            "seg_a": torch.tensor(seg_as, dtype=torch.int64),
-            "seg_b": torch.tensor(seg_bs, dtype=torch.int64),
-            "com": torch.tensor(coms, dtype=torch.float32),
-            "contact_faces": torch.stack(contact_faces_list),
-            "contact_faces_original_nm": torch.stack(contact_faces_original_nm_list),
-            "info_path": [info_path] * len(contact_ids),
-        }
-
-        if pointclouds_list:
-            result["pointcloud"] = torch.stack(pointclouds_list)  # [B, total_points, 4 or 5]
-        if targets:
-            result["target"] = torch.tensor(targets, dtype=torch.float32)
+        if n_targets > 0:
+            result["target"] = torch.from_numpy(targets[:n_targets].copy())
+        elif pointclouds_np:
+            logger.debug(
+                f"Chunk has {len(pointclouds_np)} contacts with pointclouds but no targets — "
+                f"returning empty result so RebatchingDataLoader skips this chunk"
+            )
+            return {}
 
         return result

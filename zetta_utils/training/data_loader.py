@@ -30,12 +30,24 @@ class RebatchingDataLoader:
         dataloader: torch.utils.data.DataLoader,
         batch_size: int,
         shuffle_buffer_size: int = 0,
+        shuffle_buffer_low_watermark: int = 0,
         prefetch: int = 4,
+        pin_memory: bool = False,
+        disable_worker_cuda: bool = False,
+        filter_key: str | None = None,
+        filter_min: float | None = None,
+        filter_max: float | None = None,
     ):
         self.dataloader = dataloader
         self.batch_size = batch_size
         self.shuffle_buffer_size = shuffle_buffer_size
+        self.shuffle_buffer_low_watermark = shuffle_buffer_low_watermark
         self.prefetch = prefetch
+        self.pin_memory = pin_memory
+        self.disable_worker_cuda = disable_worker_cuda
+        self.filter_key = filter_key
+        self.filter_min = filter_min
+        self.filter_max = filter_max
 
     @property
     def worker_init_fn(self):
@@ -51,11 +63,23 @@ class RebatchingDataLoader:
 
     def __iter__(self) -> Iterator[dict]:
         chunks = _squeeze_chunks(self.dataloader)
-        batches = _tensor_rebatch(chunks, self.batch_size, self.shuffle_buffer_size)
+        batches = _tensor_rebatch(
+            chunks, self.batch_size, self.shuffle_buffer_size, self.shuffle_buffer_low_watermark
+        )
+        if self.pin_memory:
+            batches = _pin_batches(batches)
         if self.prefetch > 0:
             yield from _prefetch(batches, self.prefetch)
         else:
             yield from batches
+
+
+def _pin_batches(batches: Iterator[dict]) -> Iterator[dict]:
+    """Pin tensors in each batch to page-locked memory for async GPU transfer."""
+    for batch in batches:
+        yield {
+            k: v.pin_memory() if isinstance(v, torch.Tensor) else v for k, v in batch.items()
+        }
 
 
 def _prefetch(batches: Iterator[dict], n: int) -> Iterator[dict]:
@@ -158,39 +182,33 @@ def _tensor_rebatch(
     chunks: Iterator[dict],
     batch_size: int,
     shuffle_buffer_size: int,
+    shuffle_buffer_low_watermark: int = 0,
 ) -> Iterator[dict]:
     """Accumulate chunks into a buffer, shuffle, and yield fixed-size batches.
 
     Operates at the tensor level: torch.cat to accumulate, torch.randperm to
     shuffle, and slice to emit batches. Avoids per-item Python dict overhead.
+
+    When ``shuffle_buffer_low_watermark`` > 0, the buffer is only drained down
+    to that level (instead of to < batch_size), keeping a residual pool that
+    mixes with incoming chunks for better cross-chunk shuffling and smoother
+    batch emission.
     """
-    import logging
-    import time
-
-    logger = logging.getLogger(__name__)
-
     buf_parts: list[dict] = []
     buf_total = 0
-    threshold = max(shuffle_buffer_size, batch_size)
-    t_wait_total = 0.0
-    t_rebatch_total = 0.0
-    n_cycles = 0
-    n_batches = 0
+    high = max(shuffle_buffer_size, batch_size)
+    low = max(shuffle_buffer_low_watermark, 0)
 
     chunks_iter = iter(chunks)
     while True:
-        t0 = time.monotonic()
         try:
             chunk = next(chunks_iter)
         except StopIteration:
             break
-        t_wait_total += time.monotonic() - t0
         buf_parts.append(chunk)
-        n = _buf_len(chunk)
-        buf_total += n
+        buf_total += _buf_len(chunk)
 
-        if buf_total >= threshold:
-            t1 = time.monotonic()
+        if buf_total >= high:
             buf = _cat_chunks(buf_parts)
             buf_parts = []
             buf_total = 0
@@ -200,26 +218,15 @@ def _tensor_rebatch(
                 buf = _buf_index(buf, perm)
             else:
                 n = _buf_len(buf)
-            t_rebatch_total += time.monotonic() - t1
 
             pos = 0
-            while pos + batch_size <= n:
+            while pos + batch_size <= n and (n - pos - batch_size) >= low:
                 yield _buf_slice(buf, pos, pos + batch_size)
-                n_batches += 1
                 pos += batch_size
 
             if pos < n:
-                remainder = _buf_slice(buf, pos, n)
-                buf_parts = [remainder]
+                buf_parts = [_buf_slice(buf, pos, n)]
                 buf_total = n - pos
-
-            n_cycles += 1
-            if n_cycles % 1 == 0:
-                logger.warning(
-                    "[rebatcher] %d cycles, %d batches | "
-                    "chunk_wait: %.1fs, rebatch: %.1fs",
-                    n_cycles, n_batches, t_wait_total, t_rebatch_total,
-                )
 
     # Drain remainder
     if buf_parts:
@@ -233,9 +240,3 @@ def _tensor_rebatch(
             end = min(pos + batch_size, n)
             yield _buf_slice(buf, pos, end)
             pos = end
-
-    logger.warning(
-        "[rebatcher] DONE %d cycles, %d batches | "
-        "chunk_wait: %.1fs, rebatch: %.1fs",
-        n_cycles, n_batches, t_wait_total, t_rebatch_total,
-    )

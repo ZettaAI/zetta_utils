@@ -18,6 +18,10 @@ from zetta_utils.layer.volumetric import VolumetricIndex
 from .contact import SegContact, read_info
 
 
+class _UNSET:
+    pass
+
+
 @attrs.define
 class SegContactLayerBackend(
     Backend[VolumetricIndex, Sequence[SegContact], Sequence[SegContact]]
@@ -582,14 +586,20 @@ class SegContactLayerBackend(
 
         return contacts
 
+    _cached_info: dict | None | type[_UNSET] = attrs.field(init=False, default=_UNSET)
+
     def _read_info_if_exists(self) -> dict | None:
-        """Read info file if it exists."""
+        """Read info file if it exists. Cached after first read."""
+        if self._cached_info is not _UNSET:
+            return self._cached_info
         info_path = f"{self.path}/info"
         fs, fs_path = fsspec.core.url_to_fs(info_path)
         if not fs.exists(fs_path):
+            self._cached_info = None
             return None
         with fs.open(fs_path, "rb") as f:
-            return json.loads(f.read().decode("utf-8"))
+            self._cached_info = json.loads(f.read().decode("utf-8"))
+        return self._cached_info
 
     def _attach_pointclouds(
         self, chunk_idx: tuple[int, int, int], contact_lookup: dict[int, SegContact], info: dict

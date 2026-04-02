@@ -84,15 +84,12 @@ def contact_faces_to_tensor(
     """
     cf_tensor = torch.tensor(contact_faces, dtype=torch.float32)
 
-    # Filter out zero-padded contact faces
-    valid_mask = torch.any(cf_tensor[:, :3] != 0, dim=1)
-    valid_cf = cf_tensor[valid_mask]
-
-    if valid_cf.shape[0] == 0:
+    if cf_tensor.shape[0] == 0:
         return None
 
     # Get per-point affinities before potentially overwriting
-    per_point_affinities = valid_cf[:, 3].clone()
+    per_point_affinities = cf_tensor[:, 3].clone()
+    valid_cf = cf_tensor
 
     if contact_label is not None:
         # Replace 4th channel with contact_label

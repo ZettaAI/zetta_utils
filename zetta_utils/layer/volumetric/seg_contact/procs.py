@@ -63,6 +63,15 @@ def resample_points(
             return points, np.arange(n_points, dtype=np.int64)
         return points
 
+    # Fast path for uniform weighting: skip distance computation entirely
+    if weighting == "uniform":
+        replace = target_n > n_points
+        indices = np.random.randint(0, n_points, size=target_n) if replace else np.random.choice(n_points, size=target_n, replace=False)
+        result = points[indices]
+        if return_indices:
+            return result, indices
+        return result
+
     if center is None:
         center = np.zeros(3, dtype=np.float32)
 
@@ -70,9 +79,7 @@ def resample_points(
     distances = np.linalg.norm(points[:, :3] - center, axis=1)
 
     # Compute sampling weights
-    if weighting == "uniform":
-        weights = np.ones(n_points, dtype=np.float32)
-    elif weighting == "inverse_r":
+    if weighting == "inverse_r":
         weights = 1.0 / (distances + 1e-6)
     elif weighting == "inverse_r2":
         weights = 1.0 / (distances**2 + 1e-6)
@@ -130,11 +137,9 @@ def resample_pointclouds(
                     for seg_id, points in pc_data.items()
                 }
 
-        # Resample contact faces (filter out zero-padded first)
+        # Resample contact faces (unpadded at this stage, all rows valid)
         if contact_face_target is not None:
-            valid_mask = np.any(contact.contact_faces[:, :3] != 0, axis=1)
-            valid_cf = contact.contact_faces[valid_mask]
-            new_contact_faces = resample_points(valid_cf, contact_face_target, contact_face_weighting)
+            new_contact_faces = resample_points(contact.contact_faces, contact_face_target, contact_face_weighting)
 
         result.append(
             SegContact(
@@ -199,19 +204,12 @@ def resample_combined_pointcloud(
     else:
         base_weighting = weighting
 
-    result = []
     for contact in contacts:
-        new_local_pointclouds = contact.local_pointclouds
-        new_contact_faces = contact.contact_faces
-
         if contact.local_pointclouds is None:
-            result.append(contact)
             continue
 
-        # Get valid contact faces (filter zero-padded)
-        valid_cf_mask = np.any(contact.contact_faces[:, :3] != 0, axis=1)
-        valid_cf = contact.contact_faces[valid_cf_mask]
-        n_valid_cf = valid_cf.shape[0]
+        # No padding at SegContact level, all rows are valid faces
+        n_valid_cf = contact.contact_faces.shape[0]
 
         # Calculate budget allocation
         if include_contact_faces and n_valid_cf > 0:
@@ -313,31 +311,21 @@ def resample_combined_pointcloud(
 
         # Resample contact faces if budget allocated (use base_weighting, not balanced)
         if cf_budget > 0:
-            new_contact_faces = resample_points(valid_cf, cf_budget, base_weighting)
+            contact.contact_faces = resample_points(contact.contact_faces, cf_budget, base_weighting)
 
-        # Verify total count
-        actual_total = segment_budget_total + cf_budget
-        assert actual_total == total_target, (
-            f"Point count mismatch: expected {total_target}, got {actual_total} "
-            f"(segments={segment_budget_total}, cf={cf_budget})"
-        )
+        contact.local_pointclouds = new_local_pointclouds
 
-        result.append(
-            SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=contact.com,
-                contact_faces=new_contact_faces,
-                representative_points=contact.representative_points,
-                local_pointclouds=new_local_pointclouds,
-                merge_decisions=contact.merge_decisions,
-                partner_metadata=contact.partner_metadata,
-                contact_faces_original_nm=contact.contact_faces_original_nm,
+        # Verify total point count matches target
+        for config_tuple, pc_data in contact.local_pointclouds.items():
+            actual_total = sum(pts.shape[0] for pts in pc_data.values()) + contact.contact_faces.shape[0]
+            assert actual_total == total_target, (
+                f"resample_combined_pointcloud: expected {total_target} total points, got {actual_total} "
+                f"(segments: {sum(pts.shape[0] for pts in pc_data.values())}, "
+                f"cf: {contact.contact_faces.shape[0]}) for contact {contact.id} "
+                f"(seg_a={contact.seg_a}, seg_b={contact.seg_b}, config={config_tuple})"
             )
-        )
 
-    return result
+    return contacts
 
 
 @builder.register("deduplicate_pointclouds")
@@ -404,7 +392,6 @@ def normalize_pointclouds(
             radius instead of normalization_radius_nm (when local_pointclouds exist).
         apply_to_contact_faces: If True, also normalize contact_faces coordinates.
     """
-    result = []
     for contact in contacts:
         if center_on_random_contact_point and contact.contact_faces.shape[0] > 0:
             random_idx = np.random.randint(0, contact.contact_faces.shape[0])
@@ -413,7 +400,7 @@ def normalize_pointclouds(
             center = np.array(contact.com, dtype=np.float32)
 
         # Preserve original contact_faces before normalization
-        contact_faces_original_nm = contact.contact_faces.copy()
+        contact.contact_faces_original_nm = contact.contact_faces.copy()
 
         # Determine normalization radius for contact_faces
         if use_pointcloud_radius and contact.local_pointclouds:
@@ -426,76 +413,42 @@ def normalize_pointclouds(
         if apply_to_contact_faces:
             new_contact_faces = contact.contact_faces.copy()
             new_contact_faces[:, :3] = (contact.contact_faces[:, :3] - center) / contact_faces_radius
-        else:
-            new_contact_faces = contact.contact_faces
+            contact.contact_faces = new_contact_faces
 
         # Normalize local_pointclouds if present
-        new_local_pointclouds = None
         if contact.local_pointclouds is not None:
-            new_local_pointclouds = {}
             for config_tuple, pc_data in contact.local_pointclouds.items():
-                # Use unified radius when use_pointcloud_radius=True, else each config's own
-                pc_radius = contact_faces_radius if use_pointcloud_radius else float(config_tuple[0])
-                new_local_pointclouds[config_tuple] = {
-                    seg_id: (points - center) / pc_radius for seg_id, points in pc_data.items()
-                }
+                pc_radius = np.float32(contact_faces_radius if use_pointcloud_radius else float(config_tuple[0]))
+                for seg_id, points in pc_data.items():
+                    points -= center
+                    points /= pc_radius
 
-        result.append(
-            SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=Vec3D(*center),
-                contact_faces=new_contact_faces,
-                local_pointclouds=new_local_pointclouds,
-                merge_decisions=contact.merge_decisions,
-                partner_metadata=contact.partner_metadata,
-                contact_faces_original_nm=contact_faces_original_nm,
-            )
-        )
+        contact.com = Vec3D(*center)
 
-    return result
+    return contacts
+
+
+_rng = np.random.Generator(np.random.PCG64())
 
 
 def _add_gaussian_noise_impl(
     contacts: Sequence[SegContact], std: float, apply_to_contact_faces: bool = True
 ) -> Sequence[SegContact]:
     """Implementation for adding Gaussian noise."""
-    result = []
+    std32 = np.float32(std)
     for contact in contacts:
         # Apply noise to local_pointclouds
-        new_local_pointclouds = None
         if contact.local_pointclouds is not None:
-            new_local_pointclouds = {}
             for config_tuple, pc_data in contact.local_pointclouds.items():
-                new_local_pointclouds[config_tuple] = {
-                    seg_id: points + np.random.normal(0, std, points.shape).astype(np.float32)
-                    for seg_id, points in pc_data.items()
-                }
+                for seg_id, points in pc_data.items():
+                    points += _rng.standard_normal(points.shape, dtype=np.float32) * std32
 
         # Apply noise to contact_faces
         if apply_to_contact_faces and contact.contact_faces.shape[0] > 0:
-            new_contact_faces = contact.contact_faces.copy()
-            noise = np.random.normal(0, std, contact.contact_faces[:, :3].shape).astype(np.float32)
-            new_contact_faces[:, :3] = contact.contact_faces[:, :3] + noise
-        else:
-            new_contact_faces = contact.contact_faces
+            cf_xyz = contact.contact_faces[:, :3]
+            cf_xyz += _rng.standard_normal(cf_xyz.shape, dtype=np.float32) * std32
 
-        result.append(
-            SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=contact.com,
-                contact_faces=new_contact_faces,
-                local_pointclouds=new_local_pointclouds if new_local_pointclouds else contact.local_pointclouds,
-                merge_decisions=contact.merge_decisions,
-                partner_metadata=contact.partner_metadata,
-                contact_faces_original_nm=contact.contact_faces_original_nm,
-            )
-        )
-
-    return result
+    return contacts
 
 
 @builder.register("add_gaussian_noise")
@@ -530,41 +483,18 @@ def apply_random_rotation(
         contacts: Sequence of SegContact objects to rotate.
         apply_to_contact_faces: If True, also rotate contact_faces coordinates.
     """
-    result = []
     for contact in contacts:
         rot_matrix = _random_rotation_matrix()
 
         if apply_to_contact_faces:
-            new_contact_faces = contact.contact_faces.copy()
-            new_contact_faces[:, :3] = contact.contact_faces[:, :3] @ rot_matrix.T
-        else:
-            new_contact_faces = contact.contact_faces
+            contact.contact_faces[:, :3] = contact.contact_faces[:, :3] @ rot_matrix.T
 
-        new_local_pointclouds = None
         if contact.local_pointclouds is not None:
-            new_local_pointclouds = {}
             for config_tuple, pc_data in contact.local_pointclouds.items():
-                new_local_pointclouds[config_tuple] = {
-                    seg_id: (points @ rot_matrix.T).astype(np.float32)
-                    for seg_id, points in pc_data.items()
-                }
+                for seg_id, points in pc_data.items():
+                    np.dot(points, rot_matrix.T, out=points)
 
-        result.append(
-            SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=contact.com,
-                contact_faces=new_contact_faces,
-                representative_points=contact.representative_points,
-                local_pointclouds=new_local_pointclouds,
-                merge_decisions=contact.merge_decisions,
-                partner_metadata=contact.partner_metadata,
-                contact_faces_original_nm=contact.contact_faces_original_nm,
-            )
-        )
-
-    return result
+    return contacts
 
 
 @builder.register("apply_random_flip")
@@ -577,41 +507,19 @@ def apply_random_flip(
         contacts: Sequence of SegContact objects to flip.
         apply_to_contact_faces: If True, also flip contact_faces coordinates.
     """
-    result = []
     for contact in contacts:
         # Generate random flip signs for each axis
         flip_signs = np.where(np.random.random(3) < 0.5, -1.0, 1.0).astype(np.float32)
 
         if apply_to_contact_faces:
-            new_contact_faces = contact.contact_faces.copy()
-            new_contact_faces[:, :3] = contact.contact_faces[:, :3] * flip_signs
-        else:
-            new_contact_faces = contact.contact_faces
+            contact.contact_faces[:, :3] *= flip_signs
 
-        new_local_pointclouds = None
         if contact.local_pointclouds is not None:
-            new_local_pointclouds = {}
             for config_tuple, pc_data in contact.local_pointclouds.items():
-                new_local_pointclouds[config_tuple] = {
-                    seg_id: (points * flip_signs).astype(np.float32)
-                    for seg_id, points in pc_data.items()
-                }
+                for seg_id, points in pc_data.items():
+                    points *= flip_signs
 
-        result.append(
-            SegContact(
-                id=contact.id,
-                seg_a=contact.seg_a,
-                seg_b=contact.seg_b,
-                com=contact.com,
-                contact_faces=new_contact_faces,
-                local_pointclouds=new_local_pointclouds,
-                merge_decisions=contact.merge_decisions,
-                partner_metadata=contact.partner_metadata,
-                contact_faces_original_nm=contact.contact_faces_original_nm,
-            )
-        )
-
-    return result
+    return contacts
 
 
 @builder.register("randomize_segment_identity")
@@ -621,49 +529,28 @@ def randomize_segment_identity(contacts: Sequence[SegContact]) -> Sequence[SegCo
     This effectively randomizes which segment gets label -1 vs +1 when the
     dataset assigns symmetric identity labels.
     """
-    result = []
     for contact in contacts:
         if np.random.random() < 0.5:
             # Swap seg_a and seg_b
-            new_local_pointclouds = None
+            old_seg_a = contact.seg_a
+            old_seg_b = contact.seg_b
+            contact.seg_a = old_seg_b
+            contact.seg_b = old_seg_a
+
             if contact.local_pointclouds is not None:
-                new_local_pointclouds = {}
                 for config_tuple, pc_data in contact.local_pointclouds.items():
-                    # Swap the segment keys
-                    new_local_pointclouds[config_tuple] = {
-                        contact.seg_b: pc_data.get(contact.seg_a),
-                        contact.seg_a: pc_data.get(contact.seg_b),
-                    }
+                    pts_a = pc_data.get(old_seg_a)
+                    pts_b = pc_data.get(old_seg_b)
+                    contact.local_pointclouds[config_tuple] = {old_seg_b: pts_a, old_seg_a: pts_b}
 
-            new_partner_metadata = None
             if contact.partner_metadata is not None:
-                new_partner_metadata = {
-                    contact.seg_b: contact.partner_metadata.get(contact.seg_a),
-                    contact.seg_a: contact.partner_metadata.get(contact.seg_b),
-                }
+                meta_a = contact.partner_metadata.get(old_seg_a)
+                meta_b = contact.partner_metadata.get(old_seg_b)
+                contact.partner_metadata = {old_seg_b: meta_a, old_seg_a: meta_b}
 
-            # Swap representative_points keys to match new seg_a/seg_b
-            new_representative_points = None
             if contact.representative_points is not None:
-                new_representative_points = {
-                    contact.seg_b: contact.representative_points.get(contact.seg_a),
-                    contact.seg_a: contact.representative_points.get(contact.seg_b),
-                }
-            result.append(
-                SegContact(
-                    id=contact.id,
-                    seg_a=contact.seg_b,
-                    seg_b=contact.seg_a,
-                    com=contact.com,
-                    contact_faces=contact.contact_faces,
-                    local_pointclouds=new_local_pointclouds,
-                    merge_decisions=contact.merge_decisions,
-                    partner_metadata=new_partner_metadata,
-                    contact_faces_original_nm=contact.contact_faces_original_nm,
-                )
-            )
-        else:
-            # Keep as-is
-            result.append(contact)
+                rp_a = contact.representative_points.get(old_seg_a)
+                rp_b = contact.representative_points.get(old_seg_b)
+                contact.representative_points = {old_seg_b: rp_a, old_seg_a: rp_b}
 
-    return result
+    return contacts

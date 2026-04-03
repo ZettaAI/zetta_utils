@@ -162,7 +162,7 @@ cython==3.2.3
     # via
     #   abiss
     #   lsds
-    #   waterz
+    #   witty
 datastoreflex==0.5.0
     # via zetta-utils (pyproject.toml)
 decorator==5.2.1
@@ -582,6 +582,8 @@ mypy-extensions==1.0.0
     #   mypy
 natsort==8.4.0
     # via domdf-python-tools
+nanobind==2.12.0
+    # via witty
 ndindex==1.10.1
     # via blosc2
 networkx==3.6.1
@@ -1245,9 +1247,7 @@ trimesh==4.10.1
 triton==3.5.1
     # via torch
 typeguard==4.4.4
-    # via
-    #   zetta-utils (pyproject.toml)
-    #   waterz
+    # via zetta-utils (pyproject.toml)
 types-cachetools==6.2.0.20251022
     # via zetta-utils (pyproject.toml)
 types-pillow==10.2.0.20240822
@@ -1311,7 +1311,7 @@ virtualenv==20.35.4
     # via pre-commit
 wandb==0.23.1
     # via zetta-utils (pyproject.toml)
-waterz @ git+https://github.com/ZettaAI/waterz.git@0bac4be4c864b293fa49f11cf0abf52bd1ec81df
+waterz @ git+https://github.com/ZettaAI/waterz.git@90898fbf18823112bc67c324f8f363f062b98d4e
     # via zetta-utils (pyproject.toml)
 wcwidth==0.2.14
     # via prompt-toolkit
@@ -1327,6 +1327,8 @@ werkzeug==3.1.4
     #   moto
 widgetsnbextension==4.0.15
     # via ipywidgets
+witty==0.3.1
+    # via waterz
 wrapt==2.0.1
     # via testcontainers
 xmltodict==1.0.2

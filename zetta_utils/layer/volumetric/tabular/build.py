@@ -144,10 +144,6 @@ def build_volumetric_tabular_layer(
             )
             return VolumetricTabularLayer(backend=backend)
 
-    if mode == "replace" and existing_info is not None:
-        old_backend = TabularBackend.from_path(path, delete_empty_uploads=delete_empty_uploads)
-        old_backend.delete()
-
     backend = TabularBackend(
         path=path,
         resolution=res,

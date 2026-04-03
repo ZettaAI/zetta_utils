@@ -10,7 +10,7 @@ from zetta_utils.layer.volumetric.tabular.build import build_volumetric_tabular_
 SAMPLE_SCHEMA = (
     {"name": "segment_id", "dtype": "int64"},
     {"name": "score", "dtype": "float64"},
-    {"name": "label", "dtype": "object"},
+    {"name": "label", "dtype": "str"},
 )
 
 UINT64_SCHEMA = (
@@ -545,7 +545,8 @@ class TestBuildVolumetricTabularLayer:
             mode="write",
         )
         idx = _make_idx()
-        layer1.backend.write(idx, _make_sample_df())
+        df = pd.DataFrame({"x": [1, 2, 3], "y": [0.1, 0.2, 0.3]})
+        layer1.backend.write(idx, df)
 
         layer2 = build_volumetric_tabular_layer(
             path=str(tmp_path),
@@ -558,7 +559,10 @@ class TestBuildVolumetricTabularLayer:
             mode="replace",
         )
         assert layer2.backend.encoding == "csv"
-        assert not (tmp_path / "data" / "0-64_0-64_0-40.parquet").exists()
+        # replace overwrites the info file but does NOT delete existing data chunks
+        assert (tmp_path / "data" / "0-64_0-64_0-40.parquet").exists()
+        info = read_info(str(tmp_path))
+        assert info["encoding"] == "csv"
 
     def test_write_mode_requires_resolution(self, tmp_path):
         with pytest.raises(ValueError, match="resolution"):

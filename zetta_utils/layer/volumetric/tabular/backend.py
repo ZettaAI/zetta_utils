@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 import attrs
 import pandas as pd
+import pyarrow as pa
 from cloudfiles import CloudFiles
 
 from zetta_utils.common import abspath, is_local
@@ -126,16 +127,29 @@ class TabularBackend(Backend[VolumetricIndex, pd.DataFrame, pd.DataFrame]):
         )
         return f"data/{fname}"
 
+    @property
+    def _arrow_schema(self) -> pa.Schema | None:
+        if not self.column_schema:
+            return None
+        return pa.schema([(e["name"], e["dtype"]) for e in self.column_schema])
+
     def _serialize(self, data: pd.DataFrame) -> bytes:
         buf = io.BytesIO()
         if self.encoding == "parquet":
-            data.to_parquet(buf, index=False)
+            data.to_parquet(buf, index=False, schema=self._arrow_schema)
         elif self.encoding == "csv":
-            data.to_csv(buf, index=False)
+            self._enforce_column_dtypes(data).to_csv(buf, index=False)
         elif self.encoding == "json":
-            data.to_json(buf, orient="records")
+            self._enforce_column_dtypes(data).to_json(buf, orient="records")
         buf.seek(0)
         return buf.getvalue()
+
+    def _enforce_column_dtypes(self, data: pd.DataFrame) -> pd.DataFrame:
+        dtypes = _dtypes_from_column_schema(self.column_schema)
+        for col, dtype_str in dtypes.items():
+            if col in data.columns:
+                data[col] = data[col].astype(dtype_str)
+        return data
 
     def _deserialize(self, raw: bytes) -> pd.DataFrame:
         buf = io.BytesIO(raw)

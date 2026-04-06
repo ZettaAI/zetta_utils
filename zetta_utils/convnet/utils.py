@@ -167,6 +167,8 @@ def load_and_run_model(
     data_in: torch.Tensor,
     device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
     use_cache: bool = ...,
+    tensorrt_enabled: bool = ...,
+    tensorrt_cache_dir: str = ...,
 ) -> torch.Tensor:
     ...
 
@@ -177,6 +179,8 @@ def load_and_run_model(
     data_in: npt.NDArray,
     device: Union[Literal["cpu", "cuda"], torch.device, None] = ...,
     use_cache: bool = ...,
+    tensorrt_enabled: bool = ...,
+    tensorrt_cache_dir: str = ...,
 ) -> npt.NDArray:
     ...
 

@@ -397,7 +397,7 @@ class SegContactDataset(torch.utils.data.Dataset):
             result["pointcloud"] = pointclouds_stacked
 
         if n_targets > 0:
-            result["target"] = torch.from_numpy(targets[:n_targets].copy())
+            result["merge"] = torch.from_numpy(targets[:n_targets, np.newaxis].copy())
         elif pointclouds_np:
             logger.debug(
                 f"Chunk has {len(pointclouds_np)} contacts with pointclouds but no targets — "

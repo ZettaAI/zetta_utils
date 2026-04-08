@@ -309,7 +309,8 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
-        "allow_cache" = value: Union[bool, str]
+        "allow_cache" = value: Union[bool, str] # NOTE: This is the on-disk cache
+        "cache_bytes_limit" = value: int        # NOTE: This is for LRU cache
         """
         assert self.info_spec is not None
 
@@ -325,8 +326,9 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
+            "cache_bytes_limit",
         ]
-        keys_to_kwargs = {"name": "path"}
+        keys_to_kwargs = {"name": "path", "cache_bytes_limit": "cache_bytes_limit"}
         keys_to_infospec_fn = {
             "voxel_offset_res": info_spec.set_voxel_offset,
             "chunk_size_res": info_spec.set_chunk_size,

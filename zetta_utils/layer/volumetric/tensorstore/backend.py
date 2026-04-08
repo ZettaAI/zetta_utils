@@ -279,6 +279,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         "voxel_offset_res" = (voxel_offset, resolution): Tuple[Vec3D[int], Vec3D]
         "chunk_size_res" = (chunk_size, resolution): Tuple[Vec3D[int], Vec3D]
         "dataset_size_res" = (dataset_size, resolution): Tuple[Vec3D[int], Vec3D]
+        "cache_bytes_limit" = value: int - unused for TensorStoreBackend, ignored
         """
         # TODO: implement proper allow_cache logic
         assert self.info_spec is not None
@@ -294,6 +295,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "chunk_size_res",
             "dataset_size_res",
             "use_compression",
+            "cache_bytes_limit",
         ]
 
         keys_to_infospec_fn = {
@@ -306,6 +308,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "name": "path",
             "enforce_chunk_aligned_writes": "enforce_chunk_aligned_writes",
             "overwrite_partial_chunks": "overwrite_partial_chunks",
+            "cache_bytes_limit": "cache_bytes_limit",
         }
 
         evolve_kwargs = {}

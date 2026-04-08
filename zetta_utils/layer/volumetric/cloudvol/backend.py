@@ -21,8 +21,17 @@ from zetta_utils.geometry import Vec3D
 from ...precomputed import PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
 
-_cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
-_cv_cached: Dict[str, set] = {}
+
+class _CVLRUCache(cachetools.LRUCache):
+    """LRU cache that clears CloudVolume internal LRU on eviction."""
+
+    def popitem(self):
+        key, cvol = super().popitem()
+        cvol.image.lru.clear()
+        return key, cvol
+
+
+_cv_cache: _CVLRUCache = _CVLRUCache(maxsize=36)
 
 IN_MEM_CACHE_NUM_BYTES_PER_CV = 1 * 1024 ** 3
 
@@ -86,22 +95,20 @@ def _get_cv_cached(
             **kwargs,
         )
     _cv_cache[cache_key] = result
-    if path_ not in _cv_cached:
-        _cv_cached[path_] = set()
-    _cv_cached[path_].add((resolution, kwargs_key))
     return result
 
 
 def _clear_cv_cache(path: str | None = None) -> None:  # pragma: no cover
     if path is None:
-        _cv_cached.clear()
+        for cvol in _cv_cache.values():
+            cvol.image.lru.clear()
         _cv_cache.clear()
         return
     path_ = abspath(path)
-    resolution_kwargs_pairs = _cv_cached.pop(path_, None)
-    if resolution_kwargs_pairs is not None:
-        for resolution, kwargs_key in resolution_kwargs_pairs:
-            _cv_cache.pop((path_, resolution, kwargs_key), None)
+    keys_to_remove = [k for k in _cv_cache if k[0] == path_]
+    for k in keys_to_remove:
+        _cv_cache[k].image.lru.clear()
+        _cv_cache.pop(k, None)
 
 
 @attrs.mutable
@@ -252,12 +259,11 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     def clear_cache(self) -> None:  # pragma: no cover
         path_ = abspath(self.path)
-        resolution_kwargs_pairs = _cv_cached.get(path_, set())
-        for resolution, kwargs_key in resolution_kwargs_pairs:
-            cache_key = (path_, resolution, kwargs_key)
-            if cache_key in _cv_cache:
-                _cv_cache[cache_key].image.lru.clear()
-        _clear_cv_cache(self.path)
+        kwargs_key = _serialize_kwargs(self.cv_kwargs)
+        for key in list(_cv_cache):
+            if key[0] == path_ and key[2] == kwargs_key:
+                _cv_cache[key].image.lru.clear()
+                _cv_cache.pop(key, None)
 
     def read(self, idx: VolumetricIndex) -> npt.NDArray:
         # Data out: cxyz
@@ -403,7 +409,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         return self.name
 
     def delete(self):
-        self.clear_cache()
+        _clear_cv_cache(self.path)
         gc.collect()
 
         path = abspath(self.path)

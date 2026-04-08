@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import time
 from abc import ABC
 from contextlib import nullcontext
@@ -101,9 +102,9 @@ class ReduceByWeightedSum(ReduceOperation):
     """Reducer that combines the values in the overlap area by a linear or
     quadratic function of the distance from the edge."""
 
-    processing_blend_mode: Literal["linear", "quadratic"] = "linear"
+    processing_blend_mode: Literal["linear", "quadratic", "bump"] = "linear"
 
-    def __init__(self, processing_blend_mode: Literal["linear", "quadratic"]):
+    def __init__(self, processing_blend_mode: Literal["linear", "quadratic", "bump"]):
         self.processing_blend_mode = processing_blend_mode
 
     def __call__(
@@ -179,9 +180,35 @@ class ReduceByWeightedSum(ReduceOperation):
             )
 
 
+def _bump_fn_1d(i: int, size: int) -> float:
+    """1D bump function value at position i in a patch of given size.
+    Uses pixel-center convention: t = (i+1)/(size+1)*2-1; weights are
+    always nonzero at edges"""
+    t = (i + 1.0) / (size + 1.0) * 2.0 - 1.0
+    return math.exp(-1.0 / (1.0 - t * t))
+
+
+def _bump_weights_1d(patch_size: int, pad: int) -> list[float]:
+    """Compute normalized 1D bump blend weights for the 2*pad overlap region.
+
+    For each position in the overlap, computes the bump value and normalizes
+    against the adjacent chunk's overlapping bump value so weights sum to 1."""
+    if pad == 0:
+        return []
+    stride = patch_size - 2 * pad
+    bump = [_bump_fn_1d(i, patch_size) for i in range(patch_size)]
+    weights = []
+    for i in range(2 * pad):
+        curr = bump[i]
+        adj_pos = i + stride
+        adj = bump[adj_pos] if adj_pos < patch_size else 0.0
+        weights.append(curr / (curr + adj))
+    return weights
+
+
 @cachetools.cached(_weights_cache)
 def get_weight_template(
-    processing_blend_mode: Literal["linear", "quadratic"],
+    processing_blend_mode: Literal["linear", "quadratic", "bump"],
     subchunk_shape: Tuple[int, ...],
     x_pad: int,
     y_pad: int,
@@ -223,6 +250,10 @@ def get_weight_template(
             )
             for z in range(1, 2 * z_pad + 1)
         ]
+    elif processing_blend_mode == "bump":
+        weights_x = _bump_weights_1d(subchunk_shape[0], x_pad)
+        weights_y = _bump_weights_1d(subchunk_shape[1], y_pad)
+        weights_z = _bump_weights_1d(subchunk_shape[2], z_pad)
     else:
         assert_never(processing_blend_mode)
 
@@ -250,7 +281,7 @@ def get_blending_weights(  # pylint:disable=too-many-branches, too-many-locals
     idx_roi: VolumetricIndex,
     idx_red: VolumetricIndex,
     processing_blend_pad: Vec3D[int],
-    processing_blend_mode: Literal["linear", "quadratic"],
+    processing_blend_mode: Literal["linear", "quadratic", "bump"],
 ) -> torch.Tensor:
     """
     Gets the correct blending weights for an `idx_subchunk` inside a `idx_roi` being

@@ -110,7 +110,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     max_reduction_chunk_size_final: Vec3D[int] = attrs.field(init=False)
     roi_crop_pad: Optional[Vec3D[int]] = None
     processing_blend_pad: Optional[Vec3D[int]] = None
-    processing_blend_mode: Literal["linear", "quadratic", "max", "defer"] = "quadratic"
+    processing_blend_mode: Literal["linear", "quadratic", "bump", "max", "defer"] = "quadratic"
     processing_gap: Optional[Vec3D[int]] = None
     intermediaries_dir: Optional[str] = None
     allow_cache: bool = False
@@ -583,8 +583,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             copy_chunk_size = self.max_reduction_chunk_size_final
 
         reduction_chunker = VolumetricIndexChunker(
-            chunk_size=dst.backend.get_chunk_size(self.dst_resolution)
-            - self.processing_gap // 2,
+            chunk_size=dst.backend.get_chunk_size(self.dst_resolution) - self.processing_gap // 2,
             resolution=self.dst_resolution,
             max_superchunk_size=copy_chunk_size,
             offset=-self.processing_gap // 2,
@@ -703,14 +702,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         reducer: ReduceOperation
         if self.processing_blend_mode == "max":
             reducer = ReduceNaive()
-        elif self.processing_blend_mode in ("linear", "quadratic"):
+        elif self.processing_blend_mode in ("linear", "quadratic", "bump"):
             reducer = ReduceByWeightedSum(
-                cast(Literal["linear", "quadratic"], self.processing_blend_mode)
+                cast(Literal["linear", "quadratic", "bump"], self.processing_blend_mode)
             )
         else:
             raise ValueError(
                 f"Invalid processing_blend_mode: {self.processing_blend_mode}. "
-                f"Expected 'linear', 'quadratic', or 'max' in checkerboarding flow."
+                f"Expected 'linear', 'quadratic', 'bump', or 'max' in checkerboarding flow."
             )
         tasks_reduce = [
             reducer.make_task(

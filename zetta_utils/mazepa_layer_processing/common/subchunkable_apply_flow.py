@@ -83,7 +83,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
     processing_input_sizes: Sequence[Sequence[int]],
     processing_crop: Sequence[int] = (0, 0, 0),
     processing_blend: Sequence[int] = (0, 0, 0),
-    processing_blend_mode: Literal["linear", "quadratic", "max", "defer"] = "quadratic",
+    processing_blend_mode: Literal["linear", "quadratic", "bump", "max", "defer"] = "quadratic",
     level_intermediaries_dirs: Sequence[str | None] | None = None,
     max_reduction_chunk_size: Sequence[int] | None = None,
     expand_bbox_processing: bool = True,
@@ -211,8 +211,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     processing_crop_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
     processing_blend_pads: Sequence[int] | Sequence[Sequence[int]] = (0, 0, 0),
     processing_blend_modes: Union[
-        Literal["linear", "quadratic", "max", "defer"],
-        Sequence[Literal["linear", "quadratic", "max", "defer"]],
+        Literal["linear", "quadratic", "bump", "max", "defer"],
+        Sequence[Literal["linear", "quadratic", "bump", "max", "defer"]],
     ] = "quadratic",
     level_intermediaries_dirs: Sequence[str | None] | None = None,
     skip_intermediaries: bool = False,
@@ -836,7 +836,7 @@ def _print_summary(  # pylint: disable=line-too-long, too-many-locals, too-many-
     skip_intermediaries: bool,
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
-    processing_blend_modes: Sequence[Literal["linear", "quadratic", "max", "defer"]],
+    processing_blend_modes: Sequence[Literal["linear", "quadratic", "bump", "max", "defer"]],
     processing_crop_pad: Vec3D[int],
     roi_crop_pads: Sequence[Vec3D[int]],
     max_reduction_chunk_size: Vec3D[int],
@@ -1071,7 +1071,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_crop_pads: Sequence[Vec3D[int]],
     processing_blend_pads: Sequence[Vec3D[int]],
-    processing_blend_modes: Sequence[Literal["linear", "quadratic", "max", "defer"]],
+    processing_blend_modes: Sequence[Literal["linear", "quadratic", "bump", "max", "defer"]],
     max_reduction_chunk_size: Vec3D[int],
     allow_cache_up_to_level: int,
     bbox: BBox3D,
@@ -1239,7 +1239,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 backend=dst.backend.with_changes(
                     enforce_chunk_aligned_writes=False,
                     overwrite_partial_chunks=True,
-                    )
+                )
             )
 
     if print_summary:

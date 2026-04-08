@@ -151,7 +151,7 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
     @name.setter
     def name(self, name: str) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `name` for CVBackend directly;"
+            "cannot set `name` for TSBackend directly;"
             " use `backend.with_changes(name='name')` instead."
         )
 
@@ -183,12 +183,12 @@ class TSBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
 
     @property
     def allow_cache(self) -> bool:  # pragma: no cover
-        return True
+        return False
 
     @allow_cache.setter
     def allow_cache(self, value: Union[bool, str]) -> None:  # pragma: no cover
         raise NotImplementedError(
-            "cannot set `allow_cache` for CVBackend directly;"
+            "cannot set `allow_cache` for TSBackend directly;"
             " use `backend.with_changes(allow_cache=value:Union[bool, str])` instead."
         )
 

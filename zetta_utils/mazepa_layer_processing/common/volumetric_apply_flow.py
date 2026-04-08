@@ -248,6 +248,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             overwrite_partial_chunks=True,
             allow_cache=allow_cache,
             use_compression=False,
+            cache_bytes_limit=0,
         )
         return dst.with_procs(read_procs=()).with_changes(backend=backend_temp)
 

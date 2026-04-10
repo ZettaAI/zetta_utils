@@ -1244,7 +1244,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 backend=dst.backend.with_changes(
                     enforce_chunk_aligned_writes=False,
                     overwrite_partial_chunks=True,
-                    )
+                )
             )
 
     if print_summary:

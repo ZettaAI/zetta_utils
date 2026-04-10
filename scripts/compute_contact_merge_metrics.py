@@ -16,18 +16,18 @@ Usage:
 """
 
 import argparse
+import io
 import json
 import os
 import struct
-import io
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from google.cloud import storage
-from sklearn.metrics import auc, precision_recall_curve, roc_curve
 from packaging.version import Version
+from sklearn.metrics import auc, precision_recall_curve, roc_curve
 from tqdm import tqdm
 
 
@@ -50,9 +50,7 @@ def read_info(bucket, base_path: str) -> dict:
     return json.loads(blob.download_as_bytes().decode("utf-8"))
 
 
-def get_chunk_keys_from_info(
-    info: dict, bbox_start: list[int], bbox_end: list[int]
-) -> list[str]:
+def get_chunk_keys_from_info(info: dict, bbox_start: list[int], bbox_end: list[int]) -> list[str]:
     """Generate chunk keys from info file grid, filtered by bbox overlap.
 
     Uses the backend's naming convention (full chunk_size, no clipping at edges).
@@ -198,8 +196,16 @@ def plot_curves(
 
     # PR Curve
     fig, ax = plt.subplots(figsize=(6, 6))
-    ax.plot(pr_recall, pr_precision, label=f"Classifier (AUC={auc_pr_classifier:.3f})", linewidth=2)
-    ax.plot(pr_ma_recall, pr_ma_precision, label=f"Mean Affinity (AUC={auc_pr_ma:.3f})", linewidth=2, linestyle="--")
+    ax.plot(
+        pr_recall, pr_precision, label=f"Classifier (AUC={auc_pr_classifier:.3f})", linewidth=2
+    )
+    ax.plot(
+        pr_ma_recall,
+        pr_ma_precision,
+        label=f"Mean Affinity (AUC={auc_pr_ma:.3f})",
+        linewidth=2,
+        linestyle="--",
+    )
     ax.set_xlabel("Recall", fontsize=12)
     ax.set_ylabel("Precision", fontsize=12)
     ax.set_title(f"PR Curve - {subset_name}", fontsize=14)
@@ -215,7 +221,9 @@ def plot_curves(
     # ROC Curve
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.plot(fpr, tpr, label=f"Classifier (AUC={auc_roc_classifier:.3f})", linewidth=2)
-    ax.plot(fpr_ma, tpr_ma, label=f"Mean Affinity (AUC={auc_roc_ma:.3f})", linewidth=2, linestyle="--")
+    ax.plot(
+        fpr_ma, tpr_ma, label=f"Mean Affinity (AUC={auc_roc_ma:.3f})", linewidth=2, linestyle="--"
+    )
     ax.plot([0, 1], [0, 1], "k--", alpha=0.5, linewidth=1)  # Random baseline
     ax.set_xlabel("False Positive Rate", fontsize=12)
     ax.set_ylabel("True Positive Rate", fontsize=12)
@@ -299,14 +307,24 @@ def compute_metrics(
 
 def main():
     parser = argparse.ArgumentParser(description="Compute aggregate merge metrics")
-    parser.add_argument("--path", required=True, help="Seg_contact path with predictions (destination)")
-    parser.add_argument("--source-path", required=True, help="Source seg_contact path for contacts and GT")
+    parser.add_argument(
+        "--path", required=True, help="Seg_contact path with predictions (destination)"
+    )
+    parser.add_argument(
+        "--source-path", required=True, help="Source seg_contact path for contacts and GT"
+    )
     parser.add_argument("--authority", required=True, help="Merge probability authority name")
-    parser.add_argument("--gt-authority", default="ground_truth", help="Ground truth authority name")
+    parser.add_argument(
+        "--gt-authority", default="ground_truth", help="Ground truth authority name"
+    )
     parser.add_argument("--bbox", required=True, help="Bounding box: x0,y0,z0,x1,y1,z1")
     parser.add_argument("--resolution", default="16,16,40", help="Resolution: x,y,z")
-    parser.add_argument("--min-mean-affinity", type=float, default=0.1, help="Min mean affinity filter")
-    parser.add_argument("--output-dir", type=str, default=None, help="Directory to save PR/ROC curve PDFs")
+    parser.add_argument(
+        "--min-mean-affinity", type=float, default=0.1, help="Min mean affinity filter"
+    )
+    parser.add_argument(
+        "--output-dir", type=str, default=None, help="Directory to save PR/ROC curve PDFs"
+    )
     args = parser.parse_args()
 
     # Setup output directory if specified
@@ -377,17 +395,20 @@ def main():
     for chunk_key in tqdm(chunk_keys, desc="Reading chunks"):
         # Read contacts and GT from SOURCE (original, unmodified contact_faces)
         contacts = read_contacts_chunk(
-            src_bucket, os.path.join(src_base_path, "contacts", chunk_key),
+            src_bucket,
+            os.path.join(src_base_path, "contacts", chunk_key),
             format_version=info.get("format_version", "1.0"),
         )
 
         gt_decisions = read_merge_decisions_chunk(
-            src_bucket, os.path.join(src_base_path, "merge_decisions", args.gt_authority, chunk_key)
+            src_bucket,
+            os.path.join(src_base_path, "merge_decisions", args.gt_authority, chunk_key),
         )
 
         # Read predictions from DESTINATION (inference output)
         predictions = read_merge_probabilities_chunk(
-            pred_bucket, os.path.join(pred_base_path, "merge_probabilities", args.authority, chunk_key)
+            pred_bucket,
+            os.path.join(pred_base_path, "merge_probabilities", args.authority, chunk_key),
         )
 
         if not contacts:
@@ -432,7 +453,6 @@ def main():
             all_probs.append(predictions[contact_id])
             all_mean_affinities.append(mean_aff)
 
-
     print(f"\nData collection:")
     print(f"  Chunks with data: {n_chunks_with_data}/{len(chunk_keys)}")
     print(f"  Total contacts (source): {n_contacts_total}")
@@ -444,7 +464,9 @@ def main():
     print(f"    - Below min affinity: {n_below_affinity}")
     print(f"    - Matched:            {n_matched}")
     if n_pred_not_in_source > 0:
-        print(f"  WARNING: {n_pred_not_in_source} predictions in dest have no matching contact in source (stale data?)")
+        print(
+            f"  WARNING: {n_pred_not_in_source} predictions in dest have no matching contact in source (stale data?)"
+        )
 
     if n_matched < 10:
         print("\nERROR: Not enough matched samples for metrics computation")

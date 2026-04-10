@@ -1189,7 +1189,9 @@ class SegContactOp:
 
         # Check for nucleus in chunk bbox
         chunk_has_nucleus = False
-        if nucleus_layer is not None and (self.collect_filter_stats_only or self.skip_chunks_with_nucleus):
+        if nucleus_layer is not None and (
+            self.collect_filter_stats_only or self.skip_chunks_with_nucleus
+        ):
             nuc_info = get_info(nucleus_layer.backend.path)
             nuc_res = min(nuc_info["scales"], key=lambda s: np.prod(s["resolution"]))["resolution"]
             nucleus_idx = VolumetricIndex(
@@ -1298,10 +1300,16 @@ class SegContactOp:
                 # without re-running. The op's `dominant_ref_only` flag selects
                 # which one becomes the canonical `gt_merge_label` column.
                 seg_to_ref_set = _compute_seg_to_ref_by_segment(
-                    seg, reference, self.min_overlap_vx, dominant_ref_only=False,
+                    seg,
+                    reference,
+                    self.min_overlap_vx,
+                    dominant_ref_only=False,
                 )
                 seg_to_ref_dom = _compute_seg_to_ref_by_segment(
-                    seg, reference, self.min_overlap_vx, dominant_ref_only=True,
+                    seg,
+                    reference,
+                    self.min_overlap_vx,
+                    dominant_ref_only=True,
                 )
 
                 def _label_from(mapping):
@@ -1311,6 +1319,7 @@ class SegContactOp:
                         if refs_a is None or refs_b is None:
                             return "unknown"
                         return "merge" if refs_a & refs_b else "no_merge"
+
                     return _fn
 
                 contact_stats["gt_merge_label_set"] = contact_stats.apply(
@@ -1449,7 +1458,9 @@ class SegContactOp:
 
             # Build seg_to_ref mapping for merge decisions
             seg_to_ref = _compute_seg_to_ref_by_segment(
-                seg, reference, self.min_overlap_vx,
+                seg,
+                reference,
+                self.min_overlap_vx,
                 dominant_ref_only=self.dominant_ref_only,
             )
         else:

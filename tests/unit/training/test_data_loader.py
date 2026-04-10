@@ -14,7 +14,6 @@ from zetta_utils.training.data_loader import (
     _tensor_rebatch,
 )
 
-
 # --- _buf_len ---
 
 
@@ -141,11 +140,13 @@ def test_squeeze_chunks_no_squeeze_needed():
 
 def test_tensor_rebatch_basic():
     """Chunks of variable size → fixed-size batches."""
-    chunks = iter([
-        {"x": torch.arange(3), "y": torch.arange(3) * 10},
-        {"x": torch.arange(3, 8), "y": torch.arange(3, 8) * 10},
-        {"x": torch.arange(8, 10), "y": torch.arange(8, 10) * 10},
-    ])
+    chunks = iter(
+        [
+            {"x": torch.arange(3), "y": torch.arange(3) * 10},
+            {"x": torch.arange(3, 8), "y": torch.arange(3, 8) * 10},
+            {"x": torch.arange(8, 10), "y": torch.arange(8, 10) * 10},
+        ]
+    )
     batches = list(_tensor_rebatch(chunks, batch_size=4, shuffle_buffer_size=0))
 
     # 10 items total, batch_size=4 → 2 full + 1 remainder
@@ -157,10 +158,12 @@ def test_tensor_rebatch_basic():
 
 def test_tensor_rebatch_with_shuffle():
     """With shuffle buffer, output should still have correct total count."""
-    chunks = iter([
-        {"x": torch.ones(10)},
-        {"x": torch.ones(10) * 2},
-    ])
+    chunks = iter(
+        [
+            {"x": torch.ones(10)},
+            {"x": torch.ones(10) * 2},
+        ]
+    )
     batches = list(_tensor_rebatch(chunks, batch_size=5, shuffle_buffer_size=10))
 
     total = sum(b["x"].shape[0] for b in batches)
@@ -169,13 +172,17 @@ def test_tensor_rebatch_with_shuffle():
 
 def test_tensor_rebatch_with_watermark():
     """Low watermark keeps residual in buffer for cross-chunk mixing."""
-    chunks = iter([
-        {"x": torch.arange(20)},
-        {"x": torch.arange(20, 40)},
-    ])
-    batches = list(_tensor_rebatch(
-        chunks, batch_size=5, shuffle_buffer_size=15, shuffle_buffer_low_watermark=5
-    ))
+    chunks = iter(
+        [
+            {"x": torch.arange(20)},
+            {"x": torch.arange(20, 40)},
+        ]
+    )
+    batches = list(
+        _tensor_rebatch(
+            chunks, batch_size=5, shuffle_buffer_size=15, shuffle_buffer_low_watermark=5
+        )
+    )
 
     total = sum(b["x"].shape[0] for b in batches)
     assert total == 40
@@ -301,8 +308,11 @@ def test_rebatching_dataloader_with_pin_memory_and_prefetch():
     ds = _FakeDataset(chunks)
     inner = torch.utils.data.DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
     loader = RebatchingDataLoader(
-        dataloader=inner, batch_size=4, shuffle_buffer_size=0,
-        pin_memory=True, prefetch=1,
+        dataloader=inner,
+        batch_size=4,
+        shuffle_buffer_size=0,
+        pin_memory=True,
+        prefetch=1,
     )
 
     batches = list(loader)

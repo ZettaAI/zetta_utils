@@ -13,7 +13,6 @@ from zetta_utils.layer.volumetric.seg_contact.tensor_utils import (
     pointcloud_to_labeled_tensor,
 )
 
-
 # --- pointcloud_to_labeled_tensor ---
 
 
@@ -129,7 +128,11 @@ def _make_contact(
 ):
     seg_a_pts = np.random.randn(n_a, 3).astype(np.float32)
     seg_b_pts = np.random.randn(n_b, 3).astype(np.float32)
-    faces = np.random.randn(n_faces, 4).astype(np.float32) if include_faces else np.zeros((0, 4), dtype=np.float32)
+    faces = (
+        np.random.randn(n_faces, 4).astype(np.float32)
+        if include_faces
+        else np.zeros((0, 4), dtype=np.float32)
+    )
     return SegContact(
         id=1,
         seg_a=100,

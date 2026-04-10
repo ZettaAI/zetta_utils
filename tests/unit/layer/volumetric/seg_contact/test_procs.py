@@ -13,8 +13,8 @@ from zetta_utils.layer.volumetric.seg_contact.procs import (
     deduplicate_pointclouds,
     randomize_segment_identity,
     resample_combined_pointcloud,
-    resample_points,
     resample_pointclouds,
+    resample_points,
 )
 
 
@@ -484,9 +484,7 @@ def test_resample_pointclouds_preserves_metadata():
 
 def test_resample_combined_total_matches_target():
     contact = _make_contact(n_a=100, n_b=100, n_faces=0)
-    result = resample_combined_pointcloud(
-        [contact], total_target=200, include_contact_faces=False
-    )
+    result = resample_combined_pointcloud([contact], total_target=200, include_contact_faces=False)
     pc = result[0].local_pointclouds[(500, 64)]
     total = pc[100].shape[0] + pc[200].shape[0] + result[0].contact_faces.shape[0]
     assert total == 200
@@ -621,9 +619,7 @@ def test_random_flip_preserves_magnitudes():
 
     result = apply_random_flip([contact])
     r = result[0]
-    np.testing.assert_array_almost_equal(
-        np.abs(r.local_pointclouds[(500, 64)][100]), np.abs(pts)
-    )
+    np.testing.assert_array_almost_equal(np.abs(r.local_pointclouds[(500, 64)][100]), np.abs(pts))
 
 
 def test_random_flip_preserves_affinity():
@@ -766,9 +762,7 @@ def test_normalize_use_pointcloud_radius():
         normalized.local_pointclouds[config_small][100], [[1.0, 0, 0]]
     )
     # Contact faces also use the largest config radius
-    np.testing.assert_array_almost_equal(
-        normalized.contact_faces[:, :3], [[1.0, 0, 0]]
-    )
+    np.testing.assert_array_almost_equal(normalized.contact_faces[:, :3], [[1.0, 0, 0]])
 
 
 def test_normalize_use_pointcloud_radius_preserves_original_faces():
@@ -784,13 +778,16 @@ def test_normalize_use_pointcloud_radius_preserves_original_faces():
         com=com,
         contact_faces=faces.copy(),
         representative_points={100: Vec3D(90.0, 0.0, 0.0), 200: Vec3D(110.0, 0.0, 0.0)},
-        local_pointclouds={config: {100: np.zeros((5, 3), dtype=np.float32), 200: np.zeros((5, 3), dtype=np.float32)}},
+        local_pointclouds={
+            config: {
+                100: np.zeros((5, 3), dtype=np.float32),
+                200: np.zeros((5, 3), dtype=np.float32),
+            }
+        },
     )
 
     result = normalize_pointclouds([contact], use_pointcloud_radius=True)
     normalized = result[0]
 
     # Original faces should be preserved
-    np.testing.assert_array_almost_equal(
-        normalized.contact_faces_original_nm, faces
-    )
+    np.testing.assert_array_almost_equal(normalized.contact_faces_original_nm, faces)

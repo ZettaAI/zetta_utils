@@ -33,10 +33,10 @@ import numpy as np
 from packaging.version import Version
 from tqdm import tqdm
 
-
 # ---------------------------------------------------------------------------
 # Binary readers (matching compute_contact_merge_metrics.py format)
 # ---------------------------------------------------------------------------
+
 
 def read_info(path):
     """Read info file from seg_contact layer using fsspec."""
@@ -158,6 +158,7 @@ def read_merge_probabilities_chunk(fs, path):
 # Data collection
 # ---------------------------------------------------------------------------
 
+
 def discover_authorities(path, gt_authority):
     """Discover available merge probability authorities for a dataset."""
     fs, base_path = fsspec.core.url_to_fs(path)
@@ -212,7 +213,9 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
             )
 
         contacts = read_contacts_chunk(
-            fs, f"{base_path}/contacts/{chunk_key}", format_version=format_version,
+            fs,
+            f"{base_path}/contacts/{chunk_key}",
+            format_version=format_version,
         )
         if not contacts:
             continue
@@ -248,15 +251,17 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
             if not np.isfinite(mean_aff):
                 continue
 
-            contacts_out.append({
-                "seg_a": contact["seg_a"],
-                "seg_b": contact["seg_b"],
-                "com": list(contact["com"]),
-                "mean_affinity": mean_aff,
-                "n_faces": contact["n_faces"],
-                "gt_merge": gt_decisions[contact_id],
-                "scores": scores,
-            })
+            contacts_out.append(
+                {
+                    "seg_a": contact["seg_a"],
+                    "seg_b": contact["seg_b"],
+                    "com": list(contact["com"]),
+                    "mean_affinity": mean_aff,
+                    "n_faces": contact["n_faces"],
+                    "gt_merge": gt_decisions[contact_id],
+                    "scores": scores,
+                }
+            )
 
     print(
         f"  {path.split('/')[-1]}: {len(contacts_out)} matched, "
@@ -269,21 +274,17 @@ def collect_dataset(path, authorities, gt_authority, bbox_start, bbox_end, resol
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(description="Visualize validation results")
+    parser.add_argument("--paths", nargs="+", required=True, help="Seg_contact layer paths")
     parser.add_argument(
-        "--paths", nargs="+", required=True, help="Seg_contact layer paths"
-    )
-    parser.add_argument(
-        "--authority", default=None,
+        "--authority",
+        default=None,
         help="Merge probability authority (omit to auto-discover all)",
     )
-    parser.add_argument(
-        "--gt-authority", default="ground_truth", help="GT authority name"
-    )
-    parser.add_argument(
-        "--output", default="validation_results.html", help="Output HTML file"
-    )
+    parser.add_argument("--gt-authority", default="ground_truth", help="GT authority name")
+    parser.add_argument("--output", default="validation_results.html", help="Output HTML file")
     args = parser.parse_args()
 
     # Discover authorities if not specified
@@ -349,16 +350,18 @@ def main():
             ss = {}
             for auth, score in c["scores"].items():
                 ss[str(auth_to_idx[auth])] = round(score, 4)
-            contacts_js.append({
-                "a": str(c["seg_a"]),
-                "b": str(c["seg_b"]),
-                "c": [round(c["com"][0], 1), round(c["com"][1], 1), round(c["com"][2], 1)],
-                "ma": round(c["mean_affinity"], 4),
-                "ss": ss,
-                "gt": 1 if c["gt_merge"] else 0,
-                "nf": c["n_faces"],
-                "d": dset_name,
-            })
+            contacts_js.append(
+                {
+                    "a": str(c["seg_a"]),
+                    "b": str(c["seg_b"]),
+                    "c": [round(c["com"][0], 1), round(c["com"][1], 1), round(c["com"][2], 1)],
+                    "ma": round(c["mean_affinity"], 4),
+                    "ss": ss,
+                    "gt": 1 if c["gt_merge"] else 0,
+                    "nf": c["n_faces"],
+                    "d": dset_name,
+                }
+            )
         return dset_name, ng_info, contacts_js
 
     with ThreadPoolExecutor(max_workers=len(args.paths)) as executor:
@@ -431,7 +434,8 @@ def _build_html(data_b64, n_contacts):
     )
 
 
-_HTML_TEMPLATE = Template(r"""<!DOCTYPE html>
+_HTML_TEMPLATE = Template(
+    r"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -2158,7 +2162,8 @@ var DATA_B64 = "$data_b64";
 </script>
 </body>
 </html>
-""")
+"""
+)
 
 if __name__ == "__main__":
     main()

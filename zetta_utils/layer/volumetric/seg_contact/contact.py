@@ -31,9 +31,9 @@ class SegContact:
     com: Vec3D[float]  # center of mass in nm
     contact_faces: np.ndarray | None = None  # (N, 4) float32: x, y, z, affinity in nm
     representative_points: dict[int, Vec3D[float]] | None = None  # segment_id -> point in nm
-    representative_supervoxels: dict[int, int] | None = (
-        None  # segment_id -> supervoxel_id (uint64)
-    )
+    representative_supervoxels: dict[
+        int, int
+    ] | None = None  # segment_id -> supervoxel_id (uint64)
     # (radius_nm, n_points) -> {segment_id -> (n_points, 3) in nm}
     local_pointclouds: dict[tuple[int, int], dict[int, np.ndarray]] | None = None
     merge_decisions: dict[str, bool] | None = None  # authority -> yes/no

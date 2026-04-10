@@ -36,7 +36,9 @@ class SegContactLayerBackend(
     max_contact_span: int  # in voxels
     enforce_chunk_aligned_writes: bool = True
     local_point_clouds: list[tuple[int, int]] | None = None  # [(radius_nm, n_points), ...]
-    format_version: str = "1.1"  # "1.0" = no representative_points, "1.1" = with representative_points
+    format_version: str = (
+        "1.1"  # "1.0" = no representative_points, "1.1" = with representative_points
+    )
 
     @property
     def name(self) -> str:
@@ -422,7 +424,9 @@ class SegContactLayerBackend(
                     )
                 pt_a = contact.representative_points[contact.seg_a]
                 pt_b = contact.representative_points[contact.seg_b]
-                buf.write(struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2]))
+                buf.write(
+                    struct.pack("<ffffff", pt_a[0], pt_a[1], pt_a[2], pt_b[0], pt_b[1], pt_b[2])
+                )
 
         fs, fs_path = fsspec.core.url_to_fs(chunk_path)
         fs.makedirs(os.path.dirname(fs_path), exist_ok=True)

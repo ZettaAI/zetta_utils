@@ -23,7 +23,6 @@ from zetta_utils.layer.volumetric.seg_contact.tensor_utils import (
 from .sample_indexers import SampleIndexer
 
 
-
 def _pad_or_truncate(tensor: torch.Tensor, target_size: int) -> torch.Tensor:
     """Pad with zeros or truncate tensor to target size along first dimension."""
     current_size = tensor.shape[0]
@@ -383,7 +382,9 @@ class SegContactDataset(torch.utils.data.Dataset):
                     is_cf = (seg_labels != -1.0) & (seg_labels != 1.0)
                     for pi in range(pointclouds_stacked.shape[0]):
                         if torch.rand(1).item() < self.affinity_noise_prob:
-                            noise = torch.randn(pointclouds_stacked.shape[1]) * self.affinity_noise_std
+                            noise = (
+                                torch.randn(pointclouds_stacked.shape[1]) * self.affinity_noise_std
+                            )
                             noise = noise * is_cf[pi].to(noise.dtype)
                             pointclouds_stacked[pi, :, 4] += noise
 

@@ -77,9 +77,7 @@ class RebatchingDataLoader:
 def _pin_batches(batches: Iterator[dict]) -> Iterator[dict]:
     """Pin tensors in each batch to page-locked memory for async GPU transfer."""
     for batch in batches:
-        yield {
-            k: v.pin_memory() if isinstance(v, torch.Tensor) else v for k, v in batch.items()
-        }
+        yield {k: v.pin_memory() if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
 
 
 def _prefetch(batches: Iterator[dict], n: int) -> Iterator[dict]:

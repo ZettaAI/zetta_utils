@@ -66,7 +66,11 @@ def resample_points(
     # Fast path for uniform weighting: skip distance computation entirely
     if weighting == "uniform":
         replace = target_n > n_points
-        indices = np.random.randint(0, n_points, size=target_n) if replace else np.random.choice(n_points, size=target_n, replace=False)
+        indices = (
+            np.random.randint(0, n_points, size=target_n)
+            if replace
+            else np.random.choice(n_points, size=target_n, replace=False)
+        )
         result = points[indices]
         if return_indices:
             return result, indices
@@ -82,9 +86,11 @@ def resample_points(
     if weighting == "inverse_r":
         weights = 1.0 / (distances + 1e-6)
     elif weighting == "inverse_r2":
-        weights = 1.0 / (distances**2 + 1e-6)
+        weights = 1.0 / (distances ** 2 + 1e-6)
     else:
-        raise ValueError(f"Unknown weighting: {weighting}. Use 'uniform', 'inverse_r', or 'inverse_r2'.")
+        raise ValueError(
+            f"Unknown weighting: {weighting}. Use 'uniform', 'inverse_r', or 'inverse_r2'."
+        )
 
     # Normalize to probabilities
     probs = weights / weights.sum()
@@ -139,7 +145,9 @@ def resample_pointclouds(
 
         # Resample contact faces (unpadded at this stage, all rows valid)
         if contact_face_target is not None:
-            new_contact_faces = resample_points(contact.contact_faces, contact_face_target, contact_face_weighting)
+            new_contact_faces = resample_points(
+                contact.contact_faces, contact_face_target, contact_face_weighting
+            )
 
         result.append(
             SegContact(
@@ -253,7 +261,7 @@ def resample_combined_pointcloud(
                         elif base_weighting == "inverse_r":
                             f_r = 1.0 / (distances + 1e-6)
                         elif base_weighting == "inverse_r2":
-                            f_r = 1.0 / (distances**2 + 1e-6)
+                            f_r = 1.0 / (distances ** 2 + 1e-6)
                         else:
                             f_r = np.ones(len(combined), dtype=np.float32)
 
@@ -273,7 +281,9 @@ def resample_combined_pointcloud(
                         # Normalize and sample
                         probs = weights / weights.sum()
                         replace = segment_budget_total > len(combined)
-                        indices = np.random.choice(len(combined), size=segment_budget_total, replace=replace, p=probs)
+                        indices = np.random.choice(
+                            len(combined), size=segment_budget_total, replace=replace, p=probs
+                        )
                         sampled_points = combined[indices]
                     else:
                         # Standard weighting: use resample_points
@@ -303,21 +313,29 @@ def resample_combined_pointcloud(
                 new_pc_data = {}
                 for seg_id, points in pc_data.items():
                     if seg_id == contact.seg_a:
-                        new_pc_data[seg_id] = resample_points(points, segment_budget_a, base_weighting)
+                        new_pc_data[seg_id] = resample_points(
+                            points, segment_budget_a, base_weighting
+                        )
                     else:
-                        new_pc_data[seg_id] = resample_points(points, segment_budget_b, base_weighting)
+                        new_pc_data[seg_id] = resample_points(
+                            points, segment_budget_b, base_weighting
+                        )
 
             new_local_pointclouds[config_tuple] = new_pc_data
 
         # Resample contact faces if budget allocated (use base_weighting, not balanced)
         if cf_budget > 0:
-            contact.contact_faces = resample_points(contact.contact_faces, cf_budget, base_weighting)
+            contact.contact_faces = resample_points(
+                contact.contact_faces, cf_budget, base_weighting
+            )
 
         contact.local_pointclouds = new_local_pointclouds
 
         # Verify total point count matches target
         for config_tuple, pc_data in contact.local_pointclouds.items():
-            actual_total = sum(pts.shape[0] for pts in pc_data.values()) + contact.contact_faces.shape[0]
+            actual_total = (
+                sum(pts.shape[0] for pts in pc_data.values()) + contact.contact_faces.shape[0]
+            )
             assert actual_total == total_target, (
                 f"resample_combined_pointcloud: expected {total_target} total points, got {actual_total} "
                 f"(segments: {sum(pts.shape[0] for pts in pc_data.values())}, "
@@ -412,13 +430,17 @@ def normalize_pointclouds(
         # Normalize contact_faces
         if apply_to_contact_faces:
             new_contact_faces = contact.contact_faces.copy()
-            new_contact_faces[:, :3] = (contact.contact_faces[:, :3] - center) / contact_faces_radius
+            new_contact_faces[:, :3] = (
+                contact.contact_faces[:, :3] - center
+            ) / contact_faces_radius
             contact.contact_faces = new_contact_faces
 
         # Normalize local_pointclouds if present
         if contact.local_pointclouds is not None:
             for config_tuple, pc_data in contact.local_pointclouds.items():
-                pc_radius = np.float32(contact_faces_radius if use_pointcloud_radius else float(config_tuple[0]))
+                pc_radius = np.float32(
+                    contact_faces_radius if use_pointcloud_radius else float(config_tuple[0])
+                )
                 for seg_id, points in pc_data.items():
                     points -= center
                     points /= pc_radius
@@ -469,7 +491,11 @@ def add_gaussian_noise(
         apply_to_contact_faces: If True, also apply noise to contact_faces coordinates.
     """
     if isinstance(contacts_or_std, (int, float)):
-        return partial(_add_gaussian_noise_impl, std=contacts_or_std, apply_to_contact_faces=apply_to_contact_faces)
+        return partial(
+            _add_gaussian_noise_impl,
+            std=contacts_or_std,
+            apply_to_contact_faces=apply_to_contact_faces,
+        )
     return _add_gaussian_noise_impl(contacts_or_std, std, apply_to_contact_faces)
 
 

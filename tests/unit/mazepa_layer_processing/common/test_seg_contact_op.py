@@ -539,8 +539,12 @@ def test_find_offtarget_segment_ids_by_vx():
     # off-target for seg 1: 10 (without unclaimed) or 20 (with unclaimed, 100-80)
     # off-target for seg 2: 40 (without unclaimed) or 50 (with unclaimed, 100-50)
     result = _find_offtarget_segment_ids(
-        seg_ids, ref_ids, counts, seg_total_vx,
-        max_offtarget_vx=30, max_offtarget_fraction=None,
+        seg_ids,
+        ref_ids,
+        counts,
+        seg_total_vx,
+        max_offtarget_vx=30,
+        max_offtarget_fraction=None,
         includes_unclaimed=False,
     )
     assert 1 not in result  # 10 <= 30
@@ -555,8 +559,12 @@ def test_find_offtarget_segment_ids_by_fraction():
     seg_total_vx = {1: 100, 2: 100}
 
     result = _find_offtarget_segment_ids(
-        seg_ids, ref_ids, counts, seg_total_vx,
-        max_offtarget_vx=None, max_offtarget_fraction=0.05,
+        seg_ids,
+        ref_ids,
+        counts,
+        seg_total_vx,
+        max_offtarget_vx=None,
+        max_offtarget_fraction=0.05,
         includes_unclaimed=False,
     )
     assert 1 in result  # 10/100 = 0.1 > 0.05
@@ -573,16 +581,24 @@ def test_find_offtarget_segment_ids_includes_unclaimed():
 
     # Without unclaimed: offtarget = 10
     result_without = _find_offtarget_segment_ids(
-        seg_ids, ref_ids, counts, seg_total_vx,
-        max_offtarget_vx=50, max_offtarget_fraction=None,
+        seg_ids,
+        ref_ids,
+        counts,
+        seg_total_vx,
+        max_offtarget_vx=50,
+        max_offtarget_fraction=None,
         includes_unclaimed=False,
     )
     assert 1 not in result_without  # 10 <= 50
 
     # With unclaimed: offtarget = 200 - 80 = 120
     result_with = _find_offtarget_segment_ids(
-        seg_ids, ref_ids, counts, seg_total_vx,
-        max_offtarget_vx=50, max_offtarget_fraction=None,
+        seg_ids,
+        ref_ids,
+        counts,
+        seg_total_vx,
+        max_offtarget_vx=50,
+        max_offtarget_fraction=None,
         includes_unclaimed=True,
     )
     assert 1 in result_with  # 120 > 50
@@ -596,8 +612,12 @@ def test_find_offtarget_segment_ids_no_overlap():
     seg_total_vx = {1: 100, 2: 50}  # seg 2 has no overlap entries
 
     result = _find_offtarget_segment_ids(
-        seg_ids, ref_ids, counts, seg_total_vx,
-        max_offtarget_vx=10, max_offtarget_fraction=None,
+        seg_ids,
+        ref_ids,
+        counts,
+        seg_total_vx,
+        max_offtarget_vx=10,
+        max_offtarget_fraction=None,
         includes_unclaimed=True,
     )
     assert 2 in result  # 50 - 0 = 50 > 10
@@ -612,8 +632,11 @@ def test_find_unclaimed_vx_segment_ids_by_vx():
     seg_total_vx = {1: 100, 2: 100}
 
     result = _find_unclaimed_vx_segment_ids(
-        seg_ids, counts, seg_total_vx,
-        max_unclaimed_vx=50, max_unclaimed_fraction=None,
+        seg_ids,
+        counts,
+        seg_total_vx,
+        max_unclaimed_vx=50,
+        max_unclaimed_fraction=None,
     )
     assert 1 not in result  # 10 <= 50
     assert 2 in result  # 60 > 50
@@ -626,8 +649,11 @@ def test_find_unclaimed_vx_segment_ids_by_fraction():
     seg_total_vx = {1: 100, 2: 100}
 
     result = _find_unclaimed_vx_segment_ids(
-        seg_ids, counts, seg_total_vx,
-        max_unclaimed_vx=None, max_unclaimed_fraction=0.5,
+        seg_ids,
+        counts,
+        seg_total_vx,
+        max_unclaimed_vx=None,
+        max_unclaimed_fraction=0.5,
     )
     assert 1 not in result  # 10/100 = 0.1 <= 0.5
     assert 2 in result  # 60/100 = 0.6 > 0.5
@@ -640,8 +666,11 @@ def test_find_unclaimed_vx_segment_ids_no_overlap():
     seg_total_vx = {1: 100, 2: 80}
 
     result = _find_unclaimed_vx_segment_ids(
-        seg_ids, counts, seg_total_vx,
-        max_unclaimed_vx=50, max_unclaimed_fraction=None,
+        seg_ids,
+        counts,
+        seg_total_vx,
+        max_unclaimed_vx=50,
+        max_unclaimed_fraction=None,
     )
     assert 1 not in result  # 0 unclaimed
     assert 2 in result  # 80 unclaimed > 50
@@ -656,8 +685,11 @@ def test_find_unclaimed_vx_segment_ids_both_thresholds():
     # 20 unclaimed, 20/100 = 0.2
     # vx threshold triggers (20 > 15), fraction would not (0.2 <= 0.5)
     result = _find_unclaimed_vx_segment_ids(
-        seg_ids, counts, seg_total_vx,
-        max_unclaimed_vx=15, max_unclaimed_fraction=0.5,
+        seg_ids,
+        counts,
+        seg_total_vx,
+        max_unclaimed_vx=15,
+        max_unclaimed_fraction=0.5,
     )
     assert 1 in result
 
@@ -683,7 +715,15 @@ def test_filter_pairs_by_interface_gt_all_gt():
 
     start = Vec3D(0, 0, 0)
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.5,
     )
     assert len(result[0]) == 2  # both faces pass
 
@@ -701,7 +741,15 @@ def test_filter_pairs_by_interface_gt_no_gt():
     start = Vec3D(0, 0, 0)
 
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.5,
     )
     assert len(result[0]) == 0  # pair excluded
 
@@ -724,13 +772,29 @@ def test_filter_pairs_by_interface_gt_partial():
 
     # Threshold 0.2 -> 0.25 >= 0.2, pair kept
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.2,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.2,
     )
     assert len(result[0]) == 4
 
     # Threshold 0.5 -> 0.25 < 0.5, pair excluded
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.5,
     )
     assert len(result[0]) == 0
 
@@ -752,7 +816,15 @@ def test_filter_pairs_by_interface_gt_mixed_pairs():
 
     start = Vec3D(0, 0, 0)
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.5,
     )
     seg_a_f, seg_b_f = result[0], result[1]
     assert len(seg_a_f) == 1
@@ -777,7 +849,15 @@ def test_filter_pairs_by_interface_gt_with_offset_start():
 
     start = Vec3D(100, 50, 20)
     result = _filter_pairs_by_interface_gt(
-        seg_a, seg_b, aff, x, y, z, reference, start, 0.5,
+        seg_a,
+        seg_b,
+        aff,
+        x,
+        y,
+        z,
+        reference,
+        start,
+        0.5,
     )
     assert len(result[0]) == 1  # GT on both sides
 

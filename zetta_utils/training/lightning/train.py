@@ -20,8 +20,8 @@ from kubernetes import client as k8s_client
 from kubernetes import config as k8s_config  # type: ignore[attr-defined]
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
-from zetta_utils.training.data_loader import RebatchingDataLoader
 from zetta_utils.parsing import json
+from zetta_utils.training.data_loader import RebatchingDataLoader
 
 logger = log.get_logger("zetta_utils")
 

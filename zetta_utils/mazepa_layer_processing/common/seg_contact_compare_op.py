@@ -126,7 +126,7 @@ class _RunningStats:
         n = self.n_contacts
         mean = self.face_sum / n if n > 0 else 0
         var = (self.face_sum_sq / n - mean * mean) if n > 0 else 0
-        std = var**0.5 if var > 0 else 0
+        std = var ** 0.5 if var > 0 else 0
         n_merge = self.gt_merge
         n_split = self.gt_split
         return {
@@ -138,9 +138,7 @@ class _RunningStats:
             "faces_per_contact_max": self.face_max,
             "gt_merge": n_merge,
             "gt_split": n_split,
-            "gt_merge_fraction": (
-                n_merge / (n_merge + n_split) if (n_merge + n_split) > 0 else 0
-            ),
+            "gt_merge_fraction": (n_merge / (n_merge + n_split) if (n_merge + n_split) > 0 else 0),
         }
 
 
@@ -352,9 +350,7 @@ def _build_html_report(
         rows = ""
         for key, contact in examples.items():
             com = (contact.com[0], contact.com[1], contact.com[2])
-            n_faces = (
-                contact.contact_faces.shape[0] if contact.contact_faces is not None else 0
-            )
+            n_faces = contact.contact_faces.shape[0] if contact.contact_faces is not None else 0
             url = _build_ng_url(
                 info_path,
                 com,
@@ -467,12 +463,12 @@ class SegContactCompareFlowSchema:
         backend_a = SegContactLayerBackend.from_path(path_a)
         backend_b = SegContactLayerBackend.from_path(path_b)
 
-        assert backend_a.chunk_size == backend_b.chunk_size, (
-            f"Chunk sizes must match: {backend_a.chunk_size} != {backend_b.chunk_size}"
-        )
-        assert backend_a.size == backend_b.size, (
-            f"Sizes must match: {backend_a.size} != {backend_b.size}"
-        )
+        assert (
+            backend_a.chunk_size == backend_b.chunk_size
+        ), f"Chunk sizes must match: {backend_a.chunk_size} != {backend_b.chunk_size}"
+        assert (
+            backend_a.size == backend_b.size
+        ), f"Sizes must match: {backend_a.size} != {backend_b.size}"
 
         chunk_indices = list(_iter_all_chunk_indices(backend_a))
         logger.info(f"Comparing {len(chunk_indices)} chunks between datasets")
@@ -497,9 +493,7 @@ class SegContactCompareFlowSchema:
             if task.outcome.exception is not None:
                 raise task.outcome.exception
 
-        stats_a, stats_b, keys_a, keys_b, only_a, only_b, shared = (
-            _aggregate_chunk_results(tasks)
-        )
+        stats_a, stats_b, keys_a, keys_b, only_a, only_b, shared = _aggregate_chunk_results(tasks)
 
         name_a = path_a.rstrip("/").split("/")[-1]
         name_b = path_b.rstrip("/").split("/")[-1]

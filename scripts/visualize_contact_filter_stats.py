@@ -22,7 +22,6 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-
 # (column, title, log_x, filter_direction, x_label, param_names)
 # "min" = keep if >= thr, "max" = keep if <= thr, "minmax" = keep if min <= val <= max
 # Order: 2-column grid, left=voxel/count, right=fraction/ratio
@@ -30,14 +29,56 @@ from tqdm import tqdm
 METRIC_CONFIGS = [
     ("min_size_vx", "Min Segment Size (vx)", True, "min", "seg_size_vx", ["min_seg_size_vx"]),
     "mesh",  # special: mesh availability panel
-    ("min_best_overlap_vx", "Min Best Overlap (vx)", True, "min", "overlap_vx", ["min_overlap_vx"]),
-    ("mean_affinity", "Mean Affinity", False, "minmax", "mean_affinity", ["min_mean_affinity", "max_mean_affinity"]),
-    ("contact_count", "Contact Count (faces)", True, "minmax", "contact_vx", ["min_contact_vx", "max_contact_vx"]),
-    ("interface_gt_fraction", "Interface GT Fraction", False, "min", "interface_gt_fraction", ["min_interface_gt_fraction"]),
+    (
+        "min_best_overlap_vx",
+        "Min Best Overlap (vx)",
+        True,
+        "min",
+        "overlap_vx",
+        ["min_overlap_vx"],
+    ),
+    (
+        "mean_affinity",
+        "Mean Affinity",
+        False,
+        "minmax",
+        "mean_affinity",
+        ["min_mean_affinity", "max_mean_affinity"],
+    ),
+    (
+        "contact_count",
+        "Contact Count (faces)",
+        True,
+        "minmax",
+        "contact_vx",
+        ["min_contact_vx", "max_contact_vx"],
+    ),
+    (
+        "interface_gt_fraction",
+        "Interface GT Fraction",
+        False,
+        "min",
+        "interface_gt_fraction",
+        ["min_interface_gt_fraction"],
+    ),
     ("max_offtarget_vx", "Max Off-target (vx)", True, "max", "offtarget_vx", ["max_offtarget_vx"]),
-    ("max_offtarget_fraction", "Max Off-target Fraction", False, "max", "offtarget_fraction", ["max_offtarget_fraction"]),
+    (
+        "max_offtarget_fraction",
+        "Max Off-target Fraction",
+        False,
+        "max",
+        "offtarget_fraction",
+        ["max_offtarget_fraction"],
+    ),
     ("max_unclaimed_vx", "Max Unclaimed (vx)", True, "max", "unclaimed_vx", ["max_unclaimed_vx"]),
-    ("max_unclaimed_fraction", "Max Unclaimed Fraction", False, "max", "unclaimed_fraction", ["max_unclaimed_fraction"]),
+    (
+        "max_unclaimed_fraction",
+        "Max Unclaimed Fraction",
+        False,
+        "max",
+        "unclaimed_fraction",
+        ["max_unclaimed_fraction"],
+    ),
 ]
 
 N_SAMPLES_PER_BIN = 20
@@ -97,9 +138,7 @@ def compute_bins(values, nbins, log_x):
 
     edges = np.linspace(v_t.min(), v_t.max(), nbins + 1)
     bin_idx = np.full(len(values), -1, dtype=np.int32)
-    bin_idx[valid] = np.clip(
-        np.searchsorted(edges, all_t[valid], side="right") - 1, 0, nbins - 1
-    )
+    bin_idx[valid] = np.clip(np.searchsorted(edges, all_t[valid], side="right") - 1, 0, nbins - 1)
 
     x_centers = ((edges[:-1] + edges[1:]) / 2).tolist()
 
@@ -116,7 +155,7 @@ def compute_bins(values, nbins, log_x):
         hi_pow = int(np.ceil(np.log10(max(np.power(10, edges[-1]) - 1, 1))))
         for p in range(lo_pow, hi_pow + 1):
             for mult in [1, 2, 5]:
-                orig = mult * 10**p
+                orig = mult * 10 ** p
                 val = np.log10(orig + 1)
                 if edges[0] <= val <= edges[-1]:
                     tick_vals.append(float(val))
@@ -163,7 +202,11 @@ def main():
     has_set_label_col = "gt_merge_label_set" in df.columns
     contacts_js = []
     for i, (_, row) in tqdm(enumerate(df.iterrows()), total=len(df), desc="Building contacts"):
-        gt = str(row.get("gt_merge_label", "unknown")) if pd.notna(row.get("gt_merge_label")) else "unknown"
+        gt = (
+            str(row.get("gt_merge_label", "unknown"))
+            if pd.notna(row.get("gt_merge_label"))
+            else "unknown"
+        )
         # Set-based label: prefer the explicit column if present, fall back to gt_merge_label
         if has_set_label_col and pd.notna(row.get("gt_merge_label_set")):
             gt_set = str(row["gt_merge_label_set"])
@@ -177,7 +220,11 @@ def main():
         entry = {
             "a": str(int(row["seg_a"])),
             "b": str(int(row["seg_b"])),
-            "c": [round(float(row["com_x"]), 1), round(float(row["com_y"]), 1), round(float(row["com_z"]), 1)],
+            "c": [
+                round(float(row["com_x"]), 1),
+                round(float(row["com_y"]), 1),
+                round(float(row["com_z"]), 1),
+            ],
             "g": _GT_CODE.get(gt_set, 2),
             "gs": _GT_CODE.get(gt_set, 2),
             "gd": _GT_CODE.get(gt_dom, 2),
@@ -238,13 +285,20 @@ def main():
         thr_min = float(valid.min())
         thr_max = float(valid.max())
 
-        metrics_js.append({
-            "col": col, "title": title, "log_x": log_x,
-            "filter_dir": filt_dir, "vi": _COL_TO_VI[col],
-            "x_label": x_label, "param_names": param_names,
-            "thr_min": thr_min, "thr_max": thr_max,
-            **bins,
-        })
+        metrics_js.append(
+            {
+                "col": col,
+                "title": title,
+                "log_x": log_x,
+                "filter_dir": filt_dir,
+                "vi": _COL_TO_VI[col],
+                "x_label": x_label,
+                "param_names": param_names,
+                "thr_min": thr_min,
+                "thr_max": thr_max,
+                **bins,
+            }
+        )
         print(f"  {title}: done")
 
     resolution = info.get("resolution", [16, 16, 40])
@@ -252,17 +306,27 @@ def main():
         "resolution": resolution,
         "base_url": "https://zetta-portal.vercel.app/?ng=Spelunker",
     }
-    for key in ["image_path", "affinity_path", "segmentation_path", "ground_truth_path", "nucleus_path"]:
+    for key in [
+        "image_path",
+        "affinity_path",
+        "segmentation_path",
+        "ground_truth_path",
+        "nucleus_path",
+    ]:
         val = info.get(key)
         if val:
             ng_info[key] = val
 
     print("  Serializing JSON...")
     data_json = json.dumps(
-        {"contacts": contacts_js, "metrics": metrics_js, "ngInfo": ng_info,
-         "nChunks": n_chunks,
-         "hasDominantGt": bool(has_dominant_label_col),
-         "tableHeaders": [h for _, _, h in TABLE_COLS]},
+        {
+            "contacts": contacts_js,
+            "metrics": metrics_js,
+            "ngInfo": ng_info,
+            "nChunks": n_chunks,
+            "hasDominantGt": bool(has_dominant_label_col),
+            "tableHeaders": [h for _, _, h in TABLE_COLS],
+        },
         separators=(",", ":"),
     )
 
@@ -272,14 +336,18 @@ def main():
     compressed = gzip.compress(json_bytes, compresslevel=6)
     data_b64 = base64.b64encode(compressed).decode("ascii")
     ratio = len(json_bytes) / len(data_b64)
-    print(f"  Data: {len(json_bytes)/1e6:.1f}MB JSON -> {len(compressed)/1e6:.1f}MB gzip -> {len(data_b64)/1e6:.1f}MB base64 ({ratio:.1f}x)")
+    print(
+        f"  Data: {len(json_bytes)/1e6:.1f}MB JSON -> {len(compressed)/1e6:.1f}MB gzip -> {len(data_b64)/1e6:.1f}MB base64 ({ratio:.1f}x)"
+    )
 
     # Build dataset info for header
     res = info.get("resolution", [])
     vox_off = info.get("voxel_offset", [])
     size = info.get("size", [])
     chunk_size = info.get("chunk_size", [])
-    bbox_end = [vox_off[i] + size[i] for i in range(3)] if len(vox_off) == 3 and len(size) == 3 else []
+    bbox_end = (
+        [vox_off[i] + size[i] for i in range(3)] if len(vox_off) == 3 and len(size) == 3 else []
+    )
     total_chunks = 1
     if len(size) == 3 and len(chunk_size) == 3:
         for i in range(3):
@@ -311,7 +379,8 @@ def _build_html(data_b64, n_contacts, dataset_info):
     res_str = " x ".join(str(r) for r in di["resolution"]) + " nm" if di["resolution"] else "?"
     bbox_str = (
         f'[{", ".join(str(v) for v in di["bbox_start"])}] to [{", ".join(str(v) for v in di["bbox_end"])}]'
-        if di["bbox_start"] and di["bbox_end"] else "?"
+        if di["bbox_start"] and di["bbox_end"]
+        else "?"
     )
     size_str = " x ".join(str(s) for s in di["size"]) + " vx" if di["size"] else "?"
     chunk_str = " x ".join(str(s) for s in di["chunk_size"]) if di["chunk_size"] else "?"
@@ -332,7 +401,8 @@ def _build_html(data_b64, n_contacts, dataset_info):
     )
 
 
-_HTML_TEMPLATE = Template("""<!DOCTYPE html>
+_HTML_TEMPLATE = Template(
+    """<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -2113,7 +2183,8 @@ document.addEventListener("DOMContentLoaded", async function() {
 });
 </script>
 </body>
-</html>""")
+</html>"""
+)
 
 
 if __name__ == "__main__":

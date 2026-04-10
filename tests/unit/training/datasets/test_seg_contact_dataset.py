@@ -625,6 +625,25 @@ def test_apply_channel_mask_per_channel_config():
     assert (result[:, 3] == 0).all()
 
 
+def test_apply_channel_mask_partial_skip():
+    """With prob < 1.0, some channels are randomly skipped."""
+    torch.manual_seed(1)  # seed 1: channel 0 skipped (rand=0.76 >= 0.5), channel 1 masked
+    pc = torch.ones((10, 5), dtype=torch.float32)
+
+    result = _apply_channel_mask(
+        pc,
+        mask_probs=0.5,
+        mask_modes="global",
+        mask_global_probs=0.5,
+        mask_value=0.0,
+    )
+
+    # Channel 3 (feat 0) should be UNchanged (skipped)
+    assert (result[:, 3] == 1.0).all()
+    # Channel 4 (feat 1) should be masked
+    assert (result[:, 4] == 0.0).all()
+
+
 def test_apply_channel_mask_only_3_channels_noop():
     """No feature channels means no masking."""
     pc = torch.ones((10, 3), dtype=torch.float32)

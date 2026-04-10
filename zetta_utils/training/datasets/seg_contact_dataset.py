@@ -379,9 +379,12 @@ class SegContactDataset(torch.utils.data.Dataset):
 
             if self.affinity_noise_std is not None and self.affinity_noise_std > 0:
                 if pointclouds_stacked.shape[2] > 4:
+                    seg_labels = pointclouds_stacked[:, :, 3]
+                    is_cf = (seg_labels != -1.0) & (seg_labels != 1.0)
                     for pi in range(pointclouds_stacked.shape[0]):
                         if torch.rand(1).item() < self.affinity_noise_prob:
                             noise = torch.randn(pointclouds_stacked.shape[1]) * self.affinity_noise_std
+                            noise = noise * is_cf[pi].to(noise.dtype)
                             pointclouds_stacked[pi, :, 4] += noise
 
             if self.mask_channel_probs is not None:

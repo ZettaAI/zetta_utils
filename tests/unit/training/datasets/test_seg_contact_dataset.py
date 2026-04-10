@@ -999,3 +999,53 @@ def test_seg_contact_dataset_missing_config_key_skips():
         # Only contact 1 should pass (has both configs); contact 2 is missing (2000,128)
         assert sample["contact_id"].shape[0] == 1
         assert sample["contact_id"][0].item() == 1
+
+
+def test_seg_contact_dataset_all_contacts_missing_pointclouds_returns_empty():
+    """When all contacts pass affinity filter but have no pointclouds, return {}."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": list(backend.resolution),
+            "voxel_offset": list(backend.voxel_offset),
+            "size": list(backend.size),
+            "chunk_size": list(backend.chunk_size),
+            "max_contact_span": backend.max_contact_span,
+            "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
+        }
+        with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.3]], dtype=np.float32),
+                representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+                local_pointclouds=None,
+                merge_decisions={"human": True},
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        layer = VolumetricSegContactLayer(backend=backend)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+        )
+
+        sample = dataset[0]
+        assert sample == {}

@@ -292,6 +292,35 @@ def test_rebatching_dataloader_skips_empty():
     assert total == 5
 
 
+def test_rebatching_dataloader_with_pin_memory_and_prefetch():
+    """Test pin_memory and prefetch delegation paths in __iter__."""
+    chunks = [
+        {"x": torch.ones(5, 3)},
+        {"x": torch.ones(5, 3) * 2},
+    ]
+    ds = _FakeDataset(chunks)
+    inner = torch.utils.data.DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
+    loader = RebatchingDataLoader(
+        dataloader=inner, batch_size=4, shuffle_buffer_size=0,
+        pin_memory=True, prefetch=1,
+    )
+
+    batches = list(loader)
+    total = sum(b["x"].shape[0] for b in batches)
+    assert total == 10
+
+
+def test_cat_chunks_scalar_values():
+    """Test _cat_chunks with bare scalar (non-list, non-tuple) values."""
+    parts = [
+        {"x": torch.tensor([1]), "tag": "a"},
+        {"x": torch.tensor([2]), "tag": "b"},
+    ]
+    result = _cat_chunks(parts)
+    torch.testing.assert_close(result["x"], torch.tensor([1, 2]))
+    assert result["tag"] == ["a", "b"]
+
+
 def test_rebatching_dataloader_properties():
     """Test dataset and worker_init_fn properties."""
     ds = _FakeDataset([])

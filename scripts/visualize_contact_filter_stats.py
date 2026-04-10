@@ -158,14 +158,29 @@ def main():
             chunk_labels.append(chunk_id_map[cc])
     n_chunks = len(chunk_id_map)
 
+    _GT_CODE = {"merge": 0, "no_merge": 1, "unknown": 2}
+    has_dominant_label_col = "gt_merge_label_dominant" in df.columns
+    has_set_label_col = "gt_merge_label_set" in df.columns
     contacts_js = []
     for i, (_, row) in tqdm(enumerate(df.iterrows()), total=len(df), desc="Building contacts"):
         gt = str(row.get("gt_merge_label", "unknown")) if pd.notna(row.get("gt_merge_label")) else "unknown"
+        # Set-based label: prefer the explicit column if present, fall back to gt_merge_label
+        if has_set_label_col and pd.notna(row.get("gt_merge_label_set")):
+            gt_set = str(row["gt_merge_label_set"])
+        else:
+            gt_set = gt
+        # Dominant-based label: prefer the explicit column if present, fall back to gt_merge_label
+        if has_dominant_label_col and pd.notna(row.get("gt_merge_label_dominant")):
+            gt_dom = str(row["gt_merge_label_dominant"])
+        else:
+            gt_dom = gt
         entry = {
             "a": str(int(row["seg_a"])),
             "b": str(int(row["seg_b"])),
             "c": [round(float(row["com_x"]), 1), round(float(row["com_y"]), 1), round(float(row["com_z"]), 1)],
-            "g": {"merge": 0, "no_merge": 1, "unknown": 2}.get(gt, 2),
+            "g": _GT_CODE.get(gt_set, 2),
+            "gs": _GT_CODE.get(gt_set, 2),
+            "gd": _GT_CODE.get(gt_dom, 2),
             "k": chunk_labels[i] if chunk_labels else 0,
             "cc": str(row["chunk_coord"]) if "chunk_coord" in df.columns else "",
         }
@@ -191,6 +206,10 @@ def main():
             entry["ra"] = [str(x) for x in json.loads(row["gt_refs_a"])]
         if "gt_refs_b" in df.columns and pd.notna(row.get("gt_refs_b")):
             entry["rb"] = [str(x) for x in json.loads(row["gt_refs_b"])]
+        if "gt_dominant_ref_a" in df.columns and pd.notna(row.get("gt_dominant_ref_a")):
+            entry["dra"] = str(int(row["gt_dominant_ref_a"]))
+        if "gt_dominant_ref_b" in df.columns and pd.notna(row.get("gt_dominant_ref_b")):
+            entry["drb"] = str(int(row["gt_dominant_ref_b"]))
         if "has_nucleus" in df.columns:
             entry["n"] = 1 if row.get("has_nucleus") else 0
         contacts_js.append(entry)
@@ -242,6 +261,7 @@ def main():
     data_json = json.dumps(
         {"contacts": contacts_js, "metrics": metrics_js, "ngInfo": ng_info,
          "nChunks": n_chunks,
+         "hasDominantGt": bool(has_dominant_label_col),
          "tableHeaders": [h for _, _, h in TABLE_COLS]},
         separators=(",", ":"),
     )
@@ -421,6 +441,11 @@ h1 { margin: 0 0 4px 0; font-size: 30px; }
         <label><input type="radio" name="gt_mode" value="unfiltered" checked> Unfiltered</label>
         <label><input type="radio" name="gt_mode" value="filtered"> Filtered</label>
     </div>
+    <div class="gt-toggle" id="gt_source_toggle" style="display:none">
+        GT label source:
+        <label><input type="radio" name="gt_source" value="set" checked> Set (any overlap &ge; min_overlap_vx)</label>
+        <label><input type="radio" name="gt_source" value="dominant"> Dominant (top ref only)</label>
+    </div>
     <div class="gt-toggle">
         Y axis:
         <label><input type="radio" name="y_scale" value="log" checked> Log</label>
@@ -462,6 +487,7 @@ var contacts, metrics, ngInfo, nContacts, tableHeaders;
 var N_SAMPLES = $n_samples;
 var thresholds = {};
 var gtMode = "unfiltered";
+var gtSource = "set";  // "set" | "dominant"
 var yScale = "log";
 var meshFilter = false;
 var hasMeshData = false;
@@ -561,8 +587,13 @@ function buildNgUrl(c) {
     if (ngInfo.ground_truth_path) {
         var src = ngInfo.ground_truth_path.startsWith("precomputed://") ? ngInfo.ground_truth_path : "precomputed://"+ngInfo.ground_truth_path;
         var gtSegs = [];
-        if (c.ra) for (var gi = 0; gi < c.ra.length; gi++) gtSegs.push(c.ra[gi]);
-        if (c.rb) for (var gi = 0; gi < c.rb.length; gi++) gtSegs.push(c.rb[gi]);
+        if (gtSource === "dominant") {
+            if (c.dra) gtSegs.push(c.dra);
+            if (c.drb && c.drb !== c.dra) gtSegs.push(c.drb);
+        } else {
+            if (c.ra) for (var gi = 0; gi < c.ra.length; gi++) gtSegs.push(c.ra[gi]);
+            if (c.rb) for (var gi = 0; gi < c.rb.length; gi++) gtSegs.push(c.rb[gi]);
+        }
         var gtLayer = {"type":"segmentation","source":src,"tab":"source","name":"Ground Truth"};
         if (gtSegs.length > 0) gtLayer.segments = gtSegs;
         layers.push(gtLayer);
@@ -1423,6 +1454,17 @@ document.addEventListener("DOMContentLoaded", async function() {
 
     hasMeshData = nContacts > 0 && contacts[0].m !== undefined;
     hasNucleusData = nContacts > 0 && contacts[0].n !== undefined;
+    // Show GT-source toggle only if dominant labels are present and differ from set labels somewhere
+    var anyDiff = false;
+    for (var i = 0; i < nContacts; i++) {
+        if (contacts[i].gd !== undefined && contacts[i].gs !== undefined && contacts[i].gd !== contacts[i].gs) {
+            anyDiff = true; break;
+        }
+    }
+    if (anyDiff) {
+        var gtSrcEl = document.getElementById("gt_source_toggle");
+        if (gtSrcEl) gtSrcEl.style.display = "";
+    }
     if (hasNucleusData) {
         for (var i = 0; i < nContacts; i++) {
             if (contacts[i].n) chunkHasNucleus[contacts[i].k] = true;
@@ -1452,6 +1494,32 @@ document.addEventListener("DOMContentLoaded", async function() {
     document.querySelectorAll('input[name="gt_mode"]').forEach(function(r) {
         r.addEventListener("change", function() {
             gtMode = this.value;
+            updateAll();
+            document.querySelectorAll('.link-panel').forEach(function(p) {
+                if (p.style.display !== "none" && p._refresh) p._refresh();
+            });
+        });
+    });
+
+    document.querySelectorAll('input[name="gt_source"]').forEach(function(r) {
+        r.addEventListener("change", function() {
+            gtSource = this.value;
+            var key = (gtSource === "dominant") ? "gd" : "gs";
+            for (var i = 0; i < nContacts; i++) {
+                if (contacts[i][key] !== undefined) contacts[i].g = contacts[i][key];
+            }
+            // chunkSortOrder/chunkRankMap/chunkUnfiltTotals are GT-source-independent;
+            // only the per-class chunk counts and bases need rebuilding.
+            if (chunkSortOrder && chunkRankMap) {
+                var n = chunkSortOrder.length;
+                var newGt = [new Array(n).fill(0), new Array(n).fill(0), new Array(n).fill(0)];
+                for (var i = 0; i < nContacts; i++) {
+                    newGt[contacts[i].g][chunkRankMap[contacts[i].k]]++;
+                }
+                chunkUnfiltGt = newGt;
+                chunkUnfiltBases1 = chunkUnfiltGt[0].slice();
+                chunkUnfiltBases2 = chunkUnfiltGt[0].map(function(v,j){ return v + chunkUnfiltGt[1][j]; });
+            }
             updateAll();
             document.querySelectorAll('.link-panel').forEach(function(p) {
                 if (p.style.display !== "none" && p._refresh) p._refresh();

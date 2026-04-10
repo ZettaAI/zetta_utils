@@ -364,29 +364,39 @@ def _build_seg_to_ref(
 
 
 def _compute_seg_to_ref_by_segment(
-    seg: np.ndarray, reference: np.ndarray, min_overlap_vx: int
+    seg: np.ndarray,
+    reference: np.ndarray,
+    min_overlap_vx: int,
+    dominant_ref_only: bool = False,
 ) -> dict[int, set[int]]:
     """Build mapping from segment to reference segment IDs (not CCs) it overlaps with.
 
     This uses raw reference segment IDs, not connected components, so that
     merge decisions work correctly when a reference segment is non-contiguous
     within the chunk.
+
+    When ``dominant_ref_only`` is True, each segment maps to a single-element set
+    containing only the reference id with the largest overlap (still subject to
+    ``min_overlap_vx``). This avoids false-positive merges from sliver overlaps
+    when seg and reference come from different segmentation pipelines with
+    misaligned supervoxel boundaries.
     """
     flat_seg = seg.ravel()
     flat_ref = reference.ravel()
     valid_mask = (flat_seg != 0) & (flat_ref != 0)
     df = pd.DataFrame({"seg": flat_seg[valid_mask], "ref": flat_ref[valid_mask]})
     counts_df = df.groupby(["seg", "ref"]).size().reset_index(name="count")
+    counts_df = counts_df[counts_df["count"] >= min_overlap_vx]
+    if counts_df.empty:
+        return {}
 
-    # Use numpy arrays directly to avoid precision loss from iterrows() float conversion
-    seg_arr = counts_df["seg"].values
-    ref_arr = counts_df["ref"].values
-    count_arr = counts_df["count"].values
+    if dominant_ref_only:
+        idx = counts_df.groupby("seg")["count"].idxmax()
+        counts_df = counts_df.loc[idx]
 
     result: dict[int, set[int]] = defaultdict(set)
-    for i in range(len(counts_df)):
-        if count_arr[i] >= min_overlap_vx:
-            result[int(seg_arr[i])].add(int(ref_arr[i]))
+    for s, r in zip(counts_df["seg"].values, counts_df["ref"].values):
+        result[int(s)].add(int(r))
     return result
 
 
@@ -1129,6 +1139,7 @@ class SegContactOp:
     max_contact_vx: int = 2048
     min_affinity: float = 0.0
     merge_authority: str = "reference_overlap"
+    dominant_ref_only: bool = False
     ids_per_chunk: int = 10000
     max_offtarget_vx: int | None = None
     max_offtarget_fraction: float | None = None
@@ -1281,22 +1292,49 @@ class SegContactOp:
                     seg_a, seg_b, aff_vals, x, y, z, reference, idx_padded.start, resolution
                 )
 
-                # GT merge label: unknown if either segment lacks GT overlap
-                seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
+                # GT merge label: unknown if either segment lacks GT overlap.
+                # Compute BOTH set-based and dominant-ref-based mappings so
+                # downstream filter-stats analysis can pick either criterion
+                # without re-running. The op's `dominant_ref_only` flag selects
+                # which one becomes the canonical `gt_merge_label` column.
+                seg_to_ref_set = _compute_seg_to_ref_by_segment(
+                    seg, reference, self.min_overlap_vx, dominant_ref_only=False,
+                )
+                seg_to_ref_dom = _compute_seg_to_ref_by_segment(
+                    seg, reference, self.min_overlap_vx, dominant_ref_only=True,
+                )
 
-                def _gt_label(row):
-                    refs_a = seg_to_ref.get(int(row["seg_a"]))
-                    refs_b = seg_to_ref.get(int(row["seg_b"]))
-                    if refs_a is None or refs_b is None:
-                        return "unknown"
-                    return "merge" if refs_a & refs_b else "no_merge"
+                def _label_from(mapping):
+                    def _fn(row):
+                        refs_a = mapping.get(int(row["seg_a"]))
+                        refs_b = mapping.get(int(row["seg_b"]))
+                        if refs_a is None or refs_b is None:
+                            return "unknown"
+                        return "merge" if refs_a & refs_b else "no_merge"
+                    return _fn
 
-                contact_stats["gt_merge_label"] = contact_stats.apply(_gt_label, axis=1)
+                contact_stats["gt_merge_label_set"] = contact_stats.apply(
+                    _label_from(seg_to_ref_set), axis=1
+                )
+                contact_stats["gt_merge_label_dominant"] = contact_stats.apply(
+                    _label_from(seg_to_ref_dom), axis=1
+                )
+                contact_stats["gt_merge_label"] = (
+                    contact_stats["gt_merge_label_dominant"]
+                    if self.dominant_ref_only
+                    else contact_stats["gt_merge_label_set"]
+                )
                 contact_stats["gt_refs_a"] = contact_stats["seg_a"].map(
-                    lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+                    lambda s: json.dumps(sorted(seg_to_ref_set.get(int(s), set())))
                 )
                 contact_stats["gt_refs_b"] = contact_stats["seg_b"].map(
-                    lambda s: json.dumps(sorted(seg_to_ref.get(int(s), set())))
+                    lambda s: json.dumps(sorted(seg_to_ref_set.get(int(s), set())))
+                )
+                contact_stats["gt_dominant_ref_a"] = contact_stats["seg_a"].map(
+                    lambda s: next(iter(seg_to_ref_dom.get(int(s), set())), None)
+                )
+                contact_stats["gt_dominant_ref_b"] = contact_stats["seg_b"].map(
+                    lambda s: next(iter(seg_to_ref_dom.get(int(s), set())), None)
                 )
 
                 # Join per-segment metrics for both seg_a and seg_b
@@ -1410,7 +1448,10 @@ class SegContactOp:
             )
 
             # Build seg_to_ref mapping for merge decisions
-            seg_to_ref = _compute_seg_to_ref_by_segment(seg, reference, self.min_overlap_vx)
+            seg_to_ref = _compute_seg_to_ref_by_segment(
+                seg, reference, self.min_overlap_vx,
+                dominant_ref_only=self.dominant_ref_only,
+            )
         else:
             exclude_ids = small_ids
             print(

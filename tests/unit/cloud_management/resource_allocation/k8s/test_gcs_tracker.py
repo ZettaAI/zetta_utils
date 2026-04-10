@@ -1,7 +1,14 @@
 """Tests for GCS request tracker."""
 
+import json
 import threading
 
+from zetta_utils.cloud_management.resource_allocation.k8s import gcs_tracker
+from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
+    StatsCollector,
+    _collect_all,
+    _make_gcs_collector,
+)
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker_utils import (
     GCSStats,
     classify_gcs_request,
@@ -209,3 +216,137 @@ class TestGCSStats:
         expected_count = num_threads * records_per_thread
         assert stats.buckets["my-bucket"]["class_a_count"] == expected_count
         assert stats.buckets["my-bucket"]["class_b_count"] == expected_count
+
+
+class TestCollectAll:
+    """Tests for _collect_all collector iteration and payload assembly."""
+
+    def test_empty_collectors_returns_empty_payload(self):
+        assert not _collect_all([])
+
+    def test_gcs_collector_merges_flat(self):
+        gcs_result = {"buckets": {"b1": {"class_a_count": 5}}, "last_updated": 123.0}
+        collector = StatsCollector(name="gcs_stats", collect=lambda: gcs_result)
+
+        payload = _collect_all([collector])
+
+        assert payload == gcs_result
+
+    def test_non_gcs_collector_nests_under_name(self):
+        collector = StatsCollector(name="resource_stats", collect=lambda: {"cpu": 50.0})
+
+        payload = _collect_all([collector])
+
+        assert payload == {"resource_stats": {"cpu": 50.0}}
+
+    def test_collector_returning_none_is_omitted(self):
+        gcs = StatsCollector(name="gcs_stats", collect=lambda: {"buckets": {}})
+        absent = StatsCollector(name="resource_stats", collect=lambda: None)
+
+        payload = _collect_all([gcs, absent])
+
+        assert "resource_stats" not in payload
+        assert payload == {"buckets": {}}
+
+    def test_collector_exception_is_caught_and_others_run(self):
+        def failing():
+            raise RuntimeError("boom")
+
+        ok = StatsCollector(name="resource_stats", collect=lambda: {"cpu": 1.0})
+        bad = StatsCollector(name="semaphore_stats", collect=failing)
+
+        payload = _collect_all([bad, ok])
+
+        assert payload == {"resource_stats": {"cpu": 1.0}}
+
+    def test_multiple_collectors_combine(self):
+        gcs = StatsCollector(name="gcs_stats", collect=lambda: {"buckets": {"b1": {}}})
+        res = StatsCollector(name="resource_stats", collect=lambda: {"cpu": 10.0})
+        sem = StatsCollector(name="semaphore_stats", collect=lambda: {"read": {"wait": 0.5}})
+
+        payload = _collect_all([gcs, res, sem])
+
+        assert payload == {
+            "buckets": {"b1": {}},
+            "resource_stats": {"cpu": 10.0},
+            "semaphore_stats": {"read": {"wait": 0.5}},
+        }
+
+
+class TestMakeGcsCollector:
+    """Tests for the GCS collector factory."""
+
+    def _write_stats_file(self, tmp_path, contents):
+        path = tmp_path / "gcs_tracker_stats.json"
+        path.write_text(json.dumps(contents))
+        return str(path)
+
+    def test_collector_has_gcs_stats_name(self, tmp_path, mocker):
+        mocker.patch.object(
+            gcs_tracker, "STATS_FILE", self._write_stats_file(tmp_path, {"buckets": {}})
+        )
+        collector = _make_gcs_collector(run_id="run-1", compute_region=None)
+
+        assert collector.name == "gcs_stats"
+
+    def test_collect_reads_file(self, tmp_path, mocker):
+        contents = {"buckets": {"my-bucket": {"class_a_count": 3}}, "last_updated": 1.0}
+        mocker.patch.object(gcs_tracker, "STATS_FILE", self._write_stats_file(tmp_path, contents))
+        collector = _make_gcs_collector(run_id="run-1", compute_region=None)
+
+        result = collector.collect()
+
+        assert result == contents
+
+    def test_collect_no_region_check_when_compute_region_none(self, tmp_path, mocker):
+        contents = {"buckets": {"my-bucket": {"class_a_count": 1}}, "last_updated": 0.0}
+        mocker.patch.object(gcs_tracker, "STATS_FILE", self._write_stats_file(tmp_path, contents))
+        check_spy = mocker.patch.object(gcs_tracker, "_check_and_cache_bucket_region")
+        collector = _make_gcs_collector(run_id="run-1", compute_region=None)
+
+        collector.collect()
+
+        check_spy.assert_not_called()
+
+    def test_collect_runs_region_check_per_bucket(self, tmp_path, mocker):
+        contents = {
+            "buckets": {"bucket-a": {}, "bucket-b": {}},
+            "last_updated": 0.0,
+        }
+        mocker.patch.object(gcs_tracker, "STATS_FILE", self._write_stats_file(tmp_path, contents))
+
+        def fake_check(bucket_name, _region, cache, _run_id):
+            cache[bucket_name] = bucket_name == "bucket-a"
+
+        mocker.patch.object(gcs_tracker, "_check_and_cache_bucket_region", side_effect=fake_check)
+        collector = _make_gcs_collector(run_id="run-1", compute_region="us-east1")
+
+        result = collector.collect()
+
+        assert result is not None
+        assert result["buckets"]["bucket-a"]["region_match"] is True
+        assert result["buckets"]["bucket-b"]["region_match"] is False
+
+    def test_collect_returns_none_on_exception(self, mocker):
+        mocker.patch.object(gcs_tracker, "_read_stats_from_file", side_effect=RuntimeError("boom"))
+        collector = _make_gcs_collector(run_id="run-1", compute_region=None)
+
+        assert collector.collect() is None
+
+    def test_region_cache_persists_across_calls(self, tmp_path, mocker):
+        contents = {"buckets": {"bucket-a": {}}, "last_updated": 0.0}
+        mocker.patch.object(gcs_tracker, "STATS_FILE", self._write_stats_file(tmp_path, contents))
+        seen_caches: list[dict] = []
+
+        def fake_check(bucket_name, _region, cache, _run_id):
+            seen_caches.append(cache)
+            cache[bucket_name] = True
+
+        mocker.patch.object(gcs_tracker, "_check_and_cache_bucket_region", side_effect=fake_check)
+        collector = _make_gcs_collector(run_id="run-1", compute_region="us-east1")
+
+        collector.collect()
+        collector.collect()
+
+        # Same dict instance passed across calls — closure-held cache.
+        assert seen_caches[0] is seen_caches[1]

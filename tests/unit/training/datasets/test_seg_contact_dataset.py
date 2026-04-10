@@ -748,3 +748,235 @@ def test_seg_contact_dataset_per_point_affinity_channel():
         assert sample["pointcloud"].shape[2] == 5
         # Segment points should have 0 in affinity channel
         # Contact face points should have non-zero affinity
+
+
+def test_seg_contact_dataset_mean_affinity_channel():
+    """Test affinity_channel_mode='mean' broadcasts mean to all CF points."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        layer = make_layer_with_contacts(temp_dir)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            include_contact_faces_in_pointcloud=True,
+            contact_label=0.0,
+            affinity_channel_mode="mean",
+        )
+
+        sample = dataset[0]
+
+        assert "pointcloud" in sample
+        assert sample["pointcloud"].shape[2] == 5
+
+
+def test_seg_contact_dataset_contact_label_none():
+    """Test contact_label=None uses affinity as 4th channel for CF points."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        layer = make_layer_with_contacts(temp_dir)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            include_contact_faces_in_pointcloud=True,
+            contact_label=None,
+            affinity_channel_mode="per_point",
+        )
+
+        sample = dataset[0]
+
+        assert "pointcloud" in sample
+        assert sample["pointcloud"].shape[2] == 5
+
+
+def test_seg_contact_dataset_contact_faces_original_nm():
+    """Test contact_faces_original_nm handling via normalize_pointclouds read_proc."""
+    from zetta_utils.layer.volumetric.seg_contact import normalize_pointclouds
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": list(backend.resolution),
+            "voxel_offset": list(backend.voxel_offset),
+            "size": list(backend.size),
+            "chunk_size": list(backend.chunk_size),
+            "max_contact_span": backend.max_contact_span,
+            "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
+        }
+        with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        original_faces = np.array([[100, 200, 300, 0.5]], dtype=np.float32)
+        contacts = [
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=original_faces.copy(),
+                representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+                local_pointclouds={(500, 64): {
+                    100: np.random.randn(64, 3).astype(np.float32),
+                    200: np.random.randn(64, 3).astype(np.float32),
+                }},
+                merge_decisions={"human": True},
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        # Use normalize_pointclouds as a read_proc — this sets contact_faces_original_nm
+        from functools import partial
+        layer = VolumetricSegContactLayer(
+            backend=backend,
+            read_procs=[partial(normalize_pointclouds, use_pointcloud_radius=True)],
+        )
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+        )
+
+        sample = dataset[0]
+
+        # contact_faces_original_nm should contain pre-normalization coordinates
+        assert "contact_faces_original_nm" in sample
+        np.testing.assert_array_almost_equal(
+            sample["contact_faces_original_nm"][0, 0].numpy(), original_faces[0]
+        )
+
+
+def test_seg_contact_dataset_affinity_noise():
+    """Test that affinity noise is applied to contact-face points."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        layer = make_layer_with_contacts(temp_dir)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            include_contact_faces_in_pointcloud=True,
+            contact_label=0.0,
+            affinity_channel_mode="per_point",
+            affinity_noise_std=0.05,
+            affinity_noise_prob=1.0,  # always apply
+        )
+
+        sample = dataset[0]
+
+        assert "pointcloud" in sample
+        assert sample["pointcloud"].shape[2] == 5
+
+
+def test_seg_contact_dataset_channel_masking():
+    """Test that channel masking is applied through the dataset pipeline."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        layer = make_layer_with_contacts(temp_dir)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            include_contact_faces_in_pointcloud=True,
+            contact_label=0.0,
+            affinity_channel_mode="per_point",
+            mask_channel_probs=[1.0, 1.0],  # always mask both feature channels
+            mask_mode=["global", "random"],
+            mask_mode_global_prob=[1.0, 0.2],
+            mask_value=0.0,
+        )
+
+        sample = dataset[0]
+
+        assert "pointcloud" in sample
+        pc = sample["pointcloud"]
+        assert pc.shape[2] == 5
+        # Channel 3 (segment label) should be masked to 0 (global mode, prob=1.0)
+        assert (pc[:, :, 3] == 0.0).all()
+
+
+def test_seg_contact_dataset_missing_config_key_skips():
+    """Test contact is skipped when it has local_pointclouds but missing the required config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": list(backend.resolution),
+            "voxel_offset": list(backend.voxel_offset),
+            "size": list(backend.size),
+            "chunk_size": list(backend.chunk_size),
+            "max_contact_span": backend.max_contact_span,
+            "local_point_clouds": [{"radius_nm": 500, "n_points": 64}, {"radius_nm": 2000, "n_points": 128}],
+            "merge_decisions": ["human"],
+        }
+        with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contacts = [
+            # Has both configs — sets config_keys to [(500,64), (2000,128)]
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.5]], dtype=np.float32),
+                representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+                local_pointclouds={
+                    (500, 64): {
+                        100: np.random.randn(64, 3).astype(np.float32),
+                        200: np.random.randn(64, 3).astype(np.float32),
+                    },
+                    (2000, 128): {
+                        100: np.random.randn(128, 3).astype(np.float32),
+                        200: np.random.randn(128, 3).astype(np.float32),
+                    },
+                },
+                merge_decisions={"human": True},
+            ),
+            # Has only (500,64), missing (2000,128) — should be skipped
+            SegContact(
+                id=2,
+                seg_a=300,
+                seg_b=400,
+                com=Vec3D(120.0, 120.0, 100.0),
+                contact_faces=np.array([[4, 5, 6, 0.8]], dtype=np.float32),
+                representative_points={300: Vec3D(110.0, 110.0, 90.0), 400: Vec3D(130.0, 130.0, 110.0)},
+                local_pointclouds={(500, 64): {
+                    300: np.random.randn(64, 3).astype(np.float32),
+                    400: np.random.randn(64, 3).astype(np.float32),
+                }},
+                merge_decisions={"human": False},
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        layer = VolumetricSegContactLayer(backend=backend)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+        )
+
+        sample = dataset[0]
+
+        # Only contact 1 should pass (has both configs); contact 2 is missing (2000,128)
+        assert sample["contact_id"].shape[0] == 1
+        assert sample["contact_id"][0].item() == 1

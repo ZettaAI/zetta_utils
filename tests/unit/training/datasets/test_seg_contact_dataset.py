@@ -2,6 +2,7 @@ import json
 import tempfile
 
 import numpy as np
+import pytest
 import torch
 
 from zetta_utils.geometry import Vec3D
@@ -12,6 +13,11 @@ from zetta_utils.layer.volumetric.seg_contact import (
 )
 from zetta_utils.training.datasets import SegContactDataset
 from zetta_utils.training.datasets.sample_indexers import SegContactIndexer
+from zetta_utils.training.datasets.seg_contact_dataset import (
+    _apply_channel_mask,
+    _broadcast_to_list,
+    _pad_or_truncate,
+)
 
 
 def make_layer_with_contacts(temp_dir: str) -> VolumetricSegContactLayer:
@@ -96,7 +102,9 @@ def test_seg_contact_dataset_getitem_basic():
     with tempfile.TemporaryDirectory() as temp_dir:
         layer = make_layer_with_contacts(temp_dir)
         indexer = SegContactIndexer(path=temp_dir)
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human"
+        )
 
         sample = dataset[0]
 
@@ -119,7 +127,9 @@ def test_seg_contact_dataset_with_pointclouds():
     with tempfile.TemporaryDirectory() as temp_dir:
         layer = make_layer_with_contacts(temp_dir)
         indexer = SegContactIndexer(path=temp_dir)
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human"
+        )
 
         sample = dataset[0]
 
@@ -131,7 +141,7 @@ def test_seg_contact_dataset_with_pointclouds():
 
 
 def test_seg_contact_dataset_with_merge_decision():
-    """Test dataset returns target when authority specified."""
+    """Test dataset returns merge target when authority specified."""
     with tempfile.TemporaryDirectory() as temp_dir:
         layer = make_layer_with_contacts(temp_dir)
         indexer = SegContactIndexer(path=temp_dir)
@@ -141,15 +151,17 @@ def test_seg_contact_dataset_with_merge_decision():
 
         sample = dataset[0]
 
-        assert "target" in sample
-        assert sample["target"].dtype == torch.float32
+        assert "merge" in sample
+        assert sample["merge"].dtype == torch.float32
+        # Shape is [B, 1]
+        assert sample["merge"].shape == (2, 1)
         # One should be 1.0 (True), one should be 0.0 (False)
-        targets = set(sample["target"].tolist())
+        targets = set(sample["merge"].squeeze().tolist())
         assert targets == {0.0, 1.0}
 
 
-def test_seg_contact_dataset_no_target_without_authority():
-    """Test target not returned when authority not specified."""
+def test_seg_contact_dataset_no_merge_without_authority():
+    """Test that without authority, dataset returns empty (no targets means skip)."""
     with tempfile.TemporaryDirectory() as temp_dir:
         layer = make_layer_with_contacts(temp_dir)
         indexer = SegContactIndexer(path=temp_dir)
@@ -157,7 +169,9 @@ def test_seg_contact_dataset_no_target_without_authority():
 
         sample = dataset[0]
 
-        assert "target" not in sample
+        # Without merge_decision_authority, contacts with pointclouds but no
+        # targets return empty dict (so RebatchingDataLoader skips them)
+        assert sample == {} or "merge" not in sample
 
 
 def test_seg_contact_dataset_contact_faces_shape():
@@ -165,7 +179,10 @@ def test_seg_contact_dataset_contact_faces_shape():
     with tempfile.TemporaryDirectory() as temp_dir:
         layer = make_layer_with_contacts(temp_dir)
         indexer = SegContactIndexer(path=temp_dir)
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer, max_contact_faces=100)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+            max_contact_faces=100,
+        )
 
         sample = dataset[0]
 
@@ -205,6 +222,7 @@ def test_seg_contact_dataset_include_contact_faces_in_pointcloud():
         dataset = SegContactDataset(
             layer=layer,
             sample_indexer=indexer,
+            merge_decision_authority="human",
             max_contact_faces=10,
             include_contact_faces_in_pointcloud=True,
         )
@@ -212,8 +230,8 @@ def test_seg_contact_dataset_include_contact_faces_in_pointcloud():
         sample = dataset[0]
 
         # Pointcloud should include contact_faces
-        # 64 + 64 (from both segments) + 10 (contact faces) = 138 points
-        assert sample["pointcloud"].shape == (2, 138, 4)
+        # 64 + 64 (from both segments) + 1 (each contact has 1 face) = 129 points
+        assert sample["pointcloud"].shape == (2, 129, 4)
 
 
 def test_seg_contact_dataset_truncates_large_contact_faces():
@@ -237,6 +255,7 @@ def test_seg_contact_dataset_truncates_large_contact_faces():
             "chunk_size": list(backend.chunk_size),
             "max_contact_span": backend.max_contact_span,
             "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
         }
         with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
             json.dump(info, f)
@@ -260,6 +279,7 @@ def test_seg_contact_dataset_truncates_large_contact_faces():
                         200: np.random.randn(64, 3).astype(np.float32),
                     }
                 },
+                merge_decisions={"human": True},
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
@@ -267,7 +287,10 @@ def test_seg_contact_dataset_truncates_large_contact_faces():
         layer = VolumetricSegContactLayer(backend=backend)
         indexer = SegContactIndexer(path=temp_dir)
         # Use small max_contact_faces to test truncation
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer, max_contact_faces=50)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+            max_contact_faces=50,
+        )
         sample = dataset[0]
 
         # Should be truncated to 50
@@ -295,6 +318,7 @@ def test_seg_contact_dataset_contact_faces_exact_size():
             "chunk_size": list(backend.chunk_size),
             "max_contact_span": backend.max_contact_span,
             "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
         }
         with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
             json.dump(info, f)
@@ -318,6 +342,7 @@ def test_seg_contact_dataset_contact_faces_exact_size():
                         200: np.random.randn(64, 3).astype(np.float32),
                     }
                 },
+                merge_decisions={"human": True},
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
@@ -325,7 +350,10 @@ def test_seg_contact_dataset_contact_faces_exact_size():
         layer = VolumetricSegContactLayer(backend=backend)
         indexer = SegContactIndexer(path=temp_dir)
         # Use max_contact_faces=10 to test exact match case
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer, max_contact_faces=10)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human",
+            max_contact_faces=10,
+        )
         sample = dataset[0]
 
         # Should have exactly 10 faces (no padding or truncation)
@@ -354,6 +382,7 @@ def test_seg_contact_dataset_skips_contacts_missing_pointcloud():
             "chunk_size": list(backend.chunk_size),
             "max_contact_span": backend.max_contact_span,
             "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
         }
         with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
             json.dump(info, f)
@@ -376,6 +405,7 @@ def test_seg_contact_dataset_skips_contacts_missing_pointcloud():
                         200: np.random.randn(64, 3).astype(np.float32),
                     }
                 },
+                merge_decisions={"human": True},
             ),
             # Contact without pointcloud - should be skipped
             SegContact(
@@ -389,13 +419,16 @@ def test_seg_contact_dataset_skips_contacts_missing_pointcloud():
                     400: Vec3D(130.0, 130.0, 110.0),
                 },
                 local_pointclouds=None,
+                merge_decisions={"human": False},
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
 
         layer = VolumetricSegContactLayer(backend=backend)
         indexer = SegContactIndexer(path=temp_dir)
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human"
+        )
 
         sample = dataset[0]
 
@@ -425,6 +458,7 @@ def test_seg_contact_dataset_skips_contacts_missing_segment_pointcloud():
             "chunk_size": list(backend.chunk_size),
             "max_contact_span": backend.max_contact_span,
             "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
         }
         with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
             json.dump(info, f)
@@ -447,6 +481,7 @@ def test_seg_contact_dataset_skips_contacts_missing_segment_pointcloud():
                         # Missing seg_b (200) pointcloud
                     }
                 },
+                merge_decisions={"human": True},
             ),
             # Contact with both segments' pointclouds - should be included
             SegContact(
@@ -465,16 +500,251 @@ def test_seg_contact_dataset_skips_contacts_missing_segment_pointcloud():
                         400: np.random.randn(64, 3).astype(np.float32),
                     }
                 },
+                merge_decisions={"human": False},
             ),
         ]
         backend.write_chunk((0, 0, 0), contacts)
 
         layer = VolumetricSegContactLayer(backend=backend)
         indexer = SegContactIndexer(path=temp_dir)
-        dataset = SegContactDataset(layer=layer, sample_indexer=indexer)
+        dataset = SegContactDataset(
+            layer=layer, sample_indexer=indexer, merge_decision_authority="human"
+        )
 
         sample = dataset[0]
 
         # Only 1 contact should be in sample (the complete one)
         assert sample["contact_id"].shape[0] == 1
         assert sample["contact_id"][0].item() == 2
+
+
+# --- _pad_or_truncate ---
+
+
+def test_pad_or_truncate_pad():
+    t = torch.tensor([[1, 2], [3, 4]], dtype=torch.float32)
+    result = _pad_or_truncate(t, 4)
+    assert result.shape == (4, 2)
+    torch.testing.assert_close(result[:2], t)
+    assert (result[2:] == 0).all()
+
+
+def test_pad_or_truncate_truncate():
+    t = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.float32)
+    result = _pad_or_truncate(t, 2)
+    assert result.shape == (2, 2)
+    torch.testing.assert_close(result, t[:2])
+
+
+def test_pad_or_truncate_exact():
+    t = torch.tensor([[1, 2], [3, 4]], dtype=torch.float32)
+    result = _pad_or_truncate(t, 2)
+    assert result is t  # no-op, same object
+
+
+# --- _broadcast_to_list ---
+
+
+def test_broadcast_to_list_scalar():
+    assert _broadcast_to_list(0.5, 3) == [0.5, 0.5, 0.5]
+
+
+def test_broadcast_to_list_string():
+    assert _broadcast_to_list("global", 2) == ["global", "global"]
+
+
+def test_broadcast_to_list_already_list():
+    assert _broadcast_to_list([0.1, 0.2], 2) == [0.1, 0.2]
+
+
+# --- _apply_channel_mask ---
+
+
+def test_apply_channel_mask_global():
+    """Global mask should zero entire channel."""
+    torch.manual_seed(0)
+    pc = torch.ones((10, 5), dtype=torch.float32)  # xyz + seg_label + affinity
+
+    result = _apply_channel_mask(
+        pc,
+        mask_probs=1.0,  # always mask
+        mask_modes="global",
+        mask_global_probs=0.5,
+        mask_value=0.0,
+    )
+
+    # xyz should be unchanged
+    torch.testing.assert_close(result[:, :3], pc[:, :3])
+    # At least one feature channel should be zeroed (with prob=1.0)
+    assert (result[:, 3] == 0).all() or (result[:, 4] == 0).all()
+
+
+def test_apply_channel_mask_no_mask_when_prob_zero():
+    pc = torch.ones((10, 5), dtype=torch.float32)
+    result = _apply_channel_mask(
+        pc,
+        mask_probs=0.0,
+        mask_modes="global",
+        mask_global_probs=0.5,
+        mask_value=0.0,
+    )
+    torch.testing.assert_close(result, pc)
+
+
+def test_apply_channel_mask_xyz_untouched():
+    """XYZ channels (0-2) should never be modified."""
+    torch.manual_seed(42)
+    pc = torch.randn((20, 5), dtype=torch.float32)
+    original_xyz = pc[:, :3].clone()
+
+    result = _apply_channel_mask(
+        pc,
+        mask_probs=1.0,
+        mask_modes="global",
+        mask_global_probs=1.0,
+        mask_value=0.0,
+    )
+
+    torch.testing.assert_close(result[:, :3], original_xyz)
+
+
+def test_apply_channel_mask_per_channel_config():
+    """Test spec-like config: segment_label=global, affinity=random."""
+    torch.manual_seed(42)
+    pc = torch.ones((10, 5), dtype=torch.float32)
+
+    result = _apply_channel_mask(
+        pc,
+        mask_probs=[1.0, 1.0],  # always mask both
+        mask_modes=["global", "random"],
+        mask_global_probs=[0.5, 0.2],
+        mask_value=0.0,
+    )
+
+    # Channel 3 (seg label) should be fully zeroed (global mode, prob=1.0)
+    assert (result[:, 3] == 0).all()
+
+
+def test_apply_channel_mask_only_3_channels_noop():
+    """No feature channels means no masking."""
+    pc = torch.ones((10, 3), dtype=torch.float32)
+    result = _apply_channel_mask(pc, mask_probs=1.0, mask_modes="global", mask_global_probs=0.5, mask_value=0.0)
+    torch.testing.assert_close(result, pc)
+
+
+# --- affinity filtering ---
+
+
+def test_seg_contact_dataset_filters_by_affinity():
+    """Test that contacts outside [min, max] mean affinity are filtered."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        backend = SegContactLayerBackend(
+            path=temp_dir,
+            resolution=Vec3D(16, 16, 40),
+            voxel_offset=Vec3D(0, 0, 0),
+            size=Vec3D(512, 512, 256),
+            chunk_size=Vec3D(256, 256, 128),
+            max_contact_span=512,
+        )
+
+        info = {
+            "format_version": "1.0",
+            "type": "seg_contact",
+            "resolution": list(backend.resolution),
+            "voxel_offset": list(backend.voxel_offset),
+            "size": list(backend.size),
+            "chunk_size": list(backend.chunk_size),
+            "max_contact_span": backend.max_contact_span,
+            "local_point_clouds": [{"radius_nm": 500, "n_points": 64}],
+            "merge_decisions": ["human"],
+        }
+        with open(f"{temp_dir}/info", "w", encoding="utf-8") as f:
+            json.dump(info, f)
+
+        contacts = [
+            # Low affinity (0.05) - should be filtered out
+            SegContact(
+                id=1,
+                seg_a=100,
+                seg_b=200,
+                com=Vec3D(100.0, 100.0, 100.0),
+                contact_faces=np.array([[1, 2, 3, 0.05]], dtype=np.float32),
+                representative_points={100: Vec3D(90.0, 90.0, 90.0), 200: Vec3D(110.0, 110.0, 110.0)},
+                local_pointclouds={(500, 64): {
+                    100: np.random.randn(64, 3).astype(np.float32),
+                    200: np.random.randn(64, 3).astype(np.float32),
+                }},
+                merge_decisions={"human": True},
+            ),
+            # In-range affinity (0.25) - should pass
+            SegContact(
+                id=2,
+                seg_a=300,
+                seg_b=400,
+                com=Vec3D(120.0, 120.0, 100.0),
+                contact_faces=np.array([[4, 5, 6, 0.25]], dtype=np.float32),
+                representative_points={300: Vec3D(110.0, 110.0, 90.0), 400: Vec3D(130.0, 130.0, 110.0)},
+                local_pointclouds={(500, 64): {
+                    300: np.random.randn(64, 3).astype(np.float32),
+                    400: np.random.randn(64, 3).astype(np.float32),
+                }},
+                merge_decisions={"human": False},
+            ),
+            # High affinity (0.9) - should be filtered out
+            SegContact(
+                id=3,
+                seg_a=500,
+                seg_b=600,
+                com=Vec3D(150.0, 150.0, 100.0),
+                contact_faces=np.array([[7, 8, 9, 0.9]], dtype=np.float32),
+                representative_points={500: Vec3D(140.0, 140.0, 90.0), 600: Vec3D(160.0, 160.0, 110.0)},
+                local_pointclouds={(500, 64): {
+                    500: np.random.randn(64, 3).astype(np.float32),
+                    600: np.random.randn(64, 3).astype(np.float32),
+                }},
+                merge_decisions={"human": True},
+            ),
+        ]
+        backend.write_chunk((0, 0, 0), contacts)
+
+        layer = VolumetricSegContactLayer(backend=backend)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            min_mean_affinity=0.1,
+            max_mean_affinity=0.4,
+        )
+
+        sample = dataset[0]
+
+        # Only contact 2 should pass the affinity filter
+        assert sample["contact_id"].shape[0] == 1
+        assert sample["contact_id"][0].item() == 2
+
+
+# --- affinity_channel_mode ---
+
+
+def test_seg_contact_dataset_per_point_affinity_channel():
+    """Test that affinity_channel_mode='per_point' produces 5-channel output."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        layer = make_layer_with_contacts(temp_dir)
+        indexer = SegContactIndexer(path=temp_dir)
+        dataset = SegContactDataset(
+            layer=layer,
+            sample_indexer=indexer,
+            merge_decision_authority="human",
+            include_contact_faces_in_pointcloud=True,
+            contact_label=0.0,
+            affinity_channel_mode="per_point",
+        )
+
+        sample = dataset[0]
+
+        assert "pointcloud" in sample
+        # 5 channels: xyz + segment_label + affinity
+        assert sample["pointcloud"].shape[2] == 5
+        # Segment points should have 0 in affinity channel
+        # Contact face points should have non-zero affinity

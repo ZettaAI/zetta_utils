@@ -4,11 +4,14 @@ abiss @ git+https://github.com/ZettaAI/abiss.git@1d1fc27551caf88ba31e10cb5760f86
     # via zetta-utils (pyproject.toml)
 affine==2.4.0
     # via zetta-utils (pyproject.toml)
+aiofiles==25.1.0
+    # via cloud-sql-python-connector
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.2
     # via
     #   zetta-utils (pyproject.toml)
+    #   cloud-sql-python-connector
     #   fsspec
     #   gcsfs
 aioquic==1.2.0
@@ -25,6 +28,8 @@ argon2-cffi-bindings==25.1.0
     # via argon2-cffi
 asgiref==3.10.0
     # via mitmproxy
+asn1crypto==1.5.1
+    # via scramp
 asttokens==3.0.1
     # via stack-data
 atomicwrites==1.4.1
@@ -78,6 +83,7 @@ caveclient==8.0.1
 certifi==2025.11.12
     # via
     #   aioquic
+    #   clickhouse-connect
     #   httpcore
     #   httpx
     #   kubernetes
@@ -109,18 +115,26 @@ click==8.3.1
     #   rq
     #   task-queue
     #   wandb
+clickhouse-connect==0.15.1
+    # via zetta-utils (pyproject.toml)
+clickhouse-driver==0.2.10
+    # via zetta-utils (pyproject.toml)
 cloud-files==6.1.1
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-volume
     #   datastoreflex
+cloud-sql-python-connector==1.20.1
+    # via zetta-utils (pyproject.toml)
 cloud-volume==12.10.0
     # via
     #   zetta-utils (pyproject.toml)
     #   meshparty
     #   pcg-skel
 colorama==0.4.6
-    # via awscli
+    # via
+    #   awscli
+    #   taichi
 colorlog==6.10.1
     # via trimesh
 comm==0.2.3
@@ -147,12 +161,13 @@ crc32c==2.8
 cryptography==46.0.3
     # via
     #   aioquic
+    #   cloud-sql-python-connector
     #   mitmproxy
     #   pyopenssl
     #   service-identity
 cycler==0.12.1
     # via matplotlib
-cython==3.2.3
+cython==3.1.8
     # via
     #   abiss
     #   lsds
@@ -174,6 +189,9 @@ dill==0.4.0
     #   zetta-utils (pyproject.toml)
     #   multiprocess
     #   pathos
+    #   taichi
+dnspython==2.8.0
+    # via cloud-sql-python-connector
 docutils==0.19
     # via awscli
 dracopy==1.7.0
@@ -187,7 +205,9 @@ edt==3.1.0
     #   fastmorph
     #   kimimaro
 einops==0.8.1
-    # via zetta-utils (pyproject.toml)
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   pointnet
 embreex==2.17.7.post7
     # via trimesh
 executing==2.2.1
@@ -271,6 +291,7 @@ google-auth==2.43.0
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
+    #   cloud-sql-python-connector
     #   cloud-volume
     #   gcsfs
     #   google-api-core
@@ -484,6 +505,8 @@ lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976133efb991ebc40171eeed7a22c5
     # via zetta-utils (pyproject.toml)
 lxml==6.0.2
     # via trimesh
+lz4==4.4.5
+    # via clickhouse-connect
 mahotas==1.4.18
     # via lsds
 manifold3d==3.3.2
@@ -563,7 +586,9 @@ neuroglancer==2.41.2
 nose2==0.15.1
     # via intern
 numba==0.63.1
-    # via imagecorruptions-imaug
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   imagecorruptions-imaug
 numexpr==2.14.1
     # via
     #   blosc2
@@ -624,6 +649,7 @@ numpy==2.2.6
     #   shapely
     #   simplejpeg
     #   tables
+    #   taichi
     #   task-queue
     #   tensorstore
     #   tifffile
@@ -754,6 +780,8 @@ pebble==5.1.3
     # via zetta-utils (pyproject.toml)
 pexpect==4.9.0
     # via ipython
+pg8000==1.31.5
+    # via cloud-sql-python-connector
 pillow==12.0.0
     # via
     #   imagecorruptions-imaug
@@ -771,6 +799,8 @@ platformdirs==4.5.1
     #   wandb
 pluggy==1.6.0
     # via pytest
+pointnet==0.1.1
+    # via zetta-utils (pyproject.toml)
 posix-ipc==1.3.2
     # via cloud-volume
 pox==0.3.6
@@ -894,6 +924,7 @@ python-dateutil==2.9.0.post0
     #   kubernetes
     #   matplotlib
     #   pandas
+    #   pg8000
     #   pycollada
 python-json-logger==4.0.0
     # via zetta-utils (pyproject.toml)
@@ -904,7 +935,10 @@ python-logging-loki==0.3.1
 pytorch-lightning==2.6.0
     # via lightning
 pytz==2025.2
-    # via pandas
+    # via
+    #   clickhouse-connect
+    #   clickhouse-driver
+    #   pandas
 pyyaml==6.0.3
     # via
     #   zetta-utils (pyproject.toml)
@@ -927,6 +961,7 @@ requests==2.32.5
     #   blosc2
     #   caveclient
     #   cloud-files
+    #   cloud-sql-python-connector
     #   cloud-volume
     #   gcsfs
     #   google-api-core
@@ -947,7 +982,9 @@ requests-oauthlib==1.3.1
 rfc3339==6.2
     # via python-logging-loki
 rich==14.2.0
-    # via zetta-utils (pyproject.toml)
+    # via
+    #   zetta-utils (pyproject.toml)
+    #   taichi
 rpds-py==0.30.0
     # via
     #   jsonschema
@@ -990,6 +1027,8 @@ scipy==1.16.3
     #   scikit-image
     #   scikit-learn
     #   trimesh
+scramp==1.4.8
+    # via pg8000
 sentry-sdk==2.47.0
     # via wandb
 service-identity==24.2.0
@@ -1001,6 +1040,7 @@ setuptools==80.9.0
     #   pbr
     #   torch
     #   torchfields
+    #   witty
 shapely==2.1.2
     # via
     #   imaug
@@ -1046,6 +1086,8 @@ tables==3.10.2
     # via meshparty
 tabulate==0.9.0
     # via zetta-utils (pyproject.toml)
+taichi==1.7.4
+    # via pointnet
 task-queue==2.14.3
     # via zetta-utils (pyproject.toml)
 tenacity==9.1.2
@@ -1068,6 +1110,7 @@ torch==2.9.1
     #   kornia
     #   lightning
     #   onnx2torch
+    #   pointnet
     #   pytorch-lightning
     #   torchfields
     #   torchmetrics
@@ -1141,12 +1184,15 @@ typing-inspection==0.4.2
     # via pydantic
 tzdata==2025.3
     # via pandas
+tzlocal==5.3.1
+    # via clickhouse-driver
 uritemplate==4.2.0
     # via google-api-python-client
 urllib3==2.3.0
     # via
     #   botocore
     #   caveclient
+    #   clickhouse-connect
     #   cloud-files
     #   cloud-volume
     #   kubernetes
@@ -1200,6 +1246,7 @@ zope-interface==8.1.1
 zstandard==0.25.0
     # via
     #   zetta-utils (pyproject.toml)
+    #   clickhouse-connect
     #   cloud-files
     #   cloud-volume
     #   mapbuffer

@@ -20,6 +20,8 @@ import subprocess
 import sys
 import threading
 import time
+from dataclasses import dataclass
+from typing import Callable
 
 import requests
 
@@ -34,6 +36,13 @@ from .gcs_tracker_utils import (
     write_region_mismatch,
     write_stats,
 )
+
+
+@dataclass
+class StatsCollector:
+    name: str
+    collect: Callable[[], "dict | None"]
+
 
 logger = log.get_logger("zetta_utils")
 
@@ -109,16 +118,13 @@ def _check_and_cache_bucket_region(
         bucket_region_match[bucket_name] = None
 
 
-def _update_firestore_loop(run_id: str, compute_region: str | None, stop_event: threading.Event):
-    """Periodically update Firestore with GCS stats from file."""
-    pod_name = get_pod_name()
-    logger.info(f"Starting Firestore update loop for pod {pod_name}, run {run_id}")
+def _make_gcs_collector(run_id: str, compute_region: str | None) -> StatsCollector:
+    """Build the GCS stats collector. Holds the per-bucket region cache in a closure."""
     bucket_region_match: dict[str, bool | None] = {}
 
-    while not stop_event.wait(UPDATE_INTERVAL):
+    def collect() -> dict | None:
         try:
             stats = _read_stats_from_file()
-
             if compute_region:
                 for bucket_name in stats.get("buckets", {}):
                     _check_and_cache_bucket_region(
@@ -128,10 +134,50 @@ def _update_firestore_loop(run_id: str, compute_region: str | None, stop_event: 
                         stats["buckets"][bucket_name]["region_match"] = bucket_region_match[
                             bucket_name
                         ]
-
-            write_stats(run_id, pod_name, stats)
+            return stats
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to update GCS stats in Firestore: {e}", exc_info=True)
+            logger.warning(f"GCS stats collector failed: {e}", exc_info=True)
+            return None
+
+    return StatsCollector(name="gcs_stats", collect=collect)
+
+
+def _collect_all(collectors: list[StatsCollector]) -> dict:
+    """Run all collectors and merge their results into a single payload."""
+    payload: dict = {}
+    for collector in collectors:
+        try:
+            result = collector.collect()
+            if result is not None:
+                # Phase 1: GCS collector merges flat at top level to preserve
+                # existing Firestore document shape. Later phases will nest
+                # under collector.name.
+                if collector.name == "gcs_stats":
+                    payload.update(result)
+                else:
+                    payload[collector.name] = result
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Collector {collector.name} failed: {e}", exc_info=True)
+    return payload
+
+
+def _update_firestore_loop(
+    run_id: str,
+    stop_event: threading.Event,
+    collectors: list[StatsCollector],
+):
+    """Periodically run all collectors and write a unified payload to Firestore."""
+    pod_name = get_pod_name()
+    logger.info(f"Starting Firestore update loop for pod {pod_name}, run {run_id}")
+
+    while not stop_event.wait(UPDATE_INTERVAL):
+        payload = _collect_all(collectors)
+        if not payload:
+            continue
+        try:
+            write_stats(run_id, pod_name, payload)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Failed to write pod stats to Firestore: {e}", exc_info=True)
 
 
 def _check_mitmproxy_installed() -> bool:
@@ -204,17 +250,6 @@ def _write_ready_file(disabled: bool = False):
         f.write("disabled" if disabled else "1")
 
 
-def _wait_for_main_container_exit():
-    """Wait for main container to exit (used when tracking is disabled)."""
-    logger.info("Waiting for main container to exit...")
-    while True:
-        status = get_main_container_status()
-        if status != -1:
-            logger.info(f"Main container exited with code {status}")
-            break
-        time.sleep(10)
-
-
 def _initialize_stats_file(run_id: str, pod_name: str):
     """Initialize stats file, loading existing stats if pod restarted."""
     existing = read_existing_stats(run_id, pod_name)
@@ -241,21 +276,26 @@ def _initialize_stats_file(run_id: str, pod_name: str):
             logger.warning(f"Failed to write initial stats file: {e}")
 
 
-def _write_final_stats(run_id: str, pod_name: str) -> None:
-    """Write final GCS stats on shutdown."""
+def _write_final_stats(
+    run_id: str,
+    pod_name: str,
+    collectors: list[StatsCollector],
+) -> None:
+    """Write final pod stats on shutdown by running all collectors once."""
     try:
-        stats = _read_stats_from_file()
-        write_stats(run_id, pod_name, stats)
-        bucket_count = len(stats.get("buckets", {}))
-        logger.info(f"Final GCS stats: {bucket_count} bucket(s)")
+        payload = _collect_all(collectors)
+        if not payload:
+            return
+        write_stats(run_id, pod_name, payload)
+        logger.info("Final pod stats written")
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed final GCS stats update: {e}")
+        logger.warning(f"Failed final pod stats update: {e}")
 
 
-def _run_main_loop(process: subprocess.Popen) -> None:
-    """Main loop: wait for proxy or main container to exit."""
+def _run_main_loop(process: subprocess.Popen | None) -> None:
+    """Main loop: wait for proxy (if running) or main container to exit."""
     while True:
-        if process.poll() is not None:
+        if process is not None and process.poll() is not None:
             logger.error(f"mitmproxy exited with code {process.returncode}")
             break
         status = get_main_container_status()
@@ -265,37 +305,8 @@ def _run_main_loop(process: subprocess.Popen) -> None:
         time.sleep(5)
 
 
-def run_proxy(run_id: str):
-    """
-    Run the mitmproxy-based GCS tracker.
-
-    This function starts mitmproxy in transparent/regular proxy mode and
-    tracks all GCS requests, periodically updating Firestore with stats.
-    """
-    logger.info(f"Starting GCS tracker for run {run_id}")
-
-    pod_name = get_pod_name()
-    _initialize_stats_file(run_id, pod_name)
-
-    if not _setup_mitmproxy_ca():
-        logger.warning("GCS tracking disabled - mitmproxy not available")
-        _wait_for_main_container_exit()
-        return
-
-    compute_region = _get_compute_region()
-    if compute_region:
-        logger.info(f"Compute region: {compute_region}")
-    else:
-        logger.warning("Could not determine compute region, region_match will be unavailable")
-
-    stop_event = threading.Event()
-    update_thread = threading.Thread(
-        target=_update_firestore_loop,
-        args=(run_id, compute_region, stop_event),
-        daemon=True,
-    )
-    update_thread.start()
-
+def _start_mitmproxy() -> subprocess.Popen:
+    """Start mitmproxy as a subprocess and return the handle."""
     mitm_cmd = [
         "mitmdump",
         "--quiet",
@@ -310,34 +321,75 @@ def run_proxy(run_id: str):
         "-s",
         MITM_ADDON_SCRIPT_PATH,
     ]
-
     logger.info(f"Starting mitmproxy on port {PROXY_PORT}")
-    process = subprocess.Popen(  # pylint: disable=consider-using-with
+    return subprocess.Popen(  # pylint: disable=consider-using-with
         mitm_cmd,
         stdout=sys.stdout,
         stderr=sys.stderr,
     )
 
+
+def run_proxy(run_id: str):
+    """
+    Run the pod stats sidecar.
+
+    Always starts the stats push loop. Optionally starts mitmproxy for
+    GCS request interception when mitmproxy is available.
+    """
+    logger.info(f"Starting pod stats sidecar for run {run_id}")
+
+    pod_name = get_pod_name()
+
+    collectors: list[StatsCollector] = []
+
+    # ---- Start mitmproxy (optional) and register GCS collector if available ----
+    mitm_process: subprocess.Popen | None = None
+    if _setup_mitmproxy_ca():
+        _initialize_stats_file(run_id, pod_name)
+        compute_region = _get_compute_region()
+        if compute_region:
+            logger.info(f"Compute region: {compute_region}")
+        else:
+            logger.warning("Could not determine compute region, region_match will be unavailable")
+        collectors.append(_make_gcs_collector(run_id, compute_region))
+        mitm_process = _start_mitmproxy()
+    else:
+        logger.warning(
+            "GCS interception disabled - mitmproxy not available. "
+            "Other stat collectors will still run."
+        )
+
+    # ---- Start stats push loop (always, even if mitmproxy is unavailable) ----
+    stop_event = threading.Event()
+    update_thread = threading.Thread(
+        target=_update_firestore_loop,
+        args=(run_id, stop_event, collectors),
+        daemon=True,
+    )
+    update_thread.start()
+
     def handle_shutdown(_signum, _frame):
-        logger.info("Shutting down GCS tracker...")
+        logger.info("Shutting down pod stats sidecar...")
         stop_event.set()
-        process.terminate()
-        _write_final_stats(run_id, pod_name)
+        if mitm_process is not None:
+            mitm_process.terminate()
+        _write_final_stats(run_id, pod_name, collectors)
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
-    _run_main_loop(process)
+    _run_main_loop(mitm_process)
 
     stop_event.set()
-    process.terminate()
-    try:
-        process.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        process.kill()
+    if mitm_process is not None:
+        mitm_process.terminate()
+        try:
+            mitm_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            mitm_process.kill()
 
-    _write_final_stats(run_id, pod_name)
+    _write_final_stats(run_id, pod_name, collectors)
 
 
 if __name__ == "__main__":

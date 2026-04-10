@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+from functools import lru_cache
 from typing import List, Literal, Optional, Sequence, Tuple
 
 import attrs
 import numpy as np
+from cloudfiles import CloudFiles
 from numpy import typing as npt
 from typeguard import typechecked
 
@@ -147,6 +150,71 @@ class DataResolutionInterpolator(JointIndexDataProcessor):
             unsqueeze_input_to=5,  # b + c + xyz
         )
         self.prepared_scale_factor = None
+        return result
+
+
+@lru_cache(maxsize=8)
+def _load_segment_property_ids_u64(properties_path: str) -> npt.NDArray:
+    """Load segment IDs from a neuroglancer_segment_properties info file as
+    a read-only ``uint64`` numpy array.
+
+    Cached per worker process via ``lru_cache``: the network fetch happens
+    exactly once per worker. The Python ``int(x)`` conversion is intentional
+    so the array is built directly from Python ints (avoids any float64
+    intermediate that would lose precision for IDs > 2**53).
+    """
+    cf = CloudFiles(properties_path)
+    raw = cf.get("info")
+    if raw is None:
+        raise FileNotFoundError(f"No info at {properties_path}/info")
+    info = json.loads(raw)
+    raw_ids = info.get("inline", {}).get("ids", [])
+    arr = np.array([int(x) for x in raw_ids], dtype=np.uint64)
+    arr.flags.writeable = False
+    logger.info(f"Loaded {len(arr)} segment ids from {properties_path}")
+    return arr
+
+
+@builder.register("MaskSegByProperties")
+@typechecked
+@attrs.frozen
+class MaskSegByProperties:
+    """DataProcessor that zeros out segmentation voxels whose IDs are not in
+    a given neuroglancer_segment_properties allowlist.
+
+    Intended use: as a ``read_proc`` on a segmentation ``build_cv_layer`` to
+    apply a proofreading mask on the fly. The properties file is fetched and
+    cached once per worker process via :func:`_load_segment_property_ids_u64`.
+
+    The mask is dtype-safe: IDs are cast to ``data.dtype`` and round-tripped
+    back to ``uint64`` to detect silent overflow (this avoids the ``np.isin``
+    dtype-mixing precision bug that would silently mis-match large IDs).
+
+    :param properties_path: Path to a neuroglancer ``segment_properties``
+        directory containing an ``info`` file (e.g.
+        ``gs://.../segment_properties``).
+    """
+
+    properties_path: str
+
+    def __call__(self, data: npt.NDArray) -> npt.NDArray:
+        ids_u64 = _load_segment_property_ids_u64(self.properties_path)
+        if data.dtype == np.uint64:
+            ids = ids_u64
+        else:
+            # Cast IDs to data.dtype so np.isin compares same-dtype arrays
+            # (otherwise numpy may upcast via float64 and lose precision for
+            # IDs > 2**53). Verify round-trip to catch silent overflow if
+            # data.dtype is too narrow to hold all IDs.
+            ids = ids_u64.astype(data.dtype, casting="unsafe")
+            if not np.array_equal(ids.astype(np.uint64), ids_u64):
+                raise OverflowError(
+                    f"Segment IDs from {self.properties_path} do not fit in "
+                    f"data dtype {data.dtype}"
+                )
+        keep = np.isin(data, ids)
+        result = data.copy()
+        result[~keep] = 0
         return result
 
 

@@ -242,6 +242,7 @@ class DatastoreBackend(DBBackend):
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
         union: bool = True,
+        timeout: float | None = None,  # pylint: disable=unused-argument
     ) -> dict[str, DBRowDataT]:
         """
         Fetch list of rows that match given filters.
@@ -251,6 +252,10 @@ class DatastoreBackend(DBBackend):
         `return_columns` is a tuple of column names to read from matched rows.
             This is operation is significantly faster if this is provided.
             Else the reader has to iterate over all rows and find their columns.
+
+        `timeout` is accepted for interface compatibility with FirestoreBackend
+            but currently ignored — the Datastore client API does not expose a
+            per-call retry deadline in the same way.
         """
         row_keys = self.keys(column_filter=column_filter, union=union)
         if len(return_columns) > 0:

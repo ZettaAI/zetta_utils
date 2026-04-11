@@ -128,6 +128,24 @@ def test_batch_delete_by_list(firestore_emulator) -> None:
     assert len(layer.query()) == 0
 
 
+def test_query_with_timeout_kwarg(firestore_emulator) -> None:
+    """Passing `timeout=` to query must work and not break the call.
+
+    Bounds the gRPC retry deadline; needed by instrumentation paths that can't
+    afford the SDK's default 300s deadline on a flaky network.
+    """
+    layer = build_firestore_layer("test", project=firestore_emulator)
+    _write_some_data(layer)
+
+    # Filtered query with explicit timeout — exercises the `_q.stream(retry=...)` path.
+    result = layer.query(column_filter={"col1": ["val0"]}, timeout=10.0)
+    assert "key0" in result and len(result) == 1
+
+    # Unfiltered query with explicit timeout — exercises the `client.get_all(retry=...)` path.
+    result_all = layer.query(timeout=10.0)
+    assert len(result_all) == 3
+
+
 def test_batch_delete_after_query(firestore_emulator) -> None:
     """Mirrors `_cleanup_pod_stats`: query rows by filter, then batch-delete them.
 

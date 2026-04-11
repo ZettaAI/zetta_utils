@@ -118,6 +118,42 @@ def test_delete_and_clear(firestore_emulator) -> None:
     assert len(layer.query()) == 0
 
 
+def test_batch_delete_by_list(firestore_emulator) -> None:
+    """`del layer[list_of_keys]` must delete all listed rows in one call."""
+    layer = build_firestore_layer("test", project=firestore_emulator)
+    _write_some_data(layer)
+    assert len(layer.query()) == 3
+
+    del layer[["key0", "key1", "key2"]]
+    assert len(layer.query()) == 0
+
+
+def test_batch_delete_after_query(firestore_emulator) -> None:
+    """Mirrors `_cleanup_pod_stats`: query rows by filter, then batch-delete them.
+
+    This is the actual usage pattern from `run.__init__._cleanup_pod_stats`.
+    """
+    layer = build_firestore_layer("test", project=firestore_emulator)
+    layer.clear()
+    row_keys = ["run1__pod0", "run1__pod1", "run2__pod0"]
+    idx_user = (row_keys, ("run_id", "value"))
+    layer[idx_user] = [
+        {"run_id": "run1", "value": 1},
+        {"run_id": "run1", "value": 2},
+        {"run_id": "run2", "value": 3},
+    ]
+
+    docs = layer.query(column_filter={"run_id": ["run1"]})
+    assert set(docs.keys()) == {"run1__pod0", "run1__pod1"}
+
+    if docs:
+        del layer[list(docs.keys())]
+
+    # run1 docs gone, run2 doc untouched.
+    remaining = layer.query()
+    assert set(remaining.keys()) == {"run2__pod0"}
+
+
 def _test_batches(layer: DBLayer, batch_size: int):
     ROW_COUNT = len(layer)
     batches = []

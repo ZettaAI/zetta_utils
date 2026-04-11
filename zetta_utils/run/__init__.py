@@ -149,11 +149,11 @@ def _aggregate_pod_stats_safe(run_id: str | None) -> None:
 
 
 def _cleanup_pod_stats(run_id: str) -> None:
-    """Delete per-pod stats documents after final aggregation."""
+    """Delete per-pod stats documents after final aggregation in a single batched RPC."""
     try:
         docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
-        for doc_key in docs:
-            del POD_STATS_DB[doc_key]
+        if docs:
+            del POD_STATS_DB[list(docs.keys())]
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to cleanup pod stats: {e}")
 

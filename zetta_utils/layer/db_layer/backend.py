@@ -47,6 +47,7 @@ class DBBackend(Backend[DBIndex, DBDataT, DBDataT]):  # pylint: disable=too-few-
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
         union: bool = True,
+        timeout: float | None = None,
     ) -> dict[str, DBRowDataT]:
         ...
 

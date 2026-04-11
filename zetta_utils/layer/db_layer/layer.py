@@ -229,6 +229,7 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
         column_filter: dict[str, list] | None = None,
         return_columns: tuple[str, ...] = (),
         union: bool = True,
+        timeout: float | None = None,
     ) -> dict[str, DBRowDataT]:  # pragma: no cover # no logic
         """
         Fetch list of rows that match given filters.
@@ -237,8 +238,13 @@ class DBLayer(Layer[DBIndex, DBDataT, DBDataT]):
 
         `return_columns` is a tuple of column names to read from matched rows.
             If provided, this can signifincantly improve performance based on the backend used.
+
+        `timeout` (seconds) bounds the total RPC deadline for backends that
+            support it (e.g. Firestore). Default unset = use library default.
         """
-        return self.backend.query(column_filter, return_columns=return_columns, union=union)
+        return self.backend.query(
+            column_filter, return_columns=return_columns, union=union, timeout=timeout
+        )
 
     def get_batch(
         self, batch_number: int, avg_rows_per_batch: int, return_columns: tuple[str, ...] = ()

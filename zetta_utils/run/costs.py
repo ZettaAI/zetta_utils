@@ -43,7 +43,11 @@ def compute_costs(run_id: str):
                 return RUN_DB[run_id]["timestamp"]
         return float(str(node_info["creation_time"]))
 
-    nodes = NODE_DB.query({"-run_id": [run_id]})
+    # Tight timeout: this runs on a RepeatTimer thread every 60s; the Firestore
+    # SDK's default 300s deadline would block the timer thread for 5 minutes on
+    # a transient connectivity blip and delay both subsequent ticks and run
+    # shutdown.
+    nodes = NODE_DB.query({"-run_id": [run_id]}, timeout=30.0)
     total_cost = 0.0
     for _info in nodes.values():
         node_cost_hourly = 0.0

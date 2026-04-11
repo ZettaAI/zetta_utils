@@ -295,6 +295,7 @@ def get_mazepa_pod_spec(
     cave_secret_available: bool = False,
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
+    worker_type: str | None = None,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -311,6 +312,8 @@ def get_mazepa_pod_spec(
                 name="GOOGLE_APPLICATION_CREDENTIALS", value=k8s.volume.ADC_MOUNT_PATH
             )
         )
+    if worker_type:
+        envs.append(k8s_client.V1EnvVar(name="WORKER_TYPE", value=worker_type))
 
     required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
     affinity = k8s_client.V1Affinity(

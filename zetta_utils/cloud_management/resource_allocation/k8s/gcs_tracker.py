@@ -35,9 +35,10 @@ from ..gcloud.gcs import get_bucket_location, is_region_compatible
 from .container import get_main_container_status
 from .gcs_tracker_utils import (
     get_pod_name,
-    read_existing_stats,
+    get_worker_type,
+    read_existing_pod_stats,
+    write_pod_stats,
     write_region_mismatch,
-    write_stats,
 )
 
 
@@ -234,14 +235,16 @@ def _update_firestore_loop(
 ):
     """Periodically run all collectors and write a unified payload to Firestore."""
     pod_name = get_pod_name()
+    worker_type = get_worker_type()
     logger.info(f"Starting Firestore update loop for pod {pod_name}, run {run_id}")
 
     while not stop_event.wait(UPDATE_INTERVAL):
         payload = _collect_all(collectors)
         if not payload:
             continue
+        payload["worker_type"] = worker_type
         try:
-            write_stats(run_id, pod_name, payload)
+            write_pod_stats(run_id, pod_name, payload)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to write pod stats to Firestore: {e}", exc_info=True)
 
@@ -318,7 +321,7 @@ def _write_ready_file(disabled: bool = False):
 
 def _initialize_stats_file(run_id: str, pod_name: str):
     """Initialize stats file, loading existing stats if pod restarted."""
-    existing = read_existing_stats(run_id, pod_name)
+    existing = read_existing_pod_stats(run_id, pod_name)
     if existing and existing.get("buckets"):
         bucket_count = len(existing.get("buckets", {}))
         logger.info(f"Resumed GCS stats: {bucket_count} bucket(s)")
@@ -352,7 +355,8 @@ def _write_final_stats(
         payload = _collect_all(collectors)
         if not payload:
             return
-        write_stats(run_id, pod_name, payload)
+        payload["worker_type"] = get_worker_type()
+        write_pod_stats(run_id, pod_name, payload)
         logger.info("Final pod stats written")
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed final pod stats update: {e}")

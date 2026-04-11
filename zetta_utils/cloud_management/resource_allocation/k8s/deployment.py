@@ -40,6 +40,7 @@ def _get_mazepa_deployment(
     cave_secret_available: bool = False,
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
+    worker_type: str | None = None,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -54,6 +55,7 @@ def _get_mazepa_deployment(
         cave_secret_available=cave_secret_available,
         required_zones=required_zones,
         preferred_zones=preferred_zones,
+        worker_type=worker_type,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -101,6 +103,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     resource_monitor_interval: float | None = 1.0,
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
+    worker_type: str | None = None,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -132,6 +135,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         cave_secret_available=cave_secret_available,
         required_zones=required_zones,
         preferred_zones=preferred_zones,
+        worker_type=worker_type,
     )
 
 

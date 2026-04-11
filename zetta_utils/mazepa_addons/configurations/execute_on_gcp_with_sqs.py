@@ -140,6 +140,7 @@ def _get_group_taskqueue_and_contexts(
             cave_secret_available=cave_secret_available,
             required_zones=group.required_zones,
             preferred_zones=group.preferred_zones,
+            worker_type=group_name,
         )
         job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         scaled_job_ctx_mngr = k8s.scaled_job_ctx_mngr(
@@ -174,6 +175,7 @@ def _get_group_taskqueue_and_contexts(
             resource_monitor_interval=resource_monitor_interval,
             required_zones=group.required_zones,
             preferred_zones=group.preferred_zones,
+            worker_type=group_name,
         )
         deployment_ctx_mngr = k8s.deployment_ctx_mngr(
             execution_id,

@@ -12,7 +12,7 @@ from typing import Literal
 from zetta_utils import log
 from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.run import RunInfo, update_run_info
-from zetta_utils.run.db import GCS_STATS_DB
+from zetta_utils.run.db import POD_STATS_DB
 
 logger = log.get_logger("zetta_utils")
 
@@ -139,23 +139,28 @@ def get_pod_name() -> str:
     return os.environ.get("POD_NAME", "unknown")
 
 
-def read_existing_stats(run_id: str, pod_name: str) -> dict | None:
-    """Read existing stats for this pod from its own Firestore document."""
+def get_worker_type() -> str:
+    """Get worker type from environment, e.g. for grouping pods in head-node aggregation."""
+    return os.environ.get("WORKER_TYPE", "unspecified")
+
+
+def read_existing_pod_stats(run_id: str, pod_name: str) -> dict | None:
+    """Read existing pod stats for this pod from its own Firestore document."""
     doc_key = f"{run_id}__{pod_name}"
     try:
-        if doc_key not in GCS_STATS_DB:
+        if doc_key not in POD_STATS_DB:
             return None
-        return GCS_STATS_DB[doc_key]
+        return POD_STATS_DB[doc_key]
     except Exception:  # pylint: disable=broad-exception-caught
         return None
 
 
-def write_stats(run_id: str, pod_name: str, stats_dict: dict) -> None:
-    """Write stats to a per-pod Firestore document for horizontal scalability."""
+def write_pod_stats(run_id: str, pod_name: str, stats_dict: dict) -> None:
+    """Write pod stats to a per-pod Firestore document for horizontal scalability."""
     doc_key = f"{run_id}__{pod_name}"
     data: DBRowDataT = {"run_id": run_id, **stats_dict}
     col_keys = tuple(data.keys())
-    GCS_STATS_DB[(doc_key, col_keys)] = data
+    POD_STATS_DB[(doc_key, col_keys)] = data
 
 
 def write_region_mismatch(run_id: str, bucket: str, location: str, compute_region: str) -> None:

@@ -4,6 +4,7 @@ from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 RUN_COLLECTION = "run-info"
 NODE_COLLECTION = "node-info"
 GCS_STATS_COLLECTION = "gcs-stats-proxy"
+POD_STATS_COLLECTION = "pod-stats"
 
 
 NODE_DB = build_firestore_layer(
@@ -16,4 +17,8 @@ RUN_DB = build_firestore_layer(
 
 GCS_STATS_DB = build_firestore_layer(
     GCS_STATS_COLLECTION, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
+)
+
+POD_STATS_DB = build_firestore_layer(
+    POD_STATS_COLLECTION, database=constants.RUN_DATABASE, project=constants.DEFAULT_PROJECT
 )

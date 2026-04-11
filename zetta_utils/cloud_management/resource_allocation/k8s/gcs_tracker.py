@@ -27,6 +27,7 @@ from typing import Callable
 import requests
 
 from zetta_utils import log
+from zetta_utils.common import RESOURCE_STATS_FILE
 from zetta_utils.log import set_verbosity
 from zetta_utils.mazepa.semaphores import TimingTracker
 
@@ -161,6 +162,25 @@ def _collect_semaphore_stats() -> dict | None:
         return out or None
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Semaphore stats collector failed: {e}", exc_info=True)
+        return None
+
+
+def _collect_resource_stats() -> dict | None:
+    """Read resource summary written by the main container to RESOURCE_STATS_FILE.
+
+    The main container runs `write_resource_stats_file()` which writes
+    `ResourceMonitor.get_summary_stats()` output to this shared file every
+    `resource_monitor_interval` seconds. Returns None when the file does not
+    yet exist (main container hasn't started writing, or resource monitoring
+    is disabled).
+    """
+    try:
+        with open(RESOURCE_STATS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Resource stats collector failed: {e}", exc_info=True)
         return None
 
 
@@ -388,6 +408,7 @@ def run_proxy(run_id: str):
 
     collectors: list[StatsCollector] = [
         StatsCollector(name="semaphore_stats", collect=_collect_semaphore_stats),
+        StatsCollector(name="resource_stats", collect=_collect_resource_stats),
     ]
 
     # ---- Start mitmproxy (optional) and register GCS collector if available ----

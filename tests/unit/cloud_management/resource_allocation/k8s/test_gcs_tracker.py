@@ -7,6 +7,7 @@ from zetta_utils.cloud_management.resource_allocation.k8s import gcs_tracker
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
     StatsCollector,
     _collect_all,
+    _collect_resource_stats,
     _collect_semaphore_stats,
     _make_gcs_collector,
 )
@@ -463,3 +464,32 @@ class TestCollectSemaphoreStats:
         mocker.patch.object(gcs_tracker.glob, "glob", side_effect=OSError("boom"))
 
         assert _collect_semaphore_stats() is None
+
+
+class TestCollectResourceStats:
+    """Tests for the resource stats collector."""
+
+    def test_returns_none_when_file_missing(self, tmp_path, mocker):
+        mocker.patch.object(
+            gcs_tracker, "RESOURCE_STATS_FILE", str(tmp_path / "does_not_exist.json")
+        )
+
+        assert _collect_resource_stats() is None
+
+    def test_returns_parsed_dict_from_valid_file(self, tmp_path, mocker):
+        summary = {
+            "cpu": {"avg_percent": 75.0, "max_percent": 95.0},
+            "memory": {"total_gb": 64.0, "avg_percent": 60.0},
+        }
+        path = tmp_path / "resource_stats.json"
+        path.write_text(json.dumps(summary))
+        mocker.patch.object(gcs_tracker, "RESOURCE_STATS_FILE", str(path))
+
+        assert _collect_resource_stats() == summary
+
+    def test_returns_none_on_invalid_json(self, tmp_path, mocker):
+        path = tmp_path / "resource_stats.json"
+        path.write_text("not json at all {")
+        mocker.patch.object(gcs_tracker, "RESOURCE_STATS_FILE", str(path))
+
+        assert _collect_resource_stats() is None

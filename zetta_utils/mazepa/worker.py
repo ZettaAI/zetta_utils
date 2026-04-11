@@ -9,7 +9,12 @@ import traceback
 from typing import Any, Callable, Optional
 
 from zetta_utils import builder, log, try_load_train_inference
-from zetta_utils.common import RepeatTimer, monitor_resources, reset_signal_handlers
+from zetta_utils.common import (
+    RepeatTimer,
+    monitor_resources,
+    reset_signal_handlers,
+    write_resource_stats_file,
+)
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -230,7 +235,9 @@ def run_worker(
         activity_tracker = None
 
     try:
-        with monitor_resources(resource_monitor_interval):
+        with monitor_resources(resource_monitor_interval), write_resource_stats_file(
+            resource_monitor_interval
+        ):
             start_time = time.time()
 
             while True:

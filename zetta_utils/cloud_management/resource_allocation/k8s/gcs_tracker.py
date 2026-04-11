@@ -12,6 +12,7 @@ Uses mitmproxy to intercept HTTPS traffic to storage.googleapis.com.
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import shutil
@@ -27,6 +28,7 @@ import requests
 
 from zetta_utils import log
 from zetta_utils.log import set_verbosity
+from zetta_utils.mazepa.semaphores import TimingTracker
 
 from ..gcloud.gcs import get_bucket_location, is_region_compatible
 from .container import get_main_container_status
@@ -116,6 +118,50 @@ def _check_and_cache_bucket_region(
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Could not get location for bucket '{bucket_name}': {e}")
         bucket_region_match[bucket_name] = None
+
+
+# Semaphore types tracked in the main container. See mazepa/semaphores.py.
+# The sidecar reads `/dev/shm/zetta_semaphore_timing_{pid}_{name}`, which is visible
+# because k8s pod containers share `/dev/shm` via an `emptyDir` (medium=Memory) volume.
+_SEMA_TYPES = ("read", "write", "cuda", "cpu", "tensorrt")
+_SHM_PREFIX = "zetta_semaphore_timing_"
+
+
+def _collect_semaphore_stats() -> dict | None:
+    """Read semaphore timing from /dev/shm.
+
+    Returns a dict mapping semaphore type → timing fields, or None when no
+    timing shared-memory files are present (main container has not yet
+    called configure_semaphores()).
+    """
+    try:
+        files = glob.glob(f"/dev/shm/{_SHM_PREFIX}*")
+        if not files:
+            return None
+        # Filename format: zetta_semaphore_timing_{pid}_{name}
+        basename = os.path.basename(files[0])
+        pid_str = basename[len(_SHM_PREFIX) :].split("_", 1)[0]
+        pid = int(pid_str)
+
+        out: dict[str, dict] = {}
+        for sema_type in _SEMA_TYPES:
+            try:
+                wait, lease, count, start = TimingTracker(
+                    name=sema_type, pid=pid
+                ).get_timing_data()
+                out[sema_type] = {
+                    "total_wait_time": wait,
+                    "total_lease_time": lease,
+                    "lease_count": count,
+                    "start_time": start,
+                }
+            except RuntimeError:
+                # This semaphore type not initialized in this run.
+                continue
+        return out or None
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Semaphore stats collector failed: {e}", exc_info=True)
+        return None
 
 
 def _make_gcs_collector(run_id: str, compute_region: str | None) -> StatsCollector:
@@ -340,7 +386,9 @@ def run_proxy(run_id: str):
 
     pod_name = get_pod_name()
 
-    collectors: list[StatsCollector] = []
+    collectors: list[StatsCollector] = [
+        StatsCollector(name="semaphore_stats", collect=_collect_semaphore_stats),
+    ]
 
     # ---- Start mitmproxy (optional) and register GCS collector if available ----
     mitm_process: subprocess.Popen | None = None

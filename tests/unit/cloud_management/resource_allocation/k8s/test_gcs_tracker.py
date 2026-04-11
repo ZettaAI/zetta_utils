@@ -7,6 +7,7 @@ from zetta_utils.cloud_management.resource_allocation.k8s import gcs_tracker
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
     StatsCollector,
     _collect_all,
+    _collect_semaphore_stats,
     _make_gcs_collector,
 )
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker_utils import (
@@ -350,3 +351,115 @@ class TestMakeGcsCollector:
 
         # Same dict instance passed across calls — closure-held cache.
         assert seen_caches[0] is seen_caches[1]
+
+
+class TestCollectSemaphoreStats:
+    """Tests for the semaphore stats collector."""
+
+    def test_returns_none_when_no_files(self, mocker):
+        mocker.patch.object(gcs_tracker.glob, "glob", return_value=[])
+
+        assert _collect_semaphore_stats() is None
+
+    def test_all_types_present(self, mocker):
+        mocker.patch.object(
+            gcs_tracker.glob,
+            "glob",
+            return_value=[
+                "/dev/shm/zetta_semaphore_timing_42_read",
+                "/dev/shm/zetta_semaphore_timing_42_write",
+                "/dev/shm/zetta_semaphore_timing_42_cuda",
+                "/dev/shm/zetta_semaphore_timing_42_cpu",
+                "/dev/shm/zetta_semaphore_timing_42_tensorrt",
+            ],
+        )
+
+        class FakeTracker:
+            def __init__(self, name, pid):
+                self.name = name
+                self.pid = pid
+
+            def get_timing_data(self):
+                return (1.5, 30.0, 100, 1000.0)
+
+        mocker.patch.object(gcs_tracker, "TimingTracker", FakeTracker)
+
+        result = _collect_semaphore_stats()
+
+        assert result is not None
+        assert set(result.keys()) == {"read", "write", "cuda", "cpu", "tensorrt"}
+        assert result["cuda"] == {
+            "total_wait_time": 1.5,
+            "total_lease_time": 30.0,
+            "lease_count": 100,
+            "start_time": 1000.0,
+        }
+
+    def test_partial_types_uninitialized(self, mocker):
+        mocker.patch.object(
+            gcs_tracker.glob,
+            "glob",
+            return_value=["/dev/shm/zetta_semaphore_timing_42_read"],
+        )
+
+        class PartialTracker:
+            def __init__(self, name, pid):
+                self.name = name
+                self.pid = pid
+
+            def get_timing_data(self):
+                if self.name in ("read", "cuda"):
+                    return (0.5, 10.0, 50, 500.0)
+                raise RuntimeError(f"{self.name} not initialized")
+
+        mocker.patch.object(gcs_tracker, "TimingTracker", PartialTracker)
+
+        result = _collect_semaphore_stats()
+
+        assert result is not None
+        assert set(result.keys()) == {"read", "cuda"}
+
+    def test_all_types_uninitialized_returns_none(self, mocker):
+        mocker.patch.object(
+            gcs_tracker.glob,
+            "glob",
+            return_value=["/dev/shm/zetta_semaphore_timing_42_xyz"],
+        )
+
+        class FailingTracker:
+            def __init__(self, name, pid):  # pylint: disable=unused-argument
+                self.name = name
+
+            def get_timing_data(self):
+                raise RuntimeError("not initialized")
+
+        mocker.patch.object(gcs_tracker, "TimingTracker", FailingTracker)
+
+        assert _collect_semaphore_stats() is None
+
+    def test_pid_parsed_from_filename(self, mocker):
+        mocker.patch.object(
+            gcs_tracker.glob,
+            "glob",
+            return_value=["/dev/shm/zetta_semaphore_timing_12345_read"],
+        )
+        seen_pids: list[int] = []
+
+        class PidCapturingTracker:
+            def __init__(self, name, pid):
+                seen_pids.append(pid)
+                self.name = name
+
+            def get_timing_data(self):
+                return (0.0, 0.0, 0, 0.0)
+
+        mocker.patch.object(gcs_tracker, "TimingTracker", PidCapturingTracker)
+
+        _collect_semaphore_stats()
+
+        assert seen_pids and all(pid == 12345 for pid in seen_pids)
+
+    def test_unexpected_exception_returns_none(self, mocker):
+        mocker.patch.object(gcs_tracker.glob, "glob", side_effect=OSError("boom"))
+
+        assert _collect_semaphore_stats() is None

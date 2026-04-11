@@ -10,7 +10,7 @@ from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.layer.db_layer.layer import DBLayer
 from zetta_utils.log import get_logger
 
-from .db import GCS_STATS_DB, NODE_DB, POD_STATS_DB, RUN_DB
+from .db import NODE_DB, POD_STATS_DB, RUN_DB
 
 PROJECT = "zetta-research"
 DATABASE_NAME = "pricing-db"
@@ -95,103 +95,8 @@ def compute_costs(run_id: str):
     RUN_DB[run_id] = {"compute_cost": total_cost}
 
 
-def aggregate_gcs_stats(run_id: str) -> dict | None:
-    """
-    Aggregate GCS stats from all pods for a run.
-
-    Queries per-pod stats documents from gcs-stats-proxy collection,
-    merges operation counts per bucket, writes result to gcs_stats field.
-    Only counts egress bytes from buckets where region_match is False (cross-region).
-    """
-    pod_stats_docs = GCS_STATS_DB.query(column_filter={"run_id": [run_id]})
-    if not pod_stats_docs:
-        return None
-
-    # Per-bucket aggregation
-    bucket_stats: dict = defaultdict(
-        lambda: {
-            "class_a_count": 0,
-            "class_b_count": 0,
-            "egress_bytes": 0,
-            "operations": defaultdict(int),
-            "region_match": None,
-        }
-    )
-    pod_count = 0
-
-    for pod_stats in pod_stats_docs.values():
-        if not isinstance(pod_stats, dict):
-            continue
-        buckets_data = pod_stats.get("buckets", {})
-        for bucket, stats in buckets_data.items():
-            if not isinstance(stats, dict):
-                continue
-            agg_bucket = bucket_stats[bucket]
-            agg_bucket["class_a_count"] += stats.get("class_a_count", 0)
-            agg_bucket["class_b_count"] += stats.get("class_b_count", 0)
-            agg_bucket["egress_bytes"] += stats.get("egress_bytes", 0)
-            for op, count in stats.get("operations", {}).items():
-                agg_bucket["operations"][op] += count
-            # Preserve region_match from first pod that reports it
-            if agg_bucket["region_match"] is None:
-                agg_bucket["region_match"] = stats.get("region_match")
-        pod_count += 1
-
-    if pod_count == 0:
-        return None
-
-    # Convert to regular dicts
-    aggregated: dict = {
-        "buckets": {
-            bucket: {**data, "operations": dict(data["operations"])}
-            for bucket, data in bucket_stats.items()
-        },
-        "pod_count": pod_count,
-    }
-
-    # Add totals for convenience
-    aggregated["total_class_a"] = sum(b["class_a_count"] for b in aggregated["buckets"].values())
-    aggregated["total_class_b"] = sum(b["class_b_count"] for b in aggregated["buckets"].values())
-    # Only count egress from buckets where region_match is False (cross-region = billable)
-    aggregated["total_egress_bytes"] = sum(
-        b["egress_bytes"] for b in aggregated["buckets"].values() if b.get("region_match") is False
-    )
-
-    # Calculate egress cost range (GCP egress pricing varies by destination)
-    egress_gib = aggregated["total_egress_bytes"] / BYTES_PER_GIB
-    aggregated["egress_cost_min"] = egress_gib * EGRESS_COST_PER_GIB_MIN
-    aggregated["egress_cost_max"] = egress_gib * EGRESS_COST_PER_GIB_MAX
-
-    RUN_DB[run_id] = {"gcs_stats": aggregated}
-    try:
-        compute_cost = RUN_DB[(run_id, "compute_cost")]
-    except Exception:  # pylint: disable=broad-exception-caught
-        compute_cost = None
-    _current = (
-        aggregated["total_class_a"],
-        aggregated["total_class_b"],
-        aggregated["total_egress_bytes"],
-        compute_cost,
-    )
-    if any(_current) and _current != _last_gcs_stats.get(run_id):
-        _last_gcs_stats[run_id] = _current
-        cost_str = f"estimated compute=${compute_cost:.2f}, " if compute_cost is not None else ""
-        logger.info(
-            f"{cost_str}"
-            f"gcs stats: A={aggregated['total_class_a']} "
-            f"B={aggregated['total_class_b']} egress={aggregated['total_egress_bytes']} bytes "
-            f"(${aggregated['egress_cost_min']:.2f}-${aggregated['egress_cost_max']:.2f}) "
-            f"from {pod_count} pods, {len(aggregated['buckets'])} buckets"
-        )
-    return aggregated
-
-
 def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
-    """Aggregate GCS stats from pre-fetched per-pod docs.
-
-    Same logic as the legacy aggregate_gcs_stats() but takes the docs as input
-    so that the unified aggregator can do a single Firestore read.
-    """
+    """Aggregate GCS stats from pre-fetched per-pod docs."""
     bucket_stats: dict = defaultdict(
         lambda: {
             "class_a_count": 0,

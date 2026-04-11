@@ -16,8 +16,8 @@ from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
 from zetta_utils.parsing import json
-from zetta_utils.run.costs import aggregate_gcs_stats, compute_costs
-from zetta_utils.run.db import GCS_STATS_DB, RUN_DB
+from zetta_utils.run.costs import aggregate_pod_stats, compute_costs
+from zetta_utils.run.db import POD_STATS_DB, RUN_DB
 
 logger = log.get_logger("zetta_utils")
 
@@ -138,24 +138,24 @@ def _update_costs(run_id: str | None) -> None:
         logger.warning(f"Failed to update costs: {e}")
 
 
-def _aggregate_gcs_stats_safe(run_id: str | None) -> None:
-    """Aggregate GCS stats with error handling."""
+def _aggregate_pod_stats_safe(run_id: str | None) -> None:
+    """Aggregate per-pod stats (gcs/semaphore/resource) with error handling."""
     if run_id is None:
         return
     try:
-        aggregate_gcs_stats(run_id)
+        aggregate_pod_stats(run_id)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to aggregate GCS stats: {e}")
+        logger.warning(f"Failed to aggregate pod stats: {e}")
 
 
-def _cleanup_gcs_stats(run_id: str) -> None:
-    """Delete per-pod GCS stats documents after final aggregation."""
+def _cleanup_pod_stats(run_id: str) -> None:
+    """Delete per-pod stats documents after final aggregation."""
     try:
-        docs = GCS_STATS_DB.query(column_filter={"run_id": [run_id]})
+        docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
         for doc_key in docs:
-            del GCS_STATS_DB[doc_key]
+            del POD_STATS_DB[doc_key]
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to cleanup GCS stats: {e}")
+        logger.warning(f"Failed to cleanup pod stats: {e}")
 
 
 @contextmanager
@@ -165,7 +165,7 @@ def run_ctx_manager(
     spec: dict | list | None = None,
     heartbeat_interval: int = 5,
     update_costs_interval: int = 60,
-    gcs_stats_interval: int = 60,
+    pod_stats_interval: int = 60,
 ):
     bucket_egress_warned: set[str] = set()
 
@@ -180,7 +180,7 @@ def run_ctx_manager(
 
     heartbeat_sender = None
     update_costs_repeater = None
-    gcs_stats_repeater = None
+    pod_stats_repeater = None
     if main_run_process:
         _check_run_id_conflict()
 
@@ -205,10 +205,10 @@ def run_ctx_manager(
         update_costs_repeater = RepeatTimer(update_costs_interval, partial(_update_costs, run_id))
         update_costs_repeater.start()
 
-        gcs_stats_repeater = RepeatTimer(
-            gcs_stats_interval, partial(_aggregate_gcs_stats_safe, run_id)
+        pod_stats_repeater = RepeatTimer(
+            pod_stats_interval, partial(_aggregate_pod_stats_safe, run_id)
         )
-        gcs_stats_repeater.start()
+        pod_stats_repeater.start()
 
     try:
         yield
@@ -231,18 +231,19 @@ def run_ctx_manager(
 
             assert heartbeat_sender is not None
             assert update_costs_repeater is not None
-            assert gcs_stats_repeater is not None
+            assert pod_stats_repeater is not None
             heartbeat_sender.cancel()
             update_costs_repeater.cancel()
-            gcs_stats_repeater.cancel()
+            pod_stats_repeater.cancel()
 
             heartbeat_sender.join()
             update_costs_repeater.join()
-            gcs_stats_repeater.join()
+            pod_stats_repeater.join()
 
-            # Final aggregation after repeaters stop
+            # Final aggregation must run BEFORE cleanup so per-pod docs are
+            # captured into RUN_DB before they are deleted.
             _update_costs(run_id)
-            _aggregate_gcs_stats_safe(run_id)
-            _cleanup_gcs_stats(run_id)
+            _aggregate_pod_stats_safe(run_id)
+            _cleanup_pod_stats(run_id)
 
         RUN_ID = None

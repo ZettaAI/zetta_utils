@@ -230,11 +230,11 @@ def test_worker_init_set_start_method(mocker):
 def test_worker_init_load_train_inference(mocker):
     mocker.patch("zetta_utils.mazepa.worker._install_worker_signal_handlers")
     mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
-    mock_load = mocker.patch("zetta_utils.mazepa.worker.try_load_train_inference")
+    mock_setup = mocker.patch("zetta_utils.mazepa.worker.setup_environment")
 
     worker_init(log_level="INFO", load_train_inference=True)
 
-    mock_load.assert_called_once()
+    mock_setup.assert_called_once_with("try")
 
 
 def test_install_worker_signal_handlers():

@@ -113,23 +113,29 @@ def _check_run_id_conflict():
 
 def _send_heartbeat(run_id: str, bucket_egress_warned: set) -> None:
     """Send heartbeat and check for region mismatch warnings."""
-    info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
-    update_run_info(run_id, info)
+    try:
+        info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
+        update_run_info(run_id, info)
 
-    error = RUN_DB[(run_id, (RunInfo.REGION_MISMATCH.value,))]
-    if error:
-        bucket = error[RunInfo.REGION_MISMATCH.value]["bucket"]
-        message = error[RunInfo.REGION_MISMATCH.value]["message"]
-        if bucket not in bucket_egress_warned:
-            logger.warning(f"Region mismatch: {message}.")
-            bucket_egress_warned.add(bucket)
+        error = RUN_DB[(run_id, (RunInfo.REGION_MISMATCH.value,))]
+        if error:
+            bucket = error[RunInfo.REGION_MISMATCH.value]["bucket"]
+            message = error[RunInfo.REGION_MISMATCH.value]["message"]
+            if bucket not in bucket_egress_warned:
+                logger.warning(f"Region mismatch: {message}.")
+                bucket_egress_warned.add(bucket)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to send heartbeat: {e}")
 
 
 def _update_costs(run_id: str | None) -> None:
     """Update costs for the run."""
     if run_id is None:
         return
-    compute_costs(run_id)
+    try:
+        compute_costs(run_id)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to update costs: {e}")
 
 
 def _aggregate_gcs_stats_safe(run_id: str | None) -> None:
@@ -211,14 +217,17 @@ def run_ctx_manager(
         raise e from None
     finally:
         if main_run_process:
-            update_run_info(
-                RUN_ID,
-                {
-                    RunInfo.STATE.value: (
-                        status if status == RunState.FAILED.value else RunState.COMPLETED.value
-                    )
-                },
-            )
+            try:
+                update_run_info(
+                    RUN_ID,
+                    {
+                        RunInfo.STATE.value: (
+                            status if status == RunState.FAILED.value else RunState.COMPLETED.value
+                        )
+                    },
+                )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.warning(f"Failed to update final run state: {e}")
 
             assert heartbeat_sender is not None
             assert update_costs_repeater is not None

@@ -55,7 +55,12 @@ def compute_costs(run_id: str):
                 lname, build_firestore_layer(lname, DATABASE_NAME, project=PROJECT)
             )
             skus = layer.query({"-regions": [node_region], "class": [machine_class]}, union=False)
-            assert len(skus) == 1, (lname, node_region, machine_class, skus)
+            if len(skus) != 1:
+                logger.warning(
+                    f"Expected 1 SKU for {lname} in {node_region}/{machine_class}, "
+                    f"got {len(skus)}; skipping"
+                )
+                continue
             sku: DBRowDataT = next(iter(skus.values()))
             node_cost_hourly += float(str(sku["price_per_unit_usd"])) * count
 
@@ -68,7 +73,12 @@ def compute_costs(run_id: str):
             skus = gpu_layer.query(
                 {"-regions": [node_region], "gpu_indentifier": [gpu_indentifier]}, union=False
             )
-            assert len(skus) == 1, (gpu_layer_name, node_region, gpu_indentifier, skus)
+            if len(skus) != 1:
+                logger.warning(
+                    f"Expected 1 SKU for {gpu_layer_name} in {node_region}/{gpu_indentifier}, "
+                    f"got {len(skus)}; skipping"
+                )
+                continue
             sku = next(iter(skus.values()))
             node_cost_hourly += float(str(sku["price_per_unit_usd"])) * count
 

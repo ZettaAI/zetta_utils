@@ -8,7 +8,7 @@ import time
 import traceback
 from typing import Any, Callable, Optional
 
-from zetta_utils import builder, log, try_load_train_inference
+from zetta_utils import builder, log, setup_environment
 from zetta_utils.common import RepeatTimer, monitor_resources, reset_signal_handlers
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
@@ -76,7 +76,7 @@ def worker_init(
         multiprocessing.set_start_method(multiprocessing_start_method, force=True)
 
     if load_train_inference:
-        try_load_train_inference()
+        setup_environment("try")
 
 
 class AcceptAllTasks:

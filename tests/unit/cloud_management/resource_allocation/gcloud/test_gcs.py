@@ -3,33 +3,8 @@
 import pytest
 
 from zetta_utils.cloud_management.resource_allocation.gcloud.gcs import (
-    extract_bucket_from_path,
-    extract_gcs_paths_from_spec,
     is_region_compatible,
 )
-
-
-class TestExtractBucketFromPath:
-    """Tests for extract_bucket_from_path function."""
-
-    def test_gs_prefix(self):
-        assert extract_bucket_from_path("gs://my-bucket/path/to/file") == "my-bucket"
-
-    def test_gcs_prefix(self):
-        assert extract_bucket_from_path("gcs://my-bucket/path/to/file") == "my-bucket"
-
-    def test_no_prefix(self):
-        assert extract_bucket_from_path("my-bucket/path/to/file") == "my-bucket"
-
-    def test_bucket_only(self):
-        assert extract_bucket_from_path("gs://my-bucket") == "my-bucket"
-
-    def test_non_gcs_path(self):
-        assert extract_bucket_from_path("s3://my-bucket/path") is None
-        assert extract_bucket_from_path("https://example.com/path") is None
-
-    def test_empty_path(self):
-        assert extract_bucket_from_path("") is None
 
 
 class TestIsRegionCompatible:
@@ -106,62 +81,3 @@ class TestIsRegionCompatible:
     )
     def test_configurable_dual_region_uses_data_locations(self, compute, data_locations, expected):
         assert is_region_compatible("US", compute, data_locations) is expected
-
-
-class TestExtractGcsPathsFromSpec:
-    """Tests for extract_gcs_paths_from_spec function."""
-
-    def test_string_gcs_path(self):
-        assert extract_gcs_paths_from_spec("gs://bucket1/path") == {"bucket1"}
-
-    def test_string_non_gcs_path(self):
-        assert extract_gcs_paths_from_spec("s3://bucket1/path") == set()
-
-    def test_dict_with_path_key(self):
-        spec = {"path": "gs://bucket1/data"}
-        assert extract_gcs_paths_from_spec(spec) == {"bucket1"}
-
-    def test_dict_with_bucket_key(self):
-        spec = {"bucket": "bucket1"}
-        assert extract_gcs_paths_from_spec(spec) == {"bucket1"}
-
-    def test_nested_kvstore(self):
-        spec = {
-            "kvstore": {
-                "driver": "gcs",
-                "bucket": "bucket1",
-                "path": "data/",
-            }
-        }
-        assert extract_gcs_paths_from_spec(spec) == {"bucket1"}
-
-    def test_list_of_paths(self):
-        spec = ["gs://bucket1/a", "gs://bucket2/b", "s3://bucket3/c"]
-        assert extract_gcs_paths_from_spec(spec) == {"bucket1", "bucket2"}
-
-    def test_complex_nested_spec(self):
-        spec = {
-            "src": "gs://source-bucket/input",
-            "dst": "gs://dest-bucket/output",
-            "layers": [
-                {"path": "gs://layer-bucket/layer1"},
-                {"cloudpath": "gs://layer-bucket/layer2"},
-            ],
-            "config": {
-                "kvstore": {"bucket": "config-bucket"},
-            },
-        }
-        buckets = extract_gcs_paths_from_spec(spec)
-        assert "source-bucket" in buckets
-        assert "dest-bucket" in buckets
-        assert "layer-bucket" in buckets
-        assert "config-bucket" in buckets
-
-    def test_empty_spec(self):
-        assert extract_gcs_paths_from_spec({}) == set()
-        assert extract_gcs_paths_from_spec([]) == set()
-        assert extract_gcs_paths_from_spec("") == set()
-
-    def test_none_values(self):
-        spec = {"path": None, "bucket": None}
-        assert extract_gcs_paths_from_spec(spec) == set()

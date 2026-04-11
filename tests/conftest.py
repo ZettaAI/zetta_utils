@@ -6,13 +6,19 @@ import pytest
 from docker.errors import DockerException
 
 import docker
-from zetta_utils import constants
+from zetta_utils import constants, setup_environment
 
 constants.RUN_DATABASE = None
 
 
 def pytest_addoption(parser):
     parser.addoption("--run-integration", default=False, help="Run integration tests")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _setup_forkserver():
+    """Initialize forkserver with preloaded modules for test session."""
+    setup_environment("all")
 
 
 @pytest.fixture(scope="session")

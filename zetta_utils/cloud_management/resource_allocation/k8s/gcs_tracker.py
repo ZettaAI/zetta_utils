@@ -31,7 +31,7 @@ from zetta_utils.common import RESOURCE_STATS_FILE
 from zetta_utils.log import set_verbosity
 from zetta_utils.mazepa.semaphores import TimingTracker
 
-from ..gcloud.gcs import get_bucket_location, is_region_compatible
+from ..gcloud.gcs import get_bucket_location_info, is_region_compatible
 from .container import get_main_container_status
 from .gcs_tracker_utils import (
     get_pod_name,
@@ -108,8 +108,8 @@ def _check_and_cache_bucket_region(
     if bucket_name.startswith("_") or bucket_name in bucket_region_match:
         return
     try:
-        location = get_bucket_location(bucket_name)
-        region_match = is_region_compatible(location, compute_region)
+        location, data_locations = get_bucket_location_info(bucket_name)
+        region_match = is_region_compatible(location, compute_region, data_locations)
         bucket_region_match[bucket_name] = region_match
         if not region_match:
             logger.warning(

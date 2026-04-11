@@ -23,7 +23,7 @@ import attrs
 from pebble import concurrent
 from typing_extensions import ParamSpec
 
-from zetta_utils import log
+from zetta_utils import get_mp_context, log
 
 from . import constants, exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus
@@ -75,9 +75,9 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         if debug or self.runtime_limit_sec is None:
             return_value = self.fn(*self.args, **self.kwargs)
         else:
-            future = concurrent.process(timeout=self.runtime_limit_sec)(self.fn)(
-                *self.args, **self.kwargs
-            )
+            future = concurrent.process(
+                timeout=self.runtime_limit_sec, mp_context=get_mp_context()
+            )(self.fn)(*self.args, **self.kwargs)
             try:
                 return_value = future.result()
             except PebbleTimeoutError as e:

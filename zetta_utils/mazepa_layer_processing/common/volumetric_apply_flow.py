@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import itertools
-import multiprocessing
 from contextlib import nullcontext
 from copy import deepcopy
 from os import path
@@ -12,7 +11,7 @@ import numpy as np
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, log, mazepa
+from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, get_mp_context, log, mazepa
 from zetta_utils.common import configure_pool_signals
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
@@ -278,7 +277,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         if self.task_stack_size is None or self.task_stack_size == 1:
             # No stacking, create one task per index
             if len(idx_chunks_flat) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-                with multiprocessing.get_context("fork").Pool(
+                with get_mp_context().Pool(
                     initializer=configure_pool_signals
                 ) as pool_obj:
                     tasks = pool_obj.map(

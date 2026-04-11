@@ -112,20 +112,23 @@ def _check_run_id_conflict():
 
 
 def _send_heartbeat(run_id: str, bucket_egress_warned: set) -> None:
-    """Send heartbeat and check for region mismatch warnings."""
-    try:
-        info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
-        update_run_info(run_id, info)
+    """Send heartbeat and check for region mismatch warnings.
 
-        error = RUN_DB[(run_id, (RunInfo.REGION_MISMATCH.value,))]
-        if error:
-            bucket = error[RunInfo.REGION_MISMATCH.value]["bucket"]
-            message = error[RunInfo.REGION_MISMATCH.value]["message"]
-            if bucket not in bucket_egress_warned:
-                logger.warning(f"Region mismatch: {message}.")
-                bucket_egress_warned.add(bucket)
-    except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to send heartbeat: {e}")
+    Intentionally NOT wrapped in try/except: if the heartbeat write fails the
+    run's k8s resources will be garbage-collected by the stale-heartbeat GC,
+    so a wrap that swallows the error would let the run keep doing work it's
+    about to lose. Let the failure propagate.
+    """
+    info: DBRowDataT = {RunInfo.HEARTBEAT.value: time.time()}
+    update_run_info(run_id, info)
+
+    error = RUN_DB[(run_id, (RunInfo.REGION_MISMATCH.value,))]
+    if error:
+        bucket = error[RunInfo.REGION_MISMATCH.value]["bucket"]
+        message = error[RunInfo.REGION_MISMATCH.value]["message"]
+        if bucket not in bucket_egress_warned:
+            logger.warning(f"Region mismatch: {message}.")
+            bucket_egress_warned.add(bucket)
 
 
 def _update_costs(run_id: str | None) -> None:

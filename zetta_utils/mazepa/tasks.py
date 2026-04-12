@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import functools
+import signal
 import sys
 import time
 import traceback
 import uuid
-from concurrent.futures import TimeoutError as PebbleTimeoutError
 from typing import (
     Any,
     Callable,
@@ -20,7 +20,6 @@ from typing import (
 )
 
 import attrs
-from pebble import concurrent
 from typing_extensions import ParamSpec
 
 from zetta_utils import log
@@ -75,13 +74,17 @@ class Task(Generic[R_co]):  # pylint: disable=too-many-instance-attributes
         if debug or self.runtime_limit_sec is None:
             return_value = self.fn(*self.args, **self.kwargs)
         else:
-            future = concurrent.process(timeout=self.runtime_limit_sec)(self.fn)(
-                *self.args, **self.kwargs
-            )
+
+            def _timeout_handler(signum, frame):
+                raise exceptions.MazepaTimeoutError(f"Task '{self.id_}' took too long.")
+
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(int(self.runtime_limit_sec))
             try:
-                return_value = future.result()
-            except PebbleTimeoutError as e:
-                raise exceptions.MazepaTimeoutError(f"Task '{self.id_}' took too long.") from e
+                return_value = self.fn(*self.args, **self.kwargs)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
         return return_value
 
     def __call__(self, debug: bool = True, handle_exceptions: bool = True) -> TaskOutcome[R_co]:

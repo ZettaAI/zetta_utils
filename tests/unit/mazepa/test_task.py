@@ -56,9 +56,9 @@ def test_make_taskable_operation() -> None:
 
 
 def test_task_runtime_limit() -> None:
-    @taskable_operation(runtime_limit_sec=0.1)
+    @taskable_operation(runtime_limit_sec=1)
     def dummy_task_fn():
-        time.sleep(0.3)
+        time.sleep(3)
 
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()
@@ -68,12 +68,12 @@ def test_task_runtime_limit() -> None:
 
 
 def test_task_no_handle_exc() -> None:
-    @taskable_operation(runtime_limit_sec=0.1)
+    @taskable_operation(runtime_limit_sec=1)
     def dummy_task_fn():
         raise DummyException()
 
     assert isinstance(dummy_task_fn, TaskableOperation)
     task = dummy_task_fn.make_task()
     assert isinstance(task, Task)
-    with pytest.raises(Exception):
+    with pytest.raises(DummyException):
         task(debug=False, handle_exceptions=False)

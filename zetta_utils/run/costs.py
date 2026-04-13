@@ -64,6 +64,11 @@ def compute_costs(run_id: str):
                 lname, build_firestore_layer(lname, DATABASE_NAME, project=PROJECT)
             )
             skus = layer.query({"-regions": [node_region], "class": [machine_class]}, union=False)
+            # GCP's SKU API is messy — there's no standard way to look up
+            # pricing by machine type. Some fields are parsed from description
+            # strings. A mismatch can happen when the pricing DB hasn't been
+            # refreshed for a new machine type/region, or when a node reports a
+            # machine_type that doesn't match the pricing DB's classification.
             if len(skus) != 1:
                 logger.warning(
                     f"Expected 1 SKU for {lname} in {node_region}/{machine_class}, "

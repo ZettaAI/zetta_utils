@@ -15,12 +15,6 @@ from zetta_utils import log
 
 logger = log.get_logger("zetta_utils")
 
-# Goal: detect cross-region egress no matter what. The function returns True
-# only when we have explicit positive evidence the bucket and compute share a
-# region; everything else (including unknown new GCE regions) is flagged as
-# potential egress. False positives are noise; false negatives are silent
-# money loss, so we err on the side of false positives.
-
 # Known-good positive list of regions in each multi-region's replica set, as
 # of April 2026. GCP does not publish an authoritative per-multi-region
 # constituent list, so this is maintained manually. When a brand-new GCE
@@ -128,6 +122,12 @@ def is_region_compatible(
 
     Compatible == data transfer between this bucket and a VM in `compute_region`
     will not incur cross-region egress charges.
+
+    Goal: detect cross-region egress no matter what. Returns True only when we
+    have explicit positive evidence the bucket and compute share a region;
+    everything else (including unknown new GCE regions) is flagged as potential
+    egress. False positives are noise; false negatives are silent money loss,
+    so we err on the side of false positives.
 
     Strategy: only return True with explicit positive evidence. Anything we
     cannot definitively classify as same-region is treated as cross-region so

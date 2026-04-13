@@ -399,12 +399,14 @@ def _start_mitmproxy() -> subprocess.Popen:
     )
 
 
-def run_proxy(run_id: str):
-    """
-    Run the pod stats sidecar.
+def run_sidecar(run_id: str):
+    """Run the pod stats sidecar.
 
-    Always starts the stats push loop. Optionally starts mitmproxy for
-    GCS request interception when mitmproxy is available.
+    The push loop (semaphore + resource collectors) starts unconditionally.
+    mitmproxy is started only when installed and its CA cert can be generated;
+    when it is, a GCS collector is added. mitmproxy may be unavailable if the
+    sidecar image was built without it (e.g. lightweight images for non-GCS
+    workloads) or if cert generation fails on startup.
     """
     logger.info(f"Starting pod stats sidecar for run {run_id}")
 
@@ -471,4 +473,4 @@ if __name__ == "__main__":
     _run_id = os.environ.get("RUN_ID")
     if not _run_id:
         raise RuntimeError("RUN_ID environment variable must be set")
-    run_proxy(_run_id)
+    run_sidecar(_run_id)

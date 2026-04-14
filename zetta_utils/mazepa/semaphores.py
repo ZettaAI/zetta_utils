@@ -179,7 +179,7 @@ def configure_semaphores(
                 Semaphore(name_to_posix_name(name, os.getpid()), flags=0)
                 raise RuntimeError(
                     f"Semaphore `{name}` with POSIX name "
-                    "`{name_to_posix_name(name, os.getpid())}` "
+                    f"`{name_to_posix_name(name, os.getpid())}` "
                     "already exists from the current process."
                 )
         except ExistentialError:

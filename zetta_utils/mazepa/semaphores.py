@@ -8,6 +8,7 @@ from multiprocessing import resource_tracker, shared_memory
 from typing import List, Literal, get_args
 
 import attrs
+import psutil
 from posix_ipc import (  # pylint: disable=no-name-in-module
     O_CREX,
     ExistentialError,
@@ -317,24 +318,26 @@ class TimedSemaphore(contextlib.AbstractContextManager):
 
 def semaphore(name: SemaphoreType) -> TimedSemaphore:
     """
-    Fetches and returns either the semaphore associated with the current process,
-    or the semaphore associated with the parent process, or a dummy semaphore,
-    in that order. Wraps in TimedSemaphore to track acquisition wait time.
+    Fetches and returns the semaphore associated with the current process or
+    any of its ancestors, walking up the process tree until one is found. Falls
+    back to a dummy semaphore if none exists. Wraps in TimedSemaphore to track
+    acquisition wait time.
     """
     if not name in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")
+    candidate_pids = [os.getpid()]
     try:
-        pid = os.getpid()
-        sema = Semaphore(name_to_posix_name(name, pid))
-        return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
-    except ExistentialError:
+        candidate_pids.extend(p.pid for p in psutil.Process().parents())
+    except psutil.Error:  # pragma: no cover
+        pass
+    for pid in candidate_pids:
         try:
-            pid = os.getppid()
             sema = Semaphore(name_to_posix_name(name, pid))
             return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
         except ExistentialError:
-            dummy = DummySemaphore()
-            return TimedSemaphore(semaphore=dummy, name=name)
+            continue
+    dummy = DummySemaphore()
+    return TimedSemaphore(semaphore=dummy, name=name)
 
 
 def get_semaphore_stats(name: SemaphoreType) -> dict[str, float | int]:

@@ -4,7 +4,7 @@ import contextlib
 import os
 import struct
 import time
-from multiprocessing import shared_memory
+from multiprocessing import resource_tracker, shared_memory
 from typing import List, Literal, get_args
 
 import attrs
@@ -40,7 +40,12 @@ class TimingTracker:
     def _get_shared_memory(self) -> shared_memory.SharedMemory:
         """Get existing shared memory (assumes it was already created by head node)."""
         name = self._get_shared_memory_name()
-        return shared_memory.SharedMemory(name=name)
+        shm = shared_memory.SharedMemory(name=name)
+        # Workaround for https://bugs.python.org/issue38119: attaching processes get
+        # registered with resource_tracker and will unlink the segment on exit, even
+        # though they did not create it. Unregister so only the head node owns cleanup.
+        resource_tracker.unregister(f"/{name}", "shared_memory")
+        return shm
 
     def create_shared_memory(self) -> shared_memory.SharedMemory:
         """Create new shared memory block (should only be called by head node)."""

@@ -11,6 +11,19 @@ from zetta_utils.layer.db_layer import DBDataT, DBLayer
 from zetta_utils.layer.db_layer.datastore import DatastoreBackend, build_datastore_layer
 
 
+@pytest.fixture(autouse=True)
+def _isolate_test_namespace(datastore_emulator):
+    """Clear the shared Datastore namespace after every test in this module.
+
+    The `datastore_emulator` fixture is session-scoped, so tests share the
+    same emulator. Autouse teardown prevents state leakage between tests
+    (counting assertions like len == N would otherwise be dependent on
+    execution order).
+    """
+    yield
+    build_datastore_layer(datastore_emulator, datastore_emulator).clear()
+
+
 def test_build_layer(datastore_emulator):
     layer = build_datastore_layer(datastore_emulator, datastore_emulator)
     assert isinstance(layer.backend, DatastoreBackend)
@@ -37,7 +50,6 @@ def test_read_write_simple(datastore_emulator) -> None:
 
 
 def _write_some_data(layer: DBLayer):
-    layer.clear()
     row_keys = ["key0", "key1", "key2"]
     idx_user = (row_keys, ("col0", "col1"))
     data_user: DBDataT = [

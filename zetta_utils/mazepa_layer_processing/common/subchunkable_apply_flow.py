@@ -105,6 +105,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
     coord_resolution: Sequence | None = None,
     auto_bbox: bool = False,
     dst_tighten_bounds: bool = False,
+    max_random_chunks: int | None = None,
 ) -> mazepa.Flow:
     """
     Wrapper for SubchunkableApplyFlow that treats the chunk sizes as post padding for
@@ -199,6 +200,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
         coord_resolution=coord_resolution,
         auto_bbox=auto_bbox,
         dst_tighten_bounds=dst_tighten_bounds,
+        max_random_chunks=max_random_chunks,
     )
 
 
@@ -239,6 +241,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     coord_resolution: Sequence | None = None,
     auto_bbox: bool = False,
     dst_tighten_bounds: bool = False,
+    max_random_chunks: int | None = None,
 ) -> mazepa.Flow:
     """
     The helper constructor for a flow that applies any function or operation with a `Tensor`
@@ -582,6 +585,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
         op_kwargs=op_kwargs_,
+        max_random_chunks=max_random_chunks,
     )
 
 
@@ -1089,6 +1093,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op_args: P.args,
     op_kwargs: P.kwargs,
     processing_gap: Vec3D[int],
+    max_random_chunks: int | None = None,
 ) -> mazepa.Flow:
     num_levels = len(processing_chunk_sizes)
 
@@ -1297,6 +1302,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
         task_stack_size=task_stack_size,
+        max_random_chunks=max_random_chunks,
     )
     """
     Iteratively build the hierarchy of schemas
@@ -1327,5 +1333,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_worker_type=op_worker_type,
             reduction_worker_type=reduction_worker_type,
             task_stack_size=None,  # Only stack at the bottom level (level 0)
+            max_random_chunks=max_random_chunks if level == num_levels - 1 else None,
         )
     return flow_schema(idx, dst, op_args, op_kwargs)

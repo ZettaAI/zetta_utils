@@ -38,10 +38,12 @@ class SegContactInfoSpecParams:
     ground_truth_path: str | None = None
     affinity_path: str | None = None
     image_path: str | None = None
+    nucleus_path: str | None = None
     local_point_clouds: list[dict] | None = None
     merge_decisions: list[str] | None = None
     merge_probabilities: list[str] | None = None
     filter_settings: dict | None = None
+    format_version: str = "1.1"
 
     @classmethod
     def from_reference(
@@ -55,10 +57,12 @@ class SegContactInfoSpecParams:
         ground_truth_path: str | None = None,
         affinity_path: str | None = None,
         image_path: str | None = None,
+        nucleus_path: str | None = None,
         local_point_clouds: list[dict] | None = None,
         merge_decisions: list[str] | None = None,
         merge_probabilities: list[str] | None = None,
         filter_settings: dict | None = None,
+        format_version: str | None = None,
     ) -> SegContactInfoSpecParams:
         """Create params from a source seg_contact layer path."""
         ref_info = read_info(source_path)
@@ -85,6 +89,8 @@ class SegContactInfoSpecParams:
             affinity_path = ref_info.get("affinity_path")
         if image_path is None:
             image_path = ref_info.get("image_path")
+        if nucleus_path is None:
+            nucleus_path = ref_info.get("nucleus_path")
         if local_point_clouds is None:
             local_point_clouds = ref_info.get("local_point_clouds")
         if merge_decisions is None:
@@ -93,6 +99,8 @@ class SegContactInfoSpecParams:
             merge_probabilities = ref_info.get("merge_probabilities")
         if filter_settings is None:
             filter_settings = ref_info.get("filter_settings")
+        if format_version is None:
+            format_version = ref_info.get("format_version", "1.0")
 
         return cls(
             resolution=Vec3D(*resolution),
@@ -103,10 +111,12 @@ class SegContactInfoSpecParams:
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,
             filter_settings=filter_settings,
+            format_version=format_version,
         )
 
 
@@ -134,7 +144,7 @@ class SegContactInfoSpec:
             voxel_offset = [int(params.bbox.start[i] / params.resolution[i]) for i in range(3)]
             size = [int(params.bbox.shape[i] / params.resolution[i]) for i in range(3)]
             info: dict = {
-                "format_version": "1.0",
+                "format_version": params.format_version,
                 "type": "seg_contact",
                 "resolution": list(params.resolution),
                 "voxel_offset": voxel_offset,
@@ -150,6 +160,8 @@ class SegContactInfoSpec:
                 info["affinity_path"] = params.affinity_path
             if params.image_path:
                 info["image_path"] = params.image_path
+            if params.nucleus_path:
+                info["nucleus_path"] = params.nucleus_path
             if params.local_point_clouds:
                 info["local_point_clouds"] = params.local_point_clouds
             if params.merge_decisions:
@@ -225,6 +237,7 @@ def build_seg_contact_info_spec(
     ground_truth_path: str | None = None,
     affinity_path: str | None = None,
     image_path: str | None = None,
+    nucleus_path: str | None = None,
     local_point_clouds: list[dict] | None = None,
     merge_decisions: list[str] | None = None,
     merge_probabilities: list[str] | None = None,
@@ -264,6 +277,7 @@ def build_seg_contact_info_spec(
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,
@@ -284,6 +298,7 @@ def build_seg_contact_info_spec(
             ground_truth_path=ground_truth_path,
             affinity_path=affinity_path,
             image_path=image_path,
+            nucleus_path=nucleus_path,
             local_point_clouds=local_point_clouds,
             merge_decisions=merge_decisions,
             merge_probabilities=merge_probabilities,

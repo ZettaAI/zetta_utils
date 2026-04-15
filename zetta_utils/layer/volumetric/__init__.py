@@ -12,6 +12,7 @@ from .conversion import convert_idx, convert_write, UserVolumetricIndex
 from .tools import (
     DataResolutionInterpolator,
     InvertProcessor,
+    MaskSegByProperties,
     ROIMaskProcessor,
     VolumetricIndexPadder,
     VolumetricIndexTranslator,

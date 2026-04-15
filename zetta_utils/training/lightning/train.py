@@ -21,6 +21,7 @@ from kubernetes import config as k8s_config  # type: ignore[attr-defined]
 from zetta_utils import builder, load_all_modules, log, run
 from zetta_utils.cloud_management import resource_allocation
 from zetta_utils.parsing import json
+from zetta_utils.training.data_loader import RebatchingDataLoader
 
 logger = log.get_logger("zetta_utils")
 
@@ -44,8 +45,13 @@ def distributed_available() -> bool:
 def lightning_train(  # pylint: disable=too-many-locals
     regime: pl.LightningModule | dict[str, Any],
     trainer: pl.Trainer | dict[str, Any],
-    train_dataloader: torch.utils.data.DataLoader | dict[str, Any],
-    val_dataloader: Optional[torch.utils.data.DataLoader | dict[str, Any]] = None,
+    train_dataloader: torch.utils.data.DataLoader | RebatchingDataLoader | dict[str, Any],
+    val_dataloader: Optional[
+        torch.utils.data.DataLoader
+        | RebatchingDataLoader
+        | dict[str, Any]
+        | list[torch.utils.data.DataLoader | RebatchingDataLoader]
+    ] = None,
     full_state_ckpt_path: str = "last",
     num_nodes: int = 1,
     min_nodes: int | None = None,
@@ -115,18 +121,39 @@ def lightning_train(  # pylint: disable=too-many-locals
             if not isinstance(train_dataloader, dict)
             else builder.build(train_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
         )
-        train_dataloader_.worker_init_fn = _load_modules
-
-        val_dataloader_ = (
-            val_dataloader
-            if not isinstance(val_dataloader, dict)
-            else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+        train_dataloader_.worker_init_fn = _get_worker_init_fn(
+            disable_cuda=getattr(train_dataloader_, "disable_worker_cuda", False)
         )
-        if val_dataloader_ is not None:
-            val_dataloader_.worker_init_fn = _load_modules
+
+        val_dataloader_names = None
+        if isinstance(val_dataloader, dict) and all(
+            not isinstance(v, dict) for v in val_dataloader.values()
+        ):
+            # Dict of named val dataloaders (already built by builder):
+            # {"x1": <DataLoader>, "x2": <DataLoader>}
+            val_dataloader_names = list(val_dataloader.keys())
+            val_dataloader_ = list(val_dataloader.values())
+            for dl in val_dataloader_:
+                dl.worker_init_fn = _get_worker_init_fn(
+                    disable_cuda=getattr(dl, "disable_worker_cuda", False)
+                )
+        else:
+            val_dataloader_ = (
+                val_dataloader
+                if not isinstance(val_dataloader, dict)
+                else builder.build(val_dataloader, parallel=builder.PARALLEL_BUILD_ALLOWED)
+            )
+            if val_dataloader_ is not None:
+                val_dataloader_.worker_init_fn = _get_worker_init_fn(
+                    disable_cuda=getattr(val_dataloader_, "disable_worker_cuda", False)
+                )
+
+        regime_ = regime if not isinstance(regime, dict) else builder.build(regime)
+        if val_dataloader_names is not None:
+            regime_.val_dataloader_names = val_dataloader_names
 
         _lightning_train_local(
-            regime=regime if not isinstance(regime, dict) else builder.build(regime),
+            regime=regime_,
             trainer=trainer if not isinstance(trainer, dict) else builder.build(trainer),
             train_dataloader=train_dataloader_,
             val_dataloader=val_dataloader_,
@@ -161,8 +188,14 @@ def lightning_train(  # pylint: disable=too-many-locals
 
     for k, v in args_mapping.items():
         if isinstance(v, dict):
-            # argument given as spec, use it directly
-            train_args[k] = v
+            # Check if this is a dict of already-built objects (e.g. named val dataloaders)
+            if any(not isinstance(vv, dict) for vv in v.values()):
+                train_args[k] = {
+                    name: builder.get_initial_builder_spec(obj) for name, obj in v.items()
+                }
+            else:
+                # argument given as spec, use it directly
+                train_args[k] = v
         else:
             arg_spec = builder.get_initial_builder_spec(v)
             if arg_spec is None:
@@ -236,8 +269,14 @@ def _multinode_train_launch(
 def _lightning_train_local(
     regime: pl.LightningModule,
     trainer: pl.Trainer,
-    train_dataloader: torch.utils.data.DataLoader,
-    val_dataloader: torch.utils.data.DataLoader | None = None,
+    train_dataloader: torch.utils.data.DataLoader | RebatchingDataLoader,
+    val_dataloader: (
+        torch.utils.data.DataLoader
+        | RebatchingDataLoader
+        | list[torch.utils.data.DataLoader | RebatchingDataLoader]
+        | dict[str, torch.utils.data.DataLoader | RebatchingDataLoader]
+        | None
+    ) = None,
     full_state_ckpt_path: str = "last",
 ):
     logger.info("Starting training...")
@@ -262,6 +301,9 @@ def _lightning_train_local(
         logger.info(
             f"No checkpoint found at {getattr(trainer, '_ckpt_path', None)}, starting fresh"
         )
+    if isinstance(val_dataloader, dict) and hasattr(regime, "val_dataloader_names"):
+        regime.val_dataloader_names = list(val_dataloader.keys())
+        val_dataloader = list(val_dataloader.values())
     trainer.fit(
         model=regime,
         train_dataloaders=train_dataloader,
@@ -270,8 +312,19 @@ def _lightning_train_local(
     )
 
 
-def _load_modules(worker_id: int):  # pylint: disable=unused-argument
+def _worker_init_fn(worker_id: int):  # pylint: disable=unused-argument
     load_all_modules()
+
+
+def _worker_init_fn_no_cuda(worker_id: int):  # pylint: disable=unused-argument
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    load_all_modules()
+
+
+def _get_worker_init_fn(disable_cuda: bool = False):
+    return _worker_init_fn_no_cuda if disable_cuda else _worker_init_fn
 
 
 def _label_pod_rank():
@@ -314,13 +367,35 @@ def _parse_spec_and_train():
     regime = builder.build(spec=train_args["regime"])
     trainer = builder.build(spec=train_args["trainer"])
     train_dataloader = builder.build(spec=train_args["train_dataloader"])
-    train_dataloader.worker_init_fn = _load_modules
-    val_dataloader_spec = train_args.get("val_dataloader")
+    train_dataloader.worker_init_fn = _get_worker_init_fn(
+        disable_cuda=getattr(train_dataloader, "disable_worker_cuda", False)
+    )
+    try:
+        val_dataloader_spec = train_args["val_dataloader"]
+    except KeyError:
+        val_dataloader_spec = None
+
+    val_dataloader = None
     if val_dataloader_spec is not None:
         val_dataloader = builder.build(spec=val_dataloader_spec)
-        val_dataloader.worker_init_fn = _load_modules
-    else:
-        val_dataloader = None
+        if isinstance(val_dataloader, dict):
+            val_dataloader_names = list(val_dataloader.keys())
+            val_dataloader_list = list(val_dataloader.values())
+            for dl in val_dataloader_list:
+                if not hasattr(dl, "worker_init_fn"):
+                    raise TypeError(
+                        f"Expected DataLoader objects in val_dataloader dict, got {type(dl).__name__}. "
+                        f"Ensure all val_dataloader entries have '@type' and build into DataLoader objects."
+                    )
+                dl.worker_init_fn = _get_worker_init_fn(
+                    disable_cuda=getattr(dl, "disable_worker_cuda", False)
+                )
+            regime.val_dataloader_names = val_dataloader_names
+            val_dataloader = val_dataloader_list
+        else:
+            val_dataloader.worker_init_fn = _get_worker_init_fn(
+                disable_cuda=getattr(val_dataloader, "disable_worker_cuda", False)
+            )
     try:
         full_state_ckpt_path = train_args["full_state_ckpt_path"]
     except KeyError:

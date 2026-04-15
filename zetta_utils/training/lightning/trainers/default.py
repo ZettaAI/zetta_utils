@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import gc
 import importlib.metadata
 import os
 import shutil
@@ -230,6 +231,7 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
         )
         self.callbacks.insert(0, WallClockTimeCallback())  # type: ignore
         self.callbacks.append(SIGTERMCheckpointCallback())  # type: ignore
+        self.callbacks.append(ValCheckIntervalGuard())  # type: ignore
 
         self._ckpt_path = os.path.join(log_dir, "last.ckpt")
 
@@ -286,6 +288,8 @@ class ZettaDefaultTrainer(pl.Trainer):  # pragma: no cover
                 with fsspec.open(spec_path, "w") as f:
                     json.dump(spec, f, indent=3)
 
+        gc.collect()
+        torch.cuda.empty_cache()
         for name, val in self.trace_configuration.items():
             model = val["model"]
             trace_input = val["trace_input"]
@@ -578,7 +582,7 @@ class WallClockTimeCallback(pl.callbacks.Callback):  # pragma: no cover
     ) -> None:
         end_time = time.perf_counter()
         elapsed_time = end_time - self.start_time
-        pl_module.log("elapsed/train", elapsed_time, on_step=True)
+        pl_module.log("elapsed/train", elapsed_time, on_step=True, on_epoch=True)
 
 
 class SIGTERMCheckpointCallback(pl.callbacks.Callback):  # pragma: no cover
@@ -620,3 +624,31 @@ class SIGTERMCheckpointCallback(pl.callbacks.Callback):  # pragma: no cover
             if self._original_handler is not None:
                 signal.signal(signal.SIGTERM, self._original_handler)
             raise SystemExit("SIGTERM received, exiting.")
+
+
+class ValCheckIntervalGuard(pl.callbacks.Callback):  # pragma: no cover
+    """Raises an error after the first training epoch if val_check_interval is configured
+    in a way that prevents validation from ever running.
+
+    With iterable dataloaders (no __len__) and check_val_every_n_epoch != None, Lightning
+    uses the per-epoch batch_idx for val_check_interval. If val_check_interval exceeds the
+    actual number of batches per epoch, validation silently never triggers.
+    """
+
+    def on_train_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+        if trainer.current_epoch > 0:
+            return
+        val_check_batch = getattr(trainer, "val_check_batch", None)
+        if val_check_batch is None or val_check_batch == float("inf"):
+            return
+        batches_in_epoch = trainer.fit_loop.epoch_loop.batch_progress.total.completed
+        if batches_in_epoch == 0:
+            return
+        if val_check_batch > batches_in_epoch and trainer.check_val_every_n_epoch is not None:
+            raise RuntimeError(
+                f"val_check_interval ({int(val_check_batch)}) > batches per epoch "
+                f"({batches_in_epoch}) with check_val_every_n_epoch="
+                f"{trainer.check_val_every_n_epoch}. Validation will silently never run. "
+                f"Set check_val_every_n_epoch=null in the trainer config to use the global "
+                f"step counter instead of the per-epoch batch index."
+            )

@@ -11,6 +11,20 @@ from zetta_utils.layer.db_layer import DBDataT, DBLayer
 from zetta_utils.layer.db_layer.firestore import FirestoreBackend, build_firestore_layer
 
 
+@pytest.fixture(autouse=True)
+def _isolate_test_collection(firestore_emulator):
+    """Clear the shared 'test' collection after every test in this module.
+
+    The `firestore_emulator` fixture is session-scoped, so all tests share
+    the same emulator instance. Without this teardown, rows written by one
+    test persist and contaminate later tests (caused test_batching to fail
+    when an earlier test left a doc behind). Autouse makes cleanup a single-
+    source-of-truth concern instead of every test having to remember.
+    """
+    yield
+    build_firestore_layer("test", project=firestore_emulator).clear()
+
+
 def test_build_layer(firestore_emulator):
     layer = build_firestore_layer("test", project=firestore_emulator)
     assert isinstance(layer.backend, FirestoreBackend)
@@ -36,7 +50,6 @@ def test_read_write_simple(firestore_emulator) -> None:
 
 
 def _write_some_data(layer: DBLayer):
-    layer.clear()
     row_keys = ["key0", "key1", "key2"]
     idx_user = (row_keys, ("col0", "col1", "col2", "tags"))
     data_user: DBDataT = [
@@ -49,7 +62,6 @@ def _write_some_data(layer: DBLayer):
 
 
 def _write_some_query_data(layer: DBLayer):
-    layer.clear()
     row_keys = ["key0", "key1", "key2", "key3", "key4", "key5"]
     idx_user = (row_keys, ("col0", "col1", "col2", "tags"))
     data_user: DBDataT = [
@@ -103,7 +115,6 @@ def test_inequality_filters(firestore_emulator) -> None:
     col_filter = {">col2": [2]}
     result = layer.query(column_filter=col_filter)
     assert "key3" in result and "key4" in result and len(result) == 2
-    layer.clear()
 
 
 def test_delete_and_clear(firestore_emulator) -> None:
@@ -152,7 +163,6 @@ def test_batch_delete_after_query(firestore_emulator) -> None:
     This is the actual usage pattern from `run.__init__._cleanup_pod_stats`.
     """
     layer = build_firestore_layer("test", project=firestore_emulator)
-    layer.clear()
     row_keys = ["run1__pod0", "run1__pod1", "run2__pod0"]
     idx_user = (row_keys, ("run_id", "value"))
     layer[idx_user] = [

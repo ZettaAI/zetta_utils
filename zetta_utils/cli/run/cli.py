@@ -17,6 +17,16 @@ COLUMNS: Final = namedtuple(
     "COLUMNS", ["zetta_user", "state", "timestamp", "heartbeat", "run_id", "duration_s"]
 )
 
+# Extra Firestore columns populated by aggregate_pod_stats() / compute_costs().
+# Fetched alongside RunInfo fields so `run-info` surfaces instrumentation output.
+STATS_COLUMNS: Final = (
+    "compute_cost",
+    "total_egress_gib",
+    "gcs_stats",
+    "semaphore_stats",
+    "resource_stats",
+)
+
 
 def _print_infos(infos: list) -> Table:
     table = Table()
@@ -58,7 +68,8 @@ def run_info(run_ids: list[str]):
     from zetta_utils.run.db import RUN_DB  # pylint: disable=import-outside-toplevel
 
     info_path = os.environ.get("RUN_INFO_BUCKET", RUN_INFO_BUCKET)
-    infos = RUN_DB[(run_ids, (x.value for x in RunInfo))]
+    columns = tuple(x.value for x in RunInfo) + STATS_COLUMNS
+    infos = RUN_DB[(run_ids, columns)]
     for run_id, info in zip(run_ids, infos):
         rich_print(Panel(run_id))
 

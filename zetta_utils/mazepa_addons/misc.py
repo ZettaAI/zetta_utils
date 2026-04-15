@@ -9,6 +9,7 @@ from cloudfiles import CloudFiles
 from cloudvolume import CloudVolume
 
 from zetta_utils import builder, log, mazepa
+from zetta_utils.mazepa import semaphore
 from zetta_utils.mazepa.tasks import taskable_operation
 
 logger = log.get_logger("zetta_utils")
@@ -177,3 +178,75 @@ def test_gcs_access_flow(
         for rp, wp in zip(read_paths, write_paths):
             task = test_gcs_access_loop.make_task(rp, wp, cv_path, num_iterations)
             yield task
+
+
+@taskable_operation
+def instrumentation_test_task(
+    read_path: str,
+    write_path: str,
+    num_iterations: int = 10,
+    work_seconds: float = 1.0,
+):
+    """Exercises all three sidecar instrumentation channels in one task.
+
+    - GCS stats: fsspec read + fsspec write on each iteration (Class B + Class A).
+    - Semaphore stats: acquires read/cpu/cuda/write semaphores with realistic
+      wait+lease times. Contention (wait > 0) comes from num_procs > the
+      semaphore width at the pool level; no in-task multiprocessing needed.
+    - Resource stats: CPU-bound inner loop (not sleep) so ResourceMonitor's
+      psutil samples register real CPU utilization.
+    """
+    logger.info(
+        f"Starting instrumentation test task: "
+        f"{num_iterations} iters, {work_seconds}s CPU per iter"
+    )
+    for i in range(num_iterations):
+        with semaphore("read"):
+            with fsspec.open(read_path, "r") as f:
+                data = f.read()
+
+        with semaphore("cpu"):
+            # Real CPU burn so ResourceMonitor sees non-idle pod CPU.
+            end = time.time() + work_seconds
+            acc = 0
+            while time.time() < end:
+                acc += sum(j * j for j in range(2000))
+            logger.debug(f"iter {i} acc={acc}")
+
+        with semaphore("cuda"):
+            # Brief hold -- we don't need real GPU work to exercise the
+            # cuda semaphore's TimingTracker.
+            time.sleep(0.05)
+
+        with semaphore("write"):
+            with fsspec.open(f"{write_path}_instr_{i}", "w") as f:
+                f.write(data)
+
+
+@builder.register("instrumentation_test_flow")
+@mazepa.flow_schema
+def instrumentation_test_flow(
+    num_tasks: int,
+    read_path: str,
+    write_path: str,
+    num_iterations: int = 10,
+    work_seconds: float = 1.0,
+):
+    """Fan out N instrumentation tasks to stress the worker pool semaphore
+    contention.
+
+    Produces roughly:
+    - gcs_stats:       num_tasks * num_iterations * 2 requests (read+write)
+    - semaphore_stats: num_tasks * num_iterations acquisitions per type
+    - resource_stats:  CPU spikes during the work loop; mem/disk/net samples
+    """
+    # Seed the read path so worker tasks have something to read. Idempotent:
+    # overwrites on every run. Kept tiny to keep egress costs negligible.
+    logger.info(f"Seeding instrumentation test input at {read_path}")
+    with fsspec.open(read_path, "w") as f:
+        f.write("instrumentation test seed\n")
+
+    for _ in range(num_tasks):
+        yield instrumentation_test_task.make_task(
+            read_path, write_path, num_iterations, work_seconds
+        )

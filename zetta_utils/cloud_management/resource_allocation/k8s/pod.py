@@ -89,12 +89,22 @@ def get_pod_spec(  # pylint: disable=too-many-locals
             k8s_client.V1EnvVar(name="HTTP_PROXY", value="http://localhost:8080"),
             k8s_client.V1EnvVar(name="https_proxy", value="http://localhost:8080"),
             k8s_client.V1EnvVar(name="http_proxy", value="http://localhost:8080"),
-            # Ensure GCS traffic goes through proxy (don't bypass for localhost)
+            # Ensure GCS traffic goes through proxy (don't bypass for localhost).
+            # AWS endpoints are excluded so SQS/etc. don't depend on mitmproxy
+            # being healthy — the proxy is only there to record GCS traffic.
             k8s_client.V1EnvVar(
-                name="NO_PROXY", value="127.0.0.1,metadata.google.internal,kubernetes.default.svc"
+                name="NO_PROXY",
+                value=(
+                    "127.0.0.1,metadata.google.internal,kubernetes.default.svc,"
+                    "amazonaws.com,.amazonaws.com"
+                ),
             ),
             k8s_client.V1EnvVar(
-                name="no_proxy", value="127.0.0.1,metadata.google.internal,kubernetes.default.svc"
+                name="no_proxy",
+                value=(
+                    "127.0.0.1,metadata.google.internal,kubernetes.default.svc,"
+                    "amazonaws.com,.amazonaws.com"
+                ),
             ),
         ]
     )

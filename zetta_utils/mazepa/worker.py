@@ -6,7 +6,6 @@ import multiprocessing
 import os
 import signal
 import sys
-import threading
 import time
 import traceback
 from typing import Any, Callable, Optional
@@ -48,36 +47,22 @@ def redirect_buffers() -> None:  # pragma: no cover
     sys.stderr = DummyBuffer()  # type: ignore
 
 
-# Per-process shutdown flag flipped by SIGTERM/SIGHUP in worker children.
-# The pull loop's _check_exit_conditions consults it between batches so the
-# current in-flight task finishes and gets acked before the worker exits.
-_shutdown_event = threading.Event()
-
-
-def _graceful_exit(*_):
-    _shutdown_event.set()
-
-
 def _install_worker_signal_handlers() -> None:
     """Install worker-process signal handlers.
 
     - SIGINT is ignored so terminal Ctrl-C doesn't tear down pool workers.
       The pool manager (or the head node's require_interrupt_confirm prompt)
-      owns the shutdown decision; workers are signalled via SIGTERM.
-    - SIGTERM and SIGHUP flip a shutdown flag that the pull loop checks
-      between batches, so the current task completes and gets acked before
-      the worker exits.
+      owns the shutdown decision.
+    - SIGTERM and SIGHUP are left at SIG_DFL (kernel terminate). All
+      designed shutdown paths use SIGKILL (forwarder in
+      setup_local_worker_pool's finally, PR_SET_PDEATHSIG), so these
+      handlers are only reached by manual `kill` — kernel-terminate is
+      the right behavior there.
     - PR_SET_PDEATHSIG=SIGKILL: ask the kernel to kill this worker
-      immediately when the parent process dies. In the normal shutdown
-      path the forwarder in setup_local_worker_pool's finally sends
-      SIGTERM and workers exit gracefully. PR_SET_PDEATHSIG only fires
-      when the forwarder never ran (parent SIGKILL'd, OOM, segfault) —
-      something went badly wrong and lingering orphans are worse than
-      losing an in-flight task.
+      immediately when the parent process dies. Only fires when the
+      forwarder never ran (parent SIGKILL'd, OOM, segfault).
     """
     signal.signal(signal.SIGINT, signal.SIG_IGN)
-    signal.signal(signal.SIGTERM, _graceful_exit)
-    signal.signal(signal.SIGHUP, _graceful_exit)
     _set_pdeathsig()
 
 
@@ -236,9 +221,6 @@ def _check_exit_conditions(
     start_time: float,
     max_runtime: float | None,
 ) -> tuple[bool, str | None]:
-    if _shutdown_event.is_set():
-        return True, "sigterm"
-
     if max_runtime is not None and time.time() - start_time > max_runtime:
         return True, "max_runtime_exceeded"
 

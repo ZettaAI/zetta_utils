@@ -266,12 +266,45 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
         disk = res.get("disk_io", {}) if isinstance(res.get("disk_io"), dict) else {}
         net = res.get("network", {}) if isinstance(res.get("network"), dict) else {}
 
+        # Aggregate GPU stats across all devices on this pod
+        gpus = res.get("gpus", {}) if isinstance(res.get("gpus"), dict) else {}
+        if gpus:
+            gpu_vals = list(gpus.values())
+            gpu_avg_util = (
+                sum(g.get("avg_utilization_percent", 0) for g in gpu_vals) / len(gpu_vals)
+            )
+            gpu_max_util = max(g.get("max_utilization_percent", 0) for g in gpu_vals)
+            gpu_total_mem = sum(g.get("memory_total_gib", 0) for g in gpu_vals)
+            if gpu_total_mem > 0:
+                gpu_avg_mem_pct = (
+                    sum(g.get("avg_memory_used_gib", 0) for g in gpu_vals)
+                    / gpu_total_mem
+                    * 100
+                )
+                gpu_max_mem_pct = (
+                    max(g.get("max_memory_used_gib", 0) for g in gpu_vals)
+                    / (max(g.get("memory_total_gib", 0) for g in gpu_vals) or 1)
+                    * 100
+                )
+            else:
+                gpu_avg_mem_pct = 0.0
+                gpu_max_mem_pct = 0.0
+        else:
+            gpu_avg_util = None
+            gpu_max_util = None
+            gpu_avg_mem_pct = None
+            gpu_max_mem_pct = None
+
         compact = {
             "cpu_avg_percent": cpu.get("avg_percent", 0.0),
             "cpu_max_percent": cpu.get("max_percent", 0.0),
             "mem_avg_percent": mem.get("avg_percent", 0.0),
             "mem_max_percent": mem.get("max_percent", 0.0),
             "mem_max_used_gib": mem.get("max_used_gib", 0.0),
+            "gpu_avg_util_percent": gpu_avg_util,
+            "gpu_max_util_percent": gpu_max_util,
+            "gpu_avg_mem_percent": gpu_avg_mem_pct,
+            "gpu_max_mem_percent": gpu_max_mem_pct,
             "disk_read_gib": disk.get("total_read_gib", 0.0),
             "disk_write_gib": disk.get("total_write_gib", 0.0),
             "net_sent_gib": net.get("total_bytes_sent_gib", 0.0),
@@ -288,7 +321,7 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
     def _fleet_rollup(entries: list[dict]) -> dict:
         if not entries:
             return {}
-        return {
+        result = {
             "avg_cpu_percent": sum(e["cpu_avg_percent"] for e in entries) / len(entries),
             "max_cpu_percent": max(e["cpu_max_percent"] for e in entries),
             "avg_memory_percent": sum(e["mem_avg_percent"] for e in entries) / len(entries),
@@ -296,6 +329,21 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
             "total_net_ingress_gib": sum(e["net_recv_gib"] for e in entries),
             "total_net_egress_gib": sum(e["net_sent_gib"] for e in entries),
         }
+        gpu_entries = [e for e in entries if e.get("gpu_avg_util_percent") is not None]
+        if gpu_entries:
+            result["avg_gpu_util_percent"] = (
+                sum(e["gpu_avg_util_percent"] for e in gpu_entries) / len(gpu_entries)
+            )
+            result["max_gpu_util_percent"] = max(
+                e["gpu_max_util_percent"] for e in gpu_entries
+            )
+            result["avg_gpu_mem_percent"] = (
+                sum(e["gpu_avg_mem_percent"] for e in gpu_entries) / len(gpu_entries)
+            )
+            result["max_gpu_mem_percent"] = max(
+                e["gpu_max_mem_percent"] for e in gpu_entries
+            )
+        return result
 
     return {
         "per_pod": per_pod,
@@ -322,19 +370,25 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
     W_BN = 17  # bottleneck/2nd
     W_BP = 12  # block/2nd
     W_WL = 21  # wait / lease / ut.
-    W_CA = 6  # cpu avg
-    W_CM = 6  # cpu max
-    W_MA = 6  # mem avg
-    W_MM = 6  # mem max
-    W_NI = 7  # net in
-    W_NO = 7  # net out
+    W_CA = 6   # cpu avg
+    W_CM = 6   # cpu max
+    W_MA = 6   # mem avg
+    W_MM = 6   # mem max
+    W_GU = 6   # gpu util avg
+    W_GX = 6   # gpu util max
+    W_GA = 6   # gpu mem avg
+    W_GK = 6   # gpu mem max
+    W_NI = 7   # net in
+    W_NO = 7   # net out
     # Group widths for top header
     W_SEMA = W_BN + W_BP + W_WL
     W_CPU = W_CA + W_CM
     W_MEM = W_MA + W_MM
+    W_GPU_UTIL = W_GU + W_GX
+    W_GPU_MEM = W_GA + W_GK
     W_NET = W_NI + W_NO
     # 1 leading space + columns + 2 bounds
-    LEN = 1 + W_WT + W_SEMA + W_CPU + W_MEM + W_NET + 2
+    LEN = 1 + W_WT + W_SEMA + W_CPU + W_MEM + W_GPU_UTIL + W_GPU_MEM + W_NET + 2
 
     def _block_pct(entry: dict) -> float:
         tw = entry.get("total_wait_time", 0)
@@ -375,7 +429,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         return lrpad(text, level=0, length=width + 1, bounds="")
 
     def _row(*cols):
-        widths = (W_WT, W_BN, W_BP, W_WL, W_CA, W_CM, W_MA, W_MM, W_NI, W_NO)
+        widths = (W_WT, W_BN, W_BP, W_WL, W_CA, W_CM, W_MA, W_MM, W_GU, W_GX, W_GA, W_GK, W_NI, W_NO)
         return " " + "".join(_col(c, w) for c, w in zip(cols, widths))
 
     s = ""
@@ -393,6 +447,8 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         + _col("(s, bottleneck)", W_WL)
         + _col("CPU", W_CPU)
         + _col("Memory", W_MEM)
+        + _col("CUDA", W_GPU_UTIL)
+        + _col("CUDA Mem", W_GPU_MEM)
         + _col("Network (GiB)", W_NET)
     )
     s += lrpad(top, level=0, bounds="|", length=LEN) + "\n"
@@ -403,6 +459,10 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         "Bottleneck/2nd",
         "Block/2nd",
         "Wait / Lease / Ut.",
+        "Avg",
+        "Max",
+        "Avg",
+        "Max",
         "Avg",
         "Max",
         "Avg",
@@ -426,6 +486,26 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         mem_max = (
             f"{wt_res['max_memory_percent']:3.0f}%" if "max_memory_percent" in wt_res else "  -"
         )
+        gpu_avg = (
+            f"{wt_res['avg_gpu_util_percent']:3.0f}%"
+            if "avg_gpu_util_percent" in wt_res
+            else "  -"
+        )
+        gpu_max = (
+            f"{wt_res['max_gpu_util_percent']:3.0f}%"
+            if "max_gpu_util_percent" in wt_res
+            else "  -"
+        )
+        gpu_mem_avg = (
+            f"{wt_res['avg_gpu_mem_percent']:3.0f}%"
+            if "avg_gpu_mem_percent" in wt_res
+            else "  -"
+        )
+        gpu_mem_max = (
+            f"{wt_res['max_gpu_mem_percent']:3.0f}%"
+            if "max_gpu_mem_percent" in wt_res
+            else "  -"
+        )
         net_ig = (
             f"{wt_res['total_net_ingress_gib']:.2f}" if "total_net_ingress_gib" in wt_res else "-"
         )
@@ -444,6 +524,10 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
                     cpu_max,
                     mem_avg,
                     mem_max,
+                    gpu_avg,
+                    gpu_max,
+                    gpu_mem_avg,
+                    gpu_mem_max,
                     net_ig,
                     net_eg,
                 ),

@@ -554,7 +554,7 @@ def monitor_resources(
                 if summary:
                     with open(stats_file_path, "w", encoding="utf-8") as f:
                         json.dump(summary, f)
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:  # pragma: no cover  # pylint: disable=broad-exception-caught
             logger.warning(f"Resource monitor tick failed: {e}")
 
     resource_timer = RepeatTimer(interval, tick)

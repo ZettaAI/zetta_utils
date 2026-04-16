@@ -46,7 +46,7 @@ class TimingTracker:
         # though they did not create it. Unregister so only the head node owns cleanup.
         # Guard: only unregister in non-creator processes. The creator (pid == self.pid)
         # must keep the registration so resource_tracker can clean up on abnormal exit.
-        if os.getpid() != self.pid:
+        if os.getpid() != self.pid:  # pragma: no cover
             resource_tracker.unregister(f"/{name}", "shared_memory")
         return shm
 

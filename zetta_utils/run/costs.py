@@ -603,10 +603,11 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         W_CC = 10  # cpu+mem cost
         W_CG = 10  # gpu cost
         W_CT = 10  # total compute
+        W_CI = 10  # ideal compute
         W_EA = 10  # gcs class A ops
         W_EB = 10  # gcs class B ops
         W_EG = 12  # egress cost range
-        W_COMPUTE = W_CH + W_CC + W_CG + W_CT
+        W_COMPUTE = W_CH + W_CC + W_CG + W_CT + W_CI
         W_GCS = W_EA + W_EB + W_EG
         LEN2 = 1 + W_WT + W_COMPUTE + W_GCS + 2
 
@@ -614,7 +615,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             return lrpad(text, level=0, length=width + 1, bounds="")
 
         def _row2(*cols):
-            widths2 = (W_WT, W_CH, W_CC, W_CG, W_CT, W_EA, W_EB, W_EG)
+            widths2 = (W_WT, W_CH, W_CC, W_CG, W_CT, W_CI, W_EA, W_EB, W_EG)
             return " " + "".join(_col2(c, w) for c, w in zip(cols, widths2))
 
         s += "\n"
@@ -629,7 +630,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         )
         s += lrpad(top2, level=0, bounds="|", length=LEN2) + "\n"
         bottom2 = _row2(
-            "Worker Type", "Hours", "CPU+Mem", "GPU", "Total", "Class A", "Class B", "Egress ($)",
+            "Worker Type", "Hours", "CPU+Mem", "GPU", "Total", "Ideal*", "Class A", "Class B", "Egress ($)",
         )
         s += lrpad(bottom2, level=0, bounds="|", length=LEN2) + "\n"
         s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
@@ -638,6 +639,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         total_hrs = 0.0
         total_cm = 0.0
         total_gpu = 0.0
+        total_ideal = 0.0
         total_ea = 0
         total_eb = 0
         total_eg_min = 0.0
@@ -645,9 +647,17 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         for wt in all_wts:
             wt_cost = cost_by_wt.get(wt, {})
             wt_gcs = gcs_by_wt.get(wt, {})
+            wt_res_data = res_by_wt.get(wt, {})
             hrs = wt_cost.get("node_hours", 0.0)
             cm = wt_cost.get("cpu_mem", 0.0)
             gpu = wt_cost.get("gpu", 0.0)
+            # Ideal: scale by utilization bottleneck
+            cpu_pct = wt_res_data.get("avg_cpu_percent", 100.0)
+            mem_pct = wt_res_data.get("avg_memory_percent", 100.0)
+            gpu_pct = wt_res_data.get("avg_gpu_util_percent", 100.0)
+            ideal_cm = cm * max(cpu_pct, mem_pct, 1.0) / 100.0
+            ideal_gpu = gpu * max(gpu_pct, 1.0) / 100.0
+            ideal = ideal_cm + ideal_gpu
             ea = wt_gcs.get("total_class_a", 0)
             eb = wt_gcs.get("total_class_b", 0)
             eg_min = wt_gcs.get("egress_cost_min", 0.0)
@@ -655,6 +665,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             total_hrs += hrs
             total_cm += cm
             total_gpu += gpu
+            total_ideal += ideal
             total_ea += ea
             total_eb += eb
             total_eg_min += eg_min
@@ -667,6 +678,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
                     f"{cm:.2f}" if cm else "-",
                     f"{gpu:.2f}" if gpu else "-",
                     f"{cm + gpu:.2f}" if (cm or gpu) else "-",
+                    f"{ideal:.2f}*" if (cm or gpu) else "-",
                     f"{ea:,}" if ea else "-",
                     f"{eb:,}" if eb else "-",
                     eg_str,
@@ -688,6 +700,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
                 f"{total_cm:.2f}",
                 f"{total_gpu:.2f}",
                 f"{total_cm + total_gpu:.2f}",
+                f"{total_ideal:.2f}*",
                 f"{total_ea:,}",
                 f"{total_eb:,}",
                 eg_total_str,

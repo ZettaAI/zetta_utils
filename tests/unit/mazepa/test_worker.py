@@ -11,6 +11,7 @@ from zetta_utils.mazepa.worker import (
     _check_exit_conditions,
     _graceful_exit,
     _install_worker_signal_handlers,
+    _set_pdeathsig,
     _shutdown_event,
     run_worker,
     worker_init,
@@ -259,7 +260,6 @@ def test_pdeathsig_installed():
     libc = ctypes.CDLL(None, use_errno=True)
     PR_GET_PDEATHSIG = 2
     result = ctypes.c_int(0)
-    # _install_worker_signal_handlers calls _set_pdeathsig_sigterm internally
     saved = {
         signal.SIGINT: signal.getsignal(signal.SIGINT),
         signal.SIGTERM: signal.getsignal(signal.SIGTERM),
@@ -269,7 +269,7 @@ def test_pdeathsig_installed():
         _install_worker_signal_handlers()
         ret = libc.prctl(PR_GET_PDEATHSIG, ctypes.byref(result), 0, 0, 0)
         assert ret == 0
-        assert result.value == signal.SIGTERM
+        assert result.value == signal.SIGKILL
     finally:
         for sig, handler in saved.items():
             signal.signal(sig, handler)
@@ -290,9 +290,8 @@ def test_check_exit_conditions_sigterm():
 def test_set_pdeathsig_logs_warning_on_unavailable(mocker):
     mocker.patch("zetta_utils.mazepa.worker.ctypes.CDLL", side_effect=OSError("mocked"))
     mock_logger = mocker.patch("zetta_utils.mazepa.worker.logger")
-    from zetta_utils.mazepa.worker import _set_pdeathsig_sigterm
 
-    _set_pdeathsig_sigterm()
+    _set_pdeathsig()
     mock_logger.warning.assert_called_once()
 
 
@@ -302,9 +301,8 @@ def test_set_pdeathsig_logs_warning_on_prctl_failure(mocker):
     mocker.patch("zetta_utils.mazepa.worker.ctypes.CDLL", return_value=mock_libc)
     mocker.patch("zetta_utils.mazepa.worker.ctypes.get_errno", return_value=22)
     mock_logger = mocker.patch("zetta_utils.mazepa.worker.logger")
-    from zetta_utils.mazepa.worker import _set_pdeathsig_sigterm
 
-    _set_pdeathsig_sigterm()
+    _set_pdeathsig()
     mock_logger.warning.assert_called_once()
 
 

@@ -9,7 +9,7 @@ import attrs
 from typeguard import typechecked
 
 from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, builder, log
-from zetta_utils.common import reset_signal_handlers
+from zetta_utils.common import configure_pool_signals
 from zetta_utils.geometry.vec import VEC3D_PRECISION
 
 from . import Vec3D
@@ -240,7 +240,7 @@ class BBoxStrider:
         """Get all of the chunks."""
         if self.num_chunks > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
             with multiprocessing.get_context("fork").Pool(
-                initializer=reset_signal_handlers
+                initializer=configure_pool_signals
             ) as pool_obj:
                 result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
         else:

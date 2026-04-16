@@ -3,10 +3,14 @@ from __future__ import annotations
 import contextlib
 import logging
 import multiprocessing
+import os
+import signal
+import threading
 import time
 from contextlib import ExitStack
 
 import pebble
+import psutil
 
 from zetta_utils import builder, log
 from zetta_utils.common import monitor_resources
@@ -112,6 +116,19 @@ def setup_local_worker_pool(
                 yield futures
             finally:
                 pool.stop()
+                # Forward SIGTERM to direct children (pebble pool workers) so
+                # their graceful handler (worker.py:_graceful_exit) flips the
+                # shutdown flag; each worker finishes its current task, acks,
+                # and returns. Without this, pool.join() would wedge because
+                # pool.stop() doesn't interrupt already-running tasks and
+                # run_worker's pull loop is infinite. recursive=False so we
+                # don't double-signal SQS upkeep handler subprocesses, which
+                # are torn down by each worker's own cleanup path.
+                for child in psutil.Process(os.getpid()).children(recursive=False):
+                    try:
+                        child.send_signal(signal.SIGTERM)
+                    except psutil.NoSuchProcess:
+                        pass
                 pool.join()
                 logger.info(
                     f"Cleaned up {num_procs} local workers that were attached to queues "
@@ -133,6 +150,18 @@ def run_worker_manager(
     suppress_worker_logs: bool = False,
     resource_monitor_interval: float | None = 1.0,
 ):
+    # k8s sends SIGTERM to PID 1 only (this process). Flip a flag the
+    # polling loop consults so we exit the loop and trigger ExitStack
+    # unwind, which runs setup_local_worker_pool's finally — the single
+    # source of truth for forwarding SIGTERM to pool worker children.
+    shutdown_requested = threading.Event()
+
+    def _handle_sigterm(*_):  # pragma: no cover
+        shutdown_requested.set()
+
+    signal.signal(signal.SIGTERM, _handle_sigterm)
+    signal.signal(signal.SIGHUP, _handle_sigterm)
+
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
         worker_pool_ctx = setup_local_worker_pool(
@@ -148,6 +177,9 @@ def run_worker_manager(
         pool_futures = stack.enter_context(worker_pool_ctx)
 
         while True:
+            if shutdown_requested.is_set():
+                logger.info("SIGTERM received; exiting worker manager.")
+                break
             for i, future in enumerate(pool_futures):
                 if future.done():
                     try:

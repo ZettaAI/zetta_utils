@@ -28,10 +28,11 @@ _last_gcs_stats: dict[str, tuple] = {}
 # by aggregate_pod_stats() for log enrichment without an extra Firestore read.
 # Only one run_id is active per process invocation.
 _last_compute_cost: float | None = None
+_last_compute_cost_by_wt: dict[str, dict[str, float]] | None = None
 _cached_semaphore_widths: dict[str, int] | None = None
 
 
-def compute_costs(run_id: str):
+def compute_costs(run_id: str):  # pylint: disable=too-many-locals
     def _get_start_time(node_info: DBRowDataT) -> float:
         """
         If there's a run_id already registered as using this node,
@@ -51,12 +52,17 @@ def compute_costs(run_id: str):
     # shutdown.
     nodes = NODE_DB.query({"-run_id": [run_id]}, timeout=30.0)
     total_cost = 0.0
+    per_wt: dict[str, dict[str, float]] = defaultdict(
+        lambda: {"cpu_mem": 0.0, "gpu": 0.0}
+    )
     for _info in nodes.values():
-        node_cost_hourly = 0.0
+        node_cpu_mem_hourly = 0.0
+        node_gpu_hourly = 0.0
         node_info: DBRowDataT = _info
         machine_class, _, _ = str(node_info["machine_type"]).split("-")
         node_region = node_info["region"]
         provisioning_model = PROVISIONING_MAP[str(node_info["provisioning_model"])]
+        wt = str(node_info.get("worker_type", "unspecified"))
 
         cpu = (f"CPU-{provisioning_model}", float(str(node_info["cpu_count"])))
         ram = (f"RAM-{provisioning_model}", float(str(node_info["memory_gib"])))
@@ -78,7 +84,7 @@ def compute_costs(run_id: str):
                 )
                 continue
             sku: DBRowDataT = next(iter(skus.values()))
-            node_cost_hourly += float(str(sku["price_per_unit_usd"])) * count
+            node_cpu_mem_hourly += float(str(sku["price_per_unit_usd"])) * count
 
         gpu_layer_name = f"GPU-{provisioning_model}"
         gpu_layer = PRICING_LAYERS.get(
@@ -96,14 +102,41 @@ def compute_costs(run_id: str):
                 )
                 continue
             sku = next(iter(skus.values()))
-            node_cost_hourly += float(str(sku["price_per_unit_usd"])) * count
+            node_gpu_hourly += float(str(sku["price_per_unit_usd"])) * count
 
         hourly_multiple = (float(str(node_info[run_id])) - _get_start_time(node_info)) / 3600
-        total_cost += hourly_multiple * node_cost_hourly
+        per_wt[wt]["cpu_mem"] += hourly_multiple * node_cpu_mem_hourly
+        per_wt[wt]["gpu"] += hourly_multiple * node_gpu_hourly
+        total_cost += hourly_multiple * (node_cpu_mem_hourly + node_gpu_hourly)
 
     global _last_compute_cost  # pylint: disable=global-statement
     _last_compute_cost = total_cost
-    RUN_DB[run_id] = {"compute_cost": total_cost}
+    global _last_compute_cost_by_wt  # pylint: disable=global-statement
+    _last_compute_cost_by_wt = dict(per_wt)
+    update: dict = {"compute_cost": total_cost}
+    if per_wt:
+        update["compute_cost_by_worker_type"] = {
+            wt: {"cpu_mem": costs["cpu_mem"], "gpu": costs["gpu"]}
+            for wt, costs in per_wt.items()
+        }
+    RUN_DB[run_id] = update
+
+
+def _gcs_totals(bucket_stats: dict) -> dict:
+    """Compute fleet-level GCS totals from a bucket_stats dict."""
+    total_a = sum(b["class_a_count"] for b in bucket_stats.values())
+    total_b = sum(b["class_b_count"] for b in bucket_stats.values())
+    total_egress = sum(
+        b["egress_bytes"] for b in bucket_stats.values() if b.get("region_match") is False
+    )
+    egress_gib = total_egress / BYTES_PER_GIB
+    return {
+        "total_class_a": total_a,
+        "total_class_b": total_b,
+        "total_egress_bytes": total_egress,
+        "egress_cost_min": egress_gib * EGRESS_COST_PER_GIB_MIN,
+        "egress_cost_max": egress_gib * EGRESS_COST_PER_GIB_MAX,
+    }
 
 
 def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
@@ -117,6 +150,16 @@ def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
             "region_match": None,
         }
     )
+    per_wt_buckets: dict[str, dict] = defaultdict(
+        lambda: defaultdict(
+            lambda: {
+                "class_a_count": 0,
+                "class_b_count": 0,
+                "egress_bytes": 0,
+                "region_match": None,
+            }
+        )
+    )
     pod_count = 0
     for pod_stats in pod_docs.values():
         if not isinstance(pod_stats, dict):
@@ -124,6 +167,7 @@ def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
         buckets_data = pod_stats.get("buckets", {})
         if not buckets_data:
             continue
+        worker_type = pod_stats.get("worker_type", "unspecified")
         for bucket, stats in buckets_data.items():
             if not isinstance(stats, dict):
                 continue
@@ -135,6 +179,13 @@ def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
                 agg_bucket["operations"][op] += count
             if agg_bucket["region_match"] is None:
                 agg_bucket["region_match"] = stats.get("region_match")
+            # Per-worker-type accumulation
+            wt_bucket = per_wt_buckets[worker_type][bucket]
+            wt_bucket["class_a_count"] += stats.get("class_a_count", 0)
+            wt_bucket["class_b_count"] += stats.get("class_b_count", 0)
+            wt_bucket["egress_bytes"] += stats.get("egress_bytes", 0)
+            if wt_bucket["region_match"] is None:
+                wt_bucket["region_match"] = stats.get("region_match")
         pod_count += 1
 
     if pod_count == 0:
@@ -147,14 +198,10 @@ def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
         },
         "pod_count": pod_count,
     }
-    aggregated["total_class_a"] = sum(b["class_a_count"] for b in aggregated["buckets"].values())
-    aggregated["total_class_b"] = sum(b["class_b_count"] for b in aggregated["buckets"].values())
-    aggregated["total_egress_bytes"] = sum(
-        b["egress_bytes"] for b in aggregated["buckets"].values() if b.get("region_match") is False
-    )
-    egress_gib = aggregated["total_egress_bytes"] / BYTES_PER_GIB
-    aggregated["egress_cost_min"] = egress_gib * EGRESS_COST_PER_GIB_MIN
-    aggregated["egress_cost_max"] = egress_gib * EGRESS_COST_PER_GIB_MAX
+    aggregated.update(_gcs_totals(aggregated["buckets"]))
+    aggregated["per_worker_type"] = {
+        wt: _gcs_totals(buckets) for wt, buckets in per_wt_buckets.items()
+    }
     return aggregated
 
 
@@ -358,11 +405,14 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
 def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-locals,too-many-statements
     sema: dict | None,
     resource: dict | None,
+    gcs: dict | None = None,
 ) -> None:
-    """Log a per-worker-type table of bottleneck, CPU, and memory stats."""
+    """Log a per-worker-type table of costs, bottleneck, CPU, memory, GPU, and network stats."""
     sema_by_wt = sema.get("per_worker_type", {}) if sema else {}
     res_by_wt = resource.get("per_worker_type", {}) if resource else {}
-    worker_types = sorted(set(sema_by_wt) | set(res_by_wt))
+    cost_by_wt = _last_compute_cost_by_wt or {}
+    gcs_by_wt = gcs.get("per_worker_type", {}) if gcs else {}
+    worker_types = sorted(set(sema_by_wt) | set(res_by_wt) | set(cost_by_wt))
     if not worker_types:
         return
 
@@ -541,6 +591,101 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
 
     s += lrpad("", level=0, bounds="|", length=LEN) + "\n"
     s += lrpad("", level=0, bounds="+", filler="=", length=LEN)
+
+    # Cost subtable (only if we have cost data)
+    if cost_by_wt or gcs_by_wt:
+        W_CC = 10  # cpu+mem cost
+        W_CG = 10  # gpu cost
+        W_CT = 10  # total compute
+        W_EA = 10  # gcs class A ops
+        W_EB = 10  # gcs class B ops
+        W_EG = 12  # egress cost range
+        W_COMPUTE = W_CC + W_CG + W_CT
+        W_GCS = W_EA + W_EB + W_EG
+        LEN2 = 1 + W_WT + W_COMPUTE + W_GCS + 2
+
+        def _col2(text, width):
+            return lrpad(text, level=0, length=width + 1, bounds="")
+
+        def _row2(*cols):
+            widths2 = (W_WT, W_CC, W_CG, W_CT, W_EA, W_EB, W_EG)
+            return " " + "".join(_col2(c, w) for c, w in zip(cols, widths2))
+
+        s += "\n"
+        title2 = "  Cost Breakdown by Worker Type  "
+        pad2 = (LEN2 - 2 - len(title2)) // 2
+        s += lrpad("=" * pad2 + title2, level=0, bounds="+", filler="=", length=LEN2) + "\n"
+        s += lrpad("", level=0, bounds="|", length=LEN2) + "\n"
+        top2 = (
+            " " + _col2("", W_WT)
+            + _col2("Compute ($)", W_COMPUTE)
+            + _col2("GCS", W_GCS)
+        )
+        s += lrpad(top2, level=0, bounds="|", length=LEN2) + "\n"
+        bottom2 = _row2(
+            "Worker Type", "CPU+Mem", "GPU", "Total", "Class A", "Class B", "Egress ($)",
+        )
+        s += lrpad(bottom2, level=0, bounds="|", length=LEN2) + "\n"
+        s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
+
+        all_wts = sorted(set(cost_by_wt) | set(gcs_by_wt))
+        total_cm = 0.0
+        total_gpu = 0.0
+        total_ea = 0
+        total_eb = 0
+        total_eg_min = 0.0
+        total_eg_max = 0.0
+        for wt in all_wts:
+            wt_cost = cost_by_wt.get(wt, {})
+            wt_gcs = gcs_by_wt.get(wt, {})
+            cm = wt_cost.get("cpu_mem", 0.0)
+            gpu = wt_cost.get("gpu", 0.0)
+            ea = wt_gcs.get("total_class_a", 0)
+            eb = wt_gcs.get("total_class_b", 0)
+            eg_min = wt_gcs.get("egress_cost_min", 0.0)
+            eg_max = wt_gcs.get("egress_cost_max", 0.0)
+            total_cm += cm
+            total_gpu += gpu
+            total_ea += ea
+            total_eb += eb
+            total_eg_min += eg_min
+            total_eg_max += eg_max
+            eg_str = f"{eg_min:.2f}-{eg_max:.2f}" if (eg_min or eg_max) else "-"
+            s += lrpad(
+                _row2(
+                    wt[:W_WT],
+                    f"{cm:.2f}" if cm else "-",
+                    f"{gpu:.2f}" if gpu else "-",
+                    f"{cm + gpu:.2f}" if (cm or gpu) else "-",
+                    f"{ea:,}" if ea else "-",
+                    f"{eb:,}" if eb else "-",
+                    eg_str,
+                ),
+                level=0, bounds="|", length=LEN2,
+            ) + "\n"
+
+        # Totals row
+        s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
+        eg_total_str = (
+            f"{total_eg_min:.2f}-{total_eg_max:.2f}"
+            if (total_eg_min or total_eg_max)
+            else "-"
+        )
+        s += lrpad(
+            _row2(
+                "TOTAL",
+                f"{total_cm:.2f}",
+                f"{total_gpu:.2f}",
+                f"{total_cm + total_gpu:.2f}",
+                f"{total_ea:,}",
+                f"{total_eb:,}",
+                eg_total_str,
+            ),
+            level=0, bounds="|", length=LEN2,
+        ) + "\n"
+        s += lrpad("", level=0, bounds="|", length=LEN2) + "\n"
+        s += lrpad("", level=0, bounds="+", filler="=", length=LEN2)
+
     logger.info(s)
 
 
@@ -609,7 +754,7 @@ def aggregate_pod_stats(
                 f"(${gcs['egress_cost_min']:.2f}-${gcs['egress_cost_max']:.2f}) "
                 f"from {gcs['pod_count']} pods, {len(gcs['buckets'])} buckets"
             )
-            _log_worker_type_table(sema, resource)
+            _log_worker_type_table(sema, resource, gcs)
 
     return update
 

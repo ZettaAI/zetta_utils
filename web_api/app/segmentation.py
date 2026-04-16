@@ -9,10 +9,17 @@ import threading
 import time
 from pathlib import Path
 
+import cutie.config as cutie_config
 import numpy as np
 import torch
+from cutie.inference.inference_core import InferenceCore
+from cutie.inference.utils.args_utils import get_dataset_cfg
+from cutie.model.cutie import CUTIE
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
+from hydra import compose, initialize_config_dir
+from hydra.core.global_hydra import GlobalHydra
+from omegaconf import open_dict
 
 from .utils import generic_exception_handler
 
@@ -42,14 +49,7 @@ def _ensure_weights() -> Path:
 
 def _load_cutie_model(device: str):
     """Load the Cutie model with weights from local cache."""
-    from omegaconf import open_dict
-    from hydra import compose, initialize_config_dir
-    from cutie.model.cutie import CUTIE
-    from cutie.inference.utils.args_utils import get_dataset_cfg
-    import cutie.config as cutie_config
-
     weight_dir = _ensure_weights()
-    from hydra.core.global_hydra import GlobalHydra
 
     GlobalHydra.instance().clear()
 
@@ -199,8 +199,6 @@ def _run_propagation(
     cancel_event: threading.Event,
 ) -> np.ndarray:
     """Run single-step Cutie mask propagation. Runs in thread pool."""
-    from cutie.inference.inference_core import InferenceCore
-
     cutie = _get_cutie_model()
     device = next(cutie.parameters()).device
     processor = InferenceCore(cutie, cfg=cutie.cfg)

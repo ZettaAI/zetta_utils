@@ -113,17 +113,17 @@ def setup_local_worker_pool(
                 yield futures
             finally:
                 pool.stop()
-                # Forward SIGTERM to direct children (pebble pool workers) so
-                # their graceful handler (worker.py:_graceful_exit) flips the
-                # shutdown flag; each worker finishes its current task, acks,
-                # and returns. Without this, pool.join() would wedge because
-                # pool.stop() doesn't interrupt already-running tasks and
-                # run_worker's pull loop is infinite. recursive=False so we
-                # don't double-signal SQS upkeep handler subprocesses, which
-                # are torn down by each worker's own cleanup path.
+                # SIGKILL direct children so workers exit immediately on
+                # unwind. For the Ctrl-C confirm path this is the only
+                # signal workers receive — instant exit, no waiting for
+                # the current task. For the k8s SIGTERM path,
+                # run_worker_manager's polling loop already forwarded
+                # SIGTERM before breaking, giving workers a brief grace
+                # window; SIGKILL here is the backstop that prevents
+                # pool.join() from wedging on long-running tasks.
                 for child in psutil.Process(os.getpid()).children(recursive=False):
                     try:
-                        child.send_signal(signal.SIGTERM)
+                        child.send_signal(signal.SIGKILL)
                     except psutil.NoSuchProcess:
                         pass
                 pool.join()
@@ -148,9 +148,8 @@ def run_worker_manager(
     resource_monitor_interval: float | None = 1.0,
 ):
     # k8s sends SIGTERM to PID 1 only (this process). Flip a flag the
-    # polling loop consults so we exit the loop and trigger ExitStack
-    # unwind, which runs setup_local_worker_pool's finally — the single
-    # source of truth for forwarding SIGTERM to pool worker children.
+    # polling loop consults so we break and trigger ExitStack unwind,
+    # which runs setup_local_worker_pool's finally — SIGKILL to workers.
     shutdown_requested = threading.Event()
 
     def _handle_sigterm(*_):  # pragma: no cover

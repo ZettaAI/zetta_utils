@@ -98,7 +98,6 @@ def test_worker_with_activity_tracker_updates_on_task_processing(
         sleep_sec=0.1,
         max_runtime=0.5,
         debug=True,
-        idle_timeout=10.0,
         activity_tracker=tracker,
     )
 
@@ -109,58 +108,6 @@ def test_worker_with_activity_tracker_updates_on_task_processing(
     msg.acknowledge_fn.assert_called_once()  # type: ignore[attr-defined]
     assert last_activity_after > last_activity_before
     assert active_count_after == 0
-
-
-def test_worker_with_activity_tracker_idle_timeout(
-    mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
-):
-    task_queue, outcome_queue = mock_queues
-
-    result = run_worker(
-        task_queue=task_queue,
-        outcome_queue=outcome_queue,
-        sleep_sec=0.1,
-        max_runtime=5.0,
-        debug=True,
-        idle_timeout=0.3,
-        activity_tracker=pool_activity_tracker,
-    )
-
-    assert result == "idle_timeout_exceeded"
-    assert len(outcome_queue.pushed_messages) == 0
-
-
-def test_worker_with_activity_tracker_no_idle_when_tasks_processing(
-    mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
-):
-    task_queue, outcome_queue = mock_queues
-
-    def slow_task():
-        time.sleep(0.15)
-        return "done"
-
-    task = _TaskableOperation(slow_task).make_task()
-    msg = ReceivedMessage(
-        payload=task,
-        acknowledge_fn=MagicMock(),
-        extend_lease_fn=MagicMock(),
-        approx_receive_count=1,
-    )
-    task_queue.messages = [msg]
-
-    result = run_worker(
-        task_queue=task_queue,
-        outcome_queue=outcome_queue,
-        sleep_sec=0.05,
-        max_runtime=0.4,
-        debug=True,
-        idle_timeout=0.3,
-        activity_tracker=pool_activity_tracker,
-    )
-
-    assert result == "max_runtime_exceeded"
-    assert len(outcome_queue.pushed_messages) == 1
-    msg.acknowledge_fn.assert_called_once()  # type: ignore[attr-defined]
 
 
 def test_worker_activity_tracker_active_count_increments_decrements(
@@ -194,7 +141,6 @@ def test_worker_activity_tracker_active_count_increments_decrements(
         sleep_sec=0.1,
         max_runtime=0.5,
         debug=True,
-        idle_timeout=10.0,
         activity_tracker=tracker,
     )
 
@@ -229,7 +175,6 @@ def test_worker_without_activity_tracker_no_activity_tracking(
         sleep_sec=0.1,
         max_runtime=0.5,
         debug=True,
-        idle_timeout=0.2,
         activity_tracker=None,
     )
 

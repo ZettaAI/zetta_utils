@@ -61,9 +61,9 @@ class ResourceMonitor:  # pragma: no cover # logging only
         """Get current memory usage information."""
         mem = psutil.virtual_memory()
         return {
-            "total_gb": mem.total / (1024 ** 3),
-            "used_gb": mem.used / (1024 ** 3),
-            "available_gb": mem.available / (1024 ** 3),
+            "total_gib": mem.total / (1024 ** 3),
+            "used_gib": mem.used / (1024 ** 3),
+            "available_gib": mem.available / (1024 ** 3),
             "percent": mem.percent,
         }
 
@@ -131,9 +131,9 @@ class ResourceMonitor:  # pragma: no cover # logging only
                         "gpu_id": i,
                         "gpu_percent": util.gpu,
                         "memory_percent": util.memory,
-                        "memory_total_gb": mem_info.total / (1024 ** 3),
-                        "memory_used_gb": mem_info.used / (1024 ** 3),
-                        "memory_free_gb": mem_info.free / (1024 ** 3),
+                        "memory_total_gib": mem_info.total / (1024 ** 3),
+                        "memory_used_gib": mem_info.used / (1024 ** 3),
+                        "memory_free_gib": mem_info.free / (1024 ** 3),
                     }
                 )
             except Exception as e:  # pylint:disable=broad-except
@@ -165,47 +165,47 @@ class ResourceMonitor:  # pragma: no cover # logging only
         ):
             time_delta = current_time - self.prev_time
             if time_delta > 0:
-                # Calculate disk I/O rates (MB/s)
-                disk_read_rate_mbps = (
+                # Calculate disk I/O rates (MiB/s)
+                disk_read_rate_mibps = (
                     (stats["disk_io"]["read_bytes"] - self.prev_disk_io["read_bytes"])
                     / (1024 ** 2)
                     / time_delta
                 )
-                disk_write_rate_mbps = (
+                disk_write_rate_mibps = (
                     (stats["disk_io"]["write_bytes"] - self.prev_disk_io["write_bytes"])
                     / (1024 ** 2)
                     / time_delta
                 )
 
-                # Calculate network I/O rates (MB/s)
-                net_recv_rate_mbps = (
+                # Calculate network I/O rates (MiB/s)
+                net_recv_rate_mibps = (
                     (stats["network"]["bytes_recv"] - self.prev_net_io["bytes_recv"])
                     / (1024 ** 2)
                     / time_delta
                 )
-                net_send_rate_mbps = (
+                net_send_rate_mibps = (
                     (stats["network"]["bytes_sent"] - self.prev_net_io["bytes_sent"])
                     / (1024 ** 2)
                     / time_delta
                 )
 
                 # Add rates to stats
-                stats["disk_io"]["read_rate_mbps"] = disk_read_rate_mbps
-                stats["disk_io"]["write_rate_mbps"] = disk_write_rate_mbps
-                stats["network"]["recv_rate_mbps"] = net_recv_rate_mbps
-                stats["network"]["send_rate_mbps"] = net_send_rate_mbps
+                stats["disk_io"]["read_rate_mibps"] = disk_read_rate_mibps
+                stats["disk_io"]["write_rate_mibps"] = disk_write_rate_mibps
+                stats["network"]["recv_rate_mibps"] = net_recv_rate_mibps
+                stats["network"]["send_rate_mibps"] = net_send_rate_mibps
             else:
                 # First measurement or no time elapsed, set rates to 0
-                stats["disk_io"]["read_rate_mbps"] = 0.0
-                stats["disk_io"]["write_rate_mbps"] = 0.0
-                stats["network"]["recv_rate_mbps"] = 0.0
-                stats["network"]["send_rate_mbps"] = 0.0
+                stats["disk_io"]["read_rate_mibps"] = 0.0
+                stats["disk_io"]["write_rate_mibps"] = 0.0
+                stats["network"]["recv_rate_mibps"] = 0.0
+                stats["network"]["send_rate_mibps"] = 0.0
         else:
             # First measurement, no rates available
-            stats["disk_io"]["read_rate_mbps"] = 0.0
-            stats["disk_io"]["write_rate_mbps"] = 0.0
-            stats["network"]["recv_rate_mbps"] = 0.0
-            stats["network"]["send_rate_mbps"] = 0.0
+            stats["disk_io"]["read_rate_mibps"] = 0.0
+            stats["disk_io"]["write_rate_mibps"] = 0.0
+            stats["network"]["recv_rate_mibps"] = 0.0
+            stats["network"]["send_rate_mibps"] = 0.0
 
         # Update previous values for next calculation
         self.prev_disk_io = stats["disk_io"].copy()
@@ -244,8 +244,8 @@ class ResourceMonitor:  # pragma: no cover # logging only
             return sorted_values[index]
 
         cpu_values = [s["cpu_percent"] for s in self.samples]
-        mem_used = [s["memory"]["used_gb"] for s in self.samples]
-        mem_total = self.samples[0]["memory"]["total_gb"] if self.samples else 0.0
+        mem_used = [s["memory"]["used_gib"] for s in self.samples]
+        mem_total = self.samples[0]["memory"]["total_gib"] if self.samples else 0.0
         mem_percent = [s["memory"]["percent"] for s in self.samples]
 
         # Disk I/O stats (calculate deltas for totals)
@@ -260,11 +260,11 @@ class ResourceMonitor:  # pragma: no cover # logging only
         net_packets_sent = [s["network"]["packets_sent"] for s in self.samples]
         net_packets_recv = [s["network"]["packets_recv"] for s in self.samples]
 
-        # I/O rates (per-interval rates in MB/s)
-        disk_read_rate_mbps = [s["disk_io"]["read_rate_mbps"] for s in self.samples]
-        disk_write_rate_mbps = [s["disk_io"]["write_rate_mbps"] for s in self.samples]
-        net_recv_rate_mbps = [s["network"]["recv_rate_mbps"] for s in self.samples]
-        net_send_rate_mbps = [s["network"]["send_rate_mbps"] for s in self.samples]
+        # I/O rates (per-interval rates in MiB/s)
+        disk_read_rate_mibps = [s["disk_io"]["read_rate_mibps"] for s in self.samples]
+        disk_write_rate_mibps = [s["disk_io"]["write_rate_mibps"] for s in self.samples]
+        net_recv_rate_mibps = [s["network"]["recv_rate_mibps"] for s in self.samples]
+        net_send_rate_mibps = [s["network"]["send_rate_mibps"] for s in self.samples]
 
         duration_seconds = len(self.samples) * self.log_interval_seconds
 
@@ -278,21 +278,21 @@ class ResourceMonitor:  # pragma: no cover # logging only
                 "p25_percent": calculate_25th_percentile(cpu_values),
             },
             "memory": {
-                "total_gb": mem_total,
-                "avg_used_gb": calculate_avg(mem_used),
-                "max_used_gb": calculate_max(mem_used),
-                "min_used_gb": calculate_min(mem_used),
-                "p25_used_gb": calculate_25th_percentile(mem_used),
+                "total_gib": mem_total,
+                "avg_used_gib": calculate_avg(mem_used),
+                "max_used_gib": calculate_max(mem_used),
+                "min_used_gib": calculate_min(mem_used),
+                "p25_used_gib": calculate_25th_percentile(mem_used),
                 "avg_percent": calculate_avg(mem_percent),
                 "max_percent": calculate_max(mem_percent),
                 "min_percent": calculate_min(mem_percent),
                 "p25_percent": calculate_25th_percentile(mem_percent),
             },
             "disk_io": {
-                "total_read_gb": (disk_read_bytes[-1] - disk_read_bytes[0]) / (1024 ** 3)
+                "total_read_gib": (disk_read_bytes[-1] - disk_read_bytes[0]) / (1024 ** 3)
                 if len(disk_read_bytes) > 1
                 else 0.0,
-                "total_write_gb": (disk_write_bytes[-1] - disk_write_bytes[0]) / (1024 ** 3)
+                "total_write_gib": (disk_write_bytes[-1] - disk_write_bytes[0]) / (1024 ** 3)
                 if len(disk_write_bytes) > 1
                 else 0.0,
                 "total_read_ops": disk_read_count[-1] - disk_read_count[0]
@@ -301,32 +301,32 @@ class ResourceMonitor:  # pragma: no cover # logging only
                 "total_write_ops": disk_write_count[-1] - disk_write_count[0]
                 if len(disk_write_count) > 1
                 else 0,
-                "avg_read_rate_mbps": (
+                "avg_read_rate_mibps": (
                     (disk_read_bytes[-1] - disk_read_bytes[0])
                     / (1024 ** 2)
                     / max(duration_seconds, 1)
                 )
                 if len(disk_read_bytes) > 1
                 else 0.0,
-                "avg_write_rate_mbps": (
+                "avg_write_rate_mibps": (
                     (disk_write_bytes[-1] - disk_write_bytes[0])
                     / (1024 ** 2)
                     / max(duration_seconds, 1)
                 )
                 if len(disk_write_bytes) > 1
                 else 0.0,
-                "avg_read_rate_interval_mbps": calculate_avg(disk_read_rate_mbps),
-                "max_read_rate_mbps": calculate_max(disk_read_rate_mbps),
-                "p25_read_rate_mbps": calculate_25th_percentile(disk_read_rate_mbps),
-                "avg_write_rate_interval_mbps": calculate_avg(disk_write_rate_mbps),
-                "max_write_rate_mbps": calculate_max(disk_write_rate_mbps),
-                "p25_write_rate_mbps": calculate_25th_percentile(disk_write_rate_mbps),
+                "avg_read_rate_interval_mibps": calculate_avg(disk_read_rate_mibps),
+                "max_read_rate_mibps": calculate_max(disk_read_rate_mibps),
+                "p25_read_rate_mibps": calculate_25th_percentile(disk_read_rate_mibps),
+                "avg_write_rate_interval_mibps": calculate_avg(disk_write_rate_mibps),
+                "max_write_rate_mibps": calculate_max(disk_write_rate_mibps),
+                "p25_write_rate_mibps": calculate_25th_percentile(disk_write_rate_mibps),
             },
             "network": {
-                "total_bytes_sent_gb": (net_bytes_sent[-1] - net_bytes_sent[0]) / (1024 ** 3)
+                "total_bytes_sent_gib": (net_bytes_sent[-1] - net_bytes_sent[0]) / (1024 ** 3)
                 if len(net_bytes_sent) > 1
                 else 0.0,
-                "total_bytes_recv_gb": (net_bytes_recv[-1] - net_bytes_recv[0]) / (1024 ** 3)
+                "total_bytes_recv_gib": (net_bytes_recv[-1] - net_bytes_recv[0]) / (1024 ** 3)
                 if len(net_bytes_recv) > 1
                 else 0.0,
                 "total_packets_sent": net_packets_sent[-1] - net_packets_sent[0]
@@ -335,26 +335,26 @@ class ResourceMonitor:  # pragma: no cover # logging only
                 "total_packets_recv": net_packets_recv[-1] - net_packets_recv[0]
                 if len(net_packets_recv) > 1
                 else 0,
-                "avg_send_rate_mbps": (
+                "avg_send_rate_mibps": (
                     (net_bytes_sent[-1] - net_bytes_sent[0])
                     / (1024 ** 2)
                     / max(duration_seconds, 1)
                 )
                 if len(net_bytes_sent) > 1
                 else 0.0,
-                "avg_recv_rate_mbps": (
+                "avg_recv_rate_mibps": (
                     (net_bytes_recv[-1] - net_bytes_recv[0])
                     / (1024 ** 2)
                     / max(duration_seconds, 1)
                 )
                 if len(net_bytes_recv) > 1
                 else 0.0,
-                "avg_recv_rate_interval_mbps": calculate_avg(net_recv_rate_mbps),
-                "max_recv_rate_mbps": calculate_max(net_recv_rate_mbps),
-                "p25_recv_rate_mbps": calculate_25th_percentile(net_recv_rate_mbps),
-                "avg_send_rate_interval_mbps": calculate_avg(net_send_rate_mbps),
-                "max_send_rate_mbps": calculate_max(net_send_rate_mbps),
-                "p25_send_rate_mbps": calculate_25th_percentile(net_send_rate_mbps),
+                "avg_recv_rate_interval_mibps": calculate_avg(net_recv_rate_mibps),
+                "max_recv_rate_mibps": calculate_max(net_recv_rate_mibps),
+                "p25_recv_rate_mibps": calculate_25th_percentile(net_recv_rate_mibps),
+                "avg_send_rate_interval_mibps": calculate_avg(net_send_rate_mibps),
+                "max_send_rate_mibps": calculate_max(net_send_rate_mibps),
+                "p25_send_rate_mibps": calculate_25th_percentile(net_send_rate_mibps),
             },
         }
 
@@ -368,26 +368,26 @@ class ResourceMonitor:  # pragma: no cover # logging only
                     if gpu_id < len(s["gpus"])
                 ]
                 gpu_mem_used = [
-                    s["gpus"][gpu_id]["memory_used_gb"]
+                    s["gpus"][gpu_id]["memory_used_gib"]
                     for s in self.samples
                     if gpu_id < len(s["gpus"])
                 ]
                 gpu_mem_total = (
-                    self.samples[0]["gpus"][gpu_id]["memory_total_gb"]
+                    self.samples[0]["gpus"][gpu_id]["memory_total_gib"]
                     if self.samples[0]["gpus"]
                     else 0.0
                 )
 
                 gpu_summary[f"gpu_{gpu_id}"] = {
-                    "memory_total_gb": gpu_mem_total,
+                    "memory_total_gib": gpu_mem_total,
                     "avg_utilization_percent": calculate_avg(gpu_util),
                     "max_utilization_percent": calculate_max(gpu_util),
                     "min_utilization_percent": calculate_min(gpu_util),
                     "p25_utilization_percent": calculate_25th_percentile(gpu_util),
-                    "avg_memory_used_gb": calculate_avg(gpu_mem_used),
-                    "max_memory_used_gb": calculate_max(gpu_mem_used),
-                    "min_memory_used_gb": calculate_min(gpu_mem_used),
-                    "p25_memory_used_gb": calculate_25th_percentile(gpu_mem_used),
+                    "avg_memory_used_gib": calculate_avg(gpu_mem_used),
+                    "max_memory_used_gib": calculate_max(gpu_mem_used),
+                    "min_memory_used_gib": calculate_min(gpu_mem_used),
+                    "p25_memory_used_gib": calculate_25th_percentile(gpu_mem_used),
                 }
             summary["gpus"] = gpu_summary
 
@@ -437,11 +437,11 @@ class ResourceMonitor:  # pragma: no cover # logging only
         summary += lrpad(cpu_row, bounds="|", length=80) + "\n"
 
         # Memory row
-        mem_total = f"{mem['total_gb']:.1f}GB"
-        mem_avg = f"{mem['avg_used_gb']:.1f}GB"
-        mem_max = f"{mem['max_used_gb']:.1f}GB"
-        mem_p25 = f"{mem['p25_used_gb']:.1f}GB"
-        mem_min = f"{mem['min_used_gb']:.1f}GB"
+        mem_total = f"{mem['total_gib']:.1f}GiB"
+        mem_avg = f"{mem['avg_used_gib']:.1f}GiB"
+        mem_max = f"{mem['max_used_gib']:.1f}GiB"
+        mem_p25 = f"{mem['p25_used_gib']:.1f}GiB"
+        mem_min = f"{mem['min_used_gib']:.1f}GiB"
         mem_row = (
             f"{'Memory':<12} {mem_total:>9} {mem_max:>9} {mem_avg:>11} {mem_p25:>11} {mem_min:>11}"
         )
@@ -461,11 +461,11 @@ class ResourceMonitor:  # pragma: no cover # logging only
                 summary += lrpad(gpu_util_row, bounds="|", length=80) + "\n"
 
                 # GPU memory row
-                gpu_mem_total = f"{gpu_stats['memory_total_gb']:.1f}GB"
-                gpu_mem_avg = f"{gpu_stats['avg_memory_used_gb']:.1f}GB"
-                gpu_mem_max = f"{gpu_stats['max_memory_used_gb']:.1f}GB"
-                gpu_mem_p25 = f"{gpu_stats['p25_memory_used_gb']:.1f}GB"
-                gpu_mem_min = f"{gpu_stats['min_memory_used_gb']:.1f}GB"
+                gpu_mem_total = f"{gpu_stats['memory_total_gib']:.1f}GiB"
+                gpu_mem_avg = f"{gpu_stats['avg_memory_used_gib']:.1f}GiB"
+                gpu_mem_max = f"{gpu_stats['max_memory_used_gib']:.1f}GiB"
+                gpu_mem_p25 = f"{gpu_stats['p25_memory_used_gib']:.1f}GiB"
+                gpu_mem_min = f"{gpu_stats['min_memory_used_gib']:.1f}GiB"
                 gpu_mem_row = f"{'GPU ' + gpu_id + ' Mem':<12} {gpu_mem_total:>9} {gpu_mem_max:>9} {gpu_mem_avg:>11} {gpu_mem_p25:>11} {gpu_mem_min:>11}"
                 summary += lrpad(gpu_mem_row, bounds="|", length=80) + "\n"
 
@@ -485,37 +485,37 @@ class ResourceMonitor:  # pragma: no cover # logging only
 
         # Disk Read row
         disk_read_ops = f"{disk_io['total_read_ops']:,}"
-        disk_read_bytes = f"{disk_io['total_read_gb']:.2f}GB"
-        disk_read_rate = f"{disk_io['avg_read_rate_mbps']:.1f}MB/s"
-        disk_read_rate_p25 = f"{disk_io.get('p25_read_rate_mbps', 0):.1f}MB/s"
-        disk_read_rate_max = f"{disk_io.get('max_read_rate_mbps', 0):.1f}MB/s"
+        disk_read_bytes = f"{disk_io['total_read_gib']:.2f}GiB"
+        disk_read_rate = f"{disk_io['avg_read_rate_mibps']:.1f}MiB/s"
+        disk_read_rate_p25 = f"{disk_io.get('p25_read_rate_mibps', 0):.1f}MiB/s"
+        disk_read_rate_max = f"{disk_io.get('max_read_rate_mibps', 0):.1f}MiB/s"
         disk_read_row = f"{'Disk Read':<12} {disk_read_ops:>9} {disk_read_bytes:>9} {disk_read_rate:>11} {disk_read_rate_p25:>11} {disk_read_rate_max:>11}"
         summary += lrpad(disk_read_row, bounds="|", length=80) + "\n"
 
         # Disk Write row
         disk_write_ops = f"{disk_io['total_write_ops']:,}"
-        disk_write_bytes = f"{disk_io['total_write_gb']:.2f}GB"
-        disk_write_rate = f"{disk_io['avg_write_rate_mbps']:.1f}MB/s"
-        disk_write_rate_p25 = f"{disk_io.get('p25_write_rate_mbps', 0):.1f}MB/s"
-        disk_write_rate_max = f"{disk_io.get('max_write_rate_mbps', 0):.1f}MB/s"
+        disk_write_bytes = f"{disk_io['total_write_gib']:.2f}GiB"
+        disk_write_rate = f"{disk_io['avg_write_rate_mibps']:.1f}MiB/s"
+        disk_write_rate_p25 = f"{disk_io.get('p25_write_rate_mibps', 0):.1f}MiB/s"
+        disk_write_rate_max = f"{disk_io.get('max_write_rate_mibps', 0):.1f}MiB/s"
         disk_write_row = f"{'Disk Write':<12} {disk_write_ops:>9} {disk_write_bytes:>9} {disk_write_rate:>11} {disk_write_rate_p25:>11} {disk_write_rate_max:>11}"
         summary += lrpad(disk_write_row, bounds="|", length=80) + "\n"
 
         # Network Receive row
         net_recv_ops = f"{net['total_packets_recv']:,}"
-        net_recv_bytes = f"{net['total_bytes_recv_gb']:.2f}GB"
-        net_recv_rate = f"{net['avg_recv_rate_mbps']:.1f}MB/s"
-        net_recv_rate_p25 = f"{net.get('p25_recv_rate_mbps', 0):.1f}MB/s"
-        net_recv_rate_max = f"{net.get('max_recv_rate_mbps', 0):.1f}MB/s"
+        net_recv_bytes = f"{net['total_bytes_recv_gib']:.2f}GiB"
+        net_recv_rate = f"{net['avg_recv_rate_mibps']:.1f}MiB/s"
+        net_recv_rate_p25 = f"{net.get('p25_recv_rate_mibps', 0):.1f}MiB/s"
+        net_recv_rate_max = f"{net.get('max_recv_rate_mibps', 0):.1f}MiB/s"
         net_recv_row = f"{'Net Receive':<12} {net_recv_ops:>9} {net_recv_bytes:>9} {net_recv_rate:>11} {net_recv_rate_p25:>11} {net_recv_rate_max:>11}"
         summary += lrpad(net_recv_row, bounds="|", length=80) + "\n"
 
         # Network Send row
         net_send_ops = f"{net['total_packets_sent']:,}"
-        net_send_bytes = f"{net['total_bytes_sent_gb']:.2f}GB"
-        net_send_rate = f"{net['avg_send_rate_mbps']:.1f}MB/s"
-        net_send_rate_p25 = f"{net.get('p25_send_rate_mbps', 0):.1f}MB/s"
-        net_send_rate_max = f"{net.get('max_send_rate_mbps', 0):.1f}MB/s"
+        net_send_bytes = f"{net['total_bytes_sent_gib']:.2f}GiB"
+        net_send_rate = f"{net['avg_send_rate_mibps']:.1f}MiB/s"
+        net_send_rate_p25 = f"{net.get('p25_send_rate_mibps', 0):.1f}MiB/s"
+        net_send_rate_max = f"{net.get('max_send_rate_mibps', 0):.1f}MiB/s"
         net_send_row = f"{'Net Send':<12} {net_send_ops:>9} {net_send_bytes:>9} {net_send_rate:>11} {net_send_rate_p25:>11} {net_send_rate_max:>11}"
         summary += lrpad(net_send_row, bounds="|", length=80) + "\n"
 

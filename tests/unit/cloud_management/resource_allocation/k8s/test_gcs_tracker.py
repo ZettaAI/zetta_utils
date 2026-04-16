@@ -479,7 +479,7 @@ class TestCollectResourceStats:
     def test_returns_parsed_dict_from_valid_file(self, tmp_path, mocker):
         summary = {
             "cpu": {"avg_percent": 75.0, "max_percent": 95.0},
-            "memory": {"total_gb": 64.0, "avg_percent": 60.0},
+            "memory": {"total_gib": 64.0, "avg_percent": 60.0},
         }
         path = tmp_path / "resource_stats.json"
         path.write_text(json.dumps(summary))

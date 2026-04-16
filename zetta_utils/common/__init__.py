@@ -9,7 +9,6 @@ from .user_input import get_user_input, get_user_confirmation
 from .misc import get_unique_id
 from .path import abspath, is_local
 from .pprint import lrpad
-from .resource_monitor import monitor_resources
-from .resource_stats_file import RESOURCE_STATS_FILE, write_resource_stats_file
+from .resource_monitor import RESOURCE_STATS_FILE, monitor_resources
 from .signal_handlers import custom_signal_handler_ctx, reset_signal_handlers
 from .timer import RepeatTimer, Timer

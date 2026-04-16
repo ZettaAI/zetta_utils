@@ -64,7 +64,6 @@ def queues_with_idle_worker(task_queue, outcome_queue):
     max_runtime = 3.0
     pool_name = "test_idle_worker_pool"
 
-    # Create shared memory for idle timeout tracking
     tracker = PoolActivityTracker(pool_name)
     tracker.create_shared_memory().close()
 
@@ -76,12 +75,11 @@ def queues_with_idle_worker(task_queue, outcome_queue):
         max_runtime=max_runtime,
         debug=True,
         idle_timeout=0.5,
-        pool_name=pool_name,
+        activity_tracker=tracker,
     )
 
     yield worker, max_runtime
 
-    # Cleanup
     tracker.unlink()
 
 

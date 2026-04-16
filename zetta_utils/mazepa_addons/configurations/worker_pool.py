@@ -25,7 +25,7 @@ def run_local_worker(
     local: bool = True,
     sleep_sec: float = 0.1,
     idle_timeout: int | None = None,
-    pool_name: str | None = None,
+    activity_tracker: PoolActivityTracker | None = None,
 ) -> str:
     logger.info("Creating a local worker in this process....")
     queue_type = FileQueue if local else SQSQueue
@@ -37,7 +37,7 @@ def run_local_worker(
         sleep_sec=sleep_sec,
         max_pull_num=1,
         idle_timeout=idle_timeout,
-        pool_name=pool_name,
+        activity_tracker=activity_tracker,
     )
     logger.info(f"Local worker returned: {exit_reason}")
     return exit_reason
@@ -59,9 +59,8 @@ def setup_local_worker_pool(
     Note that worker pools will inherit the current process' multiprocessing start method.
     """
     with monitor_resources(resource_monitor_interval):
-        # Create pool activity tracker for coordinated idle timeout
         pool_name = f"{task_queue_name}_{outcome_queue_name}"
-        activity_tracker = None
+        activity_tracker: PoolActivityTracker | None = None
         if idle_timeout is not None:
             activity_tracker = PoolActivityTracker(pool_name)
             activity_tracker.create_shared_memory().close()
@@ -96,7 +95,7 @@ def setup_local_worker_pool(
                             local,
                             sleep_sec,
                             idle_timeout,
-                            pool_name,
+                            activity_tracker,
                         ],
                     )
                     futures.append(future)

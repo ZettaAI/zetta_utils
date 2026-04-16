@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import time
 from typing import Any, Dict
 
@@ -524,17 +525,39 @@ class ResourceMonitor:  # pragma: no cover # logging only
         logger.info(summary)
 
 
+RESOURCE_STATS_FILE = "/tmp/resource_monitor_stats.json"
+
+
 @contextlib.contextmanager
-def monitor_resources(interval: float | None = None):
+def monitor_resources(
+    interval: float | None = None,
+    stats_file_path: str | None = RESOURCE_STATS_FILE,
+):
     """
     Context manager for monitoring system resources during execution.
+
+    Starts a background timer that samples psutil every ``interval`` seconds,
+    logs usage, and (if ``stats_file_path`` is set) writes the summary JSON to
+    that path so a sidecar can pick it up. No-op when ``interval`` is None.
     """
     if interval is None:
         yield
         return
 
     resource_monitor = ResourceMonitor(interval)
-    resource_timer = RepeatTimer(interval, resource_monitor.log_usage)
+
+    def tick() -> None:
+        try:
+            resource_monitor.log_usage()
+            if stats_file_path is not None:
+                summary = resource_monitor.get_summary_stats()
+                if summary:
+                    with open(stats_file_path, "w", encoding="utf-8") as f:
+                        json.dump(summary, f)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"Resource monitor tick failed: {e}")
+
+    resource_timer = RepeatTimer(interval, tick)
     resource_timer.start()
     logger.info(f"Started resource monitoring with {interval:.1f}s interval.")
 

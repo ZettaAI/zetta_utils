@@ -146,20 +146,14 @@ def _pull_tasks_with_error_handling(
 
 def _handle_idle_state(
     sleep_sec: float,
-    idle_timeout: float | None,
     activity_tracker: PoolActivityTracker | None,
 ) -> None:
     if activity_tracker:
         last_activity, active_count = activity_tracker.get_activity_data()
         time_since_activity = time.time() - last_activity
-        idle_line = (
-            "Idle timeout not set."
-            if idle_timeout is None
-            else f"Idle timeout {idle_timeout:.1f}s."
-        )
         logger.info(
             f"Sleeping {sleep_sec}s. Idle: {time_since_activity:.1f}s, "
-            f"Active workers: {active_count}. {idle_line}"
+            f"Active workers: {active_count}."
         )
     else:
         logger.info(f"Sleeping {sleep_sec}s.")
@@ -211,18 +205,12 @@ def _process_task_batch(
 def _check_exit_conditions(
     start_time: float,
     max_runtime: float | None,
-    idle_timeout: float | None,
-    activity_tracker: PoolActivityTracker | None,
 ) -> tuple[bool, str | None]:
     if _shutdown_event.is_set():
         return True, "sigterm"
 
     if max_runtime is not None and time.time() - start_time > max_runtime:
         return True, "max_runtime_exceeded"
-
-    if idle_timeout and activity_tracker:
-        if activity_tracker.check_idle_timeout(idle_timeout):
-            return True, "idle_timeout_exceeded"
 
     return False, None
 
@@ -235,7 +223,6 @@ def run_worker(
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
     debug: bool = False,
-    idle_timeout: float | None = None,
     activity_tracker: PoolActivityTracker | None = None,
 ) -> str:
     upkeep_handler = SQSUpkeepHandlerManager()
@@ -248,7 +235,7 @@ def run_worker(
             task_msgs = _pull_tasks_with_error_handling(task_queue, outcome_queue, max_pull_num)
 
             if len(task_msgs) == 0:
-                _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
+                _handle_idle_state(sleep_sec, activity_tracker)
             else:
                 _process_task_batch(
                     task_msgs,
@@ -259,9 +246,7 @@ def run_worker(
                     upkeep_handler,
                 )
 
-            should_exit, reason = _check_exit_conditions(
-                start_time, max_runtime, idle_timeout, activity_tracker
-            )
+            should_exit, reason = _check_exit_conditions(start_time, max_runtime)
             if should_exit:
                 assert reason is not None
                 logger.info(f"Worker exiting: {reason}")

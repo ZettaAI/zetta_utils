@@ -28,7 +28,6 @@ def run_local_worker(
     outcome_queue_name: str,
     local: bool = True,
     sleep_sec: float = 0.1,
-    idle_timeout: int | None = None,
     activity_tracker: PoolActivityTracker | None = None,
 ) -> str:
     logger.info("Creating a local worker in this process....")
@@ -40,7 +39,6 @@ def run_local_worker(
         outcome_queue=outcome_queue,
         sleep_sec=sleep_sec,
         max_pull_num=1,
-        idle_timeout=idle_timeout,
         activity_tracker=activity_tracker,
     )
     logger.info(f"Local worker returned: {exit_reason}")
@@ -98,7 +96,6 @@ def setup_local_worker_pool(
                             outcome_queue_name,
                             local,
                             sleep_sec,
-                            idle_timeout,
                             activity_tracker,
                         ],
                     )
@@ -162,6 +159,15 @@ def run_worker_manager(
     signal.signal(signal.SIGTERM, _handle_sigterm)
     signal.signal(signal.SIGHUP, _handle_sigterm)
 
+    # Pool-wide idle timeout is checked here (not in each worker) so the
+    # decision is made once per pool. The tracker wraps the shared memory
+    # segment created by setup_local_worker_pool below; constructing a
+    # local reference is cheap (attrs.frozen around a single str name).
+    activity_tracker: PoolActivityTracker | None = None
+    if idle_timeout is not None:
+        pool_name = f"{task_queue.name}_{outcome_queue.name}"
+        activity_tracker = PoolActivityTracker(pool_name)
+
     with ExitStack() as stack:
         stack.enter_context(configure_semaphores(semaphores_spec))
         worker_pool_ctx = setup_local_worker_pool(
@@ -179,6 +185,13 @@ def run_worker_manager(
         while True:
             if shutdown_requested.is_set():
                 logger.info("SIGTERM received; exiting worker manager.")
+                break
+            if (
+                idle_timeout is not None
+                and activity_tracker is not None
+                and activity_tracker.check_idle_timeout(idle_timeout)
+            ):
+                logger.info("Pool idle timeout exceeded; exiting worker manager.")
                 break
             for i, future in enumerate(pool_futures):
                 if future.done():

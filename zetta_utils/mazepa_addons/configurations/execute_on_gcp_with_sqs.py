@@ -386,9 +386,10 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
         )
 
         if semaphores_spec is not None:
+            sem_widths = {str(k): v for k, v in semaphores_spec.items()}
             run.update_run_info(
                 run.RUN_ID,
-                {run.RunInfo.SEMAPHORE_WIDTHS.value: dict(semaphores_spec)},
+                {run.RunInfo.SEMAPHORE_WIDTHS.value: sem_widths},
             )
 
         thread = threading.Thread(

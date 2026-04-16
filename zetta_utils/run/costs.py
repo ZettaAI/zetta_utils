@@ -323,16 +323,14 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
         gpus = res.get("gpus", {}) if isinstance(res.get("gpus"), dict) else {}
         if gpus:
             gpu_vals = list(gpus.values())
-            gpu_avg_util = (
-                sum(g.get("avg_utilization_percent", 0) for g in gpu_vals) / len(gpu_vals)
+            gpu_avg_util = sum(g.get("avg_utilization_percent", 0) for g in gpu_vals) / len(
+                gpu_vals
             )
             gpu_max_util = max(g.get("max_utilization_percent", 0) for g in gpu_vals)
             gpu_total_mem = sum(g.get("memory_total_gib", 0) for g in gpu_vals)
             if gpu_total_mem > 0:
                 gpu_avg_mem_pct = (
-                    sum(g.get("avg_memory_used_gib", 0) for g in gpu_vals)
-                    / gpu_total_mem
-                    * 100
+                    sum(g.get("avg_memory_used_gib", 0) for g in gpu_vals) / gpu_total_mem * 100
                 )
                 gpu_max_mem_pct = (
                     max(g.get("max_memory_used_gib", 0) for g in gpu_vals)
@@ -384,18 +382,14 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
         }
         gpu_entries = [e for e in entries if e.get("gpu_avg_util_percent") is not None]
         if gpu_entries:
-            result["avg_gpu_util_percent"] = (
-                sum(e["gpu_avg_util_percent"] for e in gpu_entries) / len(gpu_entries)
-            )
-            result["max_gpu_util_percent"] = max(
-                e["gpu_max_util_percent"] for e in gpu_entries
-            )
-            result["avg_gpu_mem_percent"] = (
-                sum(e["gpu_avg_mem_percent"] for e in gpu_entries) / len(gpu_entries)
-            )
-            result["max_gpu_mem_percent"] = max(
-                e["gpu_max_mem_percent"] for e in gpu_entries
-            )
+            result["avg_gpu_util_percent"] = sum(
+                e["gpu_avg_util_percent"] for e in gpu_entries
+            ) / len(gpu_entries)
+            result["max_gpu_util_percent"] = max(e["gpu_max_util_percent"] for e in gpu_entries)
+            result["avg_gpu_mem_percent"] = sum(
+                e["gpu_avg_mem_percent"] for e in gpu_entries
+            ) / len(gpu_entries)
+            result["max_gpu_mem_percent"] = max(e["gpu_max_mem_percent"] for e in gpu_entries)
         return result
 
     return {
@@ -426,16 +420,16 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
     W_BN = 17  # bottleneck/2nd
     W_BP = 12  # block/2nd
     W_WL = 21  # wait / lease / ut.
-    W_CA = 6   # cpu avg
-    W_CM = 6   # cpu max
-    W_MA = 6   # mem avg
-    W_MM = 6   # mem max
-    W_GU = 6   # gpu util avg
-    W_GX = 6   # gpu util max
-    W_GA = 6   # gpu mem avg
-    W_GK = 6   # gpu mem max
-    W_NI = 7   # net in
-    W_NO = 7   # net out
+    W_CA = 6  # cpu avg
+    W_CM = 6  # cpu max
+    W_MA = 6  # mem avg
+    W_MM = 6  # mem max
+    W_GU = 6  # gpu util avg
+    W_GX = 6  # gpu util max
+    W_GA = 6  # gpu mem avg
+    W_GK = 6  # gpu mem max
+    W_NI = 7  # net in
+    W_NO = 7  # net out
     # Group widths for top header
     W_SEMA = W_BN + W_BP + W_WL
     W_CPU = W_CA + W_CM
@@ -485,7 +479,22 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         return lrpad(text, level=0, length=width + 1, bounds="")
 
     def _row(*cols):
-        widths = (W_WT, W_BN, W_BP, W_WL, W_CA, W_CM, W_MA, W_MM, W_GU, W_GX, W_GA, W_GK, W_NI, W_NO)
+        widths = (
+            W_WT,
+            W_BN,
+            W_BP,
+            W_WL,
+            W_CA,
+            W_CM,
+            W_MA,
+            W_MM,
+            W_GU,
+            W_GX,
+            W_GA,
+            W_GK,
+            W_NI,
+            W_NO,
+        )
         return " " + "".join(_col(c, w) for c, w in zip(cols, widths))
 
     s = ""
@@ -553,14 +562,10 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             else "  -"
         )
         gpu_mem_avg = (
-            f"{wt_res['avg_gpu_mem_percent']:3.0f}%"
-            if "avg_gpu_mem_percent" in wt_res
-            else "  -"
+            f"{wt_res['avg_gpu_mem_percent']:3.0f}%" if "avg_gpu_mem_percent" in wt_res else "  -"
         )
         gpu_mem_max = (
-            f"{wt_res['max_gpu_mem_percent']:3.0f}%"
-            if "max_gpu_mem_percent" in wt_res
-            else "  -"
+            f"{wt_res['max_gpu_mem_percent']:3.0f}%" if "max_gpu_mem_percent" in wt_res else "  -"
         )
         net_ig = (
             f"{wt_res['total_net_ingress_gib']:.2f}" if "total_net_ingress_gib" in wt_res else "-"
@@ -599,7 +604,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
 
     # Cost subtable (only if we have cost data)
     if cost_by_wt or gcs_by_wt:
-        W_CH = 8   # node hours
+        W_CH = 8  # node hours
         W_CC = 10  # cpu+mem cost
         W_CG = 10  # gpu cost
         W_CT = 10  # total compute
@@ -623,14 +628,18 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         pad2 = (LEN2 - 2 - len(title2)) // 2
         s += lrpad("=" * pad2 + title2, level=0, bounds="+", filler="=", length=LEN2) + "\n"
         s += lrpad("", level=0, bounds="|", length=LEN2) + "\n"
-        top2 = (
-            " " + _col2("", W_WT)
-            + _col2("Compute ($)", W_COMPUTE)
-            + _col2("GCS", W_GCS)
-        )
+        top2 = " " + _col2("", W_WT) + _col2("Compute ($)", W_COMPUTE) + _col2("GCS", W_GCS)
         s += lrpad(top2, level=0, bounds="|", length=LEN2) + "\n"
         bottom2 = _row2(
-            "Worker Type", "Hours", "CPU+Mem", "GPU", "Total", "Ideal*", "Class A", "Class B", "Egress ($)",
+            "Worker Type",
+            "Hours",
+            "CPU+Mem",
+            "GPU",
+            "Total",
+            "Ideal*",
+            "Class A",
+            "Class B",
+            "Egress ($)",
         )
         s += lrpad(bottom2, level=0, bounds="|", length=LEN2) + "\n"
         s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
@@ -671,42 +680,50 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             total_eg_min += eg_min
             total_eg_max += eg_max
             eg_str = f"{eg_min:.2f}-{eg_max:.2f}" if (eg_min or eg_max) else "-"
-            s += lrpad(
-                _row2(
-                    wt[:W_WT],
-                    f"{hrs:.1f}" if hrs else "-",
-                    f"{cm:.2f}" if cm else "-",
-                    f"{gpu:.2f}" if gpu else "-",
-                    f"{cm + gpu:.2f}" if (cm or gpu) else "-",
-                    f"{ideal:.2f}*" if (cm or gpu) else "-",
-                    f"{ea:,}" if ea else "-",
-                    f"{eb:,}" if eb else "-",
-                    eg_str,
-                ),
-                level=0, bounds="|", length=LEN2,
-            ) + "\n"
+            s += (
+                lrpad(
+                    _row2(
+                        wt[:W_WT],
+                        f"{hrs:.1f}" if hrs else "-",
+                        f"{cm:.2f}" if cm else "-",
+                        f"{gpu:.2f}" if gpu else "-",
+                        f"{cm + gpu:.2f}" if (cm or gpu) else "-",
+                        f"{ideal:.2f}*" if (cm or gpu) else "-",
+                        f"{ea:,}" if ea else "-",
+                        f"{eb:,}" if eb else "-",
+                        eg_str,
+                    ),
+                    level=0,
+                    bounds="|",
+                    length=LEN2,
+                )
+                + "\n"
+            )
 
         # Totals row
         s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
         eg_total_str = (
-            f"{total_eg_min:.2f}-{total_eg_max:.2f}"
-            if (total_eg_min or total_eg_max)
-            else "-"
+            f"{total_eg_min:.2f}-{total_eg_max:.2f}" if (total_eg_min or total_eg_max) else "-"
         )
-        s += lrpad(
-            _row2(
-                "TOTAL",
-                f"{total_hrs:.1f}",
-                f"{total_cm:.2f}",
-                f"{total_gpu:.2f}",
-                f"{total_cm + total_gpu:.2f}",
-                f"{total_ideal:.2f}*",
-                f"{total_ea:,}",
-                f"{total_eb:,}",
-                eg_total_str,
-            ),
-            level=0, bounds="|", length=LEN2,
-        ) + "\n"
+        s += (
+            lrpad(
+                _row2(
+                    "TOTAL",
+                    f"{total_hrs:.1f}",
+                    f"{total_cm:.2f}",
+                    f"{total_gpu:.2f}",
+                    f"{total_cm + total_gpu:.2f}",
+                    f"{total_ideal:.2f}*",
+                    f"{total_ea:,}",
+                    f"{total_eb:,}",
+                    eg_total_str,
+                ),
+                level=0,
+                bounds="|",
+                length=LEN2,
+            )
+            + "\n"
+        )
         s += lrpad("", level=0, bounds="|", length=LEN2) + "\n"
         s += lrpad("", level=0, bounds="+", filler="=", length=LEN2)
 

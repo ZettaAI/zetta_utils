@@ -3,6 +3,7 @@ Shared memory tracker for worker pool activity and idle timeout management.
 """
 from __future__ import annotations
 
+import os
 import struct
 import time
 from multiprocessing import resource_tracker, shared_memory
@@ -29,6 +30,7 @@ class PoolActivityTracker:
     """
 
     pool_name: str
+    creator_pid: int = attrs.field(factory=os.getpid)
 
     def _get_shared_memory_name(self) -> str:
         return f"zetta_pool_activity_{self.pool_name}"
@@ -40,7 +42,9 @@ class PoolActivityTracker:
         # Workaround for https://bugs.python.org/issue38119: attaching processes get
         # registered with resource_tracker and will unlink the segment on exit, even
         # though they did not create it. Unregister so only the head node owns cleanup.
-        resource_tracker.unregister(f"/{name}", "shared_memory")
+        # Guard: only unregister in non-creator processes.
+        if os.getpid() != self.creator_pid:
+            resource_tracker.unregister(f"/{name}", "shared_memory")
         return shm
 
     def create_shared_memory(self) -> shared_memory.SharedMemory:

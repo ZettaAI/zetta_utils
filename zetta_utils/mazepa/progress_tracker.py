@@ -15,6 +15,7 @@ from rich.console import Console
 
 from zetta_utils.common import custom_signal_handler_ctx, get_user_confirmation
 from zetta_utils.log import get_logger
+from zetta_utils.mazepa.log_drain import clear_drain_console, set_drain_console
 
 from .execution_state import ProgressReport
 
@@ -101,6 +102,7 @@ def progress_ctx_mngr(
     last_progress_writeout_ts = 0.0
 
     with progress_bar as progress_bar:
+        set_drain_console(progress_bar.console)
         if require_interrupt_confirm:
             handler_ctx = custom_signal_handler_ctx(
                 get_confirm_sigint_fn(progress_bar), signal.SIGINT
@@ -162,6 +164,7 @@ def progress_ctx_mngr(
             yield update_fn
             if write_progress_to_path is not None:
                 write_progress_file()
+            clear_drain_console()
             try:
                 progress_bar.stop()
             except IndexError:

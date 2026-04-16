@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import logging
 import math
 import multiprocessing
 import os
@@ -45,6 +46,20 @@ def redirect_buffers() -> None:  # pragma: no cover
     sys.stdin = DummyBuffer()  # type: ignore
     sys.stdout = DummyBuffer()  # type: ignore
     sys.stderr = DummyBuffer()  # type: ignore
+
+
+class _StringQueueHandler(logging.Handler):
+    """Logging handler that pre-formats records and puts the string on a queue."""
+
+    def __init__(self, queue):
+        super().__init__()
+        self.queue = queue
+
+    def emit(self, record):
+        try:
+            self.queue.put_nowait(self.format(record))
+        except Exception:
+            self.handleError(record)
 
 
 def _install_worker_signal_handlers() -> None:
@@ -93,6 +108,7 @@ def worker_init(
     set_start_method: bool = False,
     multiprocessing_start_method: str = "spawn",
     load_train_inference: bool = False,
+    log_queue: multiprocessing.Queue | None = None,
 ) -> None:
     """
     Initialize a worker process with proper logging and signal handling.
@@ -103,12 +119,22 @@ def worker_init(
         set_start_method: If True, set multiprocessing start method (for worker pools)
         multiprocessing_start_method: The start method to use if set_start_method is True
         load_train_inference: If True, try to load train/inference modules (for worker pools)
+        log_queue: If provided and suppress_logs is False, route log output through
+            this queue (to the head's drain thread) instead of writing to stdout.
+            stdout/stderr are redirected to /dev/null to suppress stray prints.
     """
     _install_worker_signal_handlers()
-    # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
 
     if suppress_logs:
+        redirect_buffers()
+    elif log_queue is not None:
+        log.configure_logger(level=log_level, force=True)
+        handler = _StringQueueHandler(log_queue)
+        handler.setFormatter(logging.getLogger().handlers[0].formatter)
+        root = logging.getLogger()
+        root.handlers.clear()
+        root.addHandler(handler)
         redirect_buffers()
     else:
         log.configure_logger(level=log_level, force=True)

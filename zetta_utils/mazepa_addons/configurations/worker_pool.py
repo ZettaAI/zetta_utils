@@ -15,6 +15,8 @@ import psutil
 from zetta_utils import builder, log
 from zetta_utils.common import monitor_resources
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
+from zetta_utils.mazepa import log_drain as log_drain_mod
+from zetta_utils.mazepa.log_drain import LogDrainThread
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.worker import worker_init
@@ -68,6 +70,16 @@ def setup_local_worker_pool(
             activity_tracker.create_shared_memory().close()
             logger.info(f"Created pool activity tracker for idle timeout management: {pool_name}")
 
+        # When worker logs are not suppressed, route them through a queue
+        # so the head's drain thread can print them above the progress bar.
+        log_queue: multiprocessing.Queue | None = None
+        drain: LogDrainThread | None = None
+        if not suppress_worker_logs:
+            log_queue = multiprocessing.Queue()
+            drain = LogDrainThread(log_queue)
+            log_drain_mod._active_drain = drain
+            drain.start()
+
         try:
             current_log_level = logging.getLevelName(
                 logging.getLogger("mazepa").getEffectiveLevel()
@@ -84,6 +96,7 @@ def setup_local_worker_pool(
                     True,  # set_start_method
                     multiprocessing.get_start_method(),  # multiprocessing_start_method
                     True,  # load_train_inference
+                    log_queue,  # log_queue
                 ],
             )
             try:
@@ -132,6 +145,10 @@ def setup_local_worker_pool(
                     f"`{task_queue_name}` / `{outcome_queue_name}`."
                 )
         finally:
+            if drain is not None:
+                drain.stop()
+                drain.join(timeout=2.0)
+                log_drain_mod._active_drain = None
             if activity_tracker:
                 activity_tracker.unlink()
 

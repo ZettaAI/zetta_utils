@@ -54,7 +54,7 @@ def redirect_buffers() -> None:  # pragma: no cover
 _shutdown_event = threading.Event()
 
 
-def _graceful_exit(*_):  # pragma: no cover
+def _graceful_exit(*_):
     _shutdown_event.set()
 
 
@@ -80,7 +80,7 @@ def _install_worker_signal_handlers() -> None:
     _set_pdeathsig_sigterm()
 
 
-def _set_pdeathsig_sigterm() -> None:  # pragma: no cover
+def _set_pdeathsig_sigterm() -> None:
     """Request SIGTERM from the kernel when the parent process dies.
 
     Linux-only via prctl(PR_SET_PDEATHSIG). On non-Linux platforms or

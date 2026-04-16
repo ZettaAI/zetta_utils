@@ -1,3 +1,5 @@
+import ctypes
+import signal
 import time
 from unittest.mock import MagicMock
 
@@ -5,7 +7,14 @@ import pytest
 
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.tasks import _TaskableOperation
-from zetta_utils.mazepa.worker import run_worker, worker_init
+from zetta_utils.mazepa.worker import (
+    _check_exit_conditions,
+    _graceful_exit,
+    _install_worker_signal_handlers,
+    _shutdown_event,
+    run_worker,
+    worker_init,
+)
 from zetta_utils.message_queues.base import ReceivedMessage
 
 
@@ -228,6 +237,75 @@ def test_worker_init_load_train_inference(mocker):
     worker_init(log_level="INFO", load_train_inference=True)
 
     mock_load.assert_called_once()
+
+
+def test_install_worker_signal_handlers():
+    saved = {
+        signal.SIGINT: signal.getsignal(signal.SIGINT),
+        signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+        signal.SIGHUP: signal.getsignal(signal.SIGHUP),
+    }
+    try:
+        _install_worker_signal_handlers()
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_IGN
+        assert signal.getsignal(signal.SIGTERM) == _graceful_exit
+        assert signal.getsignal(signal.SIGHUP) == _graceful_exit
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def test_pdeathsig_installed():
+    libc = ctypes.CDLL(None, use_errno=True)
+    PR_GET_PDEATHSIG = 2
+    result = ctypes.c_int(0)
+    # _install_worker_signal_handlers calls _set_pdeathsig_sigterm internally
+    saved = {
+        signal.SIGINT: signal.getsignal(signal.SIGINT),
+        signal.SIGTERM: signal.getsignal(signal.SIGTERM),
+        signal.SIGHUP: signal.getsignal(signal.SIGHUP),
+    }
+    try:
+        _install_worker_signal_handlers()
+        ret = libc.prctl(PR_GET_PDEATHSIG, ctypes.byref(result), 0, 0, 0)
+        assert ret == 0
+        assert result.value == signal.SIGTERM
+    finally:
+        for sig, handler in saved.items():
+            signal.signal(sig, handler)
+
+
+def test_check_exit_conditions_sigterm():
+    _graceful_exit()
+    try:
+        should_exit, reason = _check_exit_conditions(
+            start_time=time.time(), max_runtime=None
+        )
+        assert should_exit is True
+        assert reason == "sigterm"
+    finally:
+        _shutdown_event.clear()
+
+
+def test_set_pdeathsig_logs_warning_on_unavailable(mocker):
+    mocker.patch("zetta_utils.mazepa.worker.ctypes.CDLL", side_effect=OSError("mocked"))
+    mock_logger = mocker.patch("zetta_utils.mazepa.worker.logger")
+    from zetta_utils.mazepa.worker import _set_pdeathsig_sigterm
+
+    _set_pdeathsig_sigterm()
+    mock_logger.warning.assert_called_once()
+
+
+def test_set_pdeathsig_logs_warning_on_prctl_failure(mocker):
+    mock_libc = MagicMock()
+    mock_libc.prctl.return_value = -1
+    mocker.patch("zetta_utils.mazepa.worker.ctypes.CDLL", return_value=mock_libc)
+    mocker.patch("zetta_utils.mazepa.worker.ctypes.get_errno", return_value=22)
+    mock_logger = mocker.patch("zetta_utils.mazepa.worker.logger")
+    from zetta_utils.mazepa.worker import _set_pdeathsig_sigterm
+
+    _set_pdeathsig_sigterm()
+    mock_logger.warning.assert_called_once()
 
 
 def test_worker_upkeep_fallback_for_non_sqs_queue(

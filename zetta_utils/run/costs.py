@@ -28,6 +28,7 @@ _last_gcs_stats: dict[str, tuple] = {}
 # by aggregate_pod_stats() for log enrichment without an extra Firestore read.
 # Only one run_id is active per process invocation.
 _last_compute_cost: float | None = None
+_cached_semaphore_widths: dict[str, int] | None = None
 
 
 def compute_costs(run_id: str):
@@ -552,6 +553,16 @@ def aggregate_pod_stats(
     Compute cost for the log line is read from the in-process cache populated
     by compute_costs() to avoid an extra Firestore read.
     """
+    global _cached_semaphore_widths  # pylint: disable=global-statement
+    if semaphore_widths is None and _cached_semaphore_widths is None:
+        try:
+            run_doc = RUN_DB[run_id]
+            _cached_semaphore_widths = run_doc.get("semaphore_widths")
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+    if semaphore_widths is None:
+        semaphore_widths = _cached_semaphore_widths
+
     pod_docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
     if not pod_docs:
         return None

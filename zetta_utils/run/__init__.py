@@ -35,6 +35,7 @@ class RunInfo(Enum):
     RESULTS = "results"
     WORKER_STATE = "worker_state"
     REGION_MISMATCH = "region_mismatch"
+    SEMAPHORE_WIDTHS = "semaphore_widths"
 
 
 class RunState(Enum):

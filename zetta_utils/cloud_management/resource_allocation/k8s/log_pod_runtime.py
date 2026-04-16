@@ -36,4 +36,7 @@ def log_pod_runtime():
     )
     node_info["+run_id"] = [run_id]
     node_info[run_id] = time.time()
+    worker_type = os.environ.get("WORKER_TYPE")
+    if worker_type:
+        node_info["worker_type"] = worker_type
     NODE_DB[node_name] = node_info

@@ -238,29 +238,33 @@ def test_worker_without_activity_tracker_no_activity_tracking(
 
 
 def test_worker_init_basic(mocker):
-    mock_reset_signals = mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mock_install_handlers = mocker.patch(
+        "zetta_utils.mazepa.worker._install_worker_signal_handlers"
+    )
     mock_configure_logger = mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
 
     worker_init(log_level="INFO")
 
-    mock_reset_signals.assert_called_once()
+    mock_install_handlers.assert_called_once()
     mock_configure_logger.assert_called_once_with(level="INFO", force=True)
 
 
 def test_worker_init_suppress_logs(mocker):
-    mock_reset_signals = mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mock_install_handlers = mocker.patch(
+        "zetta_utils.mazepa.worker._install_worker_signal_handlers"
+    )
     mock_redirect_buffers = mocker.patch("zetta_utils.mazepa.worker.redirect_buffers")
     mock_configure_logger = mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
 
     worker_init(log_level="INFO", suppress_logs=True)
 
-    mock_reset_signals.assert_called_once()
+    mock_install_handlers.assert_called_once()
     mock_redirect_buffers.assert_called_once()
     mock_configure_logger.assert_not_called()
 
 
 def test_worker_init_set_start_method(mocker):
-    mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mocker.patch("zetta_utils.mazepa.worker._install_worker_signal_handlers")
     mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
     mock_set_start_method = mocker.patch(
         "zetta_utils.mazepa.worker.multiprocessing.set_start_method"
@@ -272,7 +276,7 @@ def test_worker_init_set_start_method(mocker):
 
 
 def test_worker_init_load_train_inference(mocker):
-    mocker.patch("zetta_utils.mazepa.worker.reset_signal_handlers")
+    mocker.patch("zetta_utils.mazepa.worker._install_worker_signal_handlers")
     mocker.patch("zetta_utils.mazepa.worker.log.configure_logger")
     mock_load = mocker.patch("zetta_utils.mazepa.worker.try_load_train_inference")
 

@@ -2,9 +2,16 @@ import signal
 from contextlib import contextmanager
 
 
-def reset_signal_handlers():  # pragma: no cover
+def configure_pool_signals():  # pragma: no cover
+    """Initializer for `multiprocessing.Pool` children. SIGINT is ignored
+    so terminal Ctrl-C doesn't kill them — the head process owns the
+    confirm decision. SIGTERM/SIGHUP stay at SIG_DFL so `pool.terminate()`
+    and explicit `kill` work as expected.
+    """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    signal.signal(signal.SIGHUP, signal.SIG_DFL)
+
 
 @contextmanager
 def custom_signal_handler_ctx(fn, target_signal):  # pragma: no cover

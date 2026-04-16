@@ -3,13 +3,15 @@ from __future__ import annotations
 import math
 import multiprocessing
 import os
+import signal
 import sys
+import threading
 import time
 import traceback
 from typing import Any, Callable, Optional
 
 from zetta_utils import log, try_load_train_inference
-from zetta_utils.common import RepeatTimer, reset_signal_handlers
+from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -45,6 +47,31 @@ def redirect_buffers() -> None:  # pragma: no cover
     sys.stderr = DummyBuffer()  # type: ignore
 
 
+# Per-process shutdown flag flipped by SIGTERM/SIGHUP in worker children.
+# The pull loop's _check_exit_conditions consults it between batches so the
+# current in-flight task finishes and gets acked before the worker exits.
+_shutdown_event = threading.Event()
+
+
+def _graceful_exit(*_):  # pragma: no cover
+    _shutdown_event.set()
+
+
+def _install_worker_signal_handlers() -> None:
+    """Install worker-process signal handlers.
+
+    - SIGINT is ignored so terminal Ctrl-C doesn't tear down pool workers.
+      The pool manager (or the head node's require_interrupt_confirm prompt)
+      owns the shutdown decision; workers are signalled via SIGTERM.
+    - SIGTERM and SIGHUP flip a shutdown flag that the pull loop checks
+      between batches, so the current task completes and gets acked before
+      the worker exits.
+    """
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    signal.signal(signal.SIGTERM, _graceful_exit)
+    signal.signal(signal.SIGHUP, _graceful_exit)
+
+
 def worker_init(
     log_level: str,
     suppress_logs: bool = False,
@@ -62,8 +89,7 @@ def worker_init(
         multiprocessing_start_method: The start method to use if set_start_method is True
         load_train_inference: If True, try to load train/inference modules (for worker pools)
     """
-    # Reset signal handlers inherited from parent to default behavior
-    reset_signal_handlers()
+    _install_worker_signal_handlers()
     # For Kubernetes compatibility, ensure unbuffered output
     os.environ["PYTHONUNBUFFERED"] = "1"
 
@@ -188,6 +214,9 @@ def _check_exit_conditions(
     idle_timeout: float | None,
     activity_tracker: PoolActivityTracker | None,
 ) -> tuple[bool, str | None]:
+    if _shutdown_event.is_set():
+        return True, "sigterm"
+
     if max_runtime is not None and time.time() - start_time > max_runtime:
         return True, "max_runtime_exceeded"
 

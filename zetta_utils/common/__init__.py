@@ -10,5 +10,5 @@ from .misc import get_unique_id
 from .path import abspath, is_local
 from .pprint import lrpad
 from .resource_monitor import RESOURCE_STATS_FILE, monitor_resources
-from .signal_handlers import custom_signal_handler_ctx, reset_signal_handlers
+from .signal_handlers import configure_pool_signals, custom_signal_handler_ctx
 from .timer import RepeatTimer, Timer

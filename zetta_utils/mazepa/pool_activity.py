@@ -43,7 +43,7 @@ class PoolActivityTracker:
         # registered with resource_tracker and will unlink the segment on exit, even
         # though they did not create it. Unregister so only the head node owns cleanup.
         # Guard: only unregister in non-creator processes.
-        if os.getpid() != self.creator_pid:
+        if os.getpid() != self.creator_pid:  # pragma: no cover
             resource_tracker.unregister(f"/{name}", "shared_memory")
         return shm
 

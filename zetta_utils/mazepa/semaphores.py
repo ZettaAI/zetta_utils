@@ -44,7 +44,10 @@ class TimingTracker:
         # Workaround for https://bugs.python.org/issue38119: attaching processes get
         # registered with resource_tracker and will unlink the segment on exit, even
         # though they did not create it. Unregister so only the head node owns cleanup.
-        resource_tracker.unregister(f"/{name}", "shared_memory")
+        # Guard: only unregister in non-creator processes. The creator (pid == self.pid)
+        # must keep the registration so resource_tracker can clean up on abnormal exit.
+        if os.getpid() != self.pid:
+            resource_tracker.unregister(f"/{name}", "shared_memory")
         return shm
 
     def create_shared_memory(self) -> shared_memory.SharedMemory:

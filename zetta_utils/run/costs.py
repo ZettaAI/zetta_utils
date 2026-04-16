@@ -53,7 +53,7 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
     nodes = NODE_DB.query({"-run_id": [run_id]}, timeout=30.0)
     total_cost = 0.0
     per_wt: dict[str, dict[str, float]] = defaultdict(
-        lambda: {"cpu_mem": 0.0, "gpu": 0.0}
+        lambda: {"cpu_mem": 0.0, "gpu": 0.0, "node_hours": 0.0}
     )
     for _info in nodes.values():
         node_cpu_mem_hourly = 0.0
@@ -107,6 +107,7 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
         hourly_multiple = (float(str(node_info[run_id])) - _get_start_time(node_info)) / 3600
         per_wt[wt]["cpu_mem"] += hourly_multiple * node_cpu_mem_hourly
         per_wt[wt]["gpu"] += hourly_multiple * node_gpu_hourly
+        per_wt[wt]["node_hours"] += hourly_multiple
         total_cost += hourly_multiple * (node_cpu_mem_hourly + node_gpu_hourly)
 
     global _last_compute_cost  # pylint: disable=global-statement
@@ -116,7 +117,11 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
     update: dict = {"compute_cost": total_cost}
     if per_wt:
         update["compute_cost_by_worker_type"] = {
-            wt: {"cpu_mem": costs["cpu_mem"], "gpu": costs["gpu"]}
+            wt: {
+                "cpu_mem": costs["cpu_mem"],
+                "gpu": costs["gpu"],
+                "node_hours": costs["node_hours"],
+            }
             for wt, costs in per_wt.items()
         }
     RUN_DB[run_id] = update
@@ -594,13 +599,14 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
 
     # Cost subtable (only if we have cost data)
     if cost_by_wt or gcs_by_wt:
+        W_CH = 8   # node hours
         W_CC = 10  # cpu+mem cost
         W_CG = 10  # gpu cost
         W_CT = 10  # total compute
         W_EA = 10  # gcs class A ops
         W_EB = 10  # gcs class B ops
         W_EG = 12  # egress cost range
-        W_COMPUTE = W_CC + W_CG + W_CT
+        W_COMPUTE = W_CH + W_CC + W_CG + W_CT
         W_GCS = W_EA + W_EB + W_EG
         LEN2 = 1 + W_WT + W_COMPUTE + W_GCS + 2
 
@@ -608,7 +614,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             return lrpad(text, level=0, length=width + 1, bounds="")
 
         def _row2(*cols):
-            widths2 = (W_WT, W_CC, W_CG, W_CT, W_EA, W_EB, W_EG)
+            widths2 = (W_WT, W_CH, W_CC, W_CG, W_CT, W_EA, W_EB, W_EG)
             return " " + "".join(_col2(c, w) for c, w in zip(cols, widths2))
 
         s += "\n"
@@ -623,12 +629,13 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         )
         s += lrpad(top2, level=0, bounds="|", length=LEN2) + "\n"
         bottom2 = _row2(
-            "Worker Type", "CPU+Mem", "GPU", "Total", "Class A", "Class B", "Egress ($)",
+            "Worker Type", "Hours", "CPU+Mem", "GPU", "Total", "Class A", "Class B", "Egress ($)",
         )
         s += lrpad(bottom2, level=0, bounds="|", length=LEN2) + "\n"
         s += lrpad("", level=0, filler="-", bounds="|", length=LEN2) + "\n"
 
         all_wts = sorted(set(cost_by_wt) | set(gcs_by_wt))
+        total_hrs = 0.0
         total_cm = 0.0
         total_gpu = 0.0
         total_ea = 0
@@ -638,12 +645,14 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         for wt in all_wts:
             wt_cost = cost_by_wt.get(wt, {})
             wt_gcs = gcs_by_wt.get(wt, {})
+            hrs = wt_cost.get("node_hours", 0.0)
             cm = wt_cost.get("cpu_mem", 0.0)
             gpu = wt_cost.get("gpu", 0.0)
             ea = wt_gcs.get("total_class_a", 0)
             eb = wt_gcs.get("total_class_b", 0)
             eg_min = wt_gcs.get("egress_cost_min", 0.0)
             eg_max = wt_gcs.get("egress_cost_max", 0.0)
+            total_hrs += hrs
             total_cm += cm
             total_gpu += gpu
             total_ea += ea
@@ -654,6 +663,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
             s += lrpad(
                 _row2(
                     wt[:W_WT],
+                    f"{hrs:.1f}" if hrs else "-",
                     f"{cm:.2f}" if cm else "-",
                     f"{gpu:.2f}" if gpu else "-",
                     f"{cm + gpu:.2f}" if (cm or gpu) else "-",
@@ -674,6 +684,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
         s += lrpad(
             _row2(
                 "TOTAL",
+                f"{total_hrs:.1f}",
                 f"{total_cm:.2f}",
                 f"{total_gpu:.2f}",
                 f"{total_cm + total_gpu:.2f}",

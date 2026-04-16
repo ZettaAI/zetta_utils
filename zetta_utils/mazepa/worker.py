@@ -8,13 +8,8 @@ import time
 import traceback
 from typing import Any, Callable, Optional
 
-from zetta_utils import builder, log, try_load_train_inference
-from zetta_utils.common import (
-    RepeatTimer,
-    monitor_resources,
-    reset_signal_handlers,
-    write_resource_stats_file,
-)
+from zetta_utils import log, try_load_train_inference
+from zetta_utils.common import RepeatTimer, reset_signal_handlers
 from zetta_utils.mazepa import constants, exceptions
 from zetta_utils.mazepa.exceptions import MazepaCancel, MazepaTimeoutError
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
@@ -203,7 +198,6 @@ def _check_exit_conditions(
     return False, None
 
 
-@builder.register("run_worker")
 def run_worker(
     task_queue: MessageQueue[Task],
     outcome_queue: MessageQueue[OutcomeReport],
@@ -211,63 +205,40 @@ def run_worker(
     max_pull_num: int = 1,
     max_runtime: Optional[float] = None,
     task_filter_fn: Callable[[Task], bool] = AcceptAllTasks(),
-    resource_monitor_interval: float | None = None,
     debug: bool = False,
     idle_timeout: float | None = None,
-    pool_name: str | None = None,
+    activity_tracker: PoolActivityTracker | None = None,
 ) -> str:
-    # Start SQS upkeep handler process for handling visibility extensions
     upkeep_handler = SQSUpkeepHandlerManager()
     upkeep_handler.start()
 
-    # For single worker case (k8s), create shared memory for activity tracking
-    # For multi-worker case, parent already created it - we'll get FileExistsError which is fine
-    owns_activity_tracker = False
-    if pool_name and idle_timeout is not None:
-        activity_tracker = PoolActivityTracker(pool_name)
-        try:
-            activity_tracker.create_shared_memory().close()
-            owns_activity_tracker = True
-            logger.info(f"Created activity tracker for pool: {pool_name}")
-        except FileExistsError:
-            logger.debug(f"Activity tracker already exists for pool: {pool_name}")
-    else:
-        activity_tracker = None
-
     try:
-        with monitor_resources(resource_monitor_interval), write_resource_stats_file(
-            resource_monitor_interval
-        ):
-            start_time = time.time()
+        start_time = time.time()
 
-            while True:
-                task_msgs = _pull_tasks_with_error_handling(
-                    task_queue, outcome_queue, max_pull_num
+        while True:
+            task_msgs = _pull_tasks_with_error_handling(task_queue, outcome_queue, max_pull_num)
+
+            if len(task_msgs) == 0:
+                _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
+            else:
+                _process_task_batch(
+                    task_msgs,
+                    task_filter_fn,
+                    outcome_queue,
+                    activity_tracker,
+                    debug,
+                    upkeep_handler,
                 )
 
-                if len(task_msgs) == 0:
-                    _handle_idle_state(sleep_sec, idle_timeout, activity_tracker)
-                else:
-                    _process_task_batch(
-                        task_msgs,
-                        task_filter_fn,
-                        outcome_queue,
-                        activity_tracker,
-                        debug,
-                        upkeep_handler,
-                    )
-
-                should_exit, reason = _check_exit_conditions(
-                    start_time, max_runtime, idle_timeout, activity_tracker
-                )
-                if should_exit:
-                    assert reason is not None
-                    logger.info(f"Worker exiting: {reason}")
-                    return reason
+            should_exit, reason = _check_exit_conditions(
+                start_time, max_runtime, idle_timeout, activity_tracker
+            )
+            if should_exit:
+                assert reason is not None
+                logger.info(f"Worker exiting: {reason}")
+                return reason
     finally:
         upkeep_handler.shutdown()
-        if owns_activity_tracker and activity_tracker:
-            activity_tracker.unlink()
 
 
 def _try_get_sqs_msg(extend_lease_fn: Callable) -> SQSReceivedMsg | None:

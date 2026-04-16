@@ -37,7 +37,7 @@ def pool_activity_tracker():
     pool_name = "test_worker_pool"
     tracker = PoolActivityTracker(pool_name)
     tracker.create_shared_memory().close()
-    yield tracker, pool_name
+    yield tracker
     tracker.unlink()
 
 
@@ -73,7 +73,7 @@ def test_worker_with_activity_tracker_updates_on_task_processing(
     mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
 ):
     task_queue, outcome_queue = mock_queues
-    tracker, pool_name = pool_activity_tracker
+    tracker = pool_activity_tracker
 
     def simple_task():
         return "done"
@@ -99,7 +99,7 @@ def test_worker_with_activity_tracker_updates_on_task_processing(
         max_runtime=0.5,
         debug=True,
         idle_timeout=10.0,
-        pool_name=pool_name,
+        activity_tracker=tracker,
     )
 
     last_activity_after, active_count_after = tracker.get_activity_data()
@@ -115,7 +115,6 @@ def test_worker_with_activity_tracker_idle_timeout(
     mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
 ):
     task_queue, outcome_queue = mock_queues
-    _, pool_name = pool_activity_tracker
 
     result = run_worker(
         task_queue=task_queue,
@@ -124,7 +123,7 @@ def test_worker_with_activity_tracker_idle_timeout(
         max_runtime=5.0,
         debug=True,
         idle_timeout=0.3,
-        pool_name=pool_name,
+        activity_tracker=pool_activity_tracker,
     )
 
     assert result == "idle_timeout_exceeded"
@@ -135,7 +134,6 @@ def test_worker_with_activity_tracker_no_idle_when_tasks_processing(
     mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
 ):
     task_queue, outcome_queue = mock_queues
-    _, pool_name = pool_activity_tracker
 
     def slow_task():
         time.sleep(0.15)
@@ -157,7 +155,7 @@ def test_worker_with_activity_tracker_no_idle_when_tasks_processing(
         max_runtime=0.4,
         debug=True,
         idle_timeout=0.3,
-        pool_name=pool_name,
+        activity_tracker=pool_activity_tracker,
     )
 
     assert result == "max_runtime_exceeded"
@@ -169,7 +167,7 @@ def test_worker_activity_tracker_active_count_increments_decrements(
     mock_queues, pool_activity_tracker  # pylint: disable=redefined-outer-name
 ):
     task_queue, outcome_queue = mock_queues
-    tracker, pool_name = pool_activity_tracker
+    tracker = pool_activity_tracker
 
     active_counts = []
 
@@ -197,7 +195,7 @@ def test_worker_activity_tracker_active_count_increments_decrements(
         max_runtime=0.5,
         debug=True,
         idle_timeout=10.0,
-        pool_name=pool_name,
+        activity_tracker=tracker,
     )
 
     _, active_count_after = tracker.get_activity_data()
@@ -208,7 +206,7 @@ def test_worker_activity_tracker_active_count_increments_decrements(
     assert active_count_after == 0
 
 
-def test_worker_without_pool_name_no_activity_tracking(
+def test_worker_without_activity_tracker_no_activity_tracking(
     mock_queues,  # pylint: disable=redefined-outer-name
 ):
     task_queue, outcome_queue = mock_queues
@@ -232,41 +230,7 @@ def test_worker_without_pool_name_no_activity_tracking(
         max_runtime=0.5,
         debug=True,
         idle_timeout=0.2,
-        pool_name=None,
-    )
-
-    assert result == "max_runtime_exceeded"
-    assert len(outcome_queue.pushed_messages) == 1
-
-
-def test_worker_creates_own_activity_tracker(
-    mock_queues,  # pylint: disable=redefined-outer-name
-):
-    """Test that worker creates and cleans up its own activity tracker when none exists."""
-    task_queue, outcome_queue = mock_queues
-    pool_name = "test_worker_own_tracker_pool"
-
-    def simple_task():
-        return "done"
-
-    task = _TaskableOperation(simple_task).make_task()
-    msg = ReceivedMessage(
-        payload=task,
-        acknowledge_fn=MagicMock(),
-        extend_lease_fn=MagicMock(),
-        approx_receive_count=1,
-    )
-    task_queue.messages = [msg]
-
-    # Don't pre-create shared memory - let worker create it
-    result = run_worker(
-        task_queue=task_queue,
-        outcome_queue=outcome_queue,
-        sleep_sec=0.1,
-        max_runtime=0.5,
-        debug=True,
-        idle_timeout=10.0,
-        pool_name=pool_name,
+        activity_tracker=None,
     )
 
     assert result == "max_runtime_exceeded"

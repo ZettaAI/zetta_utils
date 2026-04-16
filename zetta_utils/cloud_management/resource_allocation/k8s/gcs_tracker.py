@@ -169,7 +169,7 @@ def _collect_semaphore_stats() -> dict | None:
 def _collect_resource_stats() -> dict | None:
     """Read resource summary written by the main container to RESOURCE_STATS_FILE.
 
-    The main container runs `write_resource_stats_file()` which writes
+    The main container runs `monitor_resources()` which writes
     `ResourceMonitor.get_summary_stats()` output to this shared file every
     `resource_monitor_interval` seconds. Returns None when the file does not
     yet exist (main container hasn't started writing, or resource monitoring

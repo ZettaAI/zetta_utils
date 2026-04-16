@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import math
 import multiprocessing
 import os
@@ -66,10 +67,35 @@ def _install_worker_signal_handlers() -> None:
     - SIGTERM and SIGHUP flip a shutdown flag that the pull loop checks
       between batches, so the current task completes and gets acked before
       the worker exits.
+    - PR_SET_PDEATHSIG=SIGTERM: ask the kernel to deliver SIGTERM when
+      the parent process dies. If run_worker_manager dies via SIGKILL or
+      OOM (paths that bypass setup_local_worker_pool's forwarding in the
+      finally block), orphaned workers auto-receive SIGTERM, their
+      graceful handler flips _shutdown_event, and they exit cleanly
+      after acking the in-flight task instead of lingering as orphans.
     """
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, _graceful_exit)
     signal.signal(signal.SIGHUP, _graceful_exit)
+    _set_pdeathsig_sigterm()
+
+
+def _set_pdeathsig_sigterm() -> None:  # pragma: no cover
+    """Request SIGTERM from the kernel when the parent process dies.
+
+    Linux-only via prctl(PR_SET_PDEATHSIG). On non-Linux platforms or
+    if libc/prctl is unavailable, logs a warning and returns — this
+    codebase runs on GKE and linux dev boxes so the fallback path is
+    only hit in exotic test environments.
+    """
+    try:
+        libc = ctypes.CDLL(None, use_errno=True)
+        PR_SET_PDEATHSIG = 1
+        if libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0) != 0:
+            errno = ctypes.get_errno()
+            logger.warning(f"prctl(PR_SET_PDEATHSIG) failed: errno={errno}")
+    except (OSError, AttributeError) as e:
+        logger.warning(f"prctl unavailable: {e}")
 
 
 def worker_init(

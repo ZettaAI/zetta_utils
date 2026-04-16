@@ -5,6 +5,7 @@ from copy import copy
 from typing import Final
 
 from zetta_utils.cloud_management.resource_allocation import gcloud
+from zetta_utils.common.pprint import lrpad
 from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.layer.db_layer.layer import DBLayer
@@ -268,12 +269,13 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
         compact = {
             "cpu_avg_percent": cpu.get("avg_percent", 0.0),
             "cpu_max_percent": cpu.get("max_percent", 0.0),
+            "mem_avg_percent": mem.get("avg_percent", 0.0),
             "mem_max_percent": mem.get("max_percent", 0.0),
-            "mem_max_used_gb": mem.get("max_used_gb", 0.0),
-            "disk_read_gb": disk.get("total_read_gb", 0.0),
-            "disk_write_gb": disk.get("total_write_gb", 0.0),
-            "net_sent_gb": net.get("total_bytes_sent_gb", 0.0),
-            "net_recv_gb": net.get("total_bytes_recv_gb", 0.0),
+            "mem_max_used_gib": mem.get("max_used_gib", 0.0),
+            "disk_read_gib": disk.get("total_read_gib", 0.0),
+            "disk_write_gib": disk.get("total_write_gib", 0.0),
+            "net_sent_gib": net.get("total_bytes_sent_gib", 0.0),
+            "net_recv_gib": net.get("total_bytes_recv_gib", 0.0),
         }
         pod_name = doc_key.split("__", 1)[1] if "__" in doc_key else doc_key
         per_pod[pod_name] = compact
@@ -288,8 +290,11 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
             return {}
         return {
             "avg_cpu_percent": sum(e["cpu_avg_percent"] for e in entries) / len(entries),
+            "max_cpu_percent": max(e["cpu_max_percent"] for e in entries),
+            "avg_memory_percent": sum(e["mem_avg_percent"] for e in entries) / len(entries),
             "max_memory_percent": max(e["mem_max_percent"] for e in entries),
-            "total_net_egress_gb": sum(e["net_sent_gb"] for e in entries),
+            "total_net_ingress_gib": sum(e["net_recv_gib"] for e in entries),
+            "total_net_egress_gib": sum(e["net_sent_gib"] for e in entries),
         }
 
     return {
@@ -299,6 +304,159 @@ def _aggregate_resource_from_pods(pod_docs: dict) -> dict | None:
             wt: _fleet_rollup(entries) for wt, entries in per_worker_entries.items()
         },
     }
+
+
+def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-locals,too-many-statements
+    sema: dict | None,
+    resource: dict | None,
+) -> None:
+    """Log a per-worker-type table of bottleneck, CPU, and memory stats."""
+    sema_by_wt = sema.get("per_worker_type", {}) if sema else {}
+    res_by_wt = resource.get("per_worker_type", {}) if resource else {}
+    worker_types = sorted(set(sema_by_wt) | set(res_by_wt))
+    if not worker_types:
+        return
+
+    # Column widths (logical; _col adds 1 to compensate for lrpad bounds="" quirk)
+    W_WT = 18  # worker type
+    W_BN = 17  # bottleneck/2nd
+    W_BP = 12  # block/2nd
+    W_WL = 21  # wait / lease / ut.
+    W_CA = 6  # cpu avg
+    W_CM = 6  # cpu max
+    W_MA = 6  # mem avg
+    W_MM = 6  # mem max
+    W_NI = 7  # net in
+    W_NO = 7  # net out
+    # Group widths for top header
+    W_SEMA = W_BN + W_BP + W_WL
+    W_CPU = W_CA + W_CM
+    W_MEM = W_MA + W_MM
+    W_NET = W_NI + W_NO
+    # 1 leading space + columns + 2 bounds
+    LEN = 1 + W_WT + W_SEMA + W_CPU + W_MEM + W_NET + 2
+
+    def _block_pct(entry: dict) -> float:
+        tw = entry.get("total_wait_time", 0)
+        tl = entry.get("total_lease_time", 0)
+        return tw / (tw + tl) * 100 if (tw + tl) > 0 else 0
+
+    def _fmt_sema(wt_sema: dict) -> tuple[str, str, str]:
+        """Returns (bottleneck(2nd), block(2nd), wait_lease_ut_str)."""
+        bn = wt_sema.get("bottleneck") or "-"
+        per_type = wt_sema.get("per_type", {})
+        if bn != "-" and bn in per_type:
+            entry = per_type[bn]
+            wait_pct = _block_pct(entry)
+            avg_w = entry.get("avg_wait", 0)
+            avg_l = entry.get("avg_lease", 0)
+            util = entry.get("utilization_pct")
+            wl = f"{avg_w:.2f} / {avg_l:.2f}"
+            if util is not None:
+                wl += f" / {util:.0f}%"
+            # Find 2nd bottleneck
+            others = [
+                (k, _block_pct(v))
+                for k, v in per_type.items()
+                if k != bn and (v.get("total_wait_time", 0) + v.get("total_lease_time", 0)) > 0
+            ]
+            if others:
+                others.sort(key=lambda x: x[1], reverse=True)
+                s_name, s_pct = others[0]
+                bn_str = f"{bn} / {s_name}"
+                bp_str = f"{wait_pct:2.0f}% / {s_pct:2.0f}%"
+            else:
+                bn_str = bn
+                bp_str = f"{wait_pct:2.0f}%"
+            return bn_str, bp_str, wl
+        return bn, "-", "-"
+
+    def _col(text, width):
+        return lrpad(text, level=0, length=width + 1, bounds="")
+
+    def _row(*cols):
+        widths = (W_WT, W_BN, W_BP, W_WL, W_CA, W_CM, W_MA, W_MM, W_NI, W_NO)
+        return " " + "".join(_col(c, w) for c, w in zip(cols, widths))
+
+    s = ""
+    title = "  Worker Stats by Type  "
+    pad_total = LEN - 2 - len(title)  # space between + bounds
+    pad_left = pad_total // 2
+    s += lrpad("=" * pad_left + title, level=0, bounds="+", filler="=", length=LEN) + "\n"
+    s += lrpad("", level=0, bounds="|", length=LEN) + "\n"
+
+    # Top header — group names with (s) above Wait/Lease/Ut.
+    top = (
+        " "
+        + _col("", W_WT)
+        + _col("Semaphores", W_BN + W_BP)
+        + _col("(s, bottleneck)", W_WL)
+        + _col("CPU", W_CPU)
+        + _col("Memory", W_MEM)
+        + _col("Network (GiB)", W_NET)
+    )
+    s += lrpad(top, level=0, bounds="|", length=LEN) + "\n"
+
+    # Bottom header — column names
+    bottom = _row(
+        "Worker Type",
+        "Bottleneck/2nd",
+        "Block/2nd",
+        "Wait / Lease / Ut.",
+        "Avg",
+        "Max",
+        "Avg",
+        "Max",
+        "In",
+        "Out",
+    )
+    s += lrpad(bottom, level=0, bounds="|", length=LEN) + "\n"
+    s += lrpad("", level=0, filler="-", bounds="|", length=LEN) + "\n"
+
+    for wt in worker_types:
+        wt_sema_data = sema_by_wt.get(wt, {})
+        wt_res = res_by_wt.get(wt, {})
+
+        bn_str, bp_str, wl_detail = _fmt_sema(wt_sema_data) if wt_sema_data else ("-", "-", "-")
+        cpu_avg = f"{wt_res['avg_cpu_percent']:3.0f}%" if "avg_cpu_percent" in wt_res else "  -"
+        cpu_max = f"{wt_res['max_cpu_percent']:3.0f}%" if "max_cpu_percent" in wt_res else "  -"
+        mem_avg = (
+            f"{wt_res['avg_memory_percent']:3.0f}%" if "avg_memory_percent" in wt_res else "  -"
+        )
+        mem_max = (
+            f"{wt_res['max_memory_percent']:3.0f}%" if "max_memory_percent" in wt_res else "  -"
+        )
+        net_ig = (
+            f"{wt_res['total_net_ingress_gib']:.2f}" if "total_net_ingress_gib" in wt_res else "-"
+        )
+        net_eg = (
+            f"{wt_res['total_net_egress_gib']:.2f}" if "total_net_egress_gib" in wt_res else "-"
+        )
+
+        s += (
+            lrpad(
+                _row(
+                    wt[:W_WT],
+                    bn_str,
+                    bp_str,
+                    wl_detail,
+                    cpu_avg,
+                    cpu_max,
+                    mem_avg,
+                    mem_max,
+                    net_ig,
+                    net_eg,
+                ),
+                level=0,
+                bounds="|",
+                length=LEN,
+            )
+            + "\n"
+        )
+
+    s += lrpad("", level=0, bounds="|", length=LEN) + "\n"
+    s += lrpad("", level=0, bounds="+", filler="=", length=LEN)
+    logger.info(s)
 
 
 def aggregate_pod_stats(
@@ -335,7 +493,6 @@ def aggregate_pod_stats(
 
     if gcs is not None:
         bottleneck = sema.get("bottleneck") if sema else None
-        fleet = resource.get("fleet", {}) if resource else {}
         _current = (
             gcs["total_class_a"],
             gcs["total_class_b"],
@@ -350,22 +507,14 @@ def aggregate_pod_stats(
                 if _last_compute_cost is not None
                 else ""
             )
-            extras = []
-            if bottleneck:
-                extras.append(f"bottleneck={bottleneck}")
-            if "avg_cpu_percent" in fleet:
-                extras.append(f"cpu={fleet['avg_cpu_percent']:.0f}%")
-            if "max_memory_percent" in fleet:
-                extras.append(f"mem_max={fleet['max_memory_percent']:.0f}%")
-            extras_str = " | " + " ".join(extras) if extras else ""
             logger.info(
                 f"{cost_str}"
                 f"gcs stats: A={gcs['total_class_a']} "
                 f"B={gcs['total_class_b']} egress={update['total_egress_gib']:.2f} GiB "
                 f"(${gcs['egress_cost_min']:.2f}-${gcs['egress_cost_max']:.2f}) "
                 f"from {gcs['pod_count']} pods, {len(gcs['buckets'])} buckets"
-                f"{extras_str}"
             )
+            _log_worker_type_table(sema, resource)
 
     return update
 

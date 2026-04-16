@@ -385,6 +385,12 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             resource_monitor_interval=resource_monitor_interval,
         )
 
+        if semaphores_spec is not None:
+            run.update_run_info(
+                run.RUN_ID,
+                {run.RunInfo.SEMAPHORE_WIDTHS.value: dict(semaphores_spec)},
+            )
+
         thread = threading.Thread(
             target=k8s.pod.watch_for_pod_disruptions, args=(run.RUN_ID,), daemon=True
         )

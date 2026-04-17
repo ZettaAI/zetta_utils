@@ -74,17 +74,72 @@ class GCSStats:
                 }
 
 
-def extract_bucket_from_api_path(path: str) -> str | None:
-    """Extract bucket name from GCS JSON API path.
+# Path prefixes that identify GCS JSON-style APIs. Used so the classifier
+# only applies JSON-API substring heuristics on paths that actually have
+# JSON-API semantics. Without this gate, the `/o` and `/b` substring checks
+# in _classify_get_head misfire on XML-API object paths like
+# `/{bucket}/some/object` (e.g. `/o` matches `.../object`) and flip Class B
+# reads to Class A "list_objects" — the source of the inflated cost
+# previously seen against the `_unknown` bucket.
+_JSON_API_PREFIXES = (
+    "/storage/",
+    "/upload/storage/",
+    "/download/storage/",
+    "/resumable/",
+)
 
-    Path formats:
-    - /storage/v1/b/{bucket}/o/{object}
-    - /upload/storage/v1/b/{bucket}/o/...
-    - /b/{bucket}/o/...
+# Query params that indicate a list-objects operation. JSON API uses
+# prefix/delimiter/maxResults/pageToken; XML (S3-compatible) API uses
+# list-type/marker/max-keys.
+_LIST_QUERY_PARAMS = (
+    "prefix",
+    "delimiter",
+    "maxResults",
+    "pageToken",
+    "list-type",
+    "marker",
+    "max-keys",
+)
+
+# First path segments that are NOT XML-API buckets — internal/GAE paths or
+# JSON-API prefixes that should have matched the JSON branch already.
+_NON_BUCKET_FIRST_SEGMENTS = frozenset(
+    {"_ah", "storage", "upload", "download", "resumable", "batch"}
+)
+
+
+def _is_json_api_path(path: str) -> bool:
+    return path.startswith(_JSON_API_PREFIXES)
+
+
+def extract_bucket_from_api_path(path: str) -> str | None:
+    """Extract bucket name from a GCS request path.
+
+    GCS exposes several URL shapes on storage.googleapis.com:
+
+    - **JSON API** (`/storage/v1/b/{bucket}[/...]`, with optional
+      `/upload/`, `/download/`, `/resumable/` prefix). Bucket follows `/b/`.
+    - **Batch API** (`/batch/storage/v1`). No single bucket — caller
+      attributes to a separate `_batch` key.
+    - **XML API** (`/{bucket}[/{object}]`). First path segment is the
+      bucket. This is what cloudvolume / tensorstore use for object I/O,
+      and is the bulk of traffic — previously missed by the regex below.
     """
-    match = re.search(r"/b/([^/]+)/", path)
-    if match:
-        return match.group(1)
+    # JSON API. `[^/?]+` so a bucket-level path without trailing slash
+    # (e.g. `/storage/v1/b/{bucket}?fields=...`) still matches.
+    m = re.match(r"/(?:upload/|download/|resumable/)?storage/v\d+/b/([^/?]+)", path)
+    if m:
+        return m.group(1)
+
+    # Batch API: caller decides what to do (track under `_batch`, etc.).
+    if path.startswith("/batch/"):
+        return None
+
+    # XML API: first path segment is the bucket. Reject known internal /
+    # JSON-API prefixes (defensive — those should have matched above).
+    m = re.match(r"/([^/?]+)", path)
+    if m and m.group(1) not in _NON_BUCKET_FIRST_SEGMENTS:
+        return m.group(1)
     return None
 
 
@@ -100,18 +155,33 @@ def _classify_post(path: str) -> tuple[Literal["A", "B"], str]:
 
 
 def _classify_put(path: str, query: str) -> tuple[Literal["A", "B"], str]:
-    """Classify PUT requests (all Class A)."""
-    if "/upload" in path or "uploadType" in query:
-        return ("A", "insert")
-    return ("A", "update")
+    """Classify PUT requests (all Class A).
+
+    JSON API distinguishes upload (insert) from metadata update via the
+    `/upload/` prefix or `uploadType` query param. XML API `PUT
+    /{bucket}/{object}` is always an object upload (insert).
+    """
+    if _is_json_api_path(path):
+        if "/upload" in path or "uploadType" in query:
+            return ("A", "insert")
+        return ("A", "update")
+    return ("A", "insert")
 
 
 def _classify_get_head(path: str, method: str) -> tuple[Literal["A", "B"], str]:
-    """Classify GET/HEAD requests."""
-    if "/o" in path and "/o/" not in path:
-        return ("A", "list_objects")
-    if "/b" in path and "/b/" not in path:
-        return ("A", "list_buckets")
+    """Classify GET/HEAD requests.
+
+    JSON API distinguishes list vs. get by URL shape: `.../{bucket}/o`
+    (without trailing object) is `list_objects`; `.../{bucket}/o/{name}`
+    is `get`. These substring checks are gated on the path actually
+    being a JSON-API path — otherwise they misfire on XML-API object
+    names that happen to contain `/o` or `/b` substrings.
+    """
+    if _is_json_api_path(path):
+        if "/o" in path and "/o/" not in path:
+            return ("A", "list_objects")
+        if "/b" in path and "/b/" not in path:
+            return ("A", "list_buckets")
     if method == "HEAD":
         return ("B", "get_metadata")
     return ("B", "get")
@@ -128,7 +198,7 @@ def classify_gcs_request(  # pylint: disable=too-many-return-statements
     """
     method = method.upper()
 
-    if query and any(p in query for p in ["prefix", "delimiter", "maxResults", "pageToken"]):
+    if query and any(p in query for p in _LIST_QUERY_PARAMS):
         return ("A", "list_objects")
 
     if method == "DELETE":

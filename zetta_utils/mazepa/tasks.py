@@ -23,7 +23,8 @@ import attrs
 from pebble import concurrent
 from typing_extensions import ParamSpec
 
-from zetta_utils import get_mp_context, log
+from zetta_utils import log
+from zetta_utils.parallel import get_mp_context
 
 from . import constants, exceptions, id_generation
 from .task_outcome import TaskOutcome, TaskStatus

@@ -12,13 +12,14 @@ from contextlib import ExitStack
 import pebble
 import psutil
 
-from zetta_utils import builder, get_mp_context, log
+from zetta_utils import builder, log
 from zetta_utils.common import monitor_resources
 from zetta_utils.mazepa import SemaphoreType, Task, configure_semaphores, run_worker
 from zetta_utils.mazepa.pool_activity import PoolActivityTracker
 from zetta_utils.mazepa.task_outcome import OutcomeReport
 from zetta_utils.mazepa.worker import worker_init
 from zetta_utils.message_queues import FileQueue, SQSQueue
+from zetta_utils.parallel import get_mp_context
 
 logger = log.get_logger("mazepa")
 

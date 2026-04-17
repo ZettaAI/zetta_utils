@@ -61,14 +61,21 @@ class TestUpkeepCommand:
         assert cmd.endpoint_url is None
 
 
+def _mock_ctx(mocker, mock_queue=None, mock_process=None):
+    """Patch get_mp_context to return a mock ctx with Queue/Process attrs."""
+    mock_queue = mock_queue or mocker.MagicMock()
+    mock_process_cls = mocker.MagicMock(return_value=mock_process or mocker.MagicMock())
+    ctx = mocker.MagicMock()
+    ctx.Queue = mocker.MagicMock(return_value=mock_queue)
+    ctx.Process = mock_process_cls
+    mocker.patch("zetta_utils.mazepa.upkeep_handlers.get_mp_context", return_value=ctx)
+    return mock_queue, mock_process_cls
+
+
 class TestSQSUpkeepHandlerManager:
     def test_start_creates_process(self, mocker):
-        mocker.patch("zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue")
-        mock_process_cls = mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process"
-        )
         mock_process = mocker.MagicMock()
-        mock_process_cls.return_value = mock_process
+        _, mock_process_cls = _mock_ctx(mocker, mock_process=mock_process)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -77,15 +84,7 @@ class TestSQSUpkeepHandlerManager:
         mock_process.start.assert_called_once()
 
     def test_start_when_already_running_is_noop(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
-        mock_process_cls = mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process"
-        )
-        mock_process = mocker.MagicMock()
-        mock_process_cls.return_value = mock_process
+        _, mock_process_cls = _mock_ctx(mocker)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -98,16 +97,9 @@ class TestSQSUpkeepHandlerManager:
         manager.shutdown()  # Should not raise
 
     def test_shutdown_sends_command_and_joins(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
         mock_process = mocker.MagicMock()
         mock_process.is_alive.return_value = False
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        mock_queue, _ = _mock_ctx(mocker, mock_process=mock_process)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -122,16 +114,9 @@ class TestSQSUpkeepHandlerManager:
         mock_process.join.assert_called()
 
     def test_shutdown_terminates_if_process_alive(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
         mock_process = mocker.MagicMock()
         mock_process.is_alive.return_value = True
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        _mock_ctx(mocker, mock_process=mock_process)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -165,15 +150,7 @@ class TestSQSUpkeepHandlerManager:
         assert "not running" in mock_logger.warning.call_args[0][0]
 
     def test_start_upkeep_sends_command(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
-        mock_process = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        mock_queue, _ = _mock_ctx(mocker)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -199,15 +176,7 @@ class TestSQSUpkeepHandlerManager:
         assert cmd.endpoint_url == "http://localhost:9324"
 
     def test_stop_upkeep_sends_command(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
-        mock_process = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        mock_queue, _ = _mock_ctx(mocker)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
@@ -223,32 +192,18 @@ class TestSQSUpkeepHandlerManager:
         assert not manager.is_running
 
     def test_is_running_true_after_start(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
         mock_process = mocker.MagicMock()
         mock_process.is_alive.return_value = True
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        _mock_ctx(mocker, mock_process=mock_process)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()
         assert manager.is_running
 
     def test_is_running_false_when_process_dead(self, mocker):
-        mock_queue = mocker.MagicMock()
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Queue", return_value=mock_queue
-        )
         mock_process = mocker.MagicMock()
         mock_process.is_alive.return_value = False
-        mocker.patch(
-            "zetta_utils.mazepa.upkeep_handlers.multiprocessing.Process",
-            return_value=mock_process,
-        )
+        _mock_ctx(mocker, mock_process=mock_process)
 
         manager = SQSUpkeepHandlerManager()
         manager.start()

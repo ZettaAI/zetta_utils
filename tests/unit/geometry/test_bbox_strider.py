@@ -2,8 +2,8 @@
 
 import pytest
 
-from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD
 from zetta_utils.geometry import BBox3D, BBoxStrider, IntVec3D, Vec3D
+from zetta_utils.parallel import MULTIPROCESSING_NUM_TASKS_THRESHOLD
 
 
 # basic functionality tests

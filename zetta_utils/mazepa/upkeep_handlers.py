@@ -11,6 +11,7 @@ from typing import Callable
 import tenacity
 
 from zetta_utils import log
+from zetta_utils.parallel import get_mp_context
 
 logger = log.get_logger("mazepa")
 
@@ -246,7 +247,7 @@ class SQSUpkeepHandlerManager:
 
     def __init__(self):
         self._command_queue: multiprocessing.Queue | None = None
-        self._handler_process: multiprocessing.Process | None = None
+        self._handler_process: multiprocessing.process.BaseProcess | None = None
 
     def start(self) -> None:
         """Start the handler process."""
@@ -259,8 +260,9 @@ class SQSUpkeepHandlerManager:
         # Pass parent PID so handler can detect if parent dies
         parent_pid = os.getpid()
 
-        self._command_queue = multiprocessing.Queue()
-        self._handler_process = multiprocessing.Process(
+        ctx = get_mp_context()
+        self._command_queue = ctx.Queue()
+        self._handler_process = ctx.Process(
             target=run_sqs_upkeep_handler,
             args=(self._command_queue, current_log_level, parent_pid),
             daemon=True,

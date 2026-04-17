@@ -16,8 +16,8 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _setup_forkserver():
-    """Initialize forkserver with preloaded modules for test session."""
+def _setup_multiprocessing():
+    """Initialize multiprocessing environment for test session."""
     setup_environment("all")
 
 

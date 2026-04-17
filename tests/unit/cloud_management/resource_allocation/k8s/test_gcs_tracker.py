@@ -14,6 +14,7 @@ from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker_utils import (
     GCSStats,
     classify_gcs_request,
+    extract_bucket_from_api_path,
 )
 
 
@@ -143,6 +144,92 @@ class TestClassifyGcsRequest:
         op_class2, _ = classify_gcs_request("GET", "/storage/v1/b/bucket/o/object")
         op_class3, _ = classify_gcs_request("Get", "/storage/v1/b/bucket/o/object")
         assert op_class1 == op_class2 == op_class3 == "B"
+
+
+class TestClassifyGcsRequestXmlApi:
+    """Classifier behaviour on XML-API paths (`/{bucket}/{object}`).
+
+    cloudvolume and tensorstore use the XML API for object I/O, which is
+    the bulk of GCS traffic. Previously the JSON-API substring heuristics
+    (`/o`, `/b`) misfired on XML paths and inflated Class A counts.
+    """
+
+    def test_get_object_is_class_b(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/path/to/object.bin")
+        assert op_class == "B"
+        assert operation == "get"
+
+    def test_get_object_with_o_substring_is_class_b(self):
+        # Regression: previously misclassified as Class A list_objects because
+        # the JSON-API `/o` heuristic matched the `.../object` substring.
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/output/file.txt")
+        assert op_class == "B"
+        assert operation == "get"
+
+    def test_head_object_is_class_b(self):
+        op_class, operation = classify_gcs_request("HEAD", "/my-bucket/object")
+        assert op_class == "B"
+        assert operation == "get_metadata"
+
+    def test_put_object_is_class_a_insert(self):
+        # XML PUT uploads an object — Class A insert, not "update".
+        op_class, operation = classify_gcs_request("PUT", "/my-bucket/path/to/object")
+        assert op_class == "A"
+        assert operation == "insert"
+
+    def test_delete_object_is_class_a(self):
+        op_class, operation = classify_gcs_request("DELETE", "/my-bucket/object")
+        assert op_class == "A"
+        assert operation == "delete"
+
+    def test_list_via_prefix_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/", "prefix=folder/")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_list_via_marker_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/", "marker=abc")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+
+class TestExtractBucketFromApiPath:
+    """Bucket extraction for JSON, XML, and batch API paths."""
+
+    def test_json_object_path(self):
+        assert extract_bucket_from_api_path("/storage/v1/b/my-bucket/o/object") == "my-bucket"
+
+    def test_json_upload_path(self):
+        assert (
+            extract_bucket_from_api_path("/upload/storage/v1/b/my-bucket/o?uploadType=media")
+            == "my-bucket"
+        )
+
+    def test_json_download_path(self):
+        assert extract_bucket_from_api_path("/download/storage/v1/b/my-bucket/o/x") == "my-bucket"
+
+    def test_json_resumable_path(self):
+        assert extract_bucket_from_api_path("/resumable/storage/v1/b/my-bucket/o/x") == "my-bucket"
+
+    def test_json_bucket_level_no_trailing_slash(self):
+        # Edge case the old regex missed (required trailing /).
+        assert extract_bucket_from_api_path("/storage/v1/b/my-bucket?fields=name") == "my-bucket"
+
+    def test_xml_object_path(self):
+        assert extract_bucket_from_api_path("/my-bucket/path/to/object") == "my-bucket"
+
+    def test_xml_object_root(self):
+        assert extract_bucket_from_api_path("/my-bucket/object") == "my-bucket"
+
+    def test_xml_bucket_only(self):
+        assert extract_bucket_from_api_path("/my-bucket?prefix=foo") == "my-bucket"
+
+    def test_batch_api_returns_none(self):
+        # Caller attributes batch ops separately (Part 9).
+        assert extract_bucket_from_api_path("/batch/storage/v1") is None
+
+    def test_internal_path_returns_none(self):
+        assert extract_bucket_from_api_path("/_ah/health") is None
 
 
 class TestGCSStats:

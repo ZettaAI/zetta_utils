@@ -23,6 +23,7 @@ import time
 
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification import (
     GCSStats,
+    compute_egress_bytes,
     route_request,
 )
 
@@ -115,10 +116,12 @@ class GCSTracker:
             return
 
         method = flow.metadata["gcs_method"]
-        egress_bytes = 0
-        if method == "GET" and flow.response.content:
-            egress_bytes = len(flow.response.content)
-
+        body = flow.response.content or b""
+        egress_bytes = (
+            compute_egress_bytes(flow.response.headers.get("Content-Length"), len(body))
+            if body
+            else 0
+        )
         _queue.put((method, flow.metadata["gcs_path"], egress_bytes))
 
 

@@ -15,7 +15,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Callable, Literal
 
 
 @dataclass
@@ -196,6 +196,46 @@ def _classify_get_head(path: str, method: str) -> tuple[Literal["A", "B"], str]:
     if method == "HEAD":
         return ("B", "get_metadata")
     return ("B", "get")
+
+
+# Synthetic bucket keys for requests that don't map to a single billable
+# bucket. Surfaced in the per-pod stats payload so they're visible in cost
+# breakdowns alongside real buckets.
+BATCH_BUCKET = "_batch"
+UNCLASSIFIED_BUCKET = "_unclassified"
+
+
+def route_request(
+    stats: GCSStats,
+    method: str,
+    path: str,
+    egress_bytes: int = 0,
+    on_unclassified: Callable[[str, str], None] | None = None,
+) -> None:
+    """Classify a single GCS request and record it into `stats`.
+
+    Bucket categories:
+    - real bucket name → classified per `classify_gcs_request` (Class A or B).
+    - `_batch` → `/batch/storage/v1` calls. One HTTP request can carry N
+      sub-ops, so we count the request but do not attribute to a billed
+      class until the multipart body is parsed (deferred).
+    - `_unclassified` → `extract_bucket_from_api_path` returned None for a
+      non-batch path. Coverage gap. `on_unclassified(method, path)` is
+      called (if provided) so callers can log loudly. Operation/egress
+      still recorded; billed totals are not.
+    """
+    path_part, _, query_part = path.partition("?")
+    bucket = extract_bucket_from_api_path(path_part)
+    if bucket is not None:
+        op_class, operation = classify_gcs_request(method, path_part, query_part)
+        stats.record(bucket, op_class, operation, egress_bytes)
+        return
+    if path_part.startswith("/batch/"):
+        stats.record(BATCH_BUCKET, None, "batch", egress_bytes)
+        return
+    if on_unclassified is not None:
+        on_unclassified(method, path)
+    stats.record(UNCLASSIFIED_BUCKET, None, "unclassified", egress_bytes)
 
 
 def classify_gcs_request(  # pylint: disable=too-many-return-statements

@@ -155,6 +155,11 @@ def build_oom_sidecar(
     envs: list[k8s_client.V1EnvVar],
     volume_mounts: list[k8s_client.V1VolumeMount],
 ) -> k8s_client.V1Container:
+    """OOM tracker sidecar.
+
+    Gets small CPU/memory requests so it isn't starved under node pressure —
+    exactly when main-container OOMs happen and this tracker needs to observe them.
+    """
     return _build_sidecar_container(
         name="runtime",
         module="zetta_utils.cloud_management.resource_allocation.k8s.oom_tracker",
@@ -162,7 +167,8 @@ def build_oom_sidecar(
         envs=envs,
         volume_mounts=volume_mounts,
         resources=k8s_client.V1ResourceRequirements(
-            requests={"ephemeral-storage": "100Mi"},
+            requests={"cpu": "50m", "memory": "128Mi", "ephemeral-storage": "100Mi"},
+            limits={"memory": "256Mi"},
         ),
     )
 
@@ -172,7 +178,14 @@ def build_mproxy_sidecar(
     envs: list[k8s_client.V1EnvVar],
     volume_mounts: list[k8s_client.V1VolumeMount],
 ) -> k8s_client.V1Container:
-    """GCS tracker sidecar (mitmproxy) intercepting storage.googleapis.com."""
+    """GCS tracker sidecar (mitmproxy) intercepting storage.googleapis.com.
+
+    Without a CPU request, mproxy was starved during main-container CPU bursts
+    and its TLS handshakes deadlocked, producing ProxyError on main's GCS calls.
+    Memory request+limit turns OOM into a clean container-level restart instead
+    of the node-level OOM-killer picking a victim. TCP probes detect hangs; the
+    startup probe grants CA-cert generation time before port 8080 binds.
+    """
     return _build_sidecar_container(
         name="mproxy",
         module="zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker",
@@ -181,6 +194,18 @@ def build_mproxy_sidecar(
         volume_mounts=volume_mounts,
         ports=[k8s_client.V1ContainerPort(container_port=8080, name="proxy")],
         resources=k8s_client.V1ResourceRequirements(
-            requests={"ephemeral-storage": "100Mi"},
+            requests={"cpu": "200m", "memory": "512Mi", "ephemeral-storage": "100Mi"},
+            limits={"memory": "1Gi"},
+        ),
+        startup_probe=k8s_client.V1Probe(
+            tcp_socket=k8s_client.V1TCPSocketAction(port=8080),
+            period_seconds=2,
+            failure_threshold=30,
+        ),
+        liveness_probe=k8s_client.V1Probe(
+            tcp_socket=k8s_client.V1TCPSocketAction(port=8080),
+            period_seconds=10,
+            failure_threshold=3,
+            timeout_seconds=3,
         ),
     )

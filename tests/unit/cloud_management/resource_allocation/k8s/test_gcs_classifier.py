@@ -14,6 +14,7 @@ from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification imp
     UNCLASSIFIED_BUCKET,
     GCSStats,
     classify_gcs_request,
+    compute_egress_bytes,
     extract_bucket_from_api_path,
     route_request,
 )
@@ -187,6 +188,24 @@ def test_stats_thread_safety():
     expected = n_threads * per_thread
     assert stats.buckets["my-bucket"]["class_a_count"] == expected
     assert stats.buckets["my-bucket"]["class_b_count"] == expected
+
+
+# ----------------------------------------------------------------------------
+# compute_egress_bytes — Content-Length wins, body length is the fallback.
+# ----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "header,content_len,expected",
+    [
+        (None, 100, 100),  # no header → fall back to body length
+        ("250", 100, 250),  # header present → use it (wire bytes, what GCP bills)
+        ("0", 100, 0),  # zero is a valid header value
+        ("not-a-number", 100, 100),  # malformed → fall back
+    ],
+)
+def test_compute_egress_bytes(header, content_len, expected):
+    assert compute_egress_bytes(header, content_len) == expected
 
 
 # ----------------------------------------------------------------------------

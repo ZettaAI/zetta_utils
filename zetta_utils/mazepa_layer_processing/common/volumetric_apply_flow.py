@@ -11,8 +11,7 @@ import numpy as np
 from typeguard import suppress_type_checks
 from typing_extensions import ParamSpec
 
-from zetta_utils import MULTIPROCESSING_NUM_TASKS_THRESHOLD, get_mp_context, log, mazepa
-from zetta_utils.common import configure_pool_signals
+from zetta_utils import log, mazepa
 from zetta_utils.geometry import Vec3D
 from zetta_utils.layer.volumetric import (
     VolumetricBasedLayerProtocol,
@@ -20,6 +19,7 @@ from zetta_utils.layer.volumetric import (
     VolumetricIndexChunker,
 )
 from zetta_utils.mazepa import semaphore
+from zetta_utils.parallel import parallel_map
 
 from ..operation_protocols import StackableVolumetricOpProtocol, VolumetricOpProtocol
 from .reduce_operations import ReduceByWeightedSum, ReduceNaive, ReduceOperation
@@ -276,29 +276,14 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
 
         if self.task_stack_size is None or self.task_stack_size == 1:
             # No stacking, create one task per index
-            if len(idx_chunks_flat) > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-                with get_mp_context().Pool(
-                    initializer=configure_pool_signals
-                ) as pool_obj:
-                    tasks = pool_obj.map(
-                        self._make_task,
-                        zip(
-                            idx_chunks_flat,
-                            itertools.repeat(dst),
-                            itertools.repeat(op_kwargs),
-                        ),
-                    )
-            else:
-                tasks = list(
-                    map(
-                        self._make_task,
-                        zip(
-                            idx_chunks_flat,
-                            itertools.repeat(dst),
-                            itertools.repeat(op_kwargs),
-                        ),
-                    )
-                )
+            tasks = parallel_map(
+                self._make_task,
+                zip(
+                    idx_chunks_flat,
+                    itertools.repeat(dst),
+                    itertools.repeat(op_kwargs),
+                ),
+            )
         else:
             # Batching with stacked operations
             assert isinstance(self.op, StackableVolumetricOpProtocol)

@@ -9,6 +9,7 @@ import warnings
 from typing import Literal
 
 from .log import get_logger
+from .parallel import get_mp_context  # noqa: F401
 
 
 def _patch_gcsfs_for_proxy():
@@ -37,10 +38,6 @@ def _patch_gcsfs_for_proxy():
 _patch_gcsfs_for_proxy()
 
 
-# Set global multiprocessing context and threshold
-MULTIPROCESSING_CONTEXT = "forkserver"
-MULTIPROCESSING_NUM_TASKS_THRESHOLD = 128
-
 # Forkserver initialization
 LoadMode = Literal["all", "inference", "training", "try"]
 
@@ -50,12 +47,6 @@ _PRELOAD_MODULES: dict[LoadMode, str] = {
     "training": "zetta_utils.builder.preload.training",
     "try": "zetta_utils.builder.preload.try_load",
 }
-
-# Set start method to `forkserver` if not set elsewhere
-# If not set here, `get_start_method` will set the default
-# to `fork` w/o allow_none and cause issues with dependencies.
-if multiprocessing.get_start_method(allow_none=True) is None:
-    multiprocessing.set_start_method(MULTIPROCESSING_CONTEXT)
 
 
 if "sphinx" not in sys.modules:  # pragma: no cover
@@ -102,11 +93,6 @@ def _noop() -> None:
     pass
 
 
-def get_mp_context() -> multiprocessing.context.BaseContext:
-    """Get the multiprocessing context for the configured start method."""
-    return multiprocessing.get_context(MULTIPROCESSING_CONTEXT)
-
-
 def initialize_forkserver(load_mode: LoadMode = "all") -> None:
     """Initialize forkserver with preloaded modules for the given load mode."""
     preload_module = _PRELOAD_MODULES[load_mode]
@@ -115,7 +101,7 @@ def initialize_forkserver(load_mode: LoadMode = "all") -> None:
     total_start = time.perf_counter()
     multiprocessing.set_forkserver_preload([preload_module])
     ctx = get_mp_context()
-    proc = ctx.Process(target=_noop)  # type: ignore[attr-defined]
+    proc = ctx.Process(target=_noop)
     proc.start()
     proc.join()
 
@@ -123,25 +109,54 @@ def initialize_forkserver(load_mode: LoadMode = "all") -> None:
     logger.info(f"Forkserver initialized in {total_elapsed:.2f}s (mode: {load_mode})")
 
 
+def _inherited_forkserver_daemon() -> bool:
+    """True if we inherited a running forkserver daemon from our parent."""
+    # pylint: disable=import-outside-toplevel,protected-access
+    from multiprocessing.forkserver import _forkserver
+
+    return _forkserver._forkserver_alive_fd is not None  # type: ignore[attr-defined]
+
+
 def setup_environment(load_mode: LoadMode = "all") -> None:
     """
-    Initialize forkserver and load modules in parallel.
+    Initialize the forkserver with preloaded modules and load modules in the
+    main process.
 
-    This function:
-    1. Starts forkserver initialization in a background thread
-    2. Loads modules in the main process (runs in parallel with forkserver init)
-    3. Waits for forkserver to be ready before returning
+    Sets the global start method to "forkserver" as the preferred default.
+    Some deps (e.g. cloudfiles, taskqueue) force `spawn` at runtime; that's
+    fine. Our parallel pools always use an explicit forkserver context.
+
+    In a child process that inherited a running forkserver daemon, skip
+    daemon init — the daemon is already preloaded.
 
     Args:
         load_mode: Which modules to load ("all", "inference", "training", "try")
     """
+    if _inherited_forkserver_daemon():
+        logger.info("Reusing inherited forkserver daemon; skipping init.")
+        return
+
+    current_start_method = multiprocessing.get_start_method(allow_none=True)
+    if current_start_method is None:  # pragma: no cover
+        multiprocessing.set_start_method("forkserver")  # type: ignore[unreachable]
+    elif current_start_method == "fork":
+        warnings.warn(
+            "The global multiprocessing start method is set to 'fork', which is "
+            "unsafe around C libraries and threads. This may have been set by an "
+            "earlier import. Zetta's own parallel pools always use forkserver "
+            "explicitly, but bare multiprocessing calls in dependencies will use "
+            "fork.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
     # Start forkserver init in background while main process loads modules
     forkserver_thread = threading.Thread(
         target=initialize_forkserver, args=(load_mode,), name="forkserver_init"
     )
     forkserver_thread.start()
 
-    # Load modules in main process (runs in parallel with forkserver init)
+    # Load modules in main process
     if load_mode == "all":
         load_all_modules()
     elif load_mode == "inference":  # pragma: no cover

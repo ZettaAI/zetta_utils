@@ -7,14 +7,9 @@ from typing import List, Literal, Optional, Tuple
 import attrs
 from typeguard import typechecked
 
-from zetta_utils import (
-    MULTIPROCESSING_NUM_TASKS_THRESHOLD,
-    builder,
-    get_mp_context,
-    log,
-)
-from zetta_utils.common import configure_pool_signals
+from zetta_utils import builder, log
 from zetta_utils.geometry.vec import VEC3D_PRECISION
+from zetta_utils.parallel import parallel_map
 
 from . import Vec3D
 from .bbox import BBox3D
@@ -242,14 +237,7 @@ class BBoxStrider:
 
     def get_all_chunk_bboxes(self) -> List[BBox3D]:
         """Get all of the chunks."""
-        if self.num_chunks > MULTIPROCESSING_NUM_TASKS_THRESHOLD:
-            with get_mp_context().Pool(initializer=configure_pool_signals) as pool_obj:
-                result = pool_obj.map(self.get_nth_chunk_bbox, range(self.num_chunks))
-        else:
-            result = [
-                self.get_nth_chunk_bbox(i) for i in range(self.num_chunks)
-            ]  # TODO: generator?
-        return result
+        return parallel_map(self.get_nth_chunk_bbox, range(self.num_chunks))
 
     def _get_atomic_bbox(self, steps_along_dim: Vec3D[int]) -> BBox3D:
         if self.mode in ("shrink", "expand"):

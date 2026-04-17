@@ -24,7 +24,7 @@ from zetta_utils.mazepa import semaphore
 
 from ..operation_protocols import StackableVolumetricOpProtocol, VolumetricOpProtocol
 from .reduce_operations import ReduceByWeightedSum, ReduceNaive, ReduceOperation
-from .stacked_volumetric_operations import StackedVolumetricOperations
+from .stacked_volumetric_operation import StackedVolumetricOperation
 
 logger = log.get_logger("zetta_utils")
 
@@ -303,7 +303,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         else:
             # Batching with stacked operations
             assert isinstance(self.op, StackableVolumetricOpProtocol)
-            stacked_op: StackedVolumetricOperations[P] = StackedVolumetricOperations(
+            stacked_op: StackedVolumetricOperation[P] = StackedVolumetricOperation(
                 base_op=self.op
             )
 
@@ -509,7 +509,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         # Now create batched tasks across all phases
         if self.task_stack_size is not None and self.task_stack_size > 1:
             assert isinstance(self.op, StackableVolumetricOpProtocol)
-            stacked_op: StackedVolumetricOperations[P] = StackedVolumetricOperations(
+            stacked_op: StackedVolumetricOperation[P] = StackedVolumetricOperation(
                 base_op=self.op
             )
 

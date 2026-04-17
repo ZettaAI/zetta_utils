@@ -15,7 +15,6 @@ from __future__ import annotations
 import glob
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -249,47 +248,32 @@ def _update_firestore_loop(
             logger.warning(f"Failed to write pod stats to Firestore: {e}", exc_info=True)
 
 
-def _check_mitmproxy_installed() -> bool:
-    """Check if mitmproxy is installed."""
-    return shutil.which("mitmdump") is not None
+def _setup_mitmproxy_ca() -> None:
+    """Generate mitmproxy's CA certificate into the shared volume.
 
-
-def _setup_mitmproxy_ca():
-    """
-    Initialize mitmproxy's CA certificate in a shared location.
-
-    This runs mitmdump briefly to generate the CA certificate, then copies it
-    to the shared volume so the main container can trust it.
+    Runs mitmdump briefly to produce the CA, then the main container reads
+    it via wait_for_ca. GCS tracking is a hard requirement for customer
+    billing, so any setup failure here raises: K8s will restart the sidecar
+    container (via restart_policy=Always), and a persistent failure shows
+    up as a visible pod-level crash-loop instead of a silent "running
+    direct" state.
     """
     os.makedirs(MITMPROXY_CONFDIR, exist_ok=True)
-
-    if not _check_mitmproxy_installed():
-        logger.warning(
-            "mitmproxy (mitmdump) is not installed. GCS request tracking will be disabled. "
-            "To enable tracking, install mitmproxy: pip install mitmproxy"
-        )
-        _write_ready_file(disabled=True)
-        return False
-
     logger.info("Generating mitmproxy CA certificate...")
-    try:
-        process = subprocess.Popen(  # pylint: disable=consider-using-with
-            [
-                "mitmdump",
-                "--set",
-                f"confdir={MITMPROXY_CONFDIR}",
-                "--mode",
-                "regular",
-                "--listen-port",
-                "18080",
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-    except FileNotFoundError:
-        logger.warning("mitmdump not found. GCS tracking disabled.")
-        _write_ready_file(disabled=True)
-        return False
+
+    process = subprocess.Popen(  # pylint: disable=consider-using-with
+        [
+            "mitmdump",
+            "--set",
+            f"confdir={MITMPROXY_CONFDIR}",
+            "--mode",
+            "regular",
+            "--listen-port",
+            "18080",
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
     for _ in range(30):
         if os.path.exists(CA_CERT_SHARED_PATH):
@@ -302,21 +286,20 @@ def _setup_mitmproxy_ca():
     except subprocess.TimeoutExpired:
         process.kill()
 
-    if os.path.exists(CA_CERT_SHARED_PATH):
-        logger.info(f"CA certificate generated at {CA_CERT_SHARED_PATH}")
-        _write_ready_file(disabled=False)
-        return True
-    else:
-        logger.error("Failed to generate mitmproxy CA certificate")
-        _write_ready_file(disabled=True)
-        return False
+    if not os.path.exists(CA_CERT_SHARED_PATH):
+        raise RuntimeError(
+            f"Failed to generate mitmproxy CA at {CA_CERT_SHARED_PATH}; "
+            "GCS tracking is required and cannot run without it."
+        )
+    logger.info(f"CA certificate generated at {CA_CERT_SHARED_PATH}")
+    _write_ready_file()
 
 
-def _write_ready_file(disabled: bool = False):
-    """Write ready marker file so main container can proceed."""
+def _write_ready_file() -> None:
+    """Write ready marker so main container can proceed."""
     os.makedirs(MITMPROXY_CONFDIR, exist_ok=True)
     with open(os.path.join(MITMPROXY_CONFDIR, "ready"), "w", encoding="utf-8") as f:
-        f.write("disabled" if disabled else "1")
+        f.write("1")
 
 
 def _initialize_stats_file(run_id: str, pod_name: str):
@@ -362,10 +345,10 @@ def _write_final_stats(
         logger.warning(f"Failed final pod stats update: {e}")
 
 
-def _run_main_loop(process: subprocess.Popen | None) -> None:
-    """Main loop: wait for proxy (if running) or main container to exit."""
+def _run_main_loop(process: subprocess.Popen) -> None:
+    """Wait for the proxy subprocess or the main container to exit."""
     while True:
-        if process is not None and process.poll() is not None:
+        if process.poll() is not None:
             logger.error(f"mitmproxy exited with code {process.returncode}")
             break
         status = get_main_container_status()
@@ -402,11 +385,8 @@ def _start_mitmproxy() -> subprocess.Popen:
 def run_sidecar(run_id: str):
     """Run the pod stats sidecar.
 
-    The push loop (semaphore + resource collectors) starts unconditionally.
-    mitmproxy is started only when installed and its CA cert can be generated;
-    when it is, a GCS collector is added. mitmproxy may be unavailable if the
-    sidecar image was built without it (e.g. lightweight images for non-GCS
-    workloads) or if cert generation fails on startup.
+    Sets up mitmproxy (hard requirement — raises on failure), starts the GCS
+    interception, and starts the periodic stats-push loop for all collectors.
     """
     logger.info(f"Starting pod stats sidecar for run {run_id}")
 
@@ -417,22 +397,15 @@ def run_sidecar(run_id: str):
         StatsCollector(name="resource_stats", collect=_collect_resource_stats),
     ]
 
-    # ---- Start mitmproxy (optional) and register GCS collector if available ----
-    mitm_process: subprocess.Popen | None = None
-    if _setup_mitmproxy_ca():
-        _initialize_stats_file(run_id, pod_name)
-        compute_region = _get_compute_region()
-        if compute_region:
-            logger.info(f"Compute region: {compute_region}")
-        else:
-            logger.warning("Could not determine compute region, region_match will be unavailable")
-        collectors.append(_make_gcs_collector(run_id, compute_region))
-        mitm_process = _start_mitmproxy()
+    _setup_mitmproxy_ca()
+    _initialize_stats_file(run_id, pod_name)
+    compute_region = _get_compute_region()
+    if compute_region:
+        logger.info(f"Compute region: {compute_region}")
     else:
-        logger.warning(
-            "GCS interception disabled - mitmproxy not available. "
-            "Other stat collectors will still run."
-        )
+        logger.warning("Could not determine compute region, region_match will be unavailable")
+    collectors.append(_make_gcs_collector(run_id, compute_region))
+    mitm_process = _start_mitmproxy()
 
     # ---- Start stats push loop (always, even if mitmproxy is unavailable) ----
     stop_event = threading.Event()
@@ -446,8 +419,7 @@ def run_sidecar(run_id: str):
     def handle_shutdown(_signum, _frame):
         logger.info("Shutting down pod stats sidecar...")
         stop_event.set()
-        if mitm_process is not None:
-            mitm_process.terminate()
+        mitm_process.terminate()
         _write_final_stats(run_id, pod_name, collectors)
         sys.exit(0)
 
@@ -457,12 +429,11 @@ def run_sidecar(run_id: str):
     _run_main_loop(mitm_process)
 
     stop_event.set()
-    if mitm_process is not None:
-        mitm_process.terminate()
-        try:
-            mitm_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            mitm_process.kill()
+    mitm_process.terminate()
+    try:
+        mitm_process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        mitm_process.kill()
 
     _write_final_stats(run_id, pod_name, collectors)
 

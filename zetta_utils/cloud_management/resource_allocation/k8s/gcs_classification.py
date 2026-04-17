@@ -36,13 +36,24 @@ class GCSStats:
         return self.buckets[bucket]
 
     def record(
-        self, bucket: str, op_class: Literal["A", "B"], operation: str, egress_bytes: int = 0
+        self,
+        bucket: str,
+        op_class: Literal["A", "B"] | None,
+        operation: str,
+        egress_bytes: int = 0,
     ):
+        """Record one operation against `bucket`.
+
+        `op_class=None` means "do not attribute to a billed class" — the
+        operation count and egress still increment, but neither Class A
+        nor Class B totals do. Use for `_unclassified` (classifier
+        coverage gap) and `_batch` (sub-ops not yet parsed) entries.
+        """
         with self.lock:
             bucket_stats = self._get_bucket_stats(bucket)
             if op_class == "A":
                 bucket_stats["class_a_count"] += 1
-            else:
+            elif op_class == "B":
                 bucket_stats["class_b_count"] += 1
             bucket_stats["operations"][operation] += 1
             bucket_stats["egress_bytes"] += egress_bytes

@@ -8,7 +8,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Dict, List, Literal, Mapping, Optional
+from typing import Callable, Dict, List, Literal, Mapping, Optional
 
 from kubernetes.client.exceptions import ApiException
 
@@ -573,38 +573,6 @@ def _check_pod_disruption(pod, run_id, reported) -> str | None:
     return None
 
 
-def watch_for_pod_disruptions(
-    run_id: str,
-    namespace="default",
-    log_dir: str | None = None,
-    stop_event: threading.Event | None = None,
-):
-    log_path = None
-    if log_dir:
-        out_dir = Path(log_dir) / run_id
-        out_dir.mkdir(parents=True, exist_ok=True)
-        log_path = out_dir / "disruptions.log"
-    config.load_kube_config()
-    v1 = k8s_client.CoreV1Api()
-    w = watch.Watch()
-    reported: set[str] = set()
-    try:
-        while not (stop_event and stop_event.is_set()):
-            for event in w.stream(v1.list_namespaced_pod, namespace=namespace, timeout_seconds=30):
-                if stop_event and stop_event.is_set():
-                    break
-                msg = _check_pod_disruption(event["object"], run_id, reported)
-                if msg:
-                    logger.warning(msg)
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
-    except Exception as err:  # pylint: disable=broad-exception-caught
-        logger.warning(err)
-    finally:
-        w.stop()
-
-
 _RUN_EVENT_REASONS = {
     "Killing",
     "TaintManagerEviction",
@@ -618,46 +586,118 @@ _RUN_EVENT_REASONS = {
 _TRACKED_CONTAINER_EVENT_NAMES = ("container main", "container mproxy")
 
 
+def _open_watcher_log(log_dir: str | None, run_id: str, filename: str) -> Path | None:
+    if not log_dir:
+        return None
+    out_dir = Path(log_dir) / run_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / filename
+
+
+def _append_watcher_log(log_path: Path | None, msg: str) -> None:
+    if log_path is None:
+        return
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+
+
+def _resilient_watch(
+    list_fn,
+    on_event: Callable,
+    *,
+    namespace: str,
+    description: str,
+    stop_event: threading.Event | None = None,
+    on_stream_end: Callable[[], None] | None = None,
+) -> None:
+    """Stream K8s objects via watch.Watch, retrying transient errors with backoff.
+
+    Previously both watchers wrapped the `while` loop in a single try/except,
+    so any `w.stream()` failure (e.g. a momentary GKE master unreachable at
+    startup) permanently killed disruption detection for the rest of the run.
+    Here the try/except is inside the loop and resets backoff on clean cycles.
+    """
+    w = watch.Watch()
+    backoff = 1.0
+    try:
+        while not (stop_event and stop_event.is_set()):
+            try:
+                for event in w.stream(list_fn, namespace=namespace, timeout_seconds=30):
+                    if stop_event and stop_event.is_set():
+                        break
+                    on_event(event["object"])
+                if on_stream_end is not None:
+                    on_stream_end()
+                backoff = 1.0
+            except Exception as err:  # pylint: disable=broad-exception-caught
+                logger.warning(f"{description} transient error, retrying in {backoff:.1f}s: {err}")
+                if stop_event and stop_event.wait(backoff):
+                    break
+                backoff = min(backoff * 2, 30.0)
+    finally:
+        w.stop()
+
+
+def watch_for_pod_disruptions(
+    run_id: str,
+    namespace="default",
+    log_dir: str | None = None,
+    stop_event: threading.Event | None = None,
+):
+    log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
+    config.load_kube_config()
+    v1 = k8s_client.CoreV1Api()
+    reported: set[str] = set()
+
+    def on_event(pod):
+        msg = _check_pod_disruption(pod, run_id, reported)
+        if msg:
+            logger.warning(msg)
+            _append_watcher_log(log_path, msg)
+
+    _resilient_watch(
+        v1.list_namespaced_pod,
+        on_event,
+        namespace=namespace,
+        description="Pod disruption watcher",
+        stop_event=stop_event,
+    )
+
+
 def watch_for_run_events(
     run_id: str,
     namespace="default",
     log_dir: str | None = None,
     stop_event: threading.Event | None = None,
 ):
-    log_path = None
-    if log_dir:
-        out_dir = Path(log_dir) / run_id
-        out_dir.mkdir(parents=True, exist_ok=True)
-        log_path = out_dir / "events.log"
+    log_path = _open_watcher_log(log_dir, run_id, "events.log")
     config.load_kube_config()
     v1 = k8s_client.CoreV1Api()
-    w = watch.Watch()
-    try:
-        while not (stop_event and stop_event.is_set()):
-            pending: list[str] = []
-            for event in w.stream(
-                v1.list_namespaced_event, namespace=namespace, timeout_seconds=30
-            ):
-                if stop_event and stop_event.is_set():
-                    break
-                obj = event["object"]
-                pod_name = obj.involved_object.name if obj.involved_object else ""
-                if run_id not in pod_name:
-                    continue
-                if obj.reason in _RUN_EVENT_REASONS:
-                    message = obj.message or ""
-                    if "container " in message and not any(
-                        n in message for n in _TRACKED_CONTAINER_EVENT_NAMES
-                    ):
-                        continue
-                    msg = f"[K8s:{obj.reason}] {pod_name}: {obj.message}"
-                    pending.append(msg)
-                    if log_path:
-                        with open(log_path, "a", encoding="utf-8") as f:
-                            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
-            if pending:
-                logger.warning("\n".join(pending))
-    except Exception as err:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Event watcher error: {err}")
-    finally:
-        w.stop()
+    pending: list[str] = []
+
+    def on_event(obj):
+        pod_name = obj.involved_object.name if obj.involved_object else ""
+        if run_id not in pod_name or obj.reason not in _RUN_EVENT_REASONS:
+            return
+        message = obj.message or ""
+        if "container " in message and not any(
+            n in message for n in _TRACKED_CONTAINER_EVENT_NAMES
+        ):
+            return
+        msg = f"[K8s:{obj.reason}] {pod_name}: {message}"
+        pending.append(msg)
+        _append_watcher_log(log_path, msg)
+
+    def flush():
+        if pending:
+            logger.warning("\n".join(pending))
+            pending.clear()
+
+    _resilient_watch(
+        v1.list_namespaced_event,
+        on_event,
+        namespace=namespace,
+        description="Run event watcher",
+        stop_event=stop_event,
+        on_stream_end=flush,
+    )

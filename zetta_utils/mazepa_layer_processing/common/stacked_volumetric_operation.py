@@ -21,10 +21,10 @@ logger = log.get_logger("mazepa")
 P = ParamSpec("P")
 
 
-@builder.register("StackedVolumetricOperations")
+@builder.register("StackedVolumetricOperation")
 @mazepa.taskable_operation_cls
 @attrs.mutable
-class StackedVolumetricOperations(Generic[P]):
+class StackedVolumetricOperation(Generic[P]):
     """
     Wrapper that processes multiple indices for a StackableVolumetricOpProtocol operation.
     Optimizes I/O by reading and writing multiple chunks in batch.
@@ -55,7 +55,7 @@ class StackedVolumetricOperations(Generic[P]):
     def get_input_resolution(self, dst_resolution: Vec3D) -> Vec3D:
         return self.base_op.get_input_resolution(dst_resolution)
 
-    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> StackedVolumetricOperations[P]:
+    def with_added_crop_pad(self, crop_pad: Vec3D[int]) -> StackedVolumetricOperation[P]:
         return attrs.evolve(self, base_op=self.base_op.with_added_crop_pad(crop_pad))
 
     def _prefetch_region(
@@ -172,7 +172,7 @@ class StackedVolumetricOperations(Generic[P]):
 
         total_time = prefetch_time + read_time + process_time + write_time
         logger.info(
-            f"StackedVolumetricOperations: Total time for {len(indices)} chunks: {total_time:.2f}s"
+            f"StackedVolumetricOperation: Total time for {len(indices)} chunks: {total_time:.2f}s"
             f" (prefetch: {prefetch_time:.2f}s, read: {read_time:.2f}s,"
             f" process: {process_time:.2f}s, write: {write_time:.2f}s)"
         )

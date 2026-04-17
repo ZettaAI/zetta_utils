@@ -23,8 +23,7 @@ import time
 
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification import (
     GCSStats,
-    classify_gcs_request,
-    extract_bucket_from_api_path,
+    route_request,
 )
 
 STATS_FILE = "/tmp/gcs_tracker_stats.json"
@@ -54,28 +53,13 @@ def write_stats_to_file():
         log(f"Failed to write stats: {e}")
 
 
+def _log_unclassified(method, path):
+    log(f"WARNING: unclassified request: {method} {path}")
+
+
 def _record(method, path, egress_bytes):
     """Classify and record a single request."""
-    if "?" in path:
-        path_part, query_part = path.split("?", 1)
-    else:
-        path_part, query_part = path, ""
-    bucket = extract_bucket_from_api_path(path_part)
-    if bucket is None:
-        if path_part.startswith("/batch/"):
-            # Batch API: bundles N sub-ops in one POST. Re-categorised under
-            # `_batch` (uncounted vs. Class A/B) in the next step; for now
-            # keep the legacy `_unknown` placeholder so we don't lose the
-            # request count.
-            bucket = "_unknown"
-        else:
-            # Coverage gap — log the full request so the classifier can be
-            # extended. Don't attribute to any billed class.
-            log(f"WARNING: unclassified request: {method} {path}")
-            _stats.record("_unclassified", None, "unclassified", egress_bytes)
-            return
-    op_class, operation = classify_gcs_request(method, path_part, query_part)
-    _stats.record(bucket, op_class, operation, egress_bytes)
+    route_request(_stats, method, path, egress_bytes, on_unclassified=_log_unclassified)
 
 
 def _process_queue():

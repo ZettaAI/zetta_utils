@@ -345,16 +345,48 @@ def _write_final_stats(
         logger.warning(f"Failed final pod stats update: {e}")
 
 
-def _run_main_loop(process: subprocess.Popen) -> None:
-    """Wait for the proxy subprocess or the main container to exit."""
-    while True:
+MITMPROXY_MAX_RESTARTS = 20
+MITMPROXY_RESTART_BACKOFF_SEC = 5
+
+
+def _run_main_loop(
+    process_ref: list[subprocess.Popen],
+    stop_event: threading.Event,
+) -> None:
+    """Run the sidecar main loop until main container exits or shutdown.
+
+    If mitmdump dies while main is still up, restart it in-place (bounded
+    by MITMPROXY_MAX_RESTARTS). This keeps the sidecar Python process alive
+    so main's traffic routing through port 8080 recovers without depending
+    on K8s container-restart policy (which is Never under KEDA Jobs).
+
+    `process_ref` is a single-element list holding the current mitmdump
+    process handle. Updated on each restart so callers (e.g. the shutdown
+    signal handler) always see the live instance.
+    """
+    restart_count = 0
+    while not stop_event.is_set():
+        process = process_ref[0]
         if process.poll() is not None:
-            logger.error(f"mitmproxy exited with code {process.returncode}")
-            break
+            if restart_count >= MITMPROXY_MAX_RESTARTS:
+                logger.error(
+                    f"mitmproxy crashed {restart_count} times; giving up "
+                    "and letting the sidecar container exit"
+                )
+                return
+            restart_count += 1
+            logger.warning(
+                f"mitmproxy exited with code {process.returncode}; "
+                f"restarting ({restart_count}/{MITMPROXY_MAX_RESTARTS})"
+            )
+            if stop_event.wait(MITMPROXY_RESTART_BACKOFF_SEC):
+                return
+            process_ref[0] = _start_mitmproxy()
+            continue
         status = get_main_container_status()
         if status != -1:
             logger.info(f"Main container exited with code {status}")
-            break
+            return
         time.sleep(5)
 
 
@@ -369,8 +401,12 @@ def _start_mitmproxy() -> subprocess.Popen:
         str(PROXY_PORT),
         "--set",
         f"confdir={MITMPROXY_CONFDIR}",
+        # Stream response bodies > 64KB straight through instead of buffering
+        # them for the addon. Egress accounting still works — Part 11 prefers
+        # Content-Length over body length, exactly the case where streaming
+        # makes the body unavailable. Keeps mproxy memory bounded under load.
         "--set",
-        "stream_large_bodies=1m",
+        "stream_large_bodies=64k",
         "-s",
         MITM_ADDON_SCRIPT_PATH,
     ]
@@ -405,9 +441,10 @@ def run_sidecar(run_id: str):
     else:
         logger.warning("Could not determine compute region, region_match will be unavailable")
     collectors.append(_make_gcs_collector(run_id, compute_region))
-    mitm_process = _start_mitmproxy()
+    # _run_main_loop may replace the mitmdump process on restart, so wrap
+    # in a mutable container so handle_shutdown always sees the current one.
+    mitm_process_ref = [_start_mitmproxy()]
 
-    # ---- Start stats push loop (always, even if mitmproxy is unavailable) ----
     stop_event = threading.Event()
     update_thread = threading.Thread(
         target=_update_firestore_loop,
@@ -419,21 +456,21 @@ def run_sidecar(run_id: str):
     def handle_shutdown(_signum, _frame):
         logger.info("Shutting down pod stats sidecar...")
         stop_event.set()
-        mitm_process.terminate()
+        mitm_process_ref[0].terminate()
         _write_final_stats(run_id, pod_name, collectors)
         sys.exit(0)
 
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
-    _run_main_loop(mitm_process)
+    _run_main_loop(mitm_process_ref, stop_event)
 
     stop_event.set()
-    mitm_process.terminate()
+    mitm_process_ref[0].terminate()
     try:
-        mitm_process.wait(timeout=5)
+        mitm_process_ref[0].wait(timeout=5)
     except subprocess.TimeoutExpired:
-        mitm_process.kill()
+        mitm_process_ref[0].kill()
 
     _write_final_stats(run_id, pod_name, collectors)
 

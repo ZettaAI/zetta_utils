@@ -183,7 +183,7 @@ def get_mazepa_pod_spec(
     env_secret_mapping: Optional[Dict[str, str]] = None,
     provisioning_model: Literal["standard", "spot"] = "spot",
     resource_requests: Optional[Dict[str, int | float | str]] = None,
-    restart_policy: Literal["Always", "Never"] = "Always",
+    restart_policy: Literal["Always", "Never", "OnFailure"] = "Always",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,

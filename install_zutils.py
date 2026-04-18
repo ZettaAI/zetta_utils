@@ -4,9 +4,12 @@
 import argparse
 import os
 import platform
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
+import urllib.request
 from typing import Any
 
 
@@ -478,6 +481,110 @@ def check_and_setup_zetta_env():
         console.print("\n[info]All required environment variables are already set.[/info]")
 
 
+VSCODE_EXTENSION_URL = (
+    "https://github.com/ZettaAI/vscode-zutils/releases/latest/download/zetta-cue.vsix"
+)
+
+
+def _detect_editors():
+    """Return list of (cmd, human_label, resolved_path) for VS Code forks on PATH."""
+    candidates = [
+        ("code", "Visual Studio Code"),
+        ("code-insiders", "VS Code Insiders"),
+        ("cursor", "Cursor"),
+        ("codium", "VSCodium"),
+        ("windsurf", "Windsurf"),
+        ("antigravity", "Google Antigravity"),
+    ]
+    found = []
+    for cmd, label in candidates:
+        resolved = shutil.which(cmd)
+        if resolved:
+            found.append((cmd, label, resolved))
+    return found
+
+
+def check_and_setup_vscode_extension():
+    """Offer to install the Zetta CUE extension into a VS Code-family editor.
+
+    Installs the extension where this script is running — on a remote SSH host,
+    this targets the remote's VS Code server, which is where the extension
+    needs to live (it spawns bundled binaries and reads the workspace tree).
+    """
+    session: Any = PromptSession()
+
+    while True:
+        console.print(
+            "\n[cyan]Install the Zetta CUE editor extension "
+            "(hover docs + validation for builder specs)? [white](y/N)[/cyan]"
+        )
+        response = session.prompt("").lower()
+        if response in ["y", "yes"]:
+            break
+        if response in ["n", "no", ""]:
+            return
+        console.print("[yellow]Please enter 'y' for yes or 'n' for no[/yellow]")
+
+    detected = _detect_editors()
+    console.print("\n[info]Choose the editor to install into:[/info]")
+    for i, (_cmd, label, path) in enumerate(detected, 1):
+        console.print(f"  {i}) {label}  [command]{path}[/command]")
+    custom_idx = len(detected) + 1
+    skip_idx = len(detected) + 2
+    console.print(f"  {custom_idx}) Enter a custom editor binary / path")
+    console.print(f"  {skip_idx}) Skip")
+
+    try:
+        choice = int(session.prompt(f"Choice [1-{skip_idx}]: ").strip())
+    except (ValueError, KeyboardInterrupt, EOFError):
+        console.print("[warning]Skipping extension install.[/warning]")
+        return
+
+    if choice == skip_idx:
+        return
+    if 1 <= choice <= len(detected):
+        editor_bin = detected[choice - 1][2]
+    elif choice == custom_idx:
+        editor_bin = session.prompt("Path or name of the editor binary: ").strip()
+        if not editor_bin:
+            return
+    else:
+        console.print("[warning]Invalid choice — skipping.[/warning]")
+        return
+
+    resolved = shutil.which(editor_bin) or editor_bin
+    if not (os.path.exists(resolved) or shutil.which(resolved)):
+        print_warning(
+            f"'{editor_bin}' not found on PATH. Skipping extension install.\n"
+            "If it's installed, pass the full path or ensure it's on PATH."
+        )
+        return
+
+    vsix_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".vsix", delete=False) as tmp:
+            vsix_path = tmp.name
+        console.print(f"\n[info]Downloading {VSCODE_EXTENSION_URL}[/info]")
+        urllib.request.urlretrieve(VSCODE_EXTENSION_URL, vsix_path)
+        run_command(
+            f"{resolved} --install-extension {vsix_path}",
+            f"Installing extension into {editor_bin}",
+        )
+        print_success(
+            "Zetta CUE extension installed.\nReload the editor window for it to take effect."
+        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print_warning(
+            f"Extension install failed: {e}\n\n"
+            f"Retry manually:\n"
+            f"  curl -L -o /tmp/zetta-cue.vsix {VSCODE_EXTENSION_URL}\n"
+            f"  {editor_bin} --install-extension /tmp/zetta-cue.vsix"
+        )
+    finally:
+        if vsix_path and os.path.exists(vsix_path):
+            os.unlink(vsix_path)
+
+
 def check_and_setup_gcp():
     credentials_path = os.path.expanduser("~/.config/gcloud/application_default_credentials.json")
 
@@ -785,6 +892,7 @@ def main():
         setup_paths()
         check_and_setup_gcp()
         check_and_setup_zetta_env()
+        check_and_setup_vscode_extension()
         for region in ["us-central1", "us-east1", "us-west1"]:
             run_command(
                 f"gcloud auth configure-docker --quiet {region}-docker.pkg.dev",

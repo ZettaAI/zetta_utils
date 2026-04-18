@@ -12,6 +12,7 @@ Uses mitmproxy to intercept HTTPS traffic to storage.googleapis.com.
 
 from __future__ import annotations
 
+import atexit
 import glob
 import json
 import os
@@ -462,6 +463,9 @@ def run_sidecar(run_id: str):
 
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
+    # Backstop: any clean Python exit path (normal return, unhandled exception)
+    # still flushes accumulated stats. SIGKILL/OOM are unreachable either way.
+    atexit.register(_write_final_stats, run_id, pod_name, collectors)
 
     _run_main_loop(mitm_process_ref, stop_event)
 

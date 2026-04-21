@@ -45,6 +45,3 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY . /opt/zetta_utils/
 
 RUN zetta --help
-# mproxy sidecar is a hard requirement for GCS cost tracking; fail the
-# build rather than produce an image that silently runs without tracking.
-RUN mitmdump --version

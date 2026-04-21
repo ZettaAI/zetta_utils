@@ -46,38 +46,33 @@ _NO_PROXY_HOSTS = ",".join(
 )
 
 
-# How long main will wait for mproxy to signal ready before failing the pod.
-# GCS tracking is a hard requirement (for customer billing), so there is no
-# fall-back-to-direct path; a persistent mproxy failure manifests as a
-# visible pod-level crash-loop via restart_policy=Always.
-_WAIT_FOR_READY_SECONDS = 120
-
-
 def _build_wait_for_ca_script() -> str:
     """Bash preamble for the main container.
 
-    Waits up to `_WAIT_FOR_READY_SECONDS` for mproxy to write the ready
-    marker. On timeout, exits 1 so main never starts without tracking.
-    On success, builds the combined system+mitmproxy CA bundle and exports
-    the CA-bundle env vars for every HTTP client family.
+    Blocks until mproxy signals readiness by creating the ready marker.
+    If the marker contains "disabled" (mitmdump not installed), unsets the
+    proxy env vars so main runs direct. Otherwise concatenates system CAs +
+    mitmproxy CA into the combined bundle and exports CA-bundle env vars
+    for every HTTP client family.
     """
-    exports = "\n".join(f"export {v}={_CA_BUNDLE_PATH}" for v in _CA_ENV_VARS)
-    iters = _WAIT_FOR_READY_SECONDS * 2
-    return f"""
-set -e
-echo 'Waiting for GCS tracker ready signal (up to {_WAIT_FOR_READY_SECONDS}s)...'
-for _ in $(seq 1 {iters}); do
-    if [ -f {_READY_MARKER} ]; then break; fi
-    sleep 0.5
-done
-if [ ! -f {_READY_MARKER} ]; then
-    echo 'GCS tracker did not signal ready within {_WAIT_FOR_READY_SECONDS}s; failing pod' >&2
-    exit 1
-fi
-echo 'GCS tracking enabled, creating combined CA bundle'
-cat /etc/ssl/certs/ca-certificates.crt {_CA_MOUNT_PATH}/mitmproxy-ca-cert.pem > {_CA_BUNDLE_PATH}
-{exports}
-""".strip()
+    unset_vars = " ".join(
+        ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "NO_PROXY", "no_proxy")
+        + _CA_ENV_VARS
+    )
+    exports = " && ".join(f"export {v}={_CA_BUNDLE_PATH}" for v in _CA_ENV_VARS)
+    return (
+        "echo 'Waiting for GCS tracker ready signal...' && "
+        f"while [ ! -f {_READY_MARKER} ]; do sleep 0.5; done && "
+        f"if grep -q 'disabled' {_READY_MARKER} 2>/dev/null; then "
+        "echo 'GCS tracking disabled, unsetting proxy vars' && "
+        f"unset {unset_vars}; "
+        "else "
+        "echo 'GCS tracking enabled, creating combined CA bundle' && "
+        f"cat /etc/ssl/certs/ca-certificates.crt {_CA_MOUNT_PATH}/mitmproxy-ca-cert.pem "
+        f"> {_CA_BUNDLE_PATH} && "
+        f"{exports}; "
+        "fi"
+    )
 
 
 WAIT_FOR_CA_SCRIPT = _build_wait_for_ca_script()

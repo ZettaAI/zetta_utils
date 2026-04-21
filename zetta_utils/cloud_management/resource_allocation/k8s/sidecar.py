@@ -172,10 +172,8 @@ def build_oom_sidecar(
         envs=envs,
         volume_mounts=volume_mounts,
         resources=k8s_client.V1ResourceRequirements(
-            # Python + zetta_utils.run import chain (firestore client, etc.)
-            # is ~200MB at rest before this process does any work.
-            requests={"cpu": "50m", "memory": "256Mi", "ephemeral-storage": "100Mi"},
-            limits={"memory": "512Mi"},
+            requests={"cpu": "50m", "memory": "128Mi", "ephemeral-storage": "100Mi"},
+            limits={"memory": "256Mi"},
         ),
     )
 
@@ -187,21 +185,11 @@ def build_mproxy_sidecar(
 ) -> k8s_client.V1Container:
     """GCS tracker sidecar (mitmproxy) intercepting storage.googleapis.com.
 
-    Resource requests keep mproxy from being CPU-starved under main-container
-    CPU bursts (TLS handshakes deadlock without guaranteed CPU). Memory
-    limits turn OOM into a clean container-level restart instead of
-    node-level OOM-killer roulette. Liveness probe catches mitmdump hangs
-    (where the process runs but doesn't serve — the in-sidecar self-heal
-    loop can only catch actual crashes). The 60s failure window gives the
-    self-heal loop room to restart mitmdump between chaos kills without
-    the probe itself flagging a false positive.
-
-    No startup probe — the sidecar's self-heal loop handles mitmdump
-    readiness internally, and the main container's wait_for_ca script
-    gates on the CA-cert file existence (see WAIT_FOR_CA_SCRIPT). A TCP
-    startup probe would duplicate that logic and, more importantly,
-    kill the container if probe failures accumulated while self-heal was
-    already handling things.
+    Without a CPU request, mproxy was starved during main-container CPU bursts
+    and its TLS handshakes deadlocked, producing ProxyError on main's GCS calls.
+    Memory request+limit turns OOM into a clean container-level restart instead
+    of the node-level OOM-killer picking a victim. TCP probes detect hangs; the
+    startup probe grants CA-cert generation time before port 8080 binds.
     """
     return _build_sidecar_container(
         name="mproxy",
@@ -211,13 +199,18 @@ def build_mproxy_sidecar(
         volume_mounts=volume_mounts,
         ports=[k8s_client.V1ContainerPort(container_port=8080, name="proxy")],
         resources=k8s_client.V1ResourceRequirements(
-            requests={"cpu": "200m", "memory": "1Gi", "ephemeral-storage": "100Mi"},
-            limits={"memory": "2Gi"},
+            requests={"cpu": "200m", "memory": "512Mi", "ephemeral-storage": "100Mi"},
+            limits={"memory": "1Gi"},
+        ),
+        startup_probe=k8s_client.V1Probe(
+            tcp_socket=k8s_client.V1TCPSocketAction(port=8080),
+            period_seconds=2,
+            failure_threshold=30,
         ),
         liveness_probe=k8s_client.V1Probe(
             tcp_socket=k8s_client.V1TCPSocketAction(port=8080),
             period_seconds=10,
-            failure_threshold=6,  # 60s tolerance covers self-heal cycles
+            failure_threshold=3,
             timeout_seconds=3,
         ),
     )

@@ -255,18 +255,6 @@ class TestGCSStats:
         assert stats.buckets["my-bucket"]["class_b_count"] == 1
         assert stats.buckets["my-bucket"]["operations"]["get"] == 1
 
-    def test_record_uncounted(self):
-        # op_class=None — operation count + egress increment, but neither
-        # class total does. Used for _unclassified / _batch buckets that
-        # aren't (yet) attributed to a billed class.
-        stats = GCSStats()
-        stats.record("_unclassified", None, "unclassified", egress_bytes=42)
-
-        assert stats.buckets["_unclassified"]["class_a_count"] == 0
-        assert stats.buckets["_unclassified"]["class_b_count"] == 0
-        assert stats.buckets["_unclassified"]["operations"]["unclassified"] == 1
-        assert stats.buckets["_unclassified"]["egress_bytes"] == 42
-
     def test_record_multiple_operations(self):
         stats = GCSStats()
         stats.record("bucket-a", "A", "insert")

@@ -60,21 +60,8 @@ def _record(method, path, egress_bytes):
         path_part, query_part = path.split("?", 1)
     else:
         path_part, query_part = path, ""
-    bucket = extract_bucket_from_api_path(path_part)
-    if bucket is None:
-        if path_part.startswith("/batch/"):
-            # Batch API: bundles N sub-ops in one POST. Re-categorised under
-            # `_batch` (uncounted vs. Class A/B) in the next step; for now
-            # keep the legacy `_unknown` placeholder so we don't lose the
-            # request count.
-            bucket = "_unknown"
-        else:
-            # Coverage gap — log the full request so the classifier can be
-            # extended. Don't attribute to any billed class.
-            log(f"WARNING: unclassified request: {method} {path}")
-            _stats.record("_unclassified", None, "unclassified", egress_bytes)
-            return
     op_class, operation = classify_gcs_request(method, path_part, query_part)
+    bucket = extract_bucket_from_api_path(path_part) or "_unknown"
     _stats.record(bucket, op_class, operation, egress_bytes)
 
 

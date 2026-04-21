@@ -205,22 +205,6 @@ BATCH_BUCKET = "_batch"
 UNCLASSIFIED_BUCKET = "_unclassified"
 
 
-def compute_egress_bytes(content_length_header: str | None, content_len: int) -> int:
-    """Return the number of egress bytes attributable to a response.
-
-    Prefers the server-reported `Content-Length` header — that's the on-the-
-    wire byte count, which is what GCP bills for egress. Falls back to the
-    decoded body length (`len(flow.response.content)`) when the header is
-    absent (chunked / multipart responses) or malformed.
-    """
-    if content_length_header is not None:
-        try:
-            return int(content_length_header)
-        except (TypeError, ValueError):
-            pass
-    return content_len
-
-
 def route_request(
     stats: GCSStats,
     method: str,

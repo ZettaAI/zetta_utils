@@ -19,13 +19,10 @@ from zetta_utils.mazepa import semaphore
 logger = log.get_logger("zetta_utils")
 
 
-TENSORRT_AVAILABLE = False
-try:
-    import torch_tensorrt  # pylint: disable=import-error
-
-    TENSORRT_AVAILABLE = True  # pragma: no cover
-except (ImportError, OSError, RuntimeError) as e:
-    logger.info(f"torch_tensorrt is not available: {e}")
+# NOTE: torch_tensorrt is imported lazily inside _load_model. Importing it at
+# module level initializes CUDA, which makes any forkserver-forked child a
+# "bad fork" per torch (torch.cuda._is_in_bad_fork() -> True), preventing them
+# from using CUDA. See CPython #86354 and PyTorch CUDA fork handling.
 
 
 @builder.register("load_model")
@@ -70,8 +67,10 @@ def _load_model(
         raise ValueError(f"Unsupported file format: {path}")
 
     if tensorrt_enabled:
-        if not TENSORRT_AVAILABLE:
-            raise RuntimeError("torch_tensorrt is not installed!")
+        try:
+            import torch_tensorrt  # pylint: disable=import-error,import-outside-toplevel
+        except (ImportError, OSError, RuntimeError) as e:
+            raise RuntimeError(f"torch_tensorrt is not available: {e}") from e
 
         with semaphore("tensorrt"):
             # TensorRT should not be compiled concurrently by many threads

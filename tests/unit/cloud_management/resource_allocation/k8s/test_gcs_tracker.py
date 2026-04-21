@@ -1,12 +1,14 @@
-"""Tests for the gcs_tracker sidecar — collectors and collector factory.
-
-Pure-Python classifier / extractor / GCSStats / route_request tests live
-in test_gcs_classifier.py.
-"""
+"""Tests for GCS request tracker."""
 
 import json
+import threading
 
 from zetta_utils.cloud_management.resource_allocation.k8s import gcs_tracker
+from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification import (
+    BATCH_BUCKET,
+    UNCLASSIFIED_BUCKET,
+    route_request,
+)
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
     StatsCollector,
     _collect_all,
@@ -14,6 +16,358 @@ from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
     _collect_semaphore_stats,
     _make_gcs_collector,
 )
+from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker_utils import (
+    GCSStats,
+    classify_gcs_request,
+    extract_bucket_from_api_path,
+)
+
+
+class TestClassifyGcsRequest:
+    """Tests for classify_gcs_request function."""
+
+    # Class A operations - DELETE
+    def test_delete_is_class_a(self):
+        op_class, operation = classify_gcs_request("DELETE", "/storage/v1/b/bucket/o/object")
+        assert op_class == "A"
+        assert operation == "delete"
+
+    # Class A operations - POST (create/compose/copy/rewrite)
+    def test_post_upload_is_class_a(self):
+        op_class, operation = classify_gcs_request(
+            "POST", "/upload/storage/v1/b/bucket/o?uploadType=media"
+        )
+        assert op_class == "A"
+        assert operation == "insert"
+
+    def test_post_compose_is_class_a(self):
+        op_class, operation = classify_gcs_request("POST", "/storage/v1/b/bucket/o/dest/compose")
+        assert op_class == "A"
+        assert operation == "compose"
+
+    def test_post_copy_is_class_a(self):
+        op_class, operation = classify_gcs_request(
+            "POST", "/storage/v1/b/src-bucket/o/src-object/copyTo/b/dest-bucket/o/dest-object"
+        )
+        assert op_class == "A"
+        assert operation == "copy"
+
+    def test_post_rewrite_is_class_a(self):
+        op_class, operation = classify_gcs_request(
+            "POST", "/storage/v1/b/src-bucket/o/src-object/rewriteTo/b/dest-bucket/o/dest-object"
+        )
+        assert op_class == "A"
+        assert operation == "rewrite"
+
+    def test_post_default_is_insert(self):
+        op_class, operation = classify_gcs_request("POST", "/storage/v1/b/bucket/o")
+        assert op_class == "A"
+        assert operation == "insert"
+
+    # Class A operations - PUT (upload/update)
+    def test_put_upload_is_class_a(self):
+        op_class, operation = classify_gcs_request(
+            "PUT", "/upload/storage/v1/b/bucket/o/object?uploadType=resumable"
+        )
+        assert op_class == "A"
+        assert operation == "insert"
+
+    def test_put_update_is_class_a(self):
+        op_class, operation = classify_gcs_request("PUT", "/storage/v1/b/bucket/o/object")
+        assert op_class == "A"
+        assert operation == "update"
+
+    # Class A operations - PATCH
+    def test_patch_is_class_a(self):
+        op_class, operation = classify_gcs_request("PATCH", "/storage/v1/b/bucket/o/object")
+        assert op_class == "A"
+        assert operation == "patch"
+
+    # Class A operations - List operations
+    def test_get_list_objects_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/storage/v1/b/bucket/o?prefix=folder/")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_get_list_with_delimiter_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/storage/v1/b/bucket/o?delimiter=/")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_get_list_with_max_results_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/storage/v1/b/bucket/o?maxResults=100")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_get_list_with_page_token_is_class_a(self):
+        op_class, operation = classify_gcs_request(
+            "GET", "/storage/v1/b/bucket/o?pageToken=abc123"
+        )
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_get_list_objects_endpoint_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/storage/v1/b/bucket/o")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_get_list_buckets_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/storage/v1/b")
+        assert op_class == "A"
+        assert operation == "list_buckets"
+
+    # Class B operations - GET object
+    def test_get_object_is_class_b(self):
+        op_class, operation = classify_gcs_request(
+            "GET", "/storage/v1/b/bucket/o/path%2Fto%2Fobject"
+        )
+        assert op_class == "B"
+        assert operation == "get"
+
+    def test_get_object_with_alt_media_is_class_b(self):
+        op_class, operation = classify_gcs_request(
+            "GET", "/storage/v1/b/bucket/o/object?alt=media"
+        )
+        assert op_class == "B"
+        assert operation == "get"
+
+    # Class B operations - HEAD
+    def test_head_is_class_b(self):
+        op_class, operation = classify_gcs_request("HEAD", "/storage/v1/b/bucket/o/object")
+        assert op_class == "B"
+        assert operation == "get_metadata"
+
+    # Unknown operations default to Class B
+    def test_unknown_method_is_class_b(self):
+        op_class, operation = classify_gcs_request("OPTIONS", "/storage/v1/b/bucket/o/object")
+        assert op_class == "B"
+        assert operation == "unknown"
+
+    # Case insensitivity
+    def test_method_is_case_insensitive(self):
+        op_class1, _ = classify_gcs_request("get", "/storage/v1/b/bucket/o/object")
+        op_class2, _ = classify_gcs_request("GET", "/storage/v1/b/bucket/o/object")
+        op_class3, _ = classify_gcs_request("Get", "/storage/v1/b/bucket/o/object")
+        assert op_class1 == op_class2 == op_class3 == "B"
+
+
+class TestClassifyGcsRequestXmlApi:
+    """Classifier behaviour on XML-API paths (`/{bucket}/{object}`).
+
+    cloudvolume and tensorstore use the XML API for object I/O, which is
+    the bulk of GCS traffic. Previously the JSON-API substring heuristics
+    (`/o`, `/b`) misfired on XML paths and inflated Class A counts.
+    """
+
+    def test_get_object_is_class_b(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/path/to/object.bin")
+        assert op_class == "B"
+        assert operation == "get"
+
+    def test_get_object_with_o_substring_is_class_b(self):
+        # Regression: previously misclassified as Class A list_objects because
+        # the JSON-API `/o` heuristic matched the `.../object` substring.
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/output/file.txt")
+        assert op_class == "B"
+        assert operation == "get"
+
+    def test_head_object_is_class_b(self):
+        op_class, operation = classify_gcs_request("HEAD", "/my-bucket/object")
+        assert op_class == "B"
+        assert operation == "get_metadata"
+
+    def test_put_object_is_class_a_insert(self):
+        # XML PUT uploads an object — Class A insert, not "update".
+        op_class, operation = classify_gcs_request("PUT", "/my-bucket/path/to/object")
+        assert op_class == "A"
+        assert operation == "insert"
+
+    def test_delete_object_is_class_a(self):
+        op_class, operation = classify_gcs_request("DELETE", "/my-bucket/object")
+        assert op_class == "A"
+        assert operation == "delete"
+
+    def test_list_via_prefix_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/", "prefix=folder/")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+    def test_list_via_marker_is_class_a(self):
+        op_class, operation = classify_gcs_request("GET", "/my-bucket/", "marker=abc")
+        assert op_class == "A"
+        assert operation == "list_objects"
+
+
+class TestExtractBucketFromApiPath:
+    """Bucket extraction for JSON, XML, and batch API paths."""
+
+    def test_json_object_path(self):
+        assert extract_bucket_from_api_path("/storage/v1/b/my-bucket/o/object") == "my-bucket"
+
+    def test_json_upload_path(self):
+        assert (
+            extract_bucket_from_api_path("/upload/storage/v1/b/my-bucket/o?uploadType=media")
+            == "my-bucket"
+        )
+
+    def test_json_download_path(self):
+        assert extract_bucket_from_api_path("/download/storage/v1/b/my-bucket/o/x") == "my-bucket"
+
+    def test_json_resumable_path(self):
+        assert extract_bucket_from_api_path("/resumable/storage/v1/b/my-bucket/o/x") == "my-bucket"
+
+    def test_json_bucket_level_no_trailing_slash(self):
+        # Edge case the old regex missed (required trailing /).
+        assert extract_bucket_from_api_path("/storage/v1/b/my-bucket?fields=name") == "my-bucket"
+
+    def test_xml_object_path(self):
+        assert extract_bucket_from_api_path("/my-bucket/path/to/object") == "my-bucket"
+
+    def test_xml_object_root(self):
+        assert extract_bucket_from_api_path("/my-bucket/object") == "my-bucket"
+
+    def test_xml_bucket_only(self):
+        assert extract_bucket_from_api_path("/my-bucket?prefix=foo") == "my-bucket"
+
+    def test_batch_api_returns_none(self):
+        # Caller attributes batch ops separately (Part 9).
+        assert extract_bucket_from_api_path("/batch/storage/v1") is None
+
+    def test_internal_path_returns_none(self):
+        assert extract_bucket_from_api_path("/_ah/health") is None
+
+
+class TestRouteRequest:
+    """Routing of a single request into the right bucket category."""
+
+    def test_real_bucket_classified_as_a(self):
+        stats = GCSStats()
+        route_request(stats, "PUT", "/my-bucket/path/to/object")
+        assert stats.buckets["my-bucket"]["class_a_count"] == 1
+        assert stats.buckets["my-bucket"]["operations"]["insert"] == 1
+
+    def test_real_bucket_classified_as_b(self):
+        stats = GCSStats()
+        route_request(stats, "GET", "/my-bucket/object", egress_bytes=100)
+        assert stats.buckets["my-bucket"]["class_b_count"] == 1
+        assert stats.buckets["my-bucket"]["egress_bytes"] == 100
+
+    def test_batch_path_routes_to_batch_bucket_uncounted(self):
+        stats = GCSStats()
+        route_request(stats, "POST", "/batch/storage/v1")
+        assert BATCH_BUCKET in stats.buckets
+        assert stats.buckets[BATCH_BUCKET]["operations"]["batch"] == 1
+        # Don't attribute to any billed class until sub-ops are parsed.
+        assert stats.buckets[BATCH_BUCKET]["class_a_count"] == 0
+        assert stats.buckets[BATCH_BUCKET]["class_b_count"] == 0
+
+    def test_unrecognised_path_routes_to_unclassified_and_calls_callback(self):
+        stats = GCSStats()
+        seen: list[tuple[str, str]] = []
+        route_request(
+            stats,
+            "GET",
+            "/_ah/health",
+            on_unclassified=lambda m, p: seen.append((m, p)),
+        )
+        assert UNCLASSIFIED_BUCKET in stats.buckets
+        assert stats.buckets[UNCLASSIFIED_BUCKET]["class_a_count"] == 0
+        assert stats.buckets[UNCLASSIFIED_BUCKET]["class_b_count"] == 0
+        assert seen == [("GET", "/_ah/health")]
+
+    def test_query_params_split_correctly(self):
+        # `?prefix=…` should be parsed as a list query, not a path component.
+        stats = GCSStats()
+        route_request(stats, "GET", "/my-bucket/?prefix=folder")
+        assert stats.buckets["my-bucket"]["operations"]["list_objects"] == 1
+        assert stats.buckets["my-bucket"]["class_a_count"] == 1
+
+
+class TestGCSStats:
+    """Tests for GCSStats class."""
+
+    def test_initial_state(self):
+        stats = GCSStats()
+        assert len(stats.buckets) == 0
+
+    def test_record_class_a(self):
+        stats = GCSStats()
+        stats.record("my-bucket", "A", "insert")
+
+        assert stats.buckets["my-bucket"]["class_a_count"] == 1
+        assert stats.buckets["my-bucket"]["class_b_count"] == 0
+        assert stats.buckets["my-bucket"]["operations"]["insert"] == 1
+
+    def test_record_class_b(self):
+        stats = GCSStats()
+        stats.record("my-bucket", "B", "get")
+
+        assert stats.buckets["my-bucket"]["class_a_count"] == 0
+        assert stats.buckets["my-bucket"]["class_b_count"] == 1
+        assert stats.buckets["my-bucket"]["operations"]["get"] == 1
+
+    def test_record_uncounted(self):
+        # op_class=None — operation count + egress increment, but neither
+        # class total does. Used for _unclassified / _batch buckets that
+        # aren't (yet) attributed to a billed class.
+        stats = GCSStats()
+        stats.record("_unclassified", None, "unclassified", egress_bytes=42)
+
+        assert stats.buckets["_unclassified"]["class_a_count"] == 0
+        assert stats.buckets["_unclassified"]["class_b_count"] == 0
+        assert stats.buckets["_unclassified"]["operations"]["unclassified"] == 1
+        assert stats.buckets["_unclassified"]["egress_bytes"] == 42
+
+    def test_record_multiple_operations(self):
+        stats = GCSStats()
+        stats.record("bucket-a", "A", "insert")
+        stats.record("bucket-a", "A", "insert")
+        stats.record("bucket-a", "A", "delete")
+        stats.record("bucket-b", "B", "get")
+        stats.record("bucket-b", "B", "get")
+
+        assert stats.buckets["bucket-a"]["class_a_count"] == 3
+        assert stats.buckets["bucket-a"]["class_b_count"] == 0
+        assert stats.buckets["bucket-a"]["operations"]["insert"] == 2
+        assert stats.buckets["bucket-a"]["operations"]["delete"] == 1
+
+        assert stats.buckets["bucket-b"]["class_a_count"] == 0
+        assert stats.buckets["bucket-b"]["class_b_count"] == 2
+        assert stats.buckets["bucket-b"]["operations"]["get"] == 2
+
+    def test_to_dict(self):
+        stats = GCSStats()
+        stats.record("my-bucket", "A", "insert")
+        stats.record("my-bucket", "B", "get")
+
+        result = stats.to_dict()
+
+        assert "buckets" in result
+        assert result["buckets"]["my-bucket"]["class_a_count"] == 1
+        assert result["buckets"]["my-bucket"]["class_b_count"] == 1
+        assert result["buckets"]["my-bucket"]["operations"] == {"insert": 1, "get": 1}
+        assert "last_updated" in result
+
+    def test_thread_safety(self):
+        """Test that concurrent recording doesn't cause race conditions."""
+        stats = GCSStats()
+        num_threads = 10
+        records_per_thread = 100
+
+        def record_operations():
+            for _ in range(records_per_thread):
+                stats.record("my-bucket", "A", "insert")
+                stats.record("my-bucket", "B", "get")
+
+        threads = [threading.Thread(target=record_operations) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        expected_count = num_threads * records_per_thread
+        assert stats.buckets["my-bucket"]["class_a_count"] == expected_count
+        assert stats.buckets["my-bucket"]["class_b_count"] == expected_count
 
 
 class TestCollectAll:

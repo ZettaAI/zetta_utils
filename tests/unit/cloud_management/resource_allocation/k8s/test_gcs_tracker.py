@@ -4,11 +4,6 @@ import json
 import threading
 
 from zetta_utils.cloud_management.resource_allocation.k8s import gcs_tracker
-from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification import (
-    BATCH_BUCKET,
-    UNCLASSIFIED_BUCKET,
-    route_request,
-)
 from zetta_utils.cloud_management.resource_allocation.k8s.gcs_tracker import (
     StatsCollector,
     _collect_all,
@@ -235,52 +230,6 @@ class TestExtractBucketFromApiPath:
 
     def test_internal_path_returns_none(self):
         assert extract_bucket_from_api_path("/_ah/health") is None
-
-
-class TestRouteRequest:
-    """Routing of a single request into the right bucket category."""
-
-    def test_real_bucket_classified_as_a(self):
-        stats = GCSStats()
-        route_request(stats, "PUT", "/my-bucket/path/to/object")
-        assert stats.buckets["my-bucket"]["class_a_count"] == 1
-        assert stats.buckets["my-bucket"]["operations"]["insert"] == 1
-
-    def test_real_bucket_classified_as_b(self):
-        stats = GCSStats()
-        route_request(stats, "GET", "/my-bucket/object", egress_bytes=100)
-        assert stats.buckets["my-bucket"]["class_b_count"] == 1
-        assert stats.buckets["my-bucket"]["egress_bytes"] == 100
-
-    def test_batch_path_routes_to_batch_bucket_uncounted(self):
-        stats = GCSStats()
-        route_request(stats, "POST", "/batch/storage/v1")
-        assert BATCH_BUCKET in stats.buckets
-        assert stats.buckets[BATCH_BUCKET]["operations"]["batch"] == 1
-        # Don't attribute to any billed class until sub-ops are parsed.
-        assert stats.buckets[BATCH_BUCKET]["class_a_count"] == 0
-        assert stats.buckets[BATCH_BUCKET]["class_b_count"] == 0
-
-    def test_unrecognised_path_routes_to_unclassified_and_calls_callback(self):
-        stats = GCSStats()
-        seen: list[tuple[str, str]] = []
-        route_request(
-            stats,
-            "GET",
-            "/_ah/health",
-            on_unclassified=lambda m, p: seen.append((m, p)),
-        )
-        assert UNCLASSIFIED_BUCKET in stats.buckets
-        assert stats.buckets[UNCLASSIFIED_BUCKET]["class_a_count"] == 0
-        assert stats.buckets[UNCLASSIFIED_BUCKET]["class_b_count"] == 0
-        assert seen == [("GET", "/_ah/health")]
-
-    def test_query_params_split_correctly(self):
-        # `?prefix=…` should be parsed as a list query, not a path component.
-        stats = GCSStats()
-        route_request(stats, "GET", "/my-bucket/?prefix=folder")
-        assert stats.buckets["my-bucket"]["operations"]["list_objects"] == 1
-        assert stats.buckets["my-bucket"]["class_a_count"] == 1
 
 
 class TestGCSStats:

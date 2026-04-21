@@ -537,13 +537,8 @@ def get_pod_postmortem(
         logger.error(f"Failed to collect post-mortem for run `{run_id}`: {exc}")
 
 
-def _check_pod_disruption(pod, run_id, reported) -> str | None:
-    """Check a pod event for disruptions. Returns a message string or None.
-
-    Walks every container so a disruption in any sidecar (e.g. mproxy OOM)
-    is reported distinctly. Previously the loop early-returned on the first
-    terminated container, hiding others and omitting the container name.
-    """
+def _check_pod_disruption(pod, run_id, reported):  # pylint: disable=too-many-return-statements
+    """Check a pod event for disruptions. Returns a message string or None."""
     pod_name = pod.metadata.name
     if pod_name in reported or run_id not in pod_name:
         return None
@@ -553,23 +548,20 @@ def _check_pod_disruption(pod, run_id, reported) -> str | None:
         return f"[Evicted] {pod_name} on node {node_name}."
     if not pod.status.container_statuses:
         return None
-    msgs = []
     for cs in pod.status.container_statuses:
         state = cs.state
         if not (state and state.terminated):
             continue
-        tag = None
+        msg = None
         if state.terminated.reason == "OOMKilled":
-            tag = "OOMKilled"
+            msg = f"[OOMKilled] {pod_name} on node {node_name}."
         elif state.terminated.exit_code == 137:
-            tag = "SIGKILL"
+            msg = f"[SIGKILL] {pod_name} on node {node_name}."
         elif state.terminated.exit_code == 143:
-            tag = "SIGTERM"
-        if tag:
-            msgs.append(f"[{tag}] {pod_name} container={cs.name} on node {node_name}.")
-    if msgs:
-        reported.add(pod_name)
-        return "\n".join(msgs)
+            msg = f"[SIGTERM] {pod_name} on node {node_name}."
+        if msg:
+            reported.add(pod_name)
+        return msg
     return None
 
 
@@ -613,10 +605,6 @@ _RUN_EVENT_REASONS = {
     "Evicted",
 }
 
-# Container names whose K8s events we surface in events.log. Other containers
-# (e.g. the `runtime` OOM-tracker) are filtered out to keep the signal clean.
-_TRACKED_CONTAINER_EVENT_NAMES = ("container main", "container mproxy")
-
 
 def watch_for_run_events(
     run_id: str,
@@ -645,9 +633,8 @@ def watch_for_run_events(
                 if run_id not in pod_name:
                     continue
                 if obj.reason in _RUN_EVENT_REASONS:
-                    message = obj.message or ""
-                    if "container " in message and not any(
-                        n in message for n in _TRACKED_CONTAINER_EVENT_NAMES
+                    if "container " in (obj.message or "") and "container main" not in (
+                        obj.message or ""
                     ):
                         continue
                     msg = f"[K8s:{obj.reason}] {pod_name}: {obj.message}"

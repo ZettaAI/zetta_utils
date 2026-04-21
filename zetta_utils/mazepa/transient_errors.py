@@ -58,12 +58,4 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=RuntimeError,
         text_signature="CUDA error:",
     ),
-    TransientErrorCondition(
-        # GCS request hit the mproxy sidecar during a restart window — the
-        # proxy is coming back up (either via self-heal or K8s OnFailure)
-        # within seconds. Retrying via SQS visibility timeout lands on a
-        # live proxy, so this is safe to treat as transient.
-        exception_type=Exception,
-        text_signature="Unable to connect to proxy",
-    ),
 )

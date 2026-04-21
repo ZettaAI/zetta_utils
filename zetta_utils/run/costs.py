@@ -127,18 +127,13 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
     RUN_DB[run_id] = update
 
 
-def _billed_egress_bytes(bucket_stats: dict) -> int:
-    """Sum egress bytes from cross-region buckets only — what GCP charges for.
-    Same-region transfer is free so it's not egress for billing purposes.
-    """
-    return sum(b["egress_bytes"] for b in bucket_stats.values() if b.get("region_match") is False)
-
-
 def _gcs_totals(bucket_stats: dict) -> dict:
     """Compute fleet-level GCS totals from a bucket_stats dict."""
     total_a = sum(b["class_a_count"] for b in bucket_stats.values())
     total_b = sum(b["class_b_count"] for b in bucket_stats.values())
-    total_egress = _billed_egress_bytes(bucket_stats)
+    total_egress = sum(
+        b["egress_bytes"] for b in bucket_stats.values() if b.get("region_match") is False
+    )
     egress_gib = total_egress / BYTES_PER_GIB
     return {
         "total_class_a": total_a,
@@ -149,7 +144,7 @@ def _gcs_totals(bucket_stats: dict) -> dict:
     }
 
 
-def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:  # pylint: disable=too-many-branches
+def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:
     """Aggregate GCS stats from pre-fetched per-pod docs."""
     bucket_stats: dict = defaultdict(
         lambda: {
@@ -200,17 +195,6 @@ def _aggregate_gcs_from_pods(pod_docs: dict) -> dict | None:  # pylint: disable=
 
     if pod_count == 0:
         return None
-
-    # Zero out per-bucket egress_bytes for same-region buckets so "egress"
-    # consistently means billed egress everywhere. Raw bytes are retained on
-    # the per-pod Firestore docs for ad-hoc bandwidth inspection.
-    for data in bucket_stats.values():
-        if data.get("region_match") is not False:
-            data["egress_bytes"] = 0
-    for wt_buckets in per_wt_buckets.values():
-        for data in wt_buckets.values():
-            if data.get("region_match") is not False:
-                data["egress_bytes"] = 0
 
     aggregated: dict = {
         "buckets": {

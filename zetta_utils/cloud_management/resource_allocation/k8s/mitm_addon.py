@@ -116,31 +116,17 @@ class GCSTracker:
             return
 
         method = flow.metadata["gcs_method"]
-        # flow.response.content is empty for streamed bodies (>stream_large_bodies
-        # threshold); compute_egress_bytes falls back to Content-Length in that
-        # case, so call it unconditionally.
         body = flow.response.content or b""
-        egress_bytes = compute_egress_bytes(flow.response.headers.get("Content-Length"), len(body))
+        egress_bytes = (
+            compute_egress_bytes(flow.response.headers.get("Content-Length"), len(body))
+            if body
+            else 0
+        )
         _queue.put((method, flow.metadata["gcs_path"], egress_bytes))
 
 
-def _init():
-    """Set up runtime state and return the list mitmproxy expects as `addons`.
-
-    - Resumes accumulated stats from STATS_FILE so a mitmdump restart via the
-      sidecar self-heal loop (gcs_tracker._run_main_loop) doesn't reset counts.
-    - Registers flush_queue with atexit so final stats land on clean exit.
-    - Starts the queue consumer thread that drives periodic file writes.
-    """
-    try:
-        with open(STATS_FILE, "r") as f:
-            _stats.load_from_dict(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        pass  # fresh start is fine
-    log("GCSTracker addon loaded")
-    atexit.register(flush_queue)
-    threading.Thread(target=_process_queue, daemon=True).start()
-    return [GCSTracker()]
-
-
-addons = _init()
+log("GCSTracker addon loaded")
+atexit.register(flush_queue)
+_consumer = threading.Thread(target=_process_queue, daemon=True)
+_consumer.start()
+addons = [GCSTracker()]

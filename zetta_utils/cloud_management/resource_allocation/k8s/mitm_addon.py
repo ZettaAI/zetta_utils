@@ -3,11 +3,8 @@
 
 """mitmproxy addon for GCS request tracking.
 
-Runs in a subprocess started by mitmdump (see gcs_tracker._start_mitmproxy).
-The /opt/zetta_utils install is on PYTHONPATH inside the worker image so the
-addon can import the shared classifier from `gcs_classification`. We avoid
-importing `gcs_tracker_utils` directly because it pulls in firestore, which
-the addon does not need.
+This script runs in a subprocess started by mitmdump. It must be self-contained
+since it cannot import from the parent process.
 
 Uses a queue to decouple the mitmproxy event loop from stats processing,
 so response hooks never block even under thousands of concurrent requests.
@@ -17,21 +14,17 @@ import atexit
 import fcntl
 import json
 import queue
+import re
 import sys
 import threading
 import time
-
-from zetta_utils.cloud_management.resource_allocation.k8s.gcs_classification import (
-    GCSStats,
-    classify_gcs_request,
-    extract_bucket_from_api_path,
-)
+from collections import defaultdict
 
 STATS_FILE = "/tmp/gcs_tracker_stats.json"
-WRITE_INTERVAL = 1  # write to file at most every 1 second
+WRITE_INTERVAL = 1  # Write to file at most every 1 second
 
 _queue = queue.Queue()
-_stats = GCSStats()
+_stats = {"buckets": {}}
 _last_write_time = 0
 
 
@@ -41,28 +34,122 @@ def log(msg):
     sys.stderr.flush()
 
 
+def _get_bucket_stats(bucket: str) -> dict:
+    """Get or create stats dict for a bucket."""
+    if bucket not in _stats["buckets"]:
+        _stats["buckets"][bucket] = {
+            "class_a_count": 0,
+            "class_b_count": 0,
+            "egress_bytes": 0,
+            "operations": defaultdict(int),
+        }
+    return _stats["buckets"][bucket]
+
+
+def extract_bucket_from_api_path(path):
+    """Extract bucket name from GCS JSON API path.
+
+    Path formats:
+    - /storage/v1/b/{bucket}/o/{object}
+    - /upload/storage/v1/b/{bucket}/o/...
+    - /b/{bucket}/o/...
+    """
+    match = re.search(r"/b/([^/]+)/", path)
+    if match:
+        return match.group(1)
+    return None
+
+
+def classify_gcs_request(method, path, query=""):
+    """Classify a GCS request as Class A (expensive) or Class B (cheap)."""
+    method = method.upper()
+
+    # Check for listing operations (Class A)
+    if query:
+        if any(p in query for p in ["prefix", "delimiter", "maxResults", "pageToken"]):
+            return ("A", "list_objects")
+
+    # DELETE is always Class A
+    if method == "DELETE":
+        return ("A", "delete")
+
+    # POST operations
+    if method == "POST":
+        if "/compose" in path:
+            return ("A", "compose")
+        if "/copyTo/" in path or "/copy" in path:
+            return ("A", "copy")
+        if "/rewriteTo/" in path or "/rewrite" in path:
+            return ("A", "rewrite")
+        if "/upload" in path or "uploadType" in query:
+            return ("A", "insert")
+        return ("A", "insert")
+
+    # PUT operations
+    if method == "PUT":
+        if "/upload" in path or "uploadType" in query:
+            return ("A", "insert")
+        return ("A", "update")
+
+    # PATCH is Class A
+    if method == "PATCH":
+        return ("A", "patch")
+
+    # GET and HEAD operations
+    if method in ("GET", "HEAD"):
+        if "/o" in path and "/o/" not in path:
+            return ("A", "list_objects")
+        if "/b" in path and "/b/" not in path:
+            return ("A", "list_buckets")
+        if method == "HEAD":
+            return ("B", "get_metadata")
+        return ("B", "get")
+
+    return ("B", "unknown")
+
+
 def write_stats_to_file():
     """Write current stats to file with file locking."""
     global _last_write_time
+    stats_dict = {
+        "buckets": {
+            bucket: {
+                "class_a_count": data["class_a_count"],
+                "class_b_count": data["class_b_count"],
+                "egress_bytes": data["egress_bytes"],
+                "operations": dict(data["operations"]),
+            }
+            for bucket, data in _stats["buckets"].items()
+        },
+        "last_updated": time.time(),
+    }
     try:
         with open(STATS_FILE, "w") as f:
             fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-            json.dump(_stats.to_dict(), f)
+            json.dump(stats_dict, f)
             fcntl.flock(f.fileno(), fcntl.LOCK_UN)
         _last_write_time = time.time()
     except Exception as e:
         log(f"Failed to write stats: {e}")
 
 
-def _record(method, path, egress_bytes):
-    """Classify and record a single request."""
+def _record_to_stats(method, path, egress_bytes):
+    """Classify and record a single request into in-memory stats."""
     if "?" in path:
         path_part, query_part = path.split("?", 1)
     else:
         path_part, query_part = path, ""
+
     op_class, operation = classify_gcs_request(method, path_part, query_part)
     bucket = extract_bucket_from_api_path(path_part) or "_unknown"
-    _stats.record(bucket, op_class, operation, egress_bytes)
+
+    bucket_stats = _get_bucket_stats(bucket)
+    if op_class == "A":
+        bucket_stats["class_a_count"] += 1
+    else:
+        bucket_stats["class_b_count"] += 1
+    bucket_stats["operations"][operation] += 1
+    bucket_stats["egress_bytes"] += egress_bytes
 
 
 def _process_queue():
@@ -76,13 +163,13 @@ def _process_queue():
                 write_stats_to_file()
             continue
 
-        _record(method, path, egress_bytes)
+        _record_to_stats(method, path, egress_bytes)
 
         # Drain all remaining items without blocking
         while True:
             try:
                 method, path, egress_bytes = _queue.get_nowait()
-                _record(method, path, egress_bytes)
+                _record_to_stats(method, path, egress_bytes)
             except queue.Empty:
                 break
 
@@ -95,7 +182,7 @@ def flush_queue():
     while True:
         try:
             method, path, egress_bytes = _queue.get_nowait()
-            _record(method, path, egress_bytes)
+            _record_to_stats(method, path, egress_bytes)
         except queue.Empty:
             break
     write_stats_to_file()
@@ -106,7 +193,7 @@ class GCSTracker:
 
     def request(self, flow):
         """Called when a request is received."""
-        if flow.request.host != "storage.googleapis.com":
+        if "storage.googleapis.com" not in flow.request.host:
             return
 
         flow.metadata["gcs_method"] = flow.request.method

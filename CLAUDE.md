@@ -33,7 +33,7 @@ Specialized:
 - parsing: Configuration parsing/state management, CUE parsing, JSON handling, neuroglancer state management
 
 Utility:
-- common: Shared utilities/helper functions, context managers, path utilities, timers, signal handling
+- common: Shared utilities/helper functions, context managers, path utilities, timers, signal handling, resource monitoring
 - db_annotations: Database-backed annotation management, collections, layers, annotation storage/retrieval
 - api: External API interfaces, version management, API endpoints
 - cli: Command-line interface tools, task management CLI, main entry points

@@ -7,7 +7,7 @@ CUE Parser (cue.py): Core Functions (load(), loads(), load_local()), External De
 
 JSON Parser (json.py): Enhanced JSON (custom encoder/decoder for Python tuples), Key Classes (ZettaSpecJSONEncoder, tuple_hook()), Features (preserves tuple types during serialization/deserialization), Functions (dumps(), loads(), dump(), load() with tuple support)
 
-Neuroglancer State Parser (ngl_state.py): Purpose (parses neuroglancer annotation layers for ML training), Key Functions (read_remote_annotations(), write_remote_annotations()), Supported Types (BBox3D, Vec3D, PointAnnotation, AxisAlignedBoundingBoxAnnotation), Storage (cloud-based via CloudFiles, default: "gs://remote-annotations")
+Neuroglancer State Parser (ngl_state.py): Purpose (parses neuroglancer annotation layers for ML training), Key Functions (read_remote_annotations(), write_remote_annotations()), Supported Types (BBox3D, Vec3D, PointAnnotation, AxisAlignedBoundingBoxAnnotation), Storage (cloud-based via CloudFiles, default: "gs://remote-annotations"). Note: `ngl_state` is NOT re-exported by `parsing/__init__.py`; import as `from zetta_utils.parsing.ngl_state import read_remote_annotations, write_remote_annotations`.
 
 ## Builder Integration
 Configuration Loading: Primary Entry Point (builder.building.build(path=...) uses parsing.cue.load()), CLI Integration (zetta_utils run command parses CUE specs via CLI), Builder Registration (components register with @builder.register() decorators)
@@ -25,6 +25,8 @@ data = json.loads(json_string)
 
 State Management:
 ```python
+from zetta_utils.parsing.ngl_state import read_remote_annotations, write_remote_annotations
+
 # Load neuroglancer annotations
 annotations = read_remote_annotations("layer_name")
 

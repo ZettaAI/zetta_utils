@@ -55,7 +55,7 @@ With the configuration above, [Control + a] is the prefix used to enter a comman
 Some sample commands:
 
 * ``Control + a`` + ``-``: split a window horizontally
-* ``Control + a`` + ``\`` (or ``|``): split a window horizontally
+* ``Control + a`` + ``\`` (or ``|``): split a window vertically
 * ``Control + a`` + ``backspace`` (or ``del``): close a window
 * ``Control + a`` + ``n``: opens a new tab
 * ``Control + a`` + ``[arrow key]``: switch between windows (you can also use the mouse)
@@ -101,7 +101,7 @@ black
 * Uniform horizontal and vertical whitespaces
 * Removal of spurious empty lines
 * Addition of trailing commas for multiline expressions split by commas
-* Removal or addition of parentheses as deemped necessary
+* Removal or addition of parentheses as deemed necessary
 * Consistent usage of **'** versus **"**
 
 To run ``black``, you may use:
@@ -120,7 +120,7 @@ mypy
 * Function calls match the signature of the function
 * Objects have the requested attribute
 * Declared return type matches the actual return type
-* `Liskov subsitution principle <https://en.wikipedia.org/wiki/Liskov_substitution_principle>`_ is not violated
+* `Liskov substitution principle <https://en.wikipedia.org/wiki/Liskov_substitution_principle>`_ is not violated
 
 To run ``mypy``, you may use:
 
@@ -158,7 +158,7 @@ That covers the code analysers and the ``pre-commit`` hook used in ``zetta_utils
 Type Annotations
 ----------------
 
-``zetta_utils`` makes extensive use of **type annotations**. Type annotations are an `optional part of Python syntax <https://peps.python.org/pep-0483/>_` that declare the types of variables, function return types, and attributes.
+``zetta_utils`` makes extensive use of **type annotations**. Type annotations are an `optional part of Python syntax <https://peps.python.org/pep-0483/>`_ that declare the types of variables, function return types, and attributes.
 
 You can add a type annotation to a variable using a colon, like so:
 
@@ -199,7 +199,7 @@ To highlight the last point, ``mypy`` will raise an error at the following four 
    def sum(foo: int, bar: int) -> int:
        return foo + bar
 
-       sum(3, "test")
+   sum(3, "test")
 
 ``mypy`` output: ``error: Argument 2 to "sum" has incompatible type "str"; expected "int"  [arg-type]``
 
@@ -209,7 +209,7 @@ To highlight the last point, ``mypy`` will raise an error at the following four 
    class SomeClass:
        foo: int
 
-       SomeClass("string")
+   SomeClass("string")
 
 ``mypy`` output: ``error: Argument 1 to "SomeClass" has incompatible type "str"; expected "int"  [arg-type]``
 
@@ -274,7 +274,7 @@ If you need to return a modified instance of an immutable class, ``attrs.evolve(
 
 .. note::
 
-   **Methods that returns a modified copy of an object, rather than the mutated original, should start with** ``with``, **or use the past participle of a verb; methods that mutate the original object should use the base form of a verb**. For instance, ``VolumetricCallableOperation`` has a ``with_added_crop_pad(self, crop_pad)`` method, and ``BBox3D`` has a ``padded(self, pad, resolution)`` method, both of which returns a modified copy. If these were mutating the object, they would be called ``add_crop_pad`` and ``pad``, respectively.
+   **Methods that return a modified copy of an object, rather than the mutated original, should start with** ``with``, **or use the past participle of a verb; methods that mutate the original object should use the base form of a verb**. For instance, ``VolumetricCallableOperation`` has a ``with_added_crop_pad(self, crop_pad)`` method, and ``BBox3D`` has a ``padded(self, pad, resolution)`` method, both of which returns a modified copy. If these were mutating the object, they would be called ``add_crop_pad`` and ``pad``, respectively.
 
 .. note::
 
@@ -292,7 +292,7 @@ Logging and Exceptions
 
 ``logger`` is backed by Python's built-in logger, and supports a number of different message levels such as: ``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``, and ``critical``. To use the logger, you can use ``logger.info("string")`` for instance. Any exceptions raised will automatically be collected and output by the logger, so you should not have to write ``logger.exception`` yourself.
 
-The verbosity level for the logger in stdout can be set using ``zetta -v run``, ``zetta -vv run``, or ``zetta -vvv run``, corresponding to ``WARNING``, ``INFO``, and ``DEBUG``, respectively. The default is ``DEBUG``.
+The verbosity level for the logger in stdout can be set using ``zetta -v run``, ``zetta -vv run``, or ``zetta -vvv run``, corresponding to ``WARNING``, ``INFO``, and ``DEBUG``, respectively. The default (no flag) is ``INFO``.
 
 If you need to output information to the user in your code, you should **NEVER** use ``print``, and use ``logger`` instead.
 
@@ -311,7 +311,7 @@ Unit Tests vs. Integration Tests
 
 #. Unit tests focus on testing individual units or components in isolation, while integration tests examine the interaction between and the behaviour of multiple components.
 #. Unit tests are supposed to verify the correctness of each module, while integration tests are supposed to identify defects that arise when the modules are combined.
-#. Unit tests are designed to run independently of other units and external dependencies, using mockers, while integration tests require many dependencies and rely on databases, network connections, and extermal services.
+#. Unit tests are designed to run independently of other units and external dependencies, using mockers, while integration tests require many dependencies and rely on databases, network connections, and external services.
 #. Unit tests are fine grained, targetting specific functions or methods, while integration tests are coarser and focus on testing the interfaces, data flow, and the communications between different components.
 #. Unit tests provide rapid feedback and debugging, while integration tests provide slower but important feedback on compatibility and correctness of the final product.
 
@@ -416,15 +416,12 @@ We do not have a comprehensive style guide, but here are some `guidelines that G
 
 In addition to the requirements in the above sections, here are some things that we expect developers to follow:
 
-Don't duplicate code
-====================
+Don't duplicate code; delegate as much as possible
+==================================================
 
 You should never have to rewrite the same three lines of code. If you notice that you are rewriting the same code in multiple places, chances are that that piece of code might be useful to other people. For brevity and maintainability, the code should be refactored into its own function.
 
-Delegate as much as possible
-============================
-
-Related to the last point, if you want to do something simple that sounds useful like padding a bounding box, we probably already have a method or a function to do it. Delegate to the method that we have already written and tested, instead of implementing your own. If it sounds simple and useful but doesn't exist, write it, write the unit test for it, and then delegate to it.
+The same principle applies in reverse: if you want to do something simple that sounds useful like padding a bounding box, we probably already have a method or a function to do it. Delegate to the method that we have already written and tested, instead of implementing your own. If it sounds simple and useful but doesn't exist, write it, write the unit test for it, and then delegate to it.
 
 Think about maintainability and expandability
 =============================================
@@ -440,24 +437,24 @@ For readability, we encourage you to use comments as sparingly as possible. If y
 Be Pythonic
 ===========
 
-*Pythonic* describes code that uses features of Python to improve readability, maintainability, and efficiency. Make use of unpacking, comprehensions, lambdas, f-strings,  ``enumerate``, ``map``, and ``reduce``. Consider this code snippet:
+*Pythonic* describes code that uses features of Python to improve readability, maintainability, and efficiency. Make use of unpacking, comprehensions, f-strings, and ``enumerate`` where they genuinely make the code clearer. Consider this snippet, which builds labelled summaries for the valid items in a list:
 
 .. code-block:: python
 
-   # propagate is_consecutive mask to all participating sections
-   participation = torch.zeros((x * y, c, z), dtype=torch.uint8)
-   for i in range(num_consecutive):
-       participation += is_consecutive[:, :, i : z + i]
-   # only needs to participate in one consecutive range to be masked
-   participates = participation > 1
+   labels = []
+   for i in range(len(items)):
+       if items[i].is_valid:
+           labels.append(f"{i}: {items[i].name}")
 
-
-The same piece of code could be rewritten as:
+The same piece of code can be rewritten as:
 
 .. code-block:: python
 
-   # only needs to participate in one consecutive range to be masked
-   participates = torch.logical_or(*(is_consecutive[:, :, i : z+i] for i in range(num_consecutive))
+   labels = [f"{i}: {item.name}" for i, item in enumerate(items) if item.is_valid]
+
+The comprehension form is shorter, avoids index bookkeeping, and makes the shape of the output obvious at a glance.
+
+A word of caution: being pythonic is about clarity, not about chasing one-liners. A plain ``for`` loop with a preallocated accumulator is often more readable *and* more efficient than a ``functools.reduce`` over a generator — especially when the accumulator can be updated in place. Reach for these idioms when they reduce noise, not as a reflex.
 
 
 Single source of default arguments

@@ -4,9 +4,13 @@
 - Do what's asked, nothing more/less. NEVER create files unless absolutely necessary. ALWAYS prefer editing existing files.
 - NEVER proactively create documentation files (*.md) or README files unless explicitly requested.
 - NEVER add comments about what code used to be or what was moved/removed. Just make changes.
+- NEVER reference the current PR, task, plan, or conversation in code comments. No "Part 2 probe", "see step 3", "from the earlier discussion", "as requested", etc. A comment must stand alone for a future reader who has zero context about how the code got written. If the "why" only makes sense with PR context, either inline the actual reasoning or drop the comment.
 - NEVER import from scripts directory. Scripts import from main package, not vice versa.
 - Follow instructions precisely. If asked to implement feature but not integrate, don't integrate. Do verbatim.
 - NEVER use unittest mocks or any mocks OTHER THAN mocker fixture.
+
+# Style & Conventions
+For project-wide style and conventions (attrs as default class declaration, typeguard, Sphinx RTD docstrings, copy-vs-mutate naming, single-source-of-defaults, no `assert` in core modules, `# pragma: no cover` criteria), see `docs/source/developer_guide.rst`. Read it when writing new functions, classes, or modules — these conventions are zetta-specific and not universal Python defaults.
 
 # Module Docs
 **IMPORTANT**: Check `zetta_utils/{module_name}/CLAUDE.md` for module-specific architecture, patterns, guidelines.

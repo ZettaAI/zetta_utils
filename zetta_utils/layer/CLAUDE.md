@@ -10,7 +10,7 @@ Backend Abstraction (backend_base.py): Backend[IndexT, DataT, DataWriteT] (abstr
 Processing Tools (tools_base.py): DataProcessor[T] (simple data transformation), IndexProcessor[T] (index transformation), JointIndexDataProcessor[DataT, IndexT] (coordinated index/data processing with probability), IndexChunker[IndexT] (index splitting for parallel processing)
 
 ## Key Implementations
-Volumetric Layers (volumetric/): VolumetricLayer (primary layer for 3D data with resolution-aware indexing), VolumetricIndex (3D bounding box with resolution awareness, coordinate conversion), VolumetricBackend (abstract backend for volumetric data), Backends (CVBackend for CloudVolume, TSBackend for TensorStore, ConstantVolumetricBackend)
+Volumetric Layers (volumetric/): VolumetricLayer (primary layer for 3D data with resolution-aware indexing), VolumetricIndex (3D bounding box with resolution awareness, coordinate conversion), VolumetricBackend (abstract backend for volumetric data), Backends (CVBackend for CloudVolume in cloudvol/, TSBackend for TensorStore in tensorstore/, ConstantVolumetricBackend in constant/, TabularBackend for pandas-DataFrame-backed volumes in tabular/, SegContactLayerBackend for segment-contact annotations in seg_contact/, VolumetricSetBackend wrapping multiple volumetric layers in layer_set/)
 
 Database Layers (db_layer/): DBLayer (key-value database abstraction with flexible indexing), DBIndex (row-column index structure for database operations), Backends (FirestoreBackend, DatastoreBackend)
 

@@ -13,20 +13,20 @@ Worker System (worker.py): run_worker() (main worker loop for distributed execut
 
 Resource Management: Semaphores (POSIX semaphores for resource control: read, write, cuda, cpu), configure_semaphores() (context manager for semaphore lifecycle), semaphore() (function to acquire semaphores in operations)
 
-## Advanced Features
-Subchunkable Apply Flow: VolumetricApplyFlowSchema (complex flow for processing large volumetric data), subchunkable processing (hierarchical chunking with blending and cropping), DelegatedSubchunkedOperation (multi-level delegation for complex workflows), reduction operations (ReduceByWeightedSum, ReduceNaive for combining overlapping chunks)
-
-Progress and Error Handling: TaskOutcome (execution results with exception handling and timing), TaskStatus (enum for task lifecycle states), ProgressReport (progress tracking with submitted/completed counts), TransientErrorCondition (configurable retry conditions), checkpoint system (execution state persistence and recovery)
+## Progress and Error Handling
+TaskOutcome (execution results with exception handling and timing), TaskStatus (enum for task lifecycle states), ProgressReport (progress tracking with submitted/completed counts), TransientErrorCondition (configurable retry conditions), checkpoint system (execution state persistence and recovery)
 
 ## Builder Registrations
-Key Registrations: run_worker (worker process entry point), build_subchunkable_apply_flow (complex volumetric processing), build_postpad_subchunkable_apply_flow (simplified interface)
+Key Registrations: run_worker (worker process entry point), sequential_flow, concurrent_flow
+
+Subchunkable volumetric apply flows (VolumetricApplyFlowSchema, DelegatedSubchunkedOperation, ReduceByWeightedSum, ReduceNaive, build_subchunkable_apply_flow, build_postpad_subchunkable_apply_flow) live in the separate `mazepa_layer_processing` module — see that module's CLAUDE.md.
 
 Common Usage in Specs:
 ```cue
 "@type": "mazepa.execute_on_slurm"
 target: {
     "@type": "mazepa.sequential_flow"
-    stages: [{"@type": "build_subchunkable_apply_flow"}]
+    stages: [{"@type": "build_subchunkable_apply_flow"}]  # from mazepa_layer_processing
 }
 ```
 

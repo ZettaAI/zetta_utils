@@ -11,13 +11,15 @@ Path Utilities (path.py): abspath() (converts relative paths to absolute paths w
 
 Context Managers (ctx_managers.py): set_env_ctx_mngr() (context manager for temporarily setting environment variables), noop_ctx_mngr() (no-operation context manager)
 
-Timer Utilities (timer.py): RepeatTimer (threading-based repeating timer class), used by mazepa worker system for periodic operations
+Timer Utilities (timer.py): Timer (context-manager-style elapsed-time timer), RepeatTimer (threading-based repeating timer class), used by mazepa worker system for periodic operations
+
+Resource Monitoring (resource_monitor.py): ResourceMonitor (class for polling CPU/memory/GPU/disk/network stats and writing to disk), monitor_resources() (context manager that runs ResourceMonitor in the background), RESOURCE_STATS_FILE (default output path). Used for tracking worker/pool resource usage over long-running jobs.
 
 User Input (user_input.py): get_user_input() (prompts for user input with timeout support), get_user_confirmation() (boolean confirmation prompts with timeout), uses rich library for enhanced terminal interaction
 
 Pretty Printing (pprint.py): lrpad() (left-right padding for formatted string output), utcnow_ISO8601() (UTC timestamp formatting)
 
-Signal Handling (signal_handlers.py): custom_signal_handler_ctx() (context manager for custom signal handling)
+Signal Handling (signal_handlers.py): custom_signal_handler_ctx() (context manager for custom signal handling), configure_pool_signals() (multiprocessing pool initializer that resets SIGINT/SIGTERM so pool workers don't hang on Ctrl-C). `configure_pool_signals` is paired with the forkserver-based `parallel_map` in the top-level `zetta_utils/parallel.py` module.
 
 ## Key Implementation Patterns
 ComparablePartial Pattern: Wraps functions with kwargs for delayed execution, maintains comparability for caching and deduplication, used extensively in distributions, mazepa execution, and builder system

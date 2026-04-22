@@ -20,9 +20,9 @@ logger = log.get_logger("zetta_utils")
 
 
 # NOTE: torch_tensorrt is imported lazily inside _load_model. Importing it at
-# module level initializes CUDA, which makes any forkserver-forked child a
-# "bad fork" per torch (torch.cuda._is_in_bad_fork() -> True), preventing them
-# from using CUDA. See CPython #86354 and PyTorch CUDA fork handling.
+# module level initializes CUDA during forkserver template init, which makes
+# any forkserver-forked child a "bad fork",
+# (torch.cuda._is_in_bad_fork() -> True), preventing them from using CUDA.
 
 
 @builder.register("load_model")

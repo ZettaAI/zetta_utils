@@ -113,7 +113,7 @@ def _build_pod_spec_for_group(
         provisioning_model=group.provisioning_model,
         resource_requests=group.resource_requests,
         # OnFailure lets kubelet restart a sidecar container in-place on
-        # abnormal exit (OOM, liveness fail) — Part 2 probe is meaningless
+        # abnormal exit (OOM, liveness fail) — liveness probe is meaningless
         # under Never. Training keeps Never because its recovery is
         # pod-level via torch elastic; mazepa workers have no such
         # coordinator and benefit from fast in-pod restart.

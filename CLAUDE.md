@@ -21,6 +21,7 @@ For project-wide style and conventions (attrs as default class declaration, type
 Core (have detailed CLAUDE.md):
 - task_management: PostgreSQL-backed distributed task management, multi-tenant, atomic assignment, dependency tracking
 - mazepa: Distributed task execution framework, worker pools, task routing, execution checkpointing, error handling
+- mazepa_layer_processing: Volumetric chunked processing on top of mazepa (subchunkable flows, blending, checkerboarding), operation protocols, annotation postprocessing
 - layer: Volumetric data backends abstraction, backend protocols, layer implementations, data access tools
 - tensor_ops: Tensor operations/transformations, masking, normalization, label operations, multi-tensor support
 - builder: Registry/factory system for dynamic object creation, type registration, building patterns, configuration-driven construction
@@ -46,7 +47,6 @@ Data Processing:
 - message_queues: Message queue abstractions/serialization, queue interfaces, message serialization
 - distributions: Distribution utilities for distributed computing, common distribution patterns
 - mazepa_addons: Extensions/add-ons for mazepa framework, additional utilities for mazepa workflows
-- mazepa_layer_processing: Layer processing operations for mazepa workflows, annotation postprocessing, operation protocols
 - cloud_management: Cloud resource management utilities, cloud provider integrations
 
 Guidelines: Module independence with minimal cross-dependencies, follow established patterns within each module, always check module-specific CLAUDE.md files for detailed guidance, comprehensive test coverage following module patterns

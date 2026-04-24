@@ -4,7 +4,6 @@ import gzip
 import io
 import json
 import struct
-import subprocess
 import threading
 import time
 from pathlib import Path
@@ -17,6 +16,7 @@ from cutie.inference.utils.args_utils import get_dataset_cfg
 from cutie.model.cutie import CUTIE
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
+from google.cloud import storage
 from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import open_dict
@@ -34,15 +34,16 @@ _cutie_lock = threading.Lock()
 def _ensure_weights() -> Path:
     """Download Cutie weights from GCS if not present locally."""
     WEIGHTS_DIR.mkdir(parents=True, exist_ok=True)
+    bucket_name = GCS_WEIGHTS_PREFIX.removeprefix("gs://").split("/", 1)[0]
+    prefix = GCS_WEIGHTS_PREFIX.removeprefix(f"gs://{bucket_name}/")
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
     for fname in WEIGHT_FILES:
         local_path = WEIGHTS_DIR / fname
         if not local_path.exists():
-            gcs_path = f"{GCS_WEIGHTS_PREFIX}/{fname}"
-            print(f"Downloading {fname} from {gcs_path}...")
-            subprocess.run(
-                ["gsutil", "cp", gcs_path, str(local_path)],
-                check=True,
-            )
+            blob_name = f"{prefix}/{fname}"
+            print(f"Downloading gs://{bucket_name}/{blob_name}...")
+            bucket.blob(blob_name).download_to_filename(str(local_path))
             print(f"  Saved to {local_path}")
     return WEIGHTS_DIR
 
@@ -59,6 +60,9 @@ def _load_cutie_model(device: str):
 
     with open_dict(cfg):
         cfg["weights"] = str(weight_dir / "cutie-base-mega.pth")
+        # Single-step stateless propagation: only 1 memory frame ever exists.
+        # Default top_k=30 breaks on small crops where feature-map patch count < 30.
+        cfg["top_k"] = 1
     get_dataset_cfg(cfg)
 
     model = CUTIE(cfg).to(device).eval()
@@ -283,9 +287,7 @@ async def propagate_mask(request: Request):
 
         pred_mask = await compute_task
 
-    print(
-        f"[segmentation] result: non-zero pixels: {np.count_nonzero(pred_mask)}"
-    )
+    print(f"[segmentation] result: non-zero pixels: {np.count_nonzero(pred_mask)}")
 
     compress = "gzip" in request.headers.get("accept-encoding", "")
     return _build_binary_response(pred_mask, compress)

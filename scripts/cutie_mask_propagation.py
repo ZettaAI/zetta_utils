@@ -21,7 +21,6 @@ import torch
 from PIL import Image
 from scipy.ndimage import zoom
 
-
 WEIGHTS_DIR = Path.home() / ".cache" / "cutie" / "weights"
 GCS_WEIGHTS_PREFIX = "gs://zetta_ws/models/cutie"
 WEIGHT_FILES = ["cutie-base-mega.pth", "coco_lvis_h18_itermask.pth"]
@@ -45,11 +44,11 @@ def _ensure_weights() -> Path:
 
 def _load_cutie(device: str = "cpu"):
     """Load the Cutie model with weights from local cache."""
-    from omegaconf import open_dict
-    from hydra import compose, initialize_config_dir
-    from cutie.model.cutie import CUTIE
-    from cutie.inference.utils.args_utils import get_dataset_cfg
     import cutie.config as cutie_config
+    from cutie.inference.utils.args_utils import get_dataset_cfg
+    from cutie.model.cutie import CUTIE
+    from hydra import compose, initialize_config_dir
+    from omegaconf import open_dict
 
     weight_dir = _ensure_weights()
     config_dir = str(Path(cutie_config.__path__[0]))
@@ -90,9 +89,9 @@ def propagate_mask(
     from cutie.inference.inference_core import InferenceCore
 
     assert len(images) > 0, "Need at least one image"
-    assert images[0].shape == initial_mask.shape, (
-        f"Image shape {images[0].shape} != mask shape {initial_mask.shape}"
-    )
+    assert (
+        images[0].shape == initial_mask.shape
+    ), f"Image shape {images[0].shape} != mask shape {initial_mask.shape}"
 
     if object_ids is None:
         object_ids = [1]
@@ -109,9 +108,7 @@ def propagate_mask(
             frame_tensor = torch.from_numpy(frame).to(device)
 
             if i == 0:
-                mask_tensor = torch.from_numpy(
-                    initial_mask.astype(np.int64)
-                ).to(device)
+                mask_tensor = torch.from_numpy(initial_mask.astype(np.int64)).to(device)
                 processor.step(frame_tensor, mask_tensor, objects=object_ids)
                 predicted_masks.append(initial_mask > 0)
             else:
@@ -135,9 +132,9 @@ def evaluate_masks(
     Returns:
         List of dicts with keys "iou" and "dice" for each frame pair.
     """
-    assert len(predicted_masks) == len(ground_truth_masks), (
-        f"Length mismatch: {len(predicted_masks)} vs {len(ground_truth_masks)}"
-    )
+    assert len(predicted_masks) == len(
+        ground_truth_masks
+    ), f"Length mismatch: {len(predicted_masks)} vs {len(ground_truth_masks)}"
 
     results = []
     for pred, gt in zip(predicted_masks, ground_truth_masks):
@@ -197,8 +194,8 @@ if __name__ == "__main__":
     OBJECT_ID = 73466275598936721
 
     print("Loading data...")
-    raw = np.load(f"{DATA_DIR}/ant_cutout_50z.npy")   # (526, 430, 50, 1) uint8
-    seg = np.load(f"{DATA_DIR}/ant_seg_50z.npy")       # (263, 215, 50, 1) uint64
+    raw = np.load(f"{DATA_DIR}/ant_cutout_50z.npy")  # (526, 430, 50, 1) uint8
+    seg = np.load(f"{DATA_DIR}/ant_seg_50z.npy")  # (263, 215, 50, 1) uint64
 
     n_slices = raw.shape[2]
     print(f"Raw shape: {raw.shape}, Seg shape: {seg.shape}, Slices: {n_slices}")

@@ -3,7 +3,6 @@
 import multiprocessing
 import os
 import sys
-import threading
 import time
 import warnings
 from typing import Literal
@@ -93,20 +92,21 @@ def _noop() -> None:
     pass
 
 
-def initialize_forkserver(load_mode: LoadMode = "all") -> None:
-    """Initialize forkserver with preloaded modules for the given load mode."""
-    preload_module = _PRELOAD_MODULES[load_mode]
-    logger.info(f"Configuring forkserver with preload module: {preload_module}")
+def _spawn_forkserver_daemon(load_mode: LoadMode) -> None:
+    """Spawn the daemon (fork+exec); return before its preload imports finish."""
+    # pylint: disable=import-outside-toplevel,protected-access
+    from multiprocessing.forkserver import _forkserver
 
-    total_start = time.perf_counter()
-    multiprocessing.set_forkserver_preload([preload_module])
+    multiprocessing.set_forkserver_preload([_PRELOAD_MODULES[load_mode]])
+    _forkserver.ensure_running()
+
+
+def _wait_for_forkserver_ready() -> None:
+    """Block until the daemon can serve fork requests."""
     ctx = get_mp_context()
     proc = ctx.Process(target=_noop)
     proc.start()
     proc.join()
-
-    total_elapsed = time.perf_counter() - total_start
-    logger.info(f"Forkserver initialized in {total_elapsed:.2f}s (mode: {load_mode})")
 
 
 def _inherited_forkserver_daemon() -> bool:
@@ -150,13 +150,12 @@ def setup_environment(load_mode: LoadMode = "all") -> None:
             stacklevel=2,
         )
 
-    # Start forkserver init in background while main process loads modules
-    forkserver_thread = threading.Thread(
-        target=initialize_forkserver, args=(load_mode,), name="forkserver_init"
-    )
-    forkserver_thread.start()
+    # Spawn first (single-threaded parent → safe fork+exec); the daemon's
+    # preload imports overlap with load_*_modules() below.
+    logger.info(f"Configuring forkserver with preload module: {_PRELOAD_MODULES[load_mode]}")
+    forkserver_start = time.perf_counter()
+    _spawn_forkserver_daemon(load_mode)
 
-    # Load modules in main process
     if load_mode == "all":
         load_all_modules()
     elif load_mode == "inference":  # pragma: no cover
@@ -166,5 +165,8 @@ def setup_environment(load_mode: LoadMode = "all") -> None:
     else:  # training  # pragma: no cover
         load_training_modules()
 
-    # Wait for forkserver to be ready before proceeding
-    forkserver_thread.join()
+    _wait_for_forkserver_ready()
+    logger.info(
+        f"Forkserver initialized in {time.perf_counter() - forkserver_start:.2f}s "
+        f"(mode: {load_mode})"
+    )

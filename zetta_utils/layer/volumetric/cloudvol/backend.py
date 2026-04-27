@@ -167,7 +167,14 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         self.cv_kwargs.setdefault("compress", None)
         self.cv_kwargs.setdefault("cdn_cache", False)
         self.cv_kwargs.setdefault("fill_missing", True)
-        self.cv_kwargs.setdefault("delete_black_uploads", True)
+        # nokura's S3 implementation rejects DeleteObjects without Content-MD5,
+        # which boto3 does not send. Disable delete_black_uploads on nokura so
+        # the encoder/downsample/tissue_mask flows don't crash on all-background
+        # chunks.
+        if self.path.startswith("nokura://"):
+            self.cv_kwargs.setdefault("delete_black_uploads", False)
+        else:
+            self.cv_kwargs.setdefault("delete_black_uploads", True)
         self.cv_kwargs.setdefault("agglomerate", True)
         self.cv_kwargs.setdefault("lru_encoding", "raw")
         self.cv_kwargs.setdefault("overwrite_partial_chunks", False)

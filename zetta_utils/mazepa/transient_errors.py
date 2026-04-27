@@ -81,4 +81,21 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=Exception,
         text_signature="Remote end closed connection without response",
     ),
+    TransientErrorCondition(
+        # urllib3 transient network errors (typically nokura/c10s server
+        # dropping a TCP connection mid-transfer).
+        exception_type=Exception,
+        text_signature="Connection aborted",
+    ),
+    TransientErrorCondition(
+        # urllib3 read timeout — server took too long to respond. Retrying
+        # the SQS visibility timeout typically lands on a healthy connection.
+        exception_type=Exception,
+        text_signature="Read timed out",
+    ),
+    TransientErrorCondition(
+        # urllib3 protocol error from a partial response.
+        exception_type=Exception,
+        text_signature="ProtocolError",
+    ),
 )

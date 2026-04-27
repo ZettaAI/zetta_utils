@@ -950,7 +950,7 @@ python-dateutil==2.9.0.post0
     #   moto
     #   pandas
     #   pycollada
-python-dotenv==1.2.1
+python-dotenv==1.2.2
     # via testcontainers
 python-json-logger==4.0.0
     # via zetta-utils (pyproject.toml)

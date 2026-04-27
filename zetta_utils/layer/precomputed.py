@@ -498,3 +498,35 @@ def _merge_and_sort_scales(
         for k in sorted(ret_dict.keys(), key=lambda x: math.prod(ret_dict[x]["resolution"]))
     ]
     return ret
+
+
+def find_first_scale_at_or_above(path: str, min_xy_resolution_nm: float) -> dict[str, Any]:
+    info = get_info(path)
+    scales = sorted(info["scales"], key=lambda s: s["resolution"][0])
+    for scale in scales:
+        if scale["resolution"][0] >= min_xy_resolution_nm - 1e-6:
+            return scale
+    raise ValueError(
+        f"No scale at or above {min_xy_resolution_nm}nm at '{path}'. "
+        f"Available XY: {[s['resolution'][0] for s in scales]}"
+    )
+
+
+def resolve_resolution_at_or_above(path: str, min_xy_resolution_nm: float) -> list[int]:
+    """Return the full (x, y, z) resolution of the first scale with XY >= threshold."""
+    scale = find_first_scale_at_or_above(path, min_xy_resolution_nm)
+    return [int(r) for r in scale["resolution"]]
+
+
+def pyramid_chunk_size_xy(
+    xy_resolution_nm: float,
+    base_xy_resolution_nm: float = 32.0,
+    base_chunk: int = 2048,
+) -> int:
+    """Chunk size (voxels XY) for a given XY resolution, always halving per
+    doubling of resolution. Inverse of resolution scaling so each chunk covers
+    a constant world-space size when measured at base."""
+    if xy_resolution_nm <= base_xy_resolution_nm:
+        return base_chunk
+    ratio = base_xy_resolution_nm / float(xy_resolution_nm)
+    return max(1, int(round(base_chunk * ratio)))

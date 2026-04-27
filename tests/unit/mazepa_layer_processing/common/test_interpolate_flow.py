@@ -1,5 +1,7 @@
 from zetta_utils.geometry import BBox3D
-from zetta_utils.mazepa_layer_processing.common.interpolate_flow import build_interpolate_flow
+from zetta_utils.mazepa_layer_processing.common.interpolate_flow import (
+    build_interpolate_flow,
+)
 
 
 def test_op_worker_type_is_plumbed_to_subchunkable(mocker):

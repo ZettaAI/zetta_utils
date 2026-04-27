@@ -6,7 +6,7 @@ affine==2.4.0
     # via zetta-utils (pyproject.toml)
 aiohappyeyeballs==2.6.1
     # via aiohttp
-aiohttp==3.13.2
+aiohttp==3.13.3
     # via
     #   zetta-utils (pyproject.toml)
     #   fsspec
@@ -152,7 +152,7 @@ crc32c==2.8
     # via
     #   cloud-files
     #   mapbuffer
-cryptography==46.0.3
+cryptography==46.0.5
     # via moto
 cssutils==2.11.1
     # via dict2css
@@ -234,7 +234,7 @@ fastremap==1.17.7
     #   kimimaro
     #   osteoid
     #   pcg-skel
-filelock==3.20.0
+filelock==3.20.3
     # via
     #   cachecontrol
     #   sphinx-toolbox
@@ -746,7 +746,7 @@ opentelemetry-semantic-conventions==0.60b1
     # via opentelemetry-sdk
 orderedmultidict==1.0.2
     # via furl
-orjson==3.11.5
+orjson==3.11.6
     # via
     #   cloud-files
     #   meshparty
@@ -800,7 +800,7 @@ pexpect==4.9.0
     # via ipython
 piccolo-theme==0.24.0
     # via zetta-utils (pyproject.toml)
-pillow==12.0.0
+pillow==12.1.1
     # via
     #   imagecorruptions-imaug
     #   imageio
@@ -848,7 +848,7 @@ proto-plus==1.26.1
     #   google-cloud-firestore
     #   google-cloud-pubsub
     #   google-cloud-storage-control
-protobuf==6.33.2
+protobuf==6.33.5
     # via
     #   zetta-utils (pyproject.toml)
     #   cloud-files
@@ -885,7 +885,7 @@ py-cpuinfo==9.0.0
     #   tables
 pyarrow==22.0.0
     # via caveclient
-pyasn1==0.6.1
+pyasn1==0.6.2
     # via
     #   oauth2client
     #   pyasn1-modules
@@ -1221,7 +1221,7 @@ torchvision==0.24.1
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
-tornado==6.5.3
+tornado==6.5.5
     # via neuroglancer
 tqdm==4.67.1
     # via
@@ -1319,7 +1319,7 @@ webencodings==0.5.1
     # via html5lib
 websocket-client==1.9.0
     # via kubernetes
-werkzeug==3.1.4
+werkzeug==3.1.6
     # via
     #   zetta-utils (pyproject.toml)
     #   flask

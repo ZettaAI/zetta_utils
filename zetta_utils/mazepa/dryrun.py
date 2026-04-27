@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 from collections import defaultdict
+from contextlib import contextmanager
+from typing import Iterator
 
 from typeguard import typechecked
 
@@ -10,6 +12,24 @@ from zetta_utils import log
 from . import Dependency, Flow
 
 logger = log.get_logger("zetta_utils")
+
+
+_IN_DRYRUN: bool = False
+
+
+def in_dryrun() -> bool:
+    return _IN_DRYRUN
+
+
+@contextmanager
+def _dryrun_flag() -> Iterator[None]:
+    global _IN_DRYRUN  # pylint: disable=global-statement
+    prev = _IN_DRYRUN
+    _IN_DRYRUN = True
+    try:
+        yield
+    finally:
+        _IN_DRYRUN = prev
 
 
 @typechecked
@@ -22,7 +42,8 @@ def get_expected_operation_counts(flows: list[Flow]) -> dict[str, int]:
 def dryrun_for_task_ids(flows: list[Flow]) -> dict[str, set[str]]:
     dryrun_flows = copy.deepcopy(flows)
     logger.info("Starting dryrun....")
-    result = _dryrun_for_task_ids(dryrun_flows)
+    with _dryrun_flag():
+        result = _dryrun_for_task_ids(dryrun_flows)
     logger.info("Dryrun finished.")
     return result
 

@@ -240,7 +240,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             voxel_offset_res=(idx.start - backend_chunk_size_to_use, self.dst_resolution),
             chunk_size_res=(backend_chunk_size_to_use, self.dst_resolution),
             dataset_size_res=(
-                dst.backend.get_dataset_size(self.dst_resolution) + 2 * backend_chunk_size_to_use,
+                idx.shape + 2 * backend_chunk_size_to_use,
                 self.dst_resolution,
             ),
             enforce_chunk_aligned_writes=False,

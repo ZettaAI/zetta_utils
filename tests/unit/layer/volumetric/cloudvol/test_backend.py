@@ -610,6 +610,38 @@ def test_cv_get_cv_cached_keyerror_includes_path(clear_caches_reset_mocks, mocke
         _get_cv_cached(test_path)
 
 
+def test_cv_with_changes_info_path_only_spec(clear_caches_reset_mocks):
+    cvb = CVBackend(path=LAYER_X0_PATH)
+    assert cvb.info_spec is not None
+    assert cvb.info_spec.info_spec_params is None
+    assert cvb.info_spec.info_path is not None
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb_new = cvb.with_changes(
+            name=tmp_dir,
+            voxel_offset_res=(IntVec3D(7, 8, 9), Vec3D(1, 1, 1)),
+            chunk_size_res=(IntVec3D(64, 64, 1), Vec3D(1, 1, 1)),
+            dataset_size_res=(IntVec3D(128, 128, 4), Vec3D(1, 1, 1)),
+            enforce_chunk_aligned_writes=False,
+        )
+        assert cvb_new.info_spec.info_spec_params is not None
+        assert cvb_new.info_spec.info_path is None
+        assert cvb_new.get_voxel_offset(Vec3D(1, 1, 1)) == IntVec3D(7, 8, 9)
+        assert cvb_new.get_chunk_size(Vec3D(1, 1, 1)) == IntVec3D(64, 64, 1)
+        assert cvb_new.get_dataset_size(Vec3D(1, 1, 1)) == IntVec3D(128, 128, 4)
+
+
+def test_cv_with_changes_info_path_only_spec_no_mutate(clear_caches_reset_mocks):
+    cvb = CVBackend(path=LAYER_X0_PATH)
+    assert cvb.info_spec is not None
+    assert cvb.info_spec.info_spec_params is None
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        cvb_new = cvb.with_changes(name=tmp_dir, overwrite_partial_chunks=True)
+        assert cvb_new.info_spec.info_spec_params is None
+        assert cvb_new.info_spec.info_path is not None
+
+
 def test_cv_with_changes_overwrite_partial_chunks(clear_caches_reset_mocks):
     info_spec = PrecomputedInfoSpec(
         info_spec_params=InfoSpecParams.from_optional_reference(

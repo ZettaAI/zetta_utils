@@ -1,12 +1,6 @@
 # pylint: disable=unused-import, import-outside-toplevel, broad-exception-caught, import-error
 """Zetta AI Computational Connectomics Toolkit."""
-try:
-    import faulthandler
-
-    faulthandler.enable(all_threads=True)
-except Exception:
-    pass
-
+import faulthandler
 import multiprocessing
 import os
 import sys
@@ -16,6 +10,8 @@ from typing import Literal
 
 from .log import get_logger
 from .parallel import get_mp_context  # noqa: F401
+
+faulthandler.enable(all_threads=True)
 
 
 def _patch_gcsfs_for_proxy():

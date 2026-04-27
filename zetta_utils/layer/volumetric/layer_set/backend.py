@@ -206,13 +206,14 @@ class VolumetricSetBackend(
             self.layers[k].write_with_procs(idx, v)
 
     def with_changes(self, **kwargs) -> VolumetricSetBackend:  # pragma: no cover
-        return attrs.evolve(
-            self,
-            layers={
-                k: attrs.evolve(v, backend=v.backend.with_changes(**kwargs))
-                for k, v in self.layers.items()
-            },
-        )
+        base_name = kwargs.pop("name", None)
+        new_layers = {}
+        for k, v in self.layers.items():
+            per_layer_kwargs = dict(kwargs)
+            if base_name is not None:
+                per_layer_kwargs["name"] = f"{base_name}/{k}"
+            new_layers[k] = attrs.evolve(v, backend=v.backend.with_changes(**per_layer_kwargs))
+        return attrs.evolve(self, layers=new_layers)
 
     def pformat(self) -> str:  # pragma: no cover
         return "\n".join([f"{k}: {v.pformat()}" for (k, v) in self.layers.items()])

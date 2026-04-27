@@ -98,4 +98,19 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=Exception,
         text_signature="ProtocolError",
     ),
+    TransientErrorCondition(
+        # Server refused a new connection (nokura/c10s under load).
+        exception_type=Exception,
+        text_signature="Connection refused",
+    ),
+    TransientErrorCondition(
+        # boto3 / botocore connection failure during upload/delete.
+        exception_type=Exception,
+        text_signature="EndpointConnectionError",
+    ),
+    TransientErrorCondition(
+        # Generic socket / DNS resolution glitches.
+        exception_type=Exception,
+        text_signature="Temporary failure in name resolution",
+    ),
 )

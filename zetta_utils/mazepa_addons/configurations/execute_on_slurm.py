@@ -159,6 +159,8 @@ def get_slurm_contex_managers(
     num_procs: int,
     semaphores_spec: dict[SemaphoreType, int] | None,
     message_queue: Literal["sqs", "fq"],
+    idle_timeout: int | None = None,
+    suppress_worker_logs: bool = False,
 ) -> tuple[PushMessageQueue[Task], PullMessageQueue[OutcomeReport], list[AbstractContextManager]]:
     work_queue_name = f"run-{execution_id}-work"
     outcome_queue_name = f"run-{execution_id}-outcome"
@@ -208,7 +210,12 @@ def get_slurm_contex_managers(
     )
 
     worker_command = get_mazepa_worker_command(
-        task_queue_spec, outcome_queue_spec, num_procs, semaphores_spec
+        task_queue_spec,
+        outcome_queue_spec,
+        num_procs,
+        semaphores_spec,
+        idle_timeout=idle_timeout,
+        suppress_worker_logs=suppress_worker_logs,
     )
     slurm_obj.add_cmd(init_command)
     slurm_obj.add_cmd(f"srun {worker_command}")
@@ -236,6 +243,8 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
     message_queue: Literal["sqs", "fq"] = "sqs",
+    idle_timeout: int | None = None,
+    suppress_worker_logs: bool = False,
 ):
     slurm_worker_resources = SlurmWorkerResources.from_dict(worker_resources)
 
@@ -275,6 +284,8 @@ def execute_on_slurm(  # pylint: disable=too-many-locals
             slurm_worker_resources=slurm_worker_resources,
             debug=debug,
             message_queue=message_queue,
+            idle_timeout=idle_timeout,
+            suppress_worker_logs=suppress_worker_logs,
         )
 
         with ExitStack() as stack:

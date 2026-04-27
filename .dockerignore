@@ -11,6 +11,23 @@ local_*_task_queue/
 *.json
 *.csv
 *.log
+*.npy
+*.npz
+*.memmap
+*.h5
+*.hdf5
+*.pt
+*.ckpt
+
+# Node build junk (big docs site under calcada)
+**/node_modules/
+**/.next/
+**/dist/
+
+# Go binaries checked into zetta_utils/internal/calcada/
+zetta_utils/internal/calcada/calcada
+zetta_utils/internal/calcada/ingest
+zetta_utils/internal/calcada/txn-worker
 
 # Keep the Python pinned requirements
 !requirements*.txt

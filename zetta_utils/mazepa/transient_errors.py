@@ -105,8 +105,10 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
     ),
     TransientErrorCondition(
         # boto3 / botocore connection failure during upload/delete.
+        # Surfaces from `botocore.exceptions.EndpointConnectionError`; its
+        # str() is "Could not connect to the endpoint URL: ..."
         exception_type=Exception,
-        text_signature="EndpointConnectionError",
+        text_signature="Could not connect to the endpoint URL",
     ),
     TransientErrorCondition(
         # Generic socket / DNS resolution glitches.

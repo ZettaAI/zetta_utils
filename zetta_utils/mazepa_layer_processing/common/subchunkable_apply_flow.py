@@ -89,7 +89,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
     expand_bbox_processing: bool = True,
     expand_bbox_resolution: bool = False,
     allow_cache_up_to_level: int | None = None,
-    print_summary: bool = True,
+    verbose: bool = True,
     generate_ng_link: bool = False,
     op_worker_type: str | None = None,
     reduction_worker_type: str | None = None,
@@ -186,7 +186,7 @@ def build_postpad_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
         task_stack_size=task_stack_size,
-        print_summary=print_summary,
+        verbose=verbose,
         generate_ng_link=generate_ng_link,
         fn=fn,
         fn_semaphores=fn_semaphores,
@@ -226,7 +226,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     op_worker_type: str | None = None,
     reduction_worker_type: str | None = None,
     task_stack_size: int | None = None,
-    print_summary: bool = True,
+    verbose: bool = True,
     generate_ng_link: bool = False,
     fn: Callable[P, Tensor] | None = None,
     fn_semaphores: Sequence[SemaphoreType] | None = None,
@@ -324,9 +324,9 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         will be routed to only the workers that have the requested worker type.
     :param reduction_worker_type: The worker type required by the reduction process. The
         subchunked tasks will be routed to only the workers that have the requested worker type.
-    :param print_summary: Whether a summary should be printed.
+    :param verbose: Whether a summary should be printed.
     :param generate_ng_link: Whether a neuroglancer link should be generated in the summary.
-        Requires ``print_summary``.
+        Requires ``verbose``.
     :param fn: The function to be run on each chunk. Cannot be used with ``op``.
     :param fn_semaphores: The semaphores to be acquired while the function runs. Supports
         ``read``, ``write``, ``cuda``, and ``cpu``. Cannot be used with ``op``.
@@ -397,8 +397,8 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
 
     op_kwargs_ = op_kwargs if op_kwargs is not None else {}
 
-    if generate_ng_link and not print_summary:
-        raise ValueError("Cannot use `generate_ng_link` when `print_summary=False`.")
+    if generate_ng_link and not verbose:
+        raise ValueError("Cannot use `generate_ng_link` when `verbose=False`.")
 
     num_levels = len(processing_chunk_sizes)
 
@@ -578,7 +578,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
         task_stack_size=task_stack_size,
-        print_summary=print_summary,
+        verbose=verbose,
         generate_ng_link=generate_ng_link,
         op_args=op_args,
         op_kwargs=op_kwargs_,
@@ -639,6 +639,7 @@ def _path_join_if_not_none(base: str | None, suffix: str) -> str | None:
 def _expand_bbox_resolution(  # pylint: disable=line-too-long
     bbox: BBox3D,
     dst_resolution: Vec3D,
+    verbose: bool = True,
 ) -> BBox3D:
     bbox_new = bbox.snapped(Vec3D[float](0, 0, 0), dst_resolution, "expand")
     if bbox_new != bbox:
@@ -651,7 +652,7 @@ def _expand_bbox_resolution(  # pylint: disable=line-too-long
             f"\tshape:\t{(bbox_new.shape // dst_resolution).int().pformat()} px\n"
             f"Please note that this may affect chunk alignment requirements."
         )
-    else:
+    elif verbose:
         logger.info(
             "`expand_bbox_resolution` was set, but the `bbox` was already integral in `dst_resolution`, "
             "so no action has been taken."
@@ -704,6 +705,7 @@ def _expand_bbox_backend(  # pylint: disable=line-too-long
     bbox: BBox3D,
     dst: VolumetricBasedLayerProtocol,
     dst_resolution: Vec3D,
+    verbose: bool = True,
 ) -> BBox3D:
     dst_backend_voxel_offset = dst.backend.get_voxel_offset(dst_resolution)
     dst_backend_chunk_size = dst.backend.get_chunk_size(dst_resolution)
@@ -713,18 +715,19 @@ def _expand_bbox_backend(  # pylint: disable=line-too-long
         "expand",
     )
     if bbox_new != bbox:
-        logger.info(
-            f"`expand_bbox_backend` was set and the `bbox` was not aligned to the `dst` layer's backend chunks, "
-            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox.unit} pixels))\n"
-            f"`dst` voxel_offset:\t{dst_backend_voxel_offset.pformat()}\t chunk_size:\t"
-            f"\t{dst_backend_chunk_size.pformat()}\n"
-            f"Received bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox.shape / dst_resolution).pformat()} px\n"
-            f"New bbox:\t{bbox_new.pformat()} {bbox_new.unit}\n\t\t{bbox_new.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox_new.shape // dst_resolution).int().pformat()} px\n"
-            f"Please note that this may affect chunk alignment requirements."
-        )
-    else:
+        if verbose:
+            logger.info(
+                f"`expand_bbox_backend` was set and the `bbox` was not aligned to the `dst` layer's backend chunks, "
+                f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox.unit} pixels))\n"
+                f"`dst` voxel_offset:\t{dst_backend_voxel_offset.pformat()}\t chunk_size:\t"
+                f"\t{dst_backend_chunk_size.pformat()}\n"
+                f"Received bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox.shape / dst_resolution).pformat()} px\n"
+                f"New bbox:\t{bbox_new.pformat()} {bbox_new.unit}\n\t\t{bbox_new.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox_new.shape // dst_resolution).int().pformat()} px\n"
+                f"Please note that this may affect chunk alignment requirements."
+            )
+    elif verbose:
         logger.info(
             "`expand_bbox_backend` was set, but the `bbox` was already aligned to `dst` layer's backend chunks,  "
             "so no action has been taken."
@@ -737,6 +740,7 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     dst_resolution: Vec3D,
     processing_chunk_sizes: Sequence[Vec3D[int]],
     processing_gap: Vec3D[int],
+    verbose: bool = True,
 ) -> BBox3D:
     bbox_shape_in_res = round(bbox.shape / dst_resolution)
     bbox_shape_in_res_raw = round(bbox.shape / dst_resolution, VEC3D_PRECISION)
@@ -753,17 +757,18 @@ def _expand_bbox_processing(  # pylint: disable=line-too-long
     translation_end = (chunk_size_top - bbox_shape_in_res) % (chunk_size_top + processing_gap)
     bbox = bbox.translated_end(translation_end, dst_resolution)
     if translation_end != Vec3D[int](0, 0, 0):
-        logger.info(
-            f"`expand_bbox_processing` was set and the `bbox` was not aligned to the top level "
-            f"`processing_chunk_size` (with `processing_gap`s if applicable) in at least one dimension, "
-            f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
-            f"Received bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
-            f"New bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
-            f"\tshape:\t{(bbox.shape // dst_resolution).int().pformat()} px\n"
-            f"Please note that this may affect chunk alignment requirements."
-        )
-    else:
+        if verbose:
+            logger.info(
+                f"`expand_bbox_processing` was set and the `bbox` was not aligned to the top level "
+                f"`processing_chunk_size` (with `processing_gap`s if applicable) in at least one dimension, "
+                f"so the bbox has been modified: (in {dst_resolution.pformat()} {bbox_old.unit} pixels))\n"
+                f"Received bbox:\t{bbox_old.pformat()} {bbox_old.unit}\n\t\t{bbox_old.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox_old.shape // dst_resolution).int().pformat()} px\n"
+                f"New bbox:\t{bbox.pformat()} {bbox.unit}\n\t\t{bbox.pformat(dst_resolution)} px\n"
+                f"\tshape:\t{(bbox.shape // dst_resolution).int().pformat()} px\n"
+                f"Please note that this may affect chunk alignment requirements."
+            )
+    elif verbose:
         logger.info(
             "`expand_bbox_processing` was set, but the `bbox` was already aligned to processing chunks,  "
             "so no action has been taken."
@@ -1083,7 +1088,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     op_worker_type: str | None,
     reduction_worker_type: str | None,
     task_stack_size: int | None,
-    print_summary: bool,
+    verbose: bool,
     generate_ng_link: bool,
     op: VolumetricOpProtocol[P, None, Any],
     op_args: P.args,
@@ -1100,10 +1105,10 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     original_bbox = deepcopy(bbox)
 
     if expand_bbox_resolution:
-        bbox = _expand_bbox_resolution(bbox, dst_resolution)
+        bbox = _expand_bbox_resolution(bbox, dst_resolution, verbose=verbose)
 
     if expand_bbox_backend and dst is not None:
-        bbox = _expand_bbox_backend(bbox, dst, dst_resolution)
+        bbox = _expand_bbox_backend(bbox, dst, dst_resolution, verbose=verbose)
 
     if shrink_processing_chunk:
         processing_chunk_sizes = _shrink_processing_chunk(
@@ -1111,7 +1116,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         )
     elif expand_bbox_processing:
         bbox = _expand_bbox_processing(
-            bbox, dst_resolution, processing_chunk_sizes, processing_gap
+            bbox, dst_resolution, processing_chunk_sizes, processing_gap, verbose=verbose
         )
 
     idx = VolumetricIndex(resolution=dst_resolution, bbox=bbox)
@@ -1127,7 +1132,8 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     processing_chunk_sizes[l+1] + 2*processing_crop_pads[l+1] + 2*processing_blend_pads[l+1] % processing_chunk_sizes[l] == 0
     processing_blend_pads[l] * 2 <= processing_chunk_sizes[l]
     """
-    logger.info("Checking the arguments given.")
+    if verbose:
+        logger.info("Checking the arguments given.")
     num_chunks = []
     for level in range(num_levels - 1, -1, -1):
         i = num_levels - level - 1
@@ -1209,28 +1215,32 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         if roi_crop_pads[i] == Vec3D[int](0, 0, 0) and processing_blend_pads[i] == Vec3D[int](
             0, 0, 0
         ):
-            logger.info(
-                f"Level {num_levels - i - 1}: Chunks will not be checkerboarded since `processing_crop_pad[level+1]`"
-                f" (always {Vec3D[int](0, 0, 0)} for the top level) and `processing_blend_pad[level]` are both {Vec3D[int](0, 0, 0)}."
-            )
+            if verbose:
+                logger.info(
+                    f"Level {num_levels - i - 1}: Chunks will not be checkerboarded since `processing_crop_pad[level+1]`"
+                    f" (always {Vec3D[int](0, 0, 0)} for the top level) and `processing_blend_pad[level]` are both {Vec3D[int](0, 0, 0)}."
+                )
             use_checkerboard.append(False)
         else:
             use_checkerboard.append(True)
     if processing_blend_pads[num_levels - 1] == Vec3D[int](0, 0, 0):
-        logger.info(
-            f"Level 0: Chunks will not be checkerboarded since `processing_blend_pad[level]` is {Vec3D[int](0, 0, 0)}."
-        )
+        if verbose:
+            logger.info(
+                f"Level 0: Chunks will not be checkerboarded since `processing_blend_pad[level]` is {Vec3D[int](0, 0, 0)}."
+            )
         use_checkerboard.append(False)
     else:
         use_checkerboard.append(True)
     if dst is None:
-        logger.info("`dst` is None; skipping generation of standard output.")
+        if verbose:
+            logger.info("`dst` is None; skipping generation of standard output.")
     else:
         if skip_intermediaries is True:
-            logger.info(
-                "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
-                "required to be chunk-aligned."
-            )
+            if verbose:
+                logger.info(
+                    "Since intermediaries are skipped, the ROI and any writing done to the final destination are "
+                    "required to be chunk-aligned."
+                )
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
             )
@@ -1242,7 +1252,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
                 )
             )
 
-    if print_summary:
+    if verbose:
         _print_summary(
             dst=dst,
             dst_resolution=dst_resolution,
@@ -1297,6 +1307,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         op_worker_type=op_worker_type,
         reduction_worker_type=reduction_worker_type,
         task_stack_size=task_stack_size,
+        verbose=verbose,
     )
     """
     Iteratively build the hierarchy of schemas
@@ -1327,5 +1338,6 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             op_worker_type=op_worker_type,
             reduction_worker_type=reduction_worker_type,
             task_stack_size=None,  # Only stack at the bottom level (level 0)
+            verbose=verbose,
         )
     return flow_schema(idx, dst, op_args, op_kwargs)

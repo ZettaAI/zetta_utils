@@ -534,6 +534,11 @@ CANONICAL_CHUNK_SIZE_XY: dict[int, int] = {
 }
 
 
+CANONICAL_PROCESSING_OUTER_CHUNK_SIZE_XY: dict[int, int] = {
+    res: 4 * chunk for res, chunk in CANONICAL_CHUNK_SIZE_XY.items()
+}
+
+
 def pyramid_chunk_size_xy(xy_resolution_nm: float) -> int:
     """Chunk size (voxels XY) for a given XY resolution.
 
@@ -546,3 +551,18 @@ def pyramid_chunk_size_xy(xy_resolution_nm: float) -> int:
         key=lambda k: abs(k - xy_resolution_nm),
     )
     return CANONICAL_CHUNK_SIZE_XY[closest]
+
+
+def processing_outer_chunk_xy(xy_resolution_nm: float) -> int:
+    """Outer (top-level) processing chunk size (voxels XY) for a given XY resolution.
+
+    Snaps `xy_resolution_nm` to the nearest key in
+    `CANONICAL_PROCESSING_OUTER_CHUNK_SIZE_XY`. Each entry is 4× the layer
+    chunk at the same resolution, i.e. 4 inner sub-chunks per outer chunk
+    (~262 µm world per outer chunk).
+    """
+    closest = min(
+        CANONICAL_PROCESSING_OUTER_CHUNK_SIZE_XY.keys(),
+        key=lambda k: abs(k - xy_resolution_nm),
+    )
+    return CANONICAL_PROCESSING_OUTER_CHUNK_SIZE_XY[closest]

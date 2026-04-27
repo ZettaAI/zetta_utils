@@ -518,15 +518,31 @@ def resolve_resolution_at_or_above(path: str, min_xy_resolution_nm: float) -> li
     return [int(r) for r in scale["resolution"]]
 
 
-def pyramid_chunk_size_xy(
-    xy_resolution_nm: float,
-    base_xy_resolution_nm: float,
-    base_chunk: int,
-) -> int:
-    """Chunk size (voxels XY) for a given XY resolution, always halving per
-    doubling of resolution. Inverse of resolution scaling so each chunk covers
-    a constant world-space size when measured at base."""
-    if xy_resolution_nm <= base_xy_resolution_nm:
-        return base_chunk
-    ratio = base_xy_resolution_nm / float(xy_resolution_nm)
-    return max(1, int(round(base_chunk * ratio)))
+CANONICAL_CHUNK_SIZE_XY: dict[int, int] = {
+    32: 2048,
+    64: 1024,
+    128: 512,
+    256: 256,
+    512: 128,
+    1024: 64,
+    2048: 32,
+    4096: 16,
+    8192: 8,
+    16384: 4,
+    32768: 2,
+    65536: 1,
+}
+
+
+def pyramid_chunk_size_xy(xy_resolution_nm: float) -> int:
+    """Chunk size (voxels XY) for a given XY resolution.
+
+    Snaps `xy_resolution_nm` to the nearest key in `CANONICAL_CHUNK_SIZE_XY`
+    and returns the corresponding chunk size. Each canonical entry covers
+    ~65 µm (= 65536 nm) per chunk in world space.
+    """
+    closest = min(
+        CANONICAL_CHUNK_SIZE_XY.keys(),
+        key=lambda k: abs(k - xy_resolution_nm),
+    )
+    return CANONICAL_CHUNK_SIZE_XY[closest]

@@ -68,3 +68,39 @@ def test_dryrun_execution_counts(
 ):
     result = dryrun.get_expected_operation_counts(flows)
     assert result == expected
+
+
+def test_in_dryrun_flag_observed_during_dryrun(mocker):
+    observed: list[bool] = []
+
+    original = dryrun._dryrun_for_task_ids  # pylint: disable=protected-access
+
+    def fake(flows):
+        observed.append(dryrun.in_dryrun())
+        return original(flows)
+
+    mocker.patch(
+        "zetta_utils.mazepa.dryrun._dryrun_for_task_ids",
+        side_effect=fake,
+    )
+
+    assert dryrun.in_dryrun() is False
+    dryrun.dryrun_for_task_ids([])
+    assert observed == [True]
+    assert dryrun.in_dryrun() is False
+
+
+def test_in_dryrun_flag_restored_on_nested_exit():
+    # pylint: disable=protected-access
+    inside_outer: list[bool] = []
+    inside_inner: list[bool] = []
+
+    with dryrun._dryrun_flag():
+        inside_outer.append(dryrun.in_dryrun())
+        with dryrun._dryrun_flag():
+            inside_inner.append(dryrun.in_dryrun())
+        inside_outer.append(dryrun.in_dryrun())
+
+    assert inside_outer == [True, True]
+    assert inside_inner == [True]
+    assert dryrun.in_dryrun() is False

@@ -1,6 +1,6 @@
 "@version": "0.4"
 #SRC_PATH: "assets/inputs/fafb_v15_img_128_128_40-2048-3072_2000-2050_uint8"
-#DST_PATH: "assets/outputs/test_uint8_exc_generate_ng_link_but_not_print_summary"
+#DST_PATH: "assets/outputs/test_uint8_exc_generate_ng_link_but_not_verbose"
 
 #BBOX: {
 	"@type": "BBox3D.from_coords"
@@ -36,7 +36,7 @@
 		info_inherit_all_params: true
 	}
 	generate_ng_link: true
-	print_summary:    false
+	verbose:          false
 }
 
 "@type": "mazepa.execute"

@@ -123,6 +123,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     reduction_worker_type: str | None = None
     task_stack_size: int | None = None
     exact_bbox_output_bbox: Optional[VolumetricIndex] = None
+    verbose: bool = True
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -543,7 +544,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             idx, mode="exact", chunk_id_increment=self.l0_chunks_per_task
         )
         tasks = self.make_tasks_without_checkerboarding(idx_chunks, dst, op_kwargs)
-        logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
+        if self.verbose:
+            logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
         yield tasks
 
     def _flow_with_intermediaries(  # pylint: disable=too-many-locals
@@ -551,7 +553,8 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     ) -> mazepa.FlowFnReturnType:
         """Handle case with intermediaries but no checkerboarding."""
         tasks, dst_temp = self.make_tasks_with_intermediaries(idx, dst, op_kwargs)
-        logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
+        if self.verbose:
+            logger.info(f"Submitting {len(tasks)} processing tasks from operation {self.op}.")
         yield tasks
         yield mazepa.Dependency()
         if self.processing_gap is None:
@@ -607,12 +610,13 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         (tasks, _, _, _) = self.make_tasks_with_checkerboarding(
             idx.padded(self.roi_crop_pad), [idx], Vec3D(1, 1, 1), dst, op_kwargs
         )
-        logger.info(
-            "Writing to intermediate destinations:\n"
-            f" Submitting {len(tasks)} processing tasks from operation {self.op}.\n"
-            f"Note that because blending is deferred, {dst.pformat()} will NOT "
-            f"contain the final output."
-        )
+        if self.verbose:
+            logger.info(
+                "Writing to intermediate destinations:\n"
+                f" Submitting {len(tasks)} processing tasks from operation {self.op}.\n"
+                f"Note that because blending is deferred, {dst.pformat()} will NOT "
+                f"contain the final output."
+            )
         yield tasks
         yield mazepa.Dependency()
 
@@ -681,10 +685,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         ) = self.make_tasks_with_checkerboarding(
             idx.padded(self.roi_crop_pad), red_chunks, red_shape, dst, op_kwargs
         )
-        logger.info(
-            "Writing to temporary destinations:\n"
-            f" Submitting {len(tasks)} processing tasks from operation {self.op}."
-        )
+        if self.verbose:
+            logger.info(
+                "Writing to temporary destinations:\n"
+                f" Submitting {len(tasks)} processing tasks from operation {self.op}."
+            )
         yield tasks
         yield mazepa.Dependency()
         reducer: ReduceOperation

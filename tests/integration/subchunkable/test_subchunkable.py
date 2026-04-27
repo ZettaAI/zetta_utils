@@ -159,7 +159,7 @@ def test_subchunkable(cue_name, clear_temp_dir_and_info_cache):
         "test_uint8_exc_both_fn_and_op",
         "test_uint8_exc_both_fn_semaphores_and_op",
         "test_uint8_exc_seq_of_seq_not_equal",
-        "test_uint8_exc_generate_ng_link_but_not_print_summary",
+        "test_uint8_exc_generate_ng_link_but_not_verbose",
         "test_uint8_exc_level_intermediaries_dirs_not_equal",
         "test_uint8_exc_skip_intermediaries_but_level_intermediaries_dirs",
         "test_uint8_exc_skip_intermediaries_but_blend_pad",

@@ -220,6 +220,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
     expand_bbox_resolution: bool = False,
     expand_bbox_backend: bool = False,
     expand_bbox_processing: bool = True,
+    exact_bbox_output: bool = False,
     shrink_processing_chunk: bool = False,
     auto_divisibility: bool = False,
     allow_cache_up_to_level: int | None = None,
@@ -555,6 +556,16 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
                 "`expand_bbox_resolution` cannot be used with nonzero `processing_gap`."
             )
 
+    if exact_bbox_output:
+        if skip_intermediaries:
+            raise ValueError("`exact_bbox_output` requires `skip_intermediaries` to be False.")
+        if dst is None:
+            raise ValueError("`exact_bbox_output` requires `dst` to be set.")
+        if any(v != 0 for v in processing_blend_pads):
+            raise ValueError(
+                "`exact_bbox_output` is not supported with nonzero `processing_blend_pads`."
+            )
+
     assert len(list(op_args)) == 0
     return _build_subchunkable_apply_flow(
         dst=dst,
@@ -573,6 +584,7 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
         expand_bbox_resolution=expand_bbox_resolution,
         expand_bbox_backend=expand_bbox_backend,
         expand_bbox_processing=expand_bbox_processing,
+        exact_bbox_output=exact_bbox_output,
         shrink_processing_chunk=shrink_processing_chunk,
         auto_divisibility=auto_divisibility,
         op_worker_type=op_worker_type,
@@ -1078,6 +1090,7 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
     expand_bbox_resolution: bool,
     expand_bbox_backend: bool,
     expand_bbox_processing: bool,
+    exact_bbox_output: bool,
     shrink_processing_chunk: bool,
     auto_divisibility: bool,
     op_worker_type: str | None,
@@ -1096,6 +1109,11 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         processing_chunk_sizes = _auto_divisibility(
             processing_chunk_sizes, processing_crop_pads, processing_blend_pads
         )
+
+    user_bbox_for_exact_output = deepcopy(bbox) if exact_bbox_output else None
+
+    if exact_bbox_output:
+        expand_bbox_processing = True
 
     original_bbox = deepcopy(bbox)
 
@@ -1156,32 +1174,47 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
         n_region_chunks_rounded = Vec3D[int](*(max(1, round(e)) for e in n_region_chunks))
         num_chunks.append(math.prod(n_region_chunks_rounded))
         if n_region_chunks != n_region_chunks_rounded:
-            if (processing_region + processing_gap_higher) % n_region_chunks_rounded == Vec3D(
-                0, 0, 0
+            # At the top level with no blend/crop, allow non-divisible bbox
+            # by using ceil — the chunker's "exact" mode handles partial edge chunks
+            if (
+                i == 0
+                and exact_bbox_output
+                and processing_blend_pad_higher == Vec3D[int](0, 0, 0)
+                and processing_crop_pad_higher == Vec3D[int](0, 0, 0)
             ):
-                rec_processing_chunk_size = (
-                    (processing_region + processing_gap) / n_region_chunks_rounded
-                ).int()
-                rec_str = f"Recommendation for `processing_chunk_size[level]`:\t\t\t\t{rec_processing_chunk_size}"
-            else:
-                rec_str = (
-                    "Unable to recommend processing_chunk_size[level]: try using a more divisible"
-                    " `processing_crop_pad[level+1]` and/or `processing_blend_pad[level+1]`."
+                n_region_chunks_ceil = Vec3D[int](*(max(1, math.ceil(e)) for e in n_region_chunks))
+                num_chunks[-1] = math.prod(n_region_chunks_ceil)
+                logger.info(
+                    f"Top-level bbox not evenly divisible by processing chunk size; "
+                    f"using {n_region_chunks_ceil} chunks with partial edge chunks."
                 )
-            error_str = (
-                "At each level (where the 0-th level is the smallest), the"
-                " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]`"
-                " + processing_gap must be"
-                f" evenly divisible by the `processing_chunk_size[level]` + processing_gap (processing_gap applies only on top level).\n"
-                f"\nAt level {level}, received:\n"
-                f"`processing_chunk_size[level+1]`:\t\t\t\t\t\t{processing_chunk_size_higher}\n"
-                f"`applicable processing_gap`:\t\t\t\t\t\t\t\t{processing_gap_higher}\n"
-                f"`processing_crop_pad[level+1]` ((0, 0, 0) for the top level):\t\t\t{processing_crop_pad_higher}\n"
-                f"`processing_blend_pad[level+1]`:\t\t\t\t\t\t{processing_blend_pad_higher}\n"
-                f"Size of the region to be processed for the level:\t\t\t\t{processing_region}\n"
-                f"Which must be (but is not) divisible by: `processing_chunk_size[level]`:\t{processing_chunk_size}\n\n"
-            )
-            raise ValueError(error_str + rec_str)
+            else:
+                if (processing_region + processing_gap_higher) % n_region_chunks_rounded == Vec3D(
+                    0, 0, 0
+                ):
+                    rec_processing_chunk_size = (
+                        (processing_region + processing_gap) / n_region_chunks_rounded
+                    ).int()
+                    rec_str = f"Recommendation for `processing_chunk_size[level]`:\t\t\t\t{rec_processing_chunk_size}"
+                else:
+                    rec_str = (
+                        "Unable to recommend processing_chunk_size[level]: try using a more divisible"
+                        " `processing_crop_pad[level+1]` and/or `processing_blend_pad[level+1]`."
+                    )
+                error_str = (
+                    "At each level (where the 0-th level is the smallest), the"
+                    " `processing_chunk_size[level+1]` + 2*`processing_crop_pad[level+1]` + 2*`processing_blend_pad[level+1]`"
+                    " + processing_gap must be"
+                    f" evenly divisible by the `processing_chunk_size[level]` + processing_gap (processing_gap applies only on top level).\n"
+                    f"\nAt level {level}, received:\n"
+                    f"`processing_chunk_size[level+1]`:\t\t\t\t\t\t{processing_chunk_size_higher}\n"
+                    f"`applicable processing_gap`:\t\t\t\t\t\t\t\t{processing_gap_higher}\n"
+                    f"`processing_crop_pad[level+1]` ((0, 0, 0) for the top level):\t\t\t{processing_crop_pad_higher}\n"
+                    f"`processing_blend_pad[level+1]`:\t\t\t\t\t\t{processing_blend_pad_higher}\n"
+                    f"Size of the region to be processed for the level:\t\t\t\t{processing_region}\n"
+                    f"Which must be (but is not) divisible by: `processing_chunk_size[level]`:\t{processing_chunk_size}\n\n"
+                )
+                raise ValueError(error_str + rec_str)
         if not processing_blend_pad * 2 <= processing_chunk_size:
             raise ValueError(
                 "At each level (where the 0-th level is the smallest), the `processing_blend_pad[level]` must"
@@ -1234,12 +1267,19 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(enforce_chunk_aligned_writes=True)
             )
+        elif exact_bbox_output:
+            dst = deepcopy(dst).with_changes(
+                backend=dst.backend.with_changes(
+                    enforce_chunk_aligned_writes=False,
+                    overwrite_partial_chunks=False,
+                )
+            )
         else:
             dst = deepcopy(dst).with_changes(
                 backend=dst.backend.with_changes(
                     enforce_chunk_aligned_writes=False,
                     overwrite_partial_chunks=True,
-                    )
+                )
             )
 
     if print_summary:
@@ -1327,4 +1367,9 @@ def _build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg
             reduction_worker_type=reduction_worker_type,
             task_stack_size=None,  # Only stack at the bottom level (level 0)
         )
+    if user_bbox_for_exact_output is not None:
+        flow_schema.exact_bbox_output_bbox = VolumetricIndex(
+            resolution=dst_resolution, bbox=user_bbox_for_exact_output
+        )
+
     return flow_schema(idx, dst, op_args, op_kwargs)

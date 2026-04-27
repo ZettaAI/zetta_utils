@@ -368,6 +368,7 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
     op_worker_type: str | None = None
     reduction_worker_type: str | None = None
     task_stack_size: int | None = None
+    exact_bbox_output_bbox: Optional[VolumetricIndex] = None
 
     @property
     def _intermediaries_are_local(self) -> bool:
@@ -814,6 +815,9 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
         yield mazepa.Dependency()
         if self.processing_gap is None:
             self.processing_gap = Vec3D[int](0, 0, 0)
+
+        copy_idx = self.exact_bbox_output_bbox if self.exact_bbox_output_bbox is not None else idx
+
         if self.processing_gap != Vec3D[int](0, 0, 0):
             copy_chunk_size = (
                 dst.backend.get_chunk_size(self.dst_resolution) - self.processing_gap // 2
@@ -833,11 +837,11 @@ class VolumetricApplyFlowSchema(Generic[P, R_co]):
             offset=-self.processing_gap // 2,
         )
         logger.debug(
-            f"Breaking {idx} into chunks to be copied from the intermediary layer"
+            f"Breaking {copy_idx} into chunks to be copied from the intermediary layer"
             f" with {reduction_chunker}."
         )
         stride_start_offset = dst.backend.get_voxel_offset(self.dst_resolution)
-        red_chunks = reduction_chunker(idx, mode="exact", stride_start_offset=stride_start_offset)
+        red_chunks = reduction_chunker(copy_idx, mode="exact", stride_start_offset=stride_start_offset)
         tasks_reduce = [
             Copy()
             .make_task(

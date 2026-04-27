@@ -275,6 +275,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
             "allow_cache",
             "use_compression",
             "enforce_chunk_aligned_writes",
+            "overwrite_partial_chunks",
             "voxel_offset_res",
             "chunk_size_res",
             "dataset_size_res",
@@ -288,6 +289,7 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         keys_to_cv_kwargs = {
             "use_compression": "compress",
             "enforce_chunk_aligned_writes": "non_aligned_writes",
+            "overwrite_partial_chunks": "overwrite_partial_chunks",
         }
         keys_to_reverse = ["enforce_chunk_aligned_writes"]
         evolve_kwargs = {}

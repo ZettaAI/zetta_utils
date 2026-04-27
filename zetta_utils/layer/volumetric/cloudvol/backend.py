@@ -18,7 +18,7 @@ from numpy import typing as npt
 from zetta_utils.common import abspath, is_local
 from zetta_utils.geometry import Vec3D
 
-from ...precomputed import PrecomputedInfoSpec, get_info
+from ...precomputed import InfoSpecParams, PrecomputedInfoSpec, get_info
 from .. import VolumetricBackend, VolumetricIndex
 
 _cv_cache: cachetools.LRUCache = cachetools.LRUCache(maxsize=2048)
@@ -314,6 +314,19 @@ class CVBackend(VolumetricBackend):  # pylint: disable=too-few-public-methods
         assert self.info_spec is not None
 
         info_spec = deepcopy(self.info_spec)
+        mutates_info = any(
+            k in kwargs for k in ("voxel_offset_res", "chunk_size_res", "dataset_size_res")
+        )
+        if mutates_info and info_spec.info_spec_params is None:
+            assert info_spec.info_path is not None
+            reference_info = get_info(info_spec.info_path)
+            info_spec = PrecomputedInfoSpec(
+                info_spec_params=InfoSpecParams.from_reference(
+                    reference_path=info_spec.info_path,
+                    scales=[scale["resolution"] for scale in reference_info["scales"]],
+                    inherit_all_params=True,
+                )
+            )
         cv_kwargs = deepcopy(self.cv_kwargs)
 
         implemented_keys = [

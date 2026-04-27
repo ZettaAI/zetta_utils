@@ -11,7 +11,12 @@ class TransientErrorCondition:
     text_signature: str = ""
 
     def does_match(self, exc: BaseException):
-        return isinstance(exc, self.exception_type) and self.text_signature in str(exc)
+        cur: BaseException | None = exc
+        while cur is not None:
+            if isinstance(cur, self.exception_type) and self.text_signature in str(cur):
+                return True
+            cur = cur.__cause__ or cur.__context__
+        return False
 
 
 class ExplicitTransientError(Exception):
@@ -109,6 +114,12 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         # str() is "Could not connect to the endpoint URL: ..."
         exception_type=Exception,
         text_signature="Could not connect to the endpoint URL",
+    ),
+    TransientErrorCondition(
+        # botocore.exceptions.ConnectionClosedError — server dropped the
+        # TCP connection mid-request.
+        exception_type=Exception,
+        text_signature="Connection was closed before we received a valid response",
     ),
     TransientErrorCondition(
         # Generic socket / DNS resolution glitches.

@@ -66,4 +66,19 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         exception_type=Exception,
         text_signature="Unable to connect to proxy",
     ),
+    TransientErrorCondition(
+        # mproxy CA bundle not yet visible to the worker — wait_for_ca
+        # fired but the combined CA file lookup races the OAuth refresh.
+        # Retrying after the visibility timeout lands once the bundle is
+        # in place.
+        exception_type=Exception,
+        text_signature="CERTIFICATE_VERIFY_FAILED",
+    ),
+    TransientErrorCondition(
+        # OAuth/metadata server transiently dropped the connection during
+        # token refresh. Surfaces from `google.auth.exceptions.TransportError`
+        # via gcsfs/google-auth.
+        exception_type=Exception,
+        text_signature="Remote end closed connection without response",
+    ),
 )

@@ -397,6 +397,12 @@ def build_subchunkable_apply_flow(  # pylint: disable=keyword-arg-before-vararg,
 
     op_kwargs_ = op_kwargs if op_kwargs is not None else {}
 
+    logger.info(
+        f"build_subchunkable_apply_flow invoked: dst_resolution={list(dst_resolution)} "
+        f"processing_chunk_sizes={[list(c) for c in processing_chunk_sizes]} "
+        f"dst={getattr(dst, 'name', dst)}"
+    )
+
     if generate_ng_link and not verbose:
         raise ValueError("Cannot use `generate_ng_link` when `verbose=False`.")
 

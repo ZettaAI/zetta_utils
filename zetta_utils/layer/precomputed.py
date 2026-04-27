@@ -520,8 +520,8 @@ def resolve_resolution_at_or_above(path: str, min_xy_resolution_nm: float) -> li
 
 def pyramid_chunk_size_xy(
     xy_resolution_nm: float,
-    base_xy_resolution_nm: float = 32.0,
-    base_chunk: int = 2048,
+    base_xy_resolution_nm: float,
+    base_chunk: int,
 ) -> int:
     """Chunk size (voxels XY) for a given XY resolution, always halving per
     doubling of resolution. Inverse of resolution scaling so each chunk covers

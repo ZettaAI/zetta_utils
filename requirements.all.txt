@@ -512,7 +512,7 @@ llvmlite==0.46.0
     # via numba
 lsds @ git+https://github.com/ZettaAI/lsd.git@cebe976133efb991ebc40171eeed7a22c57ba50a
     # via zetta-utils (pyproject.toml)
-lxml==6.0.2
+lxml==6.1.0
     # via trimesh
 mahotas==1.4.18
     # via lsds

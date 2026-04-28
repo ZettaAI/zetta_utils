@@ -4,6 +4,8 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+import functools
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -604,6 +606,11 @@ def _append_watcher_log(log_path: Path | None, msg: str) -> None:
         f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
 
 
+def _load_core_v1_api() -> k8s_client.CoreV1Api:
+    config.load_kube_config()
+    return k8s_client.CoreV1Api()
+
+
 def _resilient_watch(
     list_fn,
     on_event: Callable,
@@ -648,8 +655,7 @@ def watch_for_pod_disruptions(
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
-    config.load_kube_config()
-    v1 = k8s_client.CoreV1Api()
+    v1 = _load_core_v1_api()
     reported: set[str] = set()
 
     def on_event(pod):
@@ -674,8 +680,7 @@ def watch_for_run_events(
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "events.log")
-    config.load_kube_config()
-    v1 = k8s_client.CoreV1Api()
+    v1 = _load_core_v1_api()
     pending: list[str] = []
 
     def on_event(obj):
@@ -703,4 +708,44 @@ def watch_for_run_events(
         description="Run event watcher",
         stop_event=stop_event,
         on_stream_end=flush,
+    )
+
+
+_TRIGGERED_SCALE_UP_MIG_PATTERN = re.compile(r"\{([^ ]+) \d+->\d+ \(max: \d+\)\}")
+
+
+def watch_for_triggered_scale_up(
+    name_prefix: str,
+    on_event: Callable[[str, list[str]], None],
+    namespace: str = "default",
+    stop_event: threading.Event | None = None,
+) -> None:
+    """Watch ``TriggeredScaleUp`` events from the cluster autoscaler.
+
+    The cluster autoscaler emits this event on a Pod when it decides to
+    scale up to make space for the Pod, with message format
+    ``"pod triggered scale-up: [{MIG_NAME N->M (max: K)}, ...]"``. Server-side
+    filters by ``reason=TriggeredScaleUp`` and ``involvedObject.kind=Pod``;
+    client-side filters by ``name_prefix`` on the involved Pod's name.
+    Calls ``on_event(pod_name, mig_names)`` with the list of attempted MIGs.
+    """
+    v1 = _load_core_v1_api()
+
+    def _handle(obj):
+        pod_name = obj.involved_object.name if obj.involved_object else ""
+        if not pod_name.startswith(name_prefix):
+            return
+        mig_names = _TRIGGERED_SCALE_UP_MIG_PATTERN.findall(obj.message or "")
+        if mig_names:
+            on_event(pod_name, mig_names)
+
+    _resilient_watch(
+        functools.partial(
+            v1.list_namespaced_event,
+            field_selector="reason=TriggeredScaleUp,involvedObject.kind=Pod",
+        ),
+        _handle,
+        namespace=namespace,
+        description="TriggeredScaleUp watcher",
+        stop_event=stop_event,
     )

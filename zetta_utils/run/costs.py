@@ -19,6 +19,11 @@ DATABASE_NAME = "pricing-db"
 logger = get_logger("zetta_utils")
 
 PRICING_LAYERS: dict[str, DBLayer] = {}
+# Cross-tick SKU price cache, keyed by (layer_name, region, key). Pricing is
+# static for the lifetime of a run, so caching across compute_costs ticks
+# eliminates redundant Firestore queries entirely on the second+ tick. None
+# means "missing or ambiguous SKU"; cached to suppress re-warn spam.
+_SKU_PRICE_CACHE: dict[tuple[str, str, str], float | None] = {}
 PROVISIONING_MAP: Final[dict[str, str]] = {"PREEMPTIBLE": "preemptible", "STANDARD": "ondemand"}
 EGRESS_COST_PER_GIB_MIN: Final[float] = 0.02
 EGRESS_COST_PER_GIB_MAX: Final[float] = 0.18
@@ -33,6 +38,8 @@ _cached_semaphore_widths: dict[str, int] | None = None
 
 
 def compute_costs(run_id: str):  # pylint: disable=too-many-locals
+    run_timestamp = RUN_DB[run_id]["timestamp"]
+
     def _get_start_time(node_info: DBRowDataT) -> float:
         """
         If there's a run_id already registered as using this node,
@@ -43,7 +50,7 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
             if _run_id == run_id:
                 continue
             if float(str(node_info[str(_run_id)])) < float(str(node_info[run_id])):
-                return RUN_DB[run_id]["timestamp"]
+                return run_timestamp
         return float(str(node_info["creation_time"]))
 
     # Tight timeout: this runs on a RepeatTimer thread every 60s; the Firestore
@@ -51,6 +58,32 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
     # a transient connectivity blip and delay both subsequent ticks and run
     # shutdown.
     nodes = NODE_DB.query({"-run_id": [run_id]}, timeout=30.0)
+
+    def _get_sku_price(layer_name: str, region: str, key: str, key_field: str) -> float | None:
+        cache_key = (layer_name, region, key)
+        if cache_key in _SKU_PRICE_CACHE:
+            return _SKU_PRICE_CACHE[cache_key]
+        layer = PRICING_LAYERS.get(layer_name)
+        if layer is None:
+            layer = build_firestore_layer(layer_name, DATABASE_NAME, project=PROJECT)
+            PRICING_LAYERS[layer_name] = layer
+        # GCP's SKU API is messy — there's no standard way to look up pricing
+        # by machine type. Some fields are parsed from description strings. A
+        # mismatch can happen when the pricing DB hasn't been refreshed for a
+        # new machine type/region, or when a node reports a machine_type that
+        # doesn't match the pricing DB's classification.
+        skus = layer.query({"-regions": [region], key_field: [key]}, union=False)
+        if len(skus) != 1:
+            logger.warning(
+                f"Expected 1 SKU for {layer_name} in {region}/{key}, " f"got {len(skus)}; skipping"
+            )
+            _SKU_PRICE_CACHE[cache_key] = None
+            return None
+        sku: DBRowDataT = next(iter(skus.values()))
+        price = float(str(sku["price_per_unit_usd"]))
+        _SKU_PRICE_CACHE[cache_key] = price
+        return price
+
     total_cost = 0.0
     per_wt: dict[str, dict[str, float]] = defaultdict(
         lambda: {"cpu_mem": 0.0, "gpu": 0.0, "node_hours": 0.0}
@@ -60,7 +93,7 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
         node_gpu_hourly = 0.0
         node_info: DBRowDataT = _info
         machine_class, _, _ = str(node_info["machine_type"]).split("-")
-        node_region = node_info["region"]
+        node_region = str(node_info["region"])
         provisioning_model = PROVISIONING_MAP[str(node_info["provisioning_model"])]
         wt = str(node_info.get("worker_type", "unspecified"))
 
@@ -68,41 +101,17 @@ def compute_costs(run_id: str):  # pylint: disable=too-many-locals
         ram = (f"RAM-{provisioning_model}", float(str(node_info["memory_gib"])))
 
         for lname, count in [cpu, ram]:
-            layer = PRICING_LAYERS.get(
-                lname, build_firestore_layer(lname, DATABASE_NAME, project=PROJECT)
-            )
-            skus = layer.query({"-regions": [node_region], "class": [machine_class]}, union=False)
-            # GCP's SKU API is messy — there's no standard way to look up
-            # pricing by machine type. Some fields are parsed from description
-            # strings. A mismatch can happen when the pricing DB hasn't been
-            # refreshed for a new machine type/region, or when a node reports a
-            # machine_type that doesn't match the pricing DB's classification.
-            if len(skus) != 1:
-                logger.warning(
-                    f"Expected 1 SKU for {lname} in {node_region}/{machine_class}, "
-                    f"got {len(skus)}; skipping"
-                )
-                continue
-            sku: DBRowDataT = next(iter(skus.values()))
-            node_cpu_mem_hourly += float(str(sku["price_per_unit_usd"])) * count
+            price = _get_sku_price(lname, node_region, machine_class, "class")
+            if price is not None:
+                node_cpu_mem_hourly += price * count
 
         gpu_layer_name = f"GPU-{provisioning_model}"
-        gpu_layer = PRICING_LAYERS.get(
-            gpu_layer_name, build_firestore_layer(gpu_layer_name, DATABASE_NAME, project=PROJECT)
-        )
-
         for gpu_indentifier, count in node_info["gpus"].items():  # type: ignore
-            skus = gpu_layer.query(
-                {"-regions": [node_region], "gpu_indentifier": [gpu_indentifier]}, union=False
+            price = _get_sku_price(
+                gpu_layer_name, node_region, str(gpu_indentifier), "gpu_indentifier"
             )
-            if len(skus) != 1:
-                logger.warning(
-                    f"Expected 1 SKU for {gpu_layer_name} in {node_region}/{gpu_indentifier}, "
-                    f"got {len(skus)}; skipping"
-                )
-                continue
-            sku = next(iter(skus.values()))
-            node_gpu_hourly += float(str(sku["price_per_unit_usd"])) * count
+            if price is not None:
+                node_gpu_hourly += price * count
 
         hourly_multiple = (float(str(node_info[run_id])) - _get_start_time(node_info)) / 3600
         per_wt[wt]["cpu_mem"] += hourly_multiple * node_cpu_mem_hourly

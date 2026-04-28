@@ -207,18 +207,20 @@ def _run_propagation(
     device = next(cutie.parameters()).device
     processor = InferenceCore(cutie, cfg=cutie.cfg)
 
+    object_ids = [int(v) for v in np.unique(mask_np) if v != 0]
+
     t0 = time.time()
     with torch.inference_mode():
         current_tensor = _to_frame_tensor(current_image_np, device)
-        mask_tensor = torch.from_numpy((mask_np > 0).astype(np.int64)).to(device)
-        processor.step(current_tensor, mask_tensor, objects=[1])
+        mask_tensor = torch.from_numpy(mask_np.astype(np.int64)).to(device)
+        processor.step(current_tensor, mask_tensor, objects=object_ids)
 
         if cancel_event.is_set():
             return np.zeros(mask_np.shape, dtype=np.uint8)
 
         next_tensor = _to_frame_tensor(image_np, device)
         output_prob = processor.step(next_tensor)
-        pred = (output_prob.argmax(0) > 0).cpu().numpy().astype(np.uint8)
+        pred = output_prob.argmax(0).cpu().numpy().astype(np.uint8)
 
     print(f"[segmentation] propagation inference: {time.time() - t0:.2f}s")
     return pred

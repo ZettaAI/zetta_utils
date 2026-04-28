@@ -1,4 +1,4 @@
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,unused-argument
 from __future__ import annotations
 
 import copy
@@ -95,58 +95,36 @@ def get_gcp_with_sqs_config(
     env_secret_mapping["RUN_ID"] = execution_id
 
     if sqs_based_scaling:
-        worker_command = k8s.get_mazepa_worker_command(
-            task_queue_spec,
-            outcome_queue_spec,
-            num_procs,
-            semaphores_spec,
-            idle_timeout=idle_worker_timeout,
+        logger.warning(
+            "sqs_based_scaling=True on this deprecated entrypoint no longer "
+            "spawns an autoscaled pool; falling back to a static Deployment "
+            "of %d replicas. Migrate to mazepa.execute_on_gcp_with_sqs "
+            ">=0.0.3 to get SQS-driven autoscaling.",
+            worker_replicas,
         )
-        pod_spec = k8s.get_mazepa_pod_spec(
-            image=worker_image,
-            command=worker_command,
-            resources=worker_resources,
-            env_secret_mapping=env_secret_mapping,
-            provisioning_model=provisioning_model,
-            resource_requests=worker_resource_requests,
-            restart_policy="Never",
-            adc_available=adc_available,
-            cave_secret_available=cave_secret_available,
-        )
-        job_spec = k8s.get_job_spec(pod_spec=pod_spec)
-        scaled_job_ctx_mngr = k8s.keda_deprecated.scaled_job_ctx_mngr(
-            execution_id,
-            cluster_info=worker_cluster,
-            job_spec=job_spec,
-            secrets=secrets,
-            max_replicas=worker_replicas,
-            queue=task_queue,
-        )
-        ctx_managers.append(scaled_job_ctx_mngr)
-    else:
-        deployment = k8s.get_mazepa_worker_deployment(
-            execution_id,
-            image=worker_image,
-            task_queue_spec=task_queue_spec,
-            outcome_queue_spec=outcome_queue_spec,
-            replicas=1 if sqs_based_scaling else worker_replicas,
-            resources=worker_resources,
-            env_secret_mapping=env_secret_mapping,
-            labels=worker_labels,
-            resource_requests=worker_resource_requests,
-            num_procs=num_procs,
-            semaphores_spec=semaphores_spec,
-            provisioning_model=provisioning_model,
-            adc_available=adc_available,
-            cave_secret_available=cave_secret_available,
-        )
-        deployment_ctx_mngr = k8s.deployment_ctx_mngr(
-            execution_id,
-            cluster_info=worker_cluster,
-            deployment=deployment,
-            secrets=secrets,
-        )
-        ctx_managers.append(deployment_ctx_mngr)
+    deployment = k8s.get_mazepa_worker_deployment(
+        execution_id,
+        image=worker_image,
+        task_queue_spec=task_queue_spec,
+        outcome_queue_spec=outcome_queue_spec,
+        replicas=worker_replicas,
+        resources=worker_resources,
+        env_secret_mapping=env_secret_mapping,
+        labels=worker_labels,
+        resource_requests=worker_resource_requests,
+        num_procs=num_procs,
+        semaphores_spec=semaphores_spec,
+        provisioning_model=provisioning_model,
+        adc_available=adc_available,
+        cave_secret_available=cave_secret_available,
+    )
+    deployment_ctx_mngr = k8s.deployment_ctx_mngr(
+        execution_id,
+        cluster_info=worker_cluster,
+        deployment=deployment,
+        secrets=secrets,
+    )
+    ctx_managers.append(deployment_ctx_mngr)
     return task_queue, outcome_queue, ctx_managers
 
 

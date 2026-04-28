@@ -36,14 +36,6 @@ def dummy_task(num_seconds: int) -> int:
     return num_seconds
 
 
-@builder.register("keda_test_flow")
-@mazepa.flow_schema
-def keda_test_flow(num_tasks: int):
-    for _ in range(num_tasks):
-        yield dummy_task.make_task(random.randint(0, 10))
-    yield dummy_task.make_task(random.randint(600, 1200))
-
-
 @taskable_operation
 def dummy_cpu_task(num_seconds: int) -> bool:
     logger.info("CPU Task.")

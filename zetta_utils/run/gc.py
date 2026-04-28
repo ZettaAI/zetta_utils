@@ -10,11 +10,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Mapping
 
+import kubernetes.client as k8s_client
 import taskqueue
 from boto3.exceptions import Boto3Error
 from google.api_core.exceptions import GoogleAPICallError
 
-from kubernetes import client as k8s_client
 from zetta_utils.cloud_management.resource_allocation import k8s
 from zetta_utils.layer.db_layer.backend import DBRowDataT
 from zetta_utils.log import get_logger
@@ -96,32 +96,6 @@ def _read_clusters(run_id_key: str) -> list[k8s.ClusterInfo]:  # pragma: no cove
     return [k8s.ClusterInfo(**cluster) for cluster in clusters]
 
 
-def _delete_dynamic_resource(
-    resource_id: str, resource: Resource, configuration: k8s_client.Configuration
-) -> bool:
-    success = True
-    try:
-        k8s.delete_dynamic_resource(
-            resource.name,
-            configuration,
-            k8s.keda.KEDA_API_VERSION,
-            resource.type,
-            namespace="default",
-        )
-        deregister_resource(resource_id)
-    except k8s_client.ApiException as exc:
-        if exc.status == 404:
-            success = True
-            logger.info(f"Resource does not exist: `{resource.name}`: {exc}")
-            deregister_resource(resource_id)
-        else:
-            success = False
-            msg = f"Failed to delete k8s resource `{resource.name}`: {exc}"
-            logger.warning(msg)
-            post_message(msg)
-    return success
-
-
 def _delete_k8s_resource(resource_id: str, resource: Resource) -> bool:
     success = True
     k8s_apps_v1_api = k8s_client.AppsV1Api()
@@ -187,13 +161,6 @@ def _delete_k8s_resources(run_id: str, resources: dict[str, Resource]) -> bool: 
 
         k8s_client.Configuration.set_default(configuration)
         for resource_id, resource in resources.items():
-            if resource.type in [
-                ResourceTypes.K8S_SCALED_JOB.value,
-                ResourceTypes.K8S_SCALED_OBJECT.value,
-                ResourceTypes.K8S_TRIGGER_AUTH.value,
-            ]:
-                success &= _delete_dynamic_resource(resource_id, resource, configuration)
-                continue
             success &= _delete_k8s_resource(resource_id, resource)
     return success
 

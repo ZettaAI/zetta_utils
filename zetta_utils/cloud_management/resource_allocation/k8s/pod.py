@@ -4,7 +4,6 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
-import functools
 import re
 import threading
 import time
@@ -619,20 +618,21 @@ def _resilient_watch(
     description: str,
     stop_event: threading.Event | None = None,
     on_stream_end: Callable[[], None] | None = None,
+    **list_fn_kwargs,
 ) -> None:
     """Stream K8s objects via watch.Watch, retrying transient errors with backoff.
 
-    Previously both watchers wrapped the `while` loop in a single try/except,
-    so any `w.stream()` failure (e.g. a momentary GKE master unreachable at
-    startup) permanently killed disruption detection for the rest of the run.
-    Here the try/except is inside the loop and resets backoff on clean cycles.
+    Extra ``**list_fn_kwargs`` (e.g. ``field_selector``, ``label_selector``)
+    are forwarded to ``list_fn`` for server-side filtering.
     """
     w = watch.Watch()
     backoff = 1.0
     try:
         while not (stop_event and stop_event.is_set()):
             try:
-                for event in w.stream(list_fn, namespace=namespace, timeout_seconds=30):
+                for event in w.stream(
+                    list_fn, namespace=namespace, timeout_seconds=30, **list_fn_kwargs
+                ):
                     if stop_event and stop_event.is_set():
                         break
                     on_event(event["object"])
@@ -740,12 +740,10 @@ def watch_for_triggered_scale_up(
             on_event(pod_name, mig_names)
 
     _resilient_watch(
-        functools.partial(
-            v1.list_namespaced_event,
-            field_selector="reason=TriggeredScaleUp,involvedObject.kind=Pod",
-        ),
+        v1.list_namespaced_event,
         _handle,
         namespace=namespace,
         description="TriggeredScaleUp watcher",
         stop_event=stop_event,
+        field_selector="reason=TriggeredScaleUp,involvedObject.kind=Pod",
     )

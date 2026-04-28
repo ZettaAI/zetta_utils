@@ -81,6 +81,11 @@ class WorkerGroup:
     # autoscaler scale-down; sized to the worst-case task duration so the worker
     # has time to drain its current task before getting killed.
     termination_grace_seconds: int = 300
+    # When True, the autoscaler watches TriggeredScaleUp events for this group's
+    # pods and nudges the chosen node pool directly when GKE's cluster
+    # autoscaler hits its post-RESOURCE_POOL_EXHAUSTED backoff. Set False to
+    # leave node-pool sizing entirely to the cluster autoscaler.
+    nudge_node_pools: bool = True
 
 
 class WorkerGroupDict(TypedDict, total=False):
@@ -97,6 +102,7 @@ class WorkerGroupDict(TypedDict, total=False):
     required_zones: NotRequired[list[str]]
     preferred_zones: NotRequired[list[str]]
     termination_grace_seconds: NotRequired[int]
+    nudge_node_pools: NotRequired[bool]
 
 
 def _get_group_taskqueue_and_contexts(
@@ -154,6 +160,7 @@ def _get_group_taskqueue_and_contexts(
                 queue_name=task_queue.name,
                 region_name=task_queue.region_name,
                 max_replicas=group.replicas,
+                nudge_node_pools=group.nudge_node_pools,
             )
         )
     else:

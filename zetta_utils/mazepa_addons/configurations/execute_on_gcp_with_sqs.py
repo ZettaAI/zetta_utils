@@ -77,6 +77,10 @@ class WorkerGroup:
     gpu_accelerator_type: str | None = None
     required_zones: list[str] | None = None  # k8s will schedule workers in these zones
     preferred_zones: list[str] | None = None  # k8s will try to schedule workers in these zones
+    # SIGTERM-to-SIGKILL grace window when a worker pod is being terminated by the
+    # autoscaler scale-down; sized to the worst-case task duration so the worker
+    # has time to drain its current task before getting killed.
+    termination_grace_seconds: int = 300
 
 
 class WorkerGroupDict(TypedDict, total=False):
@@ -92,78 +96,7 @@ class WorkerGroupDict(TypedDict, total=False):
     gpu_accelerator_type: NotRequired[str]
     required_zones: NotRequired[list[str]]
     preferred_zones: NotRequired[list[str]]
-
-
-def _build_pod_spec_for_group(
-    *,
-    group: WorkerGroup,
-    group_name: str,
-    image: str,
-    worker_command: str,
-    env_secret_mapping: dict[str, str],
-    adc_available: bool,
-    cave_secret_available: bool,
-):
-    """Build a k8s pod spec from a WorkerGroup, hiding the field-by-field unpacking."""
-    return k8s.get_mazepa_pod_spec(
-        image=image,
-        command=worker_command,
-        resources=group.resource_limits,
-        env_secret_mapping=env_secret_mapping,
-        provisioning_model=group.provisioning_model,
-        resource_requests=group.resource_requests,
-        # OnFailure lets kubelet restart a sidecar container in-place on
-        # abnormal exit (OOM, liveness fail) — liveness probe is meaningless
-        # under Never. Training keeps Never because its recovery is
-        # pod-level via torch elastic; mazepa workers have no such
-        # coordinator and benefit from fast in-pod restart.
-        restart_policy="OnFailure",
-        gpu_accelerator_type=group.gpu_accelerator_type,
-        adc_available=adc_available,
-        cave_secret_available=cave_secret_available,
-        required_zones=group.required_zones,
-        preferred_zones=group.preferred_zones,
-        worker_type=group_name,
-    )
-
-
-def _build_deployment_for_group(
-    *,
-    group: WorkerGroup,
-    group_name: str,
-    execution_id: str,
-    image: str,
-    task_queue_spec: dict[str, Any],
-    outcome_queue_spec: dict[str, Any],
-    env_secret_mapping: dict[str, str],
-    suppress_worker_logs: bool,
-    resource_monitor_interval: float | None,
-    adc_available: bool,
-    cave_secret_available: bool,
-):
-    """Build a k8s deployment from a WorkerGroup, hiding the field-by-field unpacking."""
-    return k8s.get_mazepa_worker_deployment(
-        f"{execution_id}-{group_name}",
-        image=image,
-        task_queue_spec=task_queue_spec,
-        outcome_queue_spec=outcome_queue_spec,
-        replicas=group.replicas,
-        resources=group.resource_limits,
-        env_secret_mapping=env_secret_mapping,
-        labels=group.labels,
-        resource_requests=group.resource_requests,
-        num_procs=group.num_procs,
-        semaphores_spec=group.semaphores_spec,
-        provisioning_model=group.provisioning_model,
-        gpu_accelerator_type=group.gpu_accelerator_type,
-        adc_available=adc_available,
-        cave_secret_available=cave_secret_available,
-        suppress_worker_logs=suppress_worker_logs,
-        resource_monitor_interval=resource_monitor_interval,
-        required_zones=group.required_zones,
-        preferred_zones=group.preferred_zones,
-        worker_type=group_name,
-    )
+    termination_grace_seconds: NotRequired[int]
 
 
 def _get_group_taskqueue_and_contexts(
@@ -172,7 +105,6 @@ def _get_group_taskqueue_and_contexts(
     group: WorkerGroup,
     group_name: str,
     cluster: k8s.ClusterInfo,
-    sqs_trigger_name: str,
     outcome_queue_spec: dict[str, Any],
     env_secret_mapping: dict[str, str],
     suppress_worker_logs: bool,
@@ -188,52 +120,43 @@ def _get_group_taskqueue_and_contexts(
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, task_queue))
     env_secret_mapping["RUN_ID"] = execution_id
 
+    initial_replicas = 1 if group.sqs_based_scaling else group.replicas
+    deployment = k8s.get_mazepa_worker_deployment(
+        f"{execution_id}-{group_name}",
+        image=image,
+        task_queue_spec=task_queue_spec,
+        outcome_queue_spec=outcome_queue_spec,
+        replicas=initial_replicas,
+        resources=group.resource_limits,
+        env_secret_mapping=env_secret_mapping,
+        labels=group.labels,
+        resource_requests=group.resource_requests,
+        num_procs=group.num_procs,
+        semaphores_spec=group.semaphores_spec,
+        provisioning_model=group.provisioning_model,
+        gpu_accelerator_type=group.gpu_accelerator_type,
+        adc_available=adc_available,
+        cave_secret_available=cave_secret_available,
+        suppress_worker_logs=suppress_worker_logs,
+        resource_monitor_interval=resource_monitor_interval,
+        required_zones=group.required_zones,
+        preferred_zones=group.preferred_zones,
+        worker_type=group_name,
+        termination_grace_seconds=group.termination_grace_seconds,
+    )
     if group.sqs_based_scaling:
-        worker_command = k8s.get_mazepa_worker_command(
-            task_queue_spec,
-            outcome_queue_spec,
-            group.num_procs,
-            group.semaphores_spec,
-            idle_timeout=group.idle_worker_timeout,
-            suppress_worker_logs=suppress_worker_logs,
-            resource_monitor_interval=resource_monitor_interval,
-        )
-        pod_spec = _build_pod_spec_for_group(
-            group=group,
-            group_name=group_name,
-            image=image,
-            worker_command=worker_command,
-            env_secret_mapping=env_secret_mapping,
-            adc_available=adc_available,
-            cave_secret_available=cave_secret_available,
-        )
-        job_spec = k8s.get_job_spec(pod_spec=pod_spec)
         ctx_managers.append(
-            k8s.scaled_job_ctx_mngr(
+            k8s.autoscaling_deployment_ctx_mngr(
                 execution_id,
-                group_name=group_name,
                 cluster_info=cluster,
-                job_spec=job_spec,
+                deployment=deployment,
                 secrets=[],
-                sqs_trigger_name=sqs_trigger_name,
+                queue_name=task_queue.name,
+                region_name=task_queue.region_name,
                 max_replicas=group.replicas,
-                queue=task_queue,
             )
         )
     else:
-        deployment = _build_deployment_for_group(
-            group=group,
-            group_name=group_name,
-            execution_id=execution_id,
-            image=image,
-            task_queue_spec=task_queue_spec,
-            outcome_queue_spec=outcome_queue_spec,
-            env_secret_mapping=env_secret_mapping,
-            suppress_worker_logs=suppress_worker_logs,
-            resource_monitor_interval=resource_monitor_interval,
-            adc_available=adc_available,
-            cave_secret_available=cave_secret_available,
-        )
         ctx_managers.append(
             k8s.deployment_ctx_mngr(
                 execution_id,
@@ -269,9 +192,6 @@ def get_gcp_with_sqs_config(
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue))
     ctx_managers.append(k8s.secrets_ctx_mngr(execution_id, secrets=secrets, cluster_info=cluster))
 
-    sqs_trigger_name = f"run-{execution_id}-keda-trigger-auth-aws"
-    ctx_managers.append(k8s.sqs_trigger_ctx_mngr(execution_id, cluster, sqs_trigger_name))
-
     for group_name, group_dict in groups.items():
         group = WorkerGroup(**group_dict)
         group_name = group_name.replace("_", "-")
@@ -281,7 +201,6 @@ def get_gcp_with_sqs_config(
             group=group,
             group_name=group_name,
             cluster=cluster,
-            sqs_trigger_name=sqs_trigger_name,
             outcome_queue_spec=outcome_queue_spec,
             env_secret_mapping=env_secret_mapping,
             adc_available=adc_available,

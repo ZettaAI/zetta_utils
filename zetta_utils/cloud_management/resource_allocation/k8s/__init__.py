@@ -2,6 +2,7 @@
 Tools to interact with kubernetes clusters.
 """
 
+from .autoscaler import AutoscaleTarget, autoscaling_deployment_ctx_mngr
 from .common import (
     ClusterInfo,
     DEFAULT_CLUSTER_INFO,
@@ -25,13 +26,6 @@ from .job import (
     follow_job_logs,
     wait_for_job_completion,
 )
-from .keda import (
-    patch_scaledjob,
-    scaled_deployment_ctx_mngr,
-    scaled_job_ctx_mngr,
-    sqs_trigger_ctx_mngr,
-)
-from . import keda_deprecated
 from .pod import (
     get_pod_spec,
     get_mazepa_pod_spec,

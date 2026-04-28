@@ -81,10 +81,13 @@ def _refresh_mig_to_pool(cluster_info: ClusterInfo) -> None:
 def _resolve_pool(mig_name: str, cluster_info: ClusterInfo) -> str | None:
     """Look up the pool that owns ``mig_name``.
 
-    On cache miss (e.g. NAP just created a new pool), refresh the MIG → pool
-    mapping at most once per :data:`_MIG_REFRESH_MIN_GAP_SEC`. Returns ``None``
-    if the MIG is still unknown after the refresh — the caller drops the event.
+    Accepts either a short MIG name or a full instanceGroups URL; the cache is
+    keyed by the short name. On cache miss (e.g. NAP just created a new pool),
+    refresh the MIG → pool mapping at most once per
+    :data:`_MIG_REFRESH_MIN_GAP_SEC`. Returns ``None`` if the MIG is still
+    unknown after the refresh — the caller drops the event.
     """
+    mig_name = mig_name.rsplit("/", 1)[-1]
     pool = _mig_to_pool.get(mig_name)
     if pool is not None:
         return pool

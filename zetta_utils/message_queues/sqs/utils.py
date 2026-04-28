@@ -39,6 +39,27 @@ def get_queue_url(queue_name: str, region_name, endpoint_url: Optional[str] = No
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
+def get_queue_depth(
+    queue_name: str,
+    region_name: str,
+    endpoint_url: Optional[str] = None,
+) -> tuple[int, int]:
+    sqs_client = get_sqs_client(region_name, endpoint_url=endpoint_url)
+    queue_url = get_queue_url(queue_name, region_name, endpoint_url=endpoint_url)
+    resp = sqs_client.get_queue_attributes(
+        QueueUrl=queue_url,
+        AttributeNames=[
+            "ApproximateNumberOfMessages",
+            "ApproximateNumberOfMessagesNotVisible",
+        ],
+    )["Attributes"]
+    return (
+        int(resp["ApproximateNumberOfMessages"]),
+        int(resp["ApproximateNumberOfMessagesNotVisible"]),
+    )
+
+
+@retry(stop=stop_after_attempt(5), wait=wait_random(min=0.5, max=2))
 def receive_msgs(
     queue_name: str,
     region_name: str,

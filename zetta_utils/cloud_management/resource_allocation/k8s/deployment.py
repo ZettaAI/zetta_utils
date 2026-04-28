@@ -7,7 +7,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Dict, List, Literal, Optional
 
-from kubernetes import client as k8s_client
+import kubernetes.client as k8s_client
+
 from zetta_utils import builder, log
 from zetta_utils.common import RepeatTimer
 from zetta_utils.mazepa import SemaphoreType
@@ -41,6 +42,7 @@ def _get_mazepa_deployment(
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
+    termination_grace_seconds: int = 300,
 ) -> k8s_client.V1Deployment:
     name = f"run-{name}"
     pod_spec = get_mazepa_pod_spec(
@@ -56,6 +58,7 @@ def _get_mazepa_deployment(
         required_zones=required_zones,
         preferred_zones=preferred_zones,
         worker_type=worker_type,
+        termination_grace_seconds=termination_grace_seconds,
     )
 
     pod_template = k8s_client.V1PodTemplateSpec(
@@ -104,6 +107,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
+    termination_grace_seconds: int = 300,
 ):
     if labels is None:
         labels_final = {"run_id": run_id}
@@ -136,6 +140,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
         required_zones=required_zones,
         preferred_zones=preferred_zones,
         worker_type=worker_type,
+        termination_grace_seconds=termination_grace_seconds,
     )
 
 

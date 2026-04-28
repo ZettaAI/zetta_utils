@@ -10,9 +10,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Dict, List, Literal, Mapping, Optional
 
+import kubernetes.client as k8s_client
 from kubernetes.client.exceptions import ApiException
 
-from kubernetes import client as k8s_client
 from kubernetes import config, watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
@@ -55,6 +55,7 @@ def get_pod_spec(  # pylint: disable=too-many-locals
     volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     subdomain: Optional[str] = None,
+    termination_grace_seconds: int = 60,
 ) -> k8s_client.V1PodSpec:
     name = f"run-{name}"
     envs = envs or []
@@ -135,7 +136,7 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         scheduler_name="default-scheduler",
         security_context={},
         subdomain=subdomain,
-        termination_grace_period_seconds=60,
+        termination_grace_period_seconds=termination_grace_seconds,
         tolerations=tolerations,
         volumes=volumes,
     )
@@ -190,6 +191,7 @@ def get_mazepa_pod_spec(
     required_zones: list[str] | None = None,
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
+    termination_grace_seconds: int = 300,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -235,6 +237,7 @@ def get_mazepa_pod_spec(
             cave_secret_available=cave_secret_available
         ),
         resource_requests=resource_requests,
+        termination_grace_seconds=termination_grace_seconds,
     )
 
 

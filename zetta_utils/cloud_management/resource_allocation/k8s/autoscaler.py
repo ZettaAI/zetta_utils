@@ -16,13 +16,13 @@ import attrs
 import kubernetes.client as k8s_client
 from google.api_core.exceptions import FailedPrecondition, GoogleAPICallError
 from google.cloud.container_v1.types import NodePoolAutoscaling
-from kubernetes.client.exceptions import ApiException
 
+from kubernetes import config  # type: ignore
 from zetta_utils import log
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 
 from . import gke
-from .common import ClusterInfo, get_cluster_data
+from .common import ClusterInfo
 from .deployment import deployment_ctx_mngr
 from .pod import watch_for_triggered_scale_up
 
@@ -37,6 +37,25 @@ _pool_state: dict[str, _PoolState] = {}
 _mig_to_pool: dict[str, str] = {}
 _mig_to_pool_refreshed_at: dict[tuple[str, str, str], float] = {}
 _MIG_REFRESH_MIN_GAP_SEC = 60
+
+# Process-wide ``AppsV1Api`` shared across the per-group autoscaler and
+# nudger threads. Built from ``config.load_kube_config()`` so the
+# kubeconfig auth provider handles the bearer token; reset on any tick
+# failure so the next iteration rebuilds against fresh credentials.
+_apps_v1_api: k8s_client.AppsV1Api | None = None
+
+
+def _get_apps_v1_api() -> k8s_client.AppsV1Api:
+    global _apps_v1_api  # pylint: disable=global-statement
+    if _apps_v1_api is None:
+        config.load_kube_config()
+        _apps_v1_api = k8s_client.AppsV1Api()
+    return _apps_v1_api
+
+
+def _reset_apps_v1_api() -> None:
+    global _apps_v1_api  # pylint: disable=global-statement
+    _apps_v1_api = None
 
 
 @attrs.mutable
@@ -218,21 +237,14 @@ class _GroupScaler:
     _scale_down_pending_since: float | None = None
 
     def tick(self) -> None:
-        try:
-            dep = self.apps_api.read_namespaced_deployment(
-                name=self.target.deployment_name, namespace=self.target.namespace
-            )
-        except ApiException as exc:
-            logger.warning(
-                f"autoscaler: read_deployment {self.target.deployment_name}: "
-                f"{exc.status} {exc.reason}"
-            )
-            return
+        dep = self.apps_api.read_namespaced_deployment(
+            name=self.target.deployment_name, namespace=self.target.namespace
+        )
 
-        config = self._read_scaling_config(dep)
-        if config is None:
+        scaling_config = self._read_scaling_config(dep)
+        if scaling_config is None:
             return
-        max_replicas, min_replicas, stabilization_sec = config
+        max_replicas, min_replicas, stabilization_sec = scaling_config
 
         visible, in_flight = sqs_utils.get_queue_depth(
             self.target.queue_name, self.target.region_name
@@ -283,38 +295,37 @@ class _GroupScaler:
     def _patch(self, replicas: int, current: int) -> None:
         if replicas == current:
             return
-        try:
-            self.apps_api.patch_namespaced_deployment(
-                name=self.target.deployment_name,
-                namespace=self.target.namespace,
-                body={"spec": {"replicas": replicas}},
-            )
-            logger.info(
-                f"autoscaler: {self.target.deployment_name}: " f"{current} -> {replicas} replicas"
-            )
-        except ApiException as exc:
-            logger.warning(
-                f"autoscaler: patch_deployment {self.target.deployment_name}: "
-                f"{exc.status} {exc.reason}"
-            )
+        self.apps_api.patch_namespaced_deployment(
+            name=self.target.deployment_name,
+            namespace=self.target.namespace,
+            body={"spec": {"replicas": replicas}},
+        )
+        logger.info(
+            f"autoscaler: {self.target.deployment_name}: " f"{current} -> {replicas} replicas"
+        )
 
 
 def _run_loop(
     target: AutoscaleTarget,
-    cluster_info: ClusterInfo,
     stop_event: threading.Event,
     poll_interval_sec: int,
 ) -> None:
-    """Daemon body: tick the scaler until ``stop_event`` is set."""
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    apps_api = k8s_client.AppsV1Api()
-    scaler = _GroupScaler(target=target, apps_api=apps_api)
+    """Daemon body: tick the scaler until ``stop_event`` is set.
+
+    On any tick failure the shared ``AppsV1Api`` is reset so the next
+    iteration rebuilds it via ``config.load_kube_config()`` — recovers
+    from token expiry and transient init failures alike.
+    """
+    scaler: _GroupScaler | None = None
     while not stop_event.wait(poll_interval_sec):
         try:
+            if scaler is None:
+                scaler = _GroupScaler(target=target, apps_api=_get_apps_v1_api())
             scaler.tick()
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning(f"autoscaler: tick failed for {target.deployment_name}: {exc}")
+            _reset_apps_v1_api()
+            scaler = None
 
 
 def _run_triggered_scale_up_watcher(
@@ -368,32 +379,28 @@ def _run_nudge_loop(
     cluster autoscaler refills it with a fresh ``TriggeredScaleUp`` event if
     pods are still stuck.
     """
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    apps_api = k8s_client.AppsV1Api()
     while not stop_event.wait(nudge_interval_sec):
-        pool = group_state.attempted_pool
-        if pool is None:
-            continue
         try:
-            dep = apps_api.read_namespaced_deployment(name=deployment_name, namespace=namespace)
-        except ApiException as exc:
-            logger.warning(
-                f"node-pool nudge: read_deployment {deployment_name}: "
-                f"{exc.status} {exc.reason}"
+            pool = group_state.attempted_pool
+            if pool is None:
+                continue
+            dep = _get_apps_v1_api().read_namespaced_deployment(
+                name=deployment_name, namespace=namespace
             )
-            continue
-        spec_replicas = dep.spec.replicas or 0
-        ready_replicas = dep.status.ready_replicas or 0
-        pending = spec_replicas - ready_replicas
-        if pending <= 0:
+            spec_replicas = dep.spec.replicas or 0
+            ready_replicas = dep.status.ready_replicas or 0
+            pending = spec_replicas - ready_replicas
+            if pending <= 0:
+                group_state.attempted_pool = None
+                continue
+            try:
+                _nudge_pool(pool, pending, cluster_info, nudge_min_gap_sec)
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                logger.warning(f"node-pool nudge: {pool} failed: {exc}")
             group_state.attempted_pool = None
-            continue
-        try:
-            _nudge_pool(pool, pending, cluster_info, nudge_min_gap_sec)
         except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.warning(f"node-pool nudge: {pool} failed: {exc}")
-        group_state.attempted_pool = None
+            logger.warning(f"node-pool nudge: iteration failed for {deployment_name}: {exc}")
+            _reset_apps_v1_api()
 
 
 @contextmanager
@@ -469,7 +476,7 @@ def autoscaling_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     threads: list[threading.Thread] = [
         threading.Thread(
             target=_run_loop,
-            args=(target, cluster_info, stop_event, poll_interval_sec),
+            args=(target, stop_event, poll_interval_sec),
             daemon=True,
         )
     ]

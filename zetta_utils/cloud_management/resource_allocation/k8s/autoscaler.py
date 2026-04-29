@@ -15,6 +15,7 @@ from contextlib import contextmanager
 import attrs
 import kubernetes.client as k8s_client
 from google.api_core.exceptions import FailedPrecondition, GoogleAPICallError
+from google.cloud.container_v1.types import NodePoolAutoscaling
 from kubernetes.client.exceptions import ApiException
 
 from zetta_utils import log
@@ -99,6 +100,23 @@ def _resolve_pool(mig_name: str, cluster_info: ClusterInfo) -> str | None:
     return _mig_to_pool.get(mig_name)
 
 
+def _resolve_per_zone_max(autoscaling: NodePoolAutoscaling | None, num_zones: int) -> int | None:
+    """Per-zone autoscaling cap.
+
+    Regional pools using ``LocationPolicy`` set ``total_max_node_count``
+    (regional total); zonal pools and pools with explicit per-zone
+    bounds set ``max_node_count``. Returns ``None`` when autoscaling
+    is disabled or no cap is set.
+    """
+    if not (autoscaling and autoscaling.enabled):
+        return None
+    if autoscaling.total_max_node_count > 0:
+        return autoscaling.total_max_node_count // num_zones
+    if autoscaling.max_node_count > 0:
+        return autoscaling.max_node_count
+    return None
+
+
 def _nudge_pool(
     pool_name: str,
     pending: int,
@@ -128,10 +146,9 @@ def _nudge_pool(
     max_pods_per_node = (
         pool.max_pods_constraint.max_pods_per_node if pool.max_pods_constraint else 110
     )
-    autoscaling = pool.autoscaling
-    max_node_count = autoscaling.max_node_count if autoscaling and autoscaling.enabled else None
     current = pool.initial_node_count
     num_zones = max(1, len(pool.locations))
+    max_node_count = _resolve_per_zone_max(pool.autoscaling, num_zones)
 
     nodes_total = math.ceil(pending / max_pods_per_node)
     nodes_per_zone = math.ceil(nodes_total / num_zones)
@@ -141,7 +158,10 @@ def _nudge_pool(
 
     if target <= current:
         if not state.max_node_count_logged:
-            logger.info(f"node-pool nudge: {pool_name} at max ({current}/zone), cannot grow")
+            logger.info(
+                f"node-pool nudge: {pool_name} cannot grow "
+                f"(current={current}/zone, max={max_node_count}/zone)"
+            )
             state.max_node_count_logged = True
         return
 

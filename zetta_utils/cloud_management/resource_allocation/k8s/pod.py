@@ -648,6 +648,42 @@ def _resilient_watch(
         w.stop()
 
 
+_BATCHED_WARN_FLUSH_INTERVAL_SEC = 60
+
+
+class _BatchedWarner:
+    """Batches messages, emits one summary warning per ``interval_sec`` window.
+
+    Each call to :meth:`add` appends the message to the per-event file log
+    immediately and emits the batched warning once enough time has elapsed
+    since the last flush. :meth:`flush` is also intended to be wired to the
+    watcher's ``on_stream_end`` so a partial final batch is not lost.
+    """
+
+    def __init__(self, name: str, interval_sec: int, log_path: Path | None) -> None:
+        self.name = name
+        self.interval_sec = interval_sec
+        self.log_path = log_path
+        self.pending: list[str] = []
+        self.last_flush = time.time()
+
+    def add(self, msg: str) -> None:
+        self.pending.append(msg)
+        _append_watcher_log(self.log_path, msg)
+        if time.time() - self.last_flush >= self.interval_sec:
+            self.flush()
+
+    def flush(self) -> None:
+        if not self.pending:
+            return
+        n = len(self.pending)
+        sample = self.pending[:3]
+        suffix = "" if n <= 3 else f" (+{n - 3} more)"
+        logger.warning(f"{self.name} (total {n} events): " + " | ".join(sample) + suffix)
+        self.pending.clear()
+        self.last_flush = time.time()
+
+
 def watch_for_pod_disruptions(
     run_id: str,
     namespace="default",
@@ -657,12 +693,12 @@ def watch_for_pod_disruptions(
     log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
     v1 = _load_core_v1_api()
     reported: set[str] = set()
+    batcher = _BatchedWarner("pod disruptions", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
     def on_event(pod):
         msg = _check_pod_disruption(pod, run_id, reported)
         if msg:
-            logger.warning(msg)
-            _append_watcher_log(log_path, msg)
+            batcher.add(msg)
 
     _resilient_watch(
         v1.list_namespaced_pod,
@@ -670,6 +706,7 @@ def watch_for_pod_disruptions(
         namespace=namespace,
         description="Pod disruption watcher",
         stop_event=stop_event,
+        on_stream_end=batcher.flush,
     )
 
 
@@ -681,7 +718,7 @@ def watch_for_run_events(
 ):
     log_path = _open_watcher_log(log_dir, run_id, "events.log")
     v1 = _load_core_v1_api()
-    pending: list[str] = []
+    batcher = _BatchedWarner("run events", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
     def on_event(obj):
         pod_name = obj.involved_object.name if obj.involved_object else ""
@@ -692,14 +729,7 @@ def watch_for_run_events(
             n in message for n in _TRACKED_CONTAINER_EVENT_NAMES
         ):
             return
-        msg = f"[K8s:{obj.reason}] {pod_name}: {message}"
-        pending.append(msg)
-        _append_watcher_log(log_path, msg)
-
-    def flush():
-        if pending:
-            logger.warning("\n".join(pending))
-            pending.clear()
+        batcher.add(f"[K8s:{obj.reason}] {pod_name}: {message}")
 
     _resilient_watch(
         v1.list_namespaced_event,
@@ -707,7 +737,7 @@ def watch_for_run_events(
         namespace=namespace,
         description="Run event watcher",
         stop_event=stop_event,
-        on_stream_end=flush,
+        on_stream_end=batcher.flush,
     )
 
 

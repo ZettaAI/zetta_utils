@@ -755,6 +755,24 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
     logger.info(s)
 
 
+def _format_compute_cost(cost: float | None) -> str:
+    return f"compute=${cost:.2f}" if cost is not None else "compute=unknown"
+
+
+def _format_gcs_stats(gcs: dict, total_egress_gib: float) -> str | None:
+    """One-line gcs summary, or ``None`` when there is no gcs activity."""
+    if gcs["pod_count"] <= 0:
+        return None
+    if not (gcs["total_class_a"] or gcs["total_class_b"] or gcs["total_egress_bytes"]):
+        return None
+    return (
+        f"gcs A={gcs['total_class_a']} B={gcs['total_class_b']} "
+        f"egress={total_egress_gib:.2f} GiB "
+        f"(${gcs['egress_cost_min']:.2f}-${gcs['egress_cost_max']:.2f}) "
+        f"from {gcs['pod_count']} pods, {len(gcs['buckets'])} buckets"
+    )
+
+
 def aggregate_pod_stats(
     run_id: str, semaphore_widths: dict[str, int] | None = None
 ) -> dict | None:
@@ -808,18 +826,11 @@ def aggregate_pod_stats(
         )
         if any(_current) and _current != _last_gcs_stats.get(run_id):
             _last_gcs_stats[run_id] = _current
-            cost_str = (
-                f"estimated compute=${_last_compute_cost:.2f}, "
-                if _last_compute_cost is not None
-                else ""
-            )
-            logger.info(
-                f"{cost_str}"
-                f"gcs stats: A={gcs['total_class_a']} "
-                f"B={gcs['total_class_b']} egress={update['total_egress_gib']:.2f} GiB "
-                f"(${gcs['egress_cost_min']:.2f}-${gcs['egress_cost_max']:.2f}) "
-                f"from {gcs['pod_count']} pods, {len(gcs['buckets'])} buckets"
-            )
+            parts = [_format_compute_cost(_last_compute_cost)]
+            gcs_part = _format_gcs_stats(gcs, update["total_egress_gib"])
+            if gcs_part:
+                parts.append(gcs_part)
+            logger.info("run cost: " + "; ".join(parts))
             _log_worker_type_table(sema, resource, gcs)
 
     return update

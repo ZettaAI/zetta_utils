@@ -127,6 +127,9 @@ def _get_group_taskqueue_and_contexts(
     env_secret_mapping["RUN_ID"] = execution_id
 
     initial_replicas = 1 if group.sqs_based_scaling else group.replicas
+    deployment_labels = {"run_id": execution_id, "worker_group": group_name}
+    if group.labels:
+        deployment_labels.update(group.labels)
     deployment = k8s.get_mazepa_worker_deployment(
         f"{execution_id}-{group_name}",
         image=image,
@@ -135,7 +138,7 @@ def _get_group_taskqueue_and_contexts(
         replicas=initial_replicas,
         resources=group.resource_limits,
         env_secret_mapping=env_secret_mapping,
-        labels=group.labels,
+        labels=deployment_labels,
         resource_requests=group.resource_requests,
         num_procs=group.num_procs,
         semaphores_spec=group.semaphores_spec,
@@ -324,7 +327,9 @@ def execute_on_gcp_with_sqs(  # pylint: disable=too-many-locals
             )
 
         thread = threading.Thread(
-            target=k8s.pod.watch_for_pod_disruptions, args=(run.RUN_ID,), daemon=True
+            target=k8s.pod.watch_for_pod_disruptions,
+            args=(run.RUN_ID, worker_cluster),
+            daemon=True,
         )
         thread.start()
 

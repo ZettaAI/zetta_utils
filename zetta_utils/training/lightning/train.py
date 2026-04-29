@@ -484,7 +484,6 @@ def _lightning_train_remote(
 
     svc_name = f"run-{run.RUN_ID}" if num_nodes > 1 else None
     train_pod_spec = resource_allocation.k8s.get_pod_spec(
-        name=run.RUN_ID,
         image=image,
         command=f"zetta {verbose_flag} run {flags} specs/train.cue".strip(),
         affinity=affinity,
@@ -556,7 +555,6 @@ def _lightning_train_remote(
             flags += " --no-main-run-process"
             env_secret_mapping["RUN_ID"] = run.RUN_ID
             worker_pod_spec = resource_allocation.k8s.get_pod_spec(
-                name="workers",
                 image=image,
                 command=(
                     f"zetta {verbose_flag} run -r {run.RUN_ID} {flags} specs/train.cue".strip()
@@ -595,13 +593,13 @@ def _lightning_train_remote(
         watcher_stop = threading.Event()
         threading.Thread(
             target=resource_allocation.k8s.pod.watch_for_pod_disruptions,
-            args=(run.RUN_ID,),
+            args=(run.RUN_ID, cluster_info),
             kwargs={"log_dir": log_dir, "stop_event": watcher_stop},
             daemon=True,
         ).start()
         threading.Thread(
             target=resource_allocation.k8s.pod.watch_for_run_events,
-            args=(run.RUN_ID,),
+            args=(run.RUN_ID, cluster_info),
             kwargs={"log_dir": log_dir, "stop_event": watcher_stop},
             daemon=True,
         ).start()

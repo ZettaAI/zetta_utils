@@ -773,6 +773,31 @@ def _format_gcs_stats(gcs: dict, total_egress_gib: float) -> str | None:
     )
 
 
+def _maybe_log_run_cost(
+    run_id: str,
+    gcs: dict | None,
+    sema: dict | None,
+    resource: dict | None,
+    total_egress_gib: float,
+) -> None:
+    """Emit a one-line run-cost log when compute or gcs values change."""
+    bottleneck = sema.get("bottleneck") if sema else None
+    gcs_a = gcs["total_class_a"] if gcs else 0
+    gcs_b = gcs["total_class_b"] if gcs else 0
+    gcs_egress = gcs["total_egress_bytes"] if gcs else 0
+    current = (gcs_a, gcs_b, gcs_egress, _last_compute_cost, bottleneck)
+    if current == _last_gcs_stats.get(run_id):
+        return
+    _last_gcs_stats[run_id] = current
+    parts = [_format_compute_cost(_last_compute_cost)]
+    if gcs is not None:
+        gcs_part = _format_gcs_stats(gcs, total_egress_gib)
+        if gcs_part:
+            parts.append(gcs_part)
+    logger.info("run cost: " + "; ".join(parts))
+    _log_worker_type_table(sema, resource, gcs)
+
+
 def aggregate_pod_stats(
     run_id: str, semaphore_widths: dict[str, int] | None = None
 ) -> dict | None:
@@ -793,12 +818,9 @@ def aggregate_pod_stats(
         semaphore_widths = _cached_semaphore_widths
 
     pod_docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
-    if not pod_docs:
-        return None
-
-    gcs = _aggregate_gcs_from_pods(pod_docs)
-    sema = _aggregate_semaphore_from_pods(pod_docs, semaphore_widths)
-    resource = _aggregate_resource_from_pods(pod_docs)
+    gcs = _aggregate_gcs_from_pods(pod_docs) if pod_docs else None
+    sema = _aggregate_semaphore_from_pods(pod_docs, semaphore_widths) if pod_docs else None
+    resource = _aggregate_resource_from_pods(pod_docs) if pod_docs else None
 
     update: dict = {}
     if gcs is not None:
@@ -810,30 +832,11 @@ def aggregate_pod_stats(
         update["semaphore_stats"] = sema
     if resource is not None:
         update["resource_stats"] = resource
-    if not update:
-        return None
+    if update:
+        RUN_DB[run_id] = update
 
-    RUN_DB[run_id] = update
-
-    if gcs is not None:
-        bottleneck = sema.get("bottleneck") if sema else None
-        _current = (
-            gcs["total_class_a"],
-            gcs["total_class_b"],
-            gcs["total_egress_bytes"],
-            _last_compute_cost,
-            bottleneck,
-        )
-        if any(_current) and _current != _last_gcs_stats.get(run_id):
-            _last_gcs_stats[run_id] = _current
-            parts = [_format_compute_cost(_last_compute_cost)]
-            gcs_part = _format_gcs_stats(gcs, update["total_egress_gib"])
-            if gcs_part:
-                parts.append(gcs_part)
-            logger.info("run cost: " + "; ".join(parts))
-            _log_worker_type_table(sema, resource, gcs)
-
-    return update
+    _maybe_log_run_cost(run_id, gcs, sema, resource, update.get("total_egress_gib", 0.0))
+    return update or None
 
 
 def update_compute_pricing_db(groups: dict):

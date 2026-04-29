@@ -108,7 +108,11 @@ def _add_gpu_identifier(groups: dict) -> dict:
 
     for sku in groups["GPU-ondemand"] + groups["GPU-preemptible"]:
         desc = sku["description"].lower()
-        assert "gpu" in desc, sku["description"]
+        # Some GPU SKU descriptions (e.g. workstation cards like RTX 6000)
+        # omit the literal word "gpu". Leave them without an identifier
+        # rather than crash the whole update.
+        if "gpu" not in desc:
+            continue
 
         for identifier in gpu_type_identifiers:
             if "gpu_indentifier" in sku:

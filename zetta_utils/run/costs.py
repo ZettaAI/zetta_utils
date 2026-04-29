@@ -756,7 +756,7 @@ def _log_worker_type_table(  # pragma: no cover  # pylint: disable=too-many-loca
 
 
 def _format_compute_cost(cost: float | None) -> str:
-    return f"compute=${cost:.2f}" if cost is not None else "compute=unknown"
+    return f"compute=${cost:.2f}" if cost is not None else "compute=pending"
 
 
 def _format_gcs_stats(gcs: dict, total_egress_gib: float) -> str | None:

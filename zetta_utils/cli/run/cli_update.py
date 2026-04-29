@@ -2,6 +2,7 @@ import click
 from kubernetes.client import ApiException
 
 from kubernetes import client as k8s_client
+from kubernetes import config  # type: ignore
 from zetta_utils.cloud_management.resource_allocation.k8s.autoscaler import (
     MAX_REPLICAS_ANNOTATION,
     MIN_REPLICAS_ANNOTATION,
@@ -72,17 +73,32 @@ def run_update(
             "--scale-down-stabilization-sec"
         )
 
+    config.load_kube_config()
     apps_api = k8s_client.AppsV1Api()
+    deployments = apps_api.list_namespaced_deployment(
+        namespace="default", label_selector=f"run_id={run_id}"
+    ).items
+    if not deployments:
+        raise click.UsageError(
+            f"No deployments found for run_id={run_id!r}. "
+            f"Check the run id and that the run is still active."
+        )
+    by_group = {d.metadata.labels.get("worker_group"): d for d in deployments}
     body = {"metadata": {"annotations": annotations}}
     for group_name in worker_groups:
-        deployment_name = f"run-{run_id}-{group_name}".replace("_", "-")
+        deployment = by_group.get(group_name)
+        if deployment is None:
+            click.echo(
+                f"Worker group {group_name!r} not found in run {run_id!r}; "
+                f"available: {sorted(g for g in by_group if g)}",
+                err=True,
+            )
+            continue
+        deployment_name = deployment.metadata.name
         try:
             apps_api.patch_namespaced_deployment(
                 name=deployment_name, namespace="default", body=body
             )
             logger.info(f"Updated {deployment_name}: {annotations}")
         except ApiException as exc:
-            if exc.status == 404:
-                logger.info(f"Deployment does not exist: {deployment_name}: {exc}")
-            else:
-                logger.warning(f"Failed to patch deployment {deployment_name}: {exc}")
+            logger.warning(f"Failed to patch deployment {deployment_name}: {exc}")

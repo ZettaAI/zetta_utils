@@ -24,6 +24,10 @@ logger = log.get_logger("zetta_utils")
 RUN_INFO_BUCKET = "gs://zetta_utils_runs"
 RUN_ID: str | None = None
 
+DEFAULT_HEARTBEAT_INTERVAL_SEC = 5
+DEFAULT_UPDATE_COSTS_INTERVAL_SEC = int(os.environ.get("ZETTA_UPDATE_COSTS_INTERVAL_SEC", "60"))
+DEFAULT_POD_STATS_INTERVAL_SEC = int(os.environ.get("ZETTA_POD_STATS_INTERVAL_SEC", "60"))
+
 
 class RunInfo(Enum):
     ZETTA_USER = "zetta_user"
@@ -167,9 +171,9 @@ def run_ctx_manager(
     main_run_process: bool,
     run_id: str | None = None,
     spec: dict | list | None = None,
-    heartbeat_interval: int = 5,
-    update_costs_interval: int = 60,
-    pod_stats_interval: int = 60,
+    heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL_SEC,
+    update_costs_interval: int = DEFAULT_UPDATE_COSTS_INTERVAL_SEC,
+    pod_stats_interval: int = DEFAULT_POD_STATS_INTERVAL_SEC,
 ):
     bucket_egress_warned: set[str] = set()
 

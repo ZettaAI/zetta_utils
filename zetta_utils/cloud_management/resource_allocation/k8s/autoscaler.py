@@ -7,7 +7,6 @@ PATCHes the Deployment's replica count to match the queue depth.
 
 from __future__ import annotations
 
-import math
 import threading
 import time
 from contextlib import contextmanager
@@ -15,14 +14,12 @@ from contextlib import contextmanager
 import attrs
 import kubernetes.client as k8s_client
 from google.api_core.exceptions import FailedPrecondition, GoogleAPICallError
-from google.cloud.container_v1.types import NodePoolAutoscaling
 
-from kubernetes import config  # type: ignore
 from zetta_utils import log
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 
 from . import gke
-from .common import ClusterInfo
+from .common import ClusterInfo, get_cluster_data
 from .deployment import deployment_ctx_mngr
 from .pod import watch_for_triggered_scale_up
 
@@ -39,16 +36,18 @@ _mig_to_pool_refreshed_at: dict[tuple[str, str, str], float] = {}
 _MIG_REFRESH_MIN_GAP_SEC = 60
 
 # Process-wide ``AppsV1Api`` shared across the per-group autoscaler and
-# nudger threads. Built from ``config.load_kube_config()`` so the
-# kubeconfig auth provider handles the bearer token; reset on any tick
-# failure so the next iteration rebuilds against fresh credentials.
+# nudger threads. Built from ``get_cluster_data(cluster_info)`` (programmatic
+# auth via ADC) so it works regardless of whether the caller has a local
+# kubeconfig. Reset on any tick failure so the next iteration rebuilds
+# against fresh credentials.
 _apps_v1_api: k8s_client.AppsV1Api | None = None
 
 
-def _get_apps_v1_api() -> k8s_client.AppsV1Api:
+def _get_apps_v1_api(cluster_info: ClusterInfo) -> k8s_client.AppsV1Api:
     global _apps_v1_api  # pylint: disable=global-statement
     if _apps_v1_api is None:
-        config.load_kube_config()
+        configuration, _ = get_cluster_data(cluster_info)
+        k8s_client.Configuration.set_default(configuration)
         _apps_v1_api = k8s_client.AppsV1Api()
     return _apps_v1_api
 
@@ -63,14 +62,20 @@ class _PoolState:
     """Per-pool nudger state shared across all groups."""
 
     last_nudge_at: float | None = None
-    max_node_count_logged: bool = False
 
 
 @attrs.mutable
 class _GroupNudgeState:
-    """Per-group state shared between the TriggeredScaleUp watcher and nudger."""
+    """Per-group state shared between the TriggeredScaleUp watcher and nudger.
+
+    ``attempted_pool`` is the pool the cluster autoscaler last said it would
+    scale; ``attempted_target_per_zone`` is the per-zone node count CA picked.
+    The nudger applies that target directly via SetNodePoolSize so we
+    bypass CA backoff without re-doing CA's resource math.
+    """
 
     attempted_pool: str | None = None
+    attempted_target_per_zone: int | None = None
 
 
 def _require_gke_cluster_info(cluster_info: ClusterInfo) -> tuple[str, str, str]:
@@ -119,36 +124,19 @@ def _resolve_pool(mig_name: str, cluster_info: ClusterInfo) -> str | None:
     return _mig_to_pool.get(mig_name)
 
 
-def _resolve_per_zone_max(autoscaling: NodePoolAutoscaling | None, num_zones: int) -> int | None:
-    """Per-zone autoscaling cap.
-
-    Regional pools using ``LocationPolicy`` set ``total_max_node_count``
-    (regional total); zonal pools and pools with explicit per-zone
-    bounds set ``max_node_count``. Returns ``None`` when autoscaling
-    is disabled or no cap is set.
-    """
-    if not (autoscaling and autoscaling.enabled):
-        return None
-    if autoscaling.total_max_node_count > 0:
-        return autoscaling.total_max_node_count // num_zones
-    if autoscaling.max_node_count > 0:
-        return autoscaling.max_node_count
-    return None
-
-
 def _nudge_pool(
     pool_name: str,
-    pending: int,
+    target_per_zone: int,
     cluster_info: ClusterInfo,
     nudge_min_gap_sec: int,
 ) -> None:
-    """Resize ``pool_name`` to fit ``pending`` more pods.
+    """Resize ``pool_name`` to ``target_per_zone`` per-zone nodes.
 
-    Honors per-pool cool-off and the pool's ``max_node_count`` ceiling. For
-    regional (multi-zone) pools, the per-zone target grows by
-    ``ceil(nodes_total_needed / num_zones)``. Logs only when a resize is
-    actually requested or when the pool is at its ceiling for the first time.
-    Fire-and-forget: never blocks on the long-running operation.
+    The target comes from the cluster autoscaler's own ``TriggeredScaleUp``
+    decision, so we defer resource math to it and only intervene to bypass
+    its post-RESOURCE_POOL_EXHAUSTED backoff. Honors per-pool cool-off and
+    never shrinks (CA may have already grown the pool past its event-time
+    target). Fire-and-forget: never blocks on the long-running operation.
     """
     state = _pool_state.setdefault(pool_name, _PoolState())
     now = time.monotonic()
@@ -162,42 +150,21 @@ def _nudge_pool(
         logger.warning(f"node-pool nudge: pool {pool_name} not found, skipping")
         return
 
-    max_pods_per_node = (
-        pool.max_pods_constraint.max_pods_per_node if pool.max_pods_constraint else 110
-    )
     current = pool.initial_node_count
     num_zones = max(1, len(pool.locations))
-    max_node_count = _resolve_per_zone_max(pool.autoscaling, num_zones)
-
-    nodes_total = math.ceil(pending / max_pods_per_node)
-    nodes_per_zone = math.ceil(nodes_total / num_zones)
-    target = current + nodes_per_zone
-    if max_node_count is not None:
-        target = min(target, max_node_count)
-
+    target = max(current, target_per_zone)
     if target <= current:
-        if not state.max_node_count_logged:
-            cur_total = current * num_zones
-            max_total = max_node_count * num_zones if max_node_count is not None else None
-            logger.info(
-                f"node-pool nudge: {pool_name} cannot grow "
-                f"(current={cur_total} nodes, max={max_total} nodes)"
-            )
-            state.max_node_count_logged = True
         return
 
-    delta = target - current
-    total_added = delta * num_zones
-    old_total = current * num_zones
+    added = (target - current) * num_zones
     new_total = target * num_zones
     try:
         gke.resize_node_pool(project, region, cluster, pool_name, target)
         logger.info(
-            f"node-pool nudge: {pool_name}: adding {total_added} nodes "
-            f"({old_total} -> {new_total}) to schedule {pending} pending pods"
+            f"node-pool nudge: {pool_name}: adding {added} nodes "
+            f"(now {new_total} total) per CA TriggeredScaleUp target"
         )
         state.last_nudge_at = now
-        state.max_node_count_logged = False
     except FailedPrecondition:
         logger.info(f"node-pool nudge: {pool_name} concurrent op, retry next cycle")
     except GoogleAPICallError as exc:
@@ -307,20 +274,21 @@ class _GroupScaler:
 
 def _run_loop(
     target: AutoscaleTarget,
+    cluster_info: ClusterInfo,
     stop_event: threading.Event,
     poll_interval_sec: int,
 ) -> None:
     """Daemon body: tick the scaler until ``stop_event`` is set.
 
     On any tick failure the shared ``AppsV1Api`` is reset so the next
-    iteration rebuilds it via ``config.load_kube_config()`` — recovers
-    from token expiry and transient init failures alike.
+    iteration rebuilds it via ``get_cluster_data(cluster_info)`` -
+    recovers from token expiry and transient init failures alike.
     """
     scaler: _GroupScaler | None = None
     while not stop_event.wait(poll_interval_sec):
         try:
             if scaler is None:
-                scaler = _GroupScaler(target=target, apps_api=_get_apps_v1_api())
+                scaler = _GroupScaler(target=target, apps_api=_get_apps_v1_api(cluster_info))
             scaler.tick()
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning(f"autoscaler: tick failed for {target.deployment_name}: {exc}")
@@ -337,25 +305,27 @@ def _run_triggered_scale_up_watcher(
 ) -> None:
     """Daemon body: subscribe to ``TriggeredScaleUp`` events for one group's pods.
 
-    Each event names the MIG(s) the cluster autoscaler decided to scale up.
-    Resolves the most recent MIG to a pool and stores it on
-    ``group_state.attempted_pool``; the nudge loop reads that to know which
-    pool to resize if pods stay pending.
+    Each event names the MIG(s) the cluster autoscaler decided to scale up,
+    along with CA's chosen per-zone target node count. Resolves the first
+    MIG to its pool and stores ``(pool, target_per_zone)`` on
+    ``group_state``; the nudge loop applies that target directly.
     """
 
-    def _on_event(pod_name: str, mig_names: list[str]) -> None:
-        for mig in mig_names:
+    def _on_event(pod_name: str, mig_targets: list[tuple[str, int]]) -> None:
+        for mig, target in mig_targets:
             pool = _resolve_pool(mig, cluster_info)
             if pool is not None:
                 group_state.attempted_pool = pool
+                group_state.attempted_target_per_zone = target
                 return
         logger.warning(
-            f"node-pool nudge: no pool resolved for MIGs {mig_names} "
-            f"(pod={pod_name}); ignoring"
+            f"node-pool nudge: no pool resolved for MIGs "
+            f"{[m for m, _ in mig_targets]} (pod={pod_name}); ignoring"
         )
 
     watch_for_triggered_scale_up(
         name_prefix=name_prefix,
+        cluster_info=cluster_info,
         on_event=_on_event,
         namespace=namespace,
         stop_event=stop_event,
@@ -371,33 +341,34 @@ def _run_nudge_loop(
     nudge_interval_sec: int,
     nudge_min_gap_sec: int,
 ) -> None:
-    """Daemon body: every ``nudge_interval_sec``, nudge ``attempted_pool`` if pending pods.
+    """Daemon body: every ``nudge_interval_sec``, apply CA's last seen scale-up target.
 
-    Pending count comes from ``Deployment.spec.replicas - status.ready_replicas``
-    (approximate — includes scheduled-but-still-booting pods, which the long
-    cycle absorbs). After each nudge attempt ``attempted_pool`` is cleared;
-    cluster autoscaler refills it with a fresh ``TriggeredScaleUp`` event if
-    pods are still stuck.
+    The watcher records ``(attempted_pool, attempted_target_per_zone)`` from
+    each TriggeredScaleUp event. Skip the cycle if the deployment has no
+    pending pods (CA already caught up). Otherwise apply the target via
+    SetNodePoolSize so we bypass CA's RESOURCE_POOL_EXHAUSTED backoff.
     """
     while not stop_event.wait(nudge_interval_sec):
         try:
             pool = group_state.attempted_pool
-            if pool is None:
+            target = group_state.attempted_target_per_zone
+            if pool is None or target is None:
                 continue
-            dep = _get_apps_v1_api().read_namespaced_deployment(
+            dep = _get_apps_v1_api(cluster_info).read_namespaced_deployment(
                 name=deployment_name, namespace=namespace
             )
             spec_replicas = dep.spec.replicas or 0
             ready_replicas = dep.status.ready_replicas or 0
-            pending = spec_replicas - ready_replicas
-            if pending <= 0:
+            if spec_replicas - ready_replicas <= 0:
                 group_state.attempted_pool = None
+                group_state.attempted_target_per_zone = None
                 continue
             try:
-                _nudge_pool(pool, pending, cluster_info, nudge_min_gap_sec)
+                _nudge_pool(pool, target, cluster_info, nudge_min_gap_sec)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning(f"node-pool nudge: {pool} failed: {exc}")
             group_state.attempted_pool = None
+            group_state.attempted_target_per_zone = None
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning(f"node-pool nudge: iteration failed for {deployment_name}: {exc}")
             _reset_apps_v1_api()
@@ -476,7 +447,7 @@ def autoscaling_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     threads: list[threading.Thread] = [
         threading.Thread(
             target=_run_loop,
-            args=(target, stop_event, poll_interval_sec),
+            args=(target, cluster_info, stop_event, poll_interval_sec),
             daemon=True,
         )
     ]

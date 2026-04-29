@@ -14,7 +14,7 @@ from zetta_utils import builder, log
 
 from .common import ClusterInfo, get_cluster_data
 from .job import get_job_template
-from .pod import get_pod_spec
+from .pod import get_simple_pod_spec
 
 logger = log.get_logger("zetta_utils")
 
@@ -32,8 +32,7 @@ def _get_cronjob(
     node_selector: Optional[Mapping[str, str]] = None,
 ) -> k8s_client.V1CronJob:
     tolerations = tolerations or []
-    pod_spec = get_pod_spec(
-        name=name,
+    pod_spec = get_simple_pod_spec(
         image=image,
         command=command,
         envs=envs,
@@ -124,6 +123,14 @@ def configure_cronjob(
     )
     if patch:
         name = f"run-{name}"
-        batch_v1_api.patch_namespaced_cron_job(name=name, namespace=namespace, body=cronjob)
+        # JSON merge-patch (RFC 7396) replaces list-typed fields wholesale.
+        # Strategic merge-patch (the default) keys list merges by ``name``,
+        # so containers removed from the new spec would survive the patch.
+        batch_v1_api.patch_namespaced_cron_job(
+            name=name,
+            namespace=namespace,
+            body=cronjob,
+            _content_type="application/merge-patch+json",
+        )
     else:
         batch_v1_api.create_namespaced_cron_job(namespace=namespace, body=cronjob)

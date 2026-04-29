@@ -4,6 +4,7 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
+import os
 import re
 import threading
 import time
@@ -14,7 +15,7 @@ from typing import Callable, Dict, List, Literal, Mapping, Optional
 import kubernetes.client as k8s_client
 from kubernetes.client.exceptions import ApiException
 
-from kubernetes import config, watch  # type: ignore
+from kubernetes import watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
 
@@ -36,8 +37,68 @@ class PodTerminatedError(Exception):
     pass
 
 
+def _build_run_envs(
+    envs: Optional[List[k8s_client.V1EnvVar]],
+    env_secret_mapping: Optional[Dict[str, str]],
+) -> List[k8s_client.V1EnvVar]:
+    """Standard env vars for any zetta pod: RUN_ID (if mapped), POD_NAME, NODE_NAME, secrets."""
+    out = list(envs or [])
+    secret_mapping = dict(env_secret_mapping or {})
+    run_id = secret_mapping.pop("RUN_ID", None)
+    if run_id is not None:
+        out.append(k8s_client.V1EnvVar(name="RUN_ID", value=run_id))
+    out.extend(
+        [
+            k8s_client.V1EnvVar(
+                name="POD_NAME",
+                value_from=k8s_client.V1EnvVarSource(
+                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+                ),
+            ),
+            k8s_client.V1EnvVar(
+                name="NODE_NAME",
+                value_from=k8s_client.V1EnvVarSource(
+                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="spec.nodeName")
+                ),
+            ),
+        ]
+    )
+    out.extend(get_worker_env_vars(secret_mapping))
+    return out
+
+
+def _build_main_container(
+    *,
+    image: str,
+    image_pull_policy: Optional[str],
+    args: List[str],
+    env: List[k8s_client.V1EnvVar],
+    resources: Optional[Dict[str, int | float | str]],
+    resource_requests: Optional[Dict[str, int | float | str]],
+    volume_mounts: List[k8s_client.V1VolumeMount],
+    lifecycle: Optional[k8s_client.V1Lifecycle] = None,
+    ports: Optional[List[k8s_client.V1ContainerPort]] = None,
+) -> k8s_client.V1Container:
+    return k8s_client.V1Container(
+        command=["/bin/bash", "-c"],
+        args=args,
+        env=env,
+        name="main",
+        image=image,
+        image_pull_policy=image_pull_policy,
+        lifecycle=lifecycle,
+        ports=ports or [],
+        resources=k8s_client.V1ResourceRequirements(
+            limits=resources,
+            requests=resource_requests or resources,
+        ),
+        termination_message_path="/dev/termination-log",
+        termination_message_policy="File",
+        volume_mounts=volume_mounts,
+    )
+
+
 def get_pod_spec(  # pylint: disable=too-many-locals
-    name: str,
     image: str,
     command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
@@ -58,38 +119,13 @@ def get_pod_spec(  # pylint: disable=too-many-locals
     subdomain: Optional[str] = None,
     termination_grace_seconds: int = 60,
 ) -> k8s_client.V1PodSpec:
-    name = f"run-{name}"
-    envs = envs or []
-    env_secret_mapping = env_secret_mapping or {}
-
-    try:
-        envs.append(k8s_client.V1EnvVar(name="RUN_ID", value=env_secret_mapping.pop("RUN_ID")))
-    except KeyError:
-        ...
-
-    envs.extend(
-        [
-            k8s_client.V1EnvVar(
-                name="POD_NAME",
-                value_from=k8s_client.V1EnvVarSource(
-                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
-                ),
-            ),
-            k8s_client.V1EnvVar(
-                name="NODE_NAME",
-                value_from=k8s_client.V1EnvVarSource(
-                    field_ref=k8s_client.V1ObjectFieldSelector(field_path="spec.nodeName")
-                ),
-            ),
-        ]
-    )
-    envs.extend(get_worker_env_vars(env_secret_mapping))
-
-    sidecar_envs = list(envs)
-    main_envs = build_main_proxy_envs(envs)
-
-    host_aliases = host_aliases or []
-    tolerations = tolerations or []
+    """Worker-style pod spec: main container + mproxy + oom_tracker sidecars,
+    mitmproxy CA volume, ``wait_for_ca`` startup gate, and the
+    ``log_pod_runtime`` pre-stop hook on the main container.
+    """
+    base_envs = _build_run_envs(envs, env_secret_mapping)
+    sidecar_envs = list(base_envs)
+    main_envs = build_main_proxy_envs(base_envs)
     volumes = list(volumes or [])
     volume_mounts = list(volume_mounts or [])
     main_volume_mounts, sidecar_volume_mounts = setup_mitmproxy_ca_volume(volumes, volume_mounts)
@@ -102,25 +138,17 @@ def get_pod_spec(  # pylint: disable=too-many-locals
             )
         )
     )
-
-    main_container = k8s_client.V1Container(
-        command=["/bin/bash", "-c"],
-        args=[f"{WAIT_FOR_CA_SCRIPT} && {command}"],
-        env=main_envs,
-        name="main",
+    main_container = _build_main_container(
         image=image,
         image_pull_policy=image_pull_policy,
+        args=[f"{WAIT_FOR_CA_SCRIPT} && {command}"],
+        env=main_envs,
+        resources=resources,
+        resource_requests=resource_requests,
+        volume_mounts=main_volume_mounts,
         lifecycle=pre_stop_hook,
         ports=[k8s_client.V1ContainerPort(container_port=29400)],
-        resources=k8s_client.V1ResourceRequirements(
-            limits=resources,
-            requests=resource_requests or resources,
-        ),
-        termination_message_path="/dev/termination-log",
-        termination_message_policy="File",
-        volume_mounts=main_volume_mounts,
     )
-
     return k8s_client.V1PodSpec(
         affinity=affinity,
         containers=[
@@ -131,15 +159,56 @@ def get_pod_spec(  # pylint: disable=too-many-locals
         dns_policy=dns_policy,
         hostname=hostname,
         host_network=host_network,
-        host_aliases=host_aliases,
+        host_aliases=host_aliases or [],
         node_selector=node_selector,
         restart_policy=restart_policy,
         scheduler_name="default-scheduler",
         security_context={},
         subdomain=subdomain,
         termination_grace_period_seconds=termination_grace_seconds,
-        tolerations=tolerations,
+        tolerations=tolerations or [],
         volumes=volumes,
+    )
+
+
+def get_simple_pod_spec(
+    image: str,
+    command: str,
+    resources: Optional[Dict[str, int | float | str]] = None,
+    envs: Optional[List[k8s_client.V1EnvVar]] = None,
+    env_secret_mapping: Optional[Dict[str, str]] = None,
+    image_pull_policy: Optional[str] = "IfNotPresent",
+    node_selector: Optional[Mapping[str, str]] = None,
+    restart_policy: Optional[str] = "Always",
+    tolerations: Optional[List[k8s_client.V1Toleration]] = None,
+    volumes: Optional[List[k8s_client.V1Volume]] = None,
+    volume_mounts: Optional[List[k8s_client.V1VolumeMount]] = None,
+    resource_requests: Optional[Dict[str, int | float | str]] = None,
+    termination_grace_seconds: int = 60,
+) -> k8s_client.V1PodSpec:
+    """Minimal pod spec: main container only, no sidecars or RUN_ID-dependent hooks.
+
+    Suitable for cronjobs and other one-shot pods that do not run a mazepa
+    worker (no GCS proxy, no node-runtime ledger).
+    """
+    main_container = _build_main_container(
+        image=image,
+        image_pull_policy=image_pull_policy,
+        args=[command],
+        env=_build_run_envs(envs, env_secret_mapping),
+        resources=resources,
+        resource_requests=resource_requests,
+        volume_mounts=list(volume_mounts or []),
+    )
+    return k8s_client.V1PodSpec(
+        containers=[main_container],
+        node_selector=node_selector,
+        restart_policy=restart_policy,
+        scheduler_name="default-scheduler",
+        security_context={},
+        termination_grace_period_seconds=termination_grace_seconds,
+        tolerations=tolerations or [],
+        volumes=list(volumes or []),
     )
 
 
@@ -223,7 +292,6 @@ def get_mazepa_pod_spec(
     )
 
     return get_pod_spec(
-        name="zutils-worker",
         image=image,
         command=command,
         resources=resources,
@@ -282,12 +350,6 @@ def _wait_for_pod_start(
         time.sleep(poll_interval)
 
 
-def _reset_core_api(cluster_info: ClusterInfo):
-    configuration, _ = get_cluster_data(cluster_info)
-    k8s_client.Configuration.set_default(configuration)
-    return k8s_client.CoreV1Api()
-
-
 def stream_pod_logs(
     cluster_info: ClusterInfo,
     dep_selector: str | None = None,
@@ -296,7 +358,7 @@ def stream_pod_logs(
     prefix: str = "",
     tail_lines: int | None = None,
 ):
-    core_api = _reset_core_api(cluster_info)
+    core_api = _get_core_v1_api(cluster_info)
     if pod_name is None:
         pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=dep_selector).items
         if pods:
@@ -358,7 +420,7 @@ def follow_rank0_logs(
     selector = f"run-id={run_id},training-rank=0"
     logger.info(f"Waiting for rank 0 pod (selector: {selector})...")
     while True:
-        core_api = _reset_core_api(cluster_info)
+        core_api = _get_core_v1_api(cluster_info)
         pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
         if pods:
             pod_name = pods[0].metadata.name
@@ -393,7 +455,7 @@ def _capture_single_pod_logs(
     namespace: str = "default",
     stop_event: threading.Event | None = None,
 ):
-    core_api = _reset_core_api(cluster_info)
+    core_api = _get_core_v1_api(cluster_info)
     try:
         _wait_for_pod_start(pod_name, namespace, core_api)
     except PodTerminatedError:
@@ -444,7 +506,7 @@ def capture_pod_logs(
             executor.shutdown(wait=False, cancel_futures=True)
             return
         try:
-            core_api = _reset_core_api(cluster_info)
+            core_api = _get_core_v1_api(cluster_info)
             pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
             for pod in pods:
                 pod_name = pod.metadata.name
@@ -479,7 +541,7 @@ def get_pod_postmortem(
 ):
     """Query K8s for master pod crash info and write postmortem.log."""
     try:
-        core_api = _reset_core_api(cluster_info)
+        core_api = _get_core_v1_api(cluster_info)
         job_name = f"run-{run_id}"
         pods = core_api.list_namespaced_pod(
             namespace=namespace, label_selector=f"job-name={job_name}"
@@ -577,13 +639,25 @@ def _check_pod_disruption(pod, run_id, reported) -> str | None:
     return None
 
 
-_RUN_EVENT_REASONS = {
+_POD_DISRUPTION_EVENT_REASONS = {
     "Killing",
     "TaintManagerEviction",
     "ExceededGracePeriod",
     "Preempting",
     "Evicted",
 }
+
+_POD_FAILURE_EVENT_REASONS = {
+    "BackOff",  # repeated container restarts (CrashLoopBackOff manifestation)
+}
+
+_CLUSTER_AUTOSCALER_EVENT_REASONS = {
+    "NotTriggerScaleUp",  # CA refused to scale a pool (no fit, capacity, etc.)
+}
+
+_RUN_EVENT_REASONS = (
+    _POD_DISRUPTION_EVENT_REASONS | _POD_FAILURE_EVENT_REASONS | _CLUSTER_AUTOSCALER_EVENT_REASONS
+)
 
 # Container names whose K8s events we surface in events.log. Other containers
 # (e.g. the `runtime` OOM-tracker) are filtered out to keep the signal clean.
@@ -608,18 +682,24 @@ def _append_watcher_log(log_path: Path | None, msg: str) -> None:
 _core_v1_api: k8s_client.CoreV1Api | None = None
 
 
-def _get_core_v1_api() -> k8s_client.CoreV1Api:
+def _get_core_v1_api(cluster_info: ClusterInfo) -> k8s_client.CoreV1Api:
     """Process-wide ``CoreV1Api`` shared across the watcher threads.
 
-    ``config.load_kube_config()`` parses the kubeconfig file every call and
-    each ``CoreV1Api`` builds a ``urllib3`` connection pool, so the multiple
-    watchers (disruptions, events, TriggeredScaleUp) share one client.
+    Built from ``get_cluster_data(cluster_info)`` (programmatic ADC auth)
+    so it works without a local kubeconfig. Reset on watcher failure so
+    the next reconnect rebuilds against fresh credentials.
     """
     global _core_v1_api  # pylint: disable=global-statement
     if _core_v1_api is None:
-        config.load_kube_config()
+        configuration, _ = get_cluster_data(cluster_info)
+        k8s_client.Configuration.set_default(configuration)
         _core_v1_api = k8s_client.CoreV1Api()
     return _core_v1_api
+
+
+def _reset_core_v1_api() -> None:
+    global _core_v1_api  # pylint: disable=global-statement
+    _core_v1_api = None
 
 
 def _resilient_watch(
@@ -660,7 +740,9 @@ def _resilient_watch(
         w.stop()
 
 
-_BATCHED_WARN_FLUSH_INTERVAL_SEC = 60
+_BATCHED_WARN_FLUSH_INTERVAL_SEC = int(
+    os.environ.get("ZETTA_BATCHED_WARN_FLUSH_INTERVAL_SEC", "90")
+)
 
 
 class _BatchedWarner:
@@ -689,21 +771,34 @@ class _BatchedWarner:
         if not self.pending:
             return
         n = len(self.pending)
-        sample = self.pending[:3]
-        suffix = "" if n <= 3 else f" (+{n - 3} more)"
-        logger.warning(f"{self.name} (total {n} events): " + " | ".join(sample) + suffix)
+        # One sample per unique bracket-prefix (e.g. "[SIGKILL]" / "[K8s:Evicted]")
+        # so distinct event categories are not hidden by repetition.
+        seen: set[str] = set()
+        sample: list[str] = []
+        for msg in self.pending:
+            end = msg.find("]")
+            category = msg[: end + 1] if end != -1 else msg
+            if category in seen:
+                continue
+            seen.add(category)
+            sample.append(msg)
+        extra = n - len(sample)
+        suffix = f", +{extra} more" if extra > 0 else ""
+        body = "\n".join(sample)
+        logger.warning(f"{self.name} (total {n} events{suffix}):\n{body}")
         self.pending.clear()
         self.last_flush = time.time()
 
 
 def watch_for_pod_disruptions(
     run_id: str,
+    cluster_info: ClusterInfo,
     namespace="default",
     log_dir: str | None = None,
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
-    v1 = _get_core_v1_api()
+    v1 = _get_core_v1_api(cluster_info)
     reported: set[str] = set()
     batcher = _BatchedWarner("pod disruptions", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
@@ -725,12 +820,13 @@ def watch_for_pod_disruptions(
 
 def watch_for_run_events(
     run_id: str,
+    cluster_info: ClusterInfo,
     namespace="default",
     log_dir: str | None = None,
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "events.log")
-    v1 = _get_core_v1_api()
+    v1 = _get_core_v1_api(cluster_info)
     batcher = _BatchedWarner("run events", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
     def on_event(obj):
@@ -755,12 +851,14 @@ def watch_for_run_events(
     )
 
 
-_TRIGGERED_SCALE_UP_MIG_PATTERN = re.compile(r"\{([^ ]+) \d+->\d+ \(max: \d+\)\}")
+_TRIGGERED_SCALE_UP_MIG_PATTERN = re.compile(r"\{([^ ]+) \d+->(\d+) \(max: \d+\)\}")
+_TRIGGERED_SCALE_UP_MAX_AGE_SEC = 120
 
 
 def watch_for_triggered_scale_up(
     name_prefix: str,
-    on_event: Callable[[str, list[str]], None],
+    cluster_info: ClusterInfo,
+    on_event: Callable[[str, list[tuple[str, int]]], None],
     namespace: str = "default",
     stop_event: threading.Event | None = None,
 ) -> None:
@@ -770,18 +868,30 @@ def watch_for_triggered_scale_up(
     scale up to make space for the Pod, with message format
     ``"pod triggered scale-up: [{MIG_NAME N->M (max: K)}, ...]"``. Server-side
     filters by ``reason=TriggeredScaleUp`` and ``involvedObject.kind=Pod``;
-    client-side filters by ``name_prefix`` on the involved Pod's name.
-    Calls ``on_event(pod_name, mig_names)`` with the list of attempted MIGs.
+    client-side filters by ``name_prefix`` on the involved Pod's name and
+    by event age (k8s retains events ~1h; on watcher startup or stream
+    reconnect the API replays them all, so stale events that no longer
+    reflect CA's current intent are dropped).
+
+    Calls ``on_event(pod_name, mig_targets)`` with each attempted MIG and
+    its CA-decided per-zone target node count.
     """
-    v1 = _get_core_v1_api()
+    v1 = _get_core_v1_api(cluster_info)
 
     def _handle(obj):
         pod_name = obj.involved_object.name if obj.involved_object else ""
         if not pod_name.startswith(name_prefix):
             return
-        mig_names = _TRIGGERED_SCALE_UP_MIG_PATTERN.findall(obj.message or "")
-        if mig_names:
-            on_event(pod_name, mig_names)
+        last_ts = obj.last_timestamp or obj.event_time or obj.first_timestamp
+        if (
+            last_ts is not None
+            and time.time() - last_ts.timestamp() > _TRIGGERED_SCALE_UP_MAX_AGE_SEC
+        ):
+            return
+        matches = _TRIGGERED_SCALE_UP_MIG_PATTERN.findall(obj.message or "")
+        mig_targets = [(mig, int(target)) for mig, target in matches]
+        if mig_targets:
+            on_event(pod_name, mig_targets)
 
     _resilient_watch(
         v1.list_namespaced_event,

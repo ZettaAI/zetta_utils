@@ -9,13 +9,26 @@ from google import auth as google_auth
 from google.cloud.container_v1 import Cluster, ClusterManagerClient, NodePool
 from google.cloud.container_v1.types import Operation, SetNodePoolSizeRequest
 
+_cluster_manager: ClusterManagerClient | None = None
+
+
+def _get_cluster_manager() -> ClusterManagerClient:
+    """Process-wide singleton ``ClusterManagerClient``.
+
+    Constructing the client opens a gRPC channel and runs ADC auth, so
+    callers on the autoscaler / nudger hot paths share one instance.
+    """
+    global _cluster_manager  # pylint: disable=global-statement
+    if _cluster_manager is None:
+        _cluster_manager = ClusterManagerClient()
+    return _cluster_manager
+
 
 def gke_cluster_data(name: str, region: str, project: str) -> Tuple[Cluster, str, str]:
     cluster_name = f"projects/{project}/locations/{region}/clusters/{name}"
 
     # see https://github.com/googleapis/python-container/issues/6
-    container_client = ClusterManagerClient()
-    cluster_data = container_client.get_cluster(name=cluster_name)
+    cluster_data = _get_cluster_manager().get_cluster(name=cluster_name)
 
     with NamedTemporaryFile(delete=False) as ca_cert:
         ca_cert.write(base64.b64decode(cluster_data.master_auth.cluster_ca_certificate))
@@ -37,7 +50,7 @@ def list_node_pools(project: str, location: str, cluster: str) -> list[NodePool]
     (min/max node counts), and ``max_pods_constraint.max_pods_per_node``.
     """
     parent = f"projects/{project}/locations/{location}/clusters/{cluster}"
-    return list(ClusterManagerClient().list_node_pools(parent=parent).node_pools)
+    return list(_get_cluster_manager().list_node_pools(parent=parent).node_pools)
 
 
 def resize_node_pool(
@@ -57,4 +70,4 @@ def resize_node_pool(
     """
     name = f"projects/{project}/locations/{location}" f"/clusters/{cluster}/nodePools/{pool_name}"
     request = SetNodePoolSizeRequest(name=name, node_count=node_count)
-    return ClusterManagerClient().set_node_pool_size(request=request)
+    return _get_cluster_manager().set_node_pool_size(request=request)

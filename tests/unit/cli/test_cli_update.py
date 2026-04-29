@@ -11,10 +11,24 @@ from zetta_utils.cloud_management.resource_allocation.k8s.autoscaler import (
 )
 
 
+def _make_deployment(mocker, name, worker_group):
+    dep = mocker.MagicMock()
+    dep.metadata.name = name
+    dep.metadata.labels = {"worker_group": worker_group}
+    return dep
+
+
 @pytest.fixture
-def mock_apps_api(mocker):
+def mock_load_kube_config(mocker):
+    return mocker.patch("zetta_utils.cli.run.cli_update.config.load_kube_config")
+
+
+@pytest.fixture
+def mock_apps_api(mocker, mock_load_kube_config):
     apps_api_class = mocker.patch("zetta_utils.cli.run.cli_update.k8s_client.AppsV1Api")
-    return apps_api_class.return_value
+    apps_api = apps_api_class.return_value
+    apps_api.list_namespaced_deployment.return_value.items = []
+    return apps_api
 
 
 @pytest.fixture
@@ -22,13 +36,19 @@ def mock_logger(mocker):
     return mocker.patch("zetta_utils.cli.run.cli_update.logger")
 
 
-def test_run_update_max_workers(mock_apps_api, mock_logger):
+def test_run_update_max_workers(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-123-io", "io"),
+    ]
     runner = CliRunner()
     result = runner.invoke(
         run_update_cli,
         ["run-update", "test-run-123", "-g", "io", "--max-workers", "10"],
     )
     assert result.exit_code == 0, result.output
+    mock_apps_api.list_namespaced_deployment.assert_called_once_with(
+        namespace="default", label_selector="run_id=test-run-123"
+    )
     mock_apps_api.patch_namespaced_deployment.assert_called_once_with(
         name="run-test-run-123-io",
         namespace="default",
@@ -36,7 +56,11 @@ def test_run_update_max_workers(mock_apps_api, mock_logger):
     )
 
 
-def test_run_update_multiple_groups(mock_apps_api, mock_logger):
+def test_run_update_multiple_groups(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", "io"),
+        _make_deployment(mocker, "run-test-run-gpu", "gpu"),
+    ]
     runner = CliRunner()
     result = runner.invoke(
         run_update_cli,
@@ -48,7 +72,10 @@ def test_run_update_multiple_groups(mock_apps_api, mock_logger):
     assert names == {"run-test-run-io", "run-test-run-gpu"}
 
 
-def test_run_update_underscore_group_name_normalized(mock_apps_api, mock_logger):
+def test_run_update_underscore_group_name_normalized(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-my-run-gpu-pool", "gpu-pool"),
+    ]
     runner = CliRunner()
     result = runner.invoke(
         run_update_cli,
@@ -62,7 +89,10 @@ def test_run_update_underscore_group_name_normalized(mock_apps_api, mock_logger)
     )
 
 
-def test_run_update_all_flags(mock_apps_api, mock_logger):
+def test_run_update_all_flags(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", "io"),
+    ]
     runner = CliRunner()
     result = runner.invoke(
         run_update_cli,
@@ -99,22 +129,41 @@ def test_run_update_no_flags_raises_usage_error(mock_apps_api, mock_logger):
     runner = CliRunner()
     result = runner.invoke(run_update_cli, ["run-update", "test-run", "-g", "io"])
     assert result.exit_code != 0
+    mock_apps_api.list_namespaced_deployment.assert_not_called()
     mock_apps_api.patch_namespaced_deployment.assert_not_called()
 
 
-def test_run_update_404_logs_info(mock_apps_api, mock_logger):
-    mock_apps_api.patch_namespaced_deployment.side_effect = ApiException(status=404)
+def test_run_update_unknown_run_raises_usage_error(mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = []
     runner = CliRunner()
     result = runner.invoke(
         run_update_cli,
         ["run-update", "missing", "-g", "io", "--max-workers", "1"],
     )
+    assert result.exit_code != 0
+    assert "No deployments found" in result.output
+    mock_apps_api.patch_namespaced_deployment.assert_not_called()
+
+
+def test_run_update_unknown_group_skips_with_message(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", "io"),
+    ]
+    runner = CliRunner()
+    result = runner.invoke(
+        run_update_cli,
+        ["run-update", "test-run", "-g", "gpu", "--max-workers", "1"],
+    )
     assert result.exit_code == 0
-    mock_logger.info.assert_called()
-    mock_logger.warning.assert_not_called()
+    assert "not found" in result.output
+    assert "['io']" in result.output
+    mock_apps_api.patch_namespaced_deployment.assert_not_called()
 
 
-def test_run_update_403_logs_warning(mock_apps_api, mock_logger):
+def test_run_update_403_logs_warning(mocker, mock_apps_api, mock_logger):
+    mock_apps_api.list_namespaced_deployment.return_value.items = [
+        _make_deployment(mocker, "run-test-run-io", "io"),
+    ]
     mock_apps_api.patch_namespaced_deployment.side_effect = ApiException(
         status=403, reason="Forbidden"
     )

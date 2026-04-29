@@ -85,7 +85,8 @@ def run_update(
         )
     by_group = {d.metadata.labels.get("worker_group"): d for d in deployments}
     body = {"metadata": {"annotations": annotations}}
-    for group_name in worker_groups:
+    for raw_group in worker_groups:
+        group_name = raw_group.replace("_", "-")
         deployment = by_group.get(group_name)
         if deployment is None:
             click.echo(

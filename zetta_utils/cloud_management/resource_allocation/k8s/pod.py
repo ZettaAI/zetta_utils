@@ -605,9 +605,21 @@ def _append_watcher_log(log_path: Path | None, msg: str) -> None:
         f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
 
 
-def _load_core_v1_api() -> k8s_client.CoreV1Api:
-    config.load_kube_config()
-    return k8s_client.CoreV1Api()
+_core_v1_api: k8s_client.CoreV1Api | None = None
+
+
+def _get_core_v1_api() -> k8s_client.CoreV1Api:
+    """Process-wide ``CoreV1Api`` shared across the watcher threads.
+
+    ``config.load_kube_config()`` parses the kubeconfig file every call and
+    each ``CoreV1Api`` builds a ``urllib3`` connection pool, so the multiple
+    watchers (disruptions, events, TriggeredScaleUp) share one client.
+    """
+    global _core_v1_api  # pylint: disable=global-statement
+    if _core_v1_api is None:
+        config.load_kube_config()
+        _core_v1_api = k8s_client.CoreV1Api()
+    return _core_v1_api
 
 
 def _resilient_watch(
@@ -691,7 +703,7 @@ def watch_for_pod_disruptions(
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
-    v1 = _load_core_v1_api()
+    v1 = _get_core_v1_api()
     reported: set[str] = set()
     batcher = _BatchedWarner("pod disruptions", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
@@ -707,6 +719,7 @@ def watch_for_pod_disruptions(
         description="Pod disruption watcher",
         stop_event=stop_event,
         on_stream_end=batcher.flush,
+        label_selector=f"run_id={run_id}",
     )
 
 
@@ -717,7 +730,7 @@ def watch_for_run_events(
     stop_event: threading.Event | None = None,
 ):
     log_path = _open_watcher_log(log_dir, run_id, "events.log")
-    v1 = _load_core_v1_api()
+    v1 = _get_core_v1_api()
     batcher = _BatchedWarner("run events", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
 
     def on_event(obj):
@@ -738,6 +751,7 @@ def watch_for_run_events(
         description="Run event watcher",
         stop_event=stop_event,
         on_stream_end=batcher.flush,
+        field_selector="involvedObject.kind=Pod",
     )
 
 
@@ -759,7 +773,7 @@ def watch_for_triggered_scale_up(
     client-side filters by ``name_prefix`` on the involved Pod's name.
     Calls ``on_event(pod_name, mig_names)`` with the list of attempted MIGs.
     """
-    v1 = _load_core_v1_api()
+    v1 = _get_core_v1_api()
 
     def _handle(obj):
         pod_name = obj.involved_object.name if obj.involved_object else ""

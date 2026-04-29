@@ -158,20 +158,24 @@ def _nudge_pool(
 
     if target <= current:
         if not state.max_node_count_logged:
+            cur_total = current * num_zones
+            max_total = max_node_count * num_zones if max_node_count is not None else None
             logger.info(
                 f"node-pool nudge: {pool_name} cannot grow "
-                f"(current={current}/zone, max={max_node_count}/zone)"
+                f"(current={cur_total} nodes, max={max_total} nodes)"
             )
             state.max_node_count_logged = True
         return
 
     delta = target - current
+    total_added = delta * num_zones
+    old_total = current * num_zones
+    new_total = target * num_zones
     try:
         gke.resize_node_pool(project, region, cluster, pool_name, target)
         logger.info(
-            f"node-pool nudge: {pool_name} +{delta}/zone -> {target}/zone "
-            f"(pending={pending}, max_pods_per_node={max_pods_per_node}, "
-            f"zones={num_zones})"
+            f"node-pool nudge: {pool_name}: adding {total_added} nodes "
+            f"({old_total} -> {new_total}) to schedule {pending} pending pods"
         )
         state.last_nudge_at = now
         state.max_node_count_logged = False

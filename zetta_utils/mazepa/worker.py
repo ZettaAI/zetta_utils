@@ -299,15 +299,26 @@ def process_task_message(
     if outcome.exception is None:
         finished_processing = True
     else:
-        if msg.approx_receive_count < MAX_TRANSIENT_RETRIES and any(
-            e.does_match(outcome.exception) for e in TRANSIENT_ERROR_CONDITIONS
-        ):
-            logger.debug(f"Task {task.id_} transient error: {outcome.exception}")
+        is_transient = any(e.does_match(outcome.exception) for e in TRANSIENT_ERROR_CONDITIONS)
+        if is_transient and msg.approx_receive_count < MAX_TRANSIENT_RETRIES:
+            logger.warning(
+                f"Task {task.id_} transient error "
+                f"(retry {msg.approx_receive_count}/{MAX_TRANSIENT_RETRIES}): "
+                f"{outcome.exception}"
+            )
             finished_processing = False
+        elif is_transient:
+            logger.error(
+                f"Task {task.id_} transient error exhausted retries "
+                f"({msg.approx_receive_count}/{MAX_TRANSIENT_RETRIES}); giving up: "
+                f"{outcome.exception}"
+            )
+            finished_processing = True
         elif isinstance(outcome.exception, MazepaTimeoutError):
-            logger.debug(f"Task {task.id_} execution timed out")
+            logger.warning(f"Task {task.id_} execution timed out, will retry")
             finished_processing = False
         else:
+            logger.error(f"Task {task.id_} non-transient failure (no retry): {outcome.exception}")
             finished_processing = True
 
     return finished_processing, outcome

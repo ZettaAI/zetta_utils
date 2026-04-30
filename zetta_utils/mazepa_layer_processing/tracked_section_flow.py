@@ -4,6 +4,7 @@ import time
 from typing import Callable, Sequence
 
 import attrs
+import requests
 import yaml
 from cloudfiles import CloudFile
 
@@ -34,7 +35,7 @@ def group_consecutive(zs: Sequence[int]) -> list[tuple[int, int]]:
 
 
 def _progress_path_for(layer_path: str, resolution_nm: int) -> str:
-    return f"{layer_path}/_progress/{resolution_nm}nm.progress.yaml"
+    return f"{layer_path.rstrip('/')}/_progress/{resolution_nm}nm.progress.yaml"
 
 
 def _read_progress(progress_path: str) -> set[int]:
@@ -69,15 +70,13 @@ class _MarkDoneAll:
                     if merged != existing:
                         _write_progress(progress_path, merged)
                     break
-                except Exception:
+                except (OSError, yaml.YAMLError, requests.exceptions.RequestException):
                     if attempt == 4:
                         raise
                     time.sleep(1.0 * (2 ** attempt))
 
 
-def _narrow_z_bbox(
-    bbox: BBox3D, z_start: int, z_end: int, resolution: Sequence[float]
-) -> BBox3D:
+def _narrow_z_bbox(bbox: BBox3D, z_start: int, z_end: int, resolution: Sequence[float]) -> BBox3D:
     """New BBox3D with same xy, z range narrowed to [z_start, z_end) voxels at given resolution."""
     (x0, x1), (y0, y1), _ = bbox.bounds
     z_res_nm = float(resolution[2])
@@ -101,8 +100,7 @@ def build_tracked_section_flow(
 
     unique_pairs: list[tuple[str, int]] = list(dict.fromkeys(layer_resolution_pairs))
     progress_paths: list[str] = [
-        _progress_path_for(layer_path, resolution_nm)
-        for layer_path, resolution_nm in unique_pairs
+        _progress_path_for(layer_path, resolution_nm) for layer_path, resolution_nm in unique_pairs
     ]
 
     z_slice = bbox.get_slice(dim=2, resolution=resolution, allow_slice_rounding=False)
@@ -110,9 +108,7 @@ def build_tracked_section_flow(
     all_z = range(z_start, z_end)
 
     if skip_existing and progress_paths:
-        completed: set[int] = set.intersection(
-            *(_read_progress(p) for p in progress_paths)
-        )
+        completed: set[int] = set.intersection(*(_read_progress(p) for p in progress_paths))
     else:
         completed = set()
     remaining = [z for z in all_z if z not in completed]

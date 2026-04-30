@@ -64,6 +64,12 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         text_signature="CUDA error:",
     ),
     TransientErrorCondition(
+        # CUDA context lost (e.g. SLURM preemption changed CUDA_VISIBLE_DEVICES
+        # mid-process). PyTorch surfaces this as "CUDA unknown error".
+        exception_type=RuntimeError,
+        text_signature="CUDA unknown error",
+    ),
+    TransientErrorCondition(
         # GCS request hit the mproxy sidecar during a restart window — the
         # proxy is coming back up (either via self-heal or K8s OnFailure)
         # within seconds. Retrying via SQS visibility timeout lands on a
@@ -99,6 +105,12 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         text_signature="Read timed out",
     ),
     TransientErrorCondition(
+        # botocore ReadTimeoutError — same root cause as urllib3 above but
+        # different wording: "Read timeout on endpoint URL: ...".
+        exception_type=Exception,
+        text_signature="Read timeout on endpoint URL",
+    ),
+    TransientErrorCondition(
         # urllib3 protocol error from a partial response.
         exception_type=Exception,
         text_signature="ProtocolError",
@@ -125,5 +137,17 @@ TRANSIENT_ERROR_CONDITIONS: Final = (
         # Generic socket / DNS resolution glitches.
         exception_type=Exception,
         text_signature="Temporary failure in name resolution",
+    ),
+    TransientErrorCondition(
+        # ssl.SSLEOFError — peer closed TLS connection mid-handshake/transfer.
+        # Surfaces as "EOF occurred in violation of protocol (_ssl.c:NNNN)".
+        exception_type=Exception,
+        text_signature="EOF occurred in violation of protocol",
+    ),
+    TransientErrorCondition(
+        # CV/cloudfiles wraps SSL/network errors as "SSL validation failed for ..."
+        # — covers transient TLS faults from nokura/c10s.
+        exception_type=Exception,
+        text_signature="SSL validation failed for",
     ),
 )

@@ -501,7 +501,7 @@ kubernetes==34.1.0
     # via zetta-utils (pyproject.toml)
 lazy-loader==0.4
     # via scikit-image
-lightning==2.6.0
+lightning==2.6.1
     # via zetta-utils (pyproject.toml)
 lightning-utilities==0.15.2
     # via
@@ -958,7 +958,7 @@ python-jsonschema-objects==0.5.7
     # via cloud-volume
 python-logging-loki==0.3.1
     # via zetta-utils (pyproject.toml)
-pytorch-lightning==2.6.0
+pytorch-lightning==2.6.1
     # via lightning
 pytz==2025.2
     # via pandas
@@ -1221,7 +1221,7 @@ torchvision==0.24.1
     # via
     #   zetta-utils (pyproject.toml)
     #   onnx2torch
-tornado==6.5.5
+tornado==6.5.2
     # via neuroglancer
 tqdm==4.67.1
     # via

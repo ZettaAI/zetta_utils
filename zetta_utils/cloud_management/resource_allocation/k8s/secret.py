@@ -8,9 +8,9 @@ import os
 from contextlib import contextmanager
 from typing import Dict, Iterable, List, Optional, Tuple
 
+import kubernetes.client as k8s_client
 from cloudvolume.secrets import cave_credentials
 
-from kubernetes import client as k8s_client
 from zetta_utils import log
 from zetta_utils.run.resource import (
     Resource,
@@ -89,7 +89,6 @@ def get_secrets_and_mapping(
     adc_available: bool = False
     cave_secret_available: bool = False
 
-    combined_secret_data = {}
     for env_k in share_envs:
         if not env_k.isupper() or not env_k.replace("_", "").isalpha():
             raise ValueError(
@@ -101,17 +100,11 @@ def get_secrets_and_mapping(
             raise ValueError(
                 f"Please set `{env_k}` environment variable in order to create a deployment."
             )
-        combined_secret_data[env_k] = env_v
         secret_name = f"run-{run_id}-{env_k}".lower().replace("_", "-")
         env_secret_mapping[env_k] = secret_name
         secrets_kv[secret_name] = env_v
 
-    # this is necessary for keda sqs trigger
-    combined_secret = k8s_client.V1Secret(
-        metadata=k8s_client.V1ObjectMeta(name=f"run-{run_id}-secret-combined"),
-        string_data=combined_secret_data,
-    )
-    secrets = [combined_secret]
+    secrets: List[k8s_client.V1Secret] = []
     for k, v in secrets_kv.items():
         secret = k8s_client.V1Secret(
             metadata=k8s_client.V1ObjectMeta(name=k),

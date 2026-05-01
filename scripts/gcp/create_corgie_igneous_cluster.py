@@ -62,10 +62,6 @@ CREATE_ARTIFACT_REGISTRY_REPO_TMPL = "gcloud artifacts repositories create zutil
 CONFIGURE_DRIVERS_COMMAND_TMPL = "gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
     && kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml"
 
-CONFIGURE_KEDA_COMMAND_TMPL = "helm repo add kedacore https://kedacore.github.io/charts && helm repo update kedacore \
-    && gcloud container clusters get-credentials {CLUSTER_NAME} --region {REGION} --project {PROJECT_NAME} \
-    && helm install keda kedacore/keda --namespace keda --create-namespace"
-
 CONFIGURE_RBAC_COMMAND = "kubectl apply -f rbac.yml"
 
 
@@ -139,12 +135,12 @@ def main():  # pylint: disable=too-many-statements
     subprocess.call(create_iam_command, shell=True)
 
     config_template_path = os.path.join(os.path.dirname(__file__), "autoprovision_config.yaml")
-    with open(config_template_path, 'r') as f:
+    with open(config_template_path, "r") as f:
         config_content = f.read()
     config_content = config_content.replace("{CLUSTER_NAME}", args.cluster_name)
     config_content = config_content.replace("{PROJECT_NAME}", args.project_name)
     config_content = config_content.replace("{NODE_LOCATIONS}", system_zone)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as temp_config:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as temp_config:
         temp_config.write(config_content)
         temp_config_path = temp_config.name
 
@@ -205,13 +201,6 @@ def main():  # pylint: disable=too-many-statements
         create_repo_command = create_repo_command.replace("{PROJECT_NAME}", args.project_name)
         print(f"Running: \n{create_repo_command}")
         subprocess.call(create_repo_command, shell=True)
-
-    create_keda_command = CONFIGURE_KEDA_COMMAND_TMPL
-    create_keda_command = create_keda_command.replace("{REGION}", args.region)
-    create_keda_command = create_keda_command.replace("{PROJECT_NAME}", args.project_name)
-    create_keda_command = create_keda_command.replace("{CLUSTER_NAME}", args.cluster_name)
-    print(f"Running: \n{create_keda_command}")
-    subprocess.call(create_keda_command, shell=True)
 
     print(f"Running: \n{CONFIGURE_RBAC_COMMAND}")
     subprocess.call(CONFIGURE_RBAC_COMMAND, shell=True)

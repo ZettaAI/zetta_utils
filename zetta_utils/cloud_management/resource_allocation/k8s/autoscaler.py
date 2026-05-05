@@ -344,9 +344,28 @@ def _run_nudge_loop(
     """Daemon body: every ``nudge_interval_sec``, apply CA's last seen scale-up target.
 
     The watcher records ``(attempted_pool, attempted_target_per_zone)`` from
-    each TriggeredScaleUp event. Skip the cycle if the deployment has no
-    pending pods (CA already caught up). Otherwise apply the target via
-    SetNodePoolSize so we bypass CA's RESOURCE_POOL_EXHAUSTED backoff.
+    each TriggeredScaleUp event. State persists until the deployment's
+    pending pods reach zero — meaning every cycle re-applies the target via
+    SetNodePoolSize while pods are still waiting, so we keep pestering GCP
+    until nodes actually arrive (CA itself may be in
+    RESOURCE_POOL_EXHAUSTED backoff and won't fire fresh events). Per-pool
+    cool-off in :func:`_nudge_pool` debounces the repeated calls.
+
+    Known limitation — stale target during pool backoff: when the cluster
+    autoscaler's per-node-group backoff is active (5-30 min), CA suppresses
+    TriggeredScaleUp events for that pool (it lists the pool with
+    ``BackoffReason`` and falls back to ``noScaleUp``). Nothing externally
+    clears that backoff — neither the nudger's SetNodePoolSize calls nor
+    Deployment replica changes reset CA's backoff timer. So if a user bumps
+    ``--max-workers`` mid-backoff, ``attempted_target_per_zone`` stays at
+    CA's pre-bump value until backoff expires, and the nudger under-sizes
+    the pool until then. The system catches up automatically once CA
+    re-evaluates post-backoff. A local floor sized from current
+    ``spec_replicas`` could fill this gap but is intentionally not
+    implemented here: pool↔group is not 1:1 in this codebase (multiple
+    worker_groups and concurrent runs may share a pool by node-selector
+    match), so a per-group floor is only a partial lower bound and CA's
+    eventual fresh target remains the authoritative one.
     """
     while not stop_event.wait(nudge_interval_sec):
         try:
@@ -367,8 +386,6 @@ def _run_nudge_loop(
                 _nudge_pool(pool, target, cluster_info, nudge_min_gap_sec)
             except Exception as exc:  # pylint: disable=broad-exception-caught
                 logger.warning(f"node-pool nudge: {pool} failed: {exc}")
-            group_state.attempted_pool = None
-            group_state.attempted_target_per_zone = None
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.warning(f"node-pool nudge: iteration failed for {deployment_name}: {exc}")
             _reset_apps_v1_api()

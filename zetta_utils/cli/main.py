@@ -9,6 +9,7 @@ import click
 
 from zetta_utils import LoadMode, log, setup_environment
 from zetta_utils.cli.run.cli import run_info_cli
+from zetta_utils.cli.run.cli_pester_nodes import pester_nodes_cli
 from zetta_utils.cli.run.cli_update import run_update_cli
 from zetta_utils.cli.task_mgmt import task_mgmt
 
@@ -154,6 +155,10 @@ for cmd in run_info_cli.commands.values():
 
 
 for cmd in run_update_cli.commands.values():
+    cli.add_command(cmd)
+
+
+for cmd in pester_nodes_cli.commands.values():
     cli.add_command(cmd)
 
 # Add task management commands

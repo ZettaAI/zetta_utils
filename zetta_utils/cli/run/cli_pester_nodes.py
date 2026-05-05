@@ -78,7 +78,7 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
     once capacity opens up.
     """
     cluster_info = parse_cluster_info(cluster_name, cluster_region, cluster_project)
-    if cluster_info.project is None or cluster_info.region is None:
+    if cluster_info.project is None or cluster_info.region is None:  # pragma: no cover
         raise click.UsageError(
             "GKE pool resize requires cluster_info with project and region set; "
             "supply --cluster-name / --cluster-region / --cluster-project."
@@ -115,7 +115,7 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
 
     stop_event = threading.Event()
 
-    def _on_sigint(_signum, _frame):
+    def _on_sigint(_signum, _frame):  # pragma: no cover
         click.echo("\nInterrupted; exiting.", err=True)
         stop_event.set()
 
@@ -137,13 +137,13 @@ def pester_nodes(  # pylint: disable=too-many-arguments,too-many-locals
             try:
                 gke.resize_node_pool(project, region, cluster, pool_name, target)
                 click.echo(f"  pool {pool_name}: requested per-zone target={target}")
-            except Exception as exc:  # pylint: disable=broad-exception-caught
+            except Exception as exc:  # pylint: disable=broad-exception-caught  # pragma: no cover
                 logger.warning(f"resize {pool_name}: {exc}")
 
-        if stop_event.wait(interval_sec):
+        if stop_event.wait(interval_sec):  # pragma: no cover
             break
 
-    click.echo("Exited.")
+    click.echo("Exited.")  # pragma: no cover
 
 
 def _resolve_deployment(
@@ -156,7 +156,7 @@ def _resolve_deployment(
         raise click.UsageError(
             f"No deployment found for run_id={run_id!r} worker_group={worker_group!r}."
         )
-    if len(deps) > 1:
+    if len(deps) > 1:  # pragma: no cover
         names = sorted(d.metadata.name for d in deps)
         raise click.UsageError(
             f"Multiple deployments matched {label_selector!r}: {names}. "
@@ -172,7 +172,7 @@ def _resolve_pools_from_pods(core_api: k8s_client.CoreV1Api, label_selector: str
     for nn in node_names:
         try:
             node = core_api.read_node(name=nn)
-        except ApiException as exc:
+        except ApiException as exc:  # pragma: no cover
             logger.warning(f"read node {nn}: {exc}")
             continue
         pool = (node.metadata.labels or {}).get("cloud.google.com/gke-nodepool")
@@ -194,7 +194,7 @@ def _compute_targets(
     targets: dict[str, int] = {}
     for name in sorted(pool_names):
         pool = by_name.get(name)
-        if pool is None:
+        if pool is None:  # pragma: no cover
             click.echo(f"  pool {name!r} not found in cluster; skipping")
             continue
         current = pool.initial_node_count

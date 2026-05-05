@@ -19,6 +19,20 @@ from zetta_utils.mazepa import semaphore
 logger = log.get_logger("zetta_utils")
 
 
+def _check_trt_partition(module: torch.nn.Module) -> None:
+    trt_blocks = [
+        (name, type(sub).__name__)
+        for name, sub in module.named_modules()
+        if "TensorRT" in type(sub).__name__ and "Module" in type(sub).__name__
+    ]
+    logger.info(f"TRT partition: {len(trt_blocks)} block(s) -- {trt_blocks}")
+    if len(trt_blocks) > 1:
+        raise RuntimeError(
+            f"TensorRT graph is partitioned into {len(trt_blocks)} blocks; "
+            f"expected a single fully-fused engine. Blocks: {trt_blocks}"
+        )
+
+
 # NOTE: torch_tensorrt is imported lazily inside _load_model. Importing it at
 # module level initializes CUDA during forkserver template init, which makes
 # any forkserver-forked child a "bad fork",
@@ -44,7 +58,7 @@ def load_model(
     return result
 
 
-def _load_model(
+def _load_model(  # pylint: disable=too-many-branches,too-many-statements,protected-access
     path: str,
     device: Union[str, torch.device] = "cpu",
     input_shape: Sequence[int] | None = None,
@@ -67,10 +81,28 @@ def _load_model(
         raise ValueError(f"Unsupported file format: {path}")
 
     if tensorrt_enabled:
+        logger.info(
+            f"pre-import: bad_fork={torch.cuda._is_in_bad_fork()} "
+            f"cuda_init={torch.cuda.is_initialized()} "
+            f"device_count={torch.cuda.device_count()}"
+        )
+        try:
+            import ctypes  # pylint: disable=import-outside-toplevel
+
+            libcuda = ctypes.CDLL("libcuda.so.1")
+            cu_init_err = libcuda.cuInit(0)
+            logger.info(f"cuInit(0) returned: {cu_init_err}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning(f"cuInit(0) call failed: {e}")
         try:
             import torch_tensorrt  # pylint: disable=import-error,import-outside-toplevel
         except (ImportError, OSError, RuntimeError) as e:
             raise RuntimeError(f"torch_tensorrt is not available: {e}") from e
+        logger.info(
+            f"post-import: bad_fork={torch.cuda._is_in_bad_fork()} "
+            f"cuda_init={torch.cuda.is_initialized()} "
+            f"device_count={torch.cuda.device_count()}"
+        )
 
         with semaphore("tensorrt"):
             # TensorRT should not be compiled concurrently by many threads
@@ -89,27 +121,39 @@ def _load_model(
             )
             cache_path = os.path.join(tensorrt_cache_dir, trt_fname)
 
+            trt_module = None
+
             # Try to load the optimized model from cache
             try:
-                result = torch_tensorrt.load(cache_path).module()
+                trt_module = torch_tensorrt.load(cache_path).module()
                 logger.info(f"Loaded cached TensorRT model: {cache_path}")
-                return result
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.info(f"Cache not found or invalid, compiling TensorRT model: {e}")
 
-            example_in = torch.rand(input_shape).to(device=device)
+            if trt_module is None:
+                example_in = torch.rand(input_shape).to(device=device)
+                try:
+                    trt_module = torch_tensorrt.compile(
+                        result,
+                        inputs=[example_in],
+                        enabled_precisions={torch.float, torch.half},
+                        ir="torch_compile",
+                    )
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.warning(f"TensorRT compilation failed, falling back to eager mode: {e}")
+                    trt_module = None
+                else:
+                    try:
+                        torch_tensorrt.save(trt_module, cache_path)
+                        logger.info(f"Compiled TensorRT model saved to cache: {cache_path}")
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        logger.info(
+                            f"TRT compile succeeded but save not supported for this IR: {e}"
+                        )
 
-            try:
-                compiled = torch_tensorrt.compile(
-                    result,
-                    inputs=[example_in],
-                    enabled_precisions={torch.float, torch.half},
-                )
-                torch_tensorrt.save(compiled, cache_path)
-                logger.info(f"Compiled TensorRT model saved to cache: {cache_path}")
-                result = compiled
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning(f"TensorRT compilation failed, falling back to eager mode: {e}")
+            if trt_module is not None:
+                _check_trt_partition(trt_module)
+                result = trt_module
 
     return result
 
@@ -208,11 +252,17 @@ def load_and_run_model(
 
     autocast_device = device.type if isinstance(device, torch.device) else str(device)
     with torch.inference_mode():  # uses less memory when used with JITs
-        with torch.autocast(device_type=autocast_device):
+        if tensorrt_enabled:
             gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
             output = model(gpu_input)
             del gpu_input
             output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
-    torch.cuda.empty_cache()
+        else:
+            with torch.autocast(device_type=autocast_device):
+                gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
+                output = model(gpu_input)
+                del gpu_input
+                output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
+    # torch.cuda.empty_cache()
 
     return output

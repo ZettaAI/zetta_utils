@@ -346,6 +346,7 @@ def get_mazepa_pod_spec(
         )
     if gpu_accelerator_type:
         node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
+        node_selector["cloud.google.com/gke-gpu-driver-version"] = "latest"
 
     envs = []
     if adc_available:

@@ -98,9 +98,13 @@ def test_provisioning_string_with_gpu_combines_in_node_selector():
     assert spec.node_selector == {
         "cloud.google.com/gke-provisioning": "spot",
         "cloud.google.com/gke-accelerator": "nvidia-l4",
+        "cloud.google.com/gke-gpu-driver-version": "latest",
     }
 
 
 def test_provisioning_list_with_gpu_keeps_gpu_in_node_selector():
     spec = _build(provisioning_model=["spot", "standard"], gpu_accelerator_type="nvidia-l4")
-    assert spec.node_selector == {"cloud.google.com/gke-accelerator": "nvidia-l4"}
+    assert spec.node_selector == {
+        "cloud.google.com/gke-accelerator": "nvidia-l4",
+        "cloud.google.com/gke-gpu-driver-version": "latest",
+    }

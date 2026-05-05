@@ -22,6 +22,7 @@ from . import gke
 from .common import ClusterInfo, get_cluster_data
 from .deployment import deployment_ctx_mngr
 from .pod import watch_for_triggered_scale_up
+from .preflight import verify_cluster_access
 
 logger = log.get_logger("zetta_utils")
 
@@ -446,6 +447,8 @@ def autoscaling_deployment_ctx_mngr(  # pylint: disable=too-many-locals
     :param poll_interval_sec: seconds between reconciliation ticks.
     :param namespace: k8s namespace the Deployment lives in.
     """
+    verify_cluster_access(cluster_info, namespace=namespace)
+
     if deployment.metadata.annotations is None:
         deployment.metadata.annotations = {}
     deployment.metadata.annotations[MAX_REPLICAS_ANNOTATION] = str(max_replicas)

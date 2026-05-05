@@ -15,7 +15,7 @@ class SamplerWrapper(torch.utils.data.Sampler[int]):
     sampler: torch.utils.data.Sampler[int]
 
     def __init__(self, sampler: torch.utils.data.Sampler[int]) -> None:
-        super().__init__(None)
+        super().__init__()
         self.sampler = sampler
         self.epoch = 0
 

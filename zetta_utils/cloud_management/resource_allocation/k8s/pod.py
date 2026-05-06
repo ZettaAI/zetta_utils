@@ -253,12 +253,69 @@ def get_zone_affinities(
     return (required_zone_affinity, preferred_zone_affinity)
 
 
+ProvisioningModel = Literal["standard", "spot"] | List[Literal["standard", "spot"]]
+"""Worker pod's accepted provisioning model(s).
+
+Single string is a hard constraint expressed via ``nodeSelector``.
+List form expresses an OR via ``nodeAffinity``: required is ``In`` over
+all values, preferred (weight 100) is the first element so the K8s
+scheduler biases toward it when capacity is available for both.
+"""
+
+
+def _provisioning_affinity(
+    values: List[Literal["standard", "spot"]],
+) -> tuple[k8s_client.V1NodeSelectorRequirement, k8s_client.V1PreferredSchedulingTerm]:
+    """Return (required_match_expression, preferred_term) for a list of
+    accepted provisioning models. First element is the preferred one."""
+    required = k8s_client.V1NodeSelectorRequirement(
+        key="cloud.google.com/gke-provisioning",
+        operator="In",
+        values=list(values),
+    )
+    preferred = k8s_client.V1PreferredSchedulingTerm(
+        weight=100,
+        preference=k8s_client.V1NodeSelectorTerm(
+            match_expressions=[
+                k8s_client.V1NodeSelectorRequirement(
+                    key="cloud.google.com/gke-provisioning",
+                    operator="In",
+                    values=[values[0]],
+                )
+            ]
+        ),
+    )
+    return required, preferred
+
+
+def _merge_required_terms(
+    zone_selector: k8s_client.V1NodeSelector | None,
+    provisioning_expr: k8s_client.V1NodeSelectorRequirement | None,
+) -> k8s_client.V1NodeSelector | None:
+    """Merge zone + provisioning required terms onto a single
+    ``V1NodeSelectorTerm`` so they AND together at scheduling time."""
+    if zone_selector is None and provisioning_expr is None:
+        return None
+    if zone_selector is None:
+        return k8s_client.V1NodeSelector(
+            node_selector_terms=[
+                k8s_client.V1NodeSelectorTerm(match_expressions=[provisioning_expr])
+            ]
+        )
+    if provisioning_expr is None:
+        return zone_selector
+    # Both present: append provisioning to each existing term's expressions.
+    for term in zone_selector.node_selector_terms:
+        term.match_expressions = list(term.match_expressions or []) + [provisioning_expr]
+    return zone_selector
+
+
 def get_mazepa_pod_spec(
     image: str,
     command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
-    provisioning_model: Literal["standard", "spot"] = "spot",
+    provisioning_model: ProvisioningModel = "spot",
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     restart_policy: Literal["Always", "Never", "OnFailure"] = "Always",
     gpu_accelerator_type: str | None = None,
@@ -273,7 +330,20 @@ def get_mazepa_pod_spec(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
 
-    node_selector: dict[str, str] = {"cloud.google.com/gke-provisioning": provisioning_model}
+    node_selector: dict[str, str] = {}
+    if isinstance(provisioning_model, str):
+        # Single value: keep the existing nodeSelector path so the wire
+        # format matches what runs on production today.
+        node_selector["cloud.google.com/gke-provisioning"] = provisioning_model
+        provisioning_required_expr = None
+        provisioning_preferred_term = None
+    else:
+        # List form: nodeSelector cannot express OR; switch this key to
+        # nodeAffinity. First element is the preferred provisioning model;
+        # all elements are accepted.
+        provisioning_required_expr, provisioning_preferred_term = _provisioning_affinity(
+            provisioning_model
+        )
     if gpu_accelerator_type:
         node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
 
@@ -287,13 +357,19 @@ def get_mazepa_pod_spec(
     if worker_type:
         envs.append(k8s_client.V1EnvVar(name="WORKER_TYPE", value=worker_type))
 
-    required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
+    required_zone_selector, preferred_zone_term = get_zone_affinities(
+        required_zones, preferred_zones
+    )
+    required_node_selector = _merge_required_terms(
+        required_zone_selector, provisioning_required_expr
+    )
+    preferred_terms = [
+        t for t in (preferred_zone_term, provisioning_preferred_term) if t is not None
+    ]
     affinity = k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=required_affinity,
-            preferred_during_scheduling_ignored_during_execution=(
-                [preferred_affinity] if preferred_affinity else None
-            ),
+            required_during_scheduling_ignored_during_execution=required_node_selector,
+            preferred_during_scheduling_ignored_during_execution=preferred_terms or None,
         )
     )
 

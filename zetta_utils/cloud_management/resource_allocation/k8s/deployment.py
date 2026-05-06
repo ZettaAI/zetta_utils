@@ -5,7 +5,7 @@ Helpers for k8s deployments.
 from __future__ import annotations
 
 from contextlib import contextmanager
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Optional
 
 import kubernetes.client as k8s_client
 
@@ -20,7 +20,7 @@ from zetta_utils.run.resource import (
 )
 
 from .common import ClusterInfo, get_cluster_data, get_mazepa_worker_command
-from .pod import get_mazepa_pod_spec, stream_pod_logs
+from .pod import ProvisioningModel, get_mazepa_pod_spec, stream_pod_logs
 from .secret import secrets_ctx_mngr
 
 logger = log.get_logger("zetta_utils")
@@ -35,7 +35,7 @@ def _get_mazepa_deployment(
     labels: Dict[str, str],
     env_secret_mapping: Dict[str, str],
     resource_requests: Optional[Dict[str, int | float | str]] = None,
-    provisioning_model: Literal["standard", "spot"] = "spot",
+    provisioning_model: ProvisioningModel = "spot",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
@@ -98,7 +98,7 @@ def get_mazepa_worker_deployment(  # pylint: disable=too-many-locals
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     num_procs: int = 1,
     semaphores_spec: dict[SemaphoreType, int] | None = None,
-    provisioning_model: Literal["standard", "spot"] = "spot",
+    provisioning_model: ProvisioningModel = "spot",
     gpu_accelerator_type: str | None = None,
     adc_available: bool = False,
     cave_secret_available: bool = False,

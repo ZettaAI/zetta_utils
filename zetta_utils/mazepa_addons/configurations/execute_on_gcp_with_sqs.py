@@ -5,7 +5,7 @@ import copy
 import os
 import threading
 from contextlib import AbstractContextManager, ExitStack
-from typing import Any, Final, Iterable, Literal, Optional, TypedDict, Union
+from typing import Any, Final, Iterable, Optional, TypedDict, Union
 
 import attrs
 from typeguard import typechecked
@@ -71,7 +71,7 @@ class WorkerGroup:
     sqs_based_scaling: bool = True
     resource_requests: dict[str, int | float | str] | None = None
     semaphores_spec: dict[SemaphoreType, int] | None = None
-    provisioning_model: Literal["standard", "spot"] = "spot"
+    provisioning_model: k8s.ProvisioningModel = "spot"
     idle_worker_timeout: int = 300
     labels: dict[str, str] | None = None
     gpu_accelerator_type: str | None = None
@@ -95,7 +95,7 @@ class WorkerGroupDict(TypedDict, total=False):
     sqs_based_scaling: NotRequired[bool]
     resource_requests: NotRequired[dict[str, int | float | str]]
     semaphores_spec: NotRequired[dict[SemaphoreType, int]]
-    provisioning_model: NotRequired[Literal["standard", "spot"]]
+    provisioning_model: NotRequired[k8s.ProvisioningModel]
     idle_worker_timeout: NotRequired[int]
     labels: NotRequired[dict[str, str]]
     gpu_accelerator_type: NotRequired[str]

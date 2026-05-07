@@ -476,6 +476,18 @@ class TimedSemaphore(contextlib.AbstractContextManager):
         return result
 
     def __exit__(self, *args):
+        # Sync queued GPU work before releasing the slot. Without this the
+        # sem only gates kernel submission, not execution: kernels stay in
+        # flight on the stream after release and the next holder's launches
+        # interleave with ours instead of being serialized.
+        if self.name == "cuda":
+            try:
+                import torch  # pylint: disable=import-outside-toplevel
+            except ImportError:
+                pass
+            else:
+                if torch.cuda.is_available():  # pragma: no cover
+                    torch.cuda.synchronize()
         lease_time = time.perf_counter() - self._lease_start_time
         self.timing_tracker.add_lease_time(lease_time)
         return self.semaphore.__exit__(*args)

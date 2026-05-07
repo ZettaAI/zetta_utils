@@ -19,10 +19,118 @@ from zetta_utils.mazepa import semaphore
 logger = log.get_logger("zetta_utils")
 
 
-# NOTE: torch_tensorrt is imported lazily inside _load_model. Importing it at
+# NOTE: tensorrt is imported lazily inside the helpers below. Importing at
 # module level initializes CUDA during forkserver template init, which makes
-# any forkserver-forked child a "bad fork",
-# (torch.cuda._is_in_bad_fork() -> True), preventing them from using CUDA.
+# any forkserver-forked child a "bad fork", preventing them from using CUDA.
+
+# Bump when the engine cache layout / build flags change in a way that makes
+# old cached .engine files incompatible (separate from the TRT version key).
+TRT_CACHE_FORMAT_VERSION = 1
+
+
+def _trt_dtype_to_torch(dt) -> torch.dtype:  # pragma: no cover
+    import tensorrt as trt  # pylint: disable=import-outside-toplevel,import-error
+
+    mapping = {
+        trt.float32: torch.float32,
+        trt.float16: torch.float16,
+        trt.int32: torch.int32,
+        trt.int8: torch.int8,
+    }
+    if dt not in mapping:
+        raise ValueError(f"Unsupported TRT dtype: {dt}")
+    return mapping[dt]
+
+
+def _build_trt_engine_from_onnx(  # pragma: no cover
+    onnx_path: str, input_shape: Sequence[int], fp16: bool = True
+) -> bytes:
+    import tensorrt as trt  # pylint: disable=import-outside-toplevel,import-error
+
+    trt_logger = trt.Logger(trt.Logger.WARNING)
+    trt_builder = trt.Builder(trt_logger)
+    network = trt_builder.create_network(
+        1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
+    )
+    parser = trt.OnnxParser(network, trt_logger)
+    with fsspec.open(onnx_path, "rb") as f:
+        if not parser.parse(f.read()):
+            errors = [str(parser.get_error(i)) for i in range(parser.num_errors)]
+            raise RuntimeError(f"ONNX parse failed: {errors}")
+
+    config = trt_builder.create_builder_config()
+    if fp16:
+        config.set_flag(trt.BuilderFlag.FP16)
+    profile = trt_builder.create_optimization_profile()
+    inp = network.get_input(0)
+    shape = tuple(input_shape)
+    profile.set_shape(inp.name, shape, shape, shape)
+    config.add_optimization_profile(profile)
+
+    serialized = trt_builder.build_serialized_network(network, config)
+    if serialized is None:
+        raise RuntimeError("TRT engine build returned None")
+    return bytes(serialized)
+
+
+class _TRTEngineRunner(torch.nn.Module):  # pragma: no cover
+    def __init__(self, engine_bytes: bytes, device):
+        super().__init__()
+        import tensorrt as trt  # pylint: disable=import-outside-toplevel,import-error
+
+        runtime = trt.Runtime(trt.Logger(trt.Logger.WARNING))
+        engine = runtime.deserialize_cuda_engine(engine_bytes)
+        if engine is None:
+            raise RuntimeError("Failed to deserialize TRT engine")
+        self._engine = engine
+        self._context = engine.create_execution_context()
+        self._device = device
+        # Dedicated stream avoids TRT's implicit cudaStreamSynchronize that
+        # enqueueV3 issues against the default stream.
+        self._stream = torch.cuda.Stream(device=device)
+        self._input_names: list[str] = []
+        self._output_names: list[str] = []
+        for i in range(engine.num_io_tensors):
+            name = engine.get_tensor_name(i)
+            if engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT:
+                self._input_names.append(name)
+            else:
+                self._output_names.append(name)
+        if len(self._input_names) != 1 or len(self._output_names) != 1:
+            raise RuntimeError(
+                f"_TRTEngineRunner expects single I/O; got "
+                f"{len(self._input_names)} inputs, {len(self._output_names)} outputs"
+            )
+        self._input_dtype = _trt_dtype_to_torch(engine.get_tensor_dtype(self._input_names[0]))
+        self._output_dtype = _trt_dtype_to_torch(engine.get_tensor_dtype(self._output_names[0]))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x.to(self._input_dtype).contiguous()
+        input_name = self._input_names[0]
+        output_name = self._output_names[0]
+        self._context.set_input_shape(input_name, tuple(x.shape))
+        out_shape = tuple(self._context.get_tensor_shape(output_name))
+
+        # Make our stream wait for any pending work on the caller's stream so
+        # x is ready before TRT enqueues against it.
+        caller_stream = torch.cuda.current_stream(self._device)
+        self._stream.wait_stream(caller_stream)
+
+        with torch.cuda.stream(self._stream):
+            output = torch.empty(out_shape, dtype=self._output_dtype, device=self._device)
+            self._context.set_tensor_address(input_name, x.data_ptr())
+            self._context.set_tensor_address(output_name, output.data_ptr())
+            if not self._context.execute_async_v3(self._stream.cuda_stream):
+                raise RuntimeError("TRT execute_async_v3 failed")
+            # record_stream so torch's allocator doesn't recycle x or output
+            # while the engine kernels are still in flight.
+            x.record_stream(self._stream)
+            output.record_stream(self._stream)
+
+        # Caller's stream waits for the engine; ops downstream of forward()
+        # will see the output as ready.
+        caller_stream.wait_stream(self._stream)
+        return output
 
 
 @builder.register("load_model")
@@ -44,7 +152,7 @@ def load_model(
     return result
 
 
-def _load_model(
+def _load_model(  # pylint: disable=too-many-branches,too-many-statements
     path: str,
     device: Union[str, torch.device] = "cpu",
     input_shape: Sequence[int] | None = None,
@@ -52,66 +160,87 @@ def _load_model(
     tensorrt_cache_dir: str = ".",
 ) -> torch.nn.Module:  # pragma: no cover
     logger.debug(f"Loading model from '{path}'")
-    if path.endswith(".json"):
-        result = builder.build(path=path).to(device)
-    elif path.endswith(".jit"):
-        with fsspec.open(path, "rb") as f:
-            result = torch.jit.load(f, map_location=device)
-    elif path.endswith(".onnx"):
-        with fsspec.open(path, "rb") as f:
-            result = onnx2torch.convert(onnx.load(f)).to(device)
-    elif path.endswith(".ts"):
-        # load a cached TensorRT model
-        result = torch.export.load(path).module()
-    else:
-        raise ValueError(f"Unsupported file format: {path}")
 
     if tensorrt_enabled:
+        if not path.endswith(".onnx"):
+            raise ValueError(f"tensorrt_enabled=True requires an ONNX model, got {path}")
         try:
-            import torch_tensorrt  # pylint: disable=import-error,import-outside-toplevel
+            import tensorrt  # pylint: disable=import-outside-toplevel,import-error
         except (ImportError, OSError, RuntimeError) as e:
-            raise RuntimeError(f"torch_tensorrt is not available: {e}") from e
+            raise RuntimeError(f"tensorrt is not available: {e}") from e
 
         with semaphore("tensorrt"):
-            # TensorRT should not be compiled concurrently by many threads
-            # or will run out of memory
-            # Ideally, only by one thread and the others then load the cached model
+            # The semaphore serializes engine builds across procs sharing a GPU.
+            # First proc through writes the cache file; subsequent procs find it.
             assert input_shape is not None  # mypy
 
             gpu_capability = torch.cuda.get_device_capability(device)
-            trt_fname = (
+            cache_key = xxhash.xxh128(
                 str(
-                    xxhash.xxh128(
-                        str((path, tuple(input_shape), gpu_capability)).encode("utf-8")
-                    ).hexdigest()
-                )
-                + ".trt.ep"
+                    (
+                        path,
+                        tuple(input_shape),
+                        gpu_capability,
+                        tensorrt.__version__,
+                        TRT_CACHE_FORMAT_VERSION,
+                    )
+                ).encode("utf-8")
+            ).hexdigest()
+            cache_path = (
+                tensorrt_cache_dir.rstrip("/") + "/" + f"{cache_key}.engine"
             )
-            cache_path = os.path.join(tensorrt_cache_dir, trt_fname)
+            cache_fs, cache_fpath = fsspec.core.url_to_fs(cache_path)
+            cache_fs.makedirs(os.path.dirname(cache_fpath), exist_ok=True)
 
-            # Try to load the optimized model from cache
-            try:
-                result = torch_tensorrt.load(cache_path).module()
-                logger.info(f"Loaded cached TensorRT model: {cache_path}")
-                return result
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.info(f"Cache not found or invalid, compiling TensorRT model: {e}")
+            engine_bytes: bytes | None = None
+            if cache_fs.exists(cache_fpath):
+                try:
+                    with fsspec.open(cache_path, "rb") as f:
+                        engine_bytes = f.read()
+                    logger.info(f"Loaded cached TRT engine: {cache_path}")
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logger.info(f"Failed to read cached engine, will rebuild: {e}")
+                    engine_bytes = None
 
-            example_in = torch.rand(input_shape).to(device=device)
-
-            try:
-                compiled = torch_tensorrt.compile(
-                    result,
-                    inputs=[example_in],
-                    enabled_precisions={torch.float, torch.half},
+            if engine_bytes is None:
+                engine_bytes = _build_trt_engine_from_onnx(
+                    onnx_path=path, input_shape=input_shape, fp16=True
                 )
-                torch_tensorrt.save(compiled, cache_path)
-                logger.info(f"Compiled TensorRT model saved to cache: {cache_path}")
-                result = compiled
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning(f"TensorRT compilation failed, falling back to eager mode: {e}")
+                with fsspec.open(cache_path, "wb") as f:
+                    f.write(engine_bytes)
+                logger.info(f"Compiled and saved TRT engine: {cache_path}")
 
-    return result
+            try:
+                return _TRTEngineRunner(engine_bytes, device)
+            except RuntimeError:
+                # Cached bytes failed to deserialize (e.g., stale across a TRT
+                # ABI change the version key didn't catch). Rebuild and retry.
+                logger.warning(
+                    f"Cached TRT engine at {cache_path} failed to deserialize, rebuilding"
+                )
+                try:
+                    cache_fs.rm(cache_fpath)
+                except FileNotFoundError:  # pragma: no cover
+                    pass
+                engine_bytes = _build_trt_engine_from_onnx(
+                    onnx_path=path, input_shape=input_shape, fp16=True
+                )
+                with fsspec.open(cache_path, "wb") as f:
+                    f.write(engine_bytes)
+                return _TRTEngineRunner(engine_bytes, device)
+
+    if path.endswith(".json"):
+        return builder.build(path=path).to(device)
+    if path.endswith(".jit"):
+        with fsspec.open(path, "rb") as f:
+            return torch.jit.load(f, map_location=device)
+    if path.endswith(".onnx"):
+        with fsspec.open(path, "rb") as f:
+            return onnx2torch.convert(onnx.load(f)).to(device)
+    if path.endswith(".ts"):
+        # load a cached TensorRT model
+        return torch.export.load(path).module()
+    raise ValueError(f"Unsupported file format: {path}")
 
 
 _load_model_cached = cachetools.cached(cachetools.LRUCache(maxsize=2))(_load_model)
@@ -208,11 +337,17 @@ def load_and_run_model(
 
     autocast_device = device.type if isinstance(device, torch.device) else str(device)
     with torch.inference_mode():  # uses less memory when used with JITs
-        with torch.autocast(device_type=autocast_device):
+        if tensorrt_enabled:
             gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
             output = model(gpu_input)
             del gpu_input
             output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
-    torch.cuda.empty_cache()
+        else:
+            with torch.autocast(device_type=autocast_device):
+                gpu_input = tensor_ops.convert.to_torch(data_in, device=device)
+                output = model(gpu_input)
+                del gpu_input
+                output = tensor_ops.convert.astype(output, reference=data_in, cast=True)
+    # torch.cuda.empty_cache()
 
     return output

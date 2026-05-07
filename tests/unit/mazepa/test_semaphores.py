@@ -1,5 +1,6 @@
-# pylint: disable=bare-except, c-extension-no-member
+# pylint: disable=bare-except, c-extension-no-member, protected-access
 
+import builtins
 import os
 from multiprocessing import shared_memory
 from typing import List, get_args
@@ -8,10 +9,15 @@ import posix_ipc
 import pytest
 
 from zetta_utils.mazepa.semaphores import (
+    PRIORITY_MAX_WAITERS,
+    PRIORITY_SHM_SIZE,
     DummySemaphore,
+    PriorityPidSemaphore,
     SemaphoreType,
     TimingTracker,
     _log_timing_summary,
+    _priority_mutex_name,
+    _priority_shm_name,
     configure_semaphores,
     get_semaphore_stats,
     name_to_posix_name,
@@ -34,6 +40,16 @@ def cleanup_semaphores():
             pass
         try:
             TimingTracker(name, pid=os.getpid()).unlink()
+        except:
+            pass
+        try:
+            posix_ipc.Semaphore(_priority_mutex_name(name, os.getpid())).unlink()
+        except:
+            pass
+        try:
+            shm = shared_memory.SharedMemory(name=_priority_shm_name(name, os.getpid()))
+            shm.close()
+            shm.unlink()
         except:
             pass
 
@@ -76,14 +92,32 @@ def test_unlink_nonexistent_exc():
 
 
 def test_get_parent_semaphore():
+    ppid = os.getppid()
+    for cleanup in (
+        lambda: posix_ipc.Semaphore(name_to_posix_name("read", ppid)).unlink(),
+        lambda: posix_ipc.Semaphore(_priority_mutex_name("read", ppid)).unlink(),
+        lambda: shared_memory.SharedMemory(name=_priority_shm_name("read", ppid)).unlink(),
+    ):
+        try:
+            cleanup()
+        except:
+            pass
+    sema = posix_ipc.Semaphore(name_to_posix_name("read", ppid), flags=posix_ipc.O_CREX)
+    mutex = posix_ipc.Semaphore(
+        _priority_mutex_name("read", ppid), flags=posix_ipc.O_CREX, initial_value=1
+    )
+    shm = shared_memory.SharedMemory(
+        name=_priority_shm_name("read", ppid), create=True, size=PRIORITY_SHM_SIZE
+    )
     try:
-        sema = posix_ipc.Semaphore(name_to_posix_name("read", os.getppid()))
+        inner = semaphore("read").semaphore
+        assert isinstance(inner, PriorityPidSemaphore)
+        assert sema.name == inner._slot_sem.name
+    finally:
+        shm.close()
+        shm.unlink()
+        mutex.unlink()
         sema.unlink()
-    except:
-        pass
-    sema = posix_ipc.Semaphore(name_to_posix_name("read", os.getppid()), flags=posix_ipc.O_CREX)
-    assert sema.name == semaphore("read").semaphore.name
-    sema.unlink()
 
 
 @pytest.mark.parametrize(
@@ -308,4 +342,103 @@ def test_semaphores_logging():
         }
     ):
         with semaphore("read"):
+            pass
+
+
+def test_priority_waiter_array_full_exc():
+    with configure_semaphores():
+        priority_sem = semaphore("read").semaphore
+        assert isinstance(priority_sem, PriorityPidSemaphore)
+        arr = priority_sem._arr()
+        for i in range(PRIORITY_MAX_WAITERS):
+            arr[i] = 99000 + i
+        try:
+            with pytest.raises(RuntimeError, match="waiter array is full"):
+                priority_sem._add_waiter(os.getpid())
+        finally:
+            for i in range(PRIORITY_MAX_WAITERS):
+                arr[i] = 0
+
+
+class _AcquireFailsOnce:
+    """Wrapper around a posix_ipc.Semaphore that raises BusyError on the first
+    acquire(timeout=0) call, then forwards to the real sem."""
+
+    def __init__(self, real_sem):
+        self._real = real_sem
+        self.calls = 0
+
+    def acquire(self, *args, **kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            raise posix_ipc.BusyError()
+        return self._real.acquire(*args, **kwargs)
+
+    def release(self):
+        return self._real.release()
+
+    @property
+    def name(self):
+        return self._real.name
+
+    def unlink(self):
+        return self._real.unlink()
+
+
+def test_priority_sem_busy_then_acquire():
+    with configure_semaphores():
+        sema = semaphore("read")
+        priority_sem = sema.semaphore
+        assert isinstance(priority_sem, PriorityPidSemaphore)
+        wrapper = _AcquireFailsOnce(priority_sem._slot_sem)
+        real_sem = priority_sem._slot_sem
+        priority_sem._slot_sem = wrapper
+        try:
+            with sema:
+                pass
+            assert wrapper.calls >= 2
+        finally:
+            priority_sem._slot_sem = real_sem
+
+
+def test_configure_tracker_unlink_exc(mocker):
+    original_unlink = shared_memory.SharedMemory.unlink
+
+    def selective_failing_unlink(self):
+        if "zetta_semaphore_timing_" in self.name:
+            raise PermissionError("Cannot unlink tracker shm")
+        return original_unlink(self)
+
+    mocker.patch.object(shared_memory.SharedMemory, "unlink", selective_failing_unlink)
+
+    with pytest.raises(
+        RuntimeError, match="Failed to cleanup shared memory for tracking"
+    ):
+        with configure_semaphores():
+            pass
+
+    mocker.patch.object(shared_memory.SharedMemory, "unlink", original_unlink)
+
+    for name in get_args(SemaphoreType):
+        try:
+            semaphore(name).unlink()
+        except:
+            pass
+        try:
+            TimingTracker(name, pid=os.getpid()).unlink()
+        except:
+            pass
+
+
+def test_cuda_sem_no_torch(mocker):
+    real_import = builtins.__import__
+
+    def fail_torch(name, *args, **kwargs):
+        if name == "torch":
+            raise ImportError("no torch in this test")
+        return real_import(name, *args, **kwargs)
+
+    with configure_semaphores():
+        mocker.patch.object(builtins, "__import__", fail_torch)
+        with semaphore("cuda"):
             pass

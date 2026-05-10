@@ -156,8 +156,11 @@ def _aggregate_pod_stats_safe(run_id: str | None) -> None:
         logger.warning(f"Failed to aggregate pod stats: {e}")
 
 
-def _cleanup_pod_stats(run_id: str) -> None:
-    """Delete per-pod stats documents after final aggregation in a single batched RPC."""
+def cleanup_pod_stats(run_id: str) -> None:
+    """Delete per-pod stats documents for a run in a single batched RPC.
+
+    :param run_id: Run id whose POD_STATS_DB rows should be removed.
+    """
     try:
         docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
         if docs:
@@ -252,6 +255,6 @@ def run_ctx_manager(
             # captured into RUN_DB before they are deleted.
             _update_costs(run_id)
             _aggregate_pod_stats_safe(run_id)
-            _cleanup_pod_stats(run_id)
+            cleanup_pod_stats(run_id)
 
         RUN_ID = None

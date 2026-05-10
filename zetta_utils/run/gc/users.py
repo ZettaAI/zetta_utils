@@ -30,7 +30,7 @@ from slack_sdk.errors import SlackApiError
 from zetta_utils import constants
 from zetta_utils.layer.db_layer.firestore import build_firestore_layer
 from zetta_utils.log import get_logger
-from zetta_utils.run.gc.slack import slack_client
+from zetta_utils.run.gc.common import get_slack_client
 
 logger = get_logger("zetta_utils")
 
@@ -95,7 +95,7 @@ class UserResolver:
 
     def _lookup_by_email(self, email: str) -> str | None:
         try:
-            response = slack_client.users_lookupByEmail(email=email)
+            response = get_slack_client().users_lookupByEmail(email=email)
         except SlackApiError as exc:
             error = exc.response.get("error", "") if exc.response else ""
             if error != "users_not_found":
@@ -114,7 +114,9 @@ class UserResolver:
         cursor: str | None = None
         try:
             while True:
-                response = slack_client.users_list(limit=_USERS_LIST_PAGE_LIMIT, cursor=cursor)
+                response = get_slack_client().users_list(
+                    limit=_USERS_LIST_PAGE_LIMIT, cursor=cursor
+                )
                 members: list[dict] = response.get("members") or []
                 for member in members:
                     if member.get("deleted"):

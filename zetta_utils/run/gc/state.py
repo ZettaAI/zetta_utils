@@ -90,3 +90,16 @@ def clear_state(run_id: str) -> None:
     """
     if run_id in GC_STATE_DB:
         del GC_STATE_DB[run_id]
+
+
+def mark_notified(run_id: str, error_class: str) -> None:
+    """Update only the ``last_notify_error_class`` column for ``run_id``.
+
+    Single-column write that preserves all other persisted fields, so the
+    Slack DM path can stamp "owner has been told about this error class"
+    without clobbering the orchestrator's failure-cycle bookkeeping.
+
+    :param run_id: Run id row key.
+    :param error_class: Error class the owner was just notified about.
+    """
+    GC_STATE_DB[(run_id, ("last_notify_error_class",))] = {"last_notify_error_class": error_class}

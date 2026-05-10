@@ -12,10 +12,8 @@ import json
 import os
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
 from typing import Any
 
-import attrs
 from google.api_core.exceptions import GoogleAPICallError
 
 from zetta_utils.cloud_management.resource_allocation.k8s.common import ClusterInfo
@@ -25,6 +23,7 @@ from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
 )
 from zetta_utils.run import RunInfo, RunState, update_run_info
 from zetta_utils.run.db import RUN_DB
+from zetta_utils.run.gc.common import CleanupReport, ResourceOutcome
 from zetta_utils.run.gc.deleters import (
     K8S_DELETERS,
     SQS_DELETERS,
@@ -34,8 +33,9 @@ from zetta_utils.run.gc.deleters import (
     build_sqs_context,
 )
 from zetta_utils.run.gc.discovery import ClusterFailure, discover_locations
-from zetta_utils.run.gc.slack import post_message
+from zetta_utils.run.gc.slack import post_cycle, post_idle
 from zetta_utils.run.gc.state import RunGCState, load_states, save_state
+from zetta_utils.run.gc.users import UserResolver
 from zetta_utils.run.gc.utils import purge_run_state
 from zetta_utils.run.resource import RESOURCE_DB, Resource, deregister_resource
 
@@ -52,66 +52,6 @@ _ERROR_CLASS_PRIORITY = (
     "sqs",
     "k8s_other",
 )
-
-
-@attrs.frozen
-class ResourceOutcome:
-    """One resource's delete attempt during a cleanup pass.
-
-    :param resource_id: ``RESOURCE_DB`` row key.
-    :param resource: Inflated :class:`Resource` object.
-    :param outcome: The :class:`DeleteOutcome` returned by the deleter
-        (or a synthesized one when discovery determined the resource was
-        already absent).
-    """
-
-    resource_id: str
-    resource: Resource
-    outcome: DeleteOutcome
-
-
-@attrs.frozen
-class CleanupReport:
-    """Aggregated outcome of a single stale run's cleanup pass.
-
-    :param run_id: Stripped run id (no ``run-`` prefix).
-    :param zetta_user: Run owner, as recorded in ``RUN_DB``.
-    :param timestamp: Unix epoch the run was registered.
-    :param heartbeat: Unix epoch of the run's last heartbeat.
-    :param outcomes: Per-resource outcomes.
-    :param cluster_failures: Clusters that were unreachable for this run.
-    :param error_class: Dominant failure category for this cycle, used by
-        the Slack layer to categorize and to decide whether to re-DM.
-        Empty when the run cleaned up fully.
-    """
-
-    run_id: str
-    zetta_user: str
-    timestamp: float
-    heartbeat: float
-    outcomes: list[ResourceOutcome]
-    cluster_failures: dict[ClusterInfo, ClusterFailure]
-    error_class: str
-
-    @property
-    def fully_succeeded(self) -> bool:
-        return not self.cluster_failures and all(
-            o.outcome.status in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND)
-            for o in self.outcomes
-        )
-
-    @property
-    def status_label(self) -> str:
-        """One of ``"OK"``, ``"WARN"``, ``"FAIL"`` — matches the Slack
-        channel-summary 4-char prefix once padded.
-        """
-        if self.fully_succeeded:
-            return "OK"
-        has_any_success = any(
-            o.outcome.status in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND)
-            for o in self.outcomes
-        )
-        return "WARN" if has_any_success else "FAIL"
 
 
 def _parse_clusters(clusters_value: object) -> list[ClusterInfo]:
@@ -315,44 +255,25 @@ def _stale_run_data() -> tuple[
     return resources_by_run, stale_ids, run_info_by_id
 
 
-def _post_stale_summary(stale_ids: list[str], run_info_by_id: dict[str, dict[str, Any]]) -> None:
-    """Post the channel announcement of stale runs (legacy format).
-
-    Replaced by the compact summary + thread replies once :mod:`slack`
-    grows those primitives.
-    """
-    hb_threshold = time.time() - int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
-    threshold_str = datetime.fromtimestamp(hb_threshold, timezone.utc).isoformat()
-    rows: list[str] = []
-    for run_id in stale_ids:
-        info = run_info_by_id.get(run_id, {})
-        user = str(info.get(RunInfo.ZETTA_USER.value, "NA"))
-        ts = float(info.get(RunInfo.TIMESTAMP.value, 0))
-        hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
-        ts_str = datetime.fromtimestamp(ts, timezone.utc).isoformat()
-        hb_str = datetime.fromtimestamp(hb, timezone.utc).isoformat()
-        rows.append(f"{run_id:<60} | {user:<16} | {ts_str:<42} | {hb_str}")
-    body = "\n".join(rows)
-    post_message(f"{len(stale_ids)} run(s) with heartbeat before `{threshold_str}`.\n```{body}```")
-
-
 def main() -> None:  # pragma: no cover
     resources_by_run, stale_ids, run_info_by_id = _stale_run_data()
     if not stale_ids:
-        post_message("Nothing to do.", priority=False)
+        post_idle()
         return
 
-    _post_stale_summary(stale_ids, run_info_by_id)
-
-    states = load_states(stale_ids)
+    states_pre = load_states(stale_ids)
+    user_resolver = UserResolver()
+    reports: list[CleanupReport] = []
     for run_id in stale_ids:
         info = run_info_by_id[run_id]
-        cleanup_run(
+        report = cleanup_run(
             run_id=run_id,
             resources_raw=resources_by_run.get(run_id, {}),
             zetta_user=str(info.get(RunInfo.ZETTA_USER.value, "")),
             timestamp=float(info.get(RunInfo.TIMESTAMP.value, 0.0)),
             heartbeat=float(info.get(RunInfo.HEARTBEAT.value, 0.0)),
             clusters=_parse_clusters(info.get(RunInfo.CLUSTERS.value)),
-            gc_state=states.get(run_id, RunGCState()),
+            gc_state=states_pre.get(run_id, RunGCState()),
         )
+        reports.append(report)
+    post_cycle(reports, states_pre, user_resolver)

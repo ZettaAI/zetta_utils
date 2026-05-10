@@ -3,7 +3,6 @@ Garbage collection for run resources.
 """
 
 import json
-import logging
 import os
 import time
 from collections import defaultdict
@@ -24,7 +23,7 @@ from zetta_utils.mazepa_addons.configurations.execute_on_gcp_with_sqs import (
 from zetta_utils.message_queues.sqs import utils as sqs_utils
 from zetta_utils.run import RunInfo, RunState, update_run_info
 from zetta_utils.run.db import RUN_DB
-from zetta_utils.run.gc_slack import post_message
+from zetta_utils.run.gc.slack import post_message
 from zetta_utils.run.resource import (
     RESOURCE_DB,
     Resource,
@@ -203,9 +202,8 @@ def cleanup_run(run_id: str, resources_raw: dict):
         logger.info(f"`{run_id}` run cleanup failed.")
 
 
-if __name__ == "__main__":  # pragma: no cover
-    logger.setLevel(logging.INFO)
-    _resources, stale_run_ids = _get_current_resources_and_stale_run_ids()
-    for _id in stale_run_ids:
-        logger.info(f"Cleaning up run `{_id}`")
-        cleanup_run(_id, _resources[_id])
+def main() -> None:  # pragma: no cover
+    resources, stale_run_ids = _get_current_resources_and_stale_run_ids()
+    for run_id in stale_run_ids:
+        logger.info(f"Cleaning up run `{run_id}`")
+        cleanup_run(run_id, resources[run_id])

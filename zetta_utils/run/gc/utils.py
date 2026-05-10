@@ -1,1 +1,30 @@
-"""Shared helpers for the run garbage collector (retry, time formatting, run-state purge)."""
+"""Shared helpers for the run garbage collector (retry policy)."""
+
+from __future__ import annotations
+
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+    wait_random,
+)
+
+from zetta_utils.mazepa.transient_errors import TRANSIENT_ERROR_CONDITIONS
+
+
+def _is_transient(exc: BaseException) -> bool:
+    return any(cond.does_match(exc) for cond in TRANSIENT_ERROR_CONDITIONS)
+
+
+#: Decorator: retries the wrapped callable up to 3 times (2s/4s/8s backoff +
+#: up to 0.5s jitter) when the raised exception matches the project's canonical
+#: :data:`zetta_utils.mazepa.transient_errors.TRANSIENT_ERROR_CONDITIONS`
+#: catalog. Non-transient exceptions propagate immediately; the last exception
+#: is re-raised after exhausting attempts.
+retry_transient_api = retry(
+    retry=retry_if_exception(_is_transient),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=2, min=2, max=8) + wait_random(0, 0.5),
+    reraise=True,
+)

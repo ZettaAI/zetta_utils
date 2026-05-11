@@ -36,7 +36,12 @@ from zetta_utils.run.gc.discovery import ClusterFailure, discover_locations
 from zetta_utils.run.gc.slack import post_cycle, post_idle
 from zetta_utils.run.gc.state import RunGCState, load_states, save_state
 from zetta_utils.run.gc.users import UserResolver
-from zetta_utils.run.gc.utils import format_cluster, format_duration, purge_run_state
+from zetta_utils.run.gc.utils import (
+    format_cluster,
+    format_duration,
+    purge_run_state,
+    retry_transient_api,
+)
 from zetta_utils.run.resource import RESOURCE_DB, Resource, deregister_resource
 
 logger = get_logger("zetta_utils")
@@ -50,6 +55,8 @@ _ERROR_CLASS_PRIORITY = (
     "k8s_auth",
     "k8s_5xx",
     "sqs",
+    "unknown_type",
+    "firestore",
     "k8s_other",
 )
 
@@ -80,11 +87,173 @@ def _dominant_error_class(
     return ""
 
 
-def _safe_deregister(resource_id: str) -> None:
+@retry_transient_api
+def _retried_deregister(resource_id: str) -> None:
+    """Delete the RESOURCE_DB row and verify it's gone.
+
+    The Firestore BulkWriter under the layer's ``write`` swallows per-doc
+    errors from ``flush()`` and returns success even when the per-doc
+    commit was rejected. Read the row back to confirm the delete actually
+    persisted; if it's still there, raise so the caller can surface a
+    real failure instead of looping with a fake-OK status next cycle.
+    """
+    deregister_resource(resource_id)
+    if resource_id in RESOURCE_DB:
+        raise RuntimeError(f"deregister did not persist for resource {resource_id}")
+
+
+def _safe_deregister(resource_id: str) -> bool:
+    """Best-effort deregister with transient-API retries. Returns True on success."""
     try:
-        deregister_resource(resource_id)
+        _retried_deregister(resource_id)
+        return True
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to deregister {resource_id}: {exc}")
+        return False
+
+
+@retry_transient_api
+def _retried_set_state(run_id: str, state: str) -> None:
+    """Write ``state`` to ``RUN_DB[run_id]`` and verify it persisted.
+
+    Same BulkWriter-silent-failure concern as :func:`_retried_deregister`.
+    Read the state column back; if it doesn't match what we just wrote,
+    raise so the caller surfaces a real failure.
+    """
+    update_run_info(run_id, {RunInfo.STATE.value: state})
+    row = RUN_DB[(run_id, (RunInfo.STATE.value,))]
+    actual = row.get(RunInfo.STATE.value) if isinstance(row, dict) else None
+    if actual != state:
+        raise RuntimeError(
+            f"state write to {state!r} did not persist for {run_id}; current {actual!r}"
+        )
+
+
+def _safe_set_state(run_id: str, state: str) -> bool:
+    """Best-effort state write with retries + read-back verification."""
+    try:
+        _retried_set_state(run_id, state)
+        return True
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to set state {state} for {run_id}: {exc}")
+        return False
+
+
+def _apply_deregisters(outcomes: list[ResourceOutcome]) -> list[ResourceOutcome]:
+    """Attempt to deregister every ``DELETED``/``NOT_FOUND`` outcome. Any
+    deregister failure flips the outcome to ``FAILED("firestore")`` so the
+    run's status reflects the incomplete cleanup and stays at ``running``
+    for next-cycle retry.
+    """
+    result: list[ResourceOutcome] = []
+    for record in outcomes:
+        if record.outcome.status not in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND):
+            result.append(record)
+            continue
+        if _safe_deregister(record.resource_id):
+            result.append(record)
+            continue
+        result.append(
+            ResourceOutcome(
+                record.resource_id,
+                record.resource,
+                DeleteOutcome(
+                    DeleteStatus.FAILED,
+                    error="deregister failed",
+                    error_class="firestore",
+                ),
+            )
+        )
+    return result
+
+
+def _process_k8s(
+    resources: dict[str, Resource],
+    location: dict[str, ClusterInfo],
+    cluster_failures: dict[ClusterInfo, ClusterFailure],
+) -> list[ResourceOutcome]:
+    outcomes: list[ResourceOutcome] = []
+    for resource_id, resource in resources.items():
+        if resource.type not in K8S_DELETERS:
+            continue
+        if resource_id not in location:
+            outcomes.append(_unrouted_k8s_outcome(resource_id, resource, cluster_failures))
+            continue
+        try:
+            k8s_ctx = build_k8s_context(location[resource_id])
+        except GoogleAPICallError as exc:
+            outcomes.append(
+                ResourceOutcome(
+                    resource_id,
+                    resource,
+                    DeleteOutcome(DeleteStatus.FAILED, error=str(exc), error_class="cluster_auth"),
+                )
+            )
+            continue
+        outcome = K8S_DELETERS[resource.type](resource, k8s_ctx)
+        outcomes.append(ResourceOutcome(resource_id, resource, outcome))
+    return outcomes
+
+
+def _unrouted_k8s_outcome(
+    resource_id: str,
+    resource: Resource,
+    cluster_failures: dict[ClusterInfo, ClusterFailure],
+) -> ResourceOutcome:
+    if cluster_failures:
+        fallback = next(iter(cluster_failures.values()))
+        return ResourceOutcome(
+            resource_id,
+            resource,
+            DeleteOutcome(
+                DeleteStatus.FAILED,
+                error=f"cluster unreachable: {fallback.error}",
+                error_class=fallback.error_class,
+            ),
+        )
+    return ResourceOutcome(resource_id, resource, DeleteOutcome(DeleteStatus.NOT_FOUND))
+
+
+def _process_sqs(resources: dict[str, Resource]) -> list[ResourceOutcome]:
+    sqs_by_region: dict[str, list[tuple[str, Resource]]] = defaultdict(list)
+    for resource_id, resource in resources.items():
+        if resource.type in SQS_DELETERS:
+            sqs_by_region[resource.region or ""].append((resource_id, resource))
+    outcomes: list[ResourceOutcome] = []
+    for region, region_resources in sqs_by_region.items():
+        sqs_ctx = build_sqs_context(region)
+        for resource_id, resource in region_resources:
+            outcome = SQS_DELETERS[resource.type](resource, sqs_ctx)
+            outcomes.append(ResourceOutcome(resource_id, resource, outcome))
+    return outcomes
+
+
+def _unknown_type_outcomes(
+    resources: dict[str, Resource],
+    handled: list[ResourceOutcome],
+) -> list[ResourceOutcome]:
+    """Surface any resource whose type wasn't routed to a k8s or SQS deleter.
+
+    Silently skipping unrecognized types lets an orphan ``RESOURCE_DB`` row
+    survive every cycle: ``fully_succeeded`` becomes ``True`` vacuously,
+    ``STATE=TIMEDOUT`` gets written, and the row keeps the run in
+    ``resources_by_run`` forever. Convert to FAILED so the run stays at
+    ``state=running`` for inspection.
+    """
+    handled_ids = {o.resource_id for o in handled}
+    return [
+        ResourceOutcome(
+            rid,
+            r,
+            DeleteOutcome(
+                DeleteStatus.FAILED,
+                error=f"no deleter registered for resource type {r.type!r}",
+                error_class="unknown_type",
+            ),
+        )
+        for rid, r in resources.items()
+        if rid not in handled_ids
+    ]
 
 
 def cleanup_run(
@@ -113,44 +282,10 @@ def cleanup_run(
 
     location, cluster_failures = discover_locations(clusters, k8s_resources)
     outcomes: list[ResourceOutcome] = []
-
-    for resource_id, resource in resources.items():
-        if resource.type not in K8S_DELETERS:
-            continue
-        if resource_id not in location:
-            outcomes.append(
-                ResourceOutcome(resource_id, resource, DeleteOutcome(DeleteStatus.NOT_FOUND))
-            )
-            _safe_deregister(resource_id)
-            continue
-        cluster = location[resource_id]
-        try:
-            k8s_ctx = build_k8s_context(cluster)
-        except GoogleAPICallError as exc:
-            outcomes.append(
-                ResourceOutcome(
-                    resource_id,
-                    resource,
-                    DeleteOutcome(DeleteStatus.FAILED, error=str(exc), error_class="cluster_auth"),
-                )
-            )
-            continue
-        outcome = K8S_DELETERS[resource.type](resource, k8s_ctx)
-        outcomes.append(ResourceOutcome(resource_id, resource, outcome))
-        if outcome.status in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND):
-            _safe_deregister(resource_id)
-
-    sqs_by_region: dict[str, list[tuple[str, Resource]]] = defaultdict(list)
-    for resource_id, resource in resources.items():
-        if resource.type in SQS_DELETERS:
-            sqs_by_region[resource.region or ""].append((resource_id, resource))
-    for region, region_resources in sqs_by_region.items():
-        sqs_ctx = build_sqs_context(region)
-        for resource_id, resource in region_resources:
-            outcome = SQS_DELETERS[resource.type](resource, sqs_ctx)
-            outcomes.append(ResourceOutcome(resource_id, resource, outcome))
-            if outcome.status in (DeleteStatus.DELETED, DeleteStatus.NOT_FOUND):
-                _safe_deregister(resource_id)
+    outcomes.extend(_process_k8s(resources, location, cluster_failures))
+    outcomes.extend(_process_sqs(resources))
+    outcomes.extend(_unknown_type_outcomes(resources, outcomes))
+    outcomes = _apply_deregisters(outcomes)
 
     error_class = _dominant_error_class(outcomes, cluster_failures)
     report = CleanupReport(

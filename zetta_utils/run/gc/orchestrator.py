@@ -36,7 +36,7 @@ from zetta_utils.run.gc.discovery import ClusterFailure, discover_locations
 from zetta_utils.run.gc.slack import post_cycle, post_idle
 from zetta_utils.run.gc.state import RunGCState, load_states, save_state
 from zetta_utils.run.gc.users import UserResolver
-from zetta_utils.run.gc.utils import purge_run_state
+from zetta_utils.run.gc.utils import format_cluster, format_duration, purge_run_state
 from zetta_utils.run.resource import RESOURCE_DB, Resource, deregister_resource
 
 logger = get_logger("zetta_utils")
@@ -158,6 +158,7 @@ def cleanup_run(
         zetta_user=zetta_user,
         timestamp=timestamp,
         heartbeat=heartbeat,
+        clusters=list(clusters),
         outcomes=outcomes,
         cluster_failures=cluster_failures,
         error_class=error_class,
@@ -201,6 +202,10 @@ def _log_run_summary(report: CleanupReport) -> None:
         f"run {report.run_id} ({report.zetta_user}) [{report.status_label}]: "
         f"deleted {len(deleted)}, not_found {len(not_found)}, failed {len(failed)}"
     ]
+    if report.heartbeat > 0:
+        lines.append(f"  stale:     {format_duration(time.time() - report.heartbeat)}")
+    if report.clusters:
+        lines.append(f"  clusters:  {', '.join(format_cluster(c) for c in report.clusters)}")
     if deleted:
         lines.append(f"  deleted:   {', '.join(deleted)}")
     if not_found:
@@ -208,7 +213,9 @@ def _log_run_summary(report: CleanupReport) -> None:
     if failed:
         lines.append(f"  failed:    {', '.join(failed)}")
     for cluster, failure in report.cluster_failures.items():
-        lines.append(f"  cluster {cluster.name}: {failure.error_class}: {failure.error}")
+        lines.append(
+            f"  cluster {format_cluster(cluster)}: {failure.error_class}: {failure.error}"
+        )
     logger.info("\n".join(lines))
 
 

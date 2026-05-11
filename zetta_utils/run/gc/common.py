@@ -61,6 +61,9 @@ class CleanupReport:
     :param zetta_user: Run owner, as recorded in ``RUN_DB``.
     :param timestamp: Unix epoch the run was registered.
     :param heartbeat: Unix epoch of the run's last heartbeat.
+    :param clusters: Clusters the run had registered, in registration
+        order. Used by log / Slack rendering to show name, region, and
+        project for each cluster touched.
     :param outcomes: Per-resource outcomes.
     :param cluster_failures: Clusters that were unreachable for this run.
     :param error_class: Dominant failure category for this cycle, used by
@@ -72,6 +75,7 @@ class CleanupReport:
     zetta_user: str
     timestamp: float
     heartbeat: float
+    clusters: list[ClusterInfo]
     outcomes: list[ResourceOutcome]
     cluster_failures: dict[ClusterInfo, ClusterFailure]
     error_class: str

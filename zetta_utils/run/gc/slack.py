@@ -27,6 +27,7 @@ from zetta_utils.run.gc.common import CleanupReport, get_slack_client
 from zetta_utils.run.gc.deleters import DeleteStatus
 from zetta_utils.run.gc.state import RunGCState, mark_notified
 from zetta_utils.run.gc.users import UserResolver
+from zetta_utils.run.gc.utils import format_cluster
 
 logger = get_logger("zetta_utils")
 
@@ -124,7 +125,9 @@ def _post_channel_summary(reports: list[CleanupReport]) -> str | None:
     )
 
     now = time.time()
-    body = "\n".join(_format_row(report, now) for report in reports)
+    body = "\n".join(
+        _format_row(report, now) for report in sorted(reports, key=lambda r: r.run_id)
+    )
     text = f"{header}\n```\n{body}\n```"
 
     try:
@@ -168,24 +171,29 @@ def _post_thread_reply(summary_ts: str, report: CleanupReport) -> None:
 
 def _format_thread_text(report: CleanupReport) -> str:
     label, hint = _category_label_and_hint(report.error_class)
-    lines = [
+    header = [
         f"*{report.run_id}* ({report.zetta_user}) — {label}",
         hint,
     ]
+    body: list[str] = []
     failed = [o for o in report.outcomes if o.outcome.status == DeleteStatus.FAILED]
     if failed:
-        lines.append("Failed resources:")
+        body.append("Failed resources:")
         for outcome in failed:
-            err_detail = outcome.outcome.error[:60]
-            lines.append(
-                f"  • {outcome.resource.type}/{outcome.resource.name}  "
-                f"{outcome.outcome.error_class}: {err_detail}"
+            err_detail = outcome.outcome.error[:80]
+            body.append(
+                f"  - {outcome.resource.type}/{outcome.resource.name}\n"
+                f"      {outcome.outcome.error_class}: {err_detail}"
             )
     if report.cluster_failures:
-        lines.append("Cluster failures:")
+        if body:
+            body.append("")
+        body.append("Cluster failures:")
         for cluster, cf in report.cluster_failures.items():
-            lines.append(f"  • {cluster.name}: {cf.error_class}: {cf.error}")
-    return "\n".join(lines)
+            body.append(f"  - {format_cluster(cluster)}\n      {cf.error_class}: {cf.error}")
+    if body:
+        header.append("```\n" + "\n".join(body) + "\n```")
+    return "\n".join(header)
 
 
 def _maybe_dm_owner(
@@ -211,20 +219,25 @@ def _maybe_dm_owner(
 
 def _format_dm_text(report: CleanupReport) -> str:
     label, hint = _category_label_and_hint(report.error_class)
-    lines = [
+    header = [
         f"Your run `{report.run_id}` is blocked from cleanup.",
         f"{label}: {hint}",
     ]
+    body: list[str] = []
     failed = [o for o in report.outcomes if o.outcome.status == DeleteStatus.FAILED]
     if failed:
-        lines.append("Failed resources:")
+        body.append("Failed resources:")
         for outcome in failed:
-            lines.append(f"  • {outcome.resource.type}/{outcome.resource.name}")
+            body.append(f"  - {outcome.resource.type}/{outcome.resource.name}")
     if report.cluster_failures:
-        lines.append("Cluster failures:")
+        if body:
+            body.append("")
+        body.append("Cluster failures:")
         for cluster, cf in report.cluster_failures.items():
-            lines.append(f"  • {cluster.name}: {cf.error_class}")
-    return "\n".join(lines)
+            body.append(f"  - {format_cluster(cluster)}: {cf.error_class}")
+    if body:
+        header.append("```\n" + "\n".join(body) + "\n```")
+    return "\n".join(header)
 
 
 def _category_label_and_hint(error_class: str) -> tuple[str, str]:

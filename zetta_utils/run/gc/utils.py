@@ -1,4 +1,4 @@
-"""Shared helpers for the run garbage collector (retry policy, state purge)."""
+"""Shared helpers for the run garbage collector (retry policy, formatters, state purge)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from tenacity import (
     wait_random,
 )
 
+from zetta_utils.cloud_management.resource_allocation.k8s.common import ClusterInfo
 from zetta_utils.mazepa.transient_errors import TRANSIENT_ERROR_CONDITIONS
 from zetta_utils.run import cleanup_pod_stats
 from zetta_utils.run.gc.state import clear_state
@@ -30,6 +31,29 @@ retry_transient_api = retry(
     wait=wait_exponential(multiplier=2, min=2, max=8) + wait_random(0, 0.5),
     reraise=True,
 )
+
+
+def format_cluster(cluster: ClusterInfo) -> str:
+    """Render a cluster as ``name (region, project)``; qualifiers omitted when absent."""
+    qualifiers = [q for q in (cluster.region, cluster.project) if q]
+    if not qualifiers:
+        return cluster.name
+    return f"{cluster.name} ({', '.join(qualifiers)})"
+
+
+def format_duration(seconds: float) -> str:
+    """Two-unit human-readable duration: ``2d 5h``, ``4h 13m``, ``12m 34s``, ``34s``."""
+    total = max(0, int(seconds))
+    days, rem = divmod(total, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, secs = divmod(rem, 60)
+    if days:
+        return f"{days}d {hours}h"
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
 
 
 def purge_run_state(run_id: str) -> None:

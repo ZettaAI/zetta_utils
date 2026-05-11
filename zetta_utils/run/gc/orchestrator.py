@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import traceback
 from collections import defaultdict
 from typing import Any
 
@@ -50,6 +51,7 @@ logger = get_logger("zetta_utils")
 #: :class:`CleanupReport`. Cluster-wide failures outrank per-resource ones;
 #: auth issues outrank transient 5xx; sqs / k8s_other are last resorts.
 _ERROR_CLASS_PRIORITY = (
+    "gc_internal",
     "cluster_404",
     "cluster_auth",
     "k8s_auth",
@@ -371,6 +373,40 @@ def _stale_run_data() -> tuple[
     return resources_by_run, stale_ids, run_info_by_id
 
 
+def _synthetic_failure_report(
+    run_id: str,
+    info: dict[str, Any],
+    exc: BaseException,
+    trace: str,
+) -> CleanupReport:
+    """Build a ``FAILED("gc_internal")`` report when ``cleanup_run`` itself
+    raised an unexpected exception. Keeps the cycle's reporting intact —
+    other stale runs still get processed and the Slack summary fires —
+    while surfacing the GC's own crash for this specific run. The full
+    traceback rides along in ``error`` so it shows up in the Slack
+    thread reply.
+    """
+    synthetic = ResourceOutcome(
+        resource_id="(gc-internal)",
+        resource=Resource(run_id=run_id, type="(gc-internal)", name="cleanup"),
+        outcome=DeleteOutcome(
+            DeleteStatus.FAILED,
+            error=f"{exc!r}\n{trace}",
+            error_class="gc_internal",
+        ),
+    )
+    return CleanupReport(
+        run_id=run_id,
+        zetta_user=str(info.get(RunInfo.ZETTA_USER.value, "")),
+        timestamp=float(info.get(RunInfo.TIMESTAMP.value, 0.0)),
+        heartbeat=float(info.get(RunInfo.HEARTBEAT.value, 0.0)),
+        clusters=_parse_clusters(info.get(RunInfo.CLUSTERS.value)),
+        outcomes=[synthetic],
+        cluster_failures={},
+        error_class="gc_internal",
+    )
+
+
 def main() -> None:  # pragma: no cover
     resources_by_run, stale_ids, run_info_by_id = _stale_run_data()
     if not stale_ids:
@@ -382,15 +418,20 @@ def main() -> None:  # pragma: no cover
     reports: list[CleanupReport] = []
     for run_id in stale_ids:
         info = run_info_by_id[run_id]
-        report = cleanup_run(
-            run_id=run_id,
-            resources_raw=resources_by_run.get(run_id, {}),
-            zetta_user=str(info.get(RunInfo.ZETTA_USER.value, "")),
-            timestamp=float(info.get(RunInfo.TIMESTAMP.value, 0.0)),
-            heartbeat=float(info.get(RunInfo.HEARTBEAT.value, 0.0)),
-            current_state=str(info.get(RunInfo.STATE.value, "")),
-            clusters=_parse_clusters(info.get(RunInfo.CLUSTERS.value)),
-            gc_state=states_pre.get(run_id, RunGCState()),
-        )
+        try:
+            report = cleanup_run(
+                run_id=run_id,
+                resources_raw=resources_by_run.get(run_id, {}),
+                zetta_user=str(info.get(RunInfo.ZETTA_USER.value, "")),
+                timestamp=float(info.get(RunInfo.TIMESTAMP.value, 0.0)),
+                heartbeat=float(info.get(RunInfo.HEARTBEAT.value, 0.0)),
+                current_state=str(info.get(RunInfo.STATE.value, "")),
+                clusters=_parse_clusters(info.get(RunInfo.CLUSTERS.value)),
+                gc_state=states_pre.get(run_id, RunGCState()),
+            )
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            trace = traceback.format_exc()
+            logger.exception(f"run {run_id}: unexpected error during cleanup")
+            report = _synthetic_failure_report(run_id, info, exc, trace)
         reports.append(report)
     post_cycle(reports, states_pre, user_resolver)

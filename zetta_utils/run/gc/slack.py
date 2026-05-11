@@ -180,10 +180,9 @@ def _format_thread_text(report: CleanupReport) -> str:
     if failed:
         body.append("Failed resources:")
         for outcome in failed:
-            err_detail = outcome.outcome.error[:80]
             body.append(
                 f"  - {outcome.resource.type}/{outcome.resource.name}\n"
-                f"      {outcome.outcome.error_class}: {err_detail}"
+                f"      {outcome.outcome.error_class}: {outcome.outcome.error}"
             )
     if report.cluster_failures:
         if body:

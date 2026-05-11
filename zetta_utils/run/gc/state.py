@@ -59,7 +59,14 @@ def load_states(run_ids: list[str]) -> dict[str, RunGCState]:
     """
     if not run_ids:
         return {}
-    rows = GC_STATE_DB[(run_ids, _COLUMNS)]
+    try:
+        rows = GC_STATE_DB[(run_ids, _COLUMNS)]
+    except KeyError:
+        # FirestoreBackend.read prechecks the single-row case and raises
+        # KeyError when the only requested row doesn't exist (multi-row
+        # reads return empty dicts for missing keys). Normalize: treat
+        # the missing row as a default state row.
+        rows = [{} for _ in run_ids]
     return {
         run_id: RunGCState(
             last_error_class=row.get("last_error_class", ""),

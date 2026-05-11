@@ -34,7 +34,7 @@ from zetta_utils.run.gc.deleters import (
     build_sqs_context,
 )
 from zetta_utils.run.gc.discovery import ClusterFailure, discover_locations
-from zetta_utils.run.gc.slack import post_cycle, post_idle
+from zetta_utils.run.gc.slack import post_cycle, post_idle, post_message
 from zetta_utils.run.gc.state import RunGCState, load_states, save_state
 from zetta_utils.run.gc.users import UserResolver
 from zetta_utils.run.gc.utils import (
@@ -136,48 +136,48 @@ def _apply_deregisters(outcomes: list[ResourceOutcome]) -> list[ResourceOutcome]
 def _process_k8s(
     resources: dict[str, Resource],
     location: dict[str, ClusterInfo],
-    cluster_failures: dict[ClusterInfo, ClusterFailure],
+    run_clusters: list[ClusterInfo],
 ) -> list[ResourceOutcome]:
     outcomes: list[ResourceOutcome] = []
     for resource_id, resource in resources.items():
         if resource.type not in K8S_DELETERS:
             continue
-        if resource_id not in location:
-            outcomes.append(_unrouted_k8s_outcome(resource_id, resource, cluster_failures))
-            continue
-        try:
-            k8s_ctx = build_k8s_context(location[resource_id])
-        except GoogleAPICallError as exc:
-            outcomes.append(
-                ResourceOutcome(
-                    resource_id,
-                    resource,
-                    DeleteOutcome(DeleteStatus.FAILED, error=str(exc), error_class="cluster_auth"),
-                )
+        clusters_to_try = (
+            [location[resource_id]] if resource_id in location else list(run_clusters)
+        )
+        outcomes.append(
+            ResourceOutcome(
+                resource_id,
+                resource,
+                _delete_across_clusters(resource, clusters_to_try),
             )
-            continue
-        outcome = K8S_DELETERS[resource.type](resource, k8s_ctx)
-        outcomes.append(ResourceOutcome(resource_id, resource, outcome))
+        )
     return outcomes
 
 
-def _unrouted_k8s_outcome(
-    resource_id: str,
-    resource: Resource,
-    cluster_failures: dict[ClusterInfo, ClusterFailure],
-) -> ResourceOutcome:
-    if cluster_failures:
-        fallback = next(iter(cluster_failures.values()))
-        return ResourceOutcome(
-            resource_id,
-            resource,
-            DeleteOutcome(
-                DeleteStatus.FAILED,
-                error=f"cluster unreachable: {fallback.error}",
-                error_class=fallback.error_class,
-            ),
-        )
-    return ResourceOutcome(resource_id, resource, DeleteOutcome(DeleteStatus.NOT_FOUND))
+def _delete_across_clusters(resource: Resource, clusters: list[ClusterInfo]) -> DeleteOutcome:
+    """Attempt deletion on each cluster; return DELETED if any succeeds,
+    else the last FAILED outcome, else NOT_FOUND.
+    """
+    last_failed: DeleteOutcome | None = None
+    for cluster in clusters:
+        outcome = _try_delete_in_cluster(resource, cluster)
+        if outcome.status == DeleteStatus.DELETED:
+            return outcome
+        if outcome.status == DeleteStatus.FAILED:
+            last_failed = outcome
+    if last_failed is not None:
+        return last_failed
+    return DeleteOutcome(DeleteStatus.NOT_FOUND)
+
+
+def _try_delete_in_cluster(resource: Resource, cluster: ClusterInfo) -> DeleteOutcome:
+    """Build a cluster context and dispatch the resource's deleter."""
+    try:
+        k8s_ctx = build_k8s_context(cluster)
+    except GoogleAPICallError as exc:
+        return DeleteOutcome(DeleteStatus.FAILED, error=str(exc), error_class="cluster_auth")
+    return K8S_DELETERS[resource.type](resource, k8s_ctx)
 
 
 def _process_sqs(resources: dict[str, Resource]) -> list[ResourceOutcome]:
@@ -253,7 +253,7 @@ def cleanup_run(
 
     location, cluster_failures = discover_locations(clusters, k8s_resources)
     outcomes: list[ResourceOutcome] = []
-    outcomes.extend(_process_k8s(resources, location, cluster_failures))
+    outcomes.extend(_process_k8s(resources, location, clusters))
     outcomes.extend(_process_sqs(resources))
     outcomes.extend(_unknown_type_outcomes(resources, outcomes))
     outcomes = _apply_deregisters(outcomes)
@@ -357,7 +357,14 @@ def _stale_run_data() -> tuple[
         RunInfo.CLUSTERS.value,
         RunInfo.STATE.value,
     )
-    infos = RUN_DB[(candidate_list, columns)]
+    try:
+        infos = RUN_DB[(candidate_list, columns)]
+    except KeyError:
+        # FirestoreBackend.read prechecks the single-row case and raises
+        # KeyError when the only requested row doesn't exist (e.g. orphan
+        # RESOURCE_DB rows for a run that never wrote a RUN_DB row).
+        # Normalize: treat the missing row as empty info.
+        infos = [{} for _ in candidate_list]
 
     stale_ids: list[str] = []
     run_info_by_id: dict[str, dict[str, Any]] = {}
@@ -408,12 +415,34 @@ def _synthetic_failure_report(
 
 
 def main() -> None:  # pragma: no cover
+    try:
+        _run_cycle()
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        trace = traceback.format_exc()
+        logger.exception("GC cycle aborted unexpectedly")
+        # Best-effort Slack alert so the operator notices even if logs aren't watched.
+        try:
+            post_message(
+                f"GC cycle crashed: {exc!r}\n```\n{trace}\n```",
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.exception("Failed to alert Slack about GC cycle crash")
+
+
+def _run_cycle() -> None:  # pragma: no cover
     resources_by_run, stale_ids, run_info_by_id = _stale_run_data()
     if not stale_ids:
         post_idle()
         return
 
-    states_pre = load_states(stale_ids)
+    try:
+        states_pre = load_states(stale_ids)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception(
+            "Failed to bulk-load gc-run-state; falling back to defaults so the cycle "
+            "still processes and reports per-run outcomes."
+        )
+        states_pre = {}
     user_resolver = UserResolver()
     reports: list[CleanupReport] = []
     for run_id in stale_ids:
@@ -434,4 +463,7 @@ def main() -> None:  # pragma: no cover
             logger.exception(f"run {run_id}: unexpected error during cleanup")
             report = _synthetic_failure_report(run_id, info, exc, trace)
         reports.append(report)
-    post_cycle(reports, states_pre, user_resolver)
+    try:
+        post_cycle(reports, states_pre, user_resolver)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("Slack post_cycle failed; per-run summaries already logged above.")

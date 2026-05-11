@@ -199,6 +199,28 @@ def _delete_statefulset(resource: Resource, ctx: K8sDeleteContext) -> DeleteOutc
     )
 
 
+def _delete_keda(plural: str) -> K8sDeleter:
+    """Build a deleter that targets a KEDA CRD via ``CustomObjectsApi``.
+
+    The custom client reuses the per-cluster ``ApiClient`` cached by
+    :func:`get_cluster_clients`, so credentials are not re-fetched.
+    """
+
+    def deleter(resource: Resource, ctx: K8sDeleteContext) -> DeleteOutcome:
+        custom = k8s_client.CustomObjectsApi(api_client=ctx.core_v1.api_client)
+        return _run_k8s_delete(
+            lambda: custom.delete_namespaced_custom_object(
+                group="keda.sh",
+                version="v1alpha1",
+                namespace="default",
+                plural=plural,
+                name=resource.name,
+            )
+        )
+
+    return deleter
+
+
 K8S_DELETERS: dict[str, K8sDeleter] = {
     ResourceTypes.K8S_CONFIGMAP.value: _delete_configmap,
     ResourceTypes.K8S_DEPLOYMENT.value: _delete_deployment,
@@ -206,6 +228,10 @@ K8S_DELETERS: dict[str, K8sDeleter] = {
     ResourceTypes.K8S_SECRET.value: _delete_secret,
     ResourceTypes.K8S_SERVICE.value: _delete_service,
     ResourceTypes.K8S_STATEFULSET.value: _delete_statefulset,
+    # --- transient legacy KEDA cleanup; remove once orphan RESOURCE_DB rows are drained ---
+    "ScaledJob": _delete_keda("scaledjobs"),
+    "ScaledObject": _delete_keda("scaledobjects"),
+    "TriggerAuthentication": _delete_keda("triggerauthentications"),
 }
 
 

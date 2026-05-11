@@ -41,27 +41,59 @@ class ClusterFailure:
     error: str
 
 
-_ListFn = Callable[[k8s_client.CoreV1Api, k8s_client.AppsV1Api, k8s_client.BatchV1Api], Any]
+_ListFn = Callable[[k8s_client.CoreV1Api, k8s_client.AppsV1Api, k8s_client.BatchV1Api], set[str]]
+
+
+def _names_from_typed_list(response: Any) -> set[str]:
+    return {item.metadata.name for item in response.items}
+
+
+def _names_from_custom_list(response: Any) -> set[str]:
+    items = response.get("items", []) if isinstance(response, dict) else []
+    return {item["metadata"]["name"] for item in items}
+
+
+def _list_keda(plural: str) -> _ListFn:
+    """Build a list_fn that enumerates a KEDA CRD via ``CustomObjectsApi``.
+
+    The custom client is built from the shared ``api_client`` so the
+    per-cluster credentials cached in :func:`get_cluster_clients` are
+    reused without a second auth round-trip.
+    """
+
+    def list_fn(core: k8s_client.CoreV1Api, _apps: Any, _batch: Any) -> set[str]:
+        custom = k8s_client.CustomObjectsApi(api_client=core.api_client)
+        response = custom.list_namespaced_custom_object(
+            group="keda.sh", version="v1alpha1", namespace="default", plural=plural
+        )
+        return _names_from_custom_list(response)
+
+    return list_fn
+
 
 _LIST_FNS: dict[str, _ListFn] = {
-    ResourceTypes.K8S_CONFIGMAP.value: lambda core, apps, batch: core.list_namespaced_config_map(
-        namespace="default"
+    ResourceTypes.K8S_CONFIGMAP.value: lambda core, apps, batch: _names_from_typed_list(
+        core.list_namespaced_config_map(namespace="default")
     ),
-    ResourceTypes.K8S_DEPLOYMENT.value: lambda core, apps, batch: apps.list_namespaced_deployment(
-        namespace="default"
+    ResourceTypes.K8S_DEPLOYMENT.value: lambda core, apps, batch: _names_from_typed_list(
+        apps.list_namespaced_deployment(namespace="default")
     ),
-    ResourceTypes.K8S_JOB.value: lambda core, apps, batch: batch.list_namespaced_job(
-        namespace="default"
+    ResourceTypes.K8S_JOB.value: lambda core, apps, batch: _names_from_typed_list(
+        batch.list_namespaced_job(namespace="default")
     ),
-    ResourceTypes.K8S_SECRET.value: lambda core, apps, batch: core.list_namespaced_secret(
-        namespace="default"
+    ResourceTypes.K8S_SECRET.value: lambda core, apps, batch: _names_from_typed_list(
+        core.list_namespaced_secret(namespace="default")
     ),
-    ResourceTypes.K8S_SERVICE.value: lambda core, apps, batch: core.list_namespaced_service(
-        namespace="default"
+    ResourceTypes.K8S_SERVICE.value: lambda core, apps, batch: _names_from_typed_list(
+        core.list_namespaced_service(namespace="default")
     ),
-    ResourceTypes.K8S_STATEFULSET.value: (
-        lambda core, apps, batch: apps.list_namespaced_stateful_set(namespace="default")
+    ResourceTypes.K8S_STATEFULSET.value: lambda core, apps, batch: _names_from_typed_list(
+        apps.list_namespaced_stateful_set(namespace="default")
     ),
+    # --- transient legacy KEDA listings; remove once orphan RESOURCE_DB rows are drained ---
+    "ScaledJob": _list_keda("scaledjobs"),
+    "ScaledObject": _list_keda("scaledobjects"),
+    "TriggerAuthentication": _list_keda("triggerauthentications"),
 }
 
 
@@ -129,11 +161,11 @@ def _populate_presence_for_cluster(
     for rtype in by_type:
         list_fn = _LIST_FNS[rtype]
         try:
-            items = _retried_list(functools.partial(list_fn, core, apps, batch))
+            names = _retried_list(functools.partial(list_fn, core, apps, batch))
         except (k8s_client.ApiException, GoogleAPICallError) as exc:
             reset_cluster_clients(cluster)
             return _classify_cluster_failure(exc)
-        presence[(cluster, rtype)] = {item.metadata.name for item in items.items}
+        presence[(cluster, rtype)] = names
     return None
 
 

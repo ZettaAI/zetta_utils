@@ -17,7 +17,7 @@ Per-region SQS clients are cached the same way.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
 import attrs
 import kubernetes.client as k8s_client
@@ -29,10 +29,8 @@ from zetta_utils.cloud_management.resource_allocation.k8s.common import (
     get_cluster_data,
 )
 from zetta_utils.message_queues.sqs import utils as sqs_utils
-from zetta_utils.run.gc.utils import retry_transient_api
+from zetta_utils.run.gc.utils import retried
 from zetta_utils.run.resource import Resource, ResourceTypes
-
-T = TypeVar("T")
 
 
 class DeleteStatus(Enum):
@@ -75,12 +73,6 @@ class SqsDeleteContext:
 
 K8sDeleter = Callable[[Resource, K8sDeleteContext], DeleteOutcome]
 SqsDeleter = Callable[[Resource, SqsDeleteContext], DeleteOutcome]
-
-
-@retry_transient_api
-def _retried(call: Callable[[], T]) -> T:
-    """Invoke ``call`` under the project-wide transient-API retry policy."""
-    return call()
 
 
 # --- per-cluster k8s client cache ---
@@ -155,7 +147,7 @@ def _classify_k8s_exception(exc: k8s_client.ApiException) -> DeleteOutcome:
 
 def _run_k8s_delete(call: Callable[[], None]) -> DeleteOutcome:
     try:
-        _retried(call)
+        retried(call)
     except k8s_client.ApiException as exc:
         return _classify_k8s_exception(exc)
     return DeleteOutcome(DeleteStatus.DELETED)
@@ -241,8 +233,8 @@ K8S_DELETERS: dict[str, K8sDeleter] = {
 def _delete_sqs_queue(resource: Resource, ctx: SqsDeleteContext) -> DeleteOutcome:
     sqs = ctx.sqs_client
     try:
-        queue_url = _retried(lambda: sqs.get_queue_url(QueueName=resource.name)["QueueUrl"])
-        _retried(lambda: sqs.delete_queue(QueueUrl=queue_url))
+        queue_url = retried(lambda: sqs.get_queue_url(QueueName=resource.name)["QueueUrl"])
+        retried(lambda: sqs.delete_queue(QueueUrl=queue_url))
     except sqs.exceptions.QueueDoesNotExist:
         return DeleteOutcome(DeleteStatus.NOT_FOUND)
     except Boto3Error as exc:

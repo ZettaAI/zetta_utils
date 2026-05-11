@@ -166,7 +166,7 @@ def cleanup_pod_stats(run_id: str) -> None:
         if docs:
             del POD_STATS_DB[list(docs.keys())]
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to cleanup pod stats: {e}")
+        logger.warning(f"Failed to cleanup pod stats for run {run_id}: {e}")
 
 
 @contextmanager

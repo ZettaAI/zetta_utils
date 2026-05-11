@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Callable, TypeVar
+
 from tenacity import (
     retry,
     retry_if_exception,
@@ -31,6 +33,20 @@ retry_transient_api = retry(
     wait=wait_exponential(multiplier=2, min=2, max=8) + wait_random(0, 0.5),
     reraise=True,
 )
+
+
+T = TypeVar("T")
+
+
+@retry_transient_api
+def retried(call: Callable[[], T]) -> T:
+    """Invoke ``call`` under the project-wide transient-API retry policy.
+
+    Shared by every gc submodule that needs a one-shot retry around an
+    arbitrary callable (deleters, discovery list calls, deregister, etc.)
+    so the policy lives in one place.
+    """
+    return call()
 
 
 def format_cluster(cluster: ClusterInfo) -> str:

@@ -24,7 +24,7 @@ from zetta_utils.run.gc.deleters import (
     get_cluster_clients,
     reset_cluster_clients,
 )
-from zetta_utils.run.gc.utils import retry_transient_api
+from zetta_utils.run.gc.utils import retried
 from zetta_utils.run.resource import Resource, ResourceTypes
 
 
@@ -97,11 +97,6 @@ _LIST_FNS: dict[str, _ListFn] = {
 }
 
 
-@retry_transient_api
-def _retried_list(call: Callable[[], Any]) -> Any:
-    return call()
-
-
 def discover_locations(
     run_clusters: list[ClusterInfo],
     resources: dict[str, Resource],
@@ -161,7 +156,7 @@ def _populate_presence_for_cluster(
     for rtype in by_type:
         list_fn = _LIST_FNS[rtype]
         try:
-            names = _retried_list(functools.partial(list_fn, core, apps, batch))
+            names = retried(functools.partial(list_fn, core, apps, batch))
         except (k8s_client.ApiException, GoogleAPICallError) as exc:
             reset_cluster_clients(cluster)
             return _classify_cluster_failure(exc)

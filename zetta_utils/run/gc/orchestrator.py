@@ -40,7 +40,7 @@ from zetta_utils.run.gc.utils import (
     format_cluster,
     format_duration,
     purge_run_state,
-    retry_transient_api,
+    retried,
 )
 from zetta_utils.run.resource import RESOURCE_DB, Resource, deregister_resource
 
@@ -87,55 +87,19 @@ def _dominant_error_class(
     return ""
 
 
-@retry_transient_api
-def _retried_deregister(resource_id: str) -> None:
-    """Delete the RESOURCE_DB row and verify it's gone.
-
-    The Firestore BulkWriter under the layer's ``write`` swallows per-doc
-    errors from ``flush()`` and returns success even when the per-doc
-    commit was rejected. Read the row back to confirm the delete actually
-    persisted; if it's still there, raise so the caller can surface a
-    real failure instead of looping with a fake-OK status next cycle.
-    """
-    deregister_resource(resource_id)
-    if resource_id in RESOURCE_DB:
-        raise RuntimeError(f"deregister did not persist for resource {resource_id}")
-
-
 def _safe_deregister(resource_id: str) -> bool:
-    """Best-effort deregister with transient-API retries. Returns True on success."""
-    try:
-        _retried_deregister(resource_id)
-        return True
-    except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to deregister {resource_id}: {exc}")
-        return False
+    """Deregister a resource with transient-API retries.
 
-
-@retry_transient_api
-def _retried_set_state(run_id: str, state: str) -> None:
-    """Write ``state`` to ``RUN_DB[run_id]`` and verify it persisted.
-
-    Same BulkWriter-silent-failure concern as :func:`_retried_deregister`.
-    Read the state column back; if it doesn't match what we just wrote,
-    raise so the caller surfaces a real failure.
+    Returns True on success, False on persistent failure (logged with the
+    resource id and exception detail). A False result is converted into a
+    ``FAILED("firestore")`` outcome by :func:`_apply_deregisters` so the
+    run's status reflects the incomplete cleanup.
     """
-    update_run_info(run_id, {RunInfo.STATE.value: state})
-    row = RUN_DB[(run_id, (RunInfo.STATE.value,))]
-    actual = row.get(RunInfo.STATE.value) if isinstance(row, dict) else None
-    if actual != state:
-        raise RuntimeError(
-            f"state write to {state!r} did not persist for {run_id}; current {actual!r}"
-        )
-
-
-def _safe_set_state(run_id: str, state: str) -> bool:
-    """Best-effort state write with retries + read-back verification."""
     try:
-        _retried_set_state(run_id, state)
+        retried(lambda: deregister_resource(resource_id))
         return True
     except Exception as exc:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to set state {state} for {run_id}: {exc}")
+        logger.warning(f"Failed to deregister resource {resource_id}: {exc}")
         return False
 
 
@@ -262,17 +226,22 @@ def cleanup_run(
     zetta_user: str,
     timestamp: float,
     heartbeat: float,
+    current_state: str,
     clusters: list[ClusterInfo],
     gc_state: RunGCState,
 ) -> CleanupReport:
     """Tear down all registered resources for a stale run.
 
-    :param run_id: Stripped run id used as key into ``resources_raw``.
+    :param run_id: Run id used as key into ``resources_raw``.
     :param resources_raw: Raw ``RESOURCE_DB`` rows for this run keyed by
         resource id.
     :param zetta_user: Run owner.
     :param timestamp: Unix epoch the run was registered.
     :param heartbeat: Unix epoch of the run's last heartbeat.
+    :param current_state: The run's current ``RUN_DB`` state. On full
+        success, only a ``"running"`` state is transitioned to
+        ``"timedout"``; terminal states (``completed`` / ``failed`` /
+        ``timedout``) are preserved.
     :param clusters: Clusters the run registered.
     :param gc_state: Previously persisted GC state for this run (or a
         default :class:`RunGCState` if first time seeing it).
@@ -302,7 +271,12 @@ def cleanup_run(
     _log_run_summary(report)
 
     if report.fully_succeeded:
-        update_run_info(run_id, {RunInfo.STATE.value: RunState.TIMEDOUT.value})
+        if current_state == RunState.RUNNING.value:
+            update_run_info(run_id, {RunInfo.STATE.value: RunState.TIMEDOUT.value})
+        else:
+            logger.info(
+                f"run {run_id}: cleanup complete; preserving terminal state {current_state!r}"
+            )
         purge_run_state(run_id)
     else:
         now = time.time()
@@ -379,6 +353,7 @@ def _stale_run_data() -> tuple[
         RunInfo.TIMESTAMP.value,
         RunInfo.ZETTA_USER.value,
         RunInfo.CLUSTERS.value,
+        RunInfo.STATE.value,
     )
     infos = RUN_DB[(candidate_list, columns)]
 
@@ -390,9 +365,8 @@ def _stale_run_data() -> tuple[
         hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
         if hb >= hb_threshold:
             continue
-        stripped = candidate_id[4:] if candidate_id.startswith("run-") else candidate_id
-        stale_ids.append(stripped)
-        run_info_by_id[stripped] = dict(info)
+        stale_ids.append(candidate_id)
+        run_info_by_id[candidate_id] = dict(info)
 
     return resources_by_run, stale_ids, run_info_by_id
 
@@ -414,6 +388,7 @@ def main() -> None:  # pragma: no cover
             zetta_user=str(info.get(RunInfo.ZETTA_USER.value, "")),
             timestamp=float(info.get(RunInfo.TIMESTAMP.value, 0.0)),
             heartbeat=float(info.get(RunInfo.HEARTBEAT.value, 0.0)),
+            current_state=str(info.get(RunInfo.STATE.value, "")),
             clusters=_parse_clusters(info.get(RunInfo.CLUSTERS.value)),
             gc_state=states_pre.get(run_id, RunGCState()),
         )

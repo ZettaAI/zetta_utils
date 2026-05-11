@@ -19,7 +19,13 @@ logger = log.get_logger("zetta_utils")
 @click.group()
 @click.option("-v", "--verbose", count=True, default=2)
 @click.option(
-    "--load_mode", "-l", type=click.Choice(["all", "inference", "training", "try"]), default="all"
+    "--load_mode",
+    "-l",
+    type=click.Choice(["all", "inference", "training", "try", "none", "auto"]),
+    default="all",
+    help="Preload mode. 'none' skips eager imports and resolves @types lazily "
+    "via the static registry index (fast dev iteration; slower first-use). "
+    "'auto' scans the CUE spec and preloads exactly the modules it needs.",
 )
 def cli(verbose, load_mode):  # pragma: no cover # no logic, delegation
     verbosity_map = {
@@ -104,7 +110,7 @@ def run(
     ctx = click.get_current_context()
     load_mode = cast(LoadMode, ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all")
 
-    setup_environment(load_mode)
+    setup_environment(load_mode, cue_path=path if load_mode == "auto" else None)
 
     from zetta_utils import builder, parsing  # pylint: disable=import-outside-toplevel
     from zetta_utils.run import (  # pylint: disable=import-outside-toplevel

@@ -8,8 +8,10 @@ from multiprocessing import resource_tracker, shared_memory
 from typing import List, Literal, get_args
 
 import attrs
+import psutil
 from posix_ipc import (  # pylint: disable=no-name-in-module
     O_CREX,
+    BusyError,
     ExistentialError,
     Semaphore,
 )
@@ -23,6 +25,15 @@ SemaphoreType = Literal["read", "write", "cuda", "cpu", "tensorrt"]
 DEFAULT_SEMA_COUNT = 1
 TIMING_FORMAT = "dddd"  # wait_time, lease_time, lease_count, start_time
 TIMING_SIZE = struct.calcsize(TIMING_FORMAT)
+
+# Priority-by-lowest-PID coordination: how many simultaneous waiters can
+# register against a single semaphore, and how often each waiter rechecks
+# the queue while spinning. 64 is comfortably above any realistic procs/pod;
+# the spin interval is tuned for sub-second contention windows where the
+# CPU cost is negligible.
+PRIORITY_MAX_WAITERS = 64
+PRIORITY_SHM_SIZE = PRIORITY_MAX_WAITERS * 4  # int32 per slot
+PRIORITY_SPIN_INTERVAL = 0.0005  # 0.5 ms
 
 
 @attrs.frozen
@@ -153,6 +164,136 @@ def name_to_posix_name(name: SemaphoreType, pid: int) -> str:  # pragma: no cove
     return f"zetta_utils_{pid}_{name}_semaphore"
 
 
+def _priority_mutex_name(name: SemaphoreType, pid: int) -> str:  # pragma: no cover
+    return f"zetta_utils_{pid}_{name}_priority_mutex"
+
+
+def _priority_shm_name(name: SemaphoreType, pid: int) -> str:  # pragma: no cover
+    return f"zetta_semaphore_priority_{pid}_{name}"
+
+
+@attrs.mutable
+class PriorityPidSemaphore(contextlib.AbstractContextManager):
+    """Cross-process semaphore that grants slots to the lowest-PID waiter first.
+
+    Wraps a counting POSIX semaphore (`slot_sem`) with a shared-memory array of
+    waiting PIDs guarded by a POSIX mutex semaphore. On acquire, each caller
+    registers its PID and spins, locking the mutex to (a) reap dead waiters and
+    (b) check whether its PID is the lowest live waiter and a slot is
+    non-blockingly acquirable. The spin granularity (PRIORITY_SPIN_INTERVAL) is
+    short enough that CPU cost is negligible at realistic concurrency, but long
+    enough that mutex traffic stays bounded.
+
+    The underlying primitives (slot sem, mutex sem, shm) are created/cleaned up
+    by `configure_semaphores`; this class only opens existing handles.
+    """
+
+    name: SemaphoreType
+    pid: int  # head pid that owns the underlying primitives
+    _slot_sem: Semaphore = attrs.field(init=False, default=None)
+    _mutex: Semaphore = attrs.field(init=False, default=None)
+    _shm: shared_memory.SharedMemory | None = attrs.field(init=False, default=None)
+
+    def __attrs_post_init__(self):
+        self._slot_sem = Semaphore(name_to_posix_name(self.name, self.pid))
+        self._mutex = Semaphore(_priority_mutex_name(self.name, self.pid))
+        self._shm = shared_memory.SharedMemory(name=_priority_shm_name(self.name, self.pid))
+        if os.getpid() != self.pid:  # pragma: no cover
+            resource_tracker.unregister(f"/{self._shm.name}", "shared_memory")
+
+    def _arr(self) -> memoryview:
+        assert self._shm is not None
+        return self._shm.buf.cast("i")
+
+    def _add_waiter(self, pid: int) -> None:
+        # Caller holds self._mutex.
+        arr = self._arr()
+        for i in range(PRIORITY_MAX_WAITERS):
+            if arr[i] == 0:
+                arr[i] = pid
+                return
+        raise RuntimeError(
+            f"Priority semaphore '{self.name}' waiter array is full "
+            f"({PRIORITY_MAX_WAITERS} slots). Increase PRIORITY_MAX_WAITERS."
+        )
+
+    def _remove_waiter(self, pid: int) -> None:
+        # Caller holds self._mutex.
+        arr = self._arr()
+        for i in range(PRIORITY_MAX_WAITERS):
+            if arr[i] == pid:
+                arr[i] = 0
+
+    def _min_waiter(self) -> int | None:
+        # Caller holds self._mutex.
+        arr = self._arr()
+        best: int | None = None
+        for i in range(PRIORITY_MAX_WAITERS):
+            p = int(arr[i])
+            if p == 0:
+                continue
+            if best is None or p < best:
+                best = p
+        return best
+
+    def __enter__(self):
+        my_pid = os.getpid()
+        self._mutex.acquire()
+        try:
+            self._add_waiter(my_pid)
+        finally:
+            self._mutex.release()
+
+        while True:
+            self._mutex.acquire()
+            try:
+                if self._min_waiter() == my_pid:
+                    try:
+                        self._slot_sem.acquire(timeout=0)
+                    except BusyError:
+                        pass
+                    else:
+                        self._remove_waiter(my_pid)
+                        return self
+            finally:
+                self._mutex.release()
+            time.sleep(PRIORITY_SPIN_INTERVAL)
+
+    def __exit__(self, *args):
+        try:
+            self._slot_sem.release()
+        finally:
+            self._close_shm()
+
+    def _close_shm(self) -> None:
+        if self._shm is not None:
+            try:
+                self._shm.close()
+            except Exception:  # pylint: disable=broad-except  # pragma: no cover
+                pass
+            self._shm = None
+
+    def __del__(self):  # pragma: no cover
+        # Backup cleanup if __exit__ wasn't reached.
+        self._close_shm()
+
+    def unlink(self):
+        try:
+            self._slot_sem.unlink()
+        except ExistentialError:  # pragma: no cover
+            pass
+        try:
+            self._mutex.unlink()
+        except ExistentialError:  # pragma: no cover
+            pass
+        try:
+            shm = shared_memory.SharedMemory(name=_priority_shm_name(self.name, self.pid))
+            shm.close()
+            shm.unlink()
+        except FileNotFoundError:  # pragma: no cover
+            pass
+
+
 @contextlib.contextmanager
 def configure_semaphores(
     semaphores_spec: dict[SemaphoreType, int] | None = None
@@ -199,6 +340,20 @@ def configure_semaphores(
                     flags=O_CREX,
                     initial_value=width,
                 )
+                # Mutex semaphore guards the priority waiter array.
+                Semaphore(
+                    _priority_mutex_name(name, os.getpid()),
+                    flags=O_CREX,
+                    initial_value=1,
+                )
+                # Waiter array (zeros = empty slots; written PIDs as int32).
+                priority_shm = shared_memory.SharedMemory(
+                    name=_priority_shm_name(name, os.getpid()),
+                    create=True,
+                    size=PRIORITY_SHM_SIZE,
+                )
+                priority_shm.buf[:PRIORITY_SHM_SIZE] = b"\x00" * PRIORITY_SHM_SIZE
+                priority_shm.close()
                 summary += f"{name} semaphores: {width}\t\t"
             logger.info(summary)
 
@@ -218,16 +373,32 @@ def configure_semaphores(
 
         for name in semaphores_spec_:
             try:
-                sema = Semaphore(name_to_posix_name(name, os.getpid()))
-                sema.unlink()
-            finally:
-                try:
-                    tracker = TimingTracker(name=name, pid=os.getpid())
-                    tracker.unlink()
-                except Exception as e:  # pylint: disable=broad-except
-                    raise RuntimeError(
-                        f"Failed to cleanup shared memory for tracking `{name}`."
-                    ) from e
+                Semaphore(name_to_posix_name(name, os.getpid())).unlink()
+            except ExistentialError:  # pragma: no cover
+                pass
+            try:
+                Semaphore(_priority_mutex_name(name, os.getpid())).unlink()
+            except ExistentialError:  # pragma: no cover
+                pass
+            try:
+                priority_shm = shared_memory.SharedMemory(
+                    name=_priority_shm_name(name, os.getpid())
+                )
+                priority_shm.close()
+                priority_shm.unlink()
+            except FileNotFoundError:  # pragma: no cover
+                pass
+            except Exception as e:  # pylint: disable=broad-except
+                raise RuntimeError(
+                    f"Failed to cleanup priority shm for `{name}`."
+                ) from e
+            try:
+                tracker = TimingTracker(name=name, pid=os.getpid())
+                tracker.unlink()
+            except Exception as e:  # pylint: disable=broad-except
+                raise RuntimeError(
+                    f"Failed to cleanup shared memory for tracking `{name}`."
+                ) from e
 
         logger.info(f"Cleaned up semaphores created by process {os.getpid()}.")
 
@@ -280,7 +451,7 @@ class TimedSemaphore(contextlib.AbstractContextManager):
     Wrapper around a semaphore that tracks acquisition wait time and lease time globally.
     """
 
-    semaphore: Semaphore | DummySemaphore
+    semaphore: Semaphore | DummySemaphore | PriorityPidSemaphore
     name: str
     tracker_pid: int = 0
     timing_tracker: TimingTracker | DummyTimingTracker = attrs.field(init=False)
@@ -305,6 +476,18 @@ class TimedSemaphore(contextlib.AbstractContextManager):
         return result
 
     def __exit__(self, *args):
+        # Sync queued GPU work before releasing the slot. Without this the
+        # sem only gates kernel submission, not execution: kernels stay in
+        # flight on the stream after release and the next holder's launches
+        # interleave with ours instead of being serialized.
+        if self.name == "cuda":
+            try:
+                import torch  # pylint: disable=import-outside-toplevel
+            except ImportError:
+                pass
+            else:
+                if torch.cuda.is_available():  # pragma: no cover
+                    torch.cuda.synchronize()
         lease_time = time.perf_counter() - self._lease_start_time
         self.timing_tracker.add_lease_time(lease_time)
         return self.semaphore.__exit__(*args)
@@ -317,24 +500,32 @@ class TimedSemaphore(contextlib.AbstractContextManager):
 
 def semaphore(name: SemaphoreType) -> TimedSemaphore:
     """
-    Fetches and returns either the semaphore associated with the current process,
-    or the semaphore associated with the parent process, or a dummy semaphore,
-    in that order. Wraps in TimedSemaphore to track acquisition wait time.
+    Fetches and returns the semaphore associated with the current process or
+    any of its ancestors, walking up the process tree until one is found. Falls
+    back to a dummy semaphore if none exists. Wraps in TimedSemaphore to track
+    acquisition wait time.
     """
     if not name in get_args(SemaphoreType):
         raise ValueError(f"`{name}` is not a valid semaphore type.")
+    candidate_pids = [os.getpid()]
     try:
-        pid = os.getpid()
-        sema = Semaphore(name_to_posix_name(name, pid))
-        return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
-    except ExistentialError:
+        candidate_pids.extend(p.pid for p in psutil.Process().parents())
+    except psutil.Error:  # pragma: no cover
+        pass
+    for pid in candidate_pids:
         try:
-            pid = os.getppid()
-            sema = Semaphore(name_to_posix_name(name, pid))
-            return TimedSemaphore(semaphore=sema, name=name, tracker_pid=pid)
+            # Probing the slot sem first so we don't construct the wider
+            # priority wrapper unless the resource is actually configured here.
+            Semaphore(name_to_posix_name(name, pid))
         except ExistentialError:
-            dummy = DummySemaphore()
-            return TimedSemaphore(semaphore=dummy, name=name)
+            continue
+        return TimedSemaphore(
+            semaphore=PriorityPidSemaphore(name=name, pid=pid),
+            name=name,
+            tracker_pid=pid,
+        )
+    dummy = DummySemaphore()
+    return TimedSemaphore(semaphore=dummy, name=name)
 
 
 def get_semaphore_stats(name: SemaphoreType) -> dict[str, float | int]:

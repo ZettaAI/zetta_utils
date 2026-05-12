@@ -27,6 +27,7 @@ from .job import (
     wait_for_job_completion,
 )
 from .pod import (
+    ProvisioningModel,
     get_pod_spec,
     get_mazepa_pod_spec,
     get_zone_affinities,

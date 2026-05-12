@@ -4,7 +4,6 @@ Helpers for k8s pod.
 
 from __future__ import annotations
 
-import os
 import re
 import threading
 import time
@@ -19,7 +18,7 @@ from kubernetes import watch  # type: ignore
 from zetta_utils import log
 from zetta_utils.cloud_management.resource_allocation import k8s
 
-from .common import ClusterInfo, get_cluster_data, is_job_completed
+from .common import ClusterInfo, is_job_completed
 from .secret import get_worker_env_vars
 from .sidecar import (
     WAIT_FOR_CA_SCRIPT,
@@ -27,6 +26,13 @@ from .sidecar import (
     build_mproxy_sidecar,
     build_oom_sidecar,
     setup_mitmproxy_ca_volume,
+)
+from .watcher import (
+    BatchedWarner,
+    get_core_v1_api,
+    open_watcher_log,
+    reset_core_v1_api,
+    resilient_watch,
 )
 
 logger = log.get_logger("zetta_utils")
@@ -247,12 +253,69 @@ def get_zone_affinities(
     return (required_zone_affinity, preferred_zone_affinity)
 
 
+ProvisioningModel = Literal["standard", "spot"] | List[Literal["standard", "spot"]]
+"""Worker pod's accepted provisioning model(s).
+
+Single string is a hard constraint expressed via ``nodeSelector``.
+List form expresses an OR via ``nodeAffinity``: required is ``In`` over
+all values, preferred (weight 100) is the first element so the K8s
+scheduler biases toward it when capacity is available for both.
+"""
+
+
+def _provisioning_affinity(
+    values: List[Literal["standard", "spot"]],
+) -> tuple[k8s_client.V1NodeSelectorRequirement, k8s_client.V1PreferredSchedulingTerm]:
+    """Return (required_match_expression, preferred_term) for a list of
+    accepted provisioning models. First element is the preferred one."""
+    required = k8s_client.V1NodeSelectorRequirement(
+        key="cloud.google.com/gke-provisioning",
+        operator="In",
+        values=list(values),
+    )
+    preferred = k8s_client.V1PreferredSchedulingTerm(
+        weight=100,
+        preference=k8s_client.V1NodeSelectorTerm(
+            match_expressions=[
+                k8s_client.V1NodeSelectorRequirement(
+                    key="cloud.google.com/gke-provisioning",
+                    operator="In",
+                    values=[values[0]],
+                )
+            ]
+        ),
+    )
+    return required, preferred
+
+
+def _merge_required_terms(
+    zone_selector: k8s_client.V1NodeSelector | None,
+    provisioning_expr: k8s_client.V1NodeSelectorRequirement | None,
+) -> k8s_client.V1NodeSelector | None:
+    """Merge zone + provisioning required terms onto a single
+    ``V1NodeSelectorTerm`` so they AND together at scheduling time."""
+    if zone_selector is None and provisioning_expr is None:
+        return None
+    if zone_selector is None:
+        return k8s_client.V1NodeSelector(
+            node_selector_terms=[
+                k8s_client.V1NodeSelectorTerm(match_expressions=[provisioning_expr])
+            ]
+        )
+    if provisioning_expr is None:
+        return zone_selector
+    # Both present: append provisioning to each existing term's expressions.
+    for term in zone_selector.node_selector_terms:
+        term.match_expressions = list(term.match_expressions or []) + [provisioning_expr]
+    return zone_selector
+
+
 def get_mazepa_pod_spec(
     image: str,
     command: str,
     resources: Optional[Dict[str, int | float | str]] = None,
     env_secret_mapping: Optional[Dict[str, str]] = None,
-    provisioning_model: Literal["standard", "spot"] = "spot",
+    provisioning_model: ProvisioningModel = "spot",
     resource_requests: Optional[Dict[str, int | float | str]] = None,
     restart_policy: Literal["Always", "Never", "OnFailure"] = "Always",
     gpu_accelerator_type: str | None = None,
@@ -267,9 +330,23 @@ def get_mazepa_pod_spec(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
     )
 
-    node_selector: dict[str, str] = {"cloud.google.com/gke-provisioning": provisioning_model}
+    node_selector: dict[str, str] = {}
+    if isinstance(provisioning_model, str):
+        # Single value: keep the existing nodeSelector path so the wire
+        # format matches what runs on production today.
+        node_selector["cloud.google.com/gke-provisioning"] = provisioning_model
+        provisioning_required_expr = None
+        provisioning_preferred_term = None
+    else:
+        # List form: nodeSelector cannot express OR; switch this key to
+        # nodeAffinity. First element is the preferred provisioning model;
+        # all elements are accepted.
+        provisioning_required_expr, provisioning_preferred_term = _provisioning_affinity(
+            provisioning_model
+        )
     if gpu_accelerator_type:
         node_selector["cloud.google.com/gke-accelerator"] = gpu_accelerator_type
+        node_selector["cloud.google.com/gke-gpu-driver-version"] = "latest"
 
     envs = []
     if adc_available:
@@ -281,13 +358,19 @@ def get_mazepa_pod_spec(
     if worker_type:
         envs.append(k8s_client.V1EnvVar(name="WORKER_TYPE", value=worker_type))
 
-    required_affinity, preferred_affinity = get_zone_affinities(required_zones, preferred_zones)
+    required_zone_selector, preferred_zone_term = get_zone_affinities(
+        required_zones, preferred_zones
+    )
+    required_node_selector = _merge_required_terms(
+        required_zone_selector, provisioning_required_expr
+    )
+    preferred_terms = [
+        t for t in (preferred_zone_term, provisioning_preferred_term) if t is not None
+    ]
     affinity = k8s_client.V1Affinity(
         node_affinity=k8s_client.V1NodeAffinity(
-            required_during_scheduling_ignored_during_execution=required_affinity,
-            preferred_during_scheduling_ignored_during_execution=(
-                [preferred_affinity] if preferred_affinity else None
-            ),
+            required_during_scheduling_ignored_during_execution=required_node_selector,
+            preferred_during_scheduling_ignored_during_execution=preferred_terms or None,
         )
     )
 
@@ -358,7 +441,7 @@ def stream_pod_logs(
     prefix: str = "",
     tail_lines: int | None = None,
 ):
-    core_api = _get_core_v1_api(cluster_info)
+    core_api = get_core_v1_api(cluster_info)
     if pod_name is None:
         pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=dep_selector).items
         if pods:
@@ -420,7 +503,7 @@ def follow_rank0_logs(
     selector = f"run-id={run_id},training-rank=0"
     logger.info(f"Waiting for rank 0 pod (selector: {selector})...")
     while True:
-        core_api = _get_core_v1_api(cluster_info)
+        core_api = get_core_v1_api(cluster_info)
         pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
         if pods:
             pod_name = pods[0].metadata.name
@@ -455,7 +538,7 @@ def _capture_single_pod_logs(
     namespace: str = "default",
     stop_event: threading.Event | None = None,
 ):
-    core_api = _get_core_v1_api(cluster_info)
+    core_api = get_core_v1_api(cluster_info)
     try:
         _wait_for_pod_start(pod_name, namespace, core_api)
     except PodTerminatedError:
@@ -506,7 +589,7 @@ def capture_pod_logs(
             executor.shutdown(wait=False, cancel_futures=True)
             return
         try:
-            core_api = _get_core_v1_api(cluster_info)
+            core_api = get_core_v1_api(cluster_info)
             pods = core_api.list_namespaced_pod(namespace=namespace, label_selector=selector).items
             for pod in pods:
                 pod_name = pod.metadata.name
@@ -541,7 +624,7 @@ def get_pod_postmortem(
 ):
     """Query K8s for master pod crash info and write postmortem.log."""
     try:
-        core_api = _get_core_v1_api(cluster_info)
+        core_api = get_core_v1_api(cluster_info)
         job_name = f"run-{run_id}"
         pods = core_api.list_namespaced_pod(
             namespace=namespace, label_selector=f"job-name={job_name}"
@@ -664,132 +747,6 @@ _RUN_EVENT_REASONS = (
 _TRACKED_CONTAINER_EVENT_NAMES = ("container main", "container mproxy")
 
 
-def _open_watcher_log(log_dir: str | None, run_id: str, filename: str) -> Path | None:
-    if not log_dir:
-        return None
-    out_dir = Path(log_dir) / run_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return out_dir / filename
-
-
-def _append_watcher_log(log_path: Path | None, msg: str) -> None:
-    if log_path is None:
-        return
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
-
-
-_core_v1_api: k8s_client.CoreV1Api | None = None
-
-
-def _get_core_v1_api(cluster_info: ClusterInfo) -> k8s_client.CoreV1Api:
-    """Process-wide ``CoreV1Api`` shared across the watcher threads.
-
-    Built from ``get_cluster_data(cluster_info)`` (programmatic ADC auth)
-    so it works without a local kubeconfig. Reset on watcher failure so
-    the next reconnect rebuilds against fresh credentials.
-    """
-    global _core_v1_api  # pylint: disable=global-statement
-    if _core_v1_api is None:
-        configuration, _ = get_cluster_data(cluster_info)
-        k8s_client.Configuration.set_default(configuration)
-        _core_v1_api = k8s_client.CoreV1Api()
-    return _core_v1_api
-
-
-def _reset_core_v1_api() -> None:
-    global _core_v1_api  # pylint: disable=global-statement
-    _core_v1_api = None
-
-
-def _resilient_watch(
-    list_fn,
-    on_event: Callable,
-    *,
-    namespace: str,
-    description: str,
-    stop_event: threading.Event | None = None,
-    on_stream_end: Callable[[], None] | None = None,
-    **list_fn_kwargs,
-) -> None:
-    """Stream K8s objects via watch.Watch, retrying transient errors with backoff.
-
-    Extra ``**list_fn_kwargs`` (e.g. ``field_selector``, ``label_selector``)
-    are forwarded to ``list_fn`` for server-side filtering.
-    """
-    w = watch.Watch()
-    backoff = 1.0
-    try:
-        while not (stop_event and stop_event.is_set()):
-            try:
-                for event in w.stream(
-                    list_fn, namespace=namespace, timeout_seconds=30, **list_fn_kwargs
-                ):
-                    if stop_event and stop_event.is_set():
-                        break
-                    on_event(event["object"])
-                if on_stream_end is not None:
-                    on_stream_end()
-                backoff = 1.0
-            except Exception as err:  # pylint: disable=broad-exception-caught
-                logger.warning(f"{description} transient error, retrying in {backoff:.1f}s: {err}")
-                if stop_event and stop_event.wait(backoff):
-                    break
-                backoff = min(backoff * 2, 30.0)
-    finally:
-        w.stop()
-
-
-_BATCHED_WARN_FLUSH_INTERVAL_SEC = int(
-    os.environ.get("ZETTA_BATCHED_WARN_FLUSH_INTERVAL_SEC", "90")
-)
-
-
-class _BatchedWarner:
-    """Batches messages, emits one summary warning per ``interval_sec`` window.
-
-    Each call to :meth:`add` appends the message to the per-event file log
-    immediately and emits the batched warning once enough time has elapsed
-    since the last flush. :meth:`flush` is also intended to be wired to the
-    watcher's ``on_stream_end`` so a partial final batch is not lost.
-    """
-
-    def __init__(self, name: str, interval_sec: int, log_path: Path | None) -> None:
-        self.name = name
-        self.interval_sec = interval_sec
-        self.log_path = log_path
-        self.pending: list[str] = []
-        self.last_flush = time.time()
-
-    def add(self, msg: str) -> None:
-        self.pending.append(msg)
-        _append_watcher_log(self.log_path, msg)
-        if time.time() - self.last_flush >= self.interval_sec:
-            self.flush()
-
-    def flush(self) -> None:
-        if not self.pending:
-            return
-        n = len(self.pending)
-        # One sample per unique bracket-prefix (e.g. "[SIGKILL]" / "[K8s:Evicted]")
-        # so distinct event categories are not hidden by repetition.
-        seen: set[str] = set()
-        sample: list[str] = []
-        for msg in self.pending:
-            end = msg.find("]")
-            category = msg[: end + 1] if end != -1 else msg
-            if category in seen:
-                continue
-            seen.add(category)
-            sample.append(msg)
-        extra = n - len(sample)
-        suffix = f", +{extra} more" if extra > 0 else ""
-        body = "\n".join(sample)
-        logger.warning(f"{self.name} (total {n} events{suffix}):\n{body}")
-        self.pending.clear()
-        self.last_flush = time.time()
-
-
 def watch_for_pod_disruptions(
     run_id: str,
     cluster_info: ClusterInfo,
@@ -797,23 +754,23 @@ def watch_for_pod_disruptions(
     log_dir: str | None = None,
     stop_event: threading.Event | None = None,
 ):
-    log_path = _open_watcher_log(log_dir, run_id, "disruptions.log")
-    v1 = _get_core_v1_api(cluster_info)
+    log_path = open_watcher_log(log_dir, run_id, "disruptions.log")
     reported: set[str] = set()
-    batcher = _BatchedWarner("pod disruptions", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
+    batcher = BatchedWarner("pod disruptions", log_path)
 
     def on_event(pod):
         msg = _check_pod_disruption(pod, run_id, reported)
         if msg:
             batcher.add(msg)
 
-    _resilient_watch(
-        v1.list_namespaced_pod,
+    resilient_watch(
+        lambda: get_core_v1_api(cluster_info).list_namespaced_pod,
         on_event,
         namespace=namespace,
         description="Pod disruption watcher",
         stop_event=stop_event,
         on_stream_end=batcher.flush,
+        on_error=reset_core_v1_api,
         label_selector=f"run_id={run_id}",
     )
 
@@ -825,9 +782,8 @@ def watch_for_run_events(
     log_dir: str | None = None,
     stop_event: threading.Event | None = None,
 ):
-    log_path = _open_watcher_log(log_dir, run_id, "events.log")
-    v1 = _get_core_v1_api(cluster_info)
-    batcher = _BatchedWarner("run events", _BATCHED_WARN_FLUSH_INTERVAL_SEC, log_path)
+    log_path = open_watcher_log(log_dir, run_id, "events.log")
+    batcher = BatchedWarner("run events", log_path)
 
     def on_event(obj):
         pod_name = obj.involved_object.name if obj.involved_object else ""
@@ -840,13 +796,14 @@ def watch_for_run_events(
             return
         batcher.add(f"[K8s:{obj.reason}] {pod_name}: {message}")
 
-    _resilient_watch(
-        v1.list_namespaced_event,
+    resilient_watch(
+        lambda: get_core_v1_api(cluster_info).list_namespaced_event,
         on_event,
         namespace=namespace,
         description="Run event watcher",
         stop_event=stop_event,
         on_stream_end=batcher.flush,
+        on_error=reset_core_v1_api,
         field_selector="involvedObject.kind=Pod",
     )
 
@@ -876,7 +833,6 @@ def watch_for_triggered_scale_up(
     Calls ``on_event(pod_name, mig_targets)`` with each attempted MIG and
     its CA-decided per-zone target node count.
     """
-    v1 = _get_core_v1_api(cluster_info)
 
     def _handle(obj):
         pod_name = obj.involved_object.name if obj.involved_object else ""
@@ -893,11 +849,12 @@ def watch_for_triggered_scale_up(
         if mig_targets:
             on_event(pod_name, mig_targets)
 
-    _resilient_watch(
-        v1.list_namespaced_event,
+    resilient_watch(
+        lambda: get_core_v1_api(cluster_info).list_namespaced_event,
         _handle,
         namespace=namespace,
         description="TriggeredScaleUp watcher",
         stop_event=stop_event,
+        on_error=reset_core_v1_api,
         field_selector="reason=TriggeredScaleUp,involvedObject.kind=Pod",
     )

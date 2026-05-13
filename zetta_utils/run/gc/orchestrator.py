@@ -309,9 +309,11 @@ def _log_run_summary(report: CleanupReport) -> None:
         else:
             failed.append(f"{label} ({ro.outcome.error_class}: {ro.outcome.error})")
 
+    c = report.counts
     lines = [
         f"run {report.run_id} ({report.zetta_user}) [{report.status_label}]: "
-        f"deleted {len(deleted)}, not_found {len(not_found)}, failed {len(failed)}"
+        f"{c['total']} total, deleted {c['deleted']}, "
+        f"not_found {c['not_found']}, failed {c['failed']}"
     ]
     if report.heartbeat > 0:
         lines.append(f"  stale:     {format_duration(time.time() - report.heartbeat)}")

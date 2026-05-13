@@ -99,3 +99,21 @@ class CleanupReport:
             for o in self.outcomes
         )
         return "WARN" if has_any_success else "FAIL"
+
+    @property
+    def counts(self) -> dict[str, int]:
+        """Per-status resource counts plus total for this report.
+
+        Returns ``deleted``, ``not_found``, ``failed``, ``total`` so
+        callers can format without conditionals.
+        """
+        result = {"deleted": 0, "not_found": 0, "failed": 0}
+        for o in self.outcomes:
+            if o.outcome.status == DeleteStatus.DELETED:
+                result["deleted"] += 1
+            elif o.outcome.status == DeleteStatus.NOT_FOUND:
+                result["not_found"] += 1
+            else:
+                result["failed"] += 1
+        result["total"] = len(self.outcomes)
+        return result

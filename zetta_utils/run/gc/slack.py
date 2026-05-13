@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 
 from slack_sdk.errors import SlackApiError
 
+from zetta_utils import constants
 from zetta_utils.log import get_logger
 from zetta_utils.run.db import RUN_DB
 from zetta_utils.run.gc.common import CleanupReport, get_slack_client
@@ -140,11 +141,50 @@ def _post_channel_summary(reports: list[CleanupReport]) -> str | None:
 
 def _format_row(report: CleanupReport, now: float) -> str:
     status = report.status_label.ljust(4)
-    run_id = report.run_id if len(report.run_id) <= 42 else report.run_id[:41] + "…"
+    display = report.run_id if len(report.run_id) <= 42 else report.run_id[:41] + "…"
+    run_id_cell = _run_id_link(report.run_id, display)
+    # Pad based on the visible-width display string, not the full mrkdwn
+    # link, so columns line up in the rendered Slack code block.
+    pad = " " * max(0, 42 - len(display))
     user = report.zetta_user[:12]
     age = _relative_age(now, report.timestamp)
     last_hb = _relative_age(now, report.heartbeat)
-    return f"  {status}  {run_id:<42}  {user:<12}  age {age:>3}  last_hb {last_hb:>3}"
+    project = _report_project(report) or "-"
+    c = report.counts
+    resources = f"{c['total']}r d{c['deleted']}/n{c['not_found']}/f{c['failed']}"
+    return (
+        f"{status} {run_id_cell}{pad} {user:<12} age {age:>3} last_hb {last_hb:>3} "
+        f"{resources:<18} {project}"
+    )
+
+
+def _report_project(report: CleanupReport) -> str:
+    """GCP project id from the run's first registered cluster."""
+    if not report.clusters:
+        return ""
+    return report.clusters[0].project or ""
+
+
+_FIRESTORE_CONSOLE_BASE = (
+    "https://console.cloud.google.com/firestore/databases/run-db/data/panel/run-info"
+)
+
+
+def _run_id_link(run_id: str, display: str | None = None) -> str:
+    """Slack-mrkdwn hyperlink to the run's Firestore console page.
+
+    The ``?project=`` query parameter is the project that owns the
+    ``run-db`` Firestore database (``constants.DEFAULT_PROJECT``), not
+    the run's own cluster project — the console URL needs the database
+    host project to authorize the read.
+
+    :param run_id: Full run id; used both in the URL path and as the
+        default visible link text.
+    :param display: Visible link text. Defaults to ``run_id``.
+    """
+    text = display if display is not None else run_id
+    url = f"{_FIRESTORE_CONSOLE_BASE}/{run_id}?project={constants.DEFAULT_PROJECT}"
+    return f"<{url}|{text}>"
 
 
 def _relative_age(now: float, then: float) -> str:
@@ -171,9 +211,14 @@ def _post_thread_reply(summary_ts: str, report: CleanupReport) -> None:
 
 def _format_thread_text(report: CleanupReport) -> str:
     label, hint = _category_label_and_hint(report.error_class)
+    project = _report_project(report)
+    project_suffix = f" @ `{project}`" if project else ""
+    c = report.counts
     header = [
-        f"*{report.run_id}* ({report.zetta_user}) — {label}",
+        f"*{_run_id_link(report.run_id)}* ({report.zetta_user}{project_suffix}) — {label}",
         hint,
+        f"Resources: {c['total']} total, deleted {c['deleted']}, "
+        f"not_found {c['not_found']}, failed {c['failed']}.",
     ]
     body: list[str] = []
     failed = [o for o in report.outcomes if o.outcome.status == DeleteStatus.FAILED]
@@ -218,10 +263,19 @@ def _maybe_dm_owner(
 
 def _format_dm_text(report: CleanupReport) -> str:
     label, hint = _category_label_and_hint(report.error_class)
+    project = _report_project(report)
+    project_line = f"GCP project: `{project}`" if project else ""
+    c = report.counts
     header = [
-        f"Your run `{report.run_id}` is blocked from cleanup.",
+        f"Your run {_run_id_link(report.run_id)} is blocked from cleanup.",
         f"{label}: {hint}",
     ]
+    if project_line:
+        header.append(project_line)
+    header.append(
+        f"Resources: {c['total']} total, deleted {c['deleted']}, "
+        f"not_found {c['not_found']}, failed {c['failed']}."
+    )
     body: list[str] = []
     failed = [o for o in report.outcomes if o.outcome.status == DeleteStatus.FAILED]
     if failed:

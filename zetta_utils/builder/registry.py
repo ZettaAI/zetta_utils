@@ -5,7 +5,7 @@ import importlib
 import logging
 import threading
 from collections import defaultdict
-from typing import Callable, TypeVar
+from typing import Callable, Optional, TypeVar
 
 import attrs
 from packaging.specifiers import SpecifierSet
@@ -22,6 +22,40 @@ logger = logging.getLogger(__name__)
 
 _lazy_lock = threading.Lock()
 _lazy_attempted: set[str] = set()
+
+# Dynamic resolvers handle name families whose members are computed on demand
+# (e.g. np.<func>, torch.nn.<class>) instead of being pre-registered with one
+# decorator each at import time. A resolver receives the full lookup name and
+# returns either a RegistryEntry (which gets cached in REGISTRY) or None.
+_DynamicResolver = Callable[[str], Optional["RegistryEntry"]]
+_dynamic_resolvers: list[tuple[str, _DynamicResolver]] = []
+
+
+def register_dynamic_resolver(prefix: str, resolver: _DynamicResolver) -> None:
+    """Install a resolver for a name family sharing a prefix (e.g. ``"np."``).
+
+    The resolver is consulted by ``get_matching_entry`` only after a literal
+    REGISTRY lookup and the static-index fallback both miss. On hit, its
+    returned entry is appended to REGISTRY so subsequent lookups skip the
+    resolver entirely.
+    """
+    _dynamic_resolvers.append((prefix, resolver))
+
+
+def _try_dynamic_resolve(name: str) -> bool:
+    """Run dynamic resolvers; cache the first hit in REGISTRY."""
+    for prefix, resolver in _dynamic_resolvers:
+        if not name.startswith(prefix):
+            continue
+        try:
+            entry = resolver(name)
+        except Exception as e:  # pylint: disable=broad-except
+            logger.warning("dynamic resolver for %r failed on %r: %s", prefix, name, e)
+            continue
+        if entry is not None:
+            REGISTRY[name].append(entry)
+            return True
+    return False
 
 
 @attrs.frozen
@@ -77,6 +111,8 @@ def get_matching_entry(
 ) -> RegistryEntry:
     if not REGISTRY[name]:
         _try_lazy_import(name)
+    if not REGISTRY[name]:
+        _try_dynamic_resolve(name)
 
     version_ = Version(str(version))
     matches = []

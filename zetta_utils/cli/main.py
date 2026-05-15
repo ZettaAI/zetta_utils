@@ -22,10 +22,12 @@ logger = log.get_logger("zetta_utils")
     "--load_mode",
     "-l",
     type=click.Choice(["all", "inference", "training", "try", "none", "auto"]),
-    default="all",
-    help="Preload mode. 'none' skips eager imports and resolves @types lazily "
-    "via the static registry index (fast dev iteration; slower first-use). "
-    "'auto' scans the CUE spec and preloads exactly the modules it needs.",
+    default="auto",
+    help="Preload mode (default 'auto'). 'auto' scans the CUE spec and "
+    "preloads exactly the modules it needs. 'none' skips eager imports and "
+    "resolves @types lazily via the static registry index (fast dev "
+    "iteration; slower first-use). 'all' falls back to preloading the full "
+    "module set.",
 )
 def cli(verbose, load_mode):  # pragma: no cover # no logic, delegation
     verbosity_map = {
@@ -108,7 +110,15 @@ def run(
 ):
     """Perform ``zetta_utils.builder.build`` action on file contents."""
     ctx = click.get_current_context()
-    load_mode = cast(LoadMode, ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all")
+    load_mode = cast(LoadMode, ctx.obj.get("load_mode", "auto") if ctx and ctx.obj else "auto")
+
+    # Auto mode needs a CUE file path to scan. When --str_spec is used,
+    # materialize it to a tempfile up front so auto can see it.
+    auto_cue_path: Optional[str] = path
+    if auto_cue_path is None and str_spec is not None and load_mode == "auto":
+        with NamedTemporaryFile("w", encoding="utf8", delete=False, suffix=".cue") as f:
+            f.write(str_spec)
+            auto_cue_path = f.name
 
     # Remote workers receive the auto preload list via ZETTA_PRELOAD_MODULES so
     # they don't need to re-parse the original CUE. When set it overrides
@@ -120,7 +130,7 @@ def run(
 
     setup_environment(
         load_mode,
-        cue_path=path if load_mode == "auto" else None,
+        cue_path=auto_cue_path if load_mode == "auto" else None,
         preload_modules=preload_modules,
     )
 
@@ -140,9 +150,12 @@ def run(
     else:
         assert str_spec is not None, "Exactly one of `path` and `str_spec` must be provided."
         spec = parsing.cue.loads(str_spec)
-        with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
-            f.write(str_spec)
-            os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
+        if auto_cue_path is not None:
+            os.environ["ZETTA_RUN_SPEC_PATH"] = auto_cue_path
+        else:
+            with NamedTemporaryFile("w", encoding="utf8", delete=False) as f:
+                f.write(str_spec)
+                os.environ["ZETTA_RUN_SPEC_PATH"] = f.name
 
     for import_path in extra_imports:
         assert import_path.endswith(".py")

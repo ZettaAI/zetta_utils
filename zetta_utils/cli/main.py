@@ -110,7 +110,19 @@ def run(
     ctx = click.get_current_context()
     load_mode = cast(LoadMode, ctx.obj.get("load_mode", "all") if ctx and ctx.obj else "all")
 
-    setup_environment(load_mode, cue_path=path if load_mode == "auto" else None)
+    # Remote workers receive the auto preload list via ZETTA_PRELOAD_MODULES so
+    # they don't need to re-parse the original CUE. When set it overrides
+    # --load_mode and forces auto with the explicit list.
+    preload_env = os.environ.get("ZETTA_PRELOAD_MODULES")
+    preload_modules = preload_env.split(",") if preload_env else None
+    if preload_modules:
+        load_mode = cast(LoadMode, "auto")
+
+    setup_environment(
+        load_mode,
+        cue_path=path if load_mode == "auto" else None,
+        preload_modules=preload_modules,
+    )
 
     from zetta_utils import builder, parsing  # pylint: disable=import-outside-toplevel
     from zetta_utils.run import (  # pylint: disable=import-outside-toplevel

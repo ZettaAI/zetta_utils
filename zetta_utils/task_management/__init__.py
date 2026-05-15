@@ -1,12 +1,33 @@
-from . import types
-from . import user
-from . import task
-from . import dependency
-from . import timesheet
-from . import metrics
-from . import task_type
-from . import project
-from . import exceptions
-from . import task_types
+"""Task management subpackage — lazily resolved via zetta_utils.common.lazy."""
+from typing import TYPE_CHECKING
 
-# from . import segment_lookup
+from zetta_utils.common.lazy import make_lazy_module
+
+_LAZY_SUBPACKAGES = (
+    "types",
+    "user",
+    "task",
+    "dependency",
+    "timesheet",
+    "metrics",
+    "task_type",
+    "project",
+    "exceptions",
+    "task_types",
+)
+
+__getattr__, __dir__ = make_lazy_module(__name__, globals(), _LAZY_SUBPACKAGES)
+
+if TYPE_CHECKING:
+    from . import (
+        dependency,
+        exceptions,
+        metrics,
+        project,
+        task,
+        task_type,
+        task_types,
+        timesheet,
+        types,
+        user,
+    )

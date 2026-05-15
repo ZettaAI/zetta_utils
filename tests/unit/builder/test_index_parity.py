@@ -31,9 +31,14 @@ def _from_zetta_utils(name: str) -> bool:
 
     Filters out test-fixture leaks (entries whose fn.__module__ starts with
     `tests.` or `__main__`) so this check is stable regardless of test order.
+    Also skips lambdas — they're never statically discoverable, so seeing one
+    in REGISTRY just means the test suite registered something dynamically.
     """
     for entry in REGISTRY[name]:
         mod = getattr(entry.fn, "__module__", "") or ""
+        qualname = getattr(entry.fn, "__qualname__", "") or ""
+        if "<lambda>" in qualname:
+            continue
         if mod.startswith("zetta_utils"):
             return True
     return False

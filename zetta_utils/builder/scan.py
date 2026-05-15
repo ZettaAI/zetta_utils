@@ -234,7 +234,7 @@ def _candidate_files(roots: Iterable[pathlib.Path]) -> list[pathlib.Path]:
                 if path.stat().st_size > 64 * 1024:
                     if _REGISTER_NEEDLE.search(path.read_bytes()):
                         out.append(path)
-            except OSError:
+            except OSError:  # pragma: no cover - filesystem race
                 continue
     return out
 
@@ -244,7 +244,7 @@ def _cache_key(paths: list[pathlib.Path]) -> str:
     for p in sorted(paths, key=str):
         try:
             st = p.stat()
-        except OSError:
+        except OSError:  # pragma: no cover - filesystem race
             continue
         h.update(str(p).encode())
         h.update(str(st.st_mtime_ns).encode())

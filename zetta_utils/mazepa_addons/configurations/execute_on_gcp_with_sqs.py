@@ -117,6 +117,7 @@ def _get_group_taskqueue_and_contexts(
     resource_monitor_interval: float | None,
     adc_available: bool = False,
     cave_secret_available: bool = False,
+    preload_modules: list[str] | None = None,
 ) -> tuple[PushMessageQueue[Task], list[AbstractContextManager]]:
     ctx_managers: list[AbstractContextManager] = []
 
@@ -152,6 +153,7 @@ def _get_group_taskqueue_and_contexts(
         preferred_zones=group.preferred_zones,
         worker_type=group_name,
         termination_grace_seconds=group.termination_grace_seconds,
+        preload_modules=preload_modules,
     )
     if group.sqs_based_scaling:
         ctx_managers.append(
@@ -178,6 +180,32 @@ def _get_group_taskqueue_and_contexts(
     return task_queue, ctx_managers
 
 
+def _compute_worker_preload_modules() -> list[str] | None:
+    """Re-scan the run's spec to derive the auto preload set for workers.
+
+    Returns None if the spec path isn't set (workers fall back to whatever
+    --load_mode the CLI passes) or if scanning fails for any reason. Workers
+    that miss the env var still function — they just preload via try/all.
+    """
+    # pylint: disable=import-outside-toplevel,broad-exception-caught
+    spec_path = os.environ.get("ZETTA_RUN_SPEC_PATH")
+    if not spec_path:
+        return None
+    try:
+        from zetta_utils.builder.preload import compute_preload_set
+        from zetta_utils.parsing import cue
+        from zetta_utils.parsing.spec_scan import extract_types
+
+        spec = cue.load(spec_path)
+        names = extract_types(spec).names()
+        return compute_preload_set(names)
+    except Exception as e:
+        log.get_logger("zetta_utils").warning(
+            f"Failed to compute worker preload modules from {spec_path}: {e}"
+        )
+        return None
+
+
 def get_gcp_with_sqs_config(
     execution_id: str,
     image: str,
@@ -202,6 +230,13 @@ def get_gcp_with_sqs_config(
     ctx_managers.append(aws_sqs.sqs_queue_ctx_mngr(execution_id, outcome_queue))
     ctx_managers.append(k8s.secrets_ctx_mngr(execution_id, secrets=secrets, cluster_info=cluster))
 
+    preload_modules = _compute_worker_preload_modules()
+    if preload_modules is not None:
+        log.get_logger("zetta_utils").info(
+            f"Workers will preload {len(preload_modules)} module(s) via "
+            "ZETTA_PRELOAD_MODULES env var (auto mode)."
+        )
+
     for group_name, group_dict in groups.items():
         group = WorkerGroup(**group_dict)
         group_name = group_name.replace("_", "-")
@@ -217,6 +252,7 @@ def get_gcp_with_sqs_config(
             cave_secret_available=cave_secret_available,
             suppress_worker_logs=suppress_worker_logs,
             resource_monitor_interval=resource_monitor_interval,
+            preload_modules=preload_modules,
         )
         task_queues.append(task_queue)
         ctx_managers.extend(group_ctx_managers)

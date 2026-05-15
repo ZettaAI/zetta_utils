@@ -325,6 +325,7 @@ def get_mazepa_pod_spec(
     preferred_zones: list[str] | None = None,
     worker_type: str | None = None,
     termination_grace_seconds: int = 300,
+    preload_modules: Optional[list[str]] = None,
 ) -> k8s_client.V1PodSpec:
     schedule_toleration = k8s_client.V1Toleration(
         key="worker-pool", operator="Equal", value="true", effect="NoSchedule"
@@ -357,6 +358,10 @@ def get_mazepa_pod_spec(
         )
     if worker_type:
         envs.append(k8s_client.V1EnvVar(name="WORKER_TYPE", value=worker_type))
+    if preload_modules:
+        envs.append(
+            k8s_client.V1EnvVar(name="ZETTA_PRELOAD_MODULES", value=",".join(preload_modules))
+        )
 
     required_zone_selector, preferred_zone_term = get_zone_affinities(
         required_zones, preferred_zones

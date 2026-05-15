@@ -62,8 +62,9 @@ def _make_lazy_pkg(tmp_path: Path, name: str, register_name: str) -> str:
 
 def test_already_registered_name_skips_fallback(lazy_spy):
     """A name that's already in REGISTRY must not trigger any import."""
-    # Pick something definitely registered (parity test would have caught it otherwise).
-    entry = get_matching_entry("brightness_aug")
+    # "lambda" is registered by built_in_registrations.py which is in
+    # ALWAYS_EAGER, so it's guaranteed in REGISTRY regardless of preload mode.
+    entry = get_matching_entry("lambda")
     assert entry.fn is not None
     assert lazy_spy.call_count == 0
 

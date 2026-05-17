@@ -149,7 +149,7 @@ def _format_row(report: CleanupReport, now: float) -> str:
     user = report.zetta_user[:12]
     age = _relative_age(now, report.timestamp)
     last_hb = _relative_age(now, report.heartbeat)
-    project = _report_project(report) or "-"
+    project = _report_project(report) or "not available"
     c = report.counts
     resources = f"{c['total']}r d{c['deleted']}/n{c['not_found']}/f{c['failed']}"
     return (

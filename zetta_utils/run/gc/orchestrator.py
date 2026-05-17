@@ -64,12 +64,20 @@ _ERROR_CLASS_PRIORITY = (
 
 
 def _parse_clusters(clusters_value: object) -> list[ClusterInfo]:
+    """Parse the JSON-encoded clusters list from a RUN_DB row.
+
+    Returns an empty list when the field is missing, empty, or malformed,
+    rather than synthesizing a default cluster — the default's project
+    would otherwise leak into reports for runs whose actual cluster is
+    unknown. The cleanup path falls back to :data:`DEFAULT_GCP_CLUSTER`
+    locally when k8s discovery needs a cluster to try.
+    """
     if not isinstance(clusters_value, str) or not clusters_value:
-        return [DEFAULT_GCP_CLUSTER]
+        return []
     try:
         cluster_dicts = json.loads(clusters_value)
     except json.JSONDecodeError:
-        return [DEFAULT_GCP_CLUSTER]
+        return []
     return [ClusterInfo(**d) for d in cluster_dicts]
 
 
@@ -251,9 +259,16 @@ def cleanup_run(
     resources = {rid: Resource(**raw) for rid, raw in resources_raw.items()}
     k8s_resources = {rid: r for rid, r in resources.items() if r.type in K8S_DELETERS}
 
-    location, cluster_failures = discover_locations(clusters, k8s_resources)
+    # Local discovery fallback: a run that never wrote its CLUSTERS field
+    # has clusters=[]. If it still has k8s resources to clean up, attempt
+    # against DEFAULT_GCP_CLUSTER so cleanup can make progress, but keep
+    # report.clusters faithful (empty) so reports don't misattribute the
+    # run's project.
+    discovery_clusters = clusters if clusters else ([DEFAULT_GCP_CLUSTER] if k8s_resources else [])
+
+    location, cluster_failures = discover_locations(discovery_clusters, k8s_resources)
     outcomes: list[ResourceOutcome] = []
-    outcomes.extend(_process_k8s(resources, location, clusters))
+    outcomes.extend(_process_k8s(resources, location, discovery_clusters))
     outcomes.extend(_process_sqs(resources))
     outcomes.extend(_unknown_type_outcomes(resources, outcomes))
     outcomes = _apply_deregisters(outcomes)

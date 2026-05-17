@@ -21,7 +21,11 @@ from tenacity import (
 from zetta_utils import builder
 from zetta_utils.layer.db_layer import DBBackend, DBDataT, DBIndex, DBRowDataT
 
-MAX_KEYS_PER_REQUEST = 1000
+#: Chunk size for batched ``client.get_all`` calls in :meth:`FirestoreBackend.read`.
+#: Firestore enforces an 11 MiB per-RPC response-payload ceiling and a
+#: 1000-document BatchGetDocuments ceiling. 500 leaves headroom for ~22 KiB per
+#: row before the payload limit trips; larger rows may require lowering further.
+MAX_KEYS_PER_REQUEST = 500
 TENACITY_IGNORE_EXC = (KeyError, RuntimeError, TypeError, ValueError, GoogleAPICallError)
 
 
@@ -97,12 +101,16 @@ class FirestoreBackend(DBBackend):
             if idx.row_keys[0] not in self:
                 raise KeyError(idx.row_keys[0])
         refs = [self.client.collection(self.collection).document(k) for k in idx.row_keys]
-        snapshots = self.client.get_all(refs, field_paths=idx.col_keys)
+        # Chunk get_all into MAX_KEYS_PER_REQUEST batches: a single
+        # BatchGetDocuments RPC is capped at 1000 refs and 11 MiB of
+        # response payload, and the SDK does not auto-chunk.
         results_map = {}
-        for snapshot in snapshots:
-            if snapshot.exists:
-                results_map[snapshot.id] = snapshot.to_dict()
-                results_map[snapshot.id].pop("_id_nonunique", None)
+        for start in range(0, len(refs), MAX_KEYS_PER_REQUEST):
+            chunk = refs[start : start + MAX_KEYS_PER_REQUEST]
+            for snapshot in self.client.get_all(chunk, field_paths=idx.col_keys):
+                if snapshot.exists:
+                    results_map[snapshot.id] = snapshot.to_dict()
+                    results_map[snapshot.id].pop("_id_nonunique", None)
         results = []
         for rkey in idx.row_keys:
             results.append(results_map.get(rkey, {}))
@@ -234,12 +242,15 @@ class FirestoreBackend(DBBackend):
                     _q = collection_ref.where(filter=And(_filters))
             snapshots = list(_q.stream(**rpc_kwargs))
         else:
-            refs = collection_ref.list_documents()
-            snapshots = self.client.get_all(
-                refs,
-                field_paths=return_columns if len(return_columns) > 0 else None,
-                **rpc_kwargs,
-            )
+            # No filter: use Query.stream(), which the SDK paginates
+            # server-side automatically. Avoids the 11 MiB / 1000-ref
+            # BatchGetDocuments ceiling that list_documents() +
+            # client.get_all() would hit on collections beyond a few
+            # hundred rows.
+            base_query: Any = collection_ref
+            if len(return_columns) > 0:
+                base_query = base_query.select(list(return_columns))
+            snapshots = list(base_query.stream(**rpc_kwargs))
         result = {}
         for snapshot in snapshots:
             result[snapshot.id] = snapshot.to_dict()

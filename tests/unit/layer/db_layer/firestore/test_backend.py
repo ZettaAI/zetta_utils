@@ -152,7 +152,8 @@ def test_query_with_timeout_kwarg(firestore_emulator) -> None:
     result = layer.query(column_filter={"col1": ["val0"]}, timeout=10.0)
     assert "key0" in result and len(result) == 1
 
-    # Unfiltered query with explicit timeout — exercises the `client.get_all(retry=...)` path.
+    # Unfiltered query with explicit timeout — exercises the no-filter
+    # `collection_ref.stream(retry=..., timeout=...)` path.
     result_all = layer.query(timeout=10.0)
     assert len(result_all) == 3
 

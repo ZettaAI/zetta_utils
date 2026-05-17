@@ -168,7 +168,10 @@ def cleanup_pod_stats(run_id: str) -> None:
     :param run_id: Run id whose POD_STATS_DB rows should be removed.
     """
     try:
-        docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]})
+        # Project only run_id; we just need row keys for the delete and
+        # the per-pod cpu / memory / gcs / semaphore payloads would
+        # otherwise stream back uselessly.
+        docs = POD_STATS_DB.query(column_filter={"run_id": [run_id]}, return_columns=("run_id",))
         if docs:
             del POD_STATS_DB[list(docs.keys())]
     except Exception as e:  # pylint: disable=broad-exception-caught

@@ -25,7 +25,7 @@ import time
 from collections import defaultdict
 
 from zetta_utils.log import get_logger
-from zetta_utils.run import RunInfo
+from zetta_utils.run import RunInfo, strip_per_pod_resource_stats
 from zetta_utils.run.db import POD_STATS_DB, RUN_DB
 
 logger = get_logger("zetta_utils")
@@ -78,20 +78,27 @@ def purge_stale_pod_stats(hours: int = DEFAULT_HOURS) -> int:
         infos = []
 
     to_delete: list[str] = list(orphan_rows)
-    stale_run_count = 0
+    stale_runs: list[str] = []
     for run_id, info in zip(run_ids, infos):
         ts = float(info.get(RunInfo.TIMESTAMP.value, 0.0))
         hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
         if hb <= 0 or hb < threshold:
             to_delete.extend(rows_by_run[run_id])
-            stale_run_count += 1
+            stale_runs.append(run_id)
 
     logger.info(
         f"POD_STATS_DB: {len(docs)} rows across {len(rows_by_run)} run(s) "
         f"(+ {len(orphan_rows)} orphans without run_id). "
-        f"Stale: {len(to_delete)} rows from {stale_run_count} run(s) "
+        f"Stale: {len(to_delete)} rows from {len(stale_runs)} run(s) "
         f"(threshold {hours}h)."
     )
+
+    # Drop the per_pod sub-entry from each stale run's RUN_DB.resource_stats:
+    # the per-pod compact summary mirrors POD_STATS_DB rows we are about to
+    # delete, so leaving it on a finalized run is stale ephemera that scales
+    # with the run's pod count.
+    for run_id in stale_runs:
+        strip_per_pod_resource_stats(run_id)
 
     if not to_delete:
         return 0

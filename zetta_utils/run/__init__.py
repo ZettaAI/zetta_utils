@@ -11,10 +11,12 @@ from operator import itemgetter
 import attrs
 import fsspec
 from gcsfs import GCSFileSystem
+from google.cloud.firestore import DELETE_FIELD
 
 from zetta_utils import constants, log
 from zetta_utils.common import RepeatTimer, get_unique_id
 from zetta_utils.layer.db_layer import DBRowDataT
+from zetta_utils.layer.db_layer.firestore.backend import FirestoreBackend
 from zetta_utils.parsing import json
 from zetta_utils.run.costs import aggregate_pod_stats, compute_costs
 from zetta_utils.run.db import POD_STATS_DB, RUN_DB
@@ -178,6 +180,35 @@ def cleanup_pod_stats(run_id: str) -> None:
         logger.warning(f"Failed to cleanup pod stats for run {run_id}: {e}")
 
 
+def strip_per_pod_resource_stats(run_id: str) -> None:
+    """Delete the ``per_pod`` sub-entry from ``RUN_DB.resource_stats``.
+
+    :func:`zetta_utils.run.costs.aggregate_pod_stats` writes a per-pod
+    compact summary into ``resource_stats.per_pod`` for live inspection
+    while pods are running. Once the run is finalized those pods are
+    gone, so the per-pod entries become stale ephemera that grow with
+    pod count; the ``fleet`` and ``per_worker_type`` rollups in
+    ``resource_stats`` remain useful and are kept.
+
+    Uses Firestore's ``DELETE_FIELD`` sentinel via a direct
+    ``doc.update()`` call because :func:`update_run_info` goes through
+    ``bulk_writer.set(..., merge=True)`` which can merge but cannot
+    remove a sub-key. Best-effort: failures are logged and swallowed.
+
+    :param run_id: Run id whose ``resource_stats.per_pod`` should be removed.
+    """
+    backend = RUN_DB.backend
+    assert isinstance(backend, FirestoreBackend), (
+        "strip_per_pod_resource_stats requires a FirestoreBackend for the "
+        "DELETE_FIELD sentinel; got " + type(backend).__name__
+    )
+    try:
+        ref = backend.client.collection(backend.collection).document(run_id)
+        ref.update({"resource_stats.per_pod": DELETE_FIELD})
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(f"Failed to strip resource_stats.per_pod for run {run_id}: {e}")
+
+
 def finalize_run(run_id: str) -> None:
     """Consolidate final cost/stats into RUN_DB then drop per-pod ephemera.
 
@@ -186,14 +217,18 @@ def finalize_run(run_id: str) -> None:
     crashed run, so any run ends with the same consolidated columns
     (``compute_cost``, ``compute_cost_by_worker_type``, ``gcs_stats``,
     ``total_egress_gib``, ``semaphore_stats``, ``resource_stats``) in
-    ``RUN_DB``. Idempotent and best-effort: each step swallows + logs
-    its own failures so partial consolidation still makes progress.
+    ``RUN_DB``. Per-pod ephemera (``POD_STATS_DB`` rows and the
+    ``resource_stats.per_pod`` sub-entry) are dropped after aggregation
+    so completed runs do not keep accumulating pod-scoped data.
+    Idempotent and best-effort: each step swallows + logs its own
+    failures so partial consolidation still makes progress.
 
     :param run_id: Run id to finalize.
     """
     update_costs_safe(run_id)
     aggregate_pod_stats_safe(run_id)
     cleanup_pod_stats(run_id)
+    strip_per_pod_resource_stats(run_id)
 
 
 def start_run_repeaters(

@@ -371,11 +371,32 @@ def _stale_run_data() -> tuple[
     stale_ids: list[str] = []
     run_info_by_id: dict[str, dict[str, Any]] = {}
     hb_threshold = time.time() - int(os.environ["EXECUTION_HEARTBEAT_LOOKBACK"])
+    terminal_states = {
+        RunState.COMPLETED.value,
+        RunState.FAILED.value,
+        RunState.TIMEDOUT.value,
+    }
     for candidate_id, info in zip(candidate_list, infos):
         ts = float(info.get(RunInfo.TIMESTAMP.value, 0))
         hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
-        if hb >= hb_threshold:
-            continue
+        state = str(info.get(RunInfo.STATE.value, ""))
+        has_resources = bool(resources_by_run.get(candidate_id))
+
+        if state in terminal_states:
+            # Terminal-state runs are processed iff they still have
+            # RESOURCE_DB rows. Heartbeat is meaningless here: the
+            # repeat-timer thread may have written one moments before
+            # cancel(), so a fresh hb does not mean the cleanup
+            # actually finished. Retry every cycle until RESOURCE_DB
+            # for this run is empty.
+            if not has_resources:
+                continue
+        else:
+            # Running (or unknown / missing state) — gate on heartbeat
+            # staleness so live runs are never touched.
+            if hb >= hb_threshold:
+                continue
+
         stale_ids.append(candidate_id)
         run_info_by_id[candidate_id] = dict(info)
 

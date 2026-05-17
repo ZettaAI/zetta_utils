@@ -14,7 +14,7 @@ from tenacity import (
 
 from zetta_utils.cloud_management.resource_allocation.k8s.common import ClusterInfo
 from zetta_utils.mazepa.transient_errors import TRANSIENT_ERROR_CONDITIONS
-from zetta_utils.run import cleanup_pod_stats
+from zetta_utils.run import finalize_run
 from zetta_utils.run.gc.state import clear_state
 
 
@@ -73,13 +73,18 @@ def format_duration(seconds: float) -> str:
 
 
 def purge_run_state(run_id: str) -> None:
-    """Delete all GC-owned per-run state on full cleanup success.
+    """Consolidate final stats then drop GC-owned per-run state.
 
-    Drops POD_STATS_DB rows and the gc-run-state row for ``run_id``. Both
-    calls are best-effort; failures are logged and swallowed. The run's
-    own ``RUN_DB`` row stays as audit history (with ``state=TIMEDOUT``).
+    Mirrors :func:`zetta_utils.run.finalize_run`'s aggregation (compute
+    costs + aggregate pod stats + delete pod-stats rows) before dropping
+    the ``gc-run-state`` row, so a run cleaned by GC ends with the same
+    ``compute_cost`` / ``gcs_stats`` / ``total_egress_gib`` /
+    ``semaphore_stats`` / ``resource_stats`` columns in ``RUN_DB`` as
+    one that exited cleanly. Both calls are best-effort; failures are
+    logged and swallowed. The run's own ``RUN_DB`` row stays as audit
+    history (with ``state=TIMEDOUT`` or its prior terminal value).
 
     :param run_id: Run id to purge.
     """
-    cleanup_pod_stats(run_id)
+    finalize_run(run_id)
     clear_state(run_id)

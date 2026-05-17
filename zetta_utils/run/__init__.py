@@ -136,8 +136,11 @@ def _send_heartbeat(run_id: str, bucket_egress_warned: set) -> None:
             bucket_egress_warned.add(bucket)
 
 
-def _update_costs(run_id: str | None) -> None:
-    """Update costs for the run."""
+def update_costs_safe(run_id: str | None) -> None:
+    """Compute and persist costs for ``run_id``; swallow + log on failure.
+
+    :param run_id: Run id to update; no-op when ``None``.
+    """
     if run_id is None:
         return
     try:
@@ -146,8 +149,11 @@ def _update_costs(run_id: str | None) -> None:
         logger.warning(f"Failed to update costs: {e}")
 
 
-def _aggregate_pod_stats_safe(run_id: str | None) -> None:
-    """Aggregate per-pod stats (gcs/semaphore/resource) with error handling."""
+def aggregate_pod_stats_safe(run_id: str | None) -> None:
+    """Aggregate per-pod stats (gcs/semaphore/resource); swallow + log on failure.
+
+    :param run_id: Run id to aggregate; no-op when ``None``.
+    """
     if run_id is None:
         return
     try:
@@ -167,6 +173,71 @@ def cleanup_pod_stats(run_id: str) -> None:
             del POD_STATS_DB[list(docs.keys())]
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to cleanup pod stats for run {run_id}: {e}")
+
+
+def finalize_run(run_id: str) -> None:
+    """Consolidate final cost/stats into RUN_DB then drop per-pod ephemera.
+
+    Called from :func:`run_ctx_manager`'s ``finally`` on normal exit and
+    from :mod:`zetta_utils.run.gc` when the GC fully cleans a stale or
+    crashed run, so any run ends with the same consolidated columns
+    (``compute_cost``, ``compute_cost_by_worker_type``, ``gcs_stats``,
+    ``total_egress_gib``, ``semaphore_stats``, ``resource_stats``) in
+    ``RUN_DB``. Idempotent and best-effort: each step swallows + logs
+    its own failures so partial consolidation still makes progress.
+
+    :param run_id: Run id to finalize.
+    """
+    update_costs_safe(run_id)
+    aggregate_pod_stats_safe(run_id)
+    cleanup_pod_stats(run_id)
+
+
+def start_run_repeaters(
+    run_id: str,
+    bucket_egress_warned: set[str],
+    heartbeat_interval: int,
+    update_costs_interval: int,
+    pod_stats_interval: int,
+) -> list[RepeatTimer]:
+    """Spawn the master's background repeaters (heartbeat, costs, pod stats).
+
+    Returns them in the order they were started so :func:`stop_run_repeaters`
+    can cancel + join uniformly. Each repeater runs in its own daemon
+    thread; see :class:`zetta_utils.common.RepeatTimer`.
+
+    :param run_id: Run id the repeaters report against.
+    :param bucket_egress_warned: Mutable set passed to ``_send_heartbeat``
+        to dedupe per-bucket region-mismatch warnings.
+    :param heartbeat_interval: Seconds between heartbeat writes.
+    :param update_costs_interval: Seconds between cost aggregations.
+    :param pod_stats_interval: Seconds between pod-stats aggregations.
+    """
+    assert heartbeat_interval > 0
+    repeaters = [
+        RepeatTimer(heartbeat_interval, partial(_send_heartbeat, run_id, bucket_egress_warned)),
+        RepeatTimer(update_costs_interval, partial(update_costs_safe, run_id)),
+        RepeatTimer(pod_stats_interval, partial(aggregate_pod_stats_safe, run_id)),
+    ]
+    for repeater in repeaters:
+        repeater.start()
+    return repeaters
+
+
+def stop_run_repeaters(repeaters: list[RepeatTimer]) -> None:
+    """Cancel and join every repeater in ``repeaters``.
+
+    Cancellation is fanned out first, then join is awaited in a second
+    pass, so a slow join on one repeater doesn't keep another firing
+    in the meantime.
+
+    :param repeaters: Repeaters previously returned by
+        :func:`start_run_repeaters`.
+    """
+    for repeater in repeaters:
+        repeater.cancel()
+    for repeater in repeaters:
+        repeater.join()
 
 
 @contextmanager
@@ -189,9 +260,7 @@ def run_ctx_manager(
     status = None
     assert RUN_ID is not None
 
-    heartbeat_sender = None
-    update_costs_repeater = None
-    pod_stats_repeater = None
+    repeaters: list[RepeatTimer] = []
     if main_run_process:
         _check_run_id_conflict()
 
@@ -207,25 +276,23 @@ def run_ctx_manager(
         _record_run(spec)
         update_run_info(RUN_ID, info)
 
-        assert heartbeat_interval > 0
-        heartbeat_sender = RepeatTimer(
-            heartbeat_interval, partial(_send_heartbeat, run_id, bucket_egress_warned)
+        repeaters = start_run_repeaters(
+            run_id,
+            bucket_egress_warned,
+            heartbeat_interval,
+            update_costs_interval,
+            pod_stats_interval,
         )
-        heartbeat_sender.start()
-
-        update_costs_repeater = RepeatTimer(update_costs_interval, partial(_update_costs, run_id))
-        update_costs_repeater.start()
-
-        pod_stats_repeater = RepeatTimer(
-            pod_stats_interval, partial(_aggregate_pod_stats_safe, run_id)
-        )
-        pod_stats_repeater.start()
 
     try:
         yield
-    except Exception as e:
+    except BaseException:
+        # BaseException so SystemExit / KeyboardInterrupt / asyncio.CancelledError
+        # also mark the run as FAILED; otherwise the finally below would write
+        # COMPLETED for an aborted master, leaving stale resources GC can't
+        # distinguish from a clean completion.
         status = RunState.FAILED.value
-        raise e from None
+        raise
     finally:
         if main_run_process:
             try:
@@ -240,21 +307,7 @@ def run_ctx_manager(
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(f"Failed to update final run state: {e}")
 
-            assert heartbeat_sender is not None
-            assert update_costs_repeater is not None
-            assert pod_stats_repeater is not None
-            heartbeat_sender.cancel()
-            update_costs_repeater.cancel()
-            pod_stats_repeater.cancel()
-
-            heartbeat_sender.join()
-            update_costs_repeater.join()
-            pod_stats_repeater.join()
-
-            # Final aggregation must run BEFORE cleanup so per-pod docs are
-            # captured into RUN_DB before they are deleted.
-            _update_costs(run_id)
-            _aggregate_pod_stats_safe(run_id)
-            cleanup_pod_stats(run_id)
+            stop_run_repeaters(repeaters)
+            finalize_run(run_id)
 
         RUN_ID = None

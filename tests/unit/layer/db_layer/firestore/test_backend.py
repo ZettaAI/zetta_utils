@@ -139,6 +139,23 @@ def test_batch_delete_by_list(firestore_emulator) -> None:
     assert len(layer.query()) == 0
 
 
+def test_query_no_filter_with_return_columns(firestore_emulator) -> None:
+    """No-filter query with `return_columns` must apply the projection via
+    `Query.select()` so only the requested fields come back."""
+    layer = build_firestore_layer("test", project=firestore_emulator)
+    _write_some_data(layer)
+
+    result = layer.query(return_columns=("col0",))
+    assert set(result.keys()) == {"key0", "key1", "key2"}
+    # Projected: col0 is present where written; col1/col2/tags are dropped.
+    assert result["key0"] == {"col0": "val0"}
+    assert result["key1"] == {"col0": "val0"}
+    # key2 had no col0 written; the projection still returns the row but
+    # without that key.
+    assert "col0" not in result["key2"]
+    assert "col1" not in result["key2"] and "tags" not in result["key2"]
+
+
 def test_query_with_timeout_kwarg(firestore_emulator) -> None:
     """Passing `timeout=` to query must work and not break the call.
 

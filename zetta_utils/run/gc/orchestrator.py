@@ -40,6 +40,7 @@ from zetta_utils.run.gc.users import UserResolver
 from zetta_utils.run.gc.utils import (
     format_cluster,
     format_duration,
+    is_run_stale,
     purge_run_state,
     retried,
 )
@@ -392,8 +393,6 @@ def _stale_run_data() -> tuple[
         RunState.TIMEDOUT.value,
     }
     for candidate_id, info in zip(candidate_list, infos):
-        ts = float(info.get(RunInfo.TIMESTAMP.value, 0))
-        hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
         state = str(info.get(RunInfo.STATE.value, ""))
         has_resources = bool(resources_by_run.get(candidate_id))
 
@@ -406,11 +405,10 @@ def _stale_run_data() -> tuple[
             # for this run is empty.
             if not has_resources:
                 continue
-        else:
+        elif not is_run_stale(info, hb_threshold):
             # Running (or unknown / missing state) — gate on heartbeat
             # staleness so live runs are never touched.
-            if hb >= hb_threshold:
-                continue
+            continue
 
         stale_ids.append(candidate_id)
         run_info_by_id[candidate_id] = dict(info)

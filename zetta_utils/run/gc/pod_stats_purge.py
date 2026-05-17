@@ -25,8 +25,9 @@ import time
 from collections import defaultdict
 
 from zetta_utils.log import get_logger
-from zetta_utils.run import RunInfo, strip_per_pod_resource_stats
+from zetta_utils.run import strip_per_pod_resource_stats
 from zetta_utils.run.db import POD_STATS_DB, RUN_DB
+from zetta_utils.run.gc.utils import STALENESS_COLUMNS, is_run_stale
 
 logger = get_logger("zetta_utils")
 
@@ -67,7 +68,7 @@ def purge_stale_pod_stats(hours: int = DEFAULT_HOURS) -> int:
     run_ids = list(rows_by_run.keys())
     if run_ids:
         try:
-            infos = RUN_DB[(run_ids, (RunInfo.HEARTBEAT.value, RunInfo.TIMESTAMP.value))]
+            infos = RUN_DB[(run_ids, STALENESS_COLUMNS)]
         except KeyError:
             # FirestoreBackend.read prechecks the single-row case and
             # raises KeyError when the only requested row is absent;
@@ -80,9 +81,7 @@ def purge_stale_pod_stats(hours: int = DEFAULT_HOURS) -> int:
     to_delete: list[str] = list(orphan_rows)
     stale_runs: list[str] = []
     for run_id, info in zip(run_ids, infos):
-        ts = float(info.get(RunInfo.TIMESTAMP.value, 0.0))
-        hb = float(info.get(RunInfo.HEARTBEAT.value, ts))
-        if hb <= 0 or hb < threshold:
+        if is_run_stale(info, threshold):
             to_delete.extend(rows_by_run[run_id])
             stale_runs.append(run_id)
 

@@ -32,8 +32,8 @@ from google.cloud.firestore import DELETE_FIELD
 
 from zetta_utils.layer.db_layer.firestore.backend import FirestoreBackend
 from zetta_utils.log import get_logger
-from zetta_utils.run import RunInfo
 from zetta_utils.run.db import RUN_DB
+from zetta_utils.run.gc.utils import STALENESS_COLUMNS, is_run_stale
 
 logger = get_logger("zetta_utils")
 
@@ -93,16 +93,10 @@ def purge_stale_per_pod(
     threshold = time.time() - hours * 3600
     processed = _load_checkpoint(checkpoint_path)
 
-    runs = RUN_DB.query(
-        return_columns=(RunInfo.HEARTBEAT.value, RunInfo.TIMESTAMP.value),
-    )
-    stale_run_ids: list[str] = []
-    for run_id, info in runs.items():
-        hb_val = info.get(RunInfo.HEARTBEAT.value)
-        if not isinstance(hb_val, (int, float)):
-            hb_val = info.get(RunInfo.TIMESTAMP.value)
-        if not isinstance(hb_val, (int, float)) or hb_val <= 0 or hb_val < threshold:
-            stale_run_ids.append(run_id)
+    runs = RUN_DB.query(return_columns=STALENESS_COLUMNS)
+    stale_run_ids: list[str] = [
+        run_id for run_id, info in runs.items() if is_run_stale(info, threshold)
+    ]
 
     pending = [run_id for run_id in stale_run_ids if run_id not in processed]
     logger.info(

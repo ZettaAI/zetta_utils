@@ -736,6 +736,14 @@ def main():
         )
 
     if not args.skip_pip:
+        # uv ignores `Requires-Python` upper bounds in package metadata
+        # for better or for worse. Helps with poorly maintained packages,
+        # but breaks if the bound was there for good reason
+        run_command(
+            "pip install --no-cache-dir -q uv",
+            "Installing uv",
+        )
+
         if args.pcg:
             if not args.dockerfile:
                 check_conda_environment()
@@ -744,8 +752,8 @@ def main():
                 "Install graph-tool via conda",
             )
             run_command(
-                f"pip install --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
-                "Install PCG package (do deps)",
+                f"uv pip install --no-cache --no-deps git+https://github.com/CAVEconnectome/PyChunkedGraph.git@{args.pcgtag}",
+                "Install PCG package (no deps)",
             )
 
         install_mode = args.mode
@@ -760,7 +768,7 @@ def main():
             )
 
         run_command(
-            f"pip install --no-cache-dir --no-deps -r {requirements_file} && pip install --no-cache-dir --no-deps -e .",
+            f"uv pip install --no-cache --no-deps -r {requirements_file} && uv pip install --no-cache --no-deps -e .",
             "Installing pinned dependencies and zetta_utils package",
         )
 

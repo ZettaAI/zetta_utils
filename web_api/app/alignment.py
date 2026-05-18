@@ -64,8 +64,10 @@ class ApplyCorrespondencesRequest(BaseModel):
     correspondences_dict: CorrespondencesDict = Field(
         ..., description="Dictionary with correspondence lines"
     )
-    image: list[list[list[list[float]]]] = Field(
-        ..., description="Image tensor as nested list (C, H, W, 1)"
+    src_encoding: list[list[list[list[float]]]] = Field(
+        ...,
+        description="Source encoding tensor (C, H, W, 1). Drives the online "
+        "finetuner and is the source side of MISD inference.",
     )
     num_iter: int = Field(200, description="Number of optimization iterations")
     rig: float = Field(1000, description="Rigidity penalty weight controlling smoothness")
@@ -86,15 +88,23 @@ class ApplyCorrespondencesRequest(BaseModel):
         description="Mask interpretation: 'tissue' (1=tissue, 0=non-tissue) or "
         "'defect' (1=defect, 0=non-defect). Defect masks are inverted internally.",
     )
-    tgt_image: list[list[list[list[float]]]] | None = Field(
+    tgt_encoding: list[list[list[list[float]]]] | None = Field(
         None,
-        description="Target section image tensor (C, H, W, 1). When provided with "
-        "mse_weight > 0, enables image-based MSE optimization.",
+        description="Target encoding tensor (C, H, W, 1). When provided with "
+        "mse_weight > 0, enables encoding-based MSE optimization. Required for "
+        "MISD inference.",
+    )
+    src_image: list[list[list[list[float]]]] | None = Field(
+        None,
+        description="Optional source display image (C, H, W, 1). When provided, "
+        "the backend warps it with the relaxed field and returns it as "
+        "warped_image. When omitted, the warped src_encoding is returned in its "
+        "place.",
     )
     mse_weight: float = Field(
         0.0,
-        description="Weight for MSE loss between warped source and target images. "
-        "Only used when tgt_image is provided.",
+        description="Weight for MSE loss between warped source and target encodings. "
+        "Only used when tgt_encoding is provided.",
     )
     downsample_factor: int = Field(
         16,
@@ -136,11 +146,12 @@ def _parse_json_request(body: dict, device: torch.device):
         ]
     }
 
-    image_tensor = torch.tensor(req.image, dtype=torch.float32, device=device)
+    src_encoding_tensor = torch.tensor(req.src_encoding, dtype=torch.float32, device=device)
 
     src_mask_tensor = None
     tgt_mask_tensor = None
-    tgt_image_tensor = None
+    tgt_encoding_tensor = None
+    src_image_tensor = None
 
     if req.src_mask is not None:
         src_mask_tensor = torch.tensor(req.src_mask, dtype=torch.float32, device=device)
@@ -152,8 +163,11 @@ def _parse_json_request(body: dict, device: torch.device):
         if req.mask_type == "defect":
             tgt_mask_tensor = 1.0 - tgt_mask_tensor
 
-    if req.tgt_image is not None:
-        tgt_image_tensor = torch.tensor(req.tgt_image, dtype=torch.float32, device=device)
+    if req.tgt_encoding is not None:
+        tgt_encoding_tensor = torch.tensor(req.tgt_encoding, dtype=torch.float32, device=device)
+
+    if req.src_image is not None:
+        src_image_tensor = torch.tensor(req.src_image, dtype=torch.float32, device=device)
 
     params = {
         "num_iter": req.num_iter,
@@ -165,10 +179,11 @@ def _parse_json_request(body: dict, device: torch.device):
     }
     return (
         correspondences_dict,
-        image_tensor,
+        src_encoding_tensor,
         src_mask_tensor,
         tgt_mask_tensor,
-        tgt_image_tensor,
+        tgt_encoding_tensor,
+        src_image_tensor,
         params,
     )
 
@@ -216,8 +231,10 @@ async def _parse_multipart_request(request: Request, device: torch.device):
 
     if "metadata" not in form:
         raise HTTPException(status_code=400, detail="Missing required field: 'metadata'")
-    if "image-data" not in form:
-        raise HTTPException(status_code=400, detail="Missing required field: 'image-data'")
+    if "src-encoding-data" not in form:
+        raise HTTPException(
+            status_code=400, detail="Missing required field: 'src-encoding-data'"
+        )
 
     metadata_str = await _read_form_field_str(form, "metadata")
     try:
@@ -225,7 +242,7 @@ async def _parse_multipart_request(request: Request, device: torch.device):
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=400, detail=f"Invalid JSON in 'metadata': {e}") from e
 
-    missing = [k for k in ("correspondences", "image_shape") if k not in metadata]
+    missing = [k for k in ("correspondences", "src_encoding_shape") if k not in metadata]
     if missing:
         raise HTTPException(
             status_code=400,
@@ -234,9 +251,11 @@ async def _parse_multipart_request(request: Request, device: torch.device):
 
     correspondences_dict = metadata["correspondences"]
 
-    image_bytes = await _read_form_field_bytes(form, "image-data")
-    image_np = _read_tensor_from_bytes(image_bytes, metadata["image_shape"], "image-data")
-    image_tensor = torch.tensor(image_np, dtype=torch.float32, device=device)
+    src_enc_bytes = await _read_form_field_bytes(form, "src-encoding-data")
+    src_enc_np = _read_tensor_from_bytes(
+        src_enc_bytes, metadata["src_encoding_shape"], "src-encoding-data"
+    )
+    src_encoding_tensor = torch.tensor(src_enc_np, dtype=torch.float32, device=device)
 
     src_mask_tensor = None
     tgt_mask_tensor = None
@@ -266,18 +285,32 @@ async def _parse_multipart_request(request: Request, device: torch.device):
         if mask_type == "defect":
             tgt_mask_tensor = 1.0 - tgt_mask_tensor
 
-    tgt_image_tensor = None
-    if "tgt-image-data" in form:
-        if "tgt_image_shape" not in metadata:
+    tgt_encoding_tensor = None
+    if "tgt-encoding-data" in form:
+        if "tgt_encoding_shape" not in metadata:
             raise HTTPException(
                 status_code=400,
-                detail="'tgt_image_shape' required in metadata when 'tgt-image-data' is provided",
+                detail="'tgt_encoding_shape' required in metadata when "
+                "'tgt-encoding-data' is provided",
             )
-        tgt_img_bytes = await _read_form_field_bytes(form, "tgt-image-data")
-        tgt_img_np = _read_tensor_from_bytes(
-            tgt_img_bytes, metadata["tgt_image_shape"], "tgt-image-data"
+        tgt_enc_bytes = await _read_form_field_bytes(form, "tgt-encoding-data")
+        tgt_enc_np = _read_tensor_from_bytes(
+            tgt_enc_bytes, metadata["tgt_encoding_shape"], "tgt-encoding-data"
         )
-        tgt_image_tensor = torch.tensor(tgt_img_np, dtype=torch.float32, device=device)
+        tgt_encoding_tensor = torch.tensor(tgt_enc_np, dtype=torch.float32, device=device)
+
+    src_image_tensor = None
+    if "src-image-data" in form:
+        if "src_image_shape" not in metadata:
+            raise HTTPException(
+                status_code=400,
+                detail="'src_image_shape' required in metadata when 'src-image-data' is provided",
+            )
+        src_img_bytes = await _read_form_field_bytes(form, "src-image-data")
+        src_img_np = _read_tensor_from_bytes(
+            src_img_bytes, metadata["src_image_shape"], "src-image-data"
+        )
+        src_image_tensor = torch.tensor(src_img_np, dtype=torch.float32, device=device)
 
     params = {
         "num_iter": metadata.get("num_iter", 200),
@@ -289,10 +322,11 @@ async def _parse_multipart_request(request: Request, device: torch.device):
     }
     return (
         correspondences_dict,
-        image_tensor,
+        src_encoding_tensor,
         src_mask_tensor,
         tgt_mask_tensor,
-        tgt_image_tensor,
+        tgt_encoding_tensor,
+        src_image_tensor,
         params,
     )
 
@@ -365,19 +399,31 @@ def _wants_binary_response(request: Request) -> bool:
     return "application/octet-stream" in accept or fmt == "binary-v1"
 
 
-def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
+def _run_misd_detection(warped_src, tgt_tensor, input_dtype):
     t1 = time.time()
     misd = _get_misd_detector()
     t_model = time.time() - t1
     print(f"[apply_correspondences] misd detector init: {t_model:.2f}s")
 
     t2 = time.time()
-    warped_int8 = (warped_image * 127).clamp(-128, 127).round().to(torch.int8)
-    tgt_int8 = (tgt_image_tensor * 127).clamp(-128, 127).round().to(torch.int8)
+    warped_int8 = (warped_src * 127).clamp(-128, 127).round().to(torch.int8)
+    tgt_int8 = (tgt_tensor * 127).clamp(-128, 127).round().to(torch.int8)
     misd_mask = misd(warped_int8, tgt_int8)
+
+    # The MISD model uses valid-padding convs and may return a tensor smaller
+    # than its input. Center-crop the zero mask so it lines up with the model
+    # output, and remember the crop so we can pad the final mask back to the
+    # original input shape before returning.
+    input_shape = warped_int8.shape  # (C, H_in, W_in, Z)
+    _, h_out, w_out, _ = misd_mask.shape
+    y_off = (input_shape[1] - h_out) // 2
+    x_off = (input_shape[2] - w_out) // 2
+
     zero_mask = (warped_int8 == 0).all(dim=0, keepdim=True) | (tgt_int8 == 0).all(
         dim=0, keepdim=True
     )
+    if zero_mask.shape[1:3] != (h_out, w_out):
+        zero_mask = zero_mask[:, y_off : y_off + h_out, x_off : x_off + w_out, :]
     misd_mask[zero_mask] = 0
 
     structure = np.ones((3, 3), dtype=bool)
@@ -398,6 +444,14 @@ def _run_misd_detection(warped_image, tgt_image_tensor, input_dtype):
                 keep_mask |= labels == seg_id
         out_np[0, :, :, z][keep_mask] = 255
     misd_mask = torch.from_numpy(out_np).to(misd_mask.device)
+
+    # Pad the MISD mask back to the input spatial shape so the response stays
+    # co-registered with the warped image. Border pixels the model did not see
+    # are filled with 0 (no detection).
+    if misd_mask.shape != input_shape:
+        full = torch.zeros(input_shape, dtype=misd_mask.dtype, device=misd_mask.device)
+        full[:, y_off : y_off + h_out, x_off : x_off + w_out, :] = misd_mask
+        misd_mask = full
 
     print(
         f"[apply_correspondences] misd uint8: "
@@ -456,49 +510,63 @@ async def apply_correspondences(request: Request):
     if "multipart/form-data" in content_type:
         (
             correspondences_dict,
-            image_tensor,
+            src_encoding_tensor,
             src_mask_tensor,
             tgt_mask_tensor,
-            tgt_image_tensor,
+            tgt_encoding_tensor,
+            src_image_tensor,
             params,
         ) = await _parse_multipart_request(request, device)
     else:
         body = await request.json()
         (
             correspondences_dict,
-            image_tensor,
+            src_encoding_tensor,
             src_mask_tensor,
             tgt_mask_tensor,
-            tgt_image_tensor,
+            tgt_encoding_tensor,
+            src_image_tensor,
             params,
         ) = _parse_json_request(body, device)
 
-    print(f"[apply_correspondences] tgt_image_tensor is None: " f"{tgt_image_tensor is None}")
-    if tgt_image_tensor is not None:
+    print(
+        f"[apply_correspondences] tgt_encoding_tensor is None: "
+        f"{tgt_encoding_tensor is None}"
+    )
+    if tgt_encoding_tensor is not None:
         print(
-            f"[apply_correspondences] tgt_image_tensor "
-            f"shape: {tgt_image_tensor.shape}, "
-            f"min: {tgt_image_tensor.min().item():.4f}, "
-            f"max: {tgt_image_tensor.max().item():.4f}"
+            f"[apply_correspondences] tgt_encoding_tensor "
+            f"shape: {tgt_encoding_tensor.shape}, "
+            f"min: {tgt_encoding_tensor.min().item():.4f}, "
+            f"max: {tgt_encoding_tensor.max().item():.4f}"
         )
     print(
-        f"[apply_correspondences] image_tensor "
-        f"shape: {image_tensor.shape}, "
-        f"min: {image_tensor.min().item():.4f}, "
-        f"max: {image_tensor.max().item():.4f}"
+        f"[apply_correspondences] src_encoding_tensor "
+        f"shape: {src_encoding_tensor.shape}, "
+        f"min: {src_encoding_tensor.min().item():.4f}, "
+        f"max: {src_encoding_tensor.max().item():.4f}"
     )
+    print(f"[apply_correspondences] src_image_tensor is None: {src_image_tensor is None}")
+    if src_image_tensor is not None:
+        print(
+            f"[apply_correspondences] src_image_tensor "
+            f"shape: {src_image_tensor.shape}, "
+            f"min: {src_image_tensor.min().item():.4f}, "
+            f"max: {src_image_tensor.max().item():.4f}"
+        )
     print(f"[apply_correspondences] params: {params}")
 
     cancel_event = threading.Event()
 
     def _run_computation():
         t0 = time.time()
-        relaxed_field, warped_image = apply_correspondences_to_image(
+        relaxed_field, warped_encoding, warped_image = apply_correspondences_to_image(
             correspondences_dict=correspondences_dict,
-            image=image_tensor,
+            image=src_encoding_tensor,
             src_mask=src_mask_tensor,
             tgt_mask=tgt_mask_tensor,
-            tgt_image=tgt_image_tensor,
+            tgt_image=tgt_encoding_tensor,
+            extra_image_to_warp=src_image_tensor,
             cancel_event=cancel_event,
             **params,
         )
@@ -506,11 +574,15 @@ async def apply_correspondences(request: Request):
         print(f"[apply_correspondences] correspondence relaxation: {t_corr:.2f}s")
 
         misd_as_input = None
-        if tgt_image_tensor is not None:
-            misd_as_input = _run_misd_detection(warped_image, tgt_image_tensor, image_tensor.dtype)
+        if tgt_encoding_tensor is not None:
+            misd_as_input = _run_misd_detection(
+                warped_encoding, tgt_encoding_tensor, src_encoding_tensor.dtype
+            )
+
+        display_warped = warped_image if warped_image is not None else warped_encoding
 
         print(f"[apply_correspondences] total: {time.time() - t0:.2f}s")
-        return relaxed_field, warped_image, misd_as_input
+        return relaxed_field, display_warped, misd_as_input
 
     async with _gpu_semaphore:
         if await request.is_disconnected():
